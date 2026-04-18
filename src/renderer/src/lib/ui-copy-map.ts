@@ -1197,6 +1197,9 @@ export const enUiCopyV1 = {
   settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
     'banji stores workspace data locally in SQLite on this device.',
+  settingsBenchmarksTitle: 'Benchmarks',
+  settingsBenchmarksDescription:
+    'Run desktop benchmark scenarios, inspect target status, and compare local results.',
   settingsDataDirectoryLabel: 'Data directory',
   settingsWorkspaceStoreLabel: 'Workspace store',
   settingsPreferencesFileLabel: 'Preferences file',
@@ -2326,6 +2329,9 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
     'banji stores workspace data on this device in a local SQLite file and keeps rolling local backup snapshots.',
+  settingsBenchmarksTitle: 'Benchmarks',
+  settingsBenchmarksDescription:
+    'Run desktop benchmark scenarios, inspect target status, and compare local results.',
   settingsBackupDirectoryLabel: 'Backup snapshots',
   settingsBackupSnapshotAction: 'Create backup snapshot',
   settingsBackupSnapshotCreating: 'Creating snapshot…',

@@ -169,7 +169,7 @@ const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
   {
     labelKey: 'sidebarSectionMain',
     sections: SETTINGS_MAIN_SECTIONS.filter((section) =>
-      ['workspace', 'interface', 'local-data', 'planning'].includes(section.id),
+      ['workspace', 'interface', 'local-data', 'planning', 'benchmarks'].includes(section.id),
     ),
   },
   {

@@ -53,6 +53,7 @@ import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
+import { BenchmarkSettingsPage } from './benchmark-settings';
 
 const numberInputClassName =
   'h-11 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none outline-none';
@@ -1535,6 +1536,10 @@ export function SettingsRoute() {
                 />
               }
               path="local-data"
+            />
+            <Route
+              element={<BenchmarkSettingsPage />}
+              path="benchmarks"
             />
             <Route
               element={<CreditsPage t={t} />}

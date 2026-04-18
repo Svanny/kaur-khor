@@ -3,13 +3,22 @@ import { EntityFavoriteIcon } from '@icons/entities';
 import {
   NavigationArchiveIcon,
   NavigationBrainCircuitIcon,
+  NavigationPerformanceIcon,
   NavigationSplitViewIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
 import type { IconComponent } from '@icons';
 import type { TranslationKey } from '@/lib/translations';
 
-export type SettingsSectionId = 'workspace' | 'interface' | 'planning' | 'local-data' | 'archive' | 'credits' | 'danger-zone';
+export type SettingsSectionId =
+  | 'workspace'
+  | 'interface'
+  | 'planning'
+  | 'local-data'
+  | 'benchmarks'
+  | 'archive'
+  | 'credits'
+  | 'danger-zone';
 
 export type SettingsSectionConfig = {
   descriptionKey: TranslationKey;
@@ -47,6 +56,13 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     titleKey: 'settingsSenaParametersPanelTitle',
     descriptionKey: 'settingsSenaParametersPanelDescription',
     icon: NavigationBrainCircuitIcon,
+  },
+  {
+    id: 'benchmarks',
+    path: '/settings/benchmarks',
+    titleKey: 'settingsBenchmarksTitle',
+    descriptionKey: 'settingsBenchmarksDescription',
+    icon: NavigationPerformanceIcon,
   },
   {
     id: 'archive',

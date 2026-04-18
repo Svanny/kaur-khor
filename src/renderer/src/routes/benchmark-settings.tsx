@@ -1,0 +1,529 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  BANJI_BENCHMARK_SCENARIOS,
+  BANJI_BENCHMARK_TARGETS,
+  type BanjiBenchmarkComparison,
+  type BanjiBenchmarkFixtureSize,
+  type BanjiBenchmarkRunRecord,
+  type BanjiBenchmarkScenarioId,
+  type BanjiBenchmarkTargetEvaluation,
+} from '@shared/benchmark';
+import { ActionOpenFolderIcon, ActionUndoIcon } from '@icons/actions';
+import { NavigationPerformanceIcon } from '@icons/navigation';
+import { WorkspaceActionRow, WorkspacePanel } from '@/components/system/workspace';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
+
+const statusClassName = {
+  pass: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  watch: 'bg-amber-50 text-amber-700 ring-amber-200',
+  fail: 'bg-rose-50 text-rose-700 ring-rose-200',
+  missing: 'bg-muted text-muted-foreground ring-border',
+};
+
+function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boolean') {
+  if (value == null) {
+    return 'No data';
+  }
+  if (unit === 'boolean') {
+    return value >= 1 ? 'Yes' : 'No';
+  }
+  if (unit === 'percent') {
+    return `${value.toFixed(1)}%`;
+  }
+  return `${Math.round(value)} ms`;
+}
+
+function formatRunLabel(run: BanjiBenchmarkRunRecord) {
+  const date = new Date(run.startedAt);
+  return `${date.toLocaleString()} - ${run.status}`;
+}
+
+function runTargetCounts(run: BanjiBenchmarkRunRecord | null) {
+  const targets = run?.summaries.flatMap((summary) => summary.targets ?? []) ?? [];
+  return {
+    pass: targets.filter((target) => target.status === 'pass').length,
+    watch: targets.filter((target) => target.status === 'watch').length,
+    fail: targets.filter((target) => target.status === 'fail').length,
+    missing: targets.filter((target) => target.status === 'missing').length,
+  };
+}
+
+function findTargetMeta(target: BanjiBenchmarkTargetEvaluation) {
+  return BANJI_BENCHMARK_TARGETS.find((candidate) => candidate.metricName === target.metricName);
+}
+
+function ScenarioToggle({
+  checked,
+  id,
+  label,
+  onToggle,
+}: {
+  checked: boolean;
+  id: BanjiBenchmarkScenarioId;
+  label: string;
+  onToggle: (id: BanjiBenchmarkScenarioId) => void;
+}) {
+  return (
+    <label className="flex min-w-0 items-center gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm">
+      <Checkbox checked={checked} onCheckedChange={() => onToggle(id)} />
+      <span className="min-w-0 truncate">{label}</span>
+    </label>
+  );
+}
+
+function TargetTable({ targets }: { targets: BanjiBenchmarkTargetEvaluation[] }) {
+  if (targets.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No target evaluations yet. Run a benchmark scenario to populate this table.
+      </p>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[760px] text-left text-sm">
+        <thead className="border-b border-border/70 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+          <tr>
+            <th className="py-3 pr-4 font-semibold">Target</th>
+            <th className="py-3 pr-4 font-semibold">Result</th>
+            <th className="py-3 pr-4 font-semibold">Goal</th>
+            <th className="py-3 pr-4 font-semibold">Acceptable</th>
+            <th className="py-3 pr-4 font-semibold">Basis</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {targets.map((target) => {
+            const meta = findTargetMeta(target);
+            return (
+              <tr key={target.metricName}>
+                <td className="py-3 pr-4 align-top">
+                  <div className="font-medium text-foreground">{target.label}</div>
+                  <div className="mt-1 font-mono text-xs text-muted-foreground">{target.metricName}</div>
+                </td>
+                <td className="py-3 pr-4 align-top">
+                  <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1', statusClassName[target.status])}>
+                    {target.status}
+                  </span>
+                  <div className="mt-1 text-muted-foreground">{formatMetricValue(target.value, target.unit)}</div>
+                </td>
+                <td className="py-3 pr-4 align-top">{formatMetricValue(target.nonNegotiable, target.unit)}</td>
+                <td className="py-3 pr-4 align-top">{formatMetricValue(target.acceptable, target.unit)}</td>
+                <td className="max-w-[18rem] py-3 pr-4 align-top text-muted-foreground">
+                  <div>{target.source}</div>
+                  {meta ? <div className="mt-1 text-xs leading-5">{meta.rationale}</div> : null}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ComparisonTable({ comparison }: { comparison: BanjiBenchmarkComparison | null }) {
+  if (!comparison) {
+    return <p className="text-sm text-muted-foreground">Choose two completed runs to compare.</p>;
+  }
+  const visibleMetrics = comparison.metrics
+    .filter((metric) => metric.status !== 'missing')
+    .slice(0, 20);
+
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm text-muted-foreground">
+        Comparing {comparison.baselineRunId} to {comparison.candidateRunId}.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-left text-sm">
+          <thead className="border-b border-border/70 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+            <tr>
+              <th className="py-3 pr-4 font-semibold">Metric</th>
+              <th className="py-3 pr-4 font-semibold">Baseline</th>
+              <th className="py-3 pr-4 font-semibold">Candidate</th>
+              <th className="py-3 pr-4 font-semibold">Delta</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60">
+            {visibleMetrics.map((metric) => (
+              <tr key={metric.metricName}>
+                <td className="py-3 pr-4 font-mono text-xs">{metric.metricName}</td>
+                <td className="py-3 pr-4">{metric.baseline == null ? 'No data' : metric.baseline.toFixed(1)}</td>
+                <td className="py-3 pr-4">{metric.candidate == null ? 'No data' : metric.candidate.toFixed(1)}</td>
+                <td className="py-3 pr-4">
+                  <span className={cn(
+                    'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1',
+                    metric.status === 'regression'
+                      ? statusClassName.fail
+                      : metric.status === 'improvement'
+                        ? statusClassName.pass
+                        : statusClassName.missing,
+                  )}
+                  >
+                    {metric.percent == null ? 'No data' : `${metric.percent.toFixed(1)}% ${metric.status}`}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function BenchmarkSettingsPage() {
+  const [runs, setRuns] = useState<BanjiBenchmarkRunRecord[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [selectedScenarios, setSelectedScenarios] = useState<BanjiBenchmarkScenarioId[]>(
+    BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id),
+  );
+  const [fixtureSize, setFixtureSize] = useState<BanjiBenchmarkFixtureSize>('medium');
+  const [traceEnabled, setTraceEnabled] = useState(false);
+  const [repeatCount, setRepeatCount] = useState('1');
+  const [buildBeforeRun, setBuildBeforeRun] = useState(true);
+  const [status, setStatus] = useState('Loading benchmark runner...');
+  const [available, setAvailable] = useState(false);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
+  const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
+  const [comparison, setComparison] = useState<BanjiBenchmarkComparison | null>(null);
+
+  const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null;
+  const activeRun = activeRunId ? runs.find((run) => run.runId === activeRunId) ?? null : null;
+  const targetCounts = runTargetCounts(selectedRun);
+  const completedRuns = runs.filter((run) => run.status === 'passed' || run.status === 'failed');
+  const selectedTargets = useMemo(
+    () => selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? [],
+    [selectedRun],
+  );
+
+  async function refreshRuns(nextSelectedRunId?: string | null) {
+    const nextRuns = await window.banjiDesktop.benchmarkRunner?.listRuns() ?? [];
+    setRuns(nextRuns);
+    const nextActiveRun = nextRuns.find((run) => run.status === 'queued' || run.status === 'running') ?? null;
+    setActiveRunId(nextActiveRun?.runId ?? null);
+    if (nextSelectedRunId) {
+      setSelectedRunId(nextSelectedRunId);
+    } else if (!selectedRunId && nextRuns[0]) {
+      setSelectedRunId(nextRuns[0].runId);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const availability = await window.banjiDesktop.benchmarkRunner?.getAvailability();
+        if (cancelled) {
+          return;
+        }
+        setAvailable(Boolean(availability?.available));
+        setActiveRunId(availability?.activeRunId ?? null);
+        setStatus(availability?.available ? 'Ready to run benchmarks.' : availability?.reason ?? 'Benchmark runner unavailable.');
+        await refreshRuns();
+      } catch (error) {
+        if (!cancelled) {
+          setStatus(error instanceof Error ? error.message : 'Failed to load benchmark runner.');
+        }
+      }
+    }
+    void load();
+    const unsubscribe = window.banjiDesktop.benchmarkRunner?.onRunEvent((event) => {
+      setStatus(event.message);
+      if (event.record) {
+        setRuns((currentRuns) => {
+          const without = currentRuns.filter((run) => run.runId !== event.record?.runId);
+          return [event.record, ...without].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+        });
+        setSelectedRunId(event.record.runId);
+        setActiveRunId(event.record.status === 'queued' || event.record.status === 'running' ? event.record.runId : null);
+      } else if (event.stream && event.line) {
+        setRuns((currentRuns) =>
+          currentRuns.map((run) => {
+            if (run.runId !== event.runId) {
+              return run;
+            }
+            const nextTail = [...run[event.stream === 'stdout' ? 'stdoutTail' : 'stderrTail'], event.line ?? ''].slice(-200);
+            return event.stream === 'stdout'
+              ? { ...run, stdoutTail: nextTail }
+              : { ...run, stderrTail: nextTail };
+          }),
+        );
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function toggleScenario(id: BanjiBenchmarkScenarioId) {
+    setSelectedScenarios((current) => {
+      if (current.includes(id)) {
+        return current.length === 1 ? current : current.filter((scenario) => scenario !== id);
+      }
+      return [...current, id];
+    });
+  }
+
+  async function startRun() {
+    if (!window.banjiDesktop.benchmarkRunner) {
+      return;
+    }
+    setStatus('Starting benchmark run...');
+    const run = await window.banjiDesktop.benchmarkRunner.startRun({
+      scenarios: selectedScenarios,
+      fixtureSize,
+      traceEnabled,
+      repeatCount: Number(repeatCount) || 1,
+      buildBeforeRun,
+    });
+    setSelectedRunId(run.runId);
+    setActiveRunId(run.runId);
+    await refreshRuns(run.runId);
+  }
+
+  async function cancelRun() {
+    if (!activeRunId || !window.banjiDesktop.benchmarkRunner) {
+      return;
+    }
+    setStatus('Cancelling benchmark run...');
+    const run = await window.banjiDesktop.benchmarkRunner.cancelRun(activeRunId);
+    setSelectedRunId(run.runId);
+    await refreshRuns(run.runId);
+  }
+
+  async function compareRuns() {
+    if (!baselineRunId || !candidateRunId || !window.banjiDesktop.benchmarkRunner) {
+      return;
+    }
+    setComparison(await window.banjiDesktop.benchmarkRunner.compareRuns({ baselineRunId, candidateRunId }));
+  }
+
+  async function revealSelectedRun() {
+    if (selectedRun && window.banjiDesktop.benchmarkRunner) {
+      await window.banjiDesktop.benchmarkRunner.revealRun(selectedRun.runId);
+    }
+  }
+
+  return (
+    <div className="grid gap-4 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)]">
+      <WorkspacePanel className="self-start">
+        <div className="grid gap-6">
+          <div className="grid gap-2">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <NavigationPerformanceIcon className="size-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-foreground">Benchmark control</p>
+                <p className="text-sm text-muted-foreground">{status}</p>
+              </div>
+            </div>
+          </div>
+
+          <section className="grid gap-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Scenarios</p>
+            <div className="grid gap-2">
+              {BANJI_BENCHMARK_SCENARIOS.map((scenario) => (
+                <ScenarioToggle
+                  key={scenario.id}
+                  checked={selectedScenarios.includes(scenario.id)}
+                  id={scenario.id}
+                  label={scenario.label}
+                  onToggle={toggleScenario}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="grid gap-3 border-t border-border/60 pt-5">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-sm">
+                <span>Fixture size</span>
+                <Select value={fixtureSize} onValueChange={(value) => setFixtureSize(value as BanjiBenchmarkFixtureSize)}>
+                  <SelectTrigger aria-label="Fixture size">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="minimal">Minimal</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="heavy">Heavy</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+              <label className="grid gap-2 text-sm">
+                <span>Repeat count</span>
+                <Select value={repeatCount} onValueChange={setRepeatCount}>
+                  <SelectTrigger aria-label="Repeat count">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                  </SelectContent>
+                </Select>
+              </label>
+            </div>
+            <label className="flex items-center gap-3 text-sm">
+              <Checkbox checked={traceEnabled} onCheckedChange={(value) => setTraceEnabled(Boolean(value))} />
+              Capture Playwright trace artifacts
+            </label>
+            <label className="flex items-center gap-3 text-sm">
+              <Checkbox checked={buildBeforeRun} onCheckedChange={(value) => setBuildBeforeRun(Boolean(value))} />
+              Build before running
+            </label>
+          </section>
+
+          <WorkspaceActionRow>
+            <Button disabled={!available || Boolean(activeRunId)} type="button" onClick={() => void startRun()}>
+              Run selected
+            </Button>
+            <Button disabled={!activeRunId} type="button" variant="outline" onClick={() => void cancelRun()}>
+              Cancel
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void refreshRuns()}>
+              <ActionUndoIcon data-icon="inline-start" />
+              Refresh
+            </Button>
+          </WorkspaceActionRow>
+
+          <section className="grid gap-3 border-t border-border/60 pt-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Runs</p>
+            {runs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No GUI benchmark runs yet.</p>
+            ) : (
+              <Select value={selectedRun?.runId ?? ''} onValueChange={setSelectedRunId}>
+                <SelectTrigger aria-label="Selected benchmark run">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {runs.map((run) => (
+                    <SelectItem key={run.runId} value={run.runId}>
+                      {formatRunLabel(run)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </section>
+        </div>
+      </WorkspacePanel>
+
+      <div className="grid min-w-0 gap-4">
+        <WorkspacePanel>
+          {selectedRun ? (
+            <div className="grid gap-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{selectedRun.runId}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatRunLabel(selectedRun)} · {selectedRun.fixtureSize} fixture · {selectedRun.repeatCount} repeat
+                  </p>
+                </div>
+                <WorkspaceActionRow>
+                  <Button type="button" variant="outline" onClick={() => void revealSelectedRun()}>
+                    <ActionOpenFolderIcon data-icon="inline-start" />
+                    Reveal artifacts
+                  </Button>
+                </WorkspaceActionRow>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-4">
+                {(['pass', 'watch', 'fail', 'missing'] as const).map((statusKey) => (
+                  <div key={statusKey} className="rounded-lg border border-border/60 px-3 py-3">
+                    <p className="text-2xl font-semibold text-foreground">{targetCounts[statusKey]}</p>
+                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{statusKey}</p>
+                  </div>
+                ))}
+              </div>
+
+              {selectedRun.error ? (
+                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {selectedRun.error}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Select or run a benchmark to inspect results.</p>
+          )}
+        </WorkspacePanel>
+
+        <WorkspacePanel>
+          <div className="grid gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Target status</p>
+              <p className="text-sm text-muted-foreground">
+                Non-negotiable, acceptable, and technical targets are based on desktop app startup guidance, RAIL, Core Web Vitals, Electron performance guidance, and Chromium jank diagnostics.
+              </p>
+            </div>
+            <TargetTable targets={selectedTargets} />
+          </div>
+        </WorkspacePanel>
+
+        <WorkspacePanel>
+          <div className="grid gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Compare runs</p>
+              <p className="text-sm text-muted-foreground">Compare medians and derived metrics. More than 10% slower is marked as a regression.</p>
+            </div>
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+              <Select value={baselineRunId ?? ''} onValueChange={setBaselineRunId}>
+                <SelectTrigger aria-label="Baseline run">
+                  <SelectValue placeholder="Baseline" />
+                </SelectTrigger>
+                <SelectContent>
+                  {completedRuns.map((run) => (
+                    <SelectItem key={run.runId} value={run.runId}>
+                      {formatRunLabel(run)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={candidateRunId ?? ''} onValueChange={setCandidateRunId}>
+                <SelectTrigger aria-label="Candidate run">
+                  <SelectValue placeholder="Candidate" />
+                </SelectTrigger>
+                <SelectContent>
+                  {completedRuns.map((run) => (
+                    <SelectItem key={run.runId} value={run.runId}>
+                      {formatRunLabel(run)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button disabled={!baselineRunId || !candidateRunId} type="button" onClick={() => void compareRuns()}>
+                Compare
+              </Button>
+            </div>
+            <ComparisonTable comparison={comparison} />
+          </div>
+        </WorkspacePanel>
+
+        <WorkspacePanel>
+          <div className="grid gap-3">
+            <p className="text-sm font-semibold text-foreground">Output tail</p>
+            {activeRun ? (
+              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+                {[...activeRun.stdoutTail, ...activeRun.stderrTail].slice(-80).join('\n') || 'Waiting for output...'}
+              </pre>
+            ) : selectedRun ? (
+              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+                {[...selectedRun.stdoutTail, ...selectedRun.stderrTail].slice(-80).join('\n') || 'No output captured.'}
+              </pre>
+            ) : (
+              <p className="text-sm text-muted-foreground">No output yet.</p>
+            )}
+          </div>
+        </WorkspacePanel>
+      </div>
+    </div>
+  );
+}

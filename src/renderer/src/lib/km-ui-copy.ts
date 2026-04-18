@@ -427,6 +427,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យ',
   settingsLocalWorkspaceStorageDescription:
     'banji រក្សាទុកទិន្នន័យកន្លែងធ្វើការនៅលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
+  settingsBenchmarksTitle: 'ការវាស់ល្បឿន',
+  settingsBenchmarksDescription:
+    'រត់ការវាស់ល្បឿន desktop មើលស្ថានភាពគោលដៅ និងប្រៀបធៀបលទ្ធផលក្នុងម៉ាស៊ីន។',
   settingsBackupDirectoryLabel: 'ស្នាមចម្លងបម្រុងទុក',
   settingsBackupSnapshotAction: 'បង្កើតស្នាមចម្លងបម្រុងទុក',
   settingsBackupSnapshotCreating: 'កំពុងបង្កើតស្នាមចម្លង…',
