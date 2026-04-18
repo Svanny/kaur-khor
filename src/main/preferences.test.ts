@@ -67,6 +67,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
   });
 
@@ -112,6 +119,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
 
     await expect(
@@ -156,6 +170,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
@@ -192,6 +213,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
@@ -229,6 +257,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: '2026-04-05T17:00:00.000Z',
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
   });
 
@@ -310,6 +345,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
@@ -345,6 +387,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
@@ -380,6 +429,13 @@ describe('desktop preferences store', () => {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: defaultSenaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
   });
 
@@ -402,5 +458,28 @@ describe('desktop preferences store', () => {
     await expect(saveDesktopPreferences(userDataPath, { usdToKhrExchangeRate: Number.NaN })).resolves.toEqual(
       expect.objectContaining({ usdToKhrExchangeRate: 4000 }),
     );
+  });
+
+  it('treats existing preference files without onboarding metadata as already onboarded', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        language: 'en',
+        currency: 'USD',
+      }),
+      'utf8',
+    );
+
+    const { loadDesktopPreferences } = await loadPreferencesModule();
+    const preferences = await loadDesktopPreferences(userDataPath);
+
+    expect(preferences.onboardingCompletedAt).not.toBeNull();
+    expect(preferences.seenUnlockedNavItems).toEqual({
+      catalog: true,
+      operations: true,
+      performance: true,
+      financials: true,
+    });
   });
 });

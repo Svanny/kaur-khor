@@ -11,6 +11,7 @@ export {
 } from './custom';
 export {
   ArchiveRestore as ActionArchiveRestoreIcon,
+  ArrowRight as ActionContinueIcon,
   ArrowUpRight as ActionOpenExternalIcon,
   BadgePlus as ActionAddBadgeIcon,
   Boxes as ActionBoxesIcon,

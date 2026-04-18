@@ -396,8 +396,18 @@ export function DashboardRoute() {
       <WorkspacePage>
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Overview needs the catalog first')}
-          hint={translateUiLiteral(language, 'Create the first SKU so Banji can build an action list from real stock work.')}
-          action={<CreateFirstSkuButton />}
+          hint={translateUiLiteral(language, 'Create the first SKU or service so Banji can build an action list from real catalog work.')}
+          action={
+            <WorkspaceActionRow>
+              <CreateFirstSkuButton />
+              <Button asChild variant="outline">
+                <Link to="/catalog/services/new">
+                  <EntityServiceIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Create first service')}
+                </Link>
+              </Button>
+            </WorkspaceActionRow>
+          }
         />
       </WorkspacePage>
     );

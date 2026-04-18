@@ -111,6 +111,40 @@ describe('command palette descriptors', () => {
           soldAsProduct: true,
         }],
       },
+      observations: [
+        {
+          observationId: 'obs-1',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-01T00:00:00Z',
+            stockSnapshot: [],
+            orderSignals: [],
+            retailPrices: [],
+            servicePrices: [],
+            leadTimeHints: [],
+            retailRankings: [],
+            serviceRankings: [],
+            retailStockouts: [],
+            serviceStockouts: [],
+          },
+        } as never,
+        {
+          observationId: 'obs-2',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-02T00:00:00Z',
+            stockSnapshot: [],
+            orderSignals: [],
+            retailPrices: [],
+            servicePrices: [],
+            leadTimeHints: [],
+            retailRankings: [],
+            serviceRankings: [],
+            retailStockouts: [],
+            serviceStockouts: [],
+          },
+        } as never,
+      ],
       workspaceSummary: {
         ownerSub: 'desktop-owner',
         runId: 'run-1',
@@ -194,6 +228,47 @@ describe('command palette descriptors', () => {
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU · Supplier: Mekong Looms');
     expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
+  });
+
+  test('omits gated page commands when the workspace has not unlocked them yet', () => {
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory({
+        catalog: {
+          schemaVersion: 1,
+          bundles: [],
+          services: [],
+          sharingMask: [],
+          skus: [],
+        },
+        observations: [],
+      }),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAnalysisPage: true,
+      t: (key) =>
+        ({
+          navAnalysis: 'Analysis',
+          navArchive: 'Archive',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navOverview: 'Overview',
+          navPerformance: 'Performance',
+          navFinancials: 'Financials',
+          navRecordUpdate: 'Record update',
+          navSettings: 'Settings',
+          navHelp: 'Help',
+        }[key] ?? key),
+    });
+
+    expect(commands.some((command) => command.id === 'page:catalog')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:operations')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:performance')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:financials')).toBe(false);
   });
 
   test('does not match raw sku ids in search results', () => {

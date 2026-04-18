@@ -69,6 +69,8 @@ function PreferencesProbe() {
     showHeartbeatRibbons,
     showRightRailCards,
     showExplanatoryTooltips,
+    onboardingCompletedAt,
+    seenUnlockedNavItems,
     t,
     usdToKhrExchangeRate,
   } = usePreferences();
@@ -123,6 +125,8 @@ function PreferencesProbe() {
       <div data-testid="persisted-custom-show-logs-view-toggle">{String(persistedCustomShowLogsViewToggle)}</div>
       <div data-testid="persisted-custom-show-heartbeat-ribbons">{String(persistedCustomShowHeartbeatRibbons)}</div>
       <div data-testid="persisted-item-image-mode">{persistedItemImageMode}</div>
+      <div data-testid="onboarding-completed-at">{onboardingCompletedAt ?? 'null'}</div>
+      <div data-testid="seen-unlocked-nav-items">{JSON.stringify(seenUnlockedNavItems)}</div>
       <div data-testid="pending">{String(hasPendingChanges)}</div>
       <div data-testid="translation">{t('settingsTitle')}</div>
       <div data-testid="description-translation">{t('settingsBody')}</div>
@@ -218,6 +222,14 @@ describe('preferences state', () => {
       customShowLogsViewToggle: true,
       customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     });
     savePreferences.mockImplementation(async (payload) => ({
       language: 'km',
@@ -252,6 +264,14 @@ describe('preferences state', () => {
       customShowLogsViewToggle: false,
       customShowHeartbeatRibbons: false,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: payload.onboardingCompletedAt ?? null,
+      seenUnlockedNavItems: payload.seenUnlockedNavItems ?? {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
     }));
     window.banjiDesktop = {
       ...window.banjiDesktop,
@@ -336,6 +356,10 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('true');
     expect(screen.getByTestId('show-logs-view-toggle').textContent).toBe('true');
     expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('true');
+    expect(screen.getByTestId('onboarding-completed-at').textContent).toBe('null');
+    expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+      JSON.stringify({ catalog: false, operations: false, performance: false, financials: false }),
+    );
 
     fireEvent.click(screen.getByText('hide-item-pictures'));
     expect(screen.getByTestId('item-image-mode').textContent).toBe('off');

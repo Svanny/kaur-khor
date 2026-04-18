@@ -39,13 +39,19 @@ describe('CommandPaletteProvider', () => {
     });
 
     inventoryHook.mockReturnValue({
-      catalog: null,
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', leadTimeMeanDaysHint: 5, leadTimeStdDaysHint: 1, name: 'SKU 1', productPrice: 9, skuId: 'sku-1', soldAsProduct: true }],
+      },
       diagnostics: null,
       error: null,
       isLoading: false,
       isSaving: false,
       latestRun: null,
-      observations: [],
+      observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }],
       reload: vi.fn(),
       reports: [],
       senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
@@ -179,6 +185,34 @@ describe('CommandPaletteProvider', () => {
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith({ language: 'km' });
     });
+  });
+
+  test('omits locked page commands until data unlocks them', async () => {
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      catalog: { schemaVersion: 1, bundles: [], services: [], sharingMask: [], skus: [] },
+      observations: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search commands' }), {
+      target: { value: 'catalog' },
+    });
+
+    expect(screen.queryByRole('option', { name: /^CatalogPage/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^PerformancePage/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^FinancialsPage/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^LogsPage/ })).not.toBeInTheDocument();
   });
 
   test('runs local workspace backup actions from the command palette', async () => {

@@ -8,14 +8,17 @@ import {
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
+  DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
+  normalizeDesktopSeenUnlockedNavItems,
   normalizeDesktopTaskBatchUpdatePreferences,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
   type DesktopItemImageMode,
+  type DesktopSeenUnlockedNavItems,
   type DesktopTaskBatchUpdatePreference,
   type DesktopTaskBatchUpdatePreferences,
   type SenaEngineParameters,
@@ -24,6 +27,7 @@ import { DescriptionTextVisibilityProvider } from '@/components/system/descripti
 import { currencyLabel, getTranslation, type TranslationKey, type TranslationVariables } from '../lib/translations';
 
 interface PreferencesContextValue {
+  isHydrated: boolean;
   language: AppLanguage;
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
@@ -51,6 +55,8 @@ interface PreferencesContextValue {
   customShowHeartbeatRibbons: boolean;
   senaEngineParameters: SenaEngineParameters;
   overviewStaleUpdateReminderSnoozeUntil: string | null;
+  onboardingCompletedAt: string | null;
+  seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
   persistedUsdToKhrExchangeRate: number;
@@ -78,6 +84,8 @@ interface PreferencesContextValue {
   persistedCustomShowHeartbeatRibbons: boolean;
   persistedSenaEngineParameters: SenaEngineParameters;
   persistedOverviewStaleUpdateReminderSnoozeUntil: string | null;
+  persistedOnboardingCompletedAt: string | null;
+  persistedSeenUnlockedNavItems: DesktopSeenUnlockedNavItems;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setUsdToKhrExchangeRate: (value: number) => void;
@@ -130,7 +138,10 @@ interface PreferencesContextValue {
     taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
     senaEngineParameters: SenaEngineParameters;
     overviewStaleUpdateReminderSnoozeUntil: string | null;
+    onboardingCompletedAt: string | null;
+    seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
   }>) => Promise<void>;
+  markUnlockedNavItemSeen: (itemId: keyof DesktopSeenUnlockedNavItems) => Promise<void>;
   resetPreferences: () => void;
   hasPendingChanges: boolean;
   t: (key: TranslationKey, variables?: TranslationVariables) => string;
@@ -147,6 +158,7 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
 }
 
 export function PreferencesProvider({ children }: { children: ReactNode }) {
+  const [isHydrated, setIsHydrated] = useState(false);
   const [language, setLanguageState] = useState<AppLanguage>('en');
   const [currency, setCurrencyState] = useState<AppCurrency>('USD');
   const [usdToKhrExchangeRate, setUsdToKhrExchangeRateState] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
@@ -178,6 +190,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   );
   const [overviewStaleUpdateReminderSnoozeUntil, setOverviewStaleUpdateReminderSnoozeUntilState] =
     useState<string | null>(null);
+  const [onboardingCompletedAt, setOnboardingCompletedAtState] = useState<string | null>(null);
+  const [seenUnlockedNavItems, setSeenUnlockedNavItemsState] = useState<DesktopSeenUnlockedNavItems>(
+    DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
+  );
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedUsdToKhrExchangeRate, setPersistedUsdToKhrExchangeRate] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
@@ -210,6 +226,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   );
   const [persistedOverviewStaleUpdateReminderSnoozeUntil, setPersistedOverviewStaleUpdateReminderSnoozeUntil] =
     useState<string | null>(null);
+  const [persistedOnboardingCompletedAt, setPersistedOnboardingCompletedAt] = useState<string | null>(null);
+  const [persistedSeenUnlockedNavItems, setPersistedSeenUnlockedNavItems] = useState<DesktopSeenUnlockedNavItems>(
+    DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -222,6 +242,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         }
 
         const nextSenaEngineParameters = normalizeSenaEngineParameters(preferences.senaEngineParameters);
+        const nextSeenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(preferences.seenUnlockedNavItems);
 
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
@@ -257,6 +278,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setOverviewStaleUpdateReminderSnoozeUntilState(
           normalizeDesktopPreferenceTimestamp(preferences.overviewStaleUpdateReminderSnoozeUntil),
         );
+        setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(preferences.onboardingCompletedAt));
+        setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
         setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
@@ -286,9 +309,13 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedOverviewStaleUpdateReminderSnoozeUntil(
           normalizeDesktopPreferenceTimestamp(preferences.overviewStaleUpdateReminderSnoozeUntil),
         );
+        setPersistedOnboardingCompletedAt(normalizeDesktopPreferenceTimestamp(preferences.onboardingCompletedAt));
+        setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
+        setIsHydrated(true);
       })
       .catch((error) => {
         console.error('failed to load desktop preferences', error);
+        setIsHydrated(true);
       });
 
     return () => {
@@ -324,12 +351,15 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
     senaEngineParameters: SenaEngineParameters;
     overviewStaleUpdateReminderSnoozeUntil: string | null;
+    onboardingCompletedAt: string | null;
+    seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
   }>) {
     const nextPreferences = await window.banjiDesktop.preferences.save(next);
     const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
     const nextOverviewStaleUpdateReminderSnoozeUntil = normalizeDesktopPreferenceTimestamp(
       nextPreferences.overviewStaleUpdateReminderSnoozeUntil,
     );
+    const nextSeenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(nextPreferences.seenUnlockedNavItems);
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
     const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(nextPreferences.usdToKhrExchangeRate);
@@ -361,6 +391,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setCustomShowHeartbeatRibbonsState(nextPreferences.customShowHeartbeatRibbons);
     setSenaEngineParametersState(nextSenaEngineParameters);
     setOverviewStaleUpdateReminderSnoozeUntilState(nextOverviewStaleUpdateReminderSnoozeUntil);
+    setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
+    setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
     setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
@@ -388,11 +420,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedCustomShowHeartbeatRibbons(nextPreferences.customShowHeartbeatRibbons);
     setPersistedSenaEngineParameters(nextSenaEngineParameters);
     setPersistedOverviewStaleUpdateReminderSnoozeUntil(nextOverviewStaleUpdateReminderSnoozeUntil);
+    setPersistedOnboardingCompletedAt(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
+    setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
     return nextPreferences;
   }
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
+      isHydrated,
       language,
       currency,
       usdToKhrExchangeRate,
@@ -420,6 +455,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       customShowHeartbeatRibbons,
       senaEngineParameters,
       overviewStaleUpdateReminderSnoozeUntil,
+      onboardingCompletedAt,
+      seenUnlockedNavItems,
       persistedLanguage,
       persistedCurrency,
       persistedUsdToKhrExchangeRate,
@@ -447,6 +484,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCustomShowHeartbeatRibbons,
       persistedSenaEngineParameters,
       persistedOverviewStaleUpdateReminderSnoozeUntil,
+      persistedOnboardingCompletedAt,
+      persistedSeenUnlockedNavItems,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
@@ -706,6 +745,24 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           senaEngineParameters: overrides?.senaEngineParameters ?? senaEngineParameters,
           overviewStaleUpdateReminderSnoozeUntil:
             overrides?.overviewStaleUpdateReminderSnoozeUntil ?? overviewStaleUpdateReminderSnoozeUntil,
+          onboardingCompletedAt:
+            overrides && 'onboardingCompletedAt' in overrides
+              ? overrides.onboardingCompletedAt ?? null
+              : onboardingCompletedAt,
+          seenUnlockedNavItems:
+            overrides?.seenUnlockedNavItems ?? seenUnlockedNavItems,
+        });
+      },
+      markUnlockedNavItemSeen: async (itemId) => {
+        if (seenUnlockedNavItems[itemId]) {
+          return;
+        }
+
+        await savePreferencesPatch({
+          seenUnlockedNavItems: {
+            ...seenUnlockedNavItems,
+            [itemId]: true,
+          },
         });
       },
       resetPreferences: () => {
@@ -738,6 +795,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setOverviewStaleUpdateReminderSnoozeUntilState(
           persistedOverviewStaleUpdateReminderSnoozeUntil,
         );
+        setOnboardingCompletedAtState(persistedOnboardingCompletedAt);
+        setSeenUnlockedNavItemsState(persistedSeenUnlockedNavItems);
       },
       hasPendingChanges:
         language !== persistedLanguage ||
@@ -772,6 +831,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       currencyLabel: (next) => currencyLabel(language, next),
     }),
     [
+      isHydrated,
       currency,
       customShowExplanatoryTooltips,
       customShowFloatingTitleActions,
@@ -816,7 +876,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       senaEngineParameters,
       taskBatchUpdatePreferences,
       overviewStaleUpdateReminderSnoozeUntil,
+      onboardingCompletedAt,
       usdToKhrExchangeRate,
+      seenUnlockedNavItems,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
@@ -826,6 +888,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       showPerformanceTimelineCard,
       showLogsViewToggle,
       showHeartbeatRibbons,
+      persistedOnboardingCompletedAt,
+      persistedSeenUnlockedNavItems,
     ],
   );
 

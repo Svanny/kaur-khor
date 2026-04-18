@@ -24,6 +24,7 @@ import {
 } from '@icons/navigation';
 import { StatusHelpBadgeIcon } from '@icons/status';
 import {
+  DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_SENA_ENGINE_PARAMETERS,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeSenaEngineParameters,
@@ -48,7 +49,7 @@ import {
   type SettingsExportFormat,
 } from '@/lib/settings-workspace-actions';
 import { resolveSettingsSection } from '@/lib/settings-navigation';
-import type { TranslationKey } from '@/lib/translations';
+import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
@@ -428,6 +429,8 @@ function WorkspacePreferencesPage({
   exchangeRateError,
   itemImageMode,
   language,
+  onInjectOnboarding,
+  showDevOnboardingInjector,
   setCurrency,
   setDimChartsWhileLoading,
   setExchangeRateDraft,
@@ -443,6 +446,8 @@ function WorkspacePreferencesPage({
   exchangeRateError: string | null;
   itemImageMode: DesktopItemImageMode;
   language: 'en' | 'km';
+  onInjectOnboarding: () => void;
+  showDevOnboardingInjector: boolean;
   setCurrency: (value: 'USD' | 'KHR') => void;
   setDimChartsWhileLoading: (value: boolean) => void;
   setExchangeRateDraft: (value: string) => void;
@@ -624,6 +629,22 @@ function WorkspacePreferencesPage({
             </div>
           </div>
         </section>
+
+        {showDevOnboardingInjector ? (
+          <section className="grid gap-3 border-t border-dashed border-border/60 pt-6">
+            <div className="grid gap-1">
+              <p className="text-sm font-medium text-foreground">Developer tools</p>
+              <p className="text-sm text-muted-foreground">
+                Re-open the first-run onboarding flow without exposing this control in production.
+              </p>
+            </div>
+            <WorkspaceActionRow>
+              <Button type="button" variant="outline" onClick={onInjectOnboarding}>
+                {translateUiLiteral(language, 'Inject onboarding stage')}
+              </Button>
+            </WorkspaceActionRow>
+          </section>
+        ) : null}
       </div>
     </WorkspacePanel>
   );
@@ -1180,6 +1201,8 @@ export function SettingsRoute() {
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
   const senaEngineParameterFields = buildSenaEngineParameterFields(t);
   const interfaceVisibilityDisabled = displayViewMode === 'compact';
+  const showDevOnboardingInjector =
+    import.meta.env.DEV && import.meta.env.VITE_BANJI_SHOW_DEV_ONBOARDING_INJECTOR === '1';
   const isInterfaceSection = currentSection.id === 'interface';
   const showSaveAction =
     currentSection.id === 'workspace' ||
@@ -1343,6 +1366,14 @@ export function SettingsRoute() {
     }
   }
 
+  async function handleInjectOnboardingStage() {
+    await savePreferences({
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
+    });
+    navigate('/onboarding');
+  }
+
   return (
     <WorkspacePage>
       {discardConfirmDialog}
@@ -1424,6 +1455,8 @@ export function SettingsRoute() {
                   exchangeRateError={exchangeRateError}
                   itemImageMode={itemImageMode}
                   language={language}
+                  onInjectOnboarding={() => void handleInjectOnboardingStage()}
+                  showDevOnboardingInjector={showDevOnboardingInjector}
                   setCurrency={setCurrency}
                   setDimChartsWhileLoading={setDimChartsWhileLoading}
                   setExchangeRateDraft={setExchangeRateDraft}

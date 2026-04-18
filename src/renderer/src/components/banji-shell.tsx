@@ -1,4 +1,6 @@
+import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import type { DesktopSeenUnlockedNavItemId } from '@shared/ipc';
 import {
   NavigationAnalysisIcon,
   NavigationBackIcon,
@@ -24,6 +26,7 @@ import {
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
@@ -33,6 +36,12 @@ import {
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SETTINGS_SECTIONS, resolveSettingsSection, type SettingsSectionConfig } from '@/lib/settings-navigation';
+import {
+  deriveNavigationAvailability,
+  isUnlockedNavItemNew,
+  isUnlockedNavItemVisible,
+  type NavigationAvailability,
+} from '@/lib/navigation-availability';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -42,6 +51,8 @@ import brandLogo from '@/assets/banji-logo.svg';
 
 type ShellSectionConfig = {
   destination: string;
+  availabilityKey?: keyof NavigationAvailability;
+  gatedNavItemId?: DesktopSeenUnlockedNavItemId;
   icon: IconComponent;
   id: 'overview' | 'recordUpdate' | 'performance' | 'financials' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'help' | 'settings';
   labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navFinancials' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navHelp' | 'navSettings';
@@ -87,6 +98,7 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'recordUpdate',
     destination: '/record-update',
+    availabilityKey: 'hasRecordUpdateTab',
     labelKey: 'navRecordUpdate',
     icon: NavigationTaskListIcon,
     matches: (pathname) => matchesSection(pathname, '/record-update') || matchesSection(pathname, '/operations/session'),
@@ -94,6 +106,7 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'performance',
     destination: '/performance',
+    gatedNavItemId: 'performance',
     labelKey: 'navPerformance',
     icon: NavigationPerformanceIcon,
     matches: (pathname) => matchesSection(pathname, '/performance'),
@@ -101,6 +114,7 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'catalog',
     destination: '/catalog',
+    gatedNavItemId: 'catalog',
     labelKey: 'navCatalog',
     icon: NavigationCatalogIcon,
     matches: (pathname) => matchesSection(pathname, '/catalog'),
@@ -111,6 +125,7 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'financials',
     destination: '/financials',
+    gatedNavItemId: 'financials',
     labelKey: 'navFinancials',
     icon: NavigationFinancialsIcon,
     matches: (pathname) => matchesSection(pathname, '/financials'),
@@ -125,6 +140,7 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'operations',
     destination: '/operations',
+    gatedNavItemId: 'operations',
     labelKey: 'navOperations',
     icon: NavigationLogsIcon,
     matches: (pathname) => pathname === '/operations',
@@ -167,12 +183,14 @@ function SidebarSectionMenu({
   pathname,
   showSidebarText,
   onNavigate,
+  isSectionNew,
   t,
 }: {
   sections: ShellSectionConfig[];
   pathname: string;
   showSidebarText: boolean;
   onNavigate: () => void;
+  isSectionNew: (section: ShellSectionConfig) => boolean;
   t: (key: ShellSectionConfig['labelKey'] | SidebarSectionLabelKey) => string;
 }) {
   return (
@@ -180,14 +198,18 @@ function SidebarSectionMenu({
       {sections.map((section) => {
         const label = t(section.labelKey);
         const isActive = section.matches(pathname);
+        const isNew = isSectionNew(section);
 
         return (
-          <SidebarMenuItem key={section.destination}>
+          <SidebarMenuItem key={section.destination} className="group/menu-item">
             <SidebarMenuButton
               asChild
-              className="justify-start group-data-[collapsible=icon]:justify-center"
+              className={cn(
+                'justify-start group-data-[collapsible=icon]:justify-center',
+                isNew && !isActive ? 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : null,
+              )}
               isActive={isActive}
-              tooltip={label}
+              tooltip={isNew ? translateUiLiteral('en', 'New!') : label}
             >
               <NavLink
                 aria-label={label}
@@ -200,6 +222,11 @@ function SidebarSectionMenu({
                 {showSidebarText ? <span>{label}</span> : null}
               </NavLink>
             </SidebarMenuButton>
+            {isNew && showSidebarText ? (
+              <SidebarMenuBadge className="right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
+                {translateUiLiteral('en', 'New!')}
+              </SidebarMenuBadge>
+            ) : null}
           </SidebarMenuItem>
         );
       })}
@@ -323,8 +350,16 @@ export function BanjiShell({
 
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const { language, showAnalysisPage, t } = usePreferences();
-  const { error, isLoading, isPreparingWorkspace, isSaving, latestRun, reload } = useInventory();
+  const {
+    isHydrated,
+    language,
+    markUnlockedNavItemSeen,
+    seenUnlockedNavItems,
+    showAnalysisPage,
+    t,
+  } = usePreferences();
+  const inventory = useInventory();
+  const { error, isLoading, isPreparingWorkspace, isSaving, latestRun, reload } = inventory;
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
   const isSavingRecordUpdate = isSaving && matchesSection(location.pathname, '/record-update');
@@ -333,8 +368,50 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const secondarySections = showAnalysisPage
     ? SECONDARY_SECTIONS
     : SECONDARY_SECTIONS.filter((section) => section.id !== 'analysis');
+  const navigationAvailability = deriveNavigationAvailability(inventory);
+  const visiblePrimarySections = PRIMARY_SECTIONS.filter((section) =>
+    section.availabilityKey
+      ? navigationAvailability[section.availabilityKey]
+      : section.gatedNavItemId
+        ? isUnlockedNavItemVisible(section.gatedNavItemId, navigationAvailability)
+        : true,
+  );
+  const visibleSecondarySections = secondarySections.filter((section) =>
+    section.availabilityKey
+      ? navigationAvailability[section.availabilityKey]
+      : section.gatedNavItemId
+        ? isUnlockedNavItemVisible(section.gatedNavItemId, navigationAvailability)
+        : true,
+  );
   const isSettingsRoute =
     matchesSection(location.pathname, '/settings') || matchesSection(location.pathname, '/operations/archive');
+
+  useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
+    const matchedGatedSection = [...PRIMARY_SECTIONS, ...SECONDARY_SECTIONS].find((section) =>
+      section.gatedNavItemId && section.matches(location.pathname),
+    );
+    if (!matchedGatedSection?.gatedNavItemId) {
+      return;
+    }
+    if (!isUnlockedNavItemVisible(matchedGatedSection.gatedNavItemId, navigationAvailability)) {
+      return;
+    }
+    if (seenUnlockedNavItems[matchedGatedSection.gatedNavItemId]) {
+      return;
+    }
+
+    void markUnlockedNavItemSeen(matchedGatedSection.gatedNavItemId);
+  }, [isHydrated, location.pathname, markUnlockedNavItemSeen, navigationAvailability, seenUnlockedNavItems]);
+
+  function isSectionNew(section: ShellSectionConfig) {
+    return section.gatedNavItemId
+      ? isUnlockedNavItemNew(section.gatedNavItemId, navigationAvailability, seenUnlockedNavItems)
+      : false;
+  }
 
   function handleSidebarNavigation() {
     if (isMobile) {
@@ -432,31 +509,37 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
             </div>
           ) : (
             <div className="flex flex-1 flex-col gap-3">
-              <SidebarGroup className={sidebarSectionGroupClassName}>
-                <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarSectionMenu
-                    pathname={location.pathname}
-                    sections={PRIMARY_SECTIONS}
-                    showSidebarText={showSidebarText}
-                    t={t}
-                    onNavigate={handleSidebarNavigation}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
+              {visiblePrimarySections.length > 0 ? (
+                <SidebarGroup className={sidebarSectionGroupClassName}>
+                  <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarSectionMenu
+                      pathname={location.pathname}
+                      sections={visiblePrimarySections}
+                      showSidebarText={showSidebarText}
+                      isSectionNew={isSectionNew}
+                      t={t}
+                      onNavigate={handleSidebarNavigation}
+                    />
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ) : null}
 
-              <SidebarGroup className={sidebarSectionGroupClassName}>
-                <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarSectionMenu
-                    pathname={location.pathname}
-                    sections={secondarySections}
-                    showSidebarText={showSidebarText}
-                    t={t}
-                    onNavigate={handleSidebarNavigation}
-                  />
-                </SidebarGroupContent>
-              </SidebarGroup>
+              {visibleSecondarySections.length > 0 ? (
+                <SidebarGroup className={sidebarSectionGroupClassName}>
+                  <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
+                  <SidebarGroupContent>
+                    <SidebarSectionMenu
+                      pathname={location.pathname}
+                      sections={visibleSecondarySections}
+                      showSidebarText={showSidebarText}
+                      isSectionNew={isSectionNew}
+                      t={t}
+                      onNavigate={handleSidebarNavigation}
+                    />
+                  </SidebarGroupContent>
+                </SidebarGroup>
+              ) : null}
             </div>
           )}
 

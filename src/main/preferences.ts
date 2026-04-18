@@ -1,11 +1,13 @@
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
+  DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   DEFAULT_SENA_ENGINE_PARAMETERS,
   DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
+  normalizeDesktopSeenUnlockedNavItems,
   normalizeDesktopTaskBatchUpdatePreferences,
   normalizeSenaEngineParameters,
   type DesktopPreferences,
@@ -40,6 +42,8 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   customShowHeartbeatRibbons: true,
   senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
   overviewStaleUpdateReminderSnoozeUntil: null,
+  onboardingCompletedAt: null,
+  seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
 };
 let preferencesWriteQueue: Promise<void> = Promise.resolve();
 
@@ -53,10 +57,14 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
     : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
 }
 
-function normalizePreferences(value: Partial<DesktopPreferences> | null | undefined): DesktopPreferences {
+function normalizePreferences(
+  value: Partial<DesktopPreferences> | null | undefined,
+  options?: { hasExistingPreferencesFile?: boolean },
+): DesktopPreferences {
   const legacyTaskBatchUpdateMode = (value as Partial<DesktopPreferences> & {
     taskBatchUpdateMode?: DesktopTaskBatchUpdatePreference;
   } | null | undefined)?.taskBatchUpdateMode;
+  const hasExistingPreferencesFile = options?.hasExistingPreferencesFile ?? false;
   const showExplanatoryTooltips = value?.showExplanatoryTooltips ?? true;
   const showFloatingTitleActions = value?.showFloatingTitleActions ?? true;
   const showRightRailCards = value?.showRightRailCards ?? true;
@@ -98,6 +106,14 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
     value?.itemImageMode === 'medium'
       ? value.itemImageMode
       : DEFAULT_DESKTOP_ITEM_IMAGE_MODE;
+  const onboardingCompletedAt =
+    value?.onboardingCompletedAt === undefined && hasExistingPreferencesFile
+      ? new Date().toISOString()
+      : normalizeDesktopPreferenceTimestamp(value?.onboardingCompletedAt);
+  const seenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(
+    value?.seenUnlockedNavItems,
+    hasExistingPreferencesFile && value?.seenUnlockedNavItems === undefined,
+  );
 
   return {
     language: value?.language === 'km' ? 'km' : 'en',
@@ -132,6 +148,8 @@ function normalizePreferences(value: Partial<DesktopPreferences> | null | undefi
     overviewStaleUpdateReminderSnoozeUntil: normalizeDesktopPreferenceTimestamp(
       value?.overviewStaleUpdateReminderSnoozeUntil,
     ),
+    onboardingCompletedAt,
+    seenUnlockedNavItems,
   };
 }
 
@@ -142,7 +160,7 @@ export async function loadDesktopPreferences(userDataPath: string): Promise<Desk
       return DEFAULT_PREFERENCES;
     }
     const parsed = JSON.parse(raw) as Partial<DesktopPreferences>;
-    return normalizePreferences(parsed);
+    return normalizePreferences(parsed, { hasExistingPreferencesFile: true });
   } catch {
     return DEFAULT_PREFERENCES;
   }
@@ -157,7 +175,7 @@ export async function saveDesktopPreferences(
     const merged = normalizePreferences({
       ...current,
       ...next,
-    });
+    }, { hasExistingPreferencesFile: true });
     const path = preferencesPath(userDataPath);
     await mkdir(userDataPath, { recursive: true });
     const tempPath = `${path}.tmp`;

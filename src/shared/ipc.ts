@@ -68,6 +68,10 @@ export interface DesktopTaskBatchUpdatePreferences {
   review: DesktopTaskBatchUpdatePreference;
 }
 
+export type DesktopSeenUnlockedNavItemId = 'catalog' | 'operations' | 'performance' | 'financials';
+
+export type DesktopSeenUnlockedNavItems = Partial<Record<DesktopSeenUnlockedNavItemId, boolean>>;
+
 export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
@@ -96,6 +100,8 @@ export interface DesktopPreferences {
   customShowHeartbeatRibbons: boolean;
   senaEngineParameters: SenaEngineParameters;
   overviewStaleUpdateReminderSnoozeUntil: string | null;
+  onboardingCompletedAt: string | null;
+  seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
 }
 
 export interface SenaEngineParameters {
@@ -231,6 +237,13 @@ export const DEFAULT_TASK_BATCH_UPDATE_PREFERENCES: DesktopTaskBatchUpdatePrefer
   review: 'ask',
 };
 
+export const DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS: DesktopSeenUnlockedNavItems = {
+  catalog: false,
+  operations: false,
+  performance: false,
+  financials: false,
+};
+
 export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   algorithmVersion: 'sena-analysis-v3',
   particleCount: 256,
@@ -276,6 +289,18 @@ export function normalizeDesktopTaskBatchUpdatePreferences(
       value?.review === 'always_batch' || value?.review === 'always_alone' || value?.review === 'ask'
         ? value.review
         : fallbackValue,
+  };
+}
+
+export function normalizeDesktopSeenUnlockedNavItems(
+  value: DesktopSeenUnlockedNavItems | null | undefined,
+  fallbackValue: boolean = false,
+): DesktopSeenUnlockedNavItems {
+  return {
+    catalog: value?.catalog ?? fallbackValue,
+    operations: value?.operations ?? fallbackValue,
+    performance: value?.performance ?? fallbackValue,
+    financials: value?.financials ?? fallbackValue,
   };
 }
 

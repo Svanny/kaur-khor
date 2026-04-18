@@ -29,6 +29,7 @@ import {
   type ServiceActionValue,
   type SkuActionValue,
 } from '@/lib/navigation-state';
+import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import {
   activeSenaCatalog,
   archivedSenaServices,
@@ -264,7 +265,24 @@ function tabCommand({
   });
 }
 
-function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPage: boolean }) {
+function buildPageCommands(
+  t: Translator,
+  {
+    hasCatalogTab,
+    hasFinancialsTab,
+    hasLogsTab,
+    hasPerformanceTab,
+    hasRecordUpdateTab,
+    showAnalysisPage,
+  }: {
+    hasCatalogTab: boolean;
+    hasFinancialsTab: boolean;
+    hasLogsTab: boolean;
+    hasPerformanceTab: boolean;
+    hasRecordUpdateTab: boolean;
+    showAnalysisPage: boolean;
+  },
+) {
   return [
     pageCommand({
       aliases: ['home', 'dashboard'],
@@ -278,42 +296,54 @@ function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPa
       subtitle: 'Overview queue and follow-up work',
       title: t('navOverview'),
     }),
-    pageCommand({
-      aliases: ['update', 'capture'],
-      href: '/record-update',
-      id: 'page:record-update',
-      keywords: ['record', 'update', 'observation'],
-      pageId: 'record-update',
-      pageOrder: 1,
-      pagePrefix: '/record-update',
-      priority: 11,
-      subtitle: 'Capture the next live update',
-      title: t('navRecordUpdate'),
-    }),
-    pageCommand({
-      aliases: ['metrics'],
-      href: buildPerformanceHref(),
-      id: 'page:performance',
-      keywords: ['performance', 'range', 'compare'],
-      pageId: 'performance',
-      pageOrder: 2,
-      pagePrefix: '/performance',
-      priority: 12,
-      subtitle: 'Demand, capacity, and cash movement',
-      title: t('navPerformance'),
-    }),
-    pageCommand({
-      aliases: ['money', 'finance', 'financials'],
-      href: buildFinancialsHref(),
-      id: 'page:financials',
-      keywords: ['financials', 'money', 'margin', 'capital', 'commitments'],
-      pageId: 'financials',
-      pageOrder: 4,
-      pagePrefix: '/financials',
-      priority: 13,
-      subtitle: 'Stock-linked sales, margin, capital, and commitments',
-      title: t('navFinancials'),
-    }),
+    ...(hasRecordUpdateTab
+      ? [
+          pageCommand({
+            aliases: ['update', 'capture'],
+            href: '/record-update',
+            id: 'page:record-update',
+            keywords: ['record', 'update', 'observation'],
+            pageId: 'record-update',
+            pageOrder: 1,
+            pagePrefix: '/record-update',
+            priority: 11,
+            subtitle: 'Capture the next live update',
+            title: t('navRecordUpdate'),
+          }),
+        ]
+      : []),
+    ...(hasPerformanceTab
+      ? [
+          pageCommand({
+            aliases: ['metrics'],
+            href: buildPerformanceHref(),
+            id: 'page:performance',
+            keywords: ['performance', 'range', 'compare'],
+            pageId: 'performance',
+            pageOrder: 2,
+            pagePrefix: '/performance',
+            priority: 12,
+            subtitle: 'Demand, capacity, and cash movement',
+            title: t('navPerformance'),
+          }),
+        ]
+      : []),
+    ...(hasFinancialsTab
+      ? [
+          pageCommand({
+            aliases: ['money', 'finance', 'financials'],
+            href: buildFinancialsHref(),
+            id: 'page:financials',
+            keywords: ['financials', 'money', 'margin', 'capital', 'commitments'],
+            pageId: 'financials',
+            pageOrder: 4,
+            pagePrefix: '/financials',
+            priority: 13,
+            subtitle: 'Stock-linked sales, margin, capital, and commitments',
+            title: t('navFinancials'),
+          }),
+        ]
+      : []),
     ...(showAnalysisPage
       ? [
           pageCommand({
@@ -330,30 +360,38 @@ function buildPageCommands(t: Translator, { showAnalysisPage }: { showAnalysisPa
           }),
         ]
       : []),
-    pageCommand({
-      aliases: ['inventory'],
-      href: buildCatalogHref(),
-      id: 'page:catalog',
-      keywords: ['catalog', 'skus', 'services'],
-      pageId: 'catalog',
-      pageOrder: 3,
-      pagePrefix: '/catalog',
-      priority: 14,
-      subtitle: 'Browse SKUs and services',
-      title: t('navCatalog'),
-    }),
-    pageCommand({
-      aliases: ['logs', 'history'],
-      href: buildOperationsHref(),
-      id: 'page:operations',
-      keywords: ['operations', 'logs', 'history', 'heatmap'],
-      pageId: 'operations',
-      pageOrder: 5,
-      pagePrefix: '/operations',
-      priority: 15,
-      subtitle: 'Observation history and logs',
-      title: t('navOperations'),
-    }),
+    ...(hasCatalogTab
+      ? [
+          pageCommand({
+            aliases: ['inventory'],
+            href: buildCatalogHref(),
+            id: 'page:catalog',
+            keywords: ['catalog', 'skus', 'services'],
+            pageId: 'catalog',
+            pageOrder: 3,
+            pagePrefix: '/catalog',
+            priority: 14,
+            subtitle: 'Browse SKUs and services',
+            title: t('navCatalog'),
+          }),
+        ]
+      : []),
+    ...(hasLogsTab
+      ? [
+          pageCommand({
+            aliases: ['logs', 'history'],
+            href: buildOperationsHref(),
+            id: 'page:operations',
+            keywords: ['operations', 'logs', 'history', 'heatmap'],
+            pageId: 'operations',
+            pageOrder: 5,
+            pagePrefix: '/operations',
+            priority: 15,
+            subtitle: 'Observation history and logs',
+            title: t('navOperations'),
+          }),
+        ]
+      : []),
     pageCommand({
       aliases: ['archive', 'archived'],
       href: buildOperationsArchiveHref(),
@@ -744,7 +782,7 @@ function buildAnalysisCommands() {
   ];
 }
 
-function buildWorkflowCommands() {
+function buildWorkflowCommands({ hasRecordUpdateTab }: { hasRecordUpdateTab: boolean }) {
   return [
     createCommand({
       action: { href: '/catalog/skus/new', type: 'workflow' },
@@ -774,20 +812,24 @@ function buildWorkflowCommands() {
       subtitle: 'Create a new service',
       title: 'New service',
     }),
-    createCommand({
-      action: { href: '/record-update', type: 'workflow' },
-      aliases: ['capture update', 'start update'],
-      emptyQueryRank: 19,
-      id: 'workflow:start-update',
-      keywords: ['start', 'update', 'record', 'observation'],
-      kind: 'workflow',
-      pageId: 'record-update',
-      pageOrder: 1,
-      pagePrefixes: ['/record-update', '/'],
-      priority: 19,
-      subtitle: 'Capture the next observation',
-      title: 'Start update',
-    }),
+    ...(hasRecordUpdateTab
+      ? [
+          createCommand({
+            action: { href: '/record-update', type: 'workflow' },
+            aliases: ['capture update', 'start update'],
+            emptyQueryRank: 19,
+            id: 'workflow:start-update',
+            keywords: ['start', 'update', 'record', 'observation'],
+            kind: 'workflow',
+            pageId: 'record-update',
+            pageOrder: 1,
+            pagePrefixes: ['/record-update', '/'],
+            priority: 19,
+            subtitle: 'Capture the next observation',
+            title: 'Start update',
+          }),
+        ]
+      : []),
   ];
 }
 
@@ -1305,9 +1347,10 @@ export function buildCommandDescriptors({
   showRightRailCards: boolean;
   t: Translator;
 }) {
+  const availability = deriveNavigationAvailability(inventory);
   const commands = [
-    ...buildPageCommands(t, { showAnalysisPage }),
-    ...buildWorkflowCommands(),
+    ...buildPageCommands(t, { ...availability, showAnalysisPage }),
+    ...buildWorkflowCommands({ hasRecordUpdateTab: availability.hasRecordUpdateTab }),
     ...buildSettingsCommands({
       currency,
       displayViewMode,
@@ -1321,10 +1364,10 @@ export function buildCommandDescriptors({
     }),
     ...buildOverviewCommands(),
     ...buildCatalogCommands(),
-    ...buildOperationsCommands(),
+    ...(availability.hasLogsTab ? buildOperationsCommands() : []),
     ...buildArchiveCommands(),
-    ...buildPerformanceCommands(),
-    ...buildFinancialsCommands(),
+    ...(availability.hasPerformanceTab ? buildPerformanceCommands() : []),
+    ...(availability.hasFinancialsTab ? buildFinancialsCommands() : []),
     ...(showAnalysisPage ? buildAnalysisCommands() : []),
   ];
 

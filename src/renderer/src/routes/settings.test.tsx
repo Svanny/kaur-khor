@@ -39,6 +39,7 @@ describe('SettingsRoute', () => {
   const reloadLocation = vi.fn();
 
   beforeEach(() => {
+    vi.unstubAllEnvs();
     getPreferences.mockReset();
     savePreferences.mockReset();
     getLocalDataInfo.mockReset();
@@ -81,6 +82,14 @@ describe('SettingsRoute', () => {
       customShowLogsViewToggle: true,
       customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
     });
     savePreferences.mockResolvedValue({
       language: 'en',
@@ -115,6 +124,14 @@ describe('SettingsRoute', () => {
       customShowLogsViewToggle: false,
       customShowHeartbeatRibbons: false,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
     });
     triggerRun.mockResolvedValue({ runId: 'run-parameters' });
     getLocalDataInfo.mockResolvedValue({
@@ -203,6 +220,34 @@ describe('SettingsRoute', () => {
         showRightRailCards: true,
         showOverviewTaskTabs: true,
         senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      }));
+    });
+  });
+
+  it('keeps the onboarding injector hidden by default', async () => {
+    renderSettingsRoute('/settings/workspace');
+
+    await screen.findByText('Regional preferences');
+    expect(screen.queryByRole('button', { name: 'Inject onboarding stage' })).not.toBeInTheDocument();
+  });
+
+  it('shows the onboarding injector when the dev flag is enabled', async () => {
+    vi.stubEnv('VITE_BANJI_SHOW_DEV_ONBOARDING_INJECTOR', '1');
+
+    renderSettingsRoute('/settings/workspace');
+
+    const button = await screen.findByRole('button', { name: 'Inject onboarding stage' });
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        onboardingCompletedAt: null,
+        seenUnlockedNavItems: {
+          catalog: false,
+          operations: false,
+          performance: false,
+          financials: false,
+        },
       }));
     });
   });

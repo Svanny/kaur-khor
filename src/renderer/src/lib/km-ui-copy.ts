@@ -2784,6 +2784,9 @@ const exactValueTranslations: Record<string, string> = {
   'Overview needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការកាតាឡុកជាមុនសិន',
   'Create the first SKU so Banji can build an action list from real stock work.':
     'បង្កើត SKU ដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីការងារស្តុកពិតបាន។',
+  'Create the first SKU or service so Banji can build an action list from real catalog work.':
+    'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីកាតាឡុកពិតបាន។',
+  'Create first service': 'បង្កើតសេវាកម្មដំបូង',
   'Overview needs the first SENA run': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូង',
   'Capture a live observation so Banji can build the order, receipt, and follow-up queue.':
     'កត់ត្រាការសង្កេតពិតមួយសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំជួរបញ្ជាទិញ ការទទួល និងការតាមដានបាន។',

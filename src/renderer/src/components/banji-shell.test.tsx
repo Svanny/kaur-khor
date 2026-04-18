@@ -6,6 +6,7 @@ import { BanjiShell } from './banji-shell';
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 const applyDisplayViewMode = vi.fn();
+const markUnlockedNavItemSeen = vi.fn(async () => {});
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -24,16 +25,32 @@ describe('BanjiShell', () => {
     });
 
     inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', leadTimeMeanDaysHint: 5, leadTimeStdDaysHint: 1, name: 'SKU 1', productPrice: 9, skuId: 'sku-1', soldAsProduct: true }],
+      },
       error: null,
       isLoading: false,
       isPreparingWorkspace: false,
       isSaving: false,
+      observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }],
       reload: vi.fn(),
     });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
+      isHydrated: true,
       displayViewMode: 'custom',
       language: 'en',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -77,6 +94,7 @@ describe('BanjiShell', () => {
       },
     });
     applyDisplayViewMode.mockReset();
+    markUnlockedNavItemSeen.mockReset();
   });
 
   test('closes the mobile sidebar after following a navigation link', async () => {
@@ -228,8 +246,16 @@ describe('BanjiShell', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
+      isHydrated: true,
       displayViewMode: 'custom',
       language: 'en',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
@@ -273,12 +299,106 @@ describe('BanjiShell', () => {
     expect(applyDisplayViewMode).not.toHaveBeenCalled();
   });
 
+  test('hides gated tabs until enough data is available', () => {
+    setViewport({ width: 1440, isMobile: false });
+    inventoryHook.mockReturnValue({
+      catalog: { schemaVersion: 1, bundles: [], services: [], sharingMask: [], skus: [] },
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      observations: [],
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Record update' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Catalog' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+  });
+
+  test('highlights newly unlocked tabs and marks them seen after navigation', async () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      isHydrated: true,
+      displayViewMode: 'custom',
+      language: 'en',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: false,
+        operations: false,
+        performance: false,
+        financials: false,
+      },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAnalysisPage: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'Banji',
+          navOverview: 'Overview',
+          navRecordUpdate: 'Record update',
+          navPerformance: 'Performance',
+          navFinancials: 'Financials',
+          navAnalysis: 'Analysis',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navArchive: 'Archive',
+          navHelp: 'Help',
+          sidebarSectionMain: 'Main',
+          sidebarSectionOther: 'Other',
+          navSettings: 'Settings',
+          skipToContent: 'Skip to content',
+          openNavigation: 'Open navigation',
+          collapseNavigation: 'Collapse navigation',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/performance']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Performance screen</div>} path="/performance" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('New!').length).toBeGreaterThan(0);
+
+    await waitFor(() => {
+      expect(markUnlockedNavItemSeen).toHaveBeenCalledWith('performance');
+    });
+  });
+
   test('hides the analysis navigation item when disabled', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
+      isHydrated: true,
       displayViewMode: 'custom',
       language: 'en',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
       showAnalysisPage: false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -324,8 +444,16 @@ describe('BanjiShell', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
+      isHydrated: true,
       displayViewMode: 'custom',
       language: 'km',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+      },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
