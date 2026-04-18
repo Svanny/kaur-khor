@@ -29,6 +29,7 @@ migrate_working_dir/
 /dist/
 /release/
 /coverage/
+/bench-results/
 /apps/api/target/
 /apps/desktop-core/target/
 /apps/sena-core/target/
