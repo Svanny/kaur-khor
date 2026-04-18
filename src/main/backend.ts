@@ -2,6 +2,11 @@ import { existsSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, resolve } from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import {
+  recordBenchmarkEvent,
+  snapshotProcessMemory,
+  startBenchmarkSpan,
+} from './benchmark';
 
 interface CoreRequestEnvelope {
   id: number;
@@ -25,6 +30,7 @@ interface PendingRequest {
 
 interface QueuedRequest<T> {
   commandName: string;
+  enqueuedAt: number;
   envelope: CoreRequestEnvelope;
   payloadSummary: string;
   resolvePromise: (value: T | PromiseLike<T>) => void;
@@ -252,13 +258,36 @@ async function startManagedCoreAttempt(
 ): Promise<ManagedCoreProcess> {
   const { command, args } = launchCommand;
   const cwd = resolveCoreWorkingDirectory(options);
+  const endSpawn = startBenchmarkSpan({
+    category: 'startup',
+    name: 'backend.core.spawn',
+    detail: {
+      command,
+      args,
+      cwd,
+    },
+  });
   const child = spawn(command, args, {
     cwd,
     detached: process.platform !== 'win32',
     env,
     stdio: 'pipe',
   });
+  endSpawn({
+    ok: true,
+    pid: child.pid ?? null,
+  });
   traceIpc(`spawn command=${command} args=${JSON.stringify(args)} dataPath=${env.BANJI_DESKTOP_DATA_PATH ?? 'unset'}`);
+  recordBenchmarkEvent({
+    layer: 'main',
+    category: 'startup',
+    name: 'backend.core.spawn.end',
+    phase: 'instant',
+    detail: {
+      command,
+      pid: child.pid ?? null,
+    },
+  });
   const pending = new Map<number, PendingRequest>();
   const queuedRequests: QueuedRequest<unknown>[] = [];
   const stderr: string[] = [];
@@ -297,10 +326,39 @@ async function startManagedCoreAttempt(
 
     const id = next.envelope.id;
     const startedAt = Date.now();
+    const queueWaitMs = startedAt - next.enqueuedAt;
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'core-command',
+      name: 'backend.core.request.dispatch',
+      phase: 'instant',
+      command: next.commandName,
+      detail: {
+        id,
+        queueWaitMs,
+        queued: queuedRequests.length,
+        timeoutMs: next.timeoutMs,
+        payload: next.payloadSummary,
+      },
+    });
     const timeout = setTimeout(() => {
       pending.delete(id);
       activeRequestId = null;
       traceIpc(`timeout id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size}`);
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.request.timeout',
+        phase: 'end',
+        command: next.commandName,
+        durationMs: Date.now() - next.enqueuedAt,
+        detail: {
+          id,
+          queueWaitMs,
+          activeMs: Date.now() - startedAt,
+          timeoutMs: next.timeoutMs,
+        },
+      });
       next.rejectPromise(new Error(`desktop core timed out while handling ${next.commandName}`));
       dispatchNext();
     }, next.timeoutMs);
@@ -308,15 +366,45 @@ async function startManagedCoreAttempt(
     pending.set(id, {
       startedAt,
       resolve: (payloadValue) => {
+        const activeMs = Date.now() - startedAt;
         traceIpc(
-          `resolve id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} payload=${summarizePayload(payloadValue)}`,
+          `resolve id=${id} command=${next.commandName} elapsedMs=${activeMs} pending=${pending.size} payload=${summarizePayload(payloadValue)}`,
         );
+        recordBenchmarkEvent({
+          layer: 'main',
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          command: next.commandName,
+          durationMs: Date.now() - next.enqueuedAt,
+          detail: {
+            id,
+            queueWaitMs,
+            activeMs,
+            result: summarizePayload(payloadValue),
+          },
+        });
         next.resolvePromise(payloadValue as never);
       },
       reject: (error) => {
+        const activeMs = Date.now() - startedAt;
         traceIpc(
-          `reject id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
+          `reject id=${id} command=${next.commandName} elapsedMs=${activeMs} pending=${pending.size} error=${error.message}`,
         );
+        recordBenchmarkEvent({
+          layer: 'main',
+          category: 'core-command',
+          name: 'backend.core.request.reject',
+          phase: 'end',
+          command: next.commandName,
+          durationMs: Date.now() - next.enqueuedAt,
+          detail: {
+            id,
+            queueWaitMs,
+            activeMs,
+            error: error.message,
+          },
+        });
         next.rejectPromise(error);
       },
       timeout,
@@ -337,6 +425,20 @@ async function startManagedCoreAttempt(
       traceIpc(
         `stdin-error id=${id} command=${next.commandName} elapsedMs=${Date.now() - startedAt} pending=${pending.size} error=${error.message}`,
       );
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.request.stdin-error',
+        phase: 'end',
+        command: next.commandName,
+        durationMs: Date.now() - next.enqueuedAt,
+        detail: {
+          id,
+          queueWaitMs,
+          activeMs: Date.now() - startedAt,
+          error: error.message,
+        },
+      });
       next.rejectPromise(error);
       dispatchNext();
     });
@@ -367,6 +469,18 @@ async function startManagedCoreAttempt(
     traceIpc(
       `response id=${response.id} ok=${response.ok} elapsedMs=${Date.now() - request.startedAt} pending=${pending.size} payload=${summarizePayload(response.payload)}`,
     );
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'core-command',
+      name: 'backend.core.response.received',
+      phase: 'instant',
+      durationMs: Date.now() - request.startedAt,
+      detail: {
+        id: response.id,
+        ok: response.ok,
+        result: summarizePayload(response.payload),
+      },
+    });
 
     if (response.ok) {
       request.resolve(response.payload as unknown);
@@ -387,12 +501,30 @@ async function startManagedCoreAttempt(
   child.once('error', (error) => {
     launchError = error;
     stopped = true;
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'startup',
+      name: 'backend.core.child.error',
+      phase: 'instant',
+      detail: {
+        error: error.message,
+      },
+    });
     stdoutInterface.close();
     rejectPending(error);
   });
 
   child.once('exit', (_code, signal) => {
     stopped = true;
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'startup',
+      name: 'backend.core.child.exit',
+      phase: 'instant',
+      detail: {
+        signal,
+      },
+    });
     stdoutInterface.close();
     const details = stderr.join('\n').trim();
     rejectPending(
@@ -424,6 +556,7 @@ async function startManagedCoreAttempt(
     return new Promise<T>((resolvePromise, rejectPromise) => {
       queuedRequests.push({
         commandName,
+        enqueuedAt: Date.now(),
         envelope,
         payloadSummary: summarizePayload(payload),
         resolvePromise,
@@ -431,12 +564,33 @@ async function startManagedCoreAttempt(
         timeoutMs,
       });
       traceIpc(`queue id=${id} command=${commandName} queued=${queuedRequests.length}`);
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.request.queued',
+        phase: 'start',
+        command: commandName,
+        detail: {
+          id,
+          queued: queuedRequests.length,
+          timeoutMs,
+          payload: summarizePayload(payload),
+        },
+      });
       dispatchNext();
     });
   };
 
   try {
+    const endPing = startBenchmarkSpan({
+      category: 'startup',
+      name: 'backend.core.system-ping',
+      command: 'system.ping',
+      layer: 'main',
+    });
     await invoke('system.ping');
+    endPing({ ok: true });
+    snapshotProcessMemory('backend.core.ready');
   } catch (error) {
     if (!launchError && !child.killed && typeof child.pid === 'number') {
       terminateManagedChildProcess(child, 'SIGTERM');
@@ -459,6 +613,10 @@ async function startManagedCoreAttempt(
         return;
       }
 
+      const endStop = startBenchmarkSpan({
+        category: 'startup',
+        name: 'backend.core.stop',
+      });
       terminateManagedChildProcess(child, 'SIGTERM');
       await new Promise<void>((resolvePromise) => {
         const timeout = setTimeout(() => {
@@ -472,6 +630,7 @@ async function startManagedCoreAttempt(
           resolvePromise();
         });
       });
+      endStop({ ok: true });
     },
   };
 }

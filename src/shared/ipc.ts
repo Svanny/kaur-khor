@@ -24,6 +24,7 @@ import type {
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from './sena';
+import type { BanjiBenchmarkEvent, BanjiBenchmarkMetadata } from './benchmark';
 
 export interface DesktopAppContext {
   appVersion: string;
@@ -185,7 +186,12 @@ export interface DesktopSystemBridge {
   pickAndStoreImage: () => Promise<string | null>;
 }
 
+export interface DesktopBenchmarkBridge extends BanjiBenchmarkMetadata {
+  recordEvent: (event: BanjiBenchmarkEvent) => void;
+}
+
 export interface DesktopBridge {
+  benchmark?: DesktopBenchmarkBridge;
   inventory: DesktopInventoryBridge;
   preferences: DesktopPreferencesBridge;
   sena: DesktopSenaBridge;
@@ -224,6 +230,7 @@ export const IPC_CHANNELS = {
   senaGetRunStatus: 'banji:sena:get-run-status',
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',
+  benchmarkRecordEvent: 'banji:benchmark:record-event',
 } as const;
 
 export const DEFAULT_USD_TO_KHR_EXCHANGE_RATE = 4000;

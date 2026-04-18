@@ -47,13 +47,22 @@ import type {
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { summarizeBenchmarkPayload, type BanjiBenchmarkCategory } from '@shared/benchmark';
+import {
+  recordBenchmarkEvent,
+  recordExternalBenchmarkEvent,
+  snapshotProcessMemory,
+  startBenchmarkSpan,
+} from './benchmark';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
 const iconAssets = macIconAssets(projectRoot);
+const configuredDesktopDataPath = process.env.BANJI_BENCHMARK_DATA_DIR?.trim()
+  || process.env.BANJI_DESKTOP_DATA_DIR?.trim();
 const desktopDataPath = app.isPackaged
   ? app.getPath('userData')
-  : join(projectRoot, '.banji-dev-data');
+  : configuredDesktopDataPath || join(projectRoot, '.banji-dev-data');
 
 const SENA_STORE_FILENAME = 'desktop-sena-store.sqlite3';
 const PREFERENCES_STORE_FILENAME = 'desktop-preferences.json';
@@ -94,6 +103,61 @@ const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
 const windowZoomLevels = new WeakMap<BrowserWindow, number>();
 let senaObservationFingerprint: string | null = null;
+
+recordBenchmarkEvent({
+  layer: 'main',
+  category: 'startup',
+  name: 'main.boot.start',
+  phase: 'instant',
+  detail: {
+    appVersion: desktopContext.appVersion,
+    platform: desktopContext.platform,
+  },
+});
+
+function benchmarkIpcHandle<TArgs extends unknown[], TResult>(
+  channel: string,
+  handler: (...args: TArgs) => Promise<TResult> | TResult,
+) {
+  return async (...args: TArgs): Promise<TResult> => {
+    const end = startBenchmarkSpan({
+      category: 'ipc',
+      name: `ipc.${channel}.handle`,
+      command: channel,
+      detail: {
+        payload: summarizeBenchmarkPayload(args.slice(1)),
+      },
+    });
+    try {
+      const result = await handler(...args);
+      end({
+        ok: true,
+        result: summarizeBenchmarkPayload(result),
+      });
+      return result;
+    } catch (error) {
+      end({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  };
+}
+
+function benchmarkCacheEvent(
+  name: string,
+  detail?: Record<string, unknown>,
+  category: BanjiBenchmarkCategory = 'ipc',
+) {
+  recordBenchmarkEvent({
+    layer: 'main',
+    category,
+    name,
+    phase: 'instant',
+    detail,
+  });
+}
 
 async function snapshotBeforeWorkspaceMutation(reason: string) {
   try {
@@ -245,6 +309,10 @@ async function persistSenaReadCache() {
 }
 
 async function loadPersistedSenaReadCache() {
+  const end = startBenchmarkSpan({
+    category: 'startup',
+    name: 'main.boot.persisted-cache.load',
+  });
   try {
     const raw = await readFile(senaReadCachePath(), 'utf8');
     const parsed = JSON.parse(raw) as {
@@ -253,6 +321,11 @@ async function loadPersistedSenaReadCache() {
       entries?: Record<string, unknown>;
     };
     if (parsed.schemaVersion !== SENA_READ_CACHE_SCHEMA_VERSION || !parsed.entries) {
+      end({
+        ok: true,
+        skipped: true,
+        reason: 'schema-mismatch',
+      });
       return;
     }
     senaReadCache.clear();
@@ -260,10 +333,21 @@ async function loadPersistedSenaReadCache() {
       senaReadCache.set(key, value);
     }
     senaObservationFingerprint = parsed.observationFingerprint ?? null;
+    end({
+      ok: true,
+      entries: senaReadCache.size,
+    });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
       console.warn('[desktop-data] failed to load persisted SENA cache', error);
     }
+    end({
+      ok: (error as NodeJS.ErrnoException).code === 'ENOENT',
+      skipped: (error as NodeJS.ErrnoException).code === 'ENOENT',
+      error: (error as NodeJS.ErrnoException).code === 'ENOENT'
+        ? undefined
+        : error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -328,6 +412,10 @@ function installRendererContentSecurityPolicy() {
 }
 
 async function invalidateSenaReadCache() {
+  benchmarkCacheEvent('main.cache.sena-read.invalidate', {
+    entries: senaReadCache.size,
+    inflight: senaInflightReads.size,
+  });
   senaReadCache.clear();
   senaInflightReads.clear();
   senaObservationFingerprint = null;
@@ -338,24 +426,42 @@ async function invalidateSenaDetailCache({ entityId, entityType }: SenaDetailCac
   const prefix = entityType === 'sku'
     ? `sku-detail:${entityId}:`
     : `service-detail:${entityId}:`;
+  let removedEntries = 0;
+  let removedInflight = 0;
   for (const key of senaReadCache.keys()) {
     if (key.startsWith(prefix)) {
       senaReadCache.delete(key);
+      removedEntries += 1;
     }
   }
   for (const key of senaInflightReads.keys()) {
     if (key.startsWith(prefix)) {
       senaInflightReads.delete(key);
+      removedInflight += 1;
     }
   }
+  benchmarkCacheEvent('main.cache.sena-detail.invalidate', {
+    entityId,
+    entityType,
+    removedEntries,
+    removedInflight,
+  });
   await persistSenaReadCache();
 }
 
 async function ensureFreshSenaReadCache() {
   const currentFingerprint = await readCurrentObservationFingerprint();
   if (senaObservationFingerprint === currentFingerprint) {
+    benchmarkCacheEvent('main.cache.sena-read.fresh', {
+      observationFingerprint: currentFingerprint,
+    });
     return;
   }
+  benchmarkCacheEvent('main.cache.sena-read.stale', {
+    previousFingerprint: senaObservationFingerprint,
+    currentFingerprint,
+    entries: senaReadCache.size,
+  });
   senaReadCache.clear();
   senaInflightReads.clear();
   senaObservationFingerprint = currentFingerprint;
@@ -366,23 +472,38 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
   await ensureFreshSenaReadCache();
 
   if (senaReadCache.has(key)) {
+    benchmarkCacheEvent('main.cache.sena-read.hit', { key });
     return senaReadCache.get(key) as T;
   }
 
   const inflight = senaInflightReads.get(key);
   if (inflight) {
+    benchmarkCacheEvent('main.cache.sena-read.inflight-hit', { key });
     return (await inflight) as T;
   }
 
+  const endMiss = startBenchmarkSpan({
+    category: 'ipc',
+    name: 'main.cache.sena-read.miss',
+    detail: { key },
+  });
   const request = loader()
     .then((value) => {
       senaReadCache.set(key, value);
       senaInflightReads.delete(key);
       void persistSenaReadCache();
+      endMiss({
+        ok: true,
+        result: summarizeBenchmarkPayload(value),
+      });
       return value;
     })
     .catch((error) => {
       senaInflightReads.delete(key);
+      endMiss({
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
       throw error;
     });
 
@@ -620,6 +741,11 @@ function installApplicationMenu() {
 
 async function createMainWindow() {
   const { x, y, width, height } = screen.getPrimaryDisplay().workArea;
+  const endCreate = startBenchmarkSpan({
+    category: 'startup',
+    name: 'main.window.create',
+    detail: { width, height },
+  });
   mainWindow = new BrowserWindow({
     x,
     y,
@@ -632,14 +758,24 @@ async function createMainWindow() {
     icon: process.platform === 'darwin' ? undefined : iconAssets.dockIconPath,
     webPreferences: createMainWindowWebPreferences(),
   });
+  endCreate({ ok: true });
 
   installPreferredWindowZoomBehavior(mainWindow);
 
+  const endLoad = startBenchmarkSpan({
+    category: 'startup',
+    name: 'main.window.renderer.load',
+    detail: {
+      mode: process.env.ELECTRON_RENDERER_URL ? 'url' : 'file',
+    },
+  });
   if (process.env.ELECTRON_RENDERER_URL) {
     await mainWindow.loadURL(process.env.ELECTRON_RENDERER_URL);
   } else {
     await mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
   }
+  endLoad({ ok: true });
+  snapshotProcessMemory('main.window.renderer.loaded');
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[renderer:${level}] ${message} (${sourceId}:${line})`);
   });
@@ -647,39 +783,96 @@ async function createMainWindow() {
 
 async function boot() {
   installRendererContentSecurityPolicy();
+  recordBenchmarkEvent({
+    layer: 'main',
+    category: 'startup',
+    name: 'main.boot.install-csp.end',
+    phase: 'instant',
+  });
   installDesktopAssetProtocol();
+  recordBenchmarkEvent({
+    layer: 'main',
+    category: 'startup',
+    name: 'main.boot.install-asset-protocol.end',
+    phase: 'instant',
+  });
   installApplicationMenu();
+  recordBenchmarkEvent({
+    layer: 'main',
+    category: 'startup',
+    name: 'main.boot.menu.end',
+    phase: 'instant',
+  });
   await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
+    const endMigration = startBenchmarkSpan({
+      category: 'startup',
+      name: 'main.boot.dev-migration',
+    });
     const migratedFiles = await migrateLegacyDesktopData(
       desktopDataPath,
       app.getPath('userData'),
     );
+    endMigration({
+      ok: true,
+      migratedFiles: migratedFiles.length,
+    });
     if (migratedFiles.length > 0) {
       console.log(
         `[desktop-data] migrated ${migratedFiles.join(', ')} from legacy Electron userData`,
       );
     }
-    try {
-      const seeded = await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
-        timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+    if (process.env.BANJI_BENCHMARK_DISABLE_DEV_SEED !== '1') {
+      const endSeed = startBenchmarkSpan({
+        category: 'startup',
+        name: 'main.boot.dev-seed',
       });
-      if (seeded) {
-        await invalidateSenaReadCache();
-        console.log('[desktop-data] seeded local dev SENA workspace');
+      try {
+        const seeded = await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
+          timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+        });
+        if (seeded) {
+          await invalidateSenaReadCache();
+          console.log('[desktop-data] seeded local dev SENA workspace');
+        }
+        endSeed({ ok: true, seeded });
+      } catch (error) {
+        endSeed({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        console.error('[desktop-data] failed to seed local dev SENA workspace', error);
       }
-    } catch (error) {
-      console.error('[desktop-data] failed to seed local dev SENA workspace', error);
+    } else {
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'startup',
+        name: 'main.boot.dev-seed.skipped',
+        phase: 'instant',
+      });
     }
   }
   if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
     app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));
   }
   await createMainWindow();
+  snapshotProcessMemory('main.boot.ready');
 }
 
-ipcMain.handle(IPC_CHANNELS.systemGetAppContext, async () => desktopContext);
-ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
+ipcMain.on(IPC_CHANNELS.benchmarkRecordEvent, (_event, event) => {
+  recordExternalBenchmarkEvent(event);
+});
+
+ipcMain.handle(IPC_CHANNELS.systemGetAppContext, benchmarkIpcHandle(IPC_CHANNELS.systemGetAppContext, async () => {
+  recordBenchmarkEvent({
+    layer: 'main',
+    category: 'startup',
+    name: 'ipc.systemGetAppContext.end',
+    phase: 'instant',
+  });
+  return desktopContext;
+}));
+ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, benchmarkIpcHandle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
   const info: DesktopLocalDataInfo = {
     dataDirectoryPath: desktopDataPath,
     workspaceStorePath: join(desktopDataPath, SENA_STORE_FILENAME),
@@ -689,8 +882,8 @@ ipcMain.handle(IPC_CHANNELS.systemGetLocalDataInfo, async () => {
     storageFormat: 'sqlite',
   };
   return info;
-});
-ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, async () => {
+}));
+ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, benchmarkIpcHandle(IPC_CHANNELS.systemCreateBackupSnapshot, async () => {
   await managedCore.stop();
   const snapshot: DesktopBackupSnapshotResult = await createDesktopBackupSnapshot({
     reason: 'settings',
@@ -698,8 +891,8 @@ ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, async () => {
     userDataPath: desktopDataPath,
   });
   return snapshot;
-});
-ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
+}));
+ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, benchmarkIpcHandle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
   const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
     buttonLabel: 'Restore snapshot',
     defaultPath: desktopBackupDirectoryPath(desktopDataPath),
@@ -718,14 +911,14 @@ ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
   const result: DesktopBackupRestoreResult = await restoreOperation;
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, async () => {
+}));
+ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, benchmarkIpcHandle(IPC_CHANNELS.systemClearCurrentData, async () => {
   await managedCore.stop();
   const result: DesktopClearCurrentDataResult = await clearCurrentDesktopData(desktopDataPath);
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
+}));
+ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
   if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
     throw new Error('A local path is required.');
   }
@@ -741,8 +934,8 @@ ipcMain.handle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string)
   }
 
   shell.showItemInFolder(normalizedPath);
-});
-ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
+}));
+ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
   const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
     buttonLabel: 'Use image',
     filters: [
@@ -768,137 +961,151 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
     throw new Error('Please choose a PNG or JPEG image.');
   }
 
+  const sourceStats = await stat(sourcePath).catch(() => null);
+  const endNormalize = startBenchmarkSpan({
+    category: 'interaction',
+    name: 'main.image.normalize',
+    detail: {
+      extension,
+      sourceBytes: sourceStats?.size ?? null,
+    },
+  });
   const normalizedImage = normalizeImportedImage(sourcePath);
+  endNormalize({
+    ok: true,
+    outputBytes: normalizedImage.bytes.byteLength,
+    outputExtension: normalizedImage.extension,
+  });
 
   const targetDirectory = desktopAssetDirectoryPath();
   await mkdir(targetDirectory, { recursive: true });
   const targetPath = join(targetDirectory, `${randomUUID()}${normalizedImage.extension}`);
   await writeFile(targetPath, normalizedImage.bytes);
   return targetPath;
-});
+}));
 
-ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
+ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, benchmarkIpcHandle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
   managedCore.invoke<InventorySnapshot>('inventory.loadSnapshot', undefined, {
     timeoutMs: INVENTORY_READ_TIMEOUT_MS,
   }),
-);
-ipcMain.handle(IPC_CHANNELS.inventoryListReports, async () =>
+));
+ipcMain.handle(IPC_CHANNELS.inventoryListReports, benchmarkIpcHandle(IPC_CHANNELS.inventoryListReports, async () =>
   managedCore.invoke<StockReport[]>('inventory.listReports', undefined, {
     timeoutMs: INVENTORY_READ_TIMEOUT_MS,
   }),
-);
-ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) => {
+));
+ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, benchmarkIpcHandle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) => {
   await snapshotBeforeWorkspaceMutation('inventory-submit-report');
   return managedCore.invoke<StockReport>('inventory.submitReport', payload);
-});
-ipcMain.handle(IPC_CHANNELS.senaGetCatalog, async () =>
+}));
+ipcMain.handle(IPC_CHANNELS.senaGetCatalog, benchmarkIpcHandle(IPC_CHANNELS.senaGetCatalog, async () =>
   loadCachedSenaRead('catalog', () =>
     managedCore.invoke<SenaCatalog | null>('sena.getCatalog', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
-ipcMain.handle(IPC_CHANNELS.senaListObservations, async () =>
+));
+ipcMain.handle(IPC_CHANNELS.senaListObservations, benchmarkIpcHandle(IPC_CHANNELS.senaListObservations, async () =>
   loadCachedSenaRead('observations', () =>
     managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
-ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, async (_event, payload?: SenaOrderLookupPayload) =>
+));
+ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, benchmarkIpcHandle(IPC_CHANNELS.senaListOrderBatches, async (_event, payload?: SenaOrderLookupPayload) =>
   loadCachedSenaRead(`order-batches:${JSON.stringify(payload ?? {})}`, () =>
     managedCore.invoke<SenaOrderBatchRecord[]>('sena.listOrderBatches', payload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
-ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) => {
+));
+ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, benchmarkIpcHandle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) => {
   await snapshotBeforeWorkspaceMutation('sena-upsert-catalog');
   const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaIngestObservation, benchmarkIpcHandle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
   await snapshotBeforeWorkspaceMutation('sena-ingest-observation');
   const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
   await snapshotBeforeWorkspaceMutation('sena-update-observation');
   const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, benchmarkIpcHandle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
   await snapshotBeforeWorkspaceMutation('sena-delete-observation');
   await managedCore.invoke('sena.deleteObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
-});
-ipcMain.handle(IPC_CHANNELS.senaCreateOrderBatch, async (_event, payload: SenaCreateOrderBatchPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaCreateOrderBatch, benchmarkIpcHandle(IPC_CHANNELS.senaCreateOrderBatch, async (_event, payload: SenaCreateOrderBatchPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-create-order-batch');
   const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.createOrderBatch', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaUpdateOrderBatch, async (_event, payload: SenaUpdateOrderBatchPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaUpdateOrderBatch, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateOrderBatch, async (_event, payload: SenaUpdateOrderBatchPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-update-order-batch');
   const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderBatch', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaUpdateOrderChild, async (_event, payload: SenaUpdateOrderChildPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaUpdateOrderChild, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateOrderChild, async (_event, payload: SenaUpdateOrderChildPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-update-order-child');
   const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderChild', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaSplitOrderChild, async (_event, payload: SenaSplitOrderChildPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaSplitOrderChild, benchmarkIpcHandle(IPC_CHANNELS.senaSplitOrderChild, async (_event, payload: SenaSplitOrderChildPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-split-order-child');
   const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.splitOrderChild', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaTriggerRun, benchmarkIpcHandle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-trigger-run');
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
+}));
+ipcMain.handle(IPC_CHANNELS.senaRetryRun, benchmarkIpcHandle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
   await snapshotBeforeWorkspaceMutation('sena-retry-run');
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
-});
-ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
+}));
+ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, benchmarkIpcHandle(IPC_CHANNELS.senaGetWorkspaceSummary, async () =>
   loadCachedSenaRead('workspace-summary', () =>
     managedCore.invoke<SenaWorkspaceSummary | null>('sena.getWorkspaceSummary', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
-ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
+));
+ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, benchmarkIpcHandle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLookupPayload) =>
   loadCachedSenaRead(`sku-detail:${payload.skuId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
     managedCore.invoke<SenaSkuDetailPage | null>('sena.getSkuDetail', {
       skuId: payload.skuId,
@@ -908,17 +1115,17 @@ ipcMain.handle(IPC_CHANNELS.senaGetSkuDetail, async (_event, payload: SenaSkuLoo
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
-ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, async () =>
+));
+ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, benchmarkIpcHandle(IPC_CHANNELS.senaGetDiagnostics, async () =>
   loadCachedSenaRead('diagnostics', () =>
     managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
+));
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
-  async (_event, payload: SenaServiceLookupPayload) =>
+  benchmarkIpcHandle(IPC_CHANNELS.senaGetServiceDetail, async (_event, payload: SenaServiceLookupPayload) =>
     loadCachedSenaRead(`service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
       managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
         serviceId: payload.serviceId,
@@ -928,29 +1135,31 @@ ipcMain.handle(
         timeoutMs: SENA_READ_TIMEOUT_MS,
       }),
     ),
+  ),
 );
 ipcMain.handle(
   IPC_CHANNELS.senaClearDetailCache,
-  async (_event, payload: SenaDetailCacheClearPayload) =>
+  benchmarkIpcHandle(IPC_CHANNELS.senaClearDetailCache, async (_event, payload: SenaDetailCacheClearPayload) =>
     invalidateSenaDetailCache(payload),
+  ),
 );
-ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) =>
+ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, benchmarkIpcHandle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) =>
   loadCachedSenaRead(`run-status:${payload.runId}`, () =>
     managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', payload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   ),
-);
+));
 
-ipcMain.handle(IPC_CHANNELS.preferencesGet, async () =>
+ipcMain.handle(IPC_CHANNELS.preferencesGet, benchmarkIpcHandle(IPC_CHANNELS.preferencesGet, async () =>
   loadDesktopPreferences(desktopDataPath),
-);
+));
 ipcMain.handle(
   IPC_CHANNELS.preferencesSave,
-  async (_event, payload: Partial<DesktopPreferences>) => {
+  benchmarkIpcHandle(IPC_CHANNELS.preferencesSave, async (_event, payload: Partial<DesktopPreferences>) => {
     await snapshotBeforeWorkspaceMutation('preferences-save');
     return saveDesktopPreferences(desktopDataPath, payload);
-  },
+  }),
 );
 
 app.whenReady().then(boot);
