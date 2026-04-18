@@ -56,7 +56,10 @@ pnpm package:win:native
 
 ### Product Reference
 
-- [User guide](/Users/svanny/banji/docs/user-guide.md)
+- [User guide (English)](/Users/svanny/banji/docs/user-guide.md)
+- [User guide (Khmer)](/Users/svanny/banji/docs/user-guide.km.md)
+
+The Banji in-app `Help` page is sourced from these product-reference guides and should stay aligned with them.
 
 ## Reading Order
 
@@ -66,4 +69,4 @@ If you are new to the repo, read the docs in this order:
 2. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
 3. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
 4. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-5. [User guide](/Users/svanny/banji/docs/user-guide.md)
+5. [User guide (English)](/Users/svanny/banji/docs/user-guide.md)

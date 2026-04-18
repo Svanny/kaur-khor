@@ -13,32 +13,38 @@ Detailed end-user help lives in:
 - English: [docs/user-guide.md](docs/user-guide.md)
 - Khmer: [docs/user-guide.km.md](docs/user-guide.km.md)
 
-The guides explain Banji's main workspaces, common workflows, important buttons and controls, glossary terms, and troubleshooting FAQ.
+The guides explain Banji's current workspaces, lane-based update flows, important buttons and controls, glossary terms, and troubleshooting FAQ. The in-app `Help` page mirrors these docs.
 
 ## Screenshots
 
 | Overview | Record update |
 | --- | --- |
-| ![Banji overview workspace](docs/readme/overview.png) | ![Banji record update flow](docs/readme/record-update.png) |
+| ![Banji overview workspace](docs/readme/overview-fullscreen.png) | ![Banji record update workspace](docs/readme/record-update-fullscreen.png) |
+
+| Performance | Financials |
+| --- | --- |
+| ![Banji performance workspace](docs/readme/performance-fullscreen.png) | ![Banji financials workspace](docs/readme/financials-fullscreen.png) |
 
 | Catalog | Analysis |
 | --- | --- |
-| ![Banji catalog workspace](docs/readme/catalog.png) | ![Banji analysis workspace](docs/readme/analysis.png) |
+| ![Banji catalog workspace](docs/readme/catalog-fullscreen.png) | ![Banji analysis workspace](docs/readme/analysis-fullscreen.png) |
 
 ## What To Expect
 
 - A desktop app with downloadable releases for macOS, Windows, and Linux.
 - A bundled local runtime and local workspace storage inside the app.
-- A workflow centered on catalog management, update logging, operational follow-up, and analysis.
+- A workflow centered on catalog management, lane-based update capture, operational follow-up, money views, and analysis.
 - A product that is opinionated about Banji's current inventory model rather than a blank-slate platform.
 - A repository where the README is the top-level overview and the deeper developer docs live in `docs/`.
 
 ## What's Included
 
 - Catalog management for SKUs and services.
-- A guided record-update flow for stock counts, service updates, ordering signals, delivery timing, and notes.
+- A lane-based record-update hub for stock counts, customer orders, supplier orders, receipts, and custom combined capture flows.
 - Overview and performance surfaces that turn updates into concrete follow-up tasks.
-- Analysis views that explain what the current inventory picture seems to be and why.
+- A financial workspace that turns the same inventory state into money-in, money-tied-up, and money-leaking views.
+- An operations workspace for saved update history, heatmap inspection, report editing, and report deletion.
+- Analysis and Help views that explain what the current inventory picture seems to be and how Banji works.
 - Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
 ## Current Limits
