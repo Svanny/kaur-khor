@@ -371,6 +371,40 @@ describe('AnalysisContent', () => {
     expect(screen.queryByRole('dialog', { name: 'Expanded system ledger' })).toBeNull();
   });
 
+  it('hides the fixed loading island while expanded so the ledger footer owns the loading pill', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AnalysisContent
+        currency="USD"
+        hasOlderIntervals={false}
+        inventory={createInventory()}
+        isHydratingDetails={false}
+        isLoadingOlderIntervals={false}
+        language="en"
+        loadOlderIntervals={vi.fn(async () => 0)}
+        resetHydratedDetails={vi.fn(async () => {})}
+        scope="all"
+        section="workbench"
+        serviceDetailsById={{}}
+        setCustomTimeframeRange={vi.fn()}
+        setScope={vi.fn()}
+        setSection={vi.fn()}
+        setTimeframe={vi.fn()}
+        showRightRailCards={false}
+        skuDetailsById={{}}
+        timeframe="Recent"
+        timeframeHydrationProgress={null}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Choose timeframe' }));
+    await user.click(screen.getByRole('button', { name: 'Expand ledger' }));
+
+    expect(screen.queryByTestId('expanded-analysis-ledger')).toBeInTheDocument();
+    expect(screen.queryByText('Loading data')).toBeNull();
+  });
+
   it('applies the custom timeframe range after hydration completes while expanded', async () => {
     const user = userEvent.setup();
 

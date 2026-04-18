@@ -417,7 +417,7 @@ describe('deriveAnalysisViewModel', () => {
     expect(model.workbench.inventoryDemandLane.points[1]?.receiptsMean).toBe(8);
 
     expect(model.workbench.pipelineLane.spans).toHaveLength(2);
-    expect(model.workbench.pipelineLane.markers.map((marker) => marker.kind)).toEqual(['order', 'order', 'receipt']);
+    expect(model.workbench.pipelineLane.markers.map((marker) => marker.kind)).toEqual(['supplier_order', 'supplier_order', 'supplier_receipt']);
 
     expect(model.workbench.leadTimeLane.points[1]).toMatchObject({
       meanDays: 6,

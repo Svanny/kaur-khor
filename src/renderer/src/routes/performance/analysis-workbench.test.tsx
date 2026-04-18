@@ -485,7 +485,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(onToggleExpand).toHaveBeenCalledTimes(2);
   });
 
-  test('shows the shared loading overlay when the expanded analysis ledger is busy', () => {
+  test('renders the loading pill from the shared ledger footer when expanded and busy', () => {
     render(
       <AnalysisWorkbench
         expanded

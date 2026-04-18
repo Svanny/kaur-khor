@@ -7,10 +7,12 @@ import {
   ActionSearchOffIcon,
 } from '@icons/actions';
 import {
+  overviewCustomerFilterIcons,
   overviewTaskActionIcons,
   overviewTaskFilterIcons,
 } from '@icons/domain';
 import {
+  EntityCustomerIcon,
   EntityLayersIcon,
   EntityReceiptDocumentIcon,
   EntityServiceIcon,
@@ -25,6 +27,7 @@ import {
   WorkspacePage,
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
+import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -62,6 +65,11 @@ import {
   type OverviewTask,
   type OverviewTaskFilter,
 } from './overview/view-model';
+import {
+  buildCustomerOverviewModel,
+  shouldShowCustomerTask,
+  type OverviewCustomerFilter,
+} from './overview/customer-view-model';
 
 const overviewQueueTableLayout = createHeaderedTableLayout({
   breakpoint: 'lg',
@@ -70,6 +78,7 @@ const overviewQueueTableLayout = createHeaderedTableLayout({
 });
 
 type OverviewSearchScope = 'all' | 'skus' | 'services';
+type OverviewWorkflowScope = 'supply' | 'customer';
 
 function boardClassName() {
   return `${cardFrameClassName} ${cardSurfaceClassName} overflow-hidden rounded-[2rem]`;
@@ -213,6 +222,8 @@ export function DashboardRoute() {
   const deferredQuery = useDeferredValue(query);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
+  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('supply');
+  const [customerFilter, setCustomerFilter] = useState<OverviewCustomerFilter>('all');
   const [selectedTaskGroup, setSelectedTaskGroup] = useState<{
     group: TaskGroup;
     laneId: RecordUpdateLaneId;
@@ -356,6 +367,11 @@ export function DashboardRoute() {
     staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
   });
+  const customerModel = buildCustomerOverviewModel({
+    catalog: inventory.catalog,
+    language,
+    observations: inventory.observations,
+  });
 
   const scopedTasks = model.tasks.filter(
     (task) =>
@@ -364,6 +380,7 @@ export function DashboardRoute() {
         : searchScope === 'all' && matchesOverviewQuery(task, deferredQuery, searchScope),
   );
   const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, activeFilter));
+  const visibleCustomerTasks = customerModel.tasks.filter((task) => shouldShowCustomerTask(task, customerFilter));
   const selectedTask = scopedTasks.find(
     (task): task is OverviewSkuTask => task.id === selectedTaskId && isOverviewSkuTask(task),
   ) ?? null;
@@ -440,11 +457,33 @@ export function DashboardRoute() {
             />
           </div>
           <ToggleGroup
+            aria-label={translateUiLiteral(language, 'Select overview workflow scope')}
+            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
+            spacing={1}
+            type="single"
+            value={overviewScope}
+            onValueChange={(nextValue) => {
+              if (nextValue) {
+                setOverviewScope(nextValue as OverviewWorkflowScope);
+              }
+            }}
+          >
+            <ToggleGroupItem value="supply">
+              <EntityTransitIcon data-icon="inline-start" />
+              {translateUiLiteral(language, 'Supply')}
+            </ToggleGroupItem>
+            <ToggleGroupItem value="customer">
+              <EntityCustomerIcon data-icon="inline-start" />
+              {translateUiLiteral(language, 'Customer')}
+            </ToggleGroupItem>
+          </ToggleGroup>
+          <ToggleGroup
             aria-label={t('searchItems')}
             className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
             spacing={1}
             type="single"
             value={searchScope}
+            disabled={overviewScope === 'customer'}
             onValueChange={(nextValue) => {
               if (nextValue) {
                 updateRouteState({ scope: nextValue as OverviewSearchScope });
@@ -466,8 +505,9 @@ export function DashboardRoute() {
           </ToggleGroup>
           <SupplierFilter
             catalog={inventory.catalog}
-            className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+            className={compactFilterControlClassName}
             value={supplierFilter}
+            disabled={overviewScope === 'customer'}
             onChange={(nextSupplier) =>
               updateRouteState({
                 supplier: supplierFilterQueryValue(nextSupplier),
@@ -481,18 +521,36 @@ export function DashboardRoute() {
 
       <ChromeTabs
         className="relative gap-0"
-        value={activeFilter}
-        onValueChange={(nextValue) => updateRouteState({ filter: nextValue as OverviewTaskFilter })}
+        value={overviewScope === 'customer' ? customerFilter : activeFilter}
+        onValueChange={(nextValue) => {
+          if (overviewScope === 'customer') {
+            setCustomerFilter(nextValue as OverviewCustomerFilter);
+            return;
+          }
+          updateRouteState({ filter: nextValue as OverviewTaskFilter });
+        }}
       >
         {showOverviewTaskTabs ? (
           <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
-              {filterOptions.map((option) => {
-                const FilterTabIcon = overviewTaskFilterIcons[option.value];
+              {(overviewScope === 'customer'
+                ? [
+                    { value: 'all', label: translateUiLiteral(language, 'All') },
+                    { value: 'open', label: translateUiLiteral(language, 'Open') },
+                    { value: 'need_stock', label: translateUiLiteral(language, 'Need stock') },
+                    { value: 'ready_to_complete', label: translateUiLiteral(language, 'Ready to complete') },
+                    { value: 'completed_today', label: translateUiLiteral(language, 'Completed today') },
+                    { value: 'canceled_today', label: translateUiLiteral(language, 'Canceled today') },
+                  ]
+                : filterOptions).map((option) => {
+                const FilterTabIcon =
+                  overviewScope === 'customer'
+                    ? overviewCustomerFilterIcons[option.value as OverviewCustomerFilter]
+                    : overviewTaskFilterIcons[option.value as OverviewTaskFilter];
                 return (
                   <ChromeTabsTrigger
                     key={option.value}
-                    leading={<FilterTabIcon className="size-4" />}
+                    leading={FilterTabIcon ? <FilterTabIcon className="size-4" /> : undefined}
                     value={option.value}
                   >
                     {option.label}
@@ -509,7 +567,155 @@ export function DashboardRoute() {
             marginTop: showOverviewTaskTabs ? 'calc(var(--chrome-tabs-surface-overlap) * -2.75)' : undefined,
           }}
         >
-          <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
+          {overviewScope === 'customer' ? (
+            <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
+              <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
+                <div className="border-b border-border/60 px-5 py-5 sm:px-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <h2 className="text-xl font-semibold tracking-[-0.03em] text-foreground">
+                        {translateUiLiteral(language, 'Customer queue')}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {translateUiLiteral(language, 'Open customer commitments, blocked work, and today’s completion signals.')}
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {translateUiLiteral(language, '{count} visible', { count: visibleCustomerTasks.length })}
+                    </p>
+                  </div>
+                </div>
+                {visibleCustomerTasks.length > 0 ? (
+                  <HeaderedTable>
+                    <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
+                      <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
+                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Customer work')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Why now')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Open / today')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
+                      </HeaderedTableHeader>
+                      <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
+                        {visibleCustomerTasks.map((task) => (
+                          <HeaderedTableRow
+                            key={task.id}
+                            className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName}`}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-base font-semibold text-foreground">{task.label}</span>
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.state === 'need_stock' ? 'warning' : task.state === 'completed_today' ? 'success' : 'info')}`}>
+                                  {task.stateLabel}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="min-w-0">
+                              <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                                {translateUiLiteral(language, 'Why now')}
+                              </HeaderedTableMobileLabel>
+                              <p className="font-medium text-foreground">{task.whyNow}</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p>
+                            </div>
+                            <div className="min-w-0">
+                              <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                                {translateUiLiteral(language, 'Open / today')}
+                              </HeaderedTableMobileLabel>
+                              <p className="font-medium text-foreground">
+                                {translateUiLiteral(language, '{open} open · {done} completed today', {
+                                  open: task.pendingQuantity,
+                                  done: task.completedToday,
+                                })}
+                              </p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                {translateUiLiteral(language, '{blocked} blocked · {canceled} canceled today', {
+                                  blocked: task.blockedQuantity,
+                                  canceled: task.canceledToday,
+                                })}
+                              </p>
+                            </div>
+                            <div className="flex items-start lg:justify-center">
+                              <Button asChild className="w-[152px] justify-center" size="sm" variant={task.action === 'mark_completed' ? 'default' : 'outline'}>
+                                <Link to={task.href}>{task.actionLabel}</Link>
+                              </Button>
+                            </div>
+                          </HeaderedTableRow>
+                        ))}
+                      </HeaderedTableBody>
+                    </div>
+                  </HeaderedTable>
+                ) : (
+                  <div className="grid place-items-center px-5 py-16 sm:px-6">
+                    <div className="max-w-md text-center">
+                      <ActionSearchOffIcon className="mx-auto size-9 text-muted-foreground/70" />
+                      <h3 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-foreground">
+                        {translateUiLiteral(language, 'No customer tasks match this view')}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {translateUiLiteral(language, 'Record pending or completed customer orders to bring the customer queue into view.')}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {showRightRailCards ? (
+                <aside className="flex h-full flex-col bg-secondary/15">
+                  <section className={railBlockClassName()}>
+                    <div className="mb-4 flex items-center gap-2">
+                      <NavigationTaskListIcon className="size-4 text-primary" />
+                      <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                        {translateUiLiteral(language, 'Today')}
+                      </h2>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {[
+                        ['open', translateUiLiteral(language, 'Open')],
+                        ['need_stock', translateUiLiteral(language, 'Need stock')],
+                        ['ready_to_complete', translateUiLiteral(language, 'Ready to complete')],
+                        ['completed_today', translateUiLiteral(language, 'Completed today')],
+                        ['canceled_today', translateUiLiteral(language, 'Canceled today')],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          aria-pressed={customerFilter === key}
+                          className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
+                          type="button"
+                          onClick={() => setCustomerFilter(key as OverviewCustomerFilter)}
+                        >
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="font-semibold text-foreground">
+                            {customerModel.counts[key as keyof typeof customerModel.counts]}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                  <section className={railBlockClassName()}>
+                    <div className="mb-4 flex items-center gap-2">
+                      <EntitySignalIcon className="size-4 text-primary" />
+                      <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
+                        {translateUiLiteral(language, 'Customer signals')}
+                      </h2>
+                    </div>
+                    <div className="divide-y divide-border/50">
+                      {customerModel.signals.map((signal) => (
+                        <div key={signal.id} className="py-3 text-sm leading-6 text-foreground">
+                          {signal.text}
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                  <section className="mt-auto flex justify-center px-5 py-5">
+                    <Button asChild variant="outline">
+                      <Link to="/record-update">
+                        <ActionOpenExternalIcon className="size-4" />
+                        {translateUiLiteral(language, 'Open record updates')}
+                      </Link>
+                    </Button>
+                  </section>
+                </aside>
+              ) : null}
+            </div>
+          ) : (
+            <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
           <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -791,59 +997,64 @@ export function DashboardRoute() {
           </aside>
           ) : null}
         </div>
+          )}
         </section>
       </ChromeTabs>
 
-      <OverviewTaskDrawer
-        mode={routeState.taskMode ?? selectedTask?.defaultDrawerMode ?? null}
-        open={selectedTask != null}
-        task={selectedTask}
-        onModeChange={(nextMode) => updateRouteState({ taskMode: nextMode }, true)}
-        onOpenChange={(open) => {
-          if (!open) {
-            updateRouteState({ taskId: null, taskMode: null }, true);
-          }
-        }}
-      />
+      {overviewScope === 'supply' ? (
+        <>
+          <OverviewTaskDrawer
+            mode={routeState.taskMode ?? selectedTask?.defaultDrawerMode ?? null}
+            open={selectedTask != null}
+            task={selectedTask}
+            onModeChange={(nextMode) => updateRouteState({ taskMode: nextMode }, true)}
+            onOpenChange={(open) => {
+              if (!open) {
+                updateRouteState({ taskId: null, taskMode: null }, true);
+              }
+            }}
+          />
 
-      <BatchActionPrompt
-        open={selectedTaskGroup != null}
-        rememberChoice={rememberBatchChoice}
-        taskGroup={selectedTaskGroup?.group ?? { action: '', supplierName: null, tasks: [] }}
-        onBatchUpdate={() => {
-          if (!selectedTaskGroup) {
-            return;
-          }
-          const run = async () => {
-            if (rememberBatchChoice) {
-              await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_batch');
-            }
-            openBatchTaskGroup(selectedTaskGroup.group, selectedTaskGroup.laneId);
-          };
-          void run();
-          setSelectedTaskGroup(null);
-          setRememberBatchChoice(false);
-        }}
-        onClose={() => {
-          setSelectedTaskGroup(null);
-          setRememberBatchChoice(false);
-        }}
-        onRememberChoiceChange={setRememberBatchChoice}
-        onUpdateIndividually={() => {
-          if (!selectedTaskGroup) {
-            return;
-          }
-          const run = async () => {
-            if (rememberBatchChoice) {
-              await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_alone');
-            }
-            openSingleTask(selectedTaskGroup.selectedTask);
-          };
-          void run();
-          setSelectedTaskGroup(null);
-          setRememberBatchChoice(false);
-        }}
-      />
+          <BatchActionPrompt
+            open={selectedTaskGroup != null}
+            rememberChoice={rememberBatchChoice}
+            taskGroup={selectedTaskGroup?.group ?? { action: '', supplierName: null, tasks: [] }}
+            onBatchUpdate={() => {
+              if (!selectedTaskGroup) {
+                return;
+              }
+              const run = async () => {
+                if (rememberBatchChoice) {
+                  await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_batch');
+                }
+                openBatchTaskGroup(selectedTaskGroup.group, selectedTaskGroup.laneId);
+              };
+              void run();
+              setSelectedTaskGroup(null);
+              setRememberBatchChoice(false);
+            }}
+            onClose={() => {
+              setSelectedTaskGroup(null);
+              setRememberBatchChoice(false);
+            }}
+            onRememberChoiceChange={setRememberBatchChoice}
+            onUpdateIndividually={() => {
+              if (!selectedTaskGroup) {
+                return;
+              }
+              const run = async () => {
+                if (rememberBatchChoice) {
+                  await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_alone');
+                }
+                openSingleTask(selectedTaskGroup.selectedTask);
+              };
+              void run();
+              setSelectedTaskGroup(null);
+              setRememberBatchChoice(false);
+            }}
+          />
+        </>
+      ) : null}
     </WorkspacePage>
   );
 }

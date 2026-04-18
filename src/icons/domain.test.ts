@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
   getRegimeIcon,
+  overviewCustomerFilterIcons,
   overviewDrawerBandIcons,
   overviewTaskActionIcons,
   overviewTaskFilterIcons,
@@ -31,6 +32,17 @@ describe('domain icon mappings', () => {
     ]);
   });
 
+  test('covers all customer overview filter keys', () => {
+    expect(Object.keys(overviewCustomerFilterIcons).sort()).toEqual([
+      'all',
+      'canceled_today',
+      'completed_today',
+      'need_stock',
+      'open',
+      'ready_to_complete',
+    ]);
+  });
+
   test('covers all overview drawer band ids', () => {
     expect(Object.keys(overviewDrawerBandIcons).sort()).toEqual([
       'next_steps',
@@ -52,6 +64,7 @@ describe('domain icon mappings', () => {
     const semanticMaps = [
       overviewTaskActionIcons,
       overviewTaskFilterIcons,
+      overviewCustomerFilterIcons,
       overviewDrawerBandIcons,
       rankingEntryTypeIcons,
     ];
@@ -61,7 +74,7 @@ describe('domain icon mappings', () => {
       .map((Icon) => Icon.displayName ?? Icon.name);
     const duplicateNames = iconNames.filter((name, index) => iconNames.indexOf(name) !== index);
 
-    expect(duplicateNames).toEqual(['ClipboardList', 'Package']);
+    expect(duplicateNames).toEqual(['ClipboardList', 'ClipboardList', 'ClipboardCheck', 'Package']);
   });
 
   test('uses the shared neutral icon for the normal regime', () => {

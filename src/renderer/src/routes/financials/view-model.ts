@@ -11,6 +11,7 @@ import type {
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { buildServiceCommercialSnapshots, buildSkuCommercialSnapshots } from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
 import { buildBatchUpdateHref, RECORD_UPDATE_RECORD_RECEIPT_PATH } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
@@ -125,8 +126,10 @@ interface FinancialTotals {
 }
 
 interface SkuFinancialRow {
+  blockedDemandValue: number;
   capitalTied: number;
   costConsumed: number;
+  refundValue: number;
   grossProfit: number;
   href: string;
   id: string;
@@ -143,8 +146,10 @@ interface SkuFinancialRow {
 }
 
 interface ServiceFinancialRow {
+  blockedDemandValue: number;
   capitalTied: number;
   coverageRatio: number;
+  refundValue: number;
   grossProfit: number;
   href: string;
   id: string;
@@ -366,7 +371,7 @@ function openCommitmentRows(orderBatches: SenaOrderBatchRecord[], skuById: Map<s
           href: buildBatchUpdateHref({
             batchOrderId: batch.batchOrderId,
             childOrderId: child.childOrderId,
-            laneId: 'record-receipt',
+            laneId: 'supplier-receipt',
             skuIds: [child.skuId],
           }),
           id: child.childOrderId,
@@ -556,6 +561,8 @@ function deriveWindowTotals({
 }): FinancialTotals {
   const { linkedSkusByServiceId, scopedServiceIds, scopedSkuIds, scopedSkus, serviceById, skuById } = scopeEntitySets(catalog, scope);
   const sales = deriveWindowSales({ catalog, observations, scope });
+  const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays: 3650 });
+  const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays: 3650 });
   const skuSummaryById = new Map(workspaceSummary?.skuSummaries.map((summary) => [summary.skuId, summary]) ?? []);
   const orderCommitments = openCommitmentRows(orderBatches, skuById, scopedSkuIds);
 
@@ -619,6 +626,15 @@ function deriveWindowTotals({
   }
 
   let blockedMargin = 0;
+  let refundValue = 0;
+  for (const sku of scopedSkus) {
+    const commercial = customerSkuSnapshots.get(sku.skuId);
+    if (!commercial) {
+      continue;
+    }
+    blockedMargin += commercial.blockedPendingQuantity * Math.max(0, sku.productPrice ?? 0);
+    refundValue += commercial.reversalWindowQuantity * Math.max(0, sku.productPrice ?? 0);
+  }
   if (scope !== 'skus') {
     for (const service of catalog.services) {
       if (!scopedServiceIds.has(service.serviceId)) {
@@ -632,23 +648,28 @@ function deriveWindowTotals({
       const activityMean = serviceDetailsById[service.serviceId]?.activityMean ?? sales.serviceSales.get(service.serviceId)?.units ?? 0;
       const serviceGrossProfit = Math.max(0, service.price - costPerServiceUnit(service.serviceId, catalog, linkedSkusByServiceId));
       blockedMargin += Math.max(0, activityMean - sellableUnits) * serviceGrossProfit;
+      const commercial = customerServiceSnapshots.get(service.serviceId);
+      if (commercial) {
+        blockedMargin += commercial.blockedPendingQuantity * serviceGrossProfit;
+        refundValue += commercial.reversalWindowQuantity * Math.max(0, service.price);
+      }
     }
   }
 
   const openCommitments = orderCommitments.reduce((sum, row) => sum + row.value, 0);
-  const marginErosion = costIncreases + markdownPressure + negativeCorrections + blockedMargin;
+  const marginErosion = costIncreases + markdownPressure + negativeCorrections + blockedMargin + refundValue;
 
   return {
     blockedMargin,
     costConsumed: sales.costConsumed,
     costIncreases,
-    grossProfit: sales.grossProfit,
+    grossProfit: sales.grossProfit - refundValue,
     inventoryCapital: onHandStockValue,
     inTransitCapital,
     marginErosion,
     markdownPressure,
     negativeCorrections,
-    netSales: sales.netSales,
+    netSales: sales.netSales - refundValue,
     onHandStockValue,
     openCommitments,
     slowStockValue,
@@ -673,6 +694,8 @@ function deriveEntityRows({
   const entitySets = scopeEntitySets(catalog, scope);
   const { linkedSkusByServiceId, linkedServicesBySkuId, scopedServiceIds, scopedSkuIds, scopedSkus } = entitySets;
   const sales = deriveWindowSales({ catalog, observations, scope });
+  const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays: 3650 });
+  const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays: 3650 });
   const skuSummaryById = new Map(workspaceSummary?.skuSummaries.map((summary) => [summary.skuId, summary]) ?? []);
 
   const skuRows: SkuFinancialRow[] = scopedSkus
@@ -680,12 +703,15 @@ function deriveEntityRows({
     .map((sku) => {
       const summary = skuSummaryById.get(sku.skuId);
       const skuSale = sales.skuSales.get(sku.skuId) ?? { costConsumed: 0, netSales: 0, units: 0 };
+      const commercial = customerSkuSnapshots.get(sku.skuId);
       const unitsOnHand = Math.max(0, summary?.latestPosteriorUnits ?? 0);
       const capitalTied = (unitsOnHand + currentInTransitUnits(skuDetailsById[sku.skuId])) * sku.costPerUnit;
       const marginRatio = skuSale.netSales > 0 ? (skuSale.netSales - skuSale.costConsumed) / skuSale.netSales : sku.productPrice ? (sku.productPrice - sku.costPerUnit) / sku.productPrice : null;
       return {
+        blockedDemandValue: (commercial?.blockedPendingQuantity ?? 0) * Math.max(0, sku.productPrice ?? 0),
         capitalTied,
         costConsumed: skuSale.costConsumed,
+        refundValue: (commercial?.reversalWindowQuantity ?? 0) * Math.max(0, sku.productPrice ?? 0),
         grossProfit: skuSale.netSales - skuSale.costConsumed,
         href: `/catalog/skus/${sku.skuId}`,
         id: sku.skuId,
@@ -709,6 +735,7 @@ function deriveEntityRows({
         .map((service) => {
           const linkedSkus = linkedSkusByServiceId.get(service.serviceId) ?? [];
           const serviceSale = sales.serviceSales.get(service.serviceId) ?? { costConsumed: 0, netSales: 0, units: 0 };
+          const commercial = customerServiceSnapshots.get(service.serviceId);
           const supportCapital = linkedSkus.reduce((sum, sku) => {
             const summary = skuSummaryById.get(sku.skuId);
             return sum + (summary?.latestPosteriorUnits ?? 0) * sku.costPerUnit;
@@ -723,8 +750,10 @@ function deriveEntityRows({
           const grossProfit = serviceSale.netSales > 0 ? serviceSale.netSales - serviceSale.costConsumed : fallbackGrossProfit * Math.max(1, activityMean);
           const marginRatio = serviceSale.netSales > 0 ? grossProfit / serviceSale.netSales : service.price > 0 ? fallbackGrossProfit / service.price : 0;
           return {
+            blockedDemandValue: (commercial?.blockedPendingQuantity ?? 0) * Math.max(0, service.price - costPerServiceUnit(service.serviceId, catalog, linkedSkusByServiceId)),
             capitalTied: supportCapital,
             coverageRatio,
+            refundValue: (commercial?.reversalWindowQuantity ?? 0) * Math.max(0, service.price),
             grossProfit,
             href: `/catalog/services/${service.serviceId}`,
             id: service.serviceId,
@@ -767,7 +796,7 @@ function statusForFinancialRow(row: FinancialEntityRow, language: AppLanguage): 
   if (row.netSales <= 0 && row.capitalTied > 0) {
     return { label: literal(language, 'Dormant stock'), tone: 'neutral' };
   }
-  if (row.type === 'service' && row.coverageRatio < 0.75 && row.grossProfit > 0) {
+  if (row.blockedDemandValue > 0 || (row.type === 'service' && row.coverageRatio < 0.75 && row.grossProfit > 0)) {
     return { label: literal(language, 'Blocked earner'), tone: 'danger' };
   }
   if (marginRatio > 0 && marginRatio < 0.28) {
@@ -780,6 +809,16 @@ function statusForFinancialRow(row: FinancialEntityRow, language: AppLanguage): 
 }
 
 function contributorSummary(row: FinancialEntityRow, language: AppLanguage) {
+  if (row.blockedDemandValue > 0) {
+    return literal(language, '{value} blocked by open customer orders', {
+      value: formatWholeNumber(Math.round(row.blockedDemandValue), language),
+    });
+  }
+  if (row.refundValue > 0) {
+    return literal(language, '{value} reversed by refunds or corrections', {
+      value: formatWholeNumber(Math.round(row.refundValue), language),
+    });
+  }
   if (row.type === 'service') {
     return literal(language, '{count} linked SKUs · {units} service sales in window', {
       count: row.linkedSkuCount,

@@ -6,6 +6,7 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import { translateRegimeLabel } from '@/lib/localized-display';
+import { translateUiLiteral } from '@/lib/translations';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
 import { usePreferences } from '@/state/preferences';
@@ -62,6 +63,16 @@ export function ServiceDetailRightRail({
         <div className="mt-4 space-y-2">
           {model.rail.overviewReason.map((line, index) => (
             <p key={`${index}:${line}`} className="text-sm leading-6 text-muted-foreground">
+              {line}
+            </p>
+          ))}
+        </div>
+      </RailBlock>
+
+      <RailBlock title={translateUiLiteral(language, 'Customer commitments')}>
+        <div className="grid gap-2">
+          {(model.rail.customerCommitments ?? []).map((line) => (
+            <p key={line} className="text-sm leading-6 text-muted-foreground">
               {line}
             </p>
           ))}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActionResetIcon } from '@icons/actions';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
+import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { SupplierFilter } from '@/components/system/supplier';
 import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -203,11 +204,13 @@ function AnalysisContentInner({
 
   return (
     <WorkspacePage className="gap-5">
-      <LoadingMoreIntervalsIsland
-        currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
-        totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
-        visible={heldShowsLoadingIsland}
-      />
+      {!isLedgerExpanded ? (
+        <LoadingMoreIntervalsIsland
+          currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
+          totalBatches={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.total ?? null}
+          visible={heldShowsLoadingIsland}
+        />
+      ) : null}
       <WorkspaceTitleCard
         eyebrow={t('analysisRouteEyebrow')}
         title={t('analysisRouteTitle')}
@@ -243,7 +246,7 @@ function AnalysisContentInner({
             )}
             <SupplierFilter
               catalog={baseCatalog}
-              className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+              className={compactFilterControlClassName}
               value={supplierFilter}
               onChange={setSupplierFilter}
             />

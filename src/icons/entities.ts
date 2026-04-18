@@ -1,6 +1,7 @@
 export {
   BadgeDollarSign as EntityRevenueIcon,
   DatabaseBackup as EntityBackupIcon,
+  Users as EntityCustomerIcon,
   EllipsisVertical as EntityOverflowMenuIcon,
   Eye as EntityPreviewIcon,
   FileSearch as EntityEvidenceIcon,

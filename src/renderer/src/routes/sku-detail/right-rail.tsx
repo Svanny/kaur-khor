@@ -43,6 +43,14 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         <SupplierBadge showEmpty supplierName={model.identity.supplierName} />
       </RailBlock>
 
+      <RailBlock title={translateUiLiteral(language, 'Customer demand')} tooltip={translateUiLiteral(language, 'Open customer commitments and realized customer flow linked to this SKU.')}>
+        <div className="grid gap-1">
+          {(model.rail.customerDemand?.summary ?? []).map((line) => (
+            <p key={line} className="text-sm text-muted-foreground">{line}</p>
+          ))}
+        </div>
+      </RailBlock>
+
       <RailBlock title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
         <p className="mt-2 text-lg font-medium text-foreground">{model.rail.actNow.quantityBand}</p>

@@ -8,6 +8,7 @@ import type {
   SenaSkuDetail,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import { commercialEventsForObservation, observationCommercialSummary } from '@/lib/commercial-flow';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { translateLeadTimeVariabilityLabel, translateRegimeLabel } from '@/lib/localized-display';
 import type { StatusPillTone } from '@/lib/state-tones';
@@ -213,7 +214,7 @@ export interface AnalysisWorkbenchPipelineMarker {
   intervalIndex: number;
   intervalPosition: number;
   row: number;
-  kind: 'order' | 'receipt';
+  kind: 'supplier_order' | 'supplier_receipt';
   quantityMean: number;
 }
 
@@ -595,6 +596,22 @@ function accumulateSignals(observation: SenaObservationRecord, language: AppLang
   if (observation.input.orderSignals.some((signal) => signal.receiptArrived)) {
     signals.push(literal(language, 'receipt arrived'));
   }
+  const commercialSummary = observationCommercialSummary(commercialEventsForObservation(observation));
+  if (commercialSummary.customerPending > 0) {
+    signals.push(literal(language, 'customer pending'));
+  }
+  if (commercialSummary.customerCompleted > 0) {
+    signals.push(literal(language, 'customer completed'));
+  }
+  if (commercialSummary.customerRefunded > 0) {
+    signals.push(literal(language, 'refund / reversal'));
+  }
+  if (commercialSummary.supplierPending > 0) {
+    signals.push(literal(language, 'supplier pending'));
+  }
+  if (commercialSummary.supplierReceived > 0) {
+    signals.push(literal(language, 'supplier receipt'));
+  }
   if (observation.input.servicePrices.length > 0 || observation.input.retailPrices.length > 0) {
     signals.push(literal(language, 'price signal'));
   }
@@ -871,6 +888,7 @@ export function deriveAnalysisViewModel({
 
     const intervalObservations = observationsInInterval(filteredObservations, interval);
     for (const observation of intervalObservations) {
+      const commercialSummary = observationCommercialSummary(commercialEventsForObservation(observation));
       for (const signal of accumulateSignals(observation, language)) {
         seed.observedSignals.add(signal);
       }
@@ -883,6 +901,15 @@ export function deriveAnalysisViewModel({
       seed.stockoutCueCount += observation.input.serviceStockouts.length + observation.input.retailStockouts.length;
       seed.orderPlacedCount += observation.input.orderSignals.filter((signal) => signal.orderPlaced).length;
       seed.receiptArrivedCount += observation.input.orderSignals.filter((signal) => signal.receiptArrived).length;
+      if (commercialSummary.customerPending > 0) {
+        seed.observedSignals.add(literal(language, 'customer pending'));
+      }
+      if (commercialSummary.customerCompleted > 0) {
+        seed.observedSignals.add(literal(language, 'customer completed'));
+      }
+      if (commercialSummary.customerRefunded > 0) {
+        seed.observedSignals.add(literal(language, 'refund / reversal'));
+      }
       for (const serviceId of observation.input.serviceRankings) {
         const label = serviceById.get(serviceId)?.name;
         if (label) {
@@ -1064,7 +1091,7 @@ export function deriveAnalysisViewModel({
             intervalIndex: seed.intervalIndex,
             intervalPosition,
             row,
-            kind: 'order',
+            kind: 'supplier_order',
             quantityMean: seed.orderQuantityMean,
           });
         }
@@ -1074,7 +1101,7 @@ export function deriveAnalysisViewModel({
             intervalIndex: seed.intervalIndex,
             intervalPosition,
             row,
-            kind: 'receipt',
+            kind: 'supplier_receipt',
             quantityMean: seed.receiptQuantityMean,
           });
         }
@@ -1270,6 +1297,7 @@ export function deriveAnalysisViewModel({
   const evidenceRows = [...filteredObservations]
     .reverse()
     .map((observation, index) => {
+      const commercialSummary = observationCommercialSummary(commercialEventsForObservation(observation));
       const stockSnapshotCount = observation.input.stockSnapshot.length;
       const serviceRankingCount = observation.input.serviceRankings.length;
       const retailRankingCount = observation.input.retailRankings.length;
@@ -1295,6 +1323,11 @@ export function deriveAnalysisViewModel({
           ...observation.input.retailRankings
             .map((skuId) => skuById.get(skuId)?.name)
             .filter((value): value is string => Boolean(value)),
+          ...commercialEventsForObservation(observation).map((event) =>
+            event.entityType === 'service'
+              ? serviceById.get(event.entityId)?.name
+              : skuById.get(event.entityId)?.name,
+          ).filter((value): value is string => Boolean(value)),
         ],
         4,
       );

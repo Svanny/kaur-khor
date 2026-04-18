@@ -1,4 +1,5 @@
 import type { RankingEntryType } from '@shared/inventory';
+import type { OverviewCustomerFilter } from '../renderer/src/routes/overview/customer-view-model';
 import type {
   OverviewDrawerBandId,
   OverviewTaskAction,
@@ -7,6 +8,8 @@ import type {
 import type { IconComponent } from './types';
 import {
   Archive,
+  AlertTriangle,
+  BadgeCheck,
   BadgePercent,
   BellRing,
   Bot,
@@ -28,6 +31,7 @@ import {
   PackageCheck,
   PackagePlus,
   ScanLine,
+  ShoppingBag,
   ScrollText,
   Send,
   ShoppingBasket,
@@ -53,6 +57,15 @@ export const overviewTaskFilterIcons: Record<OverviewTaskFilter, IconComponent> 
   follow_up_today: ListTodo,
   ready_to_receive: ClipboardCheck,
   received_today: Archive,
+};
+
+export const overviewCustomerFilterIcons: Record<OverviewCustomerFilter, IconComponent> = {
+  all: ClipboardList,
+  open: ShoppingBag,
+  need_stock: AlertTriangle,
+  ready_to_complete: ClipboardCheck,
+  completed_today: BadgeCheck,
+  canceled_today: CircleOff,
 };
 
 export const overviewDrawerBandIcons: Record<OverviewDrawerBandId, IconComponent> = {

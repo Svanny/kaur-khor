@@ -2,6 +2,7 @@ import type { AppCurrency, AppLanguage, InventorySnapshot, ServiceRecord, StockR
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type { SenaObservationRecord, SenaRegimePosteriorPoint, SenaServiceDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { computeServiceSellableUnits, serviceLinkedSkus } from '@/lib/catalog';
+import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import {
@@ -98,9 +99,11 @@ export interface ServiceDependencyImpactRow {
   imagePath: string | null;
   role: string;
   status: string;
+  blockedOpenOrders: string;
   daysOfCover: string;
   limitingProbability: string;
   inboundRecoveryNote: string;
+  pendingSupplyRelief: string;
   restockGuidance: string | null;
   openSkuHref: string;
 }
@@ -147,6 +150,7 @@ export interface ServiceDetailViewModel {
   rail: {
     overviewTitle: string;
     overviewReason: string[];
+    customerCommitments: string[];
     bottleneckStack: Array<{ skuId: string; label: string; role: string }>;
     recoveryPath: string[];
     nextTouch: {
@@ -494,10 +498,22 @@ export function deriveServiceDetailViewModel({
   snapshot: InventorySnapshot;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): ServiceDetailViewModel {
+  const customerCommercial = buildCommercialEntitySnapshots({
+    observations,
+    party: 'customer',
+    rangeDays: 30,
+    endAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
+  });
   const linkedSkus = serviceLinkedSkus(service, snapshot);
   const rankedContributors = rankedServiceContributors(service, snapshot);
   const contributorBySkuId = new Map(rankedContributors.map((entry) => [entry.sku.skuId, entry]));
   const sellableNow = computeServiceSellableUnits(service, snapshot);
+  const commercialKey = `service:${service.serviceId}`;
+  const openCustomerOrders = Math.max(0, customerCommercial.pendingQuantityByEntity.get(commercialKey) ?? 0);
+  const completedCustomerOrders = Math.max(0, customerCommercial.realizedWindowQuantityByEntity.get(commercialKey) ?? 0);
+  const refundedCustomerOrders = Math.max(0, customerCommercial.reversalWindowQuantityByEntity.get(commercialKey) ?? 0);
+  const canceledCustomerOrders = Math.max(0, customerCommercial.canceledWindowQuantityByEntity.get(commercialKey) ?? 0);
+  const blockedOpenOrders = openCustomerOrders > 0 && sellableNow <= 0 ? openCustomerOrders : 0;
   const fragility = deriveFragilitySummary(service, snapshot);
   const activityMean = detail?.activityMean ?? Math.max(1, Math.min(sellableNow, Math.max(linkedSkus.length, 1)));
   const credibleBand = deriveCredibleBand({ detail, sellableNow });
@@ -717,6 +733,30 @@ export function deriveServiceDetailViewModel({
       }
     }),
   }));
+  if (openCustomerOrders > 0 || completedCustomerOrders > 0 || refundedCustomerOrders > 0 || canceledCustomerOrders > 0) {
+    evidence.unshift({
+      id: `commercial:${service.serviceId}`,
+      title: blockedOpenOrders > 0
+        ? translateUiLiteral(language, '{count} open service orders are blocked', {
+            count: formatWholeNumber(blockedOpenOrders, language),
+          })
+        : translateUiLiteral(language, '{count} open service orders are active', {
+            count: formatWholeNumber(openCustomerOrders, language),
+          }),
+      observedAt: customerCommercial.latestObservedAtByEntity.get(commercialKey)
+        ? formatServiceEvidenceObservedAt(customerCommercial.latestObservedAtByEntity.get(commercialKey)!, language)
+        : translateUiLiteral(language, 'Recent'),
+      detail: translateUiLiteral(language, '{completed} completed recently · {issues} refund or cancellation signal', {
+        completed: formatWholeNumber(completedCustomerOrders, language),
+        issues: formatWholeNumber(refundedCustomerOrders + canceledCustomerOrders, language),
+      }),
+      chips: [
+        translateUiLiteral(language, 'Customer pending'),
+        ...(completedCustomerOrders > 0 ? [translateUiLiteral(language, 'Customer completed')] : []),
+        ...(refundedCustomerOrders > 0 || canceledCustomerOrders > 0 ? [translateUiLiteral(language, 'Refund / cancel')] : []),
+      ],
+    });
+  }
 
   const dependencyImpact = contributors.map<ServiceDependencyImpactRow>((entry) => ({
     skuId: entry.skuId,
@@ -724,9 +764,18 @@ export function deriveServiceDetailViewModel({
     imagePath: entry.imagePath,
     role: entry.roleLabel,
     status: `${entry.stockLabel} · ${entry.statusLabel.toLowerCase()}`,
+    blockedOpenOrders: blockedOpenOrders > 0
+      ? translateUiLiteral(language, '{count} open order{suffix} exposed here', {
+          count: formatWholeNumber(blockedOpenOrders, language),
+          suffix: blockedOpenOrders === 1 ? '' : 's',
+        })
+      : translateUiLiteral(language, 'No blocked open orders tied to this SKU right now'),
     daysOfCover: entry.daysOfCoverLabel,
     limitingProbability: entry.probabilityLabel,
     inboundRecoveryNote: entry.inboundLabel,
+    pendingSupplyRelief: entry.restockGuidance
+      ? translateUiLiteral(language, 'Supplier relief is available if this contributor is reordered')
+      : translateUiLiteral(language, 'No supplier relief has been logged yet'),
     restockGuidance: entry.restockGuidance,
     openSkuHref: entry.openSkuHref,
   }));
@@ -814,6 +863,8 @@ export function deriveServiceDetailViewModel({
     },
     ribbon: [
       { key: 'sellable-now', label: translate(language, 'serviceVmRibbonSellableNow'), value: formatWholeNumber(sellableNow, language) },
+      { key: 'open-orders', label: translateUiLiteral(language, 'Open orders'), value: formatWholeNumber(openCustomerOrders, language) },
+      { key: 'completed-window', label: translateUiLiteral(language, 'Completed'), value: formatWholeNumber(completedCustomerOrders, language) },
       { key: 'demand-per-day', label: translate(language, 'serviceVmRibbonDemandPerDay'), value: formatNumber(activityMean, language) },
       { key: 'bottleneck', label: translate(language, 'serviceVmRibbonMainBlocker'), value: topContributor?.sku.name ?? '—' },
       { key: 'revenue-at-risk', label: translate(language, 'serviceVmRibbonRevenueAtRisk'), value: formatCurrency(revenueAtRiskValue, currency, language, usdToKhrExchangeRate) },
@@ -835,6 +886,25 @@ export function deriveServiceDetailViewModel({
           ? translate(language, 'serviceVmOverviewTitleUnblock', { name: service.name.toLowerCase() })
           : translate(language, 'serviceVmOverviewTitleProtect', { name: service.name.toLowerCase() }),
       overviewReason,
+      customerCommitments: [
+        translateUiLiteral(language, '{count} open service order{suffix}', {
+          count: formatWholeNumber(openCustomerOrders, language),
+          suffix: openCustomerOrders === 1 ? '' : 's',
+        }),
+        translateUiLiteral(language, '{count} completed in the recent window', {
+          count: formatWholeNumber(completedCustomerOrders, language),
+        }),
+        blockedOpenOrders > 0
+          ? translateUiLiteral(language, '{count} blocked by linked SKU pressure', {
+              count: formatWholeNumber(blockedOpenOrders, language),
+            })
+          : translateUiLiteral(language, 'No open service order is currently blocked'),
+        refundedCustomerOrders > 0 || canceledCustomerOrders > 0
+          ? translateUiLiteral(language, '{count} refunds or cancellations need review', {
+              count: formatWholeNumber(refundedCustomerOrders + canceledCustomerOrders, language),
+            })
+          : translateUiLiteral(language, 'No recent refund or cancellation signal'),
+      ],
       bottleneckStack: [...contributors]
         .sort((left, right) => {
           const roleDelta = contributorRolePriority(left.roleKey) - contributorRolePriority(right.roleKey);

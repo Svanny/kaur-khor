@@ -11,6 +11,12 @@ import type {
   SenaSkuSummary,
   SenaWorkspaceSummary,
 } from '@shared/sena';
+import {
+  buildServiceCommercialSnapshots,
+  buildSkuCommercialSnapshots,
+  filterObservationsForDays,
+  observationCommercialSummary,
+} from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
 import { translateUiLiteral } from '@/lib/translations';
 import { getTranslation } from '@/lib/translations';
@@ -1185,6 +1191,19 @@ export function derivePerformanceViewModel({
     offsetDays: rangeDays,
     windowDays: rangeDays,
   });
+  const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays, endAt: observedAt });
+  const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays, endAt: observedAt });
+  const recentCommercialEvents = filterObservationsForDays(observations, rangeDays, observedAt)
+    .flatMap((observation) => observation.input.commercialEvents ?? []);
+  const recentCommercialSummary = observationCommercialSummary(recentCommercialEvents);
+  const blockedCustomerOrders = [...customerSkuSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.blockedPendingQuantity, 0)
+    + [...customerServiceSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.blockedPendingQuantity, 0);
+  const openCustomerOrders = [...customerSkuSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.pendingQuantity, 0)
+    + [...customerServiceSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.pendingQuantity, 0);
+  const completedCustomerOrders = [...customerSkuSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.realizedWindowQuantity, 0)
+    + [...customerServiceSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.realizedWindowQuantity, 0);
+  const canceledCustomerOrders = [...customerSkuSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.canceledWindowQuantity, 0)
+    + [...customerServiceSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.canceledWindowQuantity, 0);
   const skuSummaryById = new Map(workspaceSummary?.skuSummaries.map((entry) => [entry.skuId, entry]) ?? []);
   const linkedServicesBySkuId = new Map<string, SenaService[]>();
   const linkedSkusByServiceId = new Map<string, SenaSku[]>();
@@ -1389,6 +1408,54 @@ export function derivePerformanceViewModel({
       tone: row.statusTone,
     } satisfies PerformanceMoveRow;
   });
+  const mostBlockedService = [...customerServiceSnapshots.values()]
+    .sort((left, right) => right.blockedPendingQuantity - left.blockedPendingQuantity)[0] ?? null;
+  const mostBlockedSku = [...customerSkuSnapshots.values()]
+    .sort((left, right) => right.blockedPendingQuantity - left.blockedPendingQuantity)[0] ?? null;
+  if ((mostBlockedService?.blockedPendingQuantity ?? 0) > 0) {
+    const service = catalog.services.find((entry) => entry.serviceId === mostBlockedService?.entityId) ?? null;
+    if (service) {
+      moves.unshift({
+        id: `customer-blocked:${service.serviceId}`,
+        move: translateUiLiteral(language, 'Unblock customer orders'),
+        moveEntityName: service.name,
+        moveEntityType: 'service',
+        imagePath: service.imagePath?.trim() || null,
+        moveVerb: translateUiLiteral(language, 'Review pending'),
+        whyNow: translateUiLiteral(language, '{count} open service order{suffix} are blocked', {
+          count: formatWholeNumber(mostBlockedService.blockedPendingQuantity, language),
+          suffix: mostBlockedService.blockedPendingQuantity === 1 ? '' : 's',
+        }),
+        expectedEffect: translateUiLiteral(language, 'This reopens stalled customer revenue without changing the current page contract.'),
+        restockGuidance: null,
+        ctaHref: `/catalog/services/${service.serviceId}`,
+        ctaLabel: 'Open service',
+        tone: 'danger',
+      });
+    }
+  } else if ((mostBlockedSku?.blockedPendingQuantity ?? 0) > 0) {
+    const sku = catalog.skus.find((entry) => entry.skuId === mostBlockedSku?.entityId) ?? null;
+    if (sku) {
+      moves.unshift({
+        id: `customer-blocked:${sku.skuId}`,
+        move: translateUiLiteral(language, 'Release blocked customer demand'),
+        moveEntityName: sku.name,
+        moveEntityType: 'sku',
+        imagePath: sku.imagePath?.trim() || null,
+        moveVerb: translateUiLiteral(language, 'Review SKU'),
+        whyNow: translateUiLiteral(language, '{count} open customer order{suffix} are waiting on this SKU', {
+          count: formatWholeNumber(mostBlockedSku.blockedPendingQuantity, language),
+          suffix: mostBlockedSku.blockedPendingQuantity === 1 ? '' : 's',
+        }),
+        expectedEffect: translateUiLiteral(language, 'Restocking or correcting this SKU should free pending customer completions.'),
+        restockGuidance: null,
+        ctaHref: `/catalog/skus/${sku.skuId}`,
+        ctaLabel: 'Open SKU',
+        tone: 'danger',
+      });
+    }
+  }
+  const dedupedMoves = moves.filter((row, index, rows) => rows.findIndex((candidate) => candidate.id === row.id) === index).slice(0, 5);
 
   const serviceDemandTotal = serviceRows.reduce((sum, row) => sum + row.activityMean, 0);
   const coverableDemandTotal = serviceRows.reduce((sum, row) => sum + Math.min(row.activityMean, row.sellableUnits), 0);
@@ -1435,8 +1502,9 @@ export function derivePerformanceViewModel({
       trendSignal: demandTrendSignal,
       detail:
         demandTrend.tone === 'up'
-          ? translateUiLiteral(language, '{count} entities pulling ahead across {window}', {
+          ? translateUiLiteral(language, '{count} entities pulling ahead across {window} · {completed} customer completions landed', {
               count: skuRows.filter((row) => row.trendTone === 'up').length,
+              completed: formatWholeNumber(completedCustomerOrders, language),
               window: activeWindowLabel,
             })
           : demandTrend.tone === 'down'
@@ -1444,7 +1512,10 @@ export function derivePerformanceViewModel({
                 count: skuRows.filter((row) => row.trendTone === 'down').length,
                 window: activeWindowLabel,
               })
-            : translateUiLiteral(language, 'Demand is broadly holding across {window}', { window: activeWindowLabel }),
+            : translateUiLiteral(language, 'Demand is broadly holding across {window} · {open} customer orders remain open', {
+                open: formatWholeNumber(openCustomerOrders, language),
+                window: activeWindowLabel,
+              }),
     },
     {
       key: 'capacity',
@@ -1452,9 +1523,14 @@ export function derivePerformanceViewModel({
       value: literal(language, '{value} can still be fulfilled', {
         value: formatSenaPercent(sellableCapacityRatio, language),
       }),
-      detail: literal(language, '{window} service demand that can still be served', {
-        window: activeWindowLabel,
-      }),
+      detail: blockedCustomerOrders > 0
+        ? literal(language, '{count} open customer order{suffix} are blocked right now', {
+            count: formatWholeNumber(blockedCustomerOrders, language),
+            suffix: blockedCustomerOrders === 1 ? '' : 's',
+          })
+        : literal(language, '{window} service demand that can still be served', {
+            window: activeWindowLabel,
+          }),
     },
     {
       key: 'inbound',
@@ -1471,7 +1547,13 @@ export function derivePerformanceViewModel({
       label: translate(language, 'performanceVmRibbonMarginHealth'),
       value: literal(language, priceWatchRows.length > 1 ? 'Watch' : 'Stable'),
       detail:
-        priceWatchRows.length > 0
+        recentCommercialSummary.customerRefunded > 0
+          ? literal(language, '{count} refund or reversal signal{suffix} landed in {window}', {
+              count: formatWholeNumber(recentCommercialSummary.customerRefunded, language),
+              suffix: recentCommercialSummary.customerRefunded === 1 ? '' : 's',
+              window: activeWindowLabel,
+            })
+          : priceWatchRows.length > 0
           ? literal(language, '{count} price or margin drags in {window}', {
               count: formatWholeNumber(priceWatchRows.length, language),
               window: activeWindowLabel,
@@ -1484,9 +1566,14 @@ export function derivePerformanceViewModel({
       key: 'risk',
       label: translate(language, 'performanceVmRibbonRevenueAtRisk'),
       value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
-      detail: literal(language, 'Revenue currently blocked by capacity or stock pressure in {window}', {
-        window: activeWindowLabel,
-      }),
+      detail: blockedCustomerOrders > 0
+        ? literal(language, 'Revenue currently blocked by {count} open customer order{suffix}', {
+            count: formatWholeNumber(blockedCustomerOrders, language),
+            suffix: blockedCustomerOrders === 1 ? '' : 's',
+          })
+        : literal(language, 'Revenue currently blocked by capacity or stock pressure in {window}', {
+            window: activeWindowLabel,
+          }),
     },
   ];
 
@@ -1723,14 +1810,16 @@ export function derivePerformanceViewModel({
     }));
 
   const operationalDrag = [
-    translateUiLiteral(language, '{count} services partially blocked', {
-      count: formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1 && row.coverageRatio > 0).length, language),
+    translateUiLiteral(language, '{count} open customer order{suffix} blocked', {
+      count: formatWholeNumber(blockedCustomerOrders, language),
+      suffix: blockedCustomerOrders === 1 ? '' : 's',
     }),
     translateUiLiteral(language, '{count} overdue receipts', {
       count: formatWholeNumber(overdueInboundCount, language),
     }),
-    translateUiLiteral(language, '{count} SKUs below safe cover', {
-      count: formatWholeNumber(skuRows.filter((row) => row.daysOfCover != null && row.daysOfCover <= 3).length, language),
+    translateUiLiteral(language, '{count} refund or cancellation signal{suffix}', {
+      count: formatWholeNumber(recentCommercialSummary.customerRefunded + canceledCustomerOrders, language),
+      suffix: recentCommercialSummary.customerRefunded + canceledCustomerOrders === 1 ? '' : 's',
     }),
   ];
 
@@ -1787,9 +1876,14 @@ export function derivePerformanceViewModel({
         translateUiLiteral(language, '{count} services exposed', {
           count: formatWholeNumber(serviceRows.filter((row) => row.coverageRatio < 1).length, language),
         }),
-      detail: translateUiLiteral(language, '{value} tied up in blocked demand', {
-        value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
-      }),
+      detail: blockedCustomerOrders > 0
+        ? translateUiLiteral(language, '{count} open customer order{suffix} are waiting on stock or capacity', {
+            count: formatWholeNumber(blockedCustomerOrders, language),
+            suffix: blockedCustomerOrders === 1 ? '' : 's',
+          })
+        : translateUiLiteral(language, '{value} tied up in blocked demand', {
+            value: formatCurrency(revenueAtRisk, currency, language, usdToKhrExchangeRate),
+          }),
     },
     {
       id: 'timeline-receipt',
@@ -1800,8 +1894,15 @@ export function derivePerformanceViewModel({
     {
       id: 'timeline-price',
       title: translateUiLiteral(language, 'Price change'),
-      subtitle: priceWatch[0]?.label ?? translateUiLiteral(language, 'No recent price move'),
-      detail: priceWatch[0]?.detail ?? translateUiLiteral(language, 'Margin posture is stable'),
+      subtitle: recentCommercialSummary.customerRefunded > 0
+        ? translateUiLiteral(language, 'Refund pressure is active')
+        : priceWatch[0]?.label ?? translateUiLiteral(language, 'No recent price move'),
+      detail: recentCommercialSummary.customerRefunded > 0
+        ? translateUiLiteral(language, '{count} refund or reversal signal{suffix} landed in the current window', {
+            count: formatWholeNumber(recentCommercialSummary.customerRefunded, language),
+            suffix: recentCommercialSummary.customerRefunded === 1 ? '' : 's',
+          })
+        : priceWatch[0]?.detail ?? translateUiLiteral(language, 'Margin posture is stable'),
     },
     {
       id: 'timeline-recovery',
@@ -1832,7 +1933,7 @@ export function derivePerformanceViewModel({
           window: activeWindowLabel,
         })
       : translate(language, 'performanceVmWaitingForUpdates'),
-    moves,
+    moves: dedupedMoves,
     operationalDrag,
     priceWatch,
     recoveryPipeline,

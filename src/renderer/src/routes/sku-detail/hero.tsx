@@ -15,10 +15,12 @@ const ribbonGridColumnsClassNames = {
   4: 'xl:grid-cols-4',
   5: 'xl:grid-cols-5',
   6: 'xl:grid-cols-6',
+  7: 'xl:grid-cols-7',
+  8: 'xl:grid-cols-8',
 } as const;
 
 export function ribbonGridClassName(metricCount: number) {
-  return ribbonGridColumnsClassNames[Math.min(Math.max(metricCount, 1), 6) as keyof typeof ribbonGridColumnsClassNames];
+  return ribbonGridColumnsClassNames[Math.min(Math.max(metricCount, 1), 8) as keyof typeof ribbonGridColumnsClassNames];
 }
 
 export function SkuDetailHero({
@@ -80,12 +82,19 @@ export function SkuDetailHero({
             </p>
           </div>
           <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${ribbonGridClassName(model.ribbon.length)}`}>
-            {model.ribbon.map((metric) => (
-              <div key={metric.key} className="bg-white px-4 py-3">
-                <p className="text-sm text-muted-foreground">{metric.label}</p>
-                <p className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground">{metric.value}</p>
+            {model.ribbon.map((metric) => {
+              const valueClassName =
+                metric.key === 'nextReceipt'
+                  ? 'mt-1 text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
+                  : 'mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground';
+
+              return (
+              <div key={metric.key} className="min-w-0 bg-white px-4 py-3">
+                <p className="truncate text-sm text-muted-foreground">{metric.label}</p>
+                <p className={valueClassName}>{metric.value}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       ) : null}

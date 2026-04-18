@@ -13,6 +13,7 @@ import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIc
 import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -83,7 +84,7 @@ function SteeringPill({
   return (
     <Button
       aria-pressed={active}
-      className="h-12 rounded-full px-4"
+      className={compactActionButtonClassName}
       data-hover-suppressed="false"
       type="button"
       variant={active ? 'default' : 'outline'}
@@ -515,7 +516,7 @@ export function PerformanceRoute() {
 
             <SupplierFilter
               catalog={baseCatalog}
-              className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+              className={compactFilterControlClassName}
               value={supplierFilter}
               onChange={(nextSupplier: SupplierFilterValue) =>
                 updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })

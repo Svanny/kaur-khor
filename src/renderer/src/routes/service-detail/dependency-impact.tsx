@@ -38,7 +38,9 @@ export function ServiceDependencyImpact({
           </div>
           <div className="grid gap-1 text-sm text-muted-foreground">
             <p>{row.status}</p>
+            <p>{row.blockedOpenOrders}</p>
             <p>{row.inboundRecoveryNote}</p>
+            <p>{row.pendingSupplyRelief}</p>
             {row.restockGuidance ? <p>{row.restockGuidance}</p> : null}
           </div>
         </div>

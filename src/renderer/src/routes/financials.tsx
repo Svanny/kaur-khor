@@ -22,6 +22,7 @@ import {
   StatusWarningIcon,
 } from '@icons/status';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
 import {
   createHeaderedTableLayout,
   HeaderedTable,
@@ -594,7 +595,7 @@ export function FinancialsRoute() {
 
             <SupplierFilter
               catalog={baseCatalog}
-              className="h-12 w-full rounded-full px-4 data-[size=default]:h-12 sm:w-auto"
+              className={compactFilterControlClassName}
               value={supplierFilter}
               onChange={(nextSupplier: SupplierFilterValue) =>
                 updateRouteState({ supplier: supplierFilterQueryValue(nextSupplier) })
@@ -604,7 +605,7 @@ export function FinancialsRoute() {
             {showPerformanceCompareToggle ? (
               <Button
                 aria-pressed={compareMode}
-                className="h-12 rounded-full px-4"
+                className={compactActionButtonClassName}
                 data-hover-suppressed="false"
                 type="button"
                 variant={compareMode ? 'default' : 'outline'}

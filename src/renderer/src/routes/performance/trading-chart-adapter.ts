@@ -46,7 +46,7 @@ export function deriveAnalysisTradingChartModel(model: AnalysisWorkbenchViewMode
       newOrderFlag: 0,
       newReceiptFlag: 0,
     };
-    if (marker.kind === 'order') {
+    if (marker.kind === 'supplier_order') {
       current.newOrderFlag += 1;
     } else {
       current.newReceiptFlag += 1;

@@ -70,7 +70,7 @@ describe('deriveAnalysisTradingChartModel', () => {
               intervalIndex: 1,
               intervalPosition: 0,
               row: 0,
-              kind: 'order',
+              kind: 'supplier_order',
               quantityMean: 4,
             },
             {
@@ -78,7 +78,7 @@ describe('deriveAnalysisTradingChartModel', () => {
               intervalIndex: 1,
               intervalPosition: 0,
               row: 0,
-              kind: 'receipt',
+              kind: 'supplier_receipt',
               quantityMean: 6,
             },
           ],

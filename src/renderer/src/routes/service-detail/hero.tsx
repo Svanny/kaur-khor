@@ -5,6 +5,21 @@ import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel } from './view-model';
 
+const ribbonGridColumnsClassNames = {
+  1: 'xl:grid-cols-1',
+  2: 'xl:grid-cols-2',
+  3: 'xl:grid-cols-3',
+  4: 'xl:grid-cols-4',
+  5: 'xl:grid-cols-5',
+  6: 'xl:grid-cols-6',
+  7: 'xl:grid-cols-7',
+  8: 'xl:grid-cols-8',
+} as const;
+
+function ribbonGridClassName(metricCount: number) {
+  return ribbonGridColumnsClassNames[Math.min(Math.max(metricCount, 1), 8) as keyof typeof ribbonGridColumnsClassNames];
+}
+
 export function ServiceDetailHero({
   actions,
   imagePath,
@@ -59,13 +74,20 @@ export function ServiceDetailHero({
                 </SectionLabel>
               </p>
             </div>
-            <div className="grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-6">
-              {model.ribbon.map((metric) => (
-                <div key={metric.key} className="bg-white px-4 py-3">
-                  <p className="text-sm text-muted-foreground">{metric.label}</p>
-                  <p className="mt-1 text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground">{metric.value}</p>
-                </div>
-              ))}
+            <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${ribbonGridClassName(model.ribbon.length)}`}>
+              {model.ribbon.map((metric) => {
+                const valueClassName =
+                  metric.key === 'bottleneck'
+                    ? 'mt-1 text-[1.2rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
+                    : 'mt-1 truncate text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground';
+
+                return (
+                  <div key={metric.key} className="min-w-0 bg-white px-4 py-3">
+                    <p className="truncate text-sm text-muted-foreground">{metric.label}</p>
+                    <p className={valueClassName}>{metric.value}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

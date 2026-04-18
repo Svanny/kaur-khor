@@ -12,8 +12,9 @@ import type {
 } from '@shared/sena';
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import { deriveLeadTimeVariabilityClass } from '@shared/sena-lead-time';
+import { buildSkuCommercialSnapshots } from '@/lib/commercial-flow';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import {
   formatSenaReorderQuantity,
   isSenaReorderQuantityIssued,
@@ -103,6 +104,9 @@ export interface SenaSkuDetailViewModel {
       summary: [string, string, string, string];
       events: Array<{ key: string; observedAt: string; timestamp: string; state: string; quantity: string }>;
     };
+    customerDemand: {
+      summary: [string, string, string, string];
+    };
     exposure: Array<{
       serviceId: string;
       serviceName: string;
@@ -128,7 +132,7 @@ export interface SenaSkuDetailViewModel {
     observedAt: string;
     title: string;
     detail: string;
-    type: 'stock_reported' | 'order_placed' | 'receipt_logged' | 'price_changed' | 'retail_stockout' | 'lead_time_hint' | 'notes';
+    type: 'stock_reported' | 'order_placed' | 'receipt_logged' | 'price_changed' | 'retail_stockout' | 'lead_time_hint' | 'customer_pending' | 'customer_completed' | 'notes';
   }>;
   actionContext: {
     currentStock: number;
@@ -408,6 +412,25 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
           title: translate(language, 'skuVmEvidenceLeadTimeHint'),
           detail: summaryParts.join(' · ') || translate(language, 'skuVmEvidenceLeadTimeCaptured'),
           type: 'lead_time_hint',
+        });
+      }
+      for (const event of observation.input.commercialEvents?.filter((entry) => entry.entityType === 'sku' && entry.entityId === skuId) ?? []) {
+        rows.push({
+          id: `${observation.observationId}:commercial:${event.party}:${event.stage}:${event.quantityDelta}`,
+          observedAt,
+          title:
+            event.party === 'customer'
+              ? event.stage === 'pending'
+                ? translateUiLiteral(language, 'Customer order updated')
+                : translateUiLiteral(language, 'Customer order completed')
+              : event.stage === 'pending'
+                ? translateUiLiteral(language, 'Supplier order updated')
+                : translateUiLiteral(language, 'Supplier receipt updated'),
+          detail: translateUiLiteral(language, '{count} units · {reason}', {
+            count: Math.abs(event.quantityDelta),
+            reason: event.reason ?? event.flow,
+          }),
+          type: event.party === 'customer' && event.stage === 'pending' ? 'customer_pending' : 'customer_completed',
         });
       }
       if (observation.input.notes?.trim()) {
@@ -744,6 +767,7 @@ export function deriveSenaSkuDetailViewModel({
     pendingBatchCount === 1 ? 'skuVmOpenOrderSingular' : 'skuVmOpenOrderPlural',
     { count: pendingBatchCount },
   );
+  const customerCommercial = buildSkuCommercialSnapshots({ observations, rangeDays: 30 }).get(skuId) ?? null;
 
   return {
     identity: {
@@ -783,6 +807,8 @@ export function deriveSenaSkuDetailViewModel({
       { key: 'demandPerDay', label: translate(language, 'skuVmRibbonDemandPerDay'), value: formatSenaQuantity(summary?.demandPerDayMean ?? null, language) },
       { key: 'nextReceipt', label: translate(language, 'skuVmRibbonNextDelivery'), value: receiptLabel },
       { key: 'serviceExposure', label: translate(language, 'skuVmRibbonServiceImpact'), value: `${dependencyImpact.length}` },
+      { key: 'customerPending', label: translateUiLiteral(language, 'Customer pending'), value: formatSenaUnits(customerCommercial?.pendingQuantity ?? 0, language) },
+      { key: 'customerCompleted', label: translateUiLiteral(language, 'Customer completed'), value: formatSenaUnits(customerCommercial?.realizedWindowQuantity ?? 0, language) },
     ].concat(
       sku.soldAsProduct
         ? [{ key: 'priceNow', label: translate(language, 'skuVmRibbonPriceNow'), value: formatSenaCurrency(currentPrice, currency, language, usdToKhrExchangeRate) }]
@@ -870,6 +896,22 @@ export function deriveSenaSkuDetailViewModel({
           translate(language, 'skuVmOpenPipelineReceipt', { receipt: receiptLabel }),
         ],
         events: pipelineEvents,
+      },
+      customerDemand: {
+        summary: [
+          translateUiLiteral(language, 'Open customer orders {count}', {
+            count: formatSenaUnits(customerCommercial?.pendingQuantity ?? 0, language),
+          }),
+          translateUiLiteral(language, 'Completed in window {count}', {
+            count: formatSenaUnits(customerCommercial?.realizedWindowQuantity ?? 0, language),
+          }),
+          translateUiLiteral(language, 'Blocked commitments {count}', {
+            count: formatSenaUnits(customerCommercial?.blockedPendingQuantity ?? 0, language),
+          }),
+          translateUiLiteral(language, 'Refund / reversal pressure {count}', {
+            count: formatSenaUnits(customerCommercial?.reversalWindowQuantity ?? 0, language),
+          }),
+        ],
       },
       exposure: dependencyImpact.map((entry) => ({
         serviceId: entry.serviceId,

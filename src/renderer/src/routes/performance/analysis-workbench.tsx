@@ -828,11 +828,13 @@ function SystemLedger({
     const span = selectedIntervalIndex == null ? null : pipelineSpanByIntervalIndex.get(selectedIntervalIndex) ?? null;
     const markers = selectedIntervalIndex == null ? [] : pipelineMarkersByIntervalIndex.get(selectedIntervalIndex) ?? [];
     const labels = [
-      ...(span ? [`${Math.round(span.orderProbability * 100)}% order probability`] : []),
-      ...markers.map((marker) => `${marker.kind === 'order' ? 'Order' : 'Receipt'} ${Math.round(marker.quantityMean)}`),
+      ...(span ? [`${Math.round(span.orderProbability * 100)}% ${translateUiLiteral(language, 'supplier order probability')}`] : []),
+      ...markers.map((marker) =>
+        `${marker.kind === 'supplier_order' ? translateUiLiteral(language, 'Supplier order') : translateUiLiteral(language, 'Supplier receipt')} ${Math.round(marker.quantityMean)}`,
+      ),
     ];
     return { labels, markers, span };
-  }, [pipelineMarkersByIntervalIndex, pipelineSpanByIntervalIndex, selectedIntervalIndex]);
+  }, [language, pipelineMarkersByIntervalIndex, pipelineSpanByIntervalIndex, selectedIntervalIndex]);
   const selectedPipelineLabelX = selectedIntervalPosition == null
     ? null
     : deriveSlotCenterX({ index: selectedIntervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
@@ -843,7 +845,7 @@ function SystemLedger({
     if (selectedPipeline.markers.length > 0) {
       return Math.min(
         ...selectedPipeline.markers.map((marker) => (
-          pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -pipelineMarkerHalf - 1)
+          pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'supplier_receipt' ? 2 : -pipelineMarkerHalf - 1)
         )),
       );
     }
@@ -1236,11 +1238,11 @@ function SystemLedger({
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block size-2 rotate-45 rounded-[0.2rem] bg-sky-600/85" />
-                    {t('analysisWorkbenchOrderCue')}
+                    {translateUiLiteral(language, 'Supplier order cue')}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <span className="inline-block size-2 rounded-full bg-emerald-600/85" />
-                    {t('analysisWorkbenchReceiptCue')}
+                    {translateUiLiteral(language, 'Supplier receipt cue')}
                   </span>
                 </div>
                 <LaneExpandButton expanded={isLaneExpanded('pipeline')} title={t('analysisWorkbenchLanePipelineTitle')} onClick={() => toggleLaneExpanded('pipeline')} />
@@ -1322,12 +1324,15 @@ function SystemLedger({
                     })}
                     {model.workbench.pipelineLane.markers.map((marker) => {
                       const x = deriveSlotCenterX({ index: marker.intervalPosition, slotWidth, axisStartPadding: AXIS_START_PADDING });
-                      const top = pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'receipt' ? 2 : -pipelineMarkerHalf - 1);
+                      const top = pipelineTopPadding + marker.row * pipelineRowHeight + (marker.kind === 'supplier_receipt' ? 2 : -pipelineMarkerHalf - 1);
                       return (
                         <button
                           key={marker.key}
                           aria-label={t('analysisWorkbenchPipelineMarkerAria', {
-                            kind: marker.kind === 'order' ? t('analysisWorkbenchOrderCueKind') : t('analysisWorkbenchReceiptCueKind'),
+                            kind:
+                              marker.kind === 'supplier_order'
+                                ? translateUiLiteral(language, 'Supplier order cue')
+                                : translateUiLiteral(language, 'Supplier receipt cue'),
                             quantity: Math.round(marker.quantityMean),
                           })}
                           className="absolute z-[2] -translate-x-1/2"
@@ -1339,7 +1344,7 @@ function SystemLedger({
                           <span
                             className={cn(
                               'block border border-white shadow-sm',
-                              marker.kind === 'order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
+                              marker.kind === 'supplier_order' ? 'rotate-45 rounded-[0.25rem] bg-sky-600/85' : 'rounded-full bg-emerald-600/85',
                             )}
                             style={{ width: pipelineMarkerSize, height: pipelineMarkerSize }}
                           />
