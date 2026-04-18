@@ -593,7 +593,7 @@ describe('SKU detail SENA helpers', () => {
     expect(ribbonGridClassName(5)).toBe('xl:grid-cols-5');
     expect(ribbonGridClassName(6)).toBe('xl:grid-cols-6');
     expect(ribbonGridClassName(0)).toBe('xl:grid-cols-1');
-    expect(ribbonGridClassName(9)).toBe('xl:grid-cols-6');
+    expect(ribbonGridClassName(9)).toBe('xl:grid-cols-8');
   });
 
   test('maps retail price markers to interval slots without drawing an extra regime point', () => {
@@ -914,10 +914,11 @@ describe('SKU detail SENA helpers', () => {
     const indicatorsDialog = screen.getByRole('dialog', { name: 'Chart indicators' });
     expect(within(indicatorsDialog).getByText('Inventory')).toBeInTheDocument();
     expect(within(indicatorsDialog).getByText('Stock')).toBeInTheDocument();
-    expect(within(indicatorsDialog).getByText('Flow')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Show Demand' })).toBeInTheDocument();
-    expect(screen.getByText('Expected service and retail demand for each interval.')).toBeInTheDocument();
-    const demandLabel = within(indicatorsDialog).getByText('Demand');
+    expect(within(indicatorsDialog).getByText('Customer flow')).toBeInTheDocument();
+    expect(within(indicatorsDialog).getByText('Supplier flow')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Show Customer demand' })).toBeInTheDocument();
+    expect(screen.getByText('Expected customer demand across services and retail for each interval.')).toBeInTheDocument();
+    const demandLabel = within(indicatorsDialog).getByText('Customer demand');
     const inventoryLabel = within(indicatorsDialog).getByText('Inventory');
     expect(inventoryLabel.compareDocumentPosition(demandLabel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Close indicators' })).toBeInTheDocument();
