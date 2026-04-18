@@ -27,6 +27,48 @@ function renderSettingsRoute(initialEntry = '/settings/workspace') {
   );
 }
 
+function benchmarkRunWithTargets(targets: Array<{
+  metricName: string;
+  label: string;
+  value: number | null;
+  status: 'pass' | 'watch' | 'fail' | 'missing';
+  nonNegotiable: number;
+  acceptable: number;
+  source: string;
+  rationale: string;
+}>) {
+  return {
+    runId: 'gui-run',
+    scenarios: ['startup'] as const,
+    status: 'failed' as const,
+    startedAt: '2026-04-18T16:31:38.000Z',
+    completedAt: '2026-04-18T16:32:10.000Z',
+    fixtureSize: 'medium' as const,
+    traceEnabled: false,
+    repeatCount: 1,
+    buildBeforeRun: true,
+    outputDirectory: '/tmp/banji/bench-results/gui-run',
+    exitCode: 1,
+    summaries: [
+      {
+        scenario: 'startup',
+        runId: 'gui-run',
+        generatedAt: '2026-04-18T16:32:10.000Z',
+        metrics: {},
+        slowestIpc: [],
+        slowestCore: [],
+        targets: targets.map((target) => ({
+          ...target,
+          unit: 'ms' as const,
+        })),
+      },
+    ],
+    stdoutTail: [],
+    stderrTail: [],
+    error: null,
+  };
+}
+
 describe('SettingsRoute', () => {
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
@@ -36,6 +78,14 @@ describe('SettingsRoute', () => {
   const clearCurrentData = vi.fn();
   const revealPath = vi.fn();
   const triggerRun = vi.fn();
+  const benchmarkAvailability = vi.fn();
+  const benchmarkListRuns = vi.fn();
+  const benchmarkReadRun = vi.fn();
+  const benchmarkStartRun = vi.fn();
+  const benchmarkCancelRun = vi.fn();
+  const benchmarkCompareRuns = vi.fn();
+  const benchmarkRevealRun = vi.fn();
+  const benchmarkOnRunEvent = vi.fn();
   const reloadLocation = vi.fn();
 
   beforeEach(() => {
@@ -48,6 +98,14 @@ describe('SettingsRoute', () => {
     clearCurrentData.mockReset();
     revealPath.mockReset();
     triggerRun.mockReset();
+    benchmarkAvailability.mockReset();
+    benchmarkListRuns.mockReset();
+    benchmarkReadRun.mockReset();
+    benchmarkStartRun.mockReset();
+    benchmarkCancelRun.mockReset();
+    benchmarkCompareRuns.mockReset();
+    benchmarkRevealRun.mockReset();
+    benchmarkOnRunEvent.mockReset();
     reloadLocation.mockReset();
     getPreferences.mockResolvedValue({
       language: 'en',
@@ -165,6 +223,56 @@ describe('SettingsRoute', () => {
         trigger: 'manual',
       },
     });
+    benchmarkAvailability.mockResolvedValue({
+      available: true,
+      reason: null,
+      projectRoot: '/tmp/banji',
+      resultsDirectory: '/tmp/banji/bench-results',
+      activeRunId: null,
+    });
+    benchmarkListRuns.mockResolvedValue([]);
+    benchmarkReadRun.mockResolvedValue(null);
+    benchmarkStartRun.mockResolvedValue({
+      runId: 'gui-run',
+      scenarios: ['startup'],
+      status: 'queued',
+      startedAt: '2026-04-18T16:31:38.000Z',
+      completedAt: null,
+      fixtureSize: 'medium',
+      traceEnabled: false,
+      repeatCount: 1,
+      buildBeforeRun: true,
+      outputDirectory: '/tmp/banji/bench-results/gui-run',
+      exitCode: null,
+      summaries: [],
+      stdoutTail: [],
+      stderrTail: [],
+      error: null,
+    });
+    benchmarkCancelRun.mockImplementation(async (runId: string) => ({
+      runId,
+      scenarios: ['startup'],
+      status: 'cancelled',
+      startedAt: '2026-04-18T16:31:38.000Z',
+      completedAt: '2026-04-18T16:32:00.000Z',
+      fixtureSize: 'medium',
+      traceEnabled: false,
+      repeatCount: 1,
+      buildBeforeRun: true,
+      outputDirectory: `/tmp/banji/bench-results/${runId}`,
+      exitCode: null,
+      summaries: [],
+      stdoutTail: [],
+      stderrTail: [],
+      error: null,
+    }));
+    benchmarkCompareRuns.mockResolvedValue({
+      baselineRunId: 'baseline',
+      candidateRunId: 'candidate',
+      metrics: [],
+    });
+    benchmarkRevealRun.mockResolvedValue(undefined);
+    benchmarkOnRunEvent.mockReturnValue(() => {});
     Object.defineProperty(window, 'location', {
       configurable: true,
       value: {
@@ -190,6 +298,16 @@ describe('SettingsRoute', () => {
         restoreBackupSnapshot,
         clearCurrentData,
         revealPath,
+      },
+      benchmarkRunner: {
+        getAvailability: benchmarkAvailability,
+        listRuns: benchmarkListRuns,
+        readRun: benchmarkReadRun,
+        startRun: benchmarkStartRun,
+        cancelRun: benchmarkCancelRun,
+        compareRuns: benchmarkCompareRuns,
+        revealRun: benchmarkRevealRun,
+        onRunEvent: benchmarkOnRunEvent,
       },
     };
   });
@@ -249,6 +367,202 @@ describe('SettingsRoute', () => {
           financials: false,
         },
       }));
+    });
+  });
+
+  it('filters benchmark targets by result status from the checklist menu', async () => {
+    benchmarkListRuns.mockResolvedValue([
+      benchmarkRunWithTargets([
+        {
+          metricName: 'startup.app_to_workspace_ready_ms',
+          label: 'App to usable workspace',
+          value: 2200,
+          status: 'pass',
+          nonNegotiable: 2500,
+          acceptable: 5000,
+          source: 'Windows startup, Android startup, Core Web Vitals LCP',
+          rationale: 'Startup ends when the workspace can be used, not when the first frame appears.',
+        },
+        {
+          metricName: 'startup.warm_workspace_ready_ms',
+          label: 'Warm workspace ready',
+          value: 2201,
+          status: 'fail',
+          nonNegotiable: 1500,
+          acceptable: 2000,
+          source: 'Android startup vitals',
+          rationale: 'Warm launches should not feel like cold boots.',
+        },
+      ]),
+    ]);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Target status')).toBeInTheDocument();
+    expect(screen.getByText('App to usable workspace')).toBeInTheDocument();
+    expect(screen.getByText('Warm workspace ready')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter result states' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pass' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('App to usable workspace')).not.toBeInTheDocument();
+    });
+    expect(screen.getByText('Warm workspace ready')).toBeInTheDocument();
+  });
+
+  it('filters duplicate metric rows when result states change', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    benchmarkListRuns.mockResolvedValue([
+      {
+        ...benchmarkRunWithTargets([]),
+        summaries: [
+          {
+            scenario: 'startup',
+            runId: 'gui-run',
+            generatedAt: '2026-04-18T16:32:10.000Z',
+            metrics: {},
+            slowestIpc: [],
+            slowestCore: [],
+            targets: [
+              {
+                metricName: 'ipc.system_get_app_context_ms',
+                label: 'Get app context IPC',
+                value: 0,
+                unit: 'ms',
+                status: 'pass',
+                nonNegotiable: 100,
+                acceptable: 200,
+                source: 'RAIL response',
+                rationale: 'Startup-critical IPC must not block the first usable state.',
+              },
+            ],
+          },
+          {
+            scenario: 'navigation',
+            runId: 'gui-run',
+            generatedAt: '2026-04-18T16:32:11.000Z',
+            metrics: {},
+            slowestIpc: [],
+            slowestCore: [],
+            targets: [
+              {
+                metricName: 'ipc.system_get_app_context_ms',
+                label: 'Get app context IPC',
+                value: 0,
+                unit: 'ms',
+                status: 'pass',
+                nonNegotiable: 100,
+                acceptable: 200,
+                source: 'RAIL response',
+                rationale: 'Startup-critical IPC must not block the first usable state.',
+              },
+              {
+                metricName: 'ipc.system_get_app_context_ms',
+                label: 'Get app context IPC',
+                value: 0,
+                unit: 'ms',
+                status: 'watch',
+                nonNegotiable: 100,
+                acceptable: 200,
+                source: 'RAIL response',
+                rationale: 'Startup-critical IPC must not block the first usable state.',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Target status')).toBeInTheDocument();
+    expect(screen.getAllByText('Get app context IPC')).toHaveLength(3);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter result states' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Pass' }));
+
+    await waitFor(() => {
+      expect(screen.getAllByText('Get app context IPC')).toHaveLength(1);
+    });
+    expect(consoleError).not.toHaveBeenCalledWith(
+      expect.stringContaining('Encountered two children with the same key'),
+    );
+    consoleError.mockRestore();
+  });
+
+  it('sorts the result column alphabetically by state only', async () => {
+    benchmarkListRuns.mockResolvedValue([
+      benchmarkRunWithTargets([
+        {
+          metricName: 'target.watch',
+          label: 'Watch target',
+          value: 1,
+          status: 'watch',
+          nonNegotiable: 100,
+          acceptable: 200,
+          source: 'RAIL response',
+          rationale: 'Watch rationale.',
+        },
+        {
+          metricName: 'target.pass',
+          label: 'Pass target',
+          value: 1,
+          status: 'pass',
+          nonNegotiable: 100,
+          acceptable: 200,
+          source: 'RAIL response',
+          rationale: 'Pass rationale.',
+        },
+        {
+          metricName: 'target.missing',
+          label: 'Missing target',
+          value: null,
+          status: 'missing',
+          nonNegotiable: 100,
+          acceptable: 200,
+          source: 'RAIL response',
+          rationale: 'Missing rationale.',
+        },
+        {
+          metricName: 'target.fail',
+          label: 'Fail target',
+          value: 1,
+          status: 'fail',
+          nonNegotiable: 100,
+          acceptable: 200,
+          source: 'RAIL response',
+          rationale: 'Fail rationale.',
+        },
+      ]),
+    ]);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Target status')).toBeInTheDocument();
+
+    const targetRows = () =>
+      within(screen.getAllByRole('table')[0])
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).getAllByRole('cell')[0].textContent?.trim() ?? '');
+
+    expect(targetRows()).toEqual([
+      'Fail targettarget.fail',
+      'Missing targettarget.missing',
+      'Pass targettarget.pass',
+      'Watch targettarget.watch',
+    ]);
+
+    fireEvent.click(within(screen.getAllByRole('table')[0]).getByRole('button', { name: /^result/i }));
+
+    await waitFor(() => {
+      expect(targetRows()).toEqual([
+        'Watch targettarget.watch',
+        'Pass targettarget.pass',
+        'Missing targettarget.missing',
+        'Fail targettarget.fail',
+      ]);
     });
   });
 

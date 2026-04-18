@@ -11,6 +11,7 @@ import {
 import { ActionOpenFolderIcon, ActionUndoIcon } from '@icons/actions';
 import { NavigationPerformanceIcon } from '@icons/navigation';
 import { WorkspaceActionRow, WorkspacePanel } from '@/components/system/workspace';
+import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -23,6 +24,39 @@ const statusClassName = {
   missing: 'bg-muted text-muted-foreground ring-border',
 };
 
+type TargetStatusFilter = BanjiBenchmarkTargetEvaluation['status'];
+type TargetResultSortDirection = 'asc' | 'desc';
+
+const TARGET_RESULT_FILTER_OPTIONS: Array<{ label: string; value: TargetStatusFilter }> = [
+  { label: 'Pass', value: 'pass' },
+  { label: 'Watch', value: 'watch' },
+  { label: 'Fail', value: 'fail' },
+  { label: 'Missing', value: 'missing' },
+];
+
+function compareText(left: string, right: string, direction: TargetResultSortDirection) {
+  const result = left.localeCompare(right);
+  return direction === 'asc' ? result : -result;
+}
+
+function ResultSortHeader({
+  direction,
+  onClick,
+}: {
+  direction: TargetResultSortDirection;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="inline-flex items-center gap-1 font-semibold transition-colors hover:text-foreground"
+      type="button"
+      onClick={onClick}
+    >
+      <span>Result</span>
+      <span className="text-[0.7rem] text-foreground">{direction === 'asc' ? '↑' : '↓'}</span>
+    </button>
+  );
+}
 function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boolean') {
   if (value == null) {
     return 'No data';
@@ -74,7 +108,15 @@ function ScenarioToggle({
   );
 }
 
-function TargetTable({ targets }: { targets: BanjiBenchmarkTargetEvaluation[] }) {
+function TargetTable({
+  resultSortDirection,
+  targets,
+  onToggleResultSort,
+}: {
+  resultSortDirection: TargetResultSortDirection;
+  targets: BanjiBenchmarkTargetEvaluation[];
+  onToggleResultSort: () => void;
+}) {
   if (targets.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -89,17 +131,19 @@ function TargetTable({ targets }: { targets: BanjiBenchmarkTargetEvaluation[] })
         <thead className="border-b border-border/70 text-xs uppercase tracking-[0.16em] text-muted-foreground">
           <tr>
             <th className="py-3 pr-4 font-semibold">Target</th>
-            <th className="py-3 pr-4 font-semibold">Result</th>
+            <th className="py-3 pr-4 font-semibold">
+              <ResultSortHeader direction={resultSortDirection} onClick={onToggleResultSort} />
+            </th>
             <th className="py-3 pr-4 font-semibold">Goal</th>
             <th className="py-3 pr-4 font-semibold">Acceptable</th>
             <th className="py-3 pr-4 font-semibold">Basis</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
-          {targets.map((target) => {
+          {targets.map((target, index) => {
             const meta = findTargetMeta(target);
             return (
-              <tr key={target.metricName}>
+              <tr key={`${target.metricName}:${index}`}>
                 <td className="py-3 pr-4 align-top">
                   <div className="font-medium text-foreground">{target.label}</div>
                   <div className="mt-1 font-mono text-xs text-muted-foreground">{target.metricName}</div>
@@ -192,15 +236,27 @@ export function BenchmarkSettingsPage() {
   const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
   const [comparison, setComparison] = useState<BanjiBenchmarkComparison | null>(null);
+  const [targetResultFilters, setTargetResultFilters] = useState<TargetStatusFilter[]>(
+    TARGET_RESULT_FILTER_OPTIONS.map((option) => option.value),
+  );
+  const [targetResultSortDirection, setTargetResultSortDirection] = useState<TargetResultSortDirection>('asc');
 
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null;
   const activeRun = activeRunId ? runs.find((run) => run.runId === activeRunId) ?? null : null;
   const targetCounts = runTargetCounts(selectedRun);
   const completedRuns = runs.filter((run) => run.status === 'passed' || run.status === 'failed');
-  const selectedTargets = useMemo(
-    () => selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? [],
-    [selectedRun],
-  );
+  const selectedTargets = useMemo(() => {
+    const targets = selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? [];
+    return targets
+      .filter((target) => targetResultFilters.includes(target.status))
+      .sort((left, right) => {
+        const statusOrder = compareText(left.status, right.status, targetResultSortDirection);
+        if (statusOrder !== 0) {
+          return statusOrder;
+        }
+        return compareText(left.label, right.label, targetResultSortDirection);
+      });
+  }, [selectedRun, targetResultFilters, targetResultSortDirection]);
 
   async function refreshRuns(nextSelectedRunId?: string | null) {
     const nextRuns = await window.banjiDesktop.benchmarkRunner?.listRuns() ?? [];
@@ -312,9 +368,22 @@ export function BenchmarkSettingsPage() {
     }
   }
 
+  function toggleTargetResultFilter(nextStatus: TargetStatusFilter) {
+    setTargetResultFilters((current) => {
+      if (current.includes(nextStatus)) {
+        return current.length === 1 ? current : current.filter((status) => status !== nextStatus);
+      }
+      return [...current, nextStatus];
+    });
+  }
+
+  function toggleTargetResultSort() {
+    setTargetResultSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+  }
+
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(20rem,0.72fr)_minmax(0,1fr)]">
-      <WorkspacePanel className="self-start">
+    <div className="grid gap-4">
+      <WorkspacePanel>
         <div className="grid gap-6">
           <div className="grid gap-2">
             <div className="flex items-center gap-3">
@@ -417,113 +486,156 @@ export function BenchmarkSettingsPage() {
         </div>
       </WorkspacePanel>
 
-      <div className="grid min-w-0 gap-4">
-        <WorkspacePanel>
-          {selectedRun ? (
-            <div className="grid gap-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">{selectedRun.runId}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatRunLabel(selectedRun)} · {selectedRun.fixtureSize} fixture · {selectedRun.repeatCount} repeat
-                  </p>
-                </div>
-                <WorkspaceActionRow>
-                  <Button type="button" variant="outline" onClick={() => void revealSelectedRun()}>
-                    <ActionOpenFolderIcon data-icon="inline-start" />
-                    Reveal artifacts
-                  </Button>
-                </WorkspaceActionRow>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-4">
-                {(['pass', 'watch', 'fail', 'missing'] as const).map((statusKey) => (
-                  <div key={statusKey} className="rounded-lg border border-border/60 px-3 py-3">
-                    <p className="text-2xl font-semibold text-foreground">{targetCounts[statusKey]}</p>
-                    <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{statusKey}</p>
-                  </div>
-                ))}
-              </div>
-
-              {selectedRun.error ? (
-                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {selectedRun.error}
+      <WorkspacePanel>
+        {selectedRun ? (
+          <div className="grid gap-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{selectedRun.runId}</p>
+                <p className="text-sm text-muted-foreground">
+                  {formatRunLabel(selectedRun)} · {selectedRun.fixtureSize} fixture · {selectedRun.repeatCount} repeat
                 </p>
-              ) : null}
+              </div>
+              <WorkspaceActionRow>
+                <Button type="button" variant="outline" onClick={() => void revealSelectedRun()}>
+                  <ActionOpenFolderIcon data-icon="inline-start" />
+                  Reveal artifacts
+                </Button>
+              </WorkspaceActionRow>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Select or run a benchmark to inspect results.</p>
-          )}
-        </WorkspacePanel>
 
-        <WorkspacePanel>
-          <div className="grid gap-4">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(['pass', 'watch', 'fail', 'missing'] as const).map((statusKey) => (
+                <div key={statusKey} className="rounded-lg border border-border/60 px-3 py-3">
+                  <p className="text-2xl font-semibold text-foreground">{targetCounts[statusKey]}</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{statusKey}</p>
+                </div>
+              ))}
+            </div>
+
+            {selectedRun.error ? (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {selectedRun.error}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Select or run a benchmark to inspect results.</p>
+        )}
+      </WorkspacePanel>
+
+      <WorkspacePanel>
+        <div className="grid gap-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Compare runs</p>
+            <p className="text-sm text-muted-foreground">Compare medians and derived metrics. More than 10% slower is marked as a regression.</p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+            <Select value={baselineRunId ?? ''} onValueChange={setBaselineRunId}>
+              <SelectTrigger aria-label="Baseline run">
+                <SelectValue placeholder="Baseline" />
+              </SelectTrigger>
+              <SelectContent>
+                {completedRuns.map((run) => (
+                  <SelectItem key={run.runId} value={run.runId}>
+                    {formatRunLabel(run)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={candidateRunId ?? ''} onValueChange={setCandidateRunId}>
+              <SelectTrigger aria-label="Candidate run">
+                <SelectValue placeholder="Candidate" />
+              </SelectTrigger>
+              <SelectContent>
+                {completedRuns.map((run) => (
+                  <SelectItem key={run.runId} value={run.runId}>
+                    {formatRunLabel(run)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button disabled={!baselineRunId || !candidateRunId} type="button" onClick={() => void compareRuns()}>
+              Compare
+            </Button>
+          </div>
+          <ComparisonTable comparison={comparison} />
+        </div>
+      </WorkspacePanel>
+
+      <WorkspacePanel>
+        <div className="grid gap-3">
+          <p className="text-sm font-semibold text-foreground">Output tail</p>
+          {activeRun ? (
+            <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+              {[...activeRun.stdoutTail, ...activeRun.stderrTail].slice(-80).join('\n') || 'Waiting for output...'}
+            </pre>
+          ) : selectedRun ? (
+            <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
+              {[...selectedRun.stdoutTail, ...selectedRun.stderrTail].slice(-80).join('\n') || 'No output captured.'}
+            </pre>
+          ) : (
+            <p className="text-sm text-muted-foreground">No output yet.</p>
+          )}
+        </div>
+      </WorkspacePanel>
+
+      <WorkspacePanel>
+        <div className="grid gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-foreground">Target status</p>
               <p className="text-sm text-muted-foreground">
                 Non-negotiable, acceptable, and technical targets are based on desktop app startup guidance, RAIL, Core Web Vitals, Electron performance guidance, and Chromium jank diagnostics.
               </p>
             </div>
-            <TargetTable targets={selectedTargets} />
+            <AnchoredMenu
+              align="right"
+              label="Filter result states"
+              triggerClassName="min-w-[10rem] justify-between"
+              triggerIcon={(
+                <>
+                  <span>Results</span>
+                  <span className="text-xs text-muted-foreground">
+                    {targetResultFilters.length}/{TARGET_RESULT_FILTER_OPTIONS.length}
+                  </span>
+                </>
+              )}
+              triggerSize="sm"
+            >
+              {() => (
+                <div className="grid gap-1">
+                  {TARGET_RESULT_FILTER_OPTIONS.map((option) => {
+                    const checked = targetResultFilters.includes(option.value);
+                    const locked = checked && targetResultFilters.length === 1;
+                    return (
+                      <label
+                        key={option.value}
+                        className={cn(
+                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent',
+                          locked ? 'opacity-70' : null,
+                        )}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          disabled={locked}
+                          onCheckedChange={() => toggleTargetResultFilter(option.value)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </AnchoredMenu>
           </div>
-        </WorkspacePanel>
-
-        <WorkspacePanel>
-          <div className="grid gap-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Compare runs</p>
-              <p className="text-sm text-muted-foreground">Compare medians and derived metrics. More than 10% slower is marked as a regression.</p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-              <Select value={baselineRunId ?? ''} onValueChange={setBaselineRunId}>
-                <SelectTrigger aria-label="Baseline run">
-                  <SelectValue placeholder="Baseline" />
-                </SelectTrigger>
-                <SelectContent>
-                  {completedRuns.map((run) => (
-                    <SelectItem key={run.runId} value={run.runId}>
-                      {formatRunLabel(run)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={candidateRunId ?? ''} onValueChange={setCandidateRunId}>
-                <SelectTrigger aria-label="Candidate run">
-                  <SelectValue placeholder="Candidate" />
-                </SelectTrigger>
-                <SelectContent>
-                  {completedRuns.map((run) => (
-                    <SelectItem key={run.runId} value={run.runId}>
-                      {formatRunLabel(run)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button disabled={!baselineRunId || !candidateRunId} type="button" onClick={() => void compareRuns()}>
-                Compare
-              </Button>
-            </div>
-            <ComparisonTable comparison={comparison} />
-          </div>
-        </WorkspacePanel>
-
-        <WorkspacePanel>
-          <div className="grid gap-3">
-            <p className="text-sm font-semibold text-foreground">Output tail</p>
-            {activeRun ? (
-              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-                {[...activeRun.stdoutTail, ...activeRun.stderrTail].slice(-80).join('\n') || 'Waiting for output...'}
-              </pre>
-            ) : selectedRun ? (
-              <pre className="max-h-72 overflow-auto rounded-lg bg-muted/50 p-3 text-xs leading-5 text-muted-foreground">
-                {[...selectedRun.stdoutTail, ...selectedRun.stderrTail].slice(-80).join('\n') || 'No output captured.'}
-              </pre>
-            ) : (
-              <p className="text-sm text-muted-foreground">No output yet.</p>
-            )}
-          </div>
-        </WorkspacePanel>
-      </div>
+          <TargetTable
+            resultSortDirection={targetResultSortDirection}
+            targets={selectedTargets}
+            onToggleResultSort={toggleTargetResultSort}
+          />
+        </div>
+      </WorkspacePanel>
     </div>
   );
 }
