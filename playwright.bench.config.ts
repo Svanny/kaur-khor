@@ -11,9 +11,9 @@ export default defineConfig({
   workers: 1,
   reporter: [
     ['list'],
-    ['json', { outputFile: 'bench-results/playwright-report.json' }],
+    ['json', { outputFile: process.env.BANJI_BENCHMARK_PLAYWRIGHT_REPORT ?? 'bench-results/playwright-report.json' }],
   ],
-  outputDir: 'bench-results/playwright-artifacts',
+  outputDir: process.env.BANJI_BENCHMARK_PLAYWRIGHT_ARTIFACTS_DIR ?? 'bench-results/playwright-artifacts',
   use: {
     trace: process.env.BANJI_BENCHMARK_TRACE === '1' ? 'on' : 'retain-on-failure',
     screenshot: 'only-on-failure',

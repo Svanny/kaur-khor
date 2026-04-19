@@ -6,7 +6,7 @@ export function benchmarkRunId(scenarioName: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
-  return `${slug}-${Date.now()}`;
+  return `${slug}-${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 export async function benchmarkOutputDirectory(runId: string) {

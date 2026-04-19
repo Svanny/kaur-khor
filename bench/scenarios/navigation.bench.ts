@@ -4,6 +4,7 @@ import {
   launchBanjiForBenchmark,
   navigateHashRoute,
   persistedBenchmarkEventCount,
+  recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
@@ -16,6 +17,30 @@ const ROUTES: Array<{ from?: `/${string}`; metric: string; path: `/${string}`; r
   { from: '/', metric: 'nav.dashboard_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
   { from: '/', metric: 'nav.dashboard_to_operations_ms', path: '/operations', readyEvent: 'route.operations.ready' },
 ];
+
+async function measureOverviewTaskDrawerOpen(
+  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+) {
+  const recentReceiptsSection = launched.page
+    .locator('section')
+    .filter({ has: launched.page.getByRole('heading', { name: 'Recent receipts' }) });
+  const recentReceiptButton = recentReceiptsSection.getByRole('button').first();
+  const hasRecentReceiptButton = await recentReceiptButton.count();
+  if (hasRecentReceiptButton === 0) {
+    return;
+  }
+
+  const startedAt = Date.now();
+  await recentReceiptButton.click();
+  await launched.page.getByRole('dialog').waitFor({ state: 'visible', timeout: 30_000 });
+  await recordPlaywrightDuration(launched.page, {
+    metricName: 'interaction.open_task_drawer_ms',
+    durationMs: Date.now() - startedAt,
+    route: '/',
+    category: 'interaction',
+    detail: { source: 'recent-receipts' },
+  });
+}
 
 test('major route transitions reach ready state', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('navigation-major-routes', testInfo);
@@ -32,40 +57,19 @@ test('major route transitions reach ready state', async ({}, testInfo) => {
       const startedAt = Date.now();
       await navigateHashRoute(launched.page, route.path);
       await waitForPersistedBenchmarkEventCount(launched, route.readyEvent, previousCount + 1);
-      const durationMs = Date.now() - startedAt;
-      await launched.page.evaluate(
-        ({ metricName, duration, path }) => {
-          const benchmarkWindow = window as Window & {
-            __BANJI_BENCHMARK_EVENTS__?: unknown[];
-            banjiDesktop: {
-              benchmark?: {
-                runId: string;
-                recordEvent: (event: unknown) => void;
-              };
-            };
-          };
-          const event = {
-            runId: benchmarkWindow.banjiDesktop.benchmark?.runId ?? 'playwright',
-            ts: Date.now(),
-            layer: 'playwright' as const,
-            category: 'navigation' as const,
-            name: metricName,
-            phase: 'end' as const,
-            route: path,
-            entityType: null,
-            entityId: null,
-            command: null,
-            durationMs: duration,
-            detail: {},
-          };
-          benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ??= [];
-          benchmarkWindow.__BANJI_BENCHMARK_EVENTS__.push(event);
-          benchmarkWindow.banjiDesktop.benchmark?.recordEvent(event);
-        },
-        { metricName: route.metric, duration: durationMs, path: route.path },
-      );
+      await recordPlaywrightDuration(launched.page, {
+        metricName: route.metric,
+        durationMs: Date.now() - startedAt,
+        route: route.path,
+        category: 'navigation',
+      });
       await snapshotRendererBenchmarkMemory(launched.page, `memory.renderer_after_${route.path.replace(/\W+/g, '_')}_mb`);
     }
+
+    const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
+    await navigateHashRoute(launched.page, '/');
+    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
+    await measureOverviewTaskDrawerOpen(launched);
   } finally {
     await closeBanjiBenchmarkApp(launched, 'navigation');
   }
