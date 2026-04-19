@@ -31,6 +31,16 @@ function benchmarkRunWithTargets(targets: Array<{
   metricName: string;
   label: string;
   value: number | null;
+  distribution?: {
+    count: number;
+    iqr: number | null;
+    max: number | null;
+    mean: number | null;
+    median: number | null;
+    min: number | null;
+    q1: number | null;
+    q3: number | null;
+  };
   status: 'pass' | 'watch' | 'fail' | 'missing';
   nonNegotiable: number;
   acceptable: number;
@@ -489,6 +499,147 @@ describe('SettingsRoute', () => {
       expect.stringContaining('Encountered two children with the same key'),
     );
     consoleError.mockRestore();
+  });
+
+  it('shows a status message instead of throwing when benchmark cancellation fails', async () => {
+    benchmarkAvailability.mockResolvedValue({
+      available: true,
+      reason: null,
+      projectRoot: '/tmp/banji',
+      resultsDirectory: '/tmp/banji/bench-results',
+      activeRunId: 'gui-run',
+    });
+    benchmarkListRuns.mockResolvedValue([
+      {
+        ...benchmarkRunWithTargets([]),
+        status: 'running',
+        completedAt: null,
+        exitCode: null,
+      },
+    ]);
+    benchmarkCancelRun.mockRejectedValue(new Error('Benchmark run not found.'));
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    const cancelButton = await screen.findByRole('button', { name: 'Cancel' });
+    expect(cancelButton).toBeEnabled();
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(benchmarkCancelRun).toHaveBeenCalled();
+    });
+    expect(await screen.findByText('Benchmark run not found.')).toBeInTheDocument();
+  });
+
+  it('shows all targets by default and can filter to a selected scenario summary', async () => {
+    benchmarkListRuns.mockResolvedValue([
+      {
+        ...benchmarkRunWithTargets([]),
+        summaries: [
+          {
+            scenario: 'startup',
+            runId: 'gui-run',
+            generatedAt: '2026-04-18T16:32:10.000Z',
+            metrics: {},
+            slowestIpc: [],
+            slowestCore: [],
+            targets: [
+              {
+                metricName: 'startup.app_to_workspace_ready_ms',
+                label: 'App to usable workspace',
+                value: 2200,
+                unit: 'ms',
+                status: 'pass',
+                nonNegotiable: 2500,
+                acceptable: 5000,
+                source: 'Windows startup, Android startup, Core Web Vitals LCP',
+                rationale: 'Startup ends when the workspace can be used, not when the first frame appears.',
+              },
+            ],
+          },
+          {
+            scenario: 'stability',
+            runId: 'gui-run',
+            generatedAt: '2026-04-18T16:32:11.000Z',
+            metrics: {},
+            slowestIpc: [],
+            slowestCore: [],
+            targets: [
+              {
+                metricName: 'memory.renderer_stability_growth_pct',
+                label: 'Renderer memory growth',
+                value: 11.5,
+                unit: 'percent',
+                status: 'watch',
+                nonNegotiable: 10,
+                acceptable: 15,
+                source: 'Chromium memory benchmarks',
+                rationale: 'Repeated navigation should not produce a steady heap ratchet.',
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Target status')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Selected benchmark summary' })).toHaveTextContent('All');
+    expect(screen.getByText('App to usable workspace')).toBeInTheDocument();
+    expect(screen.getByText('Renderer memory growth')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Selected benchmark summary' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Startup' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('App to usable workspace')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('Renderer memory growth')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Selected benchmark summary' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Stability' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Renderer memory growth')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('App to usable workspace')).not.toBeInTheDocument();
+  });
+
+  it('renders repeat distribution details for aggregated benchmark targets', async () => {
+    benchmarkListRuns.mockResolvedValue([
+      benchmarkRunWithTargets([
+        {
+          metricName: 'startup.app_to_workspace_ready_ms',
+          label: 'App to usable workspace',
+          value: 2600,
+          distribution: {
+            count: 3,
+            iqr: 4600,
+            max: 7000,
+            mean: 4000,
+            median: 2600,
+            min: 2400,
+            q1: 2400,
+            q3: 7000,
+          },
+          status: 'watch',
+          nonNegotiable: 2500,
+          acceptable: 5000,
+          source: 'Windows startup, Android startup, Core Web Vitals LCP',
+          rationale: 'Startup ends when the workspace can be used, not when the first frame appears.',
+        },
+      ]),
+    ]);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Target status')).toBeInTheDocument();
+    expect(screen.getByText('App to usable workspace')).toBeInTheDocument();
+    expect(screen.getByText('Median 2600 ms')).toBeInTheDocument();
+    expect(screen.getByText('Mean 4000 ms')).toBeInTheDocument();
+    expect(screen.getByText('IQR 4600 ms')).toBeInTheDocument();
+    expect(screen.getByText('Min 2400 ms · Max 7000 ms')).toBeInTheDocument();
   });
 
   it('sorts the result column alphabetically by state only', async () => {

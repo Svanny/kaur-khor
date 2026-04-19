@@ -3,6 +3,7 @@ import {
   BANJI_BENCHMARK_SCENARIOS,
   BANJI_BENCHMARK_TARGETS,
   type BanjiBenchmarkComparison,
+  type BanjiBenchmarkDistributionSummary,
   type BanjiBenchmarkFixtureSize,
   type BanjiBenchmarkRunRecord,
   type BanjiBenchmarkScenarioId,
@@ -33,6 +34,7 @@ const TARGET_RESULT_FILTER_OPTIONS: Array<{ label: string; value: TargetStatusFi
   { label: 'Fail', value: 'fail' },
   { label: 'Missing', value: 'missing' },
 ];
+const SUMMARY_FILTER_ALL = 'all';
 
 function compareText(left: string, right: string, direction: TargetResultSortDirection) {
   const result = left.localeCompare(right);
@@ -70,9 +72,40 @@ function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boole
   return `${Math.round(value)} ms`;
 }
 
+function formatDistributionValue(
+  distribution: BanjiBenchmarkDistributionSummary | undefined,
+  key: keyof Pick<BanjiBenchmarkDistributionSummary, 'mean' | 'median' | 'iqr' | 'min' | 'max'>,
+  unit: 'ms' | 'percent' | 'boolean',
+) {
+  if (!distribution || distribution.count <= 1) {
+    return null;
+  }
+  return formatMetricValue(distribution[key], unit);
+}
+
+function TargetDistributionDetails({ target }: { target: BanjiBenchmarkTargetEvaluation }) {
+  const distribution = target.distribution;
+  if (!distribution || distribution.count <= 1) {
+    return <div className="mt-1 text-muted-foreground">{formatMetricValue(target.value, target.unit)}</div>;
+  }
+
+  return (
+    <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
+      <div>Median {formatDistributionValue(distribution, 'median', target.unit)}</div>
+      <div>Mean {formatDistributionValue(distribution, 'mean', target.unit)}</div>
+      <div>IQR {formatDistributionValue(distribution, 'iqr', target.unit)}</div>
+      <div>Min {formatDistributionValue(distribution, 'min', target.unit)} · Max {formatDistributionValue(distribution, 'max', target.unit)}</div>
+    </div>
+  );
+}
+
 function formatRunLabel(run: BanjiBenchmarkRunRecord) {
   const date = new Date(run.startedAt);
   return `${date.toLocaleString()} - ${run.status}`;
+}
+
+function formatScenarioLabel(scenario: string) {
+  return BANJI_BENCHMARK_SCENARIOS.find((entry) => entry.id === scenario)?.label ?? scenario;
 }
 
 function runTargetCounts(run: BanjiBenchmarkRunRecord | null) {
@@ -152,7 +185,7 @@ function TargetTable({
                   <span className={cn('inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1', statusClassName[target.status])}>
                     {target.status}
                   </span>
-                  <div className="mt-1 text-muted-foreground">{formatMetricValue(target.value, target.unit)}</div>
+                  <TargetDistributionDetails target={target} />
                 </td>
                 <td className="py-3 pr-4 align-top">{formatMetricValue(target.nonNegotiable, target.unit)}</td>
                 <td className="py-3 pr-4 align-top">{formatMetricValue(target.acceptable, target.unit)}</td>
@@ -236,6 +269,7 @@ export function BenchmarkSettingsPage() {
   const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
   const [comparison, setComparison] = useState<BanjiBenchmarkComparison | null>(null);
+  const [selectedSummaryScenario, setSelectedSummaryScenario] = useState<string>(SUMMARY_FILTER_ALL);
   const [targetResultFilters, setTargetResultFilters] = useState<TargetStatusFilter[]>(
     TARGET_RESULT_FILTER_OPTIONS.map((option) => option.value),
   );
@@ -243,10 +277,14 @@ export function BenchmarkSettingsPage() {
 
   const selectedRun = runs.find((run) => run.runId === selectedRunId) ?? runs[0] ?? null;
   const activeRun = activeRunId ? runs.find((run) => run.runId === activeRunId) ?? null : null;
+  const selectedSummary = selectedRun?.summaries.find((summary) => summary.scenario === selectedSummaryScenario)
+    ?? null;
   const targetCounts = runTargetCounts(selectedRun);
   const completedRuns = runs.filter((run) => run.status === 'passed' || run.status === 'failed');
   const selectedTargets = useMemo(() => {
-    const targets = selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? [];
+    const targets = selectedSummaryScenario === SUMMARY_FILTER_ALL
+      ? selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? []
+      : selectedSummary?.targets ?? [];
     return targets
       .filter((target) => targetResultFilters.includes(target.status))
       .sort((left, right) => {
@@ -256,7 +294,24 @@ export function BenchmarkSettingsPage() {
         }
         return compareText(left.label, right.label, targetResultSortDirection);
       });
-  }, [selectedRun, targetResultFilters, targetResultSortDirection]);
+  }, [selectedRun, selectedSummary, selectedSummaryScenario, targetResultFilters, targetResultSortDirection]);
+
+  useEffect(() => {
+    if (!selectedRun || selectedRun.summaries.length === 0) {
+      setSelectedSummaryScenario(SUMMARY_FILTER_ALL);
+      return;
+    }
+    if (selectedSummaryScenario === SUMMARY_FILTER_ALL) {
+      return;
+    }
+    if (
+      selectedSummaryScenario
+      && selectedRun.summaries.some((summary) => summary.scenario === selectedSummaryScenario)
+    ) {
+      return;
+    }
+    setSelectedSummaryScenario(SUMMARY_FILTER_ALL);
+  }, [selectedRun, selectedSummaryScenario]);
 
   async function refreshRuns(nextSelectedRunId?: string | null) {
     const nextRuns = await window.banjiDesktop.benchmarkRunner?.listRuns() ?? [];
@@ -332,27 +387,37 @@ export function BenchmarkSettingsPage() {
     if (!window.banjiDesktop.benchmarkRunner) {
       return;
     }
-    setStatus('Starting benchmark run...');
-    const run = await window.banjiDesktop.benchmarkRunner.startRun({
-      scenarios: selectedScenarios,
-      fixtureSize,
-      traceEnabled,
-      repeatCount: Number(repeatCount) || 1,
-      buildBeforeRun,
-    });
-    setSelectedRunId(run.runId);
-    setActiveRunId(run.runId);
-    await refreshRuns(run.runId);
+    try {
+      setStatus('Starting benchmark run...');
+      const run = await window.banjiDesktop.benchmarkRunner.startRun({
+        scenarios: selectedScenarios,
+        fixtureSize,
+        traceEnabled,
+        repeatCount: Number(repeatCount) || 1,
+        buildBeforeRun,
+      });
+      setSelectedRunId(run.runId);
+      setActiveRunId(run.runId);
+      await refreshRuns(run.runId);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to start benchmark run.');
+      await refreshRuns();
+    }
   }
 
   async function cancelRun() {
     if (!activeRunId || !window.banjiDesktop.benchmarkRunner) {
       return;
     }
-    setStatus('Cancelling benchmark run...');
-    const run = await window.banjiDesktop.benchmarkRunner.cancelRun(activeRunId);
-    setSelectedRunId(run.runId);
-    await refreshRuns(run.runId);
+    try {
+      setStatus('Cancelling benchmark run...');
+      const run = await window.banjiDesktop.benchmarkRunner.cancelRun(activeRunId);
+      setSelectedRunId(run.runId);
+      await refreshRuns(run.runId);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to cancel benchmark run.');
+      await refreshRuns(activeRunId);
+    }
   }
 
   async function compareRuns() {
@@ -437,6 +502,8 @@ export function BenchmarkSettingsPage() {
                     <SelectItem value="1">1</SelectItem>
                     <SelectItem value="2">2</SelectItem>
                     <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                    <SelectItem value="5">5</SelectItem>
                   </SelectContent>
                 </Select>
               </label>
@@ -589,45 +656,65 @@ export function BenchmarkSettingsPage() {
                 Non-negotiable, acceptable, and technical targets are based on desktop app startup guidance, RAIL, Core Web Vitals, Electron performance guidance, and Chromium jank diagnostics.
               </p>
             </div>
-            <AnchoredMenu
-              align="right"
-              label="Filter result states"
-              triggerClassName="min-w-[10rem] justify-between"
-              triggerIcon={(
-                <>
-                  <span>Results</span>
-                  <span className="text-xs text-muted-foreground">
-                    {targetResultFilters.length}/{TARGET_RESULT_FILTER_OPTIONS.length}
-                  </span>
-                </>
-              )}
-              triggerSize="sm"
-            >
-              {() => (
-                <div className="grid gap-1">
-                  {TARGET_RESULT_FILTER_OPTIONS.map((option) => {
-                    const checked = targetResultFilters.includes(option.value);
-                    const locked = checked && targetResultFilters.length === 1;
-                    return (
-                      <label
-                        key={option.value}
-                        className={cn(
-                          'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent',
-                          locked ? 'opacity-70' : null,
-                        )}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          disabled={locked}
-                          onCheckedChange={() => toggleTargetResultFilter(option.value)}
-                        />
-                        <span>{option.label}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              )}
-            </AnchoredMenu>
+            <div className="flex flex-wrap items-center gap-3">
+              {selectedRun && selectedRun.summaries.length > 1 ? (
+                <Select
+                  value={selectedSummaryScenario}
+                  onValueChange={setSelectedSummaryScenario}
+                >
+                  <SelectTrigger aria-label="Selected benchmark summary" className="min-w-[12rem]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SUMMARY_FILTER_ALL}>All</SelectItem>
+                    {selectedRun.summaries.map((summary) => (
+                      <SelectItem key={summary.scenario} value={summary.scenario}>
+                        {formatScenarioLabel(summary.scenario)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : null}
+              <AnchoredMenu
+                align="right"
+                label="Filter result states"
+                triggerClassName="min-w-[10rem] justify-between"
+                triggerIcon={(
+                  <>
+                    <span>Results</span>
+                    <span className="text-xs text-muted-foreground">
+                      {targetResultFilters.length}/{TARGET_RESULT_FILTER_OPTIONS.length}
+                    </span>
+                  </>
+                )}
+                triggerSize="sm"
+              >
+                {() => (
+                  <div className="grid gap-1">
+                    {TARGET_RESULT_FILTER_OPTIONS.map((option) => {
+                      const checked = targetResultFilters.includes(option.value);
+                      const locked = checked && targetResultFilters.length === 1;
+                      return (
+                        <label
+                          key={option.value}
+                          className={cn(
+                            'flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent',
+                            locked ? 'opacity-70' : null,
+                          )}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={locked}
+                            onCheckedChange={() => toggleTargetResultFilter(option.value)}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </AnchoredMenu>
+            </div>
           </div>
           <TargetTable
             resultSortDirection={targetResultSortDirection}
