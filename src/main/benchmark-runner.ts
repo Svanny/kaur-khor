@@ -1,12 +1,15 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Notification, ipcMain, shell } from 'electron';
 import {
   BANJI_BENCHMARK_SCENARIOS,
   aggregateBenchmarkScenarioSummaries,
   type BanjiBenchmarkComparison,
   type BanjiBenchmarkComparisonMetric,
+  type BanjiBenchmarkEvent,
+  type BanjiBenchmarkFlamegraphArtifact,
+  type BanjiBenchmarkFlamegraphRequest,
   type BanjiBenchmarkRunEvent,
   type BanjiBenchmarkRunOptions,
   type BanjiBenchmarkRunRecord,
@@ -25,6 +28,10 @@ import {
 
 const MAX_TAIL_LINES = 200;
 const RUN_RECORD_DIRECTORY = 'gui-runs';
+const FLAMEGRAPH_DIRECTORY = 'flamegraphs';
+const D3_CDN_URL = 'https://d3js.org/d3.v7.min.js';
+const D3_FLAMEGRAPH_CSS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.css';
+const D3_FLAMEGRAPH_JS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.min.js';
 
 const SCENARIO_FILE_BY_ID: Record<BanjiBenchmarkScenarioId, string> = {
   startup: 'bench/scenarios/startup.bench.ts',
@@ -39,6 +46,18 @@ type ActiveBenchmarkRun = {
   record: BanjiBenchmarkRunRecord;
   cancelled: boolean;
 };
+
+interface FlamegraphNode {
+  name: string;
+  value: number;
+  children?: FlamegraphNode[];
+}
+
+interface ScenarioEventBundle {
+  directory: string;
+  events: BanjiBenchmarkEvent[];
+  summary: BanjiBenchmarkScenarioSummary;
+}
 
 function boundedTail(lines: string[], nextLine: string) {
   return [...lines, nextLine].slice(-MAX_TAIL_LINES);
@@ -61,6 +80,20 @@ async function readJsonFile<T>(path: string): Promise<T | null> {
     return null;
   }
   return JSON.parse(raw) as T;
+}
+
+async function readJsonlFile<T>(path: string): Promise<T[]> {
+  const raw = await readFile(path, 'utf8').catch(() => '');
+  return raw
+    .split('\n')
+    .filter(Boolean)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as T];
+      } catch {
+        return [];
+      }
+    });
 }
 
 async function walkFiles(directory: string): Promise<string[]> {
@@ -90,6 +123,217 @@ function normalizeRunOptions(options: BanjiBenchmarkRunOptions): BanjiBenchmarkR
     repeatCount: Math.min(5, Math.max(1, Math.floor(Number(options.repeatCount) || 1))),
     buildBeforeRun: options.buildBeforeRun !== false,
   };
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeScriptJson(value: unknown) {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
+function formatMs(value: number) {
+  return `${Math.round(value)} ms`;
+}
+
+function eventDuration(event: BanjiBenchmarkEvent) {
+  return typeof event.durationMs === 'number' && Number.isFinite(event.durationMs) && event.durationMs > 0
+    ? event.durationMs
+    : null;
+}
+
+function eventLabel(event: BanjiBenchmarkEvent) {
+  const command = event.command ? ` (${event.command})` : '';
+  return `${event.layer}/${event.category}: ${event.name}${command}`;
+}
+
+function metricNode(name: string, value: number | null | undefined): FlamegraphNode | null {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return { name: `${name} - ${formatMs(value)}`, value };
+}
+
+function groupDurationNodes(events: BanjiBenchmarkEvent[], groupName: string, predicate: (event: BanjiBenchmarkEvent) => boolean) {
+  const totals = new Map<string, number>();
+  for (const event of events) {
+    if (!predicate(event)) {
+      continue;
+    }
+    const duration = eventDuration(event);
+    if (duration == null) {
+      continue;
+    }
+    const label = eventLabel(event);
+    totals.set(label, (totals.get(label) ?? 0) + duration);
+  }
+  const children = [...totals.entries()]
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 24)
+    .map(([name, value]) => ({ name: `${name} - ${formatMs(value)}`, value }));
+  if (children.length === 0) {
+    return null;
+  }
+  return {
+    name: groupName,
+    value: children.reduce((sum, child) => sum + child.value, 0),
+    children,
+  } satisfies FlamegraphNode;
+}
+
+function observedTimelineMs(events: BanjiBenchmarkEvent[]) {
+  const firstTs = events[0]?.ts ?? 0;
+  const lastTs = events.at(-1)?.ts ?? firstTs;
+  return Math.max(1, lastTs - firstTs);
+}
+
+function buildScenarioFlamegraphData(bundle: ScenarioEventBundle, label: string) {
+  const { events, summary } = bundle;
+  const observedWindowMs = observedTimelineMs(events);
+  const derivedMetricNodes = Object.entries(summary.derivedMetrics ?? {})
+    .flatMap(([name, value]) => {
+      const node = metricNode(name, value);
+      return node ? [node] : [];
+    });
+  const targetNodes = (summary.targets ?? [])
+    .flatMap((target) => {
+      const node = metricNode(`${target.status.toUpperCase()} target: ${target.metricName}`, target.value);
+      return node ? [node] : [];
+    });
+  const groups = [
+    derivedMetricNodes.length > 0
+      ? {
+          name: 'Derived target metrics',
+          value: derivedMetricNodes.reduce((sum, child) => sum + child.value, 0),
+          children: derivedMetricNodes,
+        }
+      : null,
+    targetNodes.length > 0
+      ? {
+          name: 'Target evaluations',
+          value: targetNodes.reduce((sum, child) => sum + child.value, 0),
+          children: targetNodes,
+        }
+      : null,
+    groupDurationNodes(events, 'Startup spans', (event) => event.category === 'startup'),
+    groupDurationNodes(events, 'IPC spans', (event) => event.category === 'ipc'),
+    groupDurationNodes(events, 'Core command spans', (event) => event.category === 'core-command'),
+    groupDurationNodes(events, 'Renderer and interaction spans', (event) => event.layer === 'renderer' || event.category === 'interaction'),
+    groupDurationNodes(events, 'Memory snapshots', (event) => event.category === 'memory'),
+  ].filter((node): node is FlamegraphNode => Boolean(node));
+  const value = groups.reduce((sum, node) => sum + node.value, 0) || observedWindowMs;
+  return {
+    name: `${summary.scenario} ${label} - observed ${formatMs(observedWindowMs)}`,
+    value,
+    children: groups,
+  } satisfies FlamegraphNode;
+}
+
+function buildFlamegraphHtml({
+  data,
+  record,
+  scenario,
+}: {
+  data: FlamegraphNode;
+  record: BanjiBenchmarkRunRecord;
+  scenario: BanjiBenchmarkScenarioId;
+}) {
+  const title = `${scenario} flame graph - ${record.runId}`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${escapeHtml(title)}</title>
+  <link rel="stylesheet" href="${D3_FLAMEGRAPH_CSS_URL}">
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f8fafc;
+      color: #111827;
+    }
+    body {
+      margin: 0;
+      padding: 32px;
+    }
+    main {
+      display: grid;
+      gap: 18px;
+    }
+    .meta {
+      display: grid;
+      gap: 8px;
+      max-width: 1100px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    p {
+      margin: 0;
+      color: #475569;
+      line-height: 1.6;
+    }
+    .chart-shell {
+      overflow-x: auto;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 16px;
+    }
+    #chart {
+      min-width: 1280px;
+    }
+    .d3-flame-graph rect {
+      rx: 2px;
+      ry: 2px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="meta">
+      <h1>${escapeHtml(title)}</h1>
+      <p>Generated from persisted Banji benchmark events for one scope only: <strong>${escapeHtml(scenario)}</strong>. Fixture: ${escapeHtml(record.fixtureSize)}. Repeat count: ${record.repeatCount}. When repeats exist, this artifact uses the worst-case repeat by longest observed timeline.</p>
+      <p>This uses d3-flame-graph from jsDelivr and D3 from d3js.org. Values come from benchmark event durations and derived target metrics; this is not a sampled CPU profiler capture.</p>
+    </section>
+    <section class="chart-shell">
+      <div id="chart"></div>
+    </section>
+  </main>
+  <script src="${D3_CDN_URL}"></script>
+  <script src="${D3_FLAMEGRAPH_JS_URL}"></script>
+  <script>
+    const data = ${escapeScriptJson(data)};
+    const chart = flamegraph()
+      .width(1280)
+      .cellHeight(28)
+      .transitionDuration(0)
+      .sort(false)
+      .inverted(true)
+      .label((node) => node.data.name);
+
+    d3.select("#chart")
+      .datum(data)
+      .call(chart);
+  </script>
+</body>
+</html>
+`;
 }
 
 export function registerBenchmarkRunnerIpc({
@@ -198,6 +442,93 @@ export function registerBenchmarkRunnerIpc({
       runId: record.runId,
       summaries: freshSummaries,
     });
+  }
+
+  async function collectScenarioEventBundles(
+    record: BanjiBenchmarkRunRecord,
+    scenario: BanjiBenchmarkScenarioId,
+  ): Promise<ScenarioEventBundle[]> {
+    if (!record.scenarios.includes(scenario)) {
+      throw new Error(`Benchmark run ${record.runId} did not include ${scenario}.`);
+    }
+    const startedMs = new Date(record.startedAt).getTime();
+    const completedMs = record.completedAt ? new Date(record.completedAt).getTime() : Number.POSITIVE_INFINITY;
+    const files = await walkFiles(resultsDirectory);
+    const summaryFiles = files.filter((file) => file.endsWith(`${scenario}.summary.json`));
+    const bundles = await Promise.all(
+      summaryFiles.map(async (summaryFile) => {
+        const fileStat = await stat(summaryFile).catch(() => null);
+        if (!fileStat || fileStat.mtimeMs < startedMs || fileStat.mtimeMs > completedMs + 120_000) {
+          return null;
+        }
+        const summary = await readJsonFile<BanjiBenchmarkScenarioSummary>(summaryFile);
+        if (!summary || summary.scenario !== scenario) {
+          return null;
+        }
+        const directory = dirname(summaryFile);
+        const [rendererEvents, coreEvents] = await Promise.all([
+          readJsonlFile<BanjiBenchmarkEvent>(join(directory, 'events.jsonl')),
+          readJsonlFile<BanjiBenchmarkEvent>(join(directory, 'core-events.jsonl')),
+        ]);
+        const events = [...rendererEvents, ...coreEvents].sort((left, right) => left.ts - right.ts);
+        if (events.length === 0) {
+          return null;
+        }
+        return { directory, events, summary } satisfies ScenarioEventBundle;
+      }),
+    );
+    return bundles
+      .filter((bundle): bundle is ScenarioEventBundle => Boolean(bundle))
+      .sort((left, right) => left.summary.generatedAt.localeCompare(right.summary.generatedAt));
+  }
+
+  async function generateFlamegraphArtifact(
+    payload: BanjiBenchmarkFlamegraphRequest,
+  ): Promise<BanjiBenchmarkFlamegraphArtifact> {
+    const run = await readRun(payload.runId);
+    if (!run) {
+      throw new Error('Benchmark run not found.');
+    }
+    if (isBenchmarkRunInFlight(run.status)) {
+      throw new Error('Wait for the benchmark run to finish before generating a flame graph.');
+    }
+    const scenario = payload.scenario;
+    if (!BANJI_BENCHMARK_SCENARIOS.some((entry) => entry.id === scenario)) {
+      throw new Error('Choose a single benchmark scope before generating a flame graph.');
+    }
+    const bundles = await collectScenarioEventBundles(run, scenario);
+    if (bundles.length === 0) {
+      throw new Error(`No persisted ${scenario} benchmark events were found for this run.`);
+    }
+    const worstCaseBundle = bundles.reduce((currentWorst, candidate) =>
+      observedTimelineMs(candidate.events) > observedTimelineMs(currentWorst.events) ? candidate : currentWorst);
+    const worstCaseIndex = bundles.indexOf(worstCaseBundle);
+    const worstCaseLabel = bundles.length > 1
+      ? `worst-case repeat ${worstCaseIndex + 1} of ${bundles.length}`
+      : 'repeat 1 of 1';
+    const child = buildScenarioFlamegraphData(worstCaseBundle, worstCaseLabel);
+    const data: FlamegraphNode = {
+      name: `${scenario} flame graph - ${run.runId}`,
+      value: child.value,
+      children: [child],
+    };
+    const artifactDirectory = join(resultsDirectory, FLAMEGRAPH_DIRECTORY, safeRunId(run.runId));
+    await mkdir(artifactDirectory, { recursive: true });
+    const artifactPath = join(artifactDirectory, `${scenario}.html`);
+    await writeFile(
+      artifactPath,
+      buildFlamegraphHtml({ data, record: run, scenario }),
+      'utf8',
+    );
+    const openError = await shell.openPath(artifactPath);
+    if (openError) {
+      throw new Error(openError);
+    }
+    return {
+      runId: run.runId,
+      scenario,
+      artifactPath,
+    };
   }
 
   async function spawnStep(
@@ -511,6 +842,10 @@ export function registerBenchmarkRunnerIpc({
       metrics,
     } satisfies BanjiBenchmarkComparison;
   });
+
+  ipcMain.handle(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, async (_event, payload: BanjiBenchmarkFlamegraphRequest) =>
+    generateFlamegraphArtifact(payload),
+  );
 
   ipcMain.handle(IPC_CHANNELS.benchmarkRunnerRevealRun, async (_event, runId: string) => {
     const run = await readRun(runId);

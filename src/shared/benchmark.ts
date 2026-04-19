@@ -163,6 +163,17 @@ export interface BanjiBenchmarkComparison {
   metrics: BanjiBenchmarkComparisonMetric[];
 }
 
+export interface BanjiBenchmarkFlamegraphRequest {
+  runId: string;
+  scenario: BanjiBenchmarkScenarioId;
+}
+
+export interface BanjiBenchmarkFlamegraphArtifact {
+  runId: string;
+  scenario: BanjiBenchmarkScenarioId;
+  artifactPath: string;
+}
+
 export interface BanjiBenchmarkRunnerBridge {
   getAvailability: () => Promise<BanjiBenchmarkRunnerAvailability>;
   listRuns: () => Promise<BanjiBenchmarkRunRecord[]>;
@@ -170,6 +181,7 @@ export interface BanjiBenchmarkRunnerBridge {
   startRun: (options: BanjiBenchmarkRunOptions) => Promise<BanjiBenchmarkRunRecord>;
   cancelRun: (runId: string) => Promise<BanjiBenchmarkRunRecord>;
   compareRuns: (payload: { baselineRunId: string; candidateRunId: string }) => Promise<BanjiBenchmarkComparison>;
+  generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest) => Promise<BanjiBenchmarkFlamegraphArtifact>;
   revealRun: (runId: string) => Promise<void>;
   onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => () => void;
 }

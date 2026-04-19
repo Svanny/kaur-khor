@@ -15,6 +15,8 @@ import {
   summarizeBenchmarkPayload,
   type BanjiBenchmarkEvent,
   type BanjiBenchmarkComparison,
+  type BanjiBenchmarkFlamegraphArtifact,
+  type BanjiBenchmarkFlamegraphRequest,
   type BanjiBenchmarkRunEvent,
   type BanjiBenchmarkRunOptions,
   type BanjiBenchmarkRunRecord,
@@ -125,6 +127,8 @@ const desktopBridge: DesktopBridge = {
       invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCancelRun, runId),
     compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<BanjiBenchmarkComparison> =>
       invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCompareRuns, payload),
+    generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest): Promise<BanjiBenchmarkFlamegraphArtifact> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, payload),
     revealRun: (runId: string): Promise<void> =>
       invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerRevealRun, runId),
     onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => {

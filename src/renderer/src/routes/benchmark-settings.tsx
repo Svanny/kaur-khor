@@ -270,6 +270,8 @@ export function BenchmarkSettingsPage() {
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
   const [comparison, setComparison] = useState<BanjiBenchmarkComparison | null>(null);
   const [selectedSummaryScenario, setSelectedSummaryScenario] = useState<string>(SUMMARY_FILTER_ALL);
+  const [flamegraphScenario, setFlamegraphScenario] = useState<BanjiBenchmarkScenarioId | null>(null);
+  const [isGeneratingFlamegraph, setIsGeneratingFlamegraph] = useState(false);
   const [targetResultFilters, setTargetResultFilters] = useState<TargetStatusFilter[]>(
     TARGET_RESULT_FILTER_OPTIONS.map((option) => option.value),
   );
@@ -312,6 +314,18 @@ export function BenchmarkSettingsPage() {
     }
     setSelectedSummaryScenario(SUMMARY_FILTER_ALL);
   }, [selectedRun, selectedSummaryScenario]);
+
+  useEffect(() => {
+    const firstScenario = selectedRun?.summaries[0]?.scenario ?? null;
+    if (!selectedRun || selectedRun.summaries.length === 0) {
+      setFlamegraphScenario(null);
+      return;
+    }
+    if (flamegraphScenario && selectedRun.summaries.some((summary) => summary.scenario === flamegraphScenario)) {
+      return;
+    }
+    setFlamegraphScenario(firstScenario);
+  }, [flamegraphScenario, selectedRun]);
 
   async function refreshRuns(nextSelectedRunId?: string | null) {
     const nextRuns = await window.banjiDesktop.benchmarkRunner?.listRuns() ?? [];
@@ -430,6 +444,25 @@ export function BenchmarkSettingsPage() {
   async function revealSelectedRun() {
     if (selectedRun && window.banjiDesktop.benchmarkRunner) {
       await window.banjiDesktop.benchmarkRunner.revealRun(selectedRun.runId);
+    }
+  }
+
+  async function generateFlamegraph() {
+    if (!selectedRun || !flamegraphScenario || !window.banjiDesktop.benchmarkRunner) {
+      return;
+    }
+    try {
+      setIsGeneratingFlamegraph(true);
+      setStatus(`Generating ${formatScenarioLabel(flamegraphScenario)} flame graph...`);
+      await window.banjiDesktop.benchmarkRunner.generateFlamegraph({
+        runId: selectedRun.runId,
+        scenario: flamegraphScenario,
+      });
+      setStatus(`Opened ${formatScenarioLabel(flamegraphScenario)} flame graph HTML artifact.`);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Failed to generate flame graph.');
+    } finally {
+      setIsGeneratingFlamegraph(false);
     }
   }
 
@@ -570,6 +603,40 @@ export function BenchmarkSettingsPage() {
                 </Button>
               </WorkspaceActionRow>
             </div>
+
+            <section className="grid gap-3 border-t border-border/60 pt-5">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Flame graph</p>
+                <p className="text-sm text-muted-foreground">
+                  Generate one HTML artifact for one benchmark scope at a time. Repeated runs use the longest observed timeline.
+                </p>
+              </div>
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                <Select
+                  value={flamegraphScenario ?? ''}
+                  onValueChange={(value) => setFlamegraphScenario(value as BanjiBenchmarkScenarioId)}
+                >
+                  <SelectTrigger aria-label="Flame graph scope">
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedRun.summaries.map((summary) => (
+                      <SelectItem key={summary.scenario} value={summary.scenario}>
+                        {formatScenarioLabel(summary.scenario)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  disabled={!flamegraphScenario || isGeneratingFlamegraph || selectedRun.status === 'queued' || selectedRun.status === 'running'}
+                  type="button"
+                  variant="outline"
+                  onClick={() => void generateFlamegraph()}
+                >
+                  Generate flame graph
+                </Button>
+              </div>
+            </section>
 
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {(['pass', 'watch', 'fail', 'missing'] as const).map((statusKey) => (

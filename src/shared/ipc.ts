@@ -242,6 +242,7 @@ export const IPC_CHANNELS = {
   benchmarkRunnerStartRun: 'banji:benchmark-runner:start-run',
   benchmarkRunnerCancelRun: 'banji:benchmark-runner:cancel-run',
   benchmarkRunnerCompareRuns: 'banji:benchmark-runner:compare-runs',
+  benchmarkRunnerGenerateFlamegraph: 'banji:benchmark-runner:generate-flamegraph',
   benchmarkRunnerRevealRun: 'banji:benchmark-runner:reveal-run',
   benchmarkRunnerEvent: 'banji:benchmark-runner:event',
 } as const;
