@@ -17,16 +17,32 @@ Relevant code paths:
 
 ## Read and Cache Behavior
 
-The main process keeps a persisted read cache for selected SENA reads.
+The main process keeps a persisted read cache for selected SENA reads. Startup
+uses a compact command, `sena.getStartupWorkspace()`, rather than a fanout of
+catalog, workspace summary, diagnostics, observations, and order-batch reads.
 
 Current cache characteristics:
 
 - stored in `desktop-sena-read-cache.json`
 - keyed by query-specific identifiers such as detail or run-status requests
+- excludes oversized list payloads such as full observation arrays and observation pages
 - invalidated when the observation fingerprint changes
+- validates freshness through `sena.getObservationFingerprint()` instead of scanning full observations
 - invalidated after write-side mutations such as catalog updates, observation changes, run triggers, retries, restore, and clear-data
 
 This keeps renderer reads responsive without letting cached analysis survive known workspace mutations.
+
+Routes that need observation history should request explicit pages through
+`sena.listObservationPage()`. Routes that only need "latest known value" anchors
+should use `sena.getRecordUpdateContext()`.
+
+Workspace summaries are stored in normalized hot SQLite tables for startup reads.
+Legacy JSON read models remain available for compatibility and detail-oriented
+surfaces.
+
+SENA checkpoints are stored as compressed payload files under
+`sena-checkpoints/`, with SQLite rows holding metadata such as codec, path, byte
+size, owner, algorithm version, and catalog fingerprint.
 
 ## Settings Surface
 
@@ -60,6 +76,9 @@ Supported export formats:
 ### Logs Export
 
 The logs export serializes observation records from `window.banjiDesktop.sena.listObservations()` and writes a timestamped file named like `banji-logs-<timestamp>.<ext>`.
+
+`listObservations()` is used here because export needs the full log. It should
+not be copied into startup or route-first-render paths.
 
 The exported rows include:
 

@@ -31,10 +31,31 @@ Current storage files exposed by the main process:
 
 - `desktop-sena-store.sqlite3`: local workspace store
 - `desktop-preferences.json`: persisted settings and preferences
-- `desktop-sena-read-cache.json`: persisted read cache for SENA UI reads
+- `desktop-sena-read-cache.json`: persisted read cache for compact SENA UI reads; oversized list payloads such as full observations are intentionally excluded
+- `sena-checkpoints/`: compressed SENA checkpoint payload files referenced by SQLite metadata
 - `backup-snapshots/`: snapshot directories created by the backup system
 
 In development, the app uses `.banji-dev-data` in the repo root. Packaged builds use Electron `userData`.
+
+## SENA Read Path
+
+The Electron main process owns the startup and IPC boundary for SENA reads. The
+renderer should treat `sena.getStartupWorkspace()` as the blocking startup read.
+That command returns the first-screen payload: catalog, compact workspace
+summary, latest run, and observation fingerprint. Full observation history is
+not part of startup state.
+
+Read behavior:
+
+- `sena.getObservationFingerprint()` validates cache freshness with SQLite metadata instead of deserializing all observations.
+- `sena.listObservationPage()` is the paged history API for routes that need observation rows.
+- `sena.getRecordUpdateContext()` returns latest stock, sales, order, receipt, and observation anchors for update flows.
+- `sena.listObservations()` remains available for compatibility and full export-style reads, but should not be used during startup.
+
+The managed backend starts one writer core and a small pool of read workers. The
+writer handles mutations and all destructive/backup-sensitive commands. Read-only
+commands can use read workers after they are ready, while identical read requests
+are coalesced before worker selection.
 
 ## Backup Snapshot Model
 

@@ -164,6 +164,8 @@ Boris Cherny (creator of Claude Code) keeps his team's file around 100 lines. Un
 - Test (single TSX file): `pnpm test -- src/path/to/file.test.tsx`
 - Test (Rust desktop runtime): `cargo test --manifest-path apps/desktop-core/Cargo.toml`
 - Test (Rust SENA engine): `cargo test --manifest-path apps/sena-core/Cargo.toml`
+- Startup benchmark: `pnpm bench:startup`
+- Power User startup benchmark: `BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup`
 - Security gate: `bash tool/security/run_security_checks.sh`
 - Typecheck: `pnpm exec tsc --build tsconfig.json`
 - Lint: no repo lint script is configured; do not invent one.
@@ -201,12 +203,22 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - Update `docs/` when changing contributor setup, local commands, IPC behavior, local storage/backup/restore/clear-data behavior, SENA export shapes, settings flows, security gate expectations, or user-visible product behavior.
 - For UI changes, verify visually with the app or browser when practical, especially for layout states, collapsed/expanded sidebars, drawers, modals, and route-level surfaces.
 
+### Startup and read-path architecture
+- Startup readiness is based on `sena.getStartupWorkspace()`: catalog, compact workspace summary, latest run, and observation fingerprint. Do not add full observation hydration or route-specific detail reads back into the blocking startup path.
+- The renderer should request observation history explicitly through paged reads or compact context commands. Keep `sena.listObservations()` as a compatibility/export path, not a startup/session default.
+- Main-process SENA cache freshness uses `sena.getObservationFingerprint`; do not reintroduce per-read `sena.listObservations()` freshness scans.
+- The backend has a writer core plus a read-worker pool. Mutations must route to the writer; read-only commands may route to read workers and should remain globally coalesced when identical.
+- Hot startup summary data lives in normalized SQLite tables. Keep legacy JSON read models only as compatibility/detail storage unless benchmark evidence justifies another shape.
+- Checkpoint payloads live as compressed files under `sena-checkpoints/` with SQLite metadata. Do not put large checkpoint JSON blobs back into the hot SQLite path.
+- Benchmark fixtures are `minimal`, `medium`, `heavy`, and `power-user`; Power User means 10 years, 1 day interval, 3,653 observations.
+
 ### Forbidden
 - Do not run or document `pnpm run build --silent`; `electron-vite build` rejects the forwarded `--silent` flag.
 - Do not treat renderer-visible calculation changes as copy-only. Trace the model/data path, update the underlying calculation, and add or update focused tests.
 - Do not bypass `src/preload` by exposing Electron or Node APIs directly to the renderer.
 - Do not add remote scripts, disable context isolation, or enable renderer Node integration.
 - Do not edit generated build outputs or local runtime data as part of source changes.
+- Do not make Electron reloads steal macOS focus. Use inactive/background loading behavior unless the user explicitly asks to focus the app.
 
 ---
 

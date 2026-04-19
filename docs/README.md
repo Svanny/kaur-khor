@@ -7,6 +7,9 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
+- [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd)
+- [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd)
+- [Benchmark guide](/Users/svanny/banji/bench/README.md)
 
 ## Repo Map
 
@@ -47,6 +50,9 @@ pnpm package:win:native
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, backup snapshots, restore, and clear-data behavior
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
+- [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
+- [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, hydration, and benchmark summaries
+- [Benchmark guide](/Users/svanny/banji/bench/README.md): benchmark commands, fixture sizes, event files, and startup target names
 
 ### Security
 

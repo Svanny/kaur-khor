@@ -3,79 +3,84 @@ sequenceDiagram
   autonumber
   participant Bench as Benchmark runner
   participant Main as Electron main<br/>src/main/index.ts
-  participant CoreMgr as Managed core controller<br/>src/main/core-manager.ts
-  participant Backend as Core process bridge<br/>src/main/backend.ts
-  participant Rust as Rust desktop core<br/>apps/desktop-core
+  participant Backend as Managed core backend<br/>src/main/backend.ts
+  participant Writer as Writer core
+  participant Readers as Read-worker pool
   participant Store as SQLite workspace store
   participant Preload as Preload bridge<br/>src/preload/index.ts
-  participant Renderer as React renderer<br/>src/renderer/src/App.tsx
+  participant Renderer as React renderer<br/>InventoryProvider
   participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
 
-  Bench->>Main: launch Electron with BANJI_BENCHMARK env
+  Bench->>Main: launch Electron with benchmark env
   Main->>Metrics: record main.boot.start
   Main->>Main: install CSP, asset protocol, menu
-  Main->>Main: load persisted SENA read cache
+  Main->>Main: load persisted compact SENA read cache
 
-  alt development startup
-    Main->>Main: migrate legacy desktop data
-    Main->>CoreMgr: invoke sena.seedDevWorkspace
-    CoreMgr->>Backend: ensureManagedCore
-    Backend->>Rust: spawn core binary or cargo run
-    Backend->>Rust: system.ping
-    Rust-->>Backend: ok
-    Backend->>Metrics: snapshot backend.core.ready
-    Backend-->>CoreMgr: managed process ready
-    CoreMgr-->>Main: seed result
-    Main->>Main: invalidate read cache if seeded
-  else packaged or seed disabled
-    Main->>Main: skip dev seed path
+  alt development seed enabled
+    Main->>Backend: invoke sena.seedDevWorkspace
+    Backend->>Writer: spawn writer and send mutation
+    Writer->>Store: seed or upgrade local workspace
+    Writer-->>Backend: seed result
+    Backend-->>Main: seeded?
+    Main->>Main: invalidate SENA read cache when seeded
+  else packaged or benchmark seed disabled
+    Main->>Backend: prewarm with system.ping
+    Backend->>Writer: spawn writer core
+    Backend->>Readers: start read workers asynchronously
+    Writer-->>Backend: ready
+    Backend-->>Main: core prewarmed
   end
 
-  Main->>Main: create BrowserWindow
+  Main->>Main: create BrowserWindow without stealing focus
   Main->>Renderer: load renderer URL or index.html
   Main->>Metrics: snapshot main.boot.ready
 
   Preload->>Renderer: expose window.banjiDesktop
   Preload->>Metrics: record preload.bridge.exposed
-  Renderer->>Metrics: record renderer.app.mount.start
   Renderer->>Preload: system.getAppContext
-  Preload->>Main: ipcRenderer.invoke systemGetAppContext
+  Preload->>Main: IPC system.getAppContext
   Main-->>Preload: DesktopAppContext
   Preload-->>Renderer: app context
-  Renderer->>Metrics: mark renderer.app.getAppContext end
-
-  Renderer->>Renderer: mount PreferencesProvider
-  Renderer->>Renderer: mount InventoryProvider
+  Renderer->>Metrics: record renderer.app.getAppContext
 
   par preferences hydration
     Renderer->>Preload: preferences.get
-    Preload->>Main: IPC preferencesGet
-    Main-->>Preload: desktop preferences JSON
+    Preload->>Main: IPC preferences.get
+    Main-->>Preload: preferences JSON
     Preload-->>Renderer: preferences
-    Renderer->>Metrics: record renderer.preferences.hydration.end
-  and initial workspace reload
-    Renderer->>Preload: sena.getCatalog
-    Renderer->>Preload: sena.getWorkspaceSummary
-    Renderer->>Preload: sena.getDiagnostics
-    Renderer->>Preload: sena.listObservations
-    Renderer->>Preload: sena.listOrderBatches
-    Preload->>Main: benchmarked IPC calls
-    Main->>Main: loadCachedSenaRead where possible
-    Main->>CoreMgr: managedCore.invoke read commands
-    CoreMgr->>Backend: enqueue serialized JSON requests
-    Backend->>Rust: one active request over stdin
-    Rust->>Store: get_workspace_summary and related reads
-    Store-->>Rust: workspace read models
-    Rust-->>Backend: JSON response over stdout
-    Backend-->>CoreMgr: resolved result with queueWaitMs
-    CoreMgr-->>Main: read results
-    Main-->>Preload: IPC results
-    Preload-->>Renderer: workspace data
+  and critical workspace hydration
+    Renderer->>Preload: sena.getStartupWorkspace
+    Preload->>Main: IPC sena.getStartupWorkspace
+    Main->>Main: loadCachedSenaRead("startup-workspace")
+    Main->>Backend: invoke sena.getObservationFingerprint for freshness when needed
+    Backend->>Readers: route read to least-busy ready worker
+    Readers->>Store: count + latest observed row metadata
+    Readers-->>Backend: observation fingerprint
+    Backend-->>Main: fingerprint
+    Main->>Backend: invoke sena.getStartupWorkspace
+    Backend->>Readers: route compact startup read
+    Readers->>Store: catalog, hot summary tables, latest run, fingerprint
+    Readers-->>Backend: startup workspace
+    Backend-->>Main: startup workspace
+    Main-->>Preload: startup workspace
+    Preload-->>Renderer: startup workspace
+    Renderer->>Renderer: set isLoading=false
   end
 
-  Renderer->>Renderer: wait for preferences hydrated and inventory not loading
   Renderer->>Metrics: record route.dashboard.ready
   Renderer->>Metrics: record renderer.workspace.ready
+
+  par deferred non-blocking reads
+    Renderer->>Preload: sena.getDiagnostics
+    Renderer->>Preload: sena.getRecordUpdateContext
+    Renderer->>Preload: sena.listOrderBatches
+    Renderer->>Preload: capped sena.getSkuDetail hydration
+    Renderer->>Preload: route-specific sena.listObservationPage when needed
+  end
+
+  Note over Renderer,Main: Full sena.listObservations is not part of startup. It remains for compatibility and export-style reads.
+  Note over Backend,Readers: Read-only requests are coalesced before worker selection. Mutations always route to the writer and bump the read generation.
+  Note over Store: Startup summary reads use normalized hot tables. Checkpoint payloads live as compressed files referenced by SQLite metadata.
 
   Bench->>Metrics: wait for bridge, app context, workspace ready, route ready
   Bench->>Main: relaunch with same data directory for warm startup
@@ -84,10 +89,6 @@ sequenceDiagram
   Metrics->>Metrics: derive startup.app_to_bridge_ms
   Metrics->>Metrics: derive startup.app_to_context_ms
   Metrics->>Metrics: derive startup.app_to_workspace_ready_ms
-  Metrics->>Metrics: derive startup.app_to_first_route_ready_ms
-  Metrics->>Metrics: derive ipc.sena_get_workspace_summary_ms
-  Metrics->>Metrics: derive backend.core.queue_wait_p95_ms
+  Metrics->>Metrics: derive ipc.sena_get_startup_workspace_ms
+  Metrics->>Metrics: derive backend.core.read_pool_queue_wait_p95_ms
   Metrics->>Metrics: compare against startup target budgets
-
-  Note over Renderer,Metrics: Startup is considered complete only when the workspace is usable, not when the first window frame appears.
-  Note over CoreMgr,Backend: The core controller prevents duplicate startup. The bridge serializes core commands so queue wait can become hidden startup latency.
