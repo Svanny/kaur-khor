@@ -144,4 +144,48 @@ describe('desktop core host helpers', () => {
       processKill.mockRestore();
     }
   });
+
+  it('falls back to child.kill when signaling the posix process group is not permitted', () => {
+    const processKill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      const error = new Error('operation not permitted') as NodeJS.ErrnoException;
+      error.code = 'EPERM';
+      throw error;
+    });
+    const child = {
+      kill: vi.fn(() => true),
+      pid: 43210,
+    };
+
+    try {
+      terminateManagedChildProcess(child as never, 'SIGTERM');
+
+      expect(processKill).toHaveBeenCalledWith(-43210, 'SIGTERM');
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    } finally {
+      processKill.mockRestore();
+    }
+  });
+
+  it('swallows missing child errors during direct child.kill fallback', () => {
+    const processKill = vi.spyOn(process, 'kill').mockImplementation(() => {
+      const error = new Error('missing') as NodeJS.ErrnoException;
+      error.code = 'ESRCH';
+      throw error;
+    });
+    const child = {
+      kill: vi.fn(() => {
+        const error = new Error('missing child') as NodeJS.ErrnoException;
+        error.code = 'ESRCH';
+        throw error;
+      }),
+      pid: 43210,
+    };
+
+    try {
+      expect(() => terminateManagedChildProcess(child as never, 'SIGTERM')).not.toThrow();
+      expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    } finally {
+      processKill.mockRestore();
+    }
+  });
 });

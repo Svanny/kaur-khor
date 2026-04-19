@@ -66,11 +66,11 @@ function signalProcessGroup(pid: number, signal: NodeJS.Signals) {
   process.kill(-pid, signal);
 }
 
-function isMissingProcessError(error: unknown) {
+function isIgnorableProcessSignalError(error: unknown) {
   return typeof error === 'object'
     && error !== null
     && 'code' in error
-    && (error as NodeJS.ErrnoException).code === 'ESRCH';
+    && ['ESRCH', 'EPERM'].includes(String((error as NodeJS.ErrnoException).code));
 }
 
 export function terminateManagedChildProcess(
@@ -82,13 +82,19 @@ export function terminateManagedChildProcess(
       signalProcessGroup(child.pid, signal);
       return;
     } catch (error) {
-      if (!isMissingProcessError(error)) {
+      if (!isIgnorableProcessSignalError(error)) {
         throw error;
       }
     }
   }
 
-  child.kill(signal);
+  try {
+    child.kill(signal);
+  } catch (error) {
+    if (!isIgnorableProcessSignalError(error)) {
+      throw error;
+    }
+  }
 }
 
 function desktopTraceEnabled() {

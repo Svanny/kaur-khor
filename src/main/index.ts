@@ -61,9 +61,14 @@ const projectRoot = join(__dirname, '../..');
 const iconAssets = macIconAssets(projectRoot);
 const configuredDesktopDataPath = process.env.BANJI_BENCHMARK_DATA_DIR?.trim()
   || process.env.BANJI_DESKTOP_DATA_DIR?.trim();
+const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';
 const desktopDataPath = app.isPackaged
   ? app.getPath('userData')
   : configuredDesktopDataPath || join(projectRoot, '.banji-dev-data');
+
+if (!app.isPackaged && configuredDesktopDataPath) {
+  app.setPath('userData', configuredDesktopDataPath);
+}
 
 const SENA_STORE_FILENAME = 'desktop-sena-store.sqlite3';
 const PREFERENCES_STORE_FILENAME = 'desktop-preferences.json';
@@ -396,6 +401,7 @@ function buildRendererContentSecurityPolicy() {
   if (process.env.ELECTRON_RENDERER_URL) {
     directives.push(
       "script-src 'self' 'unsafe-inline' http://localhost:* http://127.0.0.1:*",
+      "worker-src 'self' blob: http://localhost:* http://127.0.0.1:*",
       "connect-src 'self' ws://localhost:* ws://127.0.0.1:* http://localhost:* http://127.0.0.1:*",
     );
   } else {
@@ -762,6 +768,9 @@ async function createMainWindow() {
     backgroundColor: '#f2e8d8',
     title: 'banji desktop',
     icon: process.platform === 'darwin' ? undefined : iconAssets.dockIconPath,
+    show: !benchmarkWindowBackgroundMode,
+    focusable: !benchmarkWindowBackgroundMode,
+    skipTaskbar: benchmarkWindowBackgroundMode,
     webPreferences: createMainWindowWebPreferences(),
   });
   endCreate({ ok: true });

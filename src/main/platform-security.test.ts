@@ -9,6 +9,7 @@ const rendererHtml = readFileSync(new URL('../renderer/index.html', import.meta.
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
     expect(mainSource).toContain('function createMainWindowWebPreferences()');
+    expect(mainSource).toContain("const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';");
     expect(mainSource).toContain("preload: join(__dirname, '../preload/index.mjs')");
     expect(mainSource).toContain('contextIsolation: true');
     expect(mainSource).toContain('nodeIntegration: false');
@@ -19,6 +20,9 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('const ZOOM_LEVEL_STEP = 0.5;');
     expect(mainSource).toContain('const windowZoomLevels = new WeakMap<BrowserWindow, number>();');
     expect(mainSource).toContain('installPreferredWindowZoomBehavior(mainWindow);');
+    expect(mainSource).toContain('show: !benchmarkWindowBackgroundMode,');
+    expect(mainSource).toContain('focusable: !benchmarkWindowBackgroundMode,');
+    expect(mainSource).toContain('skipTaskbar: benchmarkWindowBackgroundMode,');
   });
 
   it('remaps actual size to the preferred default zoom level and owns zoom controls itself', () => {
