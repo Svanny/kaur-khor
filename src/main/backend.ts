@@ -62,6 +62,15 @@ interface CoreLaunchCommand {
   args: string[];
 }
 
+type CoreWorkerRole = 'writer' | 'read';
+
+interface CorePoolWorker {
+  activeCount: number;
+  index: number;
+  process: ManagedCoreProcess;
+  role: CoreWorkerRole;
+}
+
 function signalProcessGroup(pid: number, signal: NodeJS.Signals) {
   process.kill(-pid, signal);
 }
@@ -122,6 +131,22 @@ function summarizePayload(payload: unknown) {
   return `${typeof payload}(${String(payload)})`;
 }
 
+function isReadOnlyCoreCommand(commandName: string) {
+  return commandName === 'system.ping'
+    || commandName.startsWith('sena.get')
+    || commandName.startsWith('sena.list')
+    || commandName.startsWith('inventory.load')
+    || commandName.startsWith('inventory.list');
+}
+
+function coreReadCoalesceKey(commandName: string, payload: unknown, timeoutMs: number) {
+  try {
+    return `${commandName}:${timeoutMs}:${JSON.stringify(payload ?? null)}`;
+  } catch {
+    return null;
+  }
+}
+
 function traceIpc(message: string) {
   if (!desktopTraceEnabled()) {
     return;
@@ -159,12 +184,15 @@ function isDirectoryPath(path: string) {
 
 export function resolveManagedCoreEnv({
   dataFilePath,
+  role,
 }: {
   dataFilePath: string;
+  role?: CoreWorkerRole;
 }): NodeJS.ProcessEnv {
   return {
     ...process.env,
     BANJI_DESKTOP_DATA_PATH: dataFilePath,
+    ...(role ? { BANJI_CORE_WORKER_ROLE: role } : {}),
   };
 }
 
@@ -241,11 +269,212 @@ export async function startManagedCore(
     options.resourcesPath,
     options.isPackaged,
   );
+  const writer = await startManagedCoreWithFallback(options, env, launchCommands, 'writer', 0);
+  const readWorkers: CorePoolWorker[] = [];
+  const coalescedReadRequests = new Map<string, Promise<unknown>>();
+  const readPoolSize = resolveReadPoolSize();
+  let stopped = false;
+  let readGeneration = 0;
+
+  for (let index = 0; index < readPoolSize; index += 1) {
+    void startManagedCoreWithFallback(options, env, launchCommands, 'read', index + 1)
+      .then((process) => {
+        const worker: CorePoolWorker = {
+          activeCount: 0,
+          index: index + 1,
+          process,
+          role: 'read',
+        };
+        if (stopped) {
+          void process.stop();
+          return;
+        }
+        readWorkers.push(worker);
+        recordBenchmarkEvent({
+          layer: 'main',
+          category: 'startup',
+          name: 'backend.core.read-worker.ready',
+          phase: 'instant',
+          detail: {
+            workerIndex: worker.index,
+            poolSize: readPoolSize,
+          },
+        });
+      })
+      .catch((error) => {
+        console.warn(`[banji-desktop-core] read worker ${index + 1} failed to start: ${(error as Error).message}`);
+        recordBenchmarkEvent({
+          layer: 'main',
+          category: 'startup',
+          name: 'backend.core.read-worker.error',
+          phase: 'instant',
+          detail: {
+            workerIndex: index + 1,
+            error: (error as Error).message,
+          },
+        });
+      });
+  }
+
+  const writerWorker: CorePoolWorker = {
+    activeCount: 0,
+    index: 0,
+    process: writer,
+    role: 'writer',
+  };
+
+  const selectReadWorker = () => {
+    const available = readWorkers.filter((worker) => !worker.process.isStopped());
+    if (available.length === 0) {
+      return writerWorker;
+    }
+    return available.sort((left, right) => left.activeCount - right.activeCount || left.index - right.index)[0] ?? writerWorker;
+  };
+
+  const invokeOnWorker = async <T>(
+    worker: CorePoolWorker,
+    commandName: string,
+    payload?: unknown,
+    invokeOptions?: { timeoutMs?: number },
+  ) => {
+    worker.activeCount += 1;
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'core-command',
+      name: 'backend.core.pool.route',
+      phase: 'instant',
+      command: commandName,
+      detail: {
+        role: worker.role,
+        workerIndex: worker.index,
+        activeCount: worker.activeCount,
+      },
+    });
+    try {
+      return await worker.process.invoke<T>(commandName, payload, invokeOptions);
+    } finally {
+      worker.activeCount = Math.max(0, worker.activeCount - 1);
+    }
+  };
+
+  const invoke = async <T>(
+    commandName: string,
+    payload?: unknown,
+    invokeOptions?: { timeoutMs?: number },
+  ): Promise<T> => {
+    if (stopped || writer.isStopped()) {
+      throw new Error('desktop core is not running');
+    }
+
+    const timeoutMs = invokeOptions?.timeoutMs ?? DEFAULT_CORE_TIMEOUT_MS;
+    const readOnly = isReadOnlyCoreCommand(commandName);
+    const coalesceKey = readOnly ? coreReadCoalesceKey(commandName, payload, timeoutMs) : null;
+    const coalesced = coalesceKey ? coalescedReadRequests.get(coalesceKey) : null;
+    if (coalesced) {
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.request.coalesced',
+        phase: 'instant',
+        command: commandName,
+        detail: {
+          timeoutMs,
+          payload: summarizePayload(payload),
+        },
+      });
+      return (await coalesced) as T;
+    }
+
+    const request = (async () => {
+      if (readOnly) {
+        const generationAtDispatch = readGeneration;
+        const worker = selectReadWorker();
+        const result = await invokeOnWorker<T>(worker, commandName, payload, invokeOptions);
+        if (generationAtDispatch !== readGeneration) {
+          recordBenchmarkEvent({
+            layer: 'main',
+            category: 'core-command',
+            name: 'backend.core.read-result.stale',
+            phase: 'instant',
+            command: commandName,
+            detail: {
+              dispatchedGeneration: generationAtDispatch,
+              currentGeneration: readGeneration,
+            },
+          });
+          return await invokeOnWorker<T>(writerWorker, commandName, payload, invokeOptions);
+        }
+        return result;
+      }
+
+      const result = await invokeOnWorker<T>(writerWorker, commandName, payload, invokeOptions);
+      readGeneration += 1;
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.read-generation.bump',
+        phase: 'instant',
+        command: commandName,
+        detail: {
+          generation: readGeneration,
+        },
+      });
+      return result;
+    })();
+
+    if (coalesceKey) {
+      coalescedReadRequests.set(coalesceKey, request);
+      const clearCoalescedRequest = () => {
+        if (coalescedReadRequests.get(coalesceKey) === request) {
+          coalescedReadRequests.delete(coalesceKey);
+        }
+      };
+      request.then(clearCoalescedRequest, clearCoalescedRequest);
+    }
+    return request;
+  };
+
+  return {
+    invoke,
+    isStopped: () => stopped || writer.isStopped(),
+    stop: async () => {
+      if (stopped) {
+        return;
+      }
+      stopped = true;
+      await Promise.allSettled([
+        writer.stop(),
+        ...readWorkers.map((worker) => worker.process.stop()),
+      ]);
+    },
+  };
+}
+
+function resolveReadPoolSize() {
+  const raw = Number.parseInt(process.env.BANJI_READ_CORE_POOL_SIZE ?? '3', 10);
+  if (!Number.isFinite(raw)) {
+    return 3;
+  }
+  return Math.min(8, Math.max(1, raw));
+}
+
+async function startManagedCoreWithFallback(
+  options: StartManagedCoreOptions,
+  env: NodeJS.ProcessEnv,
+  launchCommands: CoreLaunchCommand[],
+  role: CoreWorkerRole,
+  workerIndex: number,
+) {
+  const workerEnv = {
+    ...env,
+    BANJI_CORE_WORKER_ROLE: role,
+    BANJI_CORE_WORKER_INDEX: String(workerIndex),
+  };
   let lastRecoverableError: Error | null = null;
 
   for (const { command, args } of launchCommands) {
     try {
-      return await startManagedCoreAttempt(options, env, { command, args });
+      return await startManagedCoreAttempt(options, workerEnv, { command, args }, role, workerIndex);
     } catch (error) {
       if (!isRecoverableSpawnError(error)) {
         throw error;
@@ -261,6 +490,8 @@ async function startManagedCoreAttempt(
   options: StartManagedCoreOptions,
   env: NodeJS.ProcessEnv,
   launchCommand: CoreLaunchCommand,
+  role: CoreWorkerRole = 'writer',
+  workerIndex = 0,
 ): Promise<ManagedCoreProcess> {
   const { command, args } = launchCommand;
   const cwd = resolveCoreWorkingDirectory(options);
@@ -271,6 +502,8 @@ async function startManagedCoreAttempt(
       command,
       args,
       cwd,
+      role,
+      workerIndex,
     },
   });
   const child = spawn(command, args, {
@@ -292,10 +525,13 @@ async function startManagedCoreAttempt(
     detail: {
       command,
       pid: child.pid ?? null,
+      role,
+      workerIndex,
     },
   });
   const pending = new Map<number, PendingRequest>();
   const queuedRequests: QueuedRequest<unknown>[] = [];
+  const coalescedReadRequests = new Map<string, Promise<unknown>>();
   const stderr: string[] = [];
   let nextId = 1;
   let stopped = false;
@@ -345,6 +581,8 @@ async function startManagedCoreAttempt(
         queued: queuedRequests.length,
         timeoutMs: next.timeoutMs,
         payload: next.payloadSummary,
+        role,
+        workerIndex,
       },
     });
     const timeout = setTimeout(() => {
@@ -363,6 +601,8 @@ async function startManagedCoreAttempt(
           queueWaitMs,
           activeMs: Date.now() - startedAt,
           timeoutMs: next.timeoutMs,
+          role,
+          workerIndex,
         },
       });
       next.rejectPromise(new Error(`desktop core timed out while handling ${next.commandName}`));
@@ -388,6 +628,8 @@ async function startManagedCoreAttempt(
             queueWaitMs,
             activeMs,
             result: summarizePayload(payloadValue),
+            role,
+            workerIndex,
           },
         });
         next.resolvePromise(payloadValue as never);
@@ -409,6 +651,8 @@ async function startManagedCoreAttempt(
             queueWaitMs,
             activeMs,
             error: error.message,
+            role,
+            workerIndex,
           },
         });
         next.rejectPromise(error);
@@ -443,6 +687,8 @@ async function startManagedCoreAttempt(
           queueWaitMs,
           activeMs: Date.now() - startedAt,
           error: error.message,
+          role,
+          workerIndex,
         },
       });
       next.rejectPromise(error);
@@ -485,6 +731,8 @@ async function startManagedCoreAttempt(
         id: response.id,
         ok: response.ok,
         result: summarizePayload(response.payload),
+        role,
+        workerIndex,
       },
     });
 
@@ -551,15 +799,36 @@ async function startManagedCoreAttempt(
       throw new Error('desktop core is not running');
     }
 
-    const id = nextId++;
     const timeoutMs = options?.timeoutMs ?? DEFAULT_CORE_TIMEOUT_MS;
+    const coalesceKey = isReadOnlyCoreCommand(commandName)
+      ? coreReadCoalesceKey(commandName, payload, timeoutMs)
+      : null;
+    const coalesced = coalesceKey ? coalescedReadRequests.get(coalesceKey) : null;
+    if (coalesced) {
+      recordBenchmarkEvent({
+        layer: 'main',
+        category: 'core-command',
+        name: 'backend.core.request.coalesced',
+        phase: 'instant',
+        command: commandName,
+        detail: {
+          timeoutMs,
+          payload: summarizePayload(payload),
+          role,
+          workerIndex,
+        },
+      });
+      return (await coalesced) as T;
+    }
+
+    const id = nextId++;
     const envelope: CoreRequestEnvelope = {
       id,
       command: commandName,
       payload,
     };
 
-    return new Promise<T>((resolvePromise, rejectPromise) => {
+    const request = new Promise<T>((resolvePromise, rejectPromise) => {
       queuedRequests.push({
         commandName,
         enqueuedAt: Date.now(),
@@ -581,10 +850,22 @@ async function startManagedCoreAttempt(
           queued: queuedRequests.length,
           timeoutMs,
           payload: summarizePayload(payload),
+          role,
+          workerIndex,
         },
       });
       dispatchNext();
     });
+    if (coalesceKey) {
+      coalescedReadRequests.set(coalesceKey, request);
+      const clearCoalescedRequest = () => {
+        if (coalescedReadRequests.get(coalesceKey) === request) {
+          coalescedReadRequests.delete(coalesceKey);
+        }
+      };
+      request.then(clearCoalescedRequest, clearCoalescedRequest);
+    }
+    return request;
   };
 
   try {

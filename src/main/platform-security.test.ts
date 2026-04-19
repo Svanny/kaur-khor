@@ -20,7 +20,8 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('const ZOOM_LEVEL_STEP = 0.5;');
     expect(mainSource).toContain('const windowZoomLevels = new WeakMap<BrowserWindow, number>();');
     expect(mainSource).toContain('installPreferredWindowZoomBehavior(mainWindow);');
-    expect(mainSource).toContain('show: !benchmarkWindowBackgroundMode,');
+    expect(mainSource).toContain('show: false,');
+    expect(mainSource).toContain('mainWindow.showInactive();');
     expect(mainSource).toContain('focusable: !benchmarkWindowBackgroundMode,');
     expect(mainSource).toContain('skipTaskbar: benchmarkWindowBackgroundMode,');
   });

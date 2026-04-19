@@ -250,6 +250,47 @@ export interface SenaObservationRecord {
   input: SenaObservationInput;
 }
 
+export interface SenaObservationFingerprint {
+  count: number;
+  latestObservedAt: string | null;
+  latestObservationId: string | null;
+}
+
+export interface SenaObservationPageRequest {
+  beforeObservedAt?: string | null;
+  beforeObservationId?: string | null;
+  limit?: number;
+}
+
+export interface SenaObservationPageCursor {
+  observedAt: string;
+  observationId: string;
+}
+
+export interface SenaObservationPage {
+  observations: SenaObservationRecord[];
+  nextCursor: SenaObservationPageCursor | null;
+  hasOlder: boolean;
+  totalCount: number;
+  latestObservedAt: string | null;
+}
+
+export interface SenaRecordUpdateAnchor<T> {
+  observationId: string;
+  observedAt: string;
+  value: T;
+}
+
+export interface SenaRecordUpdateContext {
+  observationFingerprint: SenaObservationFingerprint;
+  latestObservedAt: string | null;
+  latestStockBySku: Record<string, SenaRecordUpdateAnchor<SenaStockSnapshot>>;
+  latestRetailSaleBySku: Record<string, SenaRecordUpdateAnchor<SenaRetailSalesSnapshot>>;
+  latestServiceSaleByService: Record<string, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>;
+  latestOrderBySku: Record<string, SenaRecordUpdateAnchor<SenaOrderSignal>>;
+  latestReceiptBySku: Record<string, SenaRecordUpdateAnchor<SenaOrderSignal>>;
+}
+
 export interface SenaObservationUpdatePayload {
   observationId: string;
   input: SenaObservationInput;
@@ -286,6 +327,13 @@ export interface SenaWorkspaceSummary {
   topRegime: string;
   highRiskSkuIds: string[];
   skuSummaries: SenaSkuSummary[];
+}
+
+export interface SenaStartupWorkspace {
+  catalog: SenaCatalog | null;
+  workspaceSummary: SenaWorkspaceSummary | null;
+  latestRun: SenaAnalysisRunRecord | null;
+  observationFingerprint: SenaObservationFingerprint;
 }
 
 export interface SenaSkuSummary {

@@ -19,8 +19,13 @@ import {
   type SenaAnalysisRunRecord,
   type SenaCatalog,
   type SenaDiagnostics,
+  type SenaObservationFingerprint,
   type SenaObservationInput,
+  type SenaObservationPage,
+  type SenaObservationPageRequest,
   type SenaObservationRecord,
+  type SenaRecordUpdateAnchor,
+  type SenaRecordUpdateContext,
   type SenaServiceDetail,
   type SenaSkuDetail,
   type SenaWorkspaceSummary,
@@ -35,6 +40,124 @@ function clone<T>(value: T): T {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function observationFingerprint(observations: SenaObservationRecord[]): SenaObservationFingerprint {
+  const latest = [...observations].sort((left, right) => {
+    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
+    if (timeDelta !== 0) {
+      return timeDelta;
+    }
+    return right.observationId.localeCompare(left.observationId);
+  })[0];
+  return {
+    count: observations.length,
+    latestObservedAt: latest?.input.observedAt ?? null,
+    latestObservationId: latest?.observationId ?? null,
+  };
+}
+
+function recordUpdateAnchor<T>(
+  observation: SenaObservationRecord,
+  value: T,
+): SenaRecordUpdateAnchor<T> {
+  return {
+    observationId: observation.observationId,
+    observedAt: observation.input.observedAt,
+    value: clone(value),
+  };
+}
+
+function recordUpdateContext(observations: SenaObservationRecord[]): SenaRecordUpdateContext {
+  const sorted = [...observations].sort((left, right) => {
+    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
+    if (timeDelta !== 0) {
+      return timeDelta;
+    }
+    return right.observationId.localeCompare(left.observationId);
+  });
+  const latestStockBySku: SenaRecordUpdateContext['latestStockBySku'] = {};
+  const latestRetailSaleBySku: SenaRecordUpdateContext['latestRetailSaleBySku'] = {};
+  const latestServiceSaleByService: SenaRecordUpdateContext['latestServiceSaleByService'] = {};
+  const latestOrderBySku: SenaRecordUpdateContext['latestOrderBySku'] = {};
+  const latestReceiptBySku: SenaRecordUpdateContext['latestReceiptBySku'] = {};
+
+  for (const observation of sorted) {
+    for (const snapshot of observation.input.stockSnapshot) {
+      latestStockBySku[snapshot.skuId] ??= recordUpdateAnchor(observation, snapshot);
+    }
+    for (const sale of observation.input.retailSalesSnapshot ?? []) {
+      if (sale.unitsSold > 0) {
+        latestRetailSaleBySku[sale.skuId] ??= recordUpdateAnchor(observation, sale);
+      }
+    }
+    for (const sale of observation.input.serviceSalesSnapshot ?? []) {
+      if (sale.unitsSold > 0) {
+        latestServiceSaleByService[sale.serviceId] ??= recordUpdateAnchor(observation, sale);
+      }
+    }
+    for (const signal of observation.input.orderSignals ?? []) {
+      if (signal.orderPlaced || signal.approximateOrderQuantity != null) {
+        latestOrderBySku[signal.skuId] ??= {
+          ...recordUpdateAnchor(observation, signal),
+          observedAt: signal.placementTimestamp ?? observation.input.observedAt,
+        };
+      }
+      if (signal.receiptArrived || signal.approximateReceiptQuantity != null) {
+        latestReceiptBySku[signal.skuId] ??= {
+          ...recordUpdateAnchor(observation, signal),
+          observedAt: signal.receiptTimestamp ?? observation.input.observedAt,
+        };
+      }
+    }
+  }
+
+  const fingerprint = observationFingerprint(observations);
+  return {
+    observationFingerprint: fingerprint,
+    latestObservedAt: fingerprint.latestObservedAt,
+    latestStockBySku,
+    latestRetailSaleBySku,
+    latestServiceSaleByService,
+    latestOrderBySku,
+    latestReceiptBySku,
+  };
+}
+
+function observationPage(
+  observations: SenaObservationRecord[],
+  request?: SenaObservationPageRequest,
+): SenaObservationPage {
+  const limit = Math.min(500, Math.max(1, request?.limit ?? 100));
+  const sorted = [...observations].sort((left, right) => {
+    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
+    if (timeDelta !== 0) {
+      return timeDelta;
+    }
+    return right.observationId.localeCompare(left.observationId);
+  });
+  const filtered = request?.beforeObservedAt
+    ? sorted.filter((observation) => {
+        if (observation.input.observedAt < request.beforeObservedAt!) {
+          return true;
+        }
+        return observation.input.observedAt === request.beforeObservedAt
+          && request.beforeObservationId != null
+          && observation.observationId < request.beforeObservationId;
+      })
+    : sorted;
+  const rows = filtered.slice(0, limit + 1);
+  const observationsPage = rows.slice(0, limit);
+  const hasOlder = rows.length > limit;
+  const last = hasOlder ? observationsPage.at(-1) : null;
+  const fingerprint = observationFingerprint(observations);
+  return {
+    observations: clone(observationsPage),
+    nextCursor: last ? { observedAt: last.input.observedAt, observationId: last.observationId } : null,
+    hasOlder,
+    totalCount: observations.length,
+    latestObservedAt: fingerprint.latestObservedAt,
+  };
 }
 
 const mockCatalog: SenaCatalog = {
@@ -772,7 +895,18 @@ function installBrowserDesktopBridge() {
     },
     sena: {
       getCatalog: async () => clone(browserMockState.catalog),
+      getObservationFingerprint: async () => observationFingerprint(browserMockState.observations),
+      getRecordUpdateContext: async () => recordUpdateContext(browserMockState.observations),
+      getStartupWorkspace: async () => ({
+        catalog: clone(browserMockState.catalog),
+        workspaceSummary: clone(browserMockState.workspaceSummary),
+        latestRun: clone(browserMockState.latestRun),
+        observationFingerprint: observationFingerprint(browserMockState.observations),
+      }),
+      listObservationPage: async (payload?: SenaObservationPageRequest) =>
+        observationPage(browserMockState.observations, payload),
       listObservations: async () => clone(browserMockState.observations),
+      listOrderBatches: async () => [],
       upsertCatalog: async (payload) => {
         browserMockState.catalog = clone(payload);
         return clone(browserMockState.catalog);
@@ -809,6 +943,18 @@ function installBrowserDesktopBridge() {
           .map((observation) => observation.input.observedAt)
           .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
       },
+      createOrderBatch: async () => {
+        throw new Error('Order batches are not available in the browser mock.');
+      },
+      updateOrderBatch: async () => {
+        throw new Error('Order batches are not available in the browser mock.');
+      },
+      updateOrderChild: async () => {
+        throw new Error('Order batches are not available in the browser mock.');
+      },
+      splitOrderChild: async () => {
+        throw new Error('Order batches are not available in the browser mock.');
+      },
       triggerRun: async (payload?: SenaTriggerRunPayload) => {
         const runId = `browser-run-${runCounter++}`;
         browserMockState.workspaceSummary.runId = runId;
@@ -843,6 +989,7 @@ function installBrowserDesktopBridge() {
       getDiagnostics: async () => clone(browserMockState.diagnostics),
       getRunStatus: async ({ runId }: SenaRunLookupPayload) =>
         clone(browserMockState.latestRun.runId === runId ? browserMockState.latestRun : null),
+      clearDetailCache: async () => undefined,
     },
   };
 

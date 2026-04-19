@@ -30,13 +30,18 @@ import type {
   SenaObservationDeletePayload,
   SenaDiagnostics,
   SenaObservationInput,
+  SenaObservationFingerprint,
+  SenaObservationPage,
+  SenaObservationPageRequest,
   SenaObservationRecord,
   SenaOrderBatchRecord,
   SenaOrderLookupPayload,
+  SenaRecordUpdateContext,
   SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
+  SenaStartupWorkspace,
   SenaUpdateOrderBatchPayload,
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
@@ -158,6 +163,14 @@ const desktopBridge: DesktopBridge = {
   },
   sena: {
     getCatalog: (): Promise<SenaCatalog | null> => invokeWithBenchmark(IPC_CHANNELS.senaGetCatalog),
+    getObservationFingerprint: (): Promise<SenaObservationFingerprint> =>
+      invokeWithBenchmark(IPC_CHANNELS.senaGetObservationFingerprint),
+    getStartupWorkspace: (): Promise<SenaStartupWorkspace> =>
+      invokeWithBenchmark(IPC_CHANNELS.senaGetStartupWorkspace),
+    getRecordUpdateContext: (): Promise<SenaRecordUpdateContext> =>
+      invokeWithBenchmark(IPC_CHANNELS.senaGetRecordUpdateContext),
+    listObservationPage: (payload?: SenaObservationPageRequest): Promise<SenaObservationPage> =>
+      invokeWithBenchmark(IPC_CHANNELS.senaListObservationPage, payload),
     listObservations: (): Promise<SenaObservationRecord[]> =>
       invokeWithBenchmark(IPC_CHANNELS.senaListObservations),
     listOrderBatches: (payload?: SenaOrderLookupPayload): Promise<SenaOrderBatchRecord[]> =>

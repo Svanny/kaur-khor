@@ -13,13 +13,18 @@ import type {
   SenaDetailWindowRequest,
   SenaDiagnostics,
   SenaObservationInput,
+  SenaObservationPage,
+  SenaObservationPageRequest,
   SenaOrderBatchRecord,
   SenaOrderLookupPayload,
   SenaObservationRecord,
+  SenaObservationFingerprint,
+  SenaRecordUpdateContext,
   SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaServiceDetailPage,
   SenaSkuDetailPage,
+  SenaStartupWorkspace,
   SenaUpdateOrderBatchPayload,
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
@@ -149,6 +154,10 @@ export interface SenaDetailCacheClearPayload {
 
 export interface DesktopSenaBridge {
   getCatalog: () => Promise<SenaCatalog | null>;
+  getObservationFingerprint: () => Promise<SenaObservationFingerprint>;
+  getStartupWorkspace: () => Promise<SenaStartupWorkspace>;
+  getRecordUpdateContext: () => Promise<SenaRecordUpdateContext>;
+  listObservationPage: (payload?: SenaObservationPageRequest) => Promise<SenaObservationPage>;
   listObservations: () => Promise<SenaObservationRecord[]>;
   listOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
   upsertCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
@@ -215,6 +224,10 @@ export const IPC_CHANNELS = {
   inventoryListReports: 'banji:inventory:list-reports',
   inventorySubmitReport: 'banji:inventory:submit-report',
   senaGetCatalog: 'banji:sena:get-catalog',
+  senaGetObservationFingerprint: 'banji:sena:get-observation-fingerprint',
+  senaGetStartupWorkspace: 'banji:sena:get-startup-workspace',
+  senaGetRecordUpdateContext: 'banji:sena:get-record-update-context',
+  senaListObservationPage: 'banji:sena:list-observation-page',
   senaListObservations: 'banji:sena:list-observations',
   senaListOrderBatches: 'banji:sena:list-order-batches',
   senaUpsertCatalog: 'banji:sena:upsert-catalog',
