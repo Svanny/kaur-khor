@@ -1,9 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { BrowserWindow, ipcMain, shell } from 'electron';
+import { BrowserWindow, Notification, ipcMain, shell } from 'electron';
 import {
   BANJI_BENCHMARK_SCENARIOS,
+  aggregateBenchmarkScenarioSummaries,
   type BanjiBenchmarkComparison,
   type BanjiBenchmarkComparisonMetric,
   type BanjiBenchmarkRunEvent,
@@ -14,6 +15,13 @@ import {
   type BanjiBenchmarkScenarioSummary,
 } from '@shared/benchmark';
 import { IPC_CHANNELS } from '@shared/ipc';
+import {
+  benchmarkRunCompletionNotification,
+  cancelBenchmarkRunRecord,
+  isBenchmarkRunInFlight,
+  isBenchmarkRunTerminal,
+  reconcileBenchmarkRunRecord,
+} from './benchmark-runner-state';
 
 const MAX_TAIL_LINES = 200;
 const RUN_RECORD_DIRECTORY = 'gui-runs';
@@ -27,7 +35,7 @@ const SCENARIO_FILE_BY_ID: Record<BanjiBenchmarkScenarioId, string> = {
 };
 
 type ActiveBenchmarkRun = {
-  child: ChildProcessWithoutNullStreams | null;
+  children: Set<ChildProcessWithoutNullStreams>;
   record: BanjiBenchmarkRunRecord;
   cancelled: boolean;
 };
@@ -94,6 +102,7 @@ export function registerBenchmarkRunnerIpc({
   const resultsDirectory = resolve(projectRoot, 'bench-results');
   const runRecordsDirectory = join(resultsDirectory, RUN_RECORD_DIRECTORY);
   let activeRun: ActiveBenchmarkRun | null = null;
+  const notifiedRunIds = new Set<string>();
 
   function recordPath(runId: string) {
     return join(runRecordsDirectory, `${safeRunId(runId)}.json`);
@@ -110,6 +119,28 @@ export function registerBenchmarkRunnerIpc({
     }
   }
 
+  function notifyRunCompletion(record: BanjiBenchmarkRunRecord) {
+    if (!isBenchmarkRunTerminal(record.status) || notifiedRunIds.has(record.runId)) {
+      return;
+    }
+    notifiedRunIds.add(record.runId);
+
+    if (!Notification.isSupported()) {
+      return;
+    }
+    const notification = benchmarkRunCompletionNotification(record);
+    if (!notification) {
+      return;
+    }
+    const desktopNotification = new Notification(notification);
+    desktopNotification.on('click', () => {
+      const [window] = BrowserWindow.getAllWindows();
+      window?.show();
+      window?.focus();
+    });
+    desktopNotification.show();
+  }
+
   async function setRunStatus(
     run: ActiveBenchmarkRun,
     status: BanjiBenchmarkRunStatus,
@@ -124,14 +155,30 @@ export function registerBenchmarkRunnerIpc({
     };
     await persistRecord(run.record);
     emitRunEvent({ runId: run.record.runId, status, message, record: run.record });
+    notifyRunCompletion(run.record);
   }
 
   async function readRun(runId: string) {
+    const record = await readJsonFile<BanjiBenchmarkRunRecord>(recordPath(runId));
+    if (!record) {
+      return null;
+    }
+    if (activeRun && activeRun.record.runId === record.runId) {
+      return activeRun.record;
+    }
+    const reconciled = reconcileBenchmarkRunRecord(record, activeRun?.record.runId ?? null);
+    if (reconciled !== record) {
+      await persistRecord(reconciled);
+    }
+    return reconciled;
+  }
+
+  async function readStoredRun(runId: string) {
     return readJsonFile<BanjiBenchmarkRunRecord>(recordPath(runId));
   }
 
-  async function collectSummaries(startedAt: string): Promise<BanjiBenchmarkScenarioSummary[]> {
-    const startedMs = new Date(startedAt).getTime();
+  async function collectSummaries(record: BanjiBenchmarkRunRecord): Promise<BanjiBenchmarkScenarioSummary[]> {
+    const startedMs = new Date(record.startedAt).getTime();
     const files = await walkFiles(resultsDirectory);
     const summaries = await Promise.all(
       files
@@ -144,9 +191,13 @@ export function registerBenchmarkRunnerIpc({
           return readJsonFile<BanjiBenchmarkScenarioSummary>(file);
         }),
     );
-    return summaries
+    const freshSummaries = summaries
       .filter((summary): summary is BanjiBenchmarkScenarioSummary => Boolean(summary))
       .sort((left, right) => left.generatedAt.localeCompare(right.generatedAt));
+    return aggregateBenchmarkScenarioSummaries({
+      runId: record.runId,
+      summaries: freshSummaries,
+    });
   }
 
   async function spawnStep(
@@ -161,7 +212,7 @@ export function registerBenchmarkRunnerIpc({
       env,
       stdio: 'pipe',
     });
-    run.child = child;
+    run.children.add(child);
 
     child.stdout.setEncoding('utf8');
     child.stderr.setEncoding('utf8');
@@ -193,7 +244,7 @@ export function registerBenchmarkRunnerIpc({
     const exitCode = await new Promise<number | null>((resolveExit) => {
       child.once('exit', (code) => resolveExit(code));
     });
-    run.child = null;
+    run.children.delete(child);
     await persistRecord(run.record);
     if (run.cancelled) {
       throw new Error('cancelled');
@@ -201,6 +252,53 @@ export function registerBenchmarkRunnerIpc({
     if (exitCode !== 0) {
       throw new Error(`${command} ${args.join(' ')} exited with ${exitCode ?? 'unknown'}`);
     }
+  }
+
+  async function spawnScenarioRepeat(
+    run: ActiveBenchmarkRun,
+    scenario: BanjiBenchmarkScenarioId,
+    repeatIndex: number,
+    env: NodeJS.ProcessEnv,
+  ) {
+    const repeatLabel = run.record.repeatCount > 1
+      ? `repeat ${repeatIndex + 1}/${run.record.repeatCount}`
+      : 'repeat 1/1';
+    const reportDirectory = join(resultsDirectory, 'playwright-reports');
+    const artifactsDirectory = join(
+      resultsDirectory,
+      'playwright-artifacts',
+      `${run.record.runId}-${scenario}-repeat-${repeatIndex + 1}`,
+    );
+    await mkdir(reportDirectory, { recursive: true });
+    await mkdir(artifactsDirectory, { recursive: true });
+    const repeatEnv = {
+      ...env,
+      BANJI_BENCHMARK_REPEAT_INDEX: String(repeatIndex),
+      BANJI_BENCHMARK_PLAYWRIGHT_REPORT: join(
+        reportDirectory,
+        `${run.record.runId}-${scenario}-repeat-${repeatIndex + 1}.json`,
+      ),
+      BANJI_BENCHMARK_PLAYWRIGHT_ARTIFACTS_DIR: artifactsDirectory,
+    };
+
+    await spawnStep(
+      run,
+      'pnpm',
+      [
+        'exec',
+        'playwright',
+        'test',
+        '-c',
+        'playwright.bench.config.ts',
+        SCENARIO_FILE_BY_ID[scenario],
+      ],
+      repeatEnv,
+    ).catch((error) => {
+      if (error instanceof Error) {
+        throw new Error(`${scenario} ${repeatLabel} failed: ${error.message}`);
+      }
+      throw error;
+    });
   }
 
   async function runBenchmark(record: BanjiBenchmarkRunRecord) {
@@ -219,30 +317,31 @@ export function registerBenchmarkRunnerIpc({
         await spawnStep(run, 'pnpm', ['build'], env);
       }
       for (const scenario of record.scenarios) {
-        await spawnStep(
+        await setRunStatus(
           run,
-          'pnpm',
-          [
-            'exec',
-            'playwright',
-            'test',
-            '-c',
-            'playwright.bench.config.ts',
-            SCENARIO_FILE_BY_ID[scenario],
-            '--repeat-each',
-            String(record.repeatCount),
-          ],
-          env,
+          'running',
+          `Running ${scenario} with ${record.repeatCount} parallel repeat${record.repeatCount === 1 ? '' : 's'}.`,
         );
+        const results = await Promise.allSettled(
+          Array.from({ length: record.repeatCount }, (_value, repeatIndex) =>
+            spawnScenarioRepeat(run, scenario, repeatIndex, env)),
+        );
+        if (run.cancelled) {
+          throw new Error('cancelled');
+        }
+        const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected');
+        if (failed) {
+          throw failed.reason;
+        }
       }
-      const summaries = await collectSummaries(record.startedAt);
+      const summaries = await collectSummaries(record);
       await setRunStatus(run, 'passed', 'Benchmark run completed.', {
         summaries,
         exitCode: 0,
       });
     } catch (error) {
       const cancelled = run.cancelled || (error instanceof Error && error.message === 'cancelled');
-      const summaries = await collectSummaries(record.startedAt);
+      const summaries = await collectSummaries(record);
       await setRunStatus(run, cancelled ? 'cancelled' : 'failed', cancelled ? 'Benchmark run cancelled.' : 'Benchmark run failed.', {
         summaries,
         exitCode: cancelled ? null : 1,
@@ -267,7 +366,20 @@ export function registerBenchmarkRunnerIpc({
     const runs = await Promise.all(
       entries
         .filter((entry) => entry.endsWith('.json'))
-        .map((entry) => readJsonFile<BanjiBenchmarkRunRecord>(join(runRecordsDirectory, entry))),
+        .map(async (entry) => {
+          const record = await readJsonFile<BanjiBenchmarkRunRecord>(join(runRecordsDirectory, entry));
+          if (!record) {
+            return null;
+          }
+          if (activeRun && activeRun.record.runId === record.runId) {
+            return activeRun.record;
+          }
+          const reconciled = reconcileBenchmarkRunRecord(record, activeRun?.record.runId ?? null);
+          if (reconciled !== record) {
+            await persistRecord(reconciled);
+          }
+          return reconciled;
+        }),
     );
     return runs
       .filter((run): run is BanjiBenchmarkRunRecord => Boolean(run))
@@ -305,7 +417,7 @@ export function registerBenchmarkRunnerIpc({
       stderrTail: [],
       error: null,
     };
-    activeRun = { child: null, record, cancelled: false };
+    activeRun = { children: new Set(), record, cancelled: false };
     await persistRecord(record);
     emitRunEvent({ runId, status: 'queued', message: 'Benchmark run queued.', record });
     void runBenchmark(record);
@@ -313,13 +425,34 @@ export function registerBenchmarkRunnerIpc({
   });
 
   ipcMain.handle(IPC_CHANNELS.benchmarkRunnerCancelRun, async (_event, runId: string) => {
-    if (!activeRun || activeRun.record.runId !== runId) {
-      throw new Error('No matching benchmark run is active.');
+    if (activeRun && activeRun.record.runId === runId) {
+      activeRun.cancelled = true;
+      for (const child of activeRun.children) {
+        child.kill('SIGTERM');
+      }
+      await setRunStatus(activeRun, 'cancelled', 'Benchmark cancellation requested.');
+      return activeRun.record;
     }
-    activeRun.cancelled = true;
-    activeRun.child?.kill('SIGTERM');
-    await setRunStatus(activeRun, 'cancelled', 'Benchmark cancellation requested.');
-    return activeRun.record;
+
+    const storedRun = await readStoredRun(runId);
+    if (!storedRun) {
+      throw new Error('Benchmark run not found.');
+    }
+
+    const cancelledRun = isBenchmarkRunInFlight(storedRun.status)
+      ? cancelBenchmarkRunRecord(storedRun)
+      : storedRun;
+    if (cancelledRun !== storedRun) {
+      await persistRecord(cancelledRun);
+      emitRunEvent({
+        runId: cancelledRun.runId,
+        status: cancelledRun.status,
+        message: 'Benchmark cancellation requested.',
+        record: cancelledRun,
+      });
+      notifyRunCompletion(cancelledRun);
+    }
+    return cancelledRun;
   });
 
   ipcMain.handle(IPC_CHANNELS.benchmarkRunnerCompareRuns, async (_event, payload: { baselineRunId: string; candidateRunId: string }) => {
