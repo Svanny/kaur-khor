@@ -10,6 +10,8 @@ import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaDiagnostics,
+  SenaObservationFingerprint,
+  SenaRecordUpdateContext,
   SenaObservationRecord,
   SenaSkuDetailPage,
   SenaServiceDetail,
@@ -110,6 +112,44 @@ const sampleObservation: SenaObservationRecord = {
     leadTimeHints: [],
     notes: null,
   },
+};
+
+const sampleObservationFingerprint: SenaObservationFingerprint = {
+  count: 1,
+  latestObservedAt: sampleObservation.input.observedAt,
+  latestObservationId: sampleObservation.observationId,
+};
+
+const emptyObservationFingerprint: SenaObservationFingerprint = {
+  count: 0,
+  latestObservedAt: null,
+  latestObservationId: null,
+};
+
+const sampleRecordUpdateContext: SenaRecordUpdateContext = {
+  observationFingerprint: sampleObservationFingerprint,
+  latestObservedAt: sampleObservation.input.observedAt,
+  latestStockBySku: {
+    'sku-1': {
+      observationId: sampleObservation.observationId,
+      observedAt: sampleObservation.input.observedAt,
+      value: sampleObservation.input.stockSnapshot[0]!,
+    },
+  },
+  latestRetailSaleBySku: {},
+  latestServiceSaleByService: {},
+  latestOrderBySku: {},
+  latestReceiptBySku: {},
+};
+
+const emptyRecordUpdateContext: SenaRecordUpdateContext = {
+  observationFingerprint: emptyObservationFingerprint,
+  latestObservedAt: null,
+  latestStockBySku: {},
+  latestRetailSaleBySku: {},
+  latestServiceSaleByService: {},
+  latestOrderBySku: {},
+  latestReceiptBySku: {},
 };
 
 const sampleSnapshot: InventorySnapshot = {
@@ -260,6 +300,9 @@ function TestHarness() {
       <div data-testid="catalog-count">{inventory.catalog?.skus.length ?? 0}</div>
       <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
       <div data-testid="latest-run">{inventory.latestRun?.runId ?? 'none'}</div>
+      <div data-testid="diagnostics-loaded">{String(inventory.diagnostics != null)}</div>
+      <div data-testid="observation-count">{inventory.observations.length}</div>
+      <div data-testid="order-batch-count">{inventory.orderBatches.length}</div>
       <button type="button" onClick={() => void inventory.loadSenaSkuDetail('sku-1')}>
         load sku
       </button>
@@ -293,6 +336,21 @@ describe('InventoryProvider', () => {
       },
       sena: {
         getCatalog: vi.fn(async () => sampleCatalog),
+        getObservationFingerprint: vi.fn(async () => sampleObservationFingerprint),
+        getRecordUpdateContext: vi.fn(async () => sampleRecordUpdateContext),
+        getStartupWorkspace: vi.fn(async () => ({
+          catalog: sampleCatalog,
+          workspaceSummary: sampleWorkspace,
+          latestRun: sampleRun,
+          observationFingerprint: sampleObservationFingerprint,
+        })),
+        listObservationPage: vi.fn(async () => ({
+          observations: [sampleObservation],
+          nextCursor: null,
+          hasOlder: false,
+          totalCount: 1,
+          latestObservedAt: sampleObservation.input.observedAt,
+        })),
         listObservations: vi.fn(async () => [sampleObservation]),
         listOrderBatches: vi.fn(async () => []),
         upsertCatalog: vi.fn(async (payload: SenaCatalog) => payload),
@@ -410,11 +468,71 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('catalog-count').textContent).toBe('1');
     expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
     expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
-    expect(window.banjiDesktop.sena.getCatalog).toHaveBeenCalledTimes(1);
+    expect(window.banjiDesktop.sena.getStartupWorkspace).toHaveBeenCalledTimes(1);
+    expect(window.banjiDesktop.sena.getCatalog).not.toHaveBeenCalled();
     expect(window.banjiDesktop.inventory.loadSnapshot).not.toHaveBeenCalled();
     expect(window.banjiDesktop.inventory.listReports).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.getRunStatus).toHaveBeenCalledWith({ runId: 'run-1' });
+    expect(window.banjiDesktop.sena.getWorkspaceSummary).not.toHaveBeenCalled();
+    expect(window.banjiDesktop.sena.getRunStatus).not.toHaveBeenCalled();
+  });
+
+  it('marks startup ready before deferred workspace lists finish', async () => {
+    const diagnostics = deferred<SenaDiagnostics | null>();
+    const recordContext = deferred<SenaRecordUpdateContext>();
+    const orderBatches = deferred<[]>();
+    window.banjiDesktop.sena.getDiagnostics = vi.fn(async () => diagnostics.promise);
+    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => recordContext.promise);
+    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => orderBatches.promise);
+
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+    expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('false');
+    expect(screen.getByTestId('observation-count').textContent).toBe('0');
+
+    act(() => {
+      diagnostics.resolve(sampleDiagnostics);
+      recordContext.resolve(sampleRecordUpdateContext);
+      orderBatches.resolve([]);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('true');
+      expect(screen.getByTestId('observation-count').textContent).toBe('0');
+    });
+    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
+  });
+
+  it('keeps the startup workspace visible when deferred hydration fails', async () => {
+    window.banjiDesktop.sena.getDiagnostics = vi.fn(async () => {
+      throw new Error('diagnostics unavailable');
+    });
+    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => {
+      throw new Error('record context unavailable');
+    });
+    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => {
+      throw new Error('orders unavailable');
+    });
+
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+    expect(screen.getByTestId('catalog-count').textContent).toBe('1');
+    expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
+    expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('false');
   });
 
   it('caches SENA detail lookups and reloads after triggering a run', async () => {
@@ -440,7 +558,7 @@ describe('InventoryProvider', () => {
     await waitFor(() => {
       expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledTimes(1);
     });
-    expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(2);
+    expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
   });
 
   it('returns a persisted detail page immediately and refreshes local storage in the background', async () => {
@@ -521,6 +639,9 @@ describe('InventoryProvider', () => {
           <div data-testid="observation-count">{inventory.observations.length}</div>
           <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
           <div data-testid="latest-run">{inventory.latestRun?.runId ?? 'none'}</div>
+          <button type="button" onClick={() => void inventory.listSenaObservationPage()}>
+            load observation page
+          </button>
           <button
             type="button"
             onClick={() =>
@@ -549,12 +670,11 @@ describe('InventoryProvider', () => {
       );
     }
 
-    const listObservations = vi
+    window.banjiDesktop.sena.getRecordUpdateContext = vi
       .fn()
-      .mockResolvedValueOnce([sampleObservation])
-      .mockResolvedValueOnce([{ ...sampleObservation, input: { ...sampleObservation.input, notes: 'Edited' } }])
-      .mockResolvedValueOnce([]);
-    window.banjiDesktop.sena.listObservations = listObservations;
+      .mockResolvedValueOnce(sampleRecordUpdateContext)
+      .mockResolvedValueOnce(sampleRecordUpdateContext)
+      .mockResolvedValueOnce(emptyRecordUpdateContext);
 
     render(
       <InventoryProvider>
@@ -562,11 +682,14 @@ describe('InventoryProvider', () => {
       </InventoryProvider>,
     );
 
+    fireEvent.click(screen.getByText('load observation page'));
+
     await waitFor(() => {
       expect(screen.getByTestId('observation-count').textContent).toBe('1');
       expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
       expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
     });
+    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('update observation'));
 
@@ -723,7 +846,6 @@ describe('InventoryProvider', () => {
     };
     const listObservations = vi
       .fn()
-      .mockResolvedValueOnce([richObservation])
       .mockResolvedValueOnce([richObservation])
       .mockResolvedValueOnce([renamedObservation]);
     const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));

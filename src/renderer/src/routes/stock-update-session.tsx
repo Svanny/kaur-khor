@@ -282,6 +282,7 @@ const BASE_RECORD_UPDATE_LANE_ORDER: BaseRecordUpdateLaneId[] = [
   'supplier-order-pending',
   'supplier-receipt',
 ];
+const POST_SAVE_RERUN_DELAY_MS = 5_000;
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -4386,7 +4387,6 @@ export function StockUpdateSessionRoute() {
     isSaving,
     observations,
     orderBatches,
-    runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
     updateSenaOrderBatch,
@@ -6419,7 +6419,17 @@ export function StockUpdateSessionRoute() {
     setDraftWasRestored(false);
     resetRecordUpdateState();
     navigate('/', { replace: true, state: null });
-    void runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }));
+    const schedulePostSaveRerun = () => {
+      const currentRoute = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
+      if (currentRoute.startsWith('/record-update')) {
+        window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
+        return;
+      }
+      void triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }).catch((nextError: unknown) => {
+        console.error('[record-update] failed to rerun SENA after save', nextError);
+      });
+    };
+    window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
   }
 
   const discardChangesDescription =

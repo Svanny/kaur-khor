@@ -621,7 +621,7 @@ describe('BanjiShell', () => {
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
   });
 
-  test('keeps the full-screen computing state when a SENA run is active', () => {
+  test('keeps route content visible when a background SENA run is active', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: true,
@@ -641,11 +641,11 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
-    expect(screen.queryByText('Catalog screen')).not.toBeInTheDocument();
+    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
   });
 
-  test('shows the full-screen computing state while a record update is saving', () => {
+  test('keeps record update content visible while a save is in progress', () => {
     inventoryHook.mockReturnValue({
       error: null,
       isLoading: false,
@@ -665,8 +665,8 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
-    expect(screen.queryByText('Record update screen')).not.toBeInTheDocument();
+    expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
   });
 });
 

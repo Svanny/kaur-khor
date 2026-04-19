@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useState } from 'react';
 import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import type { SenaSkuDetail } from '@shared/sena';
+import type { SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import {
   ActionOpenExternalIcon,
   ActionSearchOffIcon,
@@ -78,6 +78,57 @@ const overviewQueueTableLayout = createHeaderedTableLayout({
 });
 
 type OverviewSearchScope = 'all' | 'skus' | 'services';
+const DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT = 8;
+const DASHBOARD_DETAIL_HYDRATION_CONCURRENCY = 2;
+
+export function orderedDashboardSkuDetailIds(workspaceSummary: SenaWorkspaceSummary | null) {
+  if (!workspaceSummary) {
+    return [];
+  }
+  const ids = new Set<string>();
+  for (const skuId of workspaceSummary.highRiskSkuIds) {
+    ids.add(skuId);
+  }
+  for (const summary of workspaceSummary.skuSummaries) {
+    ids.add(summary.skuId);
+  }
+  return Array.from(ids);
+}
+
+async function hydrateSkuDetailsWithLimit<T>(
+  skuIds: string[],
+  limit: number,
+  load: (skuId: string) => Promise<T>,
+  onLoaded: (skuId: string, value: T) => void,
+  isActive: () => boolean,
+) {
+  let nextIndex = 0;
+  const workerCount = Math.min(limit, skuIds.length);
+  await Promise.all(
+    Array.from({ length: workerCount }, async () => {
+      while (isActive()) {
+        const skuId = skuIds[nextIndex];
+        nextIndex += 1;
+        if (!skuId) {
+          return;
+        }
+        const value = await load(skuId);
+        if (isActive()) {
+          onLoaded(skuId, value);
+        }
+      }
+    }),
+  );
+}
+
+function scheduleBackgroundTask(task: () => void) {
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(task, { timeout: 1_000 });
+    return () => window.cancelIdleCallback(id);
+  }
+  const id = window.setTimeout(task, 0);
+  return () => window.clearTimeout(id);
+}
 type OverviewWorkflowScope = 'supply' | 'customer';
 
 function boardClassName() {
@@ -326,7 +377,7 @@ export function DashboardRoute() {
   }
 
   useEffect(() => {
-    const skuIds = inventory.workspaceSummary?.skuSummaries.map((summary) => summary.skuId) ?? [];
+    const skuIds = orderedDashboardSkuDetailIds(inventory.workspaceSummary);
     if (skuIds.length === 0) {
       setDetailBySkuId({});
       setIsHydratingDetails(false);
@@ -334,28 +385,57 @@ export function DashboardRoute() {
     }
 
     let active = true;
+    let cancelBackgroundTask: (() => void) | null = null;
     setIsHydratingDetails(true);
+    setDetailBySkuId({});
+    const initialSkuIds = skuIds.slice(0, DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT);
+    const backgroundSkuIds = skuIds.slice(DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT);
+    const loadDetail = async (skuId: string) => {
+      try {
+        return normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId))?.detail ?? null;
+      } catch {
+        return null;
+      }
+    };
+    const applyDetail = (skuId: string, detail: SenaSkuDetail | null) => {
+      setDetailBySkuId((current) => ({ ...current, [skuId]: detail }));
+    };
+    const isActive = () => active;
 
-    void Promise.all(
-      skuIds.map(async (skuId) => {
-        try {
-          return [skuId, normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId))?.detail ?? null] as const;
-        } catch {
-          return [skuId, null] as const;
-        }
-      }),
-    ).then((entries) => {
+    void hydrateSkuDetailsWithLimit(
+      initialSkuIds,
+      DASHBOARD_DETAIL_HYDRATION_CONCURRENCY,
+      loadDetail,
+      applyDetail,
+      isActive,
+    ).then(() => {
       if (!active) {
         return;
       }
-      setDetailBySkuId(Object.fromEntries(entries));
-      setIsHydratingDetails(false);
+      if (backgroundSkuIds.length === 0) {
+        setIsHydratingDetails(false);
+        return;
+      }
+      cancelBackgroundTask = scheduleBackgroundTask(() => {
+        void hydrateSkuDetailsWithLimit(
+          backgroundSkuIds,
+          DASHBOARD_DETAIL_HYDRATION_CONCURRENCY,
+          loadDetail,
+          applyDetail,
+          isActive,
+        ).finally(() => {
+          if (active) {
+            setIsHydratingDetails(false);
+          }
+        });
+      });
     });
 
     return () => {
       active = false;
+      cancelBackgroundTask?.();
     };
-  }, [inventory, inventory.workspaceSummary?.runId]);
+  }, [inventory, inventory.workspaceSummary]);
 
   const model = buildOverviewModel({
     catalog: inventory.catalog,

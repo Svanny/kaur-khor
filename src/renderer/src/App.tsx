@@ -1,25 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { generatePath, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
-import { AnalysisRoute } from '@/routes/analysis';
-import { ArchiveRoute } from '@/routes/archive';
 import { DashboardRoute } from '@/routes/dashboard';
-import { FinancialsRoute } from '@/routes/financials';
-import { HelpRoute } from '@/routes/help';
-import { InventoryRoute } from '@/routes/inventory';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { OnboardingRoute } from '@/routes/onboarding';
-import { PerformanceRoute } from '@/routes/performance';
-import { RecordUpdateHubRoute } from '@/routes/record-update-hub';
-import { ServiceDetailRoute } from '@/routes/service-detail';
-import { ServiceFormRoute } from '@/routes/service-form';
-import { SettingsRoute } from '@/routes/settings';
-import { SkuDetailLedgerRoute, SkuDetailRoute } from '@/routes/sku-detail';
-import { SkuFormRoute } from '@/routes/sku-form';
-import { StockUpdateRoute } from '@/routes/stock-update';
-import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
 import {
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
@@ -42,6 +28,22 @@ import {
   recordBenchmarkInstant,
   snapshotRendererMemory,
 } from '@/lib/benchmark';
+
+const AnalysisRoute = lazy(() => import('@/routes/analysis').then((module) => ({ default: module.AnalysisRoute })));
+const ArchiveRoute = lazy(() => import('@/routes/archive').then((module) => ({ default: module.ArchiveRoute })));
+const FinancialsRoute = lazy(() => import('@/routes/financials').then((module) => ({ default: module.FinancialsRoute })));
+const HelpRoute = lazy(() => import('@/routes/help').then((module) => ({ default: module.HelpRoute })));
+const InventoryRoute = lazy(() => import('@/routes/inventory').then((module) => ({ default: module.InventoryRoute })));
+const PerformanceRoute = lazy(() => import('@/routes/performance').then((module) => ({ default: module.PerformanceRoute })));
+const RecordUpdateHubRoute = lazy(() => import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })));
+const ServiceDetailRoute = lazy(() => import('@/routes/service-detail').then((module) => ({ default: module.ServiceDetailRoute })));
+const ServiceFormRoute = lazy(() => import('@/routes/service-form').then((module) => ({ default: module.ServiceFormRoute })));
+const SettingsRoute = lazy(() => import('@/routes/settings').then((module) => ({ default: module.SettingsRoute })));
+const SkuDetailRoute = lazy(() => import('@/routes/sku-detail').then((module) => ({ default: module.SkuDetailRoute })));
+const SkuDetailLedgerRoute = lazy(() => import('@/routes/sku-detail').then((module) => ({ default: module.SkuDetailLedgerRoute })));
+const SkuFormRoute = lazy(() => import('@/routes/sku-form').then((module) => ({ default: module.SkuFormRoute })));
+const StockUpdateRoute = lazy(() => import('@/routes/stock-update').then((module) => ({ default: module.StockUpdateRoute })));
+const StockUpdateSessionRoute = lazy(() => import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
 
 function routeBenchmarkName(pathname: string) {
   if (pathname === '/') {
@@ -158,7 +160,8 @@ export function AppRoutes() {
     : <Navigate replace to="/" />;
 
   return (
-    <Routes>
+    <Suspense fallback={null}>
+      <Routes>
       <Route element={<DashboardRoute />} path="/" />
       <Route element={<AnalysisRoute />} path="/analysis" />
       <Route element={canRedirectFromLockedPage ? recordUpdateGuardedElement : <RecordUpdateHubRoute />} path={RECORD_UPDATE_HUB_PATH} />
@@ -220,7 +223,8 @@ export function AppRoutes() {
       <Route element={<RedirectWithSearch to={RECORD_UPDATE_STOCK_COUNT_PATH} />} path="/operations/session" />
       <Route element={<SettingsRoute />} path="/settings/*" />
       <Route element={<Navigate replace to="/" />} path="*" />
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
 

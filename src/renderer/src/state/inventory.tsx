@@ -16,16 +16,21 @@ import type {
   SenaCreateOrderBatchPayload,
   SenaObservationDeletePayload,
   SenaDiagnostics,
+  SenaObservationFingerprint,
   SenaObservationInput,
+  SenaObservationPage,
+  SenaObservationPageRequest,
   SenaObservationRecord,
   SenaOrderBatchRecord,
   SenaOrderLookupPayload,
+  SenaRecordUpdateContext,
   SenaSplitOrderChildPayload,
   SenaObservationUpdatePayload,
   SenaService,
   SenaServiceDetailPage,
   SenaSku,
   SenaSkuDetailPage,
+  SenaStartupWorkspace,
   SenaUpdateOrderBatchPayload,
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
@@ -54,12 +59,16 @@ type ReadCacheValue =
   | StockReport[]
   | SenaCatalog
   | SenaObservationRecord[]
+  | SenaObservationPage
+  | SenaObservationFingerprint
+  | SenaRecordUpdateContext
   | SenaOrderBatchRecord[]
   | SenaWorkspaceSummary
   | SenaSkuDetailPage
   | SenaServiceDetailPage
   | SenaDiagnostics
   | SenaAnalysisRunRecord
+  | SenaStartupWorkspace
   | null;
 
 const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
@@ -100,8 +109,10 @@ export interface InventoryContextValue {
   isPreparingWorkspace: boolean;
   isSaving: boolean;
   latestRun: SenaAnalysisRunRecord | null;
+  observationFingerprint: SenaObservationFingerprint | null;
   observations: SenaObservationRecord[];
   orderBatches: SenaOrderBatchRecord[];
+  recordUpdateContext: SenaRecordUpdateContext | null;
   senaMeta: SenaMetaCache;
   workspaceSummary: SenaWorkspaceSummary | null;
   reload: () => Promise<void>;
@@ -118,6 +129,8 @@ export interface InventoryContextValue {
   deleteSenaObservation: (payload: SenaObservationDeletePayload) => Promise<void>;
   listSenaObservations: () => Promise<SenaObservationRecord[]>;
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
+  listSenaObservationPage: (payload?: SenaObservationPageRequest) => Promise<SenaObservationPage>;
+  loadSenaRecordUpdateContext: () => Promise<SenaRecordUpdateContext>;
   listSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
   loadSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
   createSenaOrderBatch: (payload: SenaCreateOrderBatchPayload) => Promise<SenaOrderBatchRecord>;
@@ -150,8 +163,10 @@ function emptyState() {
     isPreparingWorkspace: false,
     isSaving: false,
     latestRun: null as SenaAnalysisRunRecord | null,
+    observationFingerprint: null as SenaObservationFingerprint | null,
     observations: [] as SenaObservationRecord[],
     orderBatches: [] as SenaOrderBatchRecord[],
+    recordUpdateContext: null as SenaRecordUpdateContext | null,
     workspaceSummary: null as SenaWorkspaceSummary | null,
   };
 }
@@ -296,6 +311,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
   const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
+  const reloadSequenceRef = useRef(0);
   const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
     catalogHash: null,
@@ -455,40 +471,91 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     [loadWithCache, updateSenaMeta],
   );
 
+  const refreshRecordUpdateContext = useCallback(async () => {
+    const recordUpdateContext = await window.banjiDesktop.sena.getRecordUpdateContext();
+    readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
+    readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
+    setStatePartial({
+      observationFingerprint: recordUpdateContext.observationFingerprint,
+      recordUpdateContext,
+    });
+    return recordUpdateContext;
+  }, [setStatePartial]);
+
   useEffect(() => {
     syncPersistentSenaDetailCache(state.workspaceSummary);
   }, [state.workspaceSummary, syncPersistentSenaDetailCache]);
 
   const reload = useCallback(async () => {
+    const reloadId = reloadSequenceRef.current + 1;
+    reloadSequenceRef.current = reloadId;
     setState((current) => ({ ...current, error: null, isLoading: true }));
     try {
       readCacheRef.current.clear();
       inflightRef.current.clear();
-      const [catalog, workspaceSummary, diagnostics, observations, orderBatches] = await Promise.all([
-        window.banjiDesktop.sena.getCatalog().then(normalizeSenaCatalog),
-        window.banjiDesktop.sena.getWorkspaceSummary(),
-        window.banjiDesktop.sena.getDiagnostics(),
-        window.banjiDesktop.sena.listObservations(),
-        window.banjiDesktop.sena.listOrderBatches(),
-      ]);
+      const startupWorkspace = await window.banjiDesktop.sena.getStartupWorkspace();
+      const catalog = normalizeSenaCatalog(startupWorkspace.catalog);
+      const workspaceSummary = startupWorkspace.workspaceSummary;
+      const latestRun = startupWorkspace.latestRun;
+      const observationFingerprint = startupWorkspace.observationFingerprint;
       readCacheRef.current.set('sena:catalog', catalog);
       readCacheRef.current.set('sena:summary', workspaceSummary);
-      readCacheRef.current.set('sena:diagnostics', diagnostics);
-      readCacheRef.current.set('sena:observations', observations);
-      readCacheRef.current.set('sena:order-batches:{}', orderBatches);
-      const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
+      readCacheRef.current.set('sena:observation-fingerprint', observationFingerprint);
+      if (latestRun) {
+        readCacheRef.current.set(`sena:run:${latestRun.runId}`, latestRun);
+        if (latestRun.status === 'succeeded') {
+          updateSenaMeta({ lastCompletedRunId: latestRun.runId });
+        }
+      }
       setState({
         snapshot: null,
         reports: [],
         catalog,
-        diagnostics,
+        diagnostics: null,
         error: null,
         isLoading: false,
         isSaving: false,
+        isPreparingWorkspace: false,
         latestRun,
-        observations,
-        orderBatches,
+        observationFingerprint,
+        observations: [],
+        orderBatches: [],
+        recordUpdateContext: null,
         workspaceSummary,
+      });
+      void Promise.allSettled([
+        window.banjiDesktop.sena.getDiagnostics(),
+        window.banjiDesktop.sena.getRecordUpdateContext(),
+        window.banjiDesktop.sena.listOrderBatches(),
+      ]).then((results) => {
+        if (reloadSequenceRef.current !== reloadId) {
+          return;
+        }
+        const [diagnosticsResult, observationsResult, orderBatchesResult] = results;
+        const patch: Partial<ReturnType<typeof emptyState>> = {};
+        if (diagnosticsResult.status === 'fulfilled') {
+          readCacheRef.current.set('sena:diagnostics', diagnosticsResult.value);
+          patch.diagnostics = diagnosticsResult.value;
+        } else {
+          console.warn('[inventory] deferred diagnostics load failed', diagnosticsResult.reason);
+        }
+        if (observationsResult.status === 'fulfilled') {
+          readCacheRef.current.set('sena:record-update-context', observationsResult.value);
+          readCacheRef.current.set('sena:observation-fingerprint', observationsResult.value.observationFingerprint);
+          patch.recordUpdateContext = observationsResult.value;
+          patch.observationFingerprint = observationsResult.value.observationFingerprint;
+        } else {
+          console.warn('[inventory] deferred record-update context load failed', observationsResult.reason);
+        }
+        if (orderBatchesResult.status === 'fulfilled') {
+          readCacheRef.current.set('sena:order-batches:{}', orderBatchesResult.value);
+          patch.orderBatches = orderBatchesResult.value;
+        } else {
+          console.warn('[inventory] deferred order batches load failed', orderBatchesResult.reason);
+        }
+        if (Object.keys(patch).length > 0) {
+          setState((current) => ({ ...current, ...patch }));
+        }
       });
     } catch (error) {
       setState((current) => ({
@@ -497,7 +564,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       }));
     }
-  }, [loadLatestRun]);
+  }, [updateSenaMeta]);
 
   useEffect(() => {
     void reload();
@@ -710,40 +777,75 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         withSaving(async () => {
           const observation = await window.banjiDesktop.sena.ingestObservation(payload);
           invalidateSenaReads();
-          const observations = await window.banjiDesktop.sena.listObservations();
-          readCacheRef.current.set('sena:observations', observations);
-          setStatePartial({ observations });
+          const recordUpdateContext = await refreshRecordUpdateContext();
+          setState((current) => ({ ...current, observations: [observation, ...current.observations], recordUpdateContext }));
           return observation;
         }),
       updateSenaObservation: async (payload) =>
         withSaving(async () => {
           const observation = await window.banjiDesktop.sena.updateObservation(payload);
           invalidateSenaReads();
-          const observations = await window.banjiDesktop.sena.listObservations();
-          readCacheRef.current.set('sena:observations', observations);
-          setStatePartial({ observations });
+          const recordUpdateContext = await refreshRecordUpdateContext();
+          setState((current) => ({
+            ...current,
+            observations: current.observations.map((entry) =>
+              entry.observationId === observation.observationId ? observation : entry,
+            ),
+            recordUpdateContext,
+          }));
           return observation;
         }),
       deleteSenaObservation: async (payload) =>
         withSaving(async () => {
           await window.banjiDesktop.sena.deleteObservation(payload);
           invalidateSenaReads();
-          const observations = await window.banjiDesktop.sena.listObservations();
-          readCacheRef.current.set('sena:observations', observations);
-          if (observations.length === 0) {
+          const recordUpdateContext = await refreshRecordUpdateContext();
+          if (recordUpdateContext.observationFingerprint.count === 0) {
             readCacheRef.current.set('sena:summary', null);
             readCacheRef.current.set('sena:diagnostics', null);
             updateSenaMeta({ lastCompletedRunId: null });
             setStatePartial({
               diagnostics: null,
               latestRun: null,
-              observations,
+              observations: [],
+              observationFingerprint: recordUpdateContext.observationFingerprint,
+              recordUpdateContext,
               workspaceSummary: null,
             });
             return;
           }
-          setStatePartial({ observations });
+          setState((current) => ({
+            ...current,
+            observations: current.observations.filter((entry) => entry.observationId !== payload.observationId),
+            observationFingerprint: recordUpdateContext.observationFingerprint,
+            recordUpdateContext,
+          }));
         }),
+      listSenaObservationPage: async (payload) => {
+        const key = `sena:observation-page:${JSON.stringify(payload ?? {})}`;
+        const page = await loadWithCache(key, () => window.banjiDesktop.sena.listObservationPage(payload));
+        if (!payload?.beforeObservedAt && !payload?.beforeObservationId) {
+          setStatePartial({
+            observations: page.observations,
+            observationFingerprint: {
+              count: page.totalCount,
+              latestObservedAt: page.latestObservedAt,
+              latestObservationId: page.observations[0]?.observationId ?? state.observationFingerprint?.latestObservationId ?? null,
+            },
+          });
+        }
+        return page;
+      },
+      loadSenaRecordUpdateContext: async () => {
+        const recordUpdateContext = await loadWithCache('sena:record-update-context', () =>
+          window.banjiDesktop.sena.getRecordUpdateContext(),
+        );
+        setStatePartial({
+          observationFingerprint: recordUpdateContext.observationFingerprint,
+          recordUpdateContext,
+        });
+        return recordUpdateContext;
+      },
       listSenaObservations: async () => {
         const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
         setStatePartial({ observations });
@@ -814,18 +916,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           if (run.status === 'succeeded') {
             updateSenaMeta({ lastCompletedRunId: run.runId });
           }
-          const [workspaceSummary, diagnostics, observations] = await Promise.all([
+          const [workspaceSummary, diagnostics, recordUpdateContext] = await Promise.all([
             window.banjiDesktop.sena.getWorkspaceSummary(),
             window.banjiDesktop.sena.getDiagnostics(),
-            window.banjiDesktop.sena.listObservations(),
+            window.banjiDesktop.sena.getRecordUpdateContext(),
           ]);
           readCacheRef.current.set('sena:summary', workspaceSummary);
           readCacheRef.current.set('sena:diagnostics', diagnostics);
-          readCacheRef.current.set('sena:observations', observations);
+          readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
+          readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
           setStatePartial({
             diagnostics,
             latestRun: run,
-            observations,
+            observationFingerprint: recordUpdateContext.observationFingerprint,
+            recordUpdateContext,
             workspaceSummary,
           });
           return run;
@@ -838,18 +942,20 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           if (run.status === 'succeeded') {
             updateSenaMeta({ lastCompletedRunId: run.runId });
           }
-          const [workspaceSummary, diagnostics, observations] = await Promise.all([
+          const [workspaceSummary, diagnostics, recordUpdateContext] = await Promise.all([
             window.banjiDesktop.sena.getWorkspaceSummary(),
             window.banjiDesktop.sena.getDiagnostics(),
-            window.banjiDesktop.sena.listObservations(),
+            window.banjiDesktop.sena.getRecordUpdateContext(),
           ]);
           readCacheRef.current.set('sena:summary', workspaceSummary);
           readCacheRef.current.set('sena:diagnostics', diagnostics);
-          readCacheRef.current.set('sena:observations', observations);
+          readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
+          readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
           setStatePartial({
             diagnostics,
             latestRun: run,
-            observations,
+            observationFingerprint: recordUpdateContext.observationFingerprint,
+            recordUpdateContext,
             workspaceSummary,
           });
           return run;
@@ -960,7 +1066,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return run;
       },
     }),
-    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, reload, runWorkspacePreparation, setStatePartial, state, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runWorkspacePreparation, setStatePartial, state, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
   );
 
   return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;

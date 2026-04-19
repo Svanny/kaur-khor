@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { createContext, useContext } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
@@ -734,6 +734,49 @@ describe('DashboardRoute', () => {
     expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
     expect(screen.getByText('Razor refill')).toBeInTheDocument();
     expect(screen.getAllByText('Hair dye black').length).toBeGreaterThan(0);
+  });
+
+  test('hydrates dashboard SKU details with a small concurrency cap', async () => {
+    const resolvers = new Map<string, () => void>();
+    let activeLoads = 0;
+    let maxActiveLoads = 0;
+    const loadSenaSkuDetail = vi.fn((skuId: string) =>
+      new Promise((resolve) => {
+        activeLoads += 1;
+        maxActiveLoads = Math.max(maxActiveLoads, activeLoads);
+        resolvers.set(skuId, () => {
+          activeLoads -= 1;
+          resolve(detailBySkuId[skuId] ?? null);
+        });
+      }),
+    );
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail,
+      submitLegacyReport: vi.fn(async (payload) => payload),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRoute();
+
+    await waitFor(() => {
+      expect(loadSenaSkuDetail).toHaveBeenCalledTimes(2);
+    });
+    expect(loadSenaSkuDetail.mock.calls.map(([skuId]) => skuId)).toEqual(['sku-1', 'sku-4']);
+    expect(maxActiveLoads).toBe(2);
+
+    act(() => {
+      resolvers.get('sku-1')?.();
+    });
+
+    await waitFor(() => {
+      expect(loadSenaSkuDetail).toHaveBeenCalledTimes(3);
+    });
+    expect(maxActiveLoads).toBe(2);
   });
 
   test('scopes the overview search by services from the title card control', async () => {

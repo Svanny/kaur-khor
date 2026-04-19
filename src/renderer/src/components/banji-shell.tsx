@@ -365,12 +365,10 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
     t,
   } = usePreferences();
   const inventory = useInventory();
-  const { error, isLoading, isPreparingWorkspace, isSaving, latestRun, reload } = inventory;
+  const { error, isLoading, isPreparingWorkspace, reload } = inventory;
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
-  const isWorkspaceComputing = latestRun?.status === 'queued' || latestRun?.status === 'running';
-  const isSavingRecordUpdate = isSaving && matchesSection(location.pathname, '/record-update');
   const showGlobalLoadingScreen =
-    isPreparingWorkspace || isWorkspaceComputing || isSavingRecordUpdate || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
+    isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
   const secondarySections = showAnalysisPage
     ? SECONDARY_SECTIONS
     : SECONDARY_SECTIONS.filter((section) => section.id !== 'analysis');
