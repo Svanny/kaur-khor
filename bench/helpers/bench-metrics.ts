@@ -4,6 +4,7 @@ import {
   evaluateBenchmarkTargets,
   type BanjiBenchmarkEvent,
   type BanjiBenchmarkMetricSummary,
+  type BanjiBenchmarkScenarioId,
   type BanjiBenchmarkScenarioSummary,
 } from '../../src/shared/benchmark';
 
@@ -18,7 +19,15 @@ export async function readBenchmarkEvents(outputDirectory: string) {
       return raw
         .split('\n')
         .filter(Boolean)
-        .map((line) => JSON.parse(line) as BanjiBenchmarkEvent);
+        .flatMap((line) => {
+          try {
+            return [JSON.parse(line) as BanjiBenchmarkEvent];
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.warn(`[benchmark] skipped malformed event line in ${fileName}: ${message}`);
+            return [];
+          }
+        });
     }),
   );
   return streams.flat().sort((a, b) => a.ts - b.ts);
@@ -102,7 +111,7 @@ function memoryValue(event: BanjiBenchmarkEvent | undefined) {
 function deriveBenchmarkMetrics(
   events: BanjiBenchmarkEvent[],
   metrics: Record<string, BenchmarkMetricSummary>,
-  scenario: string,
+  scenario: BanjiBenchmarkScenarioId,
 ) {
   const derived: Record<string, number> = {};
   const maybeSet = (name: string, value: number | null) => {
@@ -111,61 +120,77 @@ function deriveBenchmarkMetrics(
     }
   };
 
-  maybeSet('startup.app_to_bridge_ms', durationMetric(events, 'main.boot.start', 'preload.bridge.exposed'));
-  maybeSet('startup.app_to_context_ms', durationMetric(events, 'main.boot.start', 'renderer.app.getAppContext'));
-  maybeSet('startup.app_to_workspace_ready_ms', durationMetric(events, 'main.boot.start', 'renderer.workspace.ready'));
-  maybeSet('startup.app_to_first_route_ready_ms', durationMetric(events, 'main.boot.start', 'route.dashboard.ready'));
+  if (scenario === 'startup') {
+    maybeSet('startup.app_to_bridge_ms', durationMetric(events, 'main.boot.start', 'preload.bridge.exposed'));
+    maybeSet('startup.app_to_context_ms', durationMetric(events, 'main.boot.start', 'renderer.app.getAppContext'));
+    maybeSet('startup.app_to_workspace_ready_ms', durationMetric(events, 'main.boot.start', 'renderer.workspace.ready'));
+    maybeSet('startup.app_to_first_route_ready_ms', durationMetric(events, 'main.boot.start', 'route.dashboard.ready'));
+    maybeSet(
+      'ipc.system_get_app_context_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:system:get-app-context.handle', 'preload.invoke.banji:system:get-app-context']),
+    );
+    maybeSet(
+      'ipc.sena_get_workspace_summary_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
+    );
+  }
 
-  maybeSet(
-    'ipc.system_get_app_context_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:system:get-app-context.handle', 'preload.invoke.banji:system:get-app-context']),
-  );
-  maybeSet(
-    'ipc.sena_get_workspace_summary_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
-  );
-  maybeSet(
-    'ipc.sena_get_diagnostics_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:sena:get-diagnostics.handle', 'preload.invoke.banji:sena:get-diagnostics']),
-  );
-  maybeSet(
-    'ipc.sena_get_sku_detail_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:sena:get-sku-detail.handle', 'preload.invoke.banji:sena:get-sku-detail']),
-  );
-  maybeSet(
-    'ipc.sena_get_service_detail_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:sena:get-service-detail.handle', 'preload.invoke.banji:sena:get-service-detail']),
-  );
+  if (scenario === 'navigation' || scenario === 'record-update' || scenario === 'stability') {
+    maybeSet(
+      'ipc.sena_get_workspace_summary_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
+    );
+  }
+
+  if (scenario === 'navigation' || scenario === 'stability') {
+    maybeSet(
+      'ipc.sena_get_diagnostics_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-diagnostics.handle', 'preload.invoke.banji:sena:get-diagnostics']),
+    );
+  }
+
+  if (scenario === 'detail-pages') {
+    maybeSet(
+      'ipc.sena_get_sku_detail_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-sku-detail.handle', 'preload.invoke.banji:sena:get-sku-detail']),
+    );
+    maybeSet(
+      'ipc.sena_get_service_detail_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-service-detail.handle', 'preload.invoke.banji:sena:get-service-detail']),
+    );
+  }
+
   maybeSet(
     'backend.core.queue_wait_p95_ms',
     p95DetailMetric(events, 'backend.core.request.resolve', 'queueWaitMs'),
   );
-  maybeSet('renderer.long_task_max_ms', maxDetailMetric(events, 'renderer.long-task', 'durationMs'));
-  maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(events, 'renderer.long-animation-frame', 'blockingDuration'));
-
-  const firstRendererMemory = events.find((event) => event.name === 'memory.renderer_stability_cycle_1_mb');
-  const lastRendererMemory = [...events].reverse().find((event) => event.name === 'memory.renderer_after_stability_mb');
-  const firstRendererMemoryValue = memoryValue(firstRendererMemory);
-  const lastRendererMemoryValue = memoryValue(lastRendererMemory);
-  if (firstRendererMemoryValue != null && lastRendererMemoryValue != null && firstRendererMemoryValue > 0) {
-    maybeSet(
-      'memory.renderer_stability_growth_pct',
-      ((lastRendererMemoryValue - firstRendererMemoryValue) / firstRendererMemoryValue) * 100,
-    );
-  }
-
-  const firstMainMemory = events.find((event) => event.name === 'main.boot.ready');
-  const lastMainMemory = [...events].reverse().find((event) => event.name === 'backend.core.ready' || event.name === 'main.boot.ready');
-  const firstMainMemoryValue = memoryValue(firstMainMemory);
-  const lastMainMemoryValue = memoryValue(lastMainMemory);
-  if (firstMainMemoryValue != null && lastMainMemoryValue != null && firstMainMemoryValue > 0) {
-    maybeSet(
-      'memory.main_stability_growth_pct',
-      ((lastMainMemoryValue - firstMainMemoryValue) / firstMainMemoryValue) * 100,
-    );
-  }
 
   if (scenario === 'stability') {
+    maybeSet('renderer.long_task_max_ms', maxDetailMetric(events, 'renderer.long-task', 'durationMs'));
+    maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(events, 'renderer.long-animation-frame', 'blockingDuration'));
+
+    const firstRendererMemory = events.find((event) => event.name === 'memory.renderer_stability_cycle_1_mb');
+    const lastRendererMemory = [...events].reverse().find((event) => event.name === 'memory.renderer_after_stability_mb');
+    const firstRendererMemoryValue = memoryValue(firstRendererMemory);
+    const lastRendererMemoryValue = memoryValue(lastRendererMemory);
+    if (firstRendererMemoryValue != null && lastRendererMemoryValue != null && firstRendererMemoryValue > 0) {
+      maybeSet(
+        'memory.renderer_stability_growth_pct',
+        ((lastRendererMemoryValue - firstRendererMemoryValue) / firstRendererMemoryValue) * 100,
+      );
+    }
+
+    const firstMainMemory = events.find((event) => event.name === 'main.boot.ready');
+    const lastMainMemory = [...events].reverse().find((event) => event.name === 'backend.core.ready' || event.name === 'main.boot.ready');
+    const firstMainMemoryValue = memoryValue(firstMainMemory);
+    const lastMainMemoryValue = memoryValue(lastMainMemory);
+    if (firstMainMemoryValue != null && lastMainMemoryValue != null && firstMainMemoryValue > 0) {
+      maybeSet(
+        'memory.main_stability_growth_pct',
+        ((lastMainMemoryValue - firstMainMemoryValue) / firstMainMemoryValue) * 100,
+      );
+    }
+
     maybeSet('stability.crash_free', 1);
   }
 
@@ -179,7 +204,7 @@ export function buildScenarioSummary({
 }: {
   events: BanjiBenchmarkEvent[];
   runId: string;
-  scenario: string;
+  scenario: BanjiBenchmarkScenarioId;
 }): BenchmarkScenarioSummary {
   const durationsByName = new Map<string, number[]>();
   for (const event of events) {
@@ -224,7 +249,7 @@ export function buildScenarioSummary({
     generatedAt: new Date().toISOString(),
     metrics,
     derivedMetrics,
-    targets: evaluateBenchmarkTargets(targetInputs),
+    targets: evaluateBenchmarkTargets(targetInputs, scenario),
     slowestIpc,
     slowestCore,
   };

@@ -57,10 +57,22 @@ export interface BanjiBenchmarkMetricSummary {
   p95: number | null;
 }
 
+export interface BanjiBenchmarkDistributionSummary {
+  count: number;
+  iqr: number | null;
+  max: number | null;
+  mean: number | null;
+  median: number | null;
+  min: number | null;
+  q1: number | null;
+  q3: number | null;
+}
+
 export interface BanjiBenchmarkTarget {
   metricName: string;
   label: string;
   category: BanjiBenchmarkCategory;
+  scenarios: BanjiBenchmarkScenarioId[];
   unit: 'ms' | 'percent' | 'boolean';
   nonNegotiable: number;
   acceptable: number;
@@ -73,6 +85,7 @@ export interface BanjiBenchmarkTargetEvaluation {
   metricName: string;
   label: string;
   value: number | null;
+  distribution?: BanjiBenchmarkDistributionSummary;
   unit: BanjiBenchmarkTarget['unit'];
   status: BanjiBenchmarkTargetStatus;
   nonNegotiable: number;
@@ -82,7 +95,7 @@ export interface BanjiBenchmarkTargetEvaluation {
 }
 
 export interface BanjiBenchmarkScenarioSummary {
-  scenario: string;
+  scenario: BanjiBenchmarkScenarioId;
   runId: string;
   generatedAt: string;
   metrics: Record<string, BanjiBenchmarkMetricSummary>;
@@ -178,6 +191,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'startup.app_to_workspace_ready_ms',
     label: 'App to usable workspace',
     category: 'startup',
+    scenarios: ['startup'],
     unit: 'ms',
     nonNegotiable: 2500,
     acceptable: 5000,
@@ -188,6 +202,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'startup.warm_workspace_ready_ms',
     label: 'Warm workspace ready',
     category: 'startup',
+    scenarios: ['startup'],
     unit: 'ms',
     nonNegotiable: 1500,
     acceptable: 2000,
@@ -198,6 +213,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.dashboard_to_record_update_ms',
     label: 'Dashboard to record update',
     category: 'navigation',
+    scenarios: ['navigation'],
     unit: 'ms',
     nonNegotiable: 300,
     acceptable: 500,
@@ -208,6 +224,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.dashboard_to_catalog_ms',
     label: 'Dashboard to catalog',
     category: 'navigation',
+    scenarios: ['navigation'],
     unit: 'ms',
     nonNegotiable: 300,
     acceptable: 500,
@@ -218,6 +235,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.record_update_lane_switch_ms',
     label: 'Record update lane switch',
     category: 'navigation',
+    scenarios: ['record-update'],
     unit: 'ms',
     nonNegotiable: 250,
     acceptable: 500,
@@ -228,6 +246,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'interaction.open_task_drawer_ms',
     label: 'Open task drawer',
     category: 'interaction',
+    scenarios: ['navigation'],
     unit: 'ms',
     nonNegotiable: 150,
     acceptable: 200,
@@ -238,6 +257,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'interaction.save_stock_count_ms',
     label: 'Save stock count',
     category: 'interaction',
+    scenarios: ['record-update'],
     unit: 'ms',
     nonNegotiable: 500,
     acceptable: 900,
@@ -248,6 +268,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'interaction.save_supplier_receipt_ms',
     label: 'Save supplier receipt',
     category: 'interaction',
+    scenarios: ['record-update'],
     unit: 'ms',
     nonNegotiable: 700,
     acceptable: 1000,
@@ -258,6 +279,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'detail.sku_first_load_ms',
     label: 'SKU detail first load',
     category: 'navigation',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 700,
     acceptable: 1500,
@@ -268,6 +290,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'detail.sku_repeat_load_ms',
     label: 'SKU detail repeat load',
     category: 'navigation',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 250,
     acceptable: 500,
@@ -278,6 +301,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'detail.service_first_load_ms',
     label: 'Service detail first load',
     category: 'navigation',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 800,
     acceptable: 1500,
@@ -288,6 +312,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'detail.service_repeat_load_ms',
     label: 'Service detail repeat load',
     category: 'navigation',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 300,
     acceptable: 500,
@@ -298,6 +323,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.dashboard_to_performance_ms',
     label: 'Dashboard to performance',
     category: 'navigation',
+    scenarios: ['navigation', 'stability'],
     unit: 'ms',
     nonNegotiable: 900,
     acceptable: 1500,
@@ -308,6 +334,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.performance_to_financials_ms',
     label: 'Performance to financials',
     category: 'navigation',
+    scenarios: ['navigation', 'stability'],
     unit: 'ms',
     nonNegotiable: 1000,
     acceptable: 1500,
@@ -318,6 +345,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'nav.financials_to_analysis_ms',
     label: 'Financials to analysis',
     category: 'navigation',
+    scenarios: ['navigation', 'stability'],
     unit: 'ms',
     nonNegotiable: 1200,
     acceptable: 2000,
@@ -328,6 +356,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'ipc.system_get_app_context_ms',
     label: 'Get app context IPC',
     category: 'ipc',
+    scenarios: ['startup'],
     unit: 'ms',
     nonNegotiable: 100,
     acceptable: 200,
@@ -338,6 +367,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'ipc.sena_get_workspace_summary_ms',
     label: 'Workspace summary IPC',
     category: 'ipc',
+    scenarios: ['startup', 'navigation', 'record-update', 'stability'],
     unit: 'ms',
     nonNegotiable: 200,
     acceptable: 400,
@@ -348,6 +378,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'ipc.sena_get_diagnostics_ms',
     label: 'Diagnostics IPC',
     category: 'ipc',
+    scenarios: ['navigation', 'stability'],
     unit: 'ms',
     nonNegotiable: 250,
     acceptable: 500,
@@ -358,6 +389,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'ipc.sena_get_sku_detail_ms',
     label: 'SKU detail IPC',
     category: 'ipc',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 300,
     acceptable: 600,
@@ -368,6 +400,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'ipc.sena_get_service_detail_ms',
     label: 'Service detail IPC',
     category: 'ipc',
+    scenarios: ['detail-pages'],
     unit: 'ms',
     nonNegotiable: 350,
     acceptable: 700,
@@ -378,6 +411,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'backend.core.queue_wait_p95_ms',
     label: 'Core queue wait p95',
     category: 'core-command',
+    scenarios: ['startup', 'navigation', 'record-update', 'detail-pages', 'stability'],
     unit: 'ms',
     nonNegotiable: 100,
     acceptable: 200,
@@ -388,6 +422,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'renderer.long_task_max_ms',
     label: 'Renderer long task max',
     category: 'stability',
+    scenarios: ['stability'],
     unit: 'ms',
     nonNegotiable: 100,
     acceptable: 200,
@@ -398,6 +433,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'renderer.loaf_blocking_max_ms',
     label: 'Long animation frame blocking max',
     category: 'stability',
+    scenarios: ['stability'],
     unit: 'ms',
     nonNegotiable: 100,
     acceptable: 200,
@@ -408,6 +444,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'memory.renderer_stability_growth_pct',
     label: 'Renderer memory growth',
     category: 'memory',
+    scenarios: ['stability'],
     unit: 'percent',
     nonNegotiable: 10,
     acceptable: 15,
@@ -418,6 +455,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'memory.main_stability_growth_pct',
     label: 'Main memory growth',
     category: 'memory',
+    scenarios: ['stability'],
     unit: 'percent',
     nonNegotiable: 10,
     acceptable: 15,
@@ -428,6 +466,7 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     metricName: 'stability.crash_free',
     label: 'Crash-free completion',
     category: 'stability',
+    scenarios: ['stability'],
     unit: 'boolean',
     nonNegotiable: 1,
     acceptable: 1,
@@ -455,13 +494,50 @@ export function classifyBenchmarkTarget(
   return 'fail';
 }
 
-export function evaluateBenchmarkTargets(metrics: Record<string, number>) {
-  return BANJI_BENCHMARK_TARGETS.map((target) => {
-    const value = metrics[target.metricName] ?? null;
+function percentileValue(values: number[], p: number) {
+  if (values.length === 0) {
+    return null;
+  }
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[index] ?? null;
+}
+
+export function summarizeBenchmarkDistribution(values: number[]): BanjiBenchmarkDistributionSummary {
+  const finiteValues = values.filter((value) => Number.isFinite(value)).sort((left, right) => left - right);
+  const q1 = percentileValue(finiteValues, 25);
+  const q3 = percentileValue(finiteValues, 75);
+  return {
+    count: finiteValues.length,
+    iqr: q1 == null || q3 == null ? null : q3 - q1,
+    max: finiteValues.at(-1) ?? null,
+    mean: finiteValues.length === 0
+      ? null
+      : finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length,
+    median: percentileValue(finiteValues, 50),
+    min: finiteValues[0] ?? null,
+    q1,
+    q3,
+  };
+}
+
+export function benchmarkTargetsForScenario(scenario: BanjiBenchmarkScenarioId) {
+  return BANJI_BENCHMARK_TARGETS.filter((target) => target.scenarios.includes(scenario));
+}
+
+export function evaluateBenchmarkTargets(
+  metrics: Record<string, number>,
+  scenario: BanjiBenchmarkScenarioId,
+  distributions?: Record<string, BanjiBenchmarkDistributionSummary>,
+) {
+  return benchmarkTargetsForScenario(scenario).map((target) => {
+    const distribution = distributions?.[target.metricName];
+    const value = distribution?.median ?? metrics[target.metricName] ?? null;
     return {
       metricName: target.metricName,
       label: target.label,
       value,
+      ...(distribution ? { distribution } : {}),
       unit: target.unit,
       status: classifyBenchmarkTarget(value, target),
       nonNegotiable: target.nonNegotiable,
@@ -470,6 +546,72 @@ export function evaluateBenchmarkTargets(metrics: Record<string, number>) {
       rationale: target.rationale,
     } satisfies BanjiBenchmarkTargetEvaluation;
   });
+}
+
+export function aggregateBenchmarkScenarioSummaries({
+  runId,
+  summaries,
+}: {
+  runId: string;
+  summaries: BanjiBenchmarkScenarioSummary[];
+}) {
+  const summariesByScenario = new Map<BanjiBenchmarkScenarioId, BanjiBenchmarkScenarioSummary[]>();
+  for (const summary of summaries) {
+    const bucket = summariesByScenario.get(summary.scenario) ?? [];
+    bucket.push(summary);
+    summariesByScenario.set(summary.scenario, bucket);
+  }
+
+  return [...summariesByScenario.entries()]
+    .map(([scenario, scenarioSummaries]) => {
+      if (scenarioSummaries.length === 1) {
+        return {
+          ...scenarioSummaries[0]!,
+          runId,
+        };
+      }
+
+      const targetValues = new Map<string, number[]>();
+      for (const summary of scenarioSummaries) {
+        for (const target of summary.targets ?? []) {
+          if (target.value == null || !Number.isFinite(target.value)) {
+            continue;
+          }
+          const values = targetValues.get(target.metricName) ?? [];
+          values.push(target.value);
+          targetValues.set(target.metricName, values);
+        }
+      }
+
+      const distributions = Object.fromEntries(
+        [...targetValues.entries()].map(([metricName, values]) => [
+          metricName,
+          summarizeBenchmarkDistribution(values),
+        ]),
+      );
+      const medianMetrics = Object.fromEntries(
+        Object.entries(distributions).flatMap(([metricName, distribution]) =>
+          distribution.median == null ? [] : [[metricName, distribution.median]]),
+      );
+
+      return {
+        scenario,
+        runId,
+        generatedAt: new Date().toISOString(),
+        metrics: scenarioSummaries[0]?.metrics ?? {},
+        derivedMetrics: medianMetrics,
+        targets: evaluateBenchmarkTargets(medianMetrics, scenario, distributions),
+        slowestIpc: scenarioSummaries
+          .flatMap((summary) => summary.slowestIpc)
+          .sort((left, right) => right.durationMs - left.durationMs)
+          .slice(0, 10),
+        slowestCore: scenarioSummaries
+          .flatMap((summary) => summary.slowestCore)
+          .sort((left, right) => right.durationMs - left.durationMs)
+          .slice(0, 10),
+      } satisfies BanjiBenchmarkScenarioSummary;
+    })
+    .sort((left, right) => left.generatedAt.localeCompare(right.generatedAt));
 }
 
 export function isTruthyBenchmarkEnvValue(value: string | undefined) {
