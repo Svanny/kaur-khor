@@ -1,0 +1,93 @@
+%% Banji desktop startup architecture and readiness sequence.
+sequenceDiagram
+  autonumber
+  participant Bench as Benchmark runner
+  participant Main as Electron main<br/>src/main/index.ts
+  participant CoreMgr as Managed core controller<br/>src/main/core-manager.ts
+  participant Backend as Core process bridge<br/>src/main/backend.ts
+  participant Rust as Rust desktop core<br/>apps/desktop-core
+  participant Store as SQLite workspace store
+  participant Preload as Preload bridge<br/>src/preload/index.ts
+  participant Renderer as React renderer<br/>src/renderer/src/App.tsx
+  participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
+
+  Bench->>Main: launch Electron with BANJI_BENCHMARK env
+  Main->>Metrics: record main.boot.start
+  Main->>Main: install CSP, asset protocol, menu
+  Main->>Main: load persisted SENA read cache
+
+  alt development startup
+    Main->>Main: migrate legacy desktop data
+    Main->>CoreMgr: invoke sena.seedDevWorkspace
+    CoreMgr->>Backend: ensureManagedCore
+    Backend->>Rust: spawn core binary or cargo run
+    Backend->>Rust: system.ping
+    Rust-->>Backend: ok
+    Backend->>Metrics: snapshot backend.core.ready
+    Backend-->>CoreMgr: managed process ready
+    CoreMgr-->>Main: seed result
+    Main->>Main: invalidate read cache if seeded
+  else packaged or seed disabled
+    Main->>Main: skip dev seed path
+  end
+
+  Main->>Main: create BrowserWindow
+  Main->>Renderer: load renderer URL or index.html
+  Main->>Metrics: snapshot main.boot.ready
+
+  Preload->>Renderer: expose window.banjiDesktop
+  Preload->>Metrics: record preload.bridge.exposed
+  Renderer->>Metrics: record renderer.app.mount.start
+  Renderer->>Preload: system.getAppContext
+  Preload->>Main: ipcRenderer.invoke systemGetAppContext
+  Main-->>Preload: DesktopAppContext
+  Preload-->>Renderer: app context
+  Renderer->>Metrics: mark renderer.app.getAppContext end
+
+  Renderer->>Renderer: mount PreferencesProvider
+  Renderer->>Renderer: mount InventoryProvider
+
+  par preferences hydration
+    Renderer->>Preload: preferences.get
+    Preload->>Main: IPC preferencesGet
+    Main-->>Preload: desktop preferences JSON
+    Preload-->>Renderer: preferences
+    Renderer->>Metrics: record renderer.preferences.hydration.end
+  and initial workspace reload
+    Renderer->>Preload: sena.getCatalog
+    Renderer->>Preload: sena.getWorkspaceSummary
+    Renderer->>Preload: sena.getDiagnostics
+    Renderer->>Preload: sena.listObservations
+    Renderer->>Preload: sena.listOrderBatches
+    Preload->>Main: benchmarked IPC calls
+    Main->>Main: loadCachedSenaRead where possible
+    Main->>CoreMgr: managedCore.invoke read commands
+    CoreMgr->>Backend: enqueue serialized JSON requests
+    Backend->>Rust: one active request over stdin
+    Rust->>Store: get_workspace_summary and related reads
+    Store-->>Rust: workspace read models
+    Rust-->>Backend: JSON response over stdout
+    Backend-->>CoreMgr: resolved result with queueWaitMs
+    CoreMgr-->>Main: read results
+    Main-->>Preload: IPC results
+    Preload-->>Renderer: workspace data
+  end
+
+  Renderer->>Renderer: wait for preferences hydrated and inventory not loading
+  Renderer->>Metrics: record route.dashboard.ready
+  Renderer->>Metrics: record renderer.workspace.ready
+
+  Bench->>Metrics: wait for bridge, app context, workspace ready, route ready
+  Bench->>Main: relaunch with same data directory for warm startup
+  Bench->>Metrics: record startup.warm_workspace_ready_ms
+
+  Metrics->>Metrics: derive startup.app_to_bridge_ms
+  Metrics->>Metrics: derive startup.app_to_context_ms
+  Metrics->>Metrics: derive startup.app_to_workspace_ready_ms
+  Metrics->>Metrics: derive startup.app_to_first_route_ready_ms
+  Metrics->>Metrics: derive ipc.sena_get_workspace_summary_ms
+  Metrics->>Metrics: derive backend.core.queue_wait_p95_ms
+  Metrics->>Metrics: compare against startup target budgets
+
+  Note over Renderer,Metrics: Startup is considered complete only when the workspace is usable, not when the first window frame appears.
+  Note over CoreMgr,Backend: The core controller prevents duplicate startup. The bridge serializes core commands so queue wait can become hidden startup latency.
