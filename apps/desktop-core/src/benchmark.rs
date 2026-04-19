@@ -26,6 +26,12 @@ fn output_dir() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from("bench-results").join(run_id()))
 }
 
+fn event_file_name() -> String {
+    let role = env::var("BANJI_CORE_WORKER_ROLE").unwrap_or_else(|_| "core".to_string());
+    let index = env::var("BANJI_CORE_WORKER_INDEX").unwrap_or_else(|_| "0".to_string());
+    format!("core-events-{role}-{index}-{}.jsonl", std::process::id())
+}
+
 fn now_ms() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -61,7 +67,7 @@ fn append_event(event: Value) {
         return;
     }
 
-    let path = directory.join("core-events.jsonl");
+    let path = directory.join(event_file_name());
     let mut file = match OpenOptions::new().create(true).append(true).open(path) {
         Ok(file) => file,
         Err(error) => {

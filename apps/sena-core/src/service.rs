@@ -5,9 +5,10 @@ use crate::{
         SenaAnalysisCheckpoint, SenaEngineParameters,
     },
     types::{
-        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog,
-        SenaCreateOrderBatchPayload, SenaObservationInput, SenaObservationRecord,
-        SenaOrderBatchRecord, SenaOrderLookupPayload, SenaSplitOrderChildPayload,
+        SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaCreateOrderBatchPayload,
+        SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
+        SenaObservationPageRequest, SenaObservationRecord, SenaOrderBatchRecord,
+        SenaOrderLookupPayload, SenaRecordUpdateContext, SenaSplitOrderChildPayload,
         SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
     },
 };
@@ -33,6 +34,16 @@ pub trait SenaRepository {
     ) -> Result<SenaObservationRecord>;
     async fn delete_observation(&self, owner_sub: &str, observation_id: &str) -> Result<()>;
     async fn list_observations(&self, owner_sub: &str) -> Result<Vec<SenaObservationRecord>>;
+    async fn list_observation_page(
+        &self,
+        owner_sub: &str,
+        request: Option<&SenaObservationPageRequest>,
+    ) -> Result<SenaObservationPage>;
+    async fn get_observation_fingerprint(
+        &self,
+        owner_sub: &str,
+    ) -> Result<SenaObservationFingerprint>;
+    async fn get_record_update_context(&self, owner_sub: &str) -> Result<SenaRecordUpdateContext>;
     async fn list_order_batches(
         &self,
         owner_sub: &str,

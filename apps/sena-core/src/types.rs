@@ -382,6 +382,62 @@ pub struct SenaObservationRecord {
     pub input: SenaObservationInput,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaObservationFingerprint {
+    pub count: usize,
+    pub latest_observed_at: Option<String>,
+    pub latest_observation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaObservationPageRequest {
+    #[serde(default)]
+    pub before_observed_at: Option<String>,
+    #[serde(default)]
+    pub before_observation_id: Option<String>,
+    #[serde(default)]
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaObservationPageCursor {
+    pub observed_at: String,
+    pub observation_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaObservationPage {
+    pub observations: Vec<SenaObservationRecord>,
+    pub next_cursor: Option<SenaObservationPageCursor>,
+    pub has_older: bool,
+    pub total_count: usize,
+    pub latest_observed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRecordUpdateAnchor<T> {
+    pub observation_id: String,
+    pub observed_at: String,
+    pub value: T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRecordUpdateContext {
+    pub observation_fingerprint: SenaObservationFingerprint,
+    pub latest_observed_at: Option<String>,
+    pub latest_stock_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaStockSnapshot>>,
+    pub latest_retail_sale_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaRetailSalesSnapshot>>,
+    pub latest_service_sale_by_service: BTreeMap<String, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>,
+    pub latest_order_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
+    pub latest_receipt_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SenaRunStatus {
@@ -909,9 +965,7 @@ mod tests {
         };
 
         let error = catalog.validate().expect_err("validation should fail");
-        assert!(error
-            .to_string()
-            .contains("conflicts with existing skuId"));
+        assert!(error.to_string().contains("conflicts with existing skuId"));
     }
 
     #[test]

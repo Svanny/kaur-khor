@@ -6,14 +6,14 @@ use anyhow::Result;
 use banji_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
     execute_analysis_run_with_parameters, trigger_analysis_run, SenaAdjustmentSignal,
-    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload,
-    SenaDiagnostics, SenaEngineParameters, SenaLeadTimeHint, SenaObservationInput,
-    SenaObservationRecord, SenaObservationRegimeHint, SenaOrderBatchRecord,
-    SenaOrderLookupPayload, SenaOrderSignal, SenaRecipeUsageHint, SenaRepository,
-    SenaRetailPriceObservation, SenaService, SenaServiceDetail, SenaServicePriceObservation,
-    SenaServiceSkuMaskEntry, SenaSku, SenaSkuDetail, SenaSplitOrderChildPayload,
-    SenaStockSnapshot, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
-    SenaWorkspaceSummary, SqliteSenaRepository,
+    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics,
+    SenaEngineParameters, SenaLeadTimeHint, SenaObservationFingerprint, SenaObservationInput,
+    SenaObservationPage, SenaObservationPageRequest, SenaObservationRecord,
+    SenaObservationRegimeHint, SenaOrderBatchRecord, SenaOrderLookupPayload, SenaOrderSignal,
+    SenaRecipeUsageHint, SenaRecordUpdateContext, SenaRepository, SenaRetailPriceObservation,
+    SenaService, SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
+    SenaSkuDetail, SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
+    SenaUpdateOrderChildPayload, SenaWorkspaceSummary, SqliteSenaRepository,
 };
 use futures::executor::block_on;
 use rand::{rngs::StdRng, Rng, SeedableRng};
@@ -44,6 +44,15 @@ pub struct SenaServiceDetailPage {
     pub has_older: bool,
     pub next_before_interval_index: Option<usize>,
     pub latest_interval_index: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaStartupWorkspace {
+    pub catalog: Option<SenaCatalog>,
+    pub workspace_summary: Option<SenaWorkspaceSummary>,
+    pub latest_run: Option<SenaAnalysisRunRecord>,
+    pub observation_fingerprint: SenaObservationFingerprint,
 }
 
 fn bounded_page_limit(limit: usize) -> usize {
@@ -1350,6 +1359,35 @@ pub fn get_catalog(owner_sub: &str) -> Result<Option<SenaCatalog>> {
 
 pub fn list_observations(owner_sub: &str) -> Result<Vec<SenaObservationRecord>> {
     block_on(repository()?.list_observations(owner_sub))
+}
+
+pub fn list_observation_page(
+    owner_sub: &str,
+    request: Option<&SenaObservationPageRequest>,
+) -> Result<SenaObservationPage> {
+    block_on(repository()?.list_observation_page(owner_sub, request))
+}
+
+pub fn get_observation_fingerprint(owner_sub: &str) -> Result<SenaObservationFingerprint> {
+    block_on(repository()?.get_observation_fingerprint(owner_sub))
+}
+
+pub fn get_record_update_context(owner_sub: &str) -> Result<SenaRecordUpdateContext> {
+    block_on(repository()?.get_record_update_context(owner_sub))
+}
+
+pub fn get_startup_workspace(owner_sub: &str) -> Result<SenaStartupWorkspace> {
+    let repo = repository()?;
+    let catalog = block_on(repo.get_catalog(owner_sub))?;
+    let workspace_summary = block_on(repo.load_workspace_summary(owner_sub))?;
+    let latest_run = block_on(repo.get_latest_run(owner_sub))?;
+    let observation_fingerprint = block_on(repo.get_observation_fingerprint(owner_sub))?;
+    Ok(SenaStartupWorkspace {
+        catalog,
+        workspace_summary,
+        latest_run,
+        observation_fingerprint,
+    })
 }
 
 pub fn list_order_batches(

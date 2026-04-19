@@ -3,8 +3,8 @@ use banji_desktop_core::legacy_inventory::types::SubmitStockReportRequest;
 use banji_desktop_core::store;
 use banji_sena_core::{
     SenaCatalog, SenaCreateOrderBatchPayload, SenaEngineParameters, SenaObservationInput,
-    SenaObservationRecord, SenaOrderLookupPayload, SenaSplitOrderChildPayload,
-    SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+    SenaObservationPageRequest, SenaObservationRecord, SenaOrderLookupPayload,
+    SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
 };
 use serde::Deserialize;
 use serde::Serialize;
@@ -137,7 +137,9 @@ fn handle_line(line: &str) -> Result<ResponseEnvelope> {
 
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
     let payload_summary = benchmark::summarize_value(&payload);
-    benchmark::time_command(command, payload_summary, || handle_command_inner(command, payload))
+    benchmark::time_command(command, payload_summary, || {
+        handle_command_inner(command, payload)
+    })
 }
 
 fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> {
@@ -175,7 +177,9 @@ fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> 
             if request.input.stock_snapshot.is_empty()
                 && existing
                     .iter()
-                    .filter(|observation: &&SenaObservationRecord| observation.observation_id != request.observation_id)
+                    .filter(|observation: &&SenaObservationRecord| {
+                        observation.observation_id != request.observation_id
+                    })
                     .count()
                     == 0
             {
@@ -196,6 +200,29 @@ fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> 
             Ok(None)
         }
         "sena.getCatalog" => Ok(Some(serde_json::to_value(store::get_catalog(owner)?)?)),
+        "sena.getObservationFingerprint" => Ok(Some(serde_json::to_value(
+            store::get_observation_fingerprint(owner)?,
+        )?)),
+        "sena.getStartupWorkspace" => Ok(Some(serde_json::to_value(
+            store::get_startup_workspace(owner)?,
+        )?)),
+        "sena.getRecordUpdateContext" => Ok(Some(serde_json::to_value(
+            store::get_record_update_context(owner)?,
+        )?)),
+        "sena.listObservationPage" => {
+            let request: Option<SenaObservationPageRequest> = if payload.is_null() {
+                None
+            } else {
+                Some(
+                    serde_json::from_value(payload)
+                        .context("invalid sena.listObservationPage payload")?,
+                )
+            };
+            Ok(Some(serde_json::to_value(store::list_observation_page(
+                owner,
+                request.as_ref(),
+            )?)?))
+        }
         "sena.listObservations" => Ok(Some(serde_json::to_value(store::list_observations(
             owner,
         )?)?)),
@@ -214,29 +241,29 @@ fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> 
             )?)?))
         }
         "sena.createOrderBatch" => {
-            let request: SenaCreateOrderBatchPayload = serde_json::from_value(payload)
-                .context("invalid sena.createOrderBatch payload")?;
+            let request: SenaCreateOrderBatchPayload =
+                serde_json::from_value(payload).context("invalid sena.createOrderBatch payload")?;
             Ok(Some(serde_json::to_value(store::create_order_batch(
                 owner, &request,
             )?)?))
         }
         "sena.updateOrderBatch" => {
-            let request: SenaUpdateOrderBatchPayload = serde_json::from_value(payload)
-                .context("invalid sena.updateOrderBatch payload")?;
+            let request: SenaUpdateOrderBatchPayload =
+                serde_json::from_value(payload).context("invalid sena.updateOrderBatch payload")?;
             Ok(Some(serde_json::to_value(store::update_order_batch(
                 owner, &request,
             )?)?))
         }
         "sena.updateOrderChild" => {
-            let request: SenaUpdateOrderChildPayload = serde_json::from_value(payload)
-                .context("invalid sena.updateOrderChild payload")?;
+            let request: SenaUpdateOrderChildPayload =
+                serde_json::from_value(payload).context("invalid sena.updateOrderChild payload")?;
             Ok(Some(serde_json::to_value(store::update_order_child(
                 owner, &request,
             )?)?))
         }
         "sena.splitOrderChild" => {
-            let request: SenaSplitOrderChildPayload = serde_json::from_value(payload)
-                .context("invalid sena.splitOrderChild payload")?;
+            let request: SenaSplitOrderChildPayload =
+                serde_json::from_value(payload).context("invalid sena.splitOrderChild payload")?;
             Ok(Some(serde_json::to_value(store::split_order_child(
                 owner, &request,
             )?)?))
@@ -314,4 +341,122 @@ fn write_response(stdout: &mut impl Write, response: ResponseEnvelope) -> Result
     stdout.write_all(b"\n")?;
     stdout.flush()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::handle_command_inner;
+    use serde_json::Value;
+    use std::{
+        env,
+        path::PathBuf,
+        sync::{Mutex, OnceLock},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    fn env_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
+
+    fn temp_store_path(label: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos();
+        env::temp_dir().join(format!("banji-desktop-core-{label}-{nonce}.sqlite3"))
+    }
+
+    fn with_temp_store<T>(label: &str, task: impl FnOnce() -> T) -> T {
+        let _guard = env_lock().lock().expect("env lock should be available");
+        let previous = env::var_os("BANJI_DESKTOP_DATA_PATH");
+        env::set_var("BANJI_DESKTOP_DATA_PATH", temp_store_path(label));
+        let result = task();
+        if let Some(value) = previous {
+            env::set_var("BANJI_DESKTOP_DATA_PATH", value);
+        } else {
+            env::remove_var("BANJI_DESKTOP_DATA_PATH");
+        }
+        result
+    }
+
+    #[test]
+    fn observation_fingerprint_command_returns_empty_metadata() {
+        with_temp_store("fingerprint-empty", || {
+            let value = handle_command_inner("sena.getObservationFingerprint", Value::Null)
+                .expect("fingerprint command should succeed")
+                .expect("fingerprint should return a payload");
+            assert_eq!(value["count"], 0);
+            assert!(value["latestObservedAt"].is_null());
+            assert!(value["latestObservationId"].is_null());
+        });
+    }
+
+    #[test]
+    fn startup_workspace_command_handles_empty_workspace() {
+        with_temp_store("startup-workspace", || {
+            let empty = handle_command_inner("sena.getStartupWorkspace", Value::Null)
+                .expect("startup command should succeed")
+                .expect("startup command should return a payload");
+            assert!(empty["catalog"].is_null());
+            assert!(empty["workspaceSummary"].is_null());
+            assert!(empty["latestRun"].is_null());
+            assert_eq!(empty["observationFingerprint"]["count"], 0);
+        });
+    }
+
+    #[test]
+    fn observation_page_and_record_update_context_commands_return_compact_reads() {
+        with_temp_store("observation-page-context", || {
+            handle_command_inner(
+                "sena.ingestObservation",
+                serde_json::json!({
+                    "observedAt": "2026-04-02T00:00:00Z",
+                    "stockSnapshot": [{
+                        "skuId": "sku-1",
+                        "unitsInStock": 12.0,
+                        "costPerUnit": 4.0,
+                        "productPrice": 9.0
+                    }],
+                    "retailSalesSnapshot": [{
+                        "skuId": "sku-1",
+                        "unitsSold": 2.0
+                    }],
+                    "serviceSalesSnapshot": [],
+                    "serviceRankings": [],
+                    "retailRankings": [],
+                    "serviceStockouts": [],
+                    "retailStockouts": [],
+                    "orderSignals": [],
+                    "servicePrices": [],
+                    "retailPrices": [],
+                    "leadTimeHints": [],
+                    "notes": null
+                }),
+            )
+            .expect("observation should insert");
+
+            let page = handle_command_inner(
+                "sena.listObservationPage",
+                serde_json::json!({ "limit": 1 }),
+            )
+            .expect("page command should succeed")
+            .expect("page should return a payload");
+            assert_eq!(page["totalCount"], 1);
+            assert_eq!(page["observations"][0]["input"]["stockSnapshot"][0]["skuId"], "sku-1");
+
+            let context = handle_command_inner("sena.getRecordUpdateContext", Value::Null)
+                .expect("context command should succeed")
+                .expect("context should return a payload");
+            assert_eq!(context["observationFingerprint"]["count"], 1);
+            assert_eq!(
+                context["latestStockBySku"]["sku-1"]["value"]["unitsInStock"],
+                12.0
+            );
+            assert_eq!(
+                context["latestRetailSaleBySku"]["sku-1"]["value"]["unitsSold"],
+                2.0
+            );
+        });
+    }
 }

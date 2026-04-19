@@ -2,10 +2,12 @@ use crate::{
     service::{now_rfc3339, SenaRepository},
     types::{
         SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaCreateOrderBatchPayload,
-        SenaDiagnostics, SenaObservationInput, SenaObservationRecord, SenaOrderBatchRecord,
-        SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus,
-        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRunStatus, SenaServiceDetail,
-        SenaSkuDetail, SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload,
+        SenaDiagnostics, SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
+        SenaObservationPageCursor, SenaObservationPageRequest, SenaObservationRecord,
+        SenaOrderBatchRecord, SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus,
+        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRecordUpdateAnchor,
+        SenaRecordUpdateContext, SenaRunStatus, SenaServiceDetail, SenaSkuDetail,
+        SenaSkuSummary, SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload,
         SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
     },
     PreprocessedWorkspace, SenaAnalysisCheckpoint,
@@ -13,20 +15,25 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
-use std::path::Path;
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use time::{format_description::parse as parse_time_format, OffsetDateTime};
 use uuid::Uuid;
 
 pub struct SqliteSenaRepository {
     connection: Mutex<Connection>,
+    store_path: PathBuf,
 }
 
 impl SqliteSenaRepository {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let connection = Connection::open(path)?;
+        let store_path = path.as_ref().to_path_buf();
+        let connection = Connection::open(&store_path)?;
         let repo = Self {
             connection: Mutex::new(connection),
+            store_path,
         };
         repo.migrate()?;
         Ok(repo)
@@ -52,6 +59,8 @@ impl SqliteSenaRepository {
             );
             CREATE INDEX IF NOT EXISTS idx_sena_observation_owner_observed_at
               ON sena_observation (owner_sub, observed_at);
+            CREATE INDEX IF NOT EXISTS idx_sena_observation_owner_latest
+              ON sena_observation (owner_sub, observed_at DESC, observation_id DESC);
             CREATE TABLE IF NOT EXISTS sena_order_batch (
               batch_order_id TEXT PRIMARY KEY,
               owner_sub TEXT NOT NULL,
@@ -99,6 +108,41 @@ impl SqliteSenaRepository {
               updated_at TEXT NOT NULL,
               run_id TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS sena_workspace_summary_hot (
+              owner_sub TEXT PRIMARY KEY,
+              run_id TEXT NOT NULL,
+              latest_observed_at TEXT,
+              sku_count INTEGER NOT NULL,
+              service_count INTEGER NOT NULL,
+              interval_count INTEGER NOT NULL,
+              pending_reorder_count INTEGER NOT NULL,
+              top_regime TEXT NOT NULL,
+              high_risk_sku_ids_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS sena_sku_summary_hot (
+              owner_sub TEXT NOT NULL,
+              sku_id TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              latest_posterior_units REAL NOT NULL,
+              credible_interval_low REAL NOT NULL,
+              credible_interval_high REAL NOT NULL,
+              demand_per_day_mean REAL NOT NULL,
+              stockout_risk REAL NOT NULL,
+              days_of_cover REAL,
+              expected_lead_time_demand REAL NOT NULL,
+              safety_stock REAL NOT NULL,
+              reorder_point REAL NOT NULL,
+              reorder_trigger_probability REAL NOT NULL,
+              reorder_quantity_json TEXT NOT NULL,
+              lead_time_mean_days REAL NOT NULL,
+              lead_time_std_days REAL NOT NULL,
+              regime_probabilities_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (owner_sub, sku_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_sku_summary_hot_owner_risk
+              ON sena_sku_summary_hot (owner_sub, stockout_risk DESC);
             CREATE TABLE IF NOT EXISTS sena_sku_detail (
               owner_sub TEXT NOT NULL,
               sku_id TEXT NOT NULL,
@@ -132,6 +176,9 @@ impl SqliteSenaRepository {
               completed_interval_count INTEGER NOT NULL,
               observation_prefix_fingerprint TEXT NOT NULL,
               payload_json TEXT NOT NULL,
+              payload_codec TEXT,
+              payload_path TEXT,
+              payload_bytes INTEGER,
               updated_at TEXT NOT NULL,
               PRIMARY KEY (owner_sub, algorithm_version, catalog_fingerprint, completed_interval_count)
             );
@@ -143,10 +190,276 @@ impl SqliteSenaRepository {
                 observation_count DESC,
                 completed_interval_count DESC
               );
+            PRAGMA user_version = 2;
             "#,
+        )?;
+        ensure_column(
+            &connection,
+            "sena_analysis_checkpoint",
+            "payload_codec",
+            "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_codec TEXT",
+        )?;
+        ensure_column(
+            &connection,
+            "sena_analysis_checkpoint",
+            "payload_path",
+            "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_path TEXT",
+        )?;
+        ensure_column(
+            &connection,
+            "sena_analysis_checkpoint",
+            "payload_bytes",
+            "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_bytes INTEGER",
         )?;
         Ok(())
     }
+
+    fn checkpoint_root(&self) -> PathBuf {
+        self.store_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join("sena-checkpoints")
+    }
+
+    fn checkpoint_payload_path(&self, checkpoint: &SenaAnalysisCheckpoint) -> PathBuf {
+        self.checkpoint_root()
+            .join(safe_path_segment(&checkpoint.metadata.owner_sub))
+            .join(safe_path_segment(&checkpoint.metadata.algorithm_version))
+            .join(safe_path_segment(&checkpoint.metadata.catalog_fingerprint))
+            .join(format!(
+                "{}.json.zst",
+                checkpoint.metadata.completed_interval_count
+            ))
+    }
+}
+
+fn safe_path_segment(value: &str) -> String {
+    value
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.') {
+                character
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+fn ensure_column(
+    connection: &Connection,
+    table_name: &str,
+    column_name: &str,
+    alter_sql: &str,
+) -> Result<()> {
+    let mut stmt = connection.prepare(&format!("PRAGMA table_info({table_name})"))?;
+    let columns = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for column in columns {
+        if column? == column_name {
+            return Ok(());
+        }
+    }
+    connection.execute(alter_sql, [])?;
+    Ok(())
+}
+
+fn persist_hot_workspace_summary(
+    connection: &Connection,
+    summary: &SenaWorkspaceSummary,
+    updated_at: &str,
+) -> Result<()> {
+    connection.execute(
+        r#"
+        INSERT INTO sena_workspace_summary_hot (
+          owner_sub, run_id, latest_observed_at, sku_count, service_count, interval_count,
+          pending_reorder_count, top_regime, high_risk_sku_ids_json, updated_at
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+        ON CONFLICT(owner_sub) DO UPDATE SET
+          run_id = excluded.run_id,
+          latest_observed_at = excluded.latest_observed_at,
+          sku_count = excluded.sku_count,
+          service_count = excluded.service_count,
+          interval_count = excluded.interval_count,
+          pending_reorder_count = excluded.pending_reorder_count,
+          top_regime = excluded.top_regime,
+          high_risk_sku_ids_json = excluded.high_risk_sku_ids_json,
+          updated_at = excluded.updated_at
+        "#,
+        params![
+            &summary.owner_sub,
+            &summary.run_id,
+            &summary.latest_observed_at,
+            summary.sku_count as i64,
+            summary.service_count as i64,
+            summary.interval_count as i64,
+            summary.pending_reorder_count as i64,
+            &summary.top_regime,
+            serde_json::to_string(&summary.high_risk_sku_ids)?,
+            updated_at,
+        ],
+    )?;
+    connection.execute(
+        "DELETE FROM sena_sku_summary_hot WHERE owner_sub = ?1",
+        params![&summary.owner_sub],
+    )?;
+    for sku in &summary.sku_summaries {
+        connection.execute(
+            r#"
+            INSERT INTO sena_sku_summary_hot (
+              owner_sub, sku_id, run_id, latest_posterior_units, credible_interval_low,
+              credible_interval_high, demand_per_day_mean, stockout_risk, days_of_cover,
+              expected_lead_time_demand, safety_stock, reorder_point,
+              reorder_trigger_probability, reorder_quantity_json, lead_time_mean_days,
+              lead_time_std_days, regime_probabilities_json, updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)
+            "#,
+            params![
+                &summary.owner_sub,
+                &sku.sku_id,
+                &summary.run_id,
+                sku.latest_posterior_units,
+                sku.credible_interval_low,
+                sku.credible_interval_high,
+                sku.demand_per_day_mean,
+                sku.stockout_risk,
+                sku.days_of_cover,
+                sku.expected_lead_time_demand,
+                sku.safety_stock,
+                sku.reorder_point,
+                sku.reorder_trigger_probability,
+                serde_json::to_string(&sku.reorder_quantity)?,
+                sku.lead_time_mean_days,
+                sku.lead_time_std_days,
+                serde_json::to_string(&sku.regime_probabilities)?,
+                updated_at,
+            ],
+        )?;
+    }
+    Ok(())
+}
+
+fn load_hot_workspace_summary(
+    connection: &Connection,
+    owner_sub: &str,
+) -> Result<Option<SenaWorkspaceSummary>> {
+    let row = connection
+        .query_row(
+            r#"
+            SELECT run_id, latest_observed_at, sku_count, service_count, interval_count,
+                   pending_reorder_count, top_regime, high_risk_sku_ids_json
+            FROM sena_workspace_summary_hot
+            WHERE owner_sub = ?1
+            "#,
+            params![owner_sub],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, i64>(2)? as usize,
+                    row.get::<_, i64>(3)? as usize,
+                    row.get::<_, i64>(4)? as usize,
+                    row.get::<_, i64>(5)? as usize,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some(row) = row else {
+        return Ok(None);
+    };
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT sku_id, latest_posterior_units, credible_interval_low, credible_interval_high,
+               demand_per_day_mean, stockout_risk, days_of_cover, expected_lead_time_demand,
+               safety_stock, reorder_point, reorder_trigger_probability, reorder_quantity_json,
+               lead_time_mean_days, lead_time_std_days, regime_probabilities_json
+        FROM sena_sku_summary_hot
+        WHERE owner_sub = ?1
+        ORDER BY sku_id ASC
+        "#,
+    )?;
+    let sku_rows = stmt.query_map(params![owner_sub], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, f64>(1)?,
+            row.get::<_, f64>(2)?,
+            row.get::<_, f64>(3)?,
+            row.get::<_, f64>(4)?,
+            row.get::<_, f64>(5)?,
+            row.get::<_, Option<f64>>(6)?,
+            row.get::<_, f64>(7)?,
+            row.get::<_, f64>(8)?,
+            row.get::<_, f64>(9)?,
+            row.get::<_, f64>(10)?,
+            row.get::<_, String>(11)?,
+            row.get::<_, f64>(12)?,
+            row.get::<_, f64>(13)?,
+            row.get::<_, String>(14)?,
+        ))
+    })?;
+    let mut sku_summaries = Vec::new();
+    for sku_row in sku_rows {
+        let row = sku_row?;
+        sku_summaries.push(SenaSkuSummary {
+            sku_id: row.0,
+            latest_posterior_units: row.1,
+            credible_interval_low: row.2,
+            credible_interval_high: row.3,
+            demand_per_day_mean: row.4,
+            stockout_risk: row.5,
+            days_of_cover: row.6,
+            expected_lead_time_demand: row.7,
+            safety_stock: row.8,
+            reorder_point: row.9,
+            reorder_trigger_probability: row.10,
+            reorder_quantity: serde_json::from_str(&row.11)?,
+            lead_time_mean_days: row.12,
+            lead_time_std_days: row.13,
+            regime_probabilities: serde_json::from_str(&row.14)?,
+        });
+    }
+    Ok(Some(SenaWorkspaceSummary {
+        owner_sub: owner_sub.to_string(),
+        run_id: row.0,
+        latest_observed_at: row.1,
+        sku_count: row.2,
+        service_count: row.3,
+        interval_count: row.4,
+        pending_reorder_count: row.5,
+        top_regime: row.6,
+        high_risk_sku_ids: serde_json::from_str(&row.7)?,
+        sku_summaries,
+    }))
+}
+
+fn observation_fingerprint_locked(
+    connection: &Connection,
+    owner_sub: &str,
+) -> Result<SenaObservationFingerprint> {
+    let count = connection.query_row(
+        "SELECT COUNT(*) FROM sena_observation WHERE owner_sub = ?1",
+        params![owner_sub],
+        |row| row.get::<_, i64>(0),
+    )? as usize;
+    let latest = connection
+        .query_row(
+            r#"
+            SELECT observed_at, observation_id
+            FROM sena_observation
+            WHERE owner_sub = ?1
+            ORDER BY observed_at DESC, observation_id DESC
+            LIMIT 1
+            "#,
+            params![owner_sub],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    Ok(SenaObservationFingerprint {
+        count,
+        latest_observed_at: latest.as_ref().map(|row| row.0.clone()),
+        latest_observation_id: latest.map(|row| row.1),
+    })
 }
 
 fn merge_order_fields(base: &SenaOrderFieldValues, overrides: &SenaOrderFieldValues) -> SenaOrderFieldValues {
@@ -377,6 +690,19 @@ impl SenaRepository for SqliteSenaRepository {
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let checkpoint_paths = {
+            let mut stmt = connection.prepare(
+                "SELECT payload_path FROM sena_analysis_checkpoint WHERE owner_sub = ?1",
+            )?;
+            let rows = stmt.query_map(params![owner_sub], |row| row.get::<_, Option<String>>(0))?;
+            let mut paths = Vec::new();
+            for row in rows {
+                if let Some(path) = row? {
+                    paths.push(path);
+                }
+            }
+            paths
+        };
         connection.execute(
             "DELETE FROM sena_analysis_checkpoint WHERE owner_sub = ?1",
             params![owner_sub],
@@ -395,6 +721,14 @@ impl SenaRepository for SqliteSenaRepository {
         )?;
         connection.execute(
             "DELETE FROM sena_read_model WHERE owner_sub = ?1",
+            params![owner_sub],
+        )?;
+        connection.execute(
+            "DELETE FROM sena_sku_summary_hot WHERE owner_sub = ?1",
+            params![owner_sub],
+        )?;
+        connection.execute(
+            "DELETE FROM sena_workspace_summary_hot WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
         connection.execute(
@@ -417,6 +751,9 @@ impl SenaRepository for SqliteSenaRepository {
             "DELETE FROM sena_catalog WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
+        for path in checkpoint_paths {
+            let _ = fs::remove_file(path);
+        }
         Ok(())
     }
 
@@ -550,6 +887,221 @@ impl SenaRepository for SqliteSenaRepository {
             });
         }
         Ok(records)
+    }
+
+    async fn list_observation_page(
+        &self,
+        owner_sub: &str,
+        request: Option<&SenaObservationPageRequest>,
+    ) -> Result<SenaObservationPage> {
+        let request = request.cloned().unwrap_or_default();
+        let limit = request.limit.unwrap_or(100).clamp(1, 500);
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
+        let query = if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
+            r#"
+            SELECT observation_id, observed_at, payload
+            FROM sena_observation
+            WHERE owner_sub = ?1
+              AND (observed_at < ?2 OR (observed_at = ?2 AND observation_id < ?3))
+            ORDER BY observed_at DESC, observation_id DESC
+            LIMIT ?4
+            "#
+        } else if request.before_observed_at.is_some() {
+            r#"
+            SELECT observation_id, observed_at, payload
+            FROM sena_observation
+            WHERE owner_sub = ?1 AND observed_at < ?2
+            ORDER BY observed_at DESC, observation_id DESC
+            LIMIT ?4
+            "#
+        } else {
+            r#"
+            SELECT observation_id, observed_at, payload
+            FROM sena_observation
+            WHERE owner_sub = ?1
+            ORDER BY observed_at DESC, observation_id DESC
+            LIMIT ?4
+            "#
+        };
+        let mut stmt = connection.prepare(query)?;
+        let requested_rows = (limit + 1) as i64;
+        let row_mapper = |row: &rusqlite::Row<'_>| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        };
+        let rows = if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
+            stmt.query_map(
+                params![
+                    owner_sub,
+                    request.before_observed_at.as_deref(),
+                    request.before_observation_id.as_deref(),
+                    requested_rows,
+                ],
+                row_mapper,
+            )?
+        } else if request.before_observed_at.is_some() {
+            stmt.query_map(
+                params![
+                    owner_sub,
+                    request.before_observed_at.as_deref(),
+                    rusqlite::types::Null,
+                    requested_rows,
+                ],
+                row_mapper,
+            )?
+        } else {
+            stmt.query_map(
+                params![owner_sub, rusqlite::types::Null, rusqlite::types::Null, requested_rows],
+                row_mapper,
+            )?
+        };
+        let mut raw_rows = Vec::new();
+        for row in rows {
+            raw_rows.push(row?);
+        }
+        let has_older = raw_rows.len() > limit;
+        raw_rows.truncate(limit);
+        let next_cursor = if has_older {
+            raw_rows.last().map(|row| SenaObservationPageCursor {
+                observation_id: row.0.clone(),
+                observed_at: row.1.clone(),
+            })
+        } else {
+            None
+        };
+        let observations = raw_rows
+            .into_iter()
+            .map(|(observation_id, _observed_at, payload)| {
+                serde_json::from_str(&payload).map(|input| SenaObservationRecord {
+                    observation_id,
+                    owner_sub: owner_sub.to_string(),
+                    input,
+                })
+            })
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        Ok(SenaObservationPage {
+            observations,
+            next_cursor,
+            has_older,
+            total_count: fingerprint.count,
+            latest_observed_at: fingerprint.latest_observed_at,
+        })
+    }
+
+    async fn get_observation_fingerprint(
+        &self,
+        owner_sub: &str,
+    ) -> Result<SenaObservationFingerprint> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        observation_fingerprint_locked(&connection, owner_sub)
+    }
+
+    async fn get_record_update_context(&self, owner_sub: &str) -> Result<SenaRecordUpdateContext> {
+        let connection = self
+            .connection
+            .lock()
+            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let observation_fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
+        let mut latest_stock_by_sku = BTreeMap::new();
+        let mut latest_retail_sale_by_sku = BTreeMap::new();
+        let mut latest_service_sale_by_service = BTreeMap::new();
+        let mut latest_order_by_sku = BTreeMap::new();
+        let mut latest_receipt_by_sku = BTreeMap::new();
+        let mut stmt = connection.prepare(
+            r#"
+            SELECT observation_id, observed_at, payload
+            FROM sena_observation
+            WHERE owner_sub = ?1
+            ORDER BY observed_at DESC, observation_id DESC
+            "#,
+        )?;
+        let rows = stmt.query_map(params![owner_sub], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+            ))
+        })?;
+        for row in rows {
+            let (observation_id, observed_at, payload) = row?;
+            let input: SenaObservationInput = serde_json::from_str(&payload)?;
+            for snapshot in input.stock_snapshot {
+                latest_stock_by_sku.entry(snapshot.sku_id.clone()).or_insert_with(|| {
+                    SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
+                        value: snapshot,
+                    }
+                });
+            }
+            for sale in input.retail_sales_snapshot {
+                if sale.units_sold > 0.0 {
+                    latest_retail_sale_by_sku.entry(sale.sku_id.clone()).or_insert_with(|| {
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: sale,
+                        }
+                    });
+                }
+            }
+            for sale in input.service_sales_snapshot {
+                if sale.units_sold > 0.0 {
+                    latest_service_sale_by_service.entry(sale.service_id.clone()).or_insert_with(|| {
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: sale,
+                        }
+                    });
+                }
+            }
+            for signal in input.order_signals {
+                if signal.order_placed || signal.approximate_order_quantity.is_some() {
+                    latest_order_by_sku.entry(signal.sku_id.clone()).or_insert_with(|| {
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: signal
+                                .placement_timestamp
+                                .clone()
+                                .unwrap_or_else(|| observed_at.clone()),
+                            value: signal.clone(),
+                        }
+                    });
+                }
+                if signal.receipt_arrived || signal.approximate_receipt_quantity.is_some() {
+                    latest_receipt_by_sku.entry(signal.sku_id.clone()).or_insert_with(|| {
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: signal
+                                .receipt_timestamp
+                                .clone()
+                                .unwrap_or_else(|| observed_at.clone()),
+                            value: signal,
+                        }
+                    });
+                }
+            }
+        }
+        Ok(SenaRecordUpdateContext {
+            latest_observed_at: observation_fingerprint.latest_observed_at.clone(),
+            observation_fingerprint,
+            latest_stock_by_sku,
+            latest_retail_sale_by_sku,
+            latest_service_sale_by_service,
+            latest_order_by_sku,
+            latest_receipt_by_sku,
+        })
     }
 
     async fn list_order_batches(
@@ -902,17 +1454,19 @@ impl SenaRepository for SqliteSenaRepository {
     }
 
     async fn get_latest_run(&self, owner_sub: &str) -> Result<Option<SenaAnalysisRunRecord>> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        let run_id = connection
-            .query_row(
-                "SELECT run_id FROM sena_run WHERE owner_sub = ?1 ORDER BY created_at DESC LIMIT 1",
-                params![owner_sub],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?;
+        let run_id = {
+            let connection = self
+                .connection
+                .lock()
+                .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+            connection
+                .query_row(
+                    "SELECT run_id FROM sena_run WHERE owner_sub = ?1 ORDER BY created_at DESC LIMIT 1",
+                    params![owner_sub],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+        };
         match run_id {
             Some(value) => self.get_run(&value).await,
             None => Ok(None),
@@ -976,6 +1530,7 @@ impl SenaRepository for SqliteSenaRepository {
                 run_id,
             ],
         )?;
+        persist_hot_workspace_summary(&connection, &summary, &updated_at)?;
         for detail in &result.sku_details {
             connection.execute(
                 r#"
@@ -1096,7 +1651,7 @@ impl SenaRepository for SqliteSenaRepository {
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let mut stmt = connection.prepare(
             r#"
-            SELECT payload_json
+            SELECT payload_json, payload_codec, payload_path
             FROM sena_analysis_checkpoint
             WHERE owner_sub = ?1
               AND algorithm_version = ?2
@@ -1106,16 +1661,37 @@ impl SenaRepository for SqliteSenaRepository {
         )?;
         let rows = stmt.query_map(
             params![owner_sub, algorithm_version, catalog_fingerprint],
-            |row| row.get::<_, String>(0),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, Option<String>>(2)?,
+                ))
+            },
         )?;
         let mut checkpoints = Vec::new();
         for row in rows {
-            checkpoints.push(serde_json::from_str(&row?)?);
+            let (payload_json, payload_codec, payload_path) = row?;
+            if payload_codec.as_deref() == Some("zstd") {
+                let path = payload_path.ok_or_else(|| anyhow!("checkpoint payload path missing"))?;
+                let compressed = fs::read(path)?;
+                let raw = zstd::decode_all(&compressed[..])?;
+                checkpoints.push(serde_json::from_slice(&raw)?);
+            } else {
+                checkpoints.push(serde_json::from_str(&payload_json)?);
+            }
         }
         Ok(checkpoints)
     }
 
     async fn save_analysis_checkpoint(&self, checkpoint: &SenaAnalysisCheckpoint) -> Result<()> {
+        let payload = serde_json::to_vec(checkpoint)?;
+        let compressed = zstd::encode_all(&payload[..], 3)?;
+        let payload_path = self.checkpoint_payload_path(checkpoint);
+        if let Some(parent) = payload_path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&payload_path, &compressed)?;
         let connection = self
             .connection
             .lock()
@@ -1130,26 +1706,95 @@ impl SenaRepository for SqliteSenaRepository {
               completed_interval_count,
               observation_prefix_fingerprint,
               payload_json,
+              payload_codec,
+              payload_path,
+              payload_bytes,
               updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
             ON CONFLICT(owner_sub, algorithm_version, catalog_fingerprint, completed_interval_count)
             DO UPDATE SET
               observation_count = excluded.observation_count,
               observation_prefix_fingerprint = excluded.observation_prefix_fingerprint,
               payload_json = excluded.payload_json,
+              payload_codec = excluded.payload_codec,
+              payload_path = excluded.payload_path,
+              payload_bytes = excluded.payload_bytes,
               updated_at = excluded.updated_at
             "#,
             params![
-                checkpoint.metadata.owner_sub,
-                checkpoint.metadata.algorithm_version,
-                checkpoint.metadata.catalog_fingerprint,
+                &checkpoint.metadata.owner_sub,
+                &checkpoint.metadata.algorithm_version,
+                &checkpoint.metadata.catalog_fingerprint,
                 checkpoint.metadata.observation_count as i64,
                 checkpoint.metadata.completed_interval_count as i64,
-                checkpoint.metadata.observation_prefix_fingerprint,
-                serde_json::to_string(checkpoint)?,
+                &checkpoint.metadata.observation_prefix_fingerprint,
+                "",
+                "zstd",
+                payload_path.to_string_lossy().as_ref(),
+                compressed.len() as i64,
                 now_rfc3339(),
             ],
         )?;
+        let stale_paths = {
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT payload_path
+                FROM sena_analysis_checkpoint
+                WHERE owner_sub = ?1
+                  AND algorithm_version = ?2
+                  AND catalog_fingerprint = ?3
+                  AND completed_interval_count NOT IN (
+                    SELECT completed_interval_count
+                    FROM sena_analysis_checkpoint
+                    WHERE owner_sub = ?1
+                      AND algorithm_version = ?2
+                      AND catalog_fingerprint = ?3
+                    ORDER BY observation_count DESC, completed_interval_count DESC
+                    LIMIT 1
+                  )
+                "#,
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    &checkpoint.metadata.owner_sub,
+                    &checkpoint.metadata.algorithm_version,
+                    &checkpoint.metadata.catalog_fingerprint,
+                ],
+                |row| row.get::<_, Option<String>>(0),
+            )?;
+            let mut paths = Vec::new();
+            for row in rows {
+                if let Some(path) = row? {
+                    paths.push(path);
+                }
+            }
+            paths
+        };
+        connection.execute(
+            r#"
+            DELETE FROM sena_analysis_checkpoint
+            WHERE owner_sub = ?1
+              AND algorithm_version = ?2
+              AND catalog_fingerprint = ?3
+              AND completed_interval_count NOT IN (
+                SELECT completed_interval_count
+                FROM sena_analysis_checkpoint
+                WHERE owner_sub = ?1
+                  AND algorithm_version = ?2
+                  AND catalog_fingerprint = ?3
+                ORDER BY observation_count DESC, completed_interval_count DESC
+                LIMIT 1
+              )
+            "#,
+            params![
+                &checkpoint.metadata.owner_sub,
+                &checkpoint.metadata.algorithm_version,
+                &checkpoint.metadata.catalog_fingerprint,
+            ],
+        )?;
+        for path in stale_paths {
+            let _ = fs::remove_file(path);
+        }
         Ok(())
     }
 
@@ -1173,6 +1818,9 @@ impl SenaRepository for SqliteSenaRepository {
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        if let Some(summary) = load_hot_workspace_summary(&connection, owner_sub)? {
+            return Ok(Some(summary));
+        }
         let value = connection
             .query_row(
                 "SELECT workspace_summary_json FROM sena_read_model WHERE owner_sub = ?1",
@@ -1180,9 +1828,13 @@ impl SenaRepository for SqliteSenaRepository {
                 |row| row.get::<_, String>(0),
             )
             .optional()?;
-        value
+        let summary = value
             .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
-            .transpose()
+            .transpose()?;
+        if let Some(summary) = &summary {
+            persist_hot_workspace_summary(&connection, summary, &now_rfc3339())?;
+        }
+        Ok(summary)
     }
 
     async fn load_sku_detail(
@@ -1261,12 +1913,13 @@ mod tests {
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
         service::SenaRepository, PreprocessedWorkspace, SenaCatalog,
         SenaCreateOrderBatchPayload, SenaLeadTimeHint, SenaObservationInput,
-        SenaObservationRecord, SenaOrderSignal, SenaService,
+        SenaObservationPageRequest, SenaObservationRecord, SenaOrderSignal, SenaService,
         SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
         SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
         SenaUpdateOrderChildPayload,
     };
     use futures::executor::block_on;
+    use rusqlite::params;
     use std::{
         env,
         path::PathBuf,
@@ -1368,6 +2021,30 @@ mod tests {
         }
     }
 
+    fn insert_observation_with_id(
+        repo: &SqliteSenaRepository,
+        observation_id: &str,
+        observed_at: &str,
+        units_in_stock: f64,
+    ) {
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        connection
+            .execute(
+                "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    observation_id,
+                    "owner",
+                    observed_at,
+                    serde_json::to_string(&observation(observed_at, units_in_stock).input)
+                        .expect("payload should serialize")
+                ],
+            )
+            .expect("observation should insert");
+    }
+
     fn sample_preprocessed_workspace() -> (
         SenaCatalog,
         Vec<SenaObservationRecord>,
@@ -1448,10 +2125,38 @@ mod tests {
             &catalog_fingerprint,
         ))
         .expect("checkpoints should load");
-        assert_eq!(checkpoints.len(), first.checkpoints.len());
+        assert_eq!(checkpoints.len(), 1);
+        let (codec, payload_json, payload_path): (Option<String>, String, Option<String>) = {
+            let connection = repo
+                .connection
+                .lock()
+                .expect("sqlite lock should be available");
+            connection
+                .query_row(
+                    "SELECT payload_codec, payload_json, payload_path FROM sena_analysis_checkpoint",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .expect("checkpoint metadata should be readable")
+        };
+        assert_eq!(codec.as_deref(), Some("zstd"));
+        assert!(payload_json.is_empty());
         assert!(
-            checkpoints[0].metadata.completed_interval_count
-                > checkpoints[1].metadata.completed_interval_count
+            std::path::Path::new(
+                payload_path
+                    .as_deref()
+                    .expect("checkpoint payload path should be stored")
+            )
+            .is_file()
+        );
+        assert_eq!(
+            checkpoints[0].metadata.completed_interval_count,
+            first
+                .checkpoints
+                .iter()
+                .map(|checkpoint| checkpoint.metadata.completed_interval_count)
+                .max()
+                .expect("at least one checkpoint should exist")
         );
 
         let metadata = build_checkpoint_metadata(
@@ -1495,6 +2200,296 @@ mod tests {
             .expect("observation should delete");
         let remaining = block_on(repo.list_observations("owner")).expect("observations should load");
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn observation_fingerprint_uses_metadata_without_deserializing_observations() {
+        let path = temp_store_path("observation-fingerprint");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let empty = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("empty fingerprint should load");
+        assert_eq!(empty.count, 0);
+        assert_eq!(empty.latest_observed_at, None);
+        assert_eq!(empty.latest_observation_id, None);
+
+        let first = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("first observation should insert");
+        let single = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("single fingerprint should load");
+        assert_eq!(single.count, 1);
+        assert_eq!(
+            single.latest_observed_at.as_deref(),
+            Some("2026-04-01T00:00:00Z")
+        );
+        assert_eq!(
+            single.latest_observation_id.as_deref(),
+            Some(first.observation_id.as_str())
+        );
+
+        let latest = block_on(
+            repo.insert_observation("owner", &observation("2026-04-03T00:00:00Z", 10.0).input),
+        )
+        .expect("latest observation should insert");
+        let older = block_on(
+            repo.insert_observation("owner", &observation("2026-04-02T00:00:00Z", 12.0).input),
+        )
+        .expect("older observation should insert");
+        assert_ne!(older.observation_id, latest.observation_id);
+        let fingerprint = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("multi-row fingerprint should load");
+        assert_eq!(fingerprint.count, 3);
+        assert_eq!(
+            fingerprint.latest_observed_at.as_deref(),
+            Some("2026-04-03T00:00:00Z")
+        );
+        assert_eq!(
+            fingerprint.latest_observation_id.as_deref(),
+            Some(latest.observation_id.as_str())
+        );
+    }
+
+    #[test]
+    fn observation_fingerprint_tiebreaks_latest_timestamp_by_id() {
+        let path = temp_store_path("observation-fingerprint-tie");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        connection
+            .execute(
+                "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "obs-a",
+                    "owner",
+                    "2026-04-03T00:00:00Z",
+                    serde_json::to_string(&observation("2026-04-03T00:00:00Z", 10.0).input)
+                        .expect("payload should serialize")
+                ],
+            )
+            .expect("first tied observation should insert");
+        connection
+            .execute(
+                "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
+                params![
+                    "obs-z",
+                    "owner",
+                    "2026-04-03T00:00:00Z",
+                    serde_json::to_string(&observation("2026-04-03T00:00:00Z", 8.0).input)
+                        .expect("payload should serialize")
+                ],
+            )
+            .expect("second tied observation should insert");
+        drop(connection);
+
+        let fingerprint =
+            block_on(repo.get_observation_fingerprint("owner")).expect("fingerprint should load");
+        assert_eq!(fingerprint.count, 2);
+        assert_eq!(
+            fingerprint.latest_observed_at.as_deref(),
+            Some("2026-04-03T00:00:00Z")
+        );
+        assert_eq!(fingerprint.latest_observation_id.as_deref(), Some("obs-z"));
+    }
+
+    #[test]
+    fn observation_pages_are_descending_and_cursor_stable() {
+        let path = temp_store_path("observation-page");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let empty = block_on(repo.list_observation_page("owner", None))
+            .expect("empty page should load");
+        assert!(empty.observations.is_empty());
+        assert!(!empty.has_older);
+        assert_eq!(empty.total_count, 0);
+
+        insert_observation_with_id(&repo, "obs-c", "2026-04-01T00:00:00Z", 3.0);
+        insert_observation_with_id(&repo, "obs-b", "2026-04-02T00:00:00Z", 2.0);
+        insert_observation_with_id(&repo, "obs-a", "2026-04-03T00:00:00Z", 1.0);
+        insert_observation_with_id(&repo, "obs-z", "2026-04-03T00:00:00Z", 4.0);
+
+        let first = block_on(repo.list_observation_page(
+            "owner",
+            Some(&SenaObservationPageRequest {
+                before_observed_at: None,
+                before_observation_id: None,
+                limit: Some(2),
+            }),
+        ))
+        .expect("first page should load");
+        assert_eq!(
+            first
+                .observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-z", "obs-a"]
+        );
+        assert!(first.has_older);
+        assert_eq!(first.total_count, 4);
+        let cursor = first.next_cursor.expect("older cursor should exist");
+        assert_eq!(cursor.observed_at, "2026-04-03T00:00:00Z");
+        assert_eq!(cursor.observation_id, "obs-a");
+
+        let next = block_on(repo.list_observation_page(
+            "owner",
+            Some(&SenaObservationPageRequest {
+                before_observed_at: Some(cursor.observed_at),
+                before_observation_id: Some(cursor.observation_id),
+                limit: Some(10),
+            }),
+        ))
+        .expect("next page should load");
+        assert_eq!(
+            next
+                .observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-b", "obs-c"]
+        );
+        assert!(!next.has_older);
+        assert_eq!(next.latest_observed_at.as_deref(), Some("2026-04-03T00:00:00Z"));
+    }
+
+    #[test]
+    fn record_update_context_tracks_latest_update_anchors() {
+        let path = temp_store_path("record-update-context");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let mut older = observation("2026-04-01T00:00:00Z", 8.0).input;
+        older.retail_sales_snapshot = vec![crate::types::SenaRetailSalesSnapshot {
+            sku_id: "sku-1".to_string(),
+            units_sold: 2.0,
+        }];
+        block_on(repo.insert_observation("owner", &older)).expect("older observation should insert");
+
+        let mut latest = observation("2026-04-02T00:00:00Z", 5.0).input;
+        latest.service_sales_snapshot = vec![crate::types::SenaServiceSalesSnapshot {
+            service_id: "svc-1".to_string(),
+            units_sold: 3.0,
+        }];
+        latest.order_signals = vec![SenaOrderSignal {
+            sku_id: "sku-1".to_string(),
+            order_placed: true,
+            receipt_arrived: true,
+            approximate_order_quantity: Some(7.0),
+            approximate_receipt_quantity: Some(6.0),
+            placement_timestamp: Some("2026-04-02T01:00:00Z".to_string()),
+            receipt_timestamp: Some("2026-04-02T02:00:00Z".to_string()),
+            lead_time_days_hint: None,
+        }];
+        block_on(repo.insert_observation("owner", &latest)).expect("latest observation should insert");
+
+        let context = block_on(repo.get_record_update_context("owner"))
+            .expect("record update context should load");
+        assert_eq!(context.observation_fingerprint.count, 2);
+        assert_eq!(context.latest_observed_at.as_deref(), Some("2026-04-02T00:00:00Z"));
+        assert_eq!(
+            context
+                .latest_stock_by_sku
+                .get("sku-1")
+                .expect("latest stock should exist")
+                .value
+                .units_in_stock,
+            5.0
+        );
+        assert_eq!(
+            context
+                .latest_retail_sale_by_sku
+                .get("sku-1")
+                .expect("retail sale anchor should exist")
+                .value
+                .units_sold,
+            2.0
+        );
+        assert_eq!(
+            context
+                .latest_service_sale_by_service
+                .get("svc-1")
+                .expect("service sale anchor should exist")
+                .value
+                .units_sold,
+            3.0
+        );
+        assert_eq!(
+            context
+                .latest_order_by_sku
+                .get("sku-1")
+                .expect("order anchor should exist")
+                .observed_at,
+            "2026-04-02T01:00:00Z"
+        );
+        assert_eq!(
+            context
+                .latest_receipt_by_sku
+                .get("sku-1")
+                .expect("receipt anchor should exist")
+                .observed_at,
+            "2026-04-02T02:00:00Z"
+        );
+    }
+
+    #[test]
+    fn latest_run_releases_lookup_connection_before_loading_run() {
+        let path = temp_store_path("latest-run");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        connection
+            .execute(
+                r#"
+                INSERT INTO sena_run (
+                  run_id, owner_sub, algorithm_version, status, observation_count,
+                  created_at, completed_at, summary_json, diagnostics_json,
+                  primary_artifact_key, error
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, NULL, NULL, NULL)
+                "#,
+                params![
+                    "run-old",
+                    "owner",
+                    "test-algo",
+                    "completed",
+                    1_i64,
+                    "2026-04-01T00:00:00Z",
+                    "2026-04-01T00:01:00Z"
+                ],
+            )
+            .expect("older run should insert");
+        connection
+            .execute(
+                r#"
+                INSERT INTO sena_run (
+                  run_id, owner_sub, algorithm_version, status, observation_count,
+                  created_at, completed_at, summary_json, diagnostics_json,
+                  primary_artifact_key, error
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, NULL, NULL, NULL, NULL)
+                "#,
+                params![
+                    "run-latest",
+                    "owner",
+                    "test-algo",
+                    "completed",
+                    2_i64,
+                    "2026-04-02T00:00:00Z",
+                    "2026-04-02T00:01:00Z"
+                ],
+            )
+            .expect("latest run should insert");
+        drop(connection);
+
+        let latest = block_on(repo.get_latest_run("owner")).expect("latest run should load");
+        assert_eq!(
+            latest.as_ref().map(|record| record.run_id.as_str()),
+            Some("run-latest")
+        );
     }
 
     #[test]
