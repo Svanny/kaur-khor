@@ -522,6 +522,7 @@ export function BenchmarkSettingsPage() {
                     <SelectItem value="minimal">Minimal</SelectItem>
                     <SelectItem value="medium">Medium</SelectItem>
                     <SelectItem value="heavy">Heavy</SelectItem>
+                    <SelectItem value="power-user">Power User</SelectItem>
                   </SelectContent>
                 </Select>
               </label>

@@ -25,7 +25,7 @@ export interface LaunchedBanjiBenchmarkApp {
 
 interface LaunchBanjiBenchmarkOptions {
   dataDirectory?: string;
-  fixtureSize?: 'minimal' | 'medium' | 'heavy';
+  fixtureSize?: 'minimal' | 'medium' | 'heavy' | 'power-user';
   outputDirectory?: string;
   prepareWorkspace?: boolean;
   runId?: string;
@@ -56,6 +56,7 @@ export async function launchBanjiForBenchmark(
           BANJI_BENCHMARK_RUN_ID: runId,
           BANJI_BENCHMARK_OUTPUT_DIR: outputDirectory,
           BANJI_BENCHMARK_DATA_DIR: dataDirectory,
+          BANJI_BENCHMARK_DISABLE_DEV_SEED: '1',
           BANJI_DESKTOP_TRACE_IPC: '1',
         },
       });

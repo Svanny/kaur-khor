@@ -43,7 +43,7 @@ export type BanjiBenchmarkScenarioId =
   | 'detail-pages'
   | 'stability';
 
-export type BanjiBenchmarkFixtureSize = 'minimal' | 'medium' | 'heavy';
+export type BanjiBenchmarkFixtureSize = 'minimal' | 'medium' | 'heavy' | 'power-user';
 
 export type BanjiBenchmarkRunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled';
 
@@ -376,15 +376,37 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     rationale: 'Startup-critical IPC must not block the first usable state.',
   },
   {
+    metricName: 'ipc.sena_get_startup_workspace_ms',
+    label: 'Startup workspace IPC',
+    category: 'ipc',
+    scenarios: ['startup'],
+    unit: 'ms',
+    nonNegotiable: 200,
+    acceptable: 400,
+    source: 'RAIL response',
+    rationale: 'Startup should use one compact workspace IPC instead of read fanout.',
+  },
+  {
     metricName: 'ipc.sena_get_workspace_summary_ms',
     label: 'Workspace summary IPC',
     category: 'ipc',
-    scenarios: ['startup', 'navigation', 'record-update', 'stability'],
+    scenarios: ['navigation', 'record-update', 'stability'],
     unit: 'ms',
     nonNegotiable: 200,
     acceptable: 400,
     source: 'RAIL response',
     rationale: 'Common read calls should stay below visible interaction delay.',
+  },
+  {
+    metricName: 'ipc.sena_list_observation_page_ms',
+    label: 'Observation page IPC',
+    category: 'ipc',
+    scenarios: ['navigation', 'record-update', 'detail-pages', 'stability'],
+    unit: 'ms',
+    nonNegotiable: 200,
+    acceptable: 400,
+    source: 'RAIL response',
+    rationale: 'Observation history should page through compact windows instead of full payloads.',
   },
   {
     metricName: 'ipc.sena_get_diagnostics_ms',
@@ -429,6 +451,28 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     acceptable: 200,
     source: 'Electron performance, RAIL response',
     rationale: 'Serialized backend queueing should not become hidden latency.',
+  },
+  {
+    metricName: 'backend.core.read_pool_queue_wait_p95_ms',
+    label: 'Read pool queue wait p95',
+    category: 'core-command',
+    scenarios: ['startup', 'navigation', 'record-update', 'detail-pages', 'stability'],
+    unit: 'ms',
+    nonNegotiable: 100,
+    acceptable: 200,
+    source: 'Electron performance, RAIL response',
+    rationale: 'Read-only fanout should not wait behind writer-only work.',
+  },
+  {
+    metricName: 'backend.core.writer_queue_wait_p95_ms',
+    label: 'Writer queue wait p95',
+    category: 'core-command',
+    scenarios: ['record-update', 'stability'],
+    unit: 'ms',
+    nonNegotiable: 100,
+    acceptable: 200,
+    source: 'Electron performance, RAIL response',
+    rationale: 'Mutations stay serialized but should not accumulate hidden queue delay.',
   },
   {
     metricName: 'renderer.long_task_max_ms',

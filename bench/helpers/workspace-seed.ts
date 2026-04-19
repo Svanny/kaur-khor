@@ -5,26 +5,37 @@ import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
-export type BenchmarkWorkspaceSize = 'minimal' | 'medium' | 'heavy';
+export type BenchmarkWorkspaceSize = 'minimal' | 'medium' | 'heavy' | 'power-user';
 
 export interface BenchmarkWorkspaceSeed {
   dataDirectory: string;
   size: BenchmarkWorkspaceSize;
 }
 
+export const BENCHMARK_WORKSPACE_HISTORY_SIZES: Record<BenchmarkWorkspaceSize, { years: number; intervalDays: number; expectedObservationCount: number }> = {
+  minimal: { years: 0, intervalDays: 7, expectedObservationCount: 0 },
+  medium: { years: 1, intervalDays: 7, expectedObservationCount: 53 },
+  heavy: { years: 3, intervalDays: 3.5, expectedObservationCount: 314 },
+  'power-user': { years: 10, intervalDays: 1, expectedObservationCount: 3653 },
+};
+
+export function normalizeBenchmarkWorkspaceSize(
+  value: string | undefined,
+  fallback: BenchmarkWorkspaceSize,
+): BenchmarkWorkspaceSize {
+  return value === 'minimal' ||
+    value === 'medium' ||
+    value === 'heavy' ||
+    value === 'power-user'
+    ? value
+    : fallback;
+}
+
 export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
   await mkdir(seed.dataDirectory, { recursive: true });
   const repoRoot = resolve('.');
-  const fixtureSize = process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'minimal' ||
-    process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'medium' ||
-    process.env.BANJI_BENCHMARK_FIXTURE_SIZE === 'heavy'
-    ? process.env.BANJI_BENCHMARK_FIXTURE_SIZE
-    : seed.size;
-  const historySize = {
-    minimal: { years: 0, intervalDays: 7 },
-    medium: { years: 1, intervalDays: 7 },
-    heavy: { years: 3, intervalDays: 3.5 },
-  }[fixtureSize];
+  const fixtureSize = normalizeBenchmarkWorkspaceSize(process.env.BANJI_BENCHMARK_FIXTURE_SIZE, seed.size);
+  const historySize = BENCHMARK_WORKSPACE_HISTORY_SIZES[fixtureSize];
   await execFileAsync(
     'python3',
     [
@@ -39,6 +50,7 @@ export async function prepareBenchmarkWorkspace(seed: BenchmarkWorkspaceSeed) {
       String(historySize.years),
       '--interval-days',
       String(historySize.intervalDays),
+      ...(fixtureSize === 'power-user' ? ['--startup-only-read-model'] : []),
     ],
     {
       cwd: repoRoot,

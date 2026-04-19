@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { buildScenarioSummary, readBenchmarkEvents } from './bench-metrics';
+import { BENCHMARK_WORKSPACE_HISTORY_SIZES, normalizeBenchmarkWorkspaceSize } from './workspace-seed';
 import type { BanjiBenchmarkEvent } from '../../src/shared/benchmark';
 
 function benchmarkEvent(
@@ -63,6 +64,20 @@ describe('buildScenarioSummary', () => {
           phase: 'end',
           durationMs: 35,
         }),
+        benchmarkEvent({
+          category: 'ipc',
+          name: 'ipc.banji:sena:get-startup-workspace.handle',
+          phase: 'end',
+          durationMs: 40,
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          command: 'sena.getStartupWorkspace',
+          durationMs: 40,
+          detail: { queueWaitMs: 8 },
+        }),
       ],
     });
 
@@ -74,6 +89,11 @@ describe('buildScenarioSummary', () => {
       value: 1200,
       status: 'pass',
     });
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_startup_workspace_ms')).toMatchObject({
+      value: 40,
+      status: 'pass',
+    });
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_workspace_summary_ms')).toBeUndefined();
     expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_catalog_ms')).toBeUndefined();
   });
 
@@ -120,5 +140,16 @@ describe('buildScenarioSummary', () => {
       status: 'pass',
     });
     expect(summary.targets?.find((target) => target.metricName === 'interaction.save_stock_count_ms')).toBeUndefined();
+  });
+});
+
+describe('benchmark fixture sizing', () => {
+  it('normalizes the Power User fixture and documents the generated datapoint count', () => {
+    expect(normalizeBenchmarkWorkspaceSize('power-user', 'medium')).toBe('power-user');
+    expect(BENCHMARK_WORKSPACE_HISTORY_SIZES['power-user']).toEqual({
+      years: 10,
+      intervalDays: 1,
+      expectedObservationCount: 3653,
+    });
   });
 });

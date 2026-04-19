@@ -8,7 +8,9 @@ import json
 import math
 import os
 import random
+import sqlite3
 import subprocess
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -991,6 +993,7 @@ def history_marker_payload(args: argparse.Namespace) -> dict[str, Any]:
         "version": DEV_HISTORY_VERSION,
         "years": args.years,
         "intervalDays": args.interval_days,
+        "startupOnlyReadModel": bool(getattr(args, "startup_only_read_model", False)),
     }
 
 
@@ -1028,6 +1031,276 @@ def rebuild_sena_workspace(repo_root: Path, db_path: Path, marker_path: Path, ca
         close_desktop_core(proc)
 
 
+def summary_for_startup_fixture(owner: str, catalog: dict[str, Any], observations: list[dict[str, Any]], run_id: str) -> dict[str, Any]:
+    latest_observation = observations[-1] if observations else None
+    latest_stock = {
+        snapshot["skuId"]: snapshot
+        for snapshot in (latest_observation or {}).get("stockSnapshot", [])
+    }
+    sku_summaries = []
+    high_risk_ids = []
+    for sku in catalog.get("skus", []):
+        stock = latest_stock.get(sku["skuId"], {})
+        units = float(stock.get("unitsInStock") or 0.0)
+        demand = max(0.25, min(8.0, units / 12.0))
+        lead_mean = float(sku.get("leadTimeMeanDaysHint") or 7.0)
+        lead_std = float(sku.get("leadTimeStdDaysHint") or max(1.0, lead_mean * 0.25))
+        reorder_point = demand * (lead_mean + 3.0)
+        stockout_risk = clamp((reorder_point - units + 12.0) / max(reorder_point + 12.0, 1.0), 0.0, 1.0)
+        if stockout_risk >= 0.55:
+            high_risk_ids.append(sku["skuId"])
+        sku_summaries.append(
+            {
+                "skuId": sku["skuId"],
+                "latestPosteriorUnits": units,
+                "credibleIntervalLow": max(0.0, units - 4.0),
+                "credibleIntervalHigh": units + 6.0,
+                "demandPerDayMean": demand,
+                "stockoutRisk": round(stockout_risk, 4),
+                "daysOfCover": round(units / demand, 2) if demand > 0 else None,
+                "expectedLeadTimeDemand": round(demand * lead_mean, 4),
+                "safetyStock": round(max(2.0, demand * lead_std), 4),
+                "reorderPoint": round(reorder_point, 4),
+                "reorderTriggerProbability": round(stockout_risk, 4),
+                "reorderQuantity": {
+                    "recommendedUnits": max(0.0, round(reorder_point * 1.6 - units, 2)),
+                    "ungatedRecommendedUnits": max(0.0, round(reorder_point * 1.6 - units, 2)),
+                    "likelyRangeLow": max(0.0, round(reorder_point - units, 2)),
+                    "likelyRangeHigh": max(0.0, round(reorder_point * 2.0 - units, 2)),
+                    "needProbability": round(stockout_risk, 4),
+                    "recommendationIssued": stockout_risk >= 0.55,
+                    "recommendationQuantile": 0.85,
+                    "intervalLowQuantile": 0.1,
+                    "intervalHighQuantile": 0.9,
+                    "needProbabilityGate": 0.55,
+                    "reviewDelayDays": 2.0,
+                },
+                "leadTimeMeanDays": lead_mean,
+                "leadTimeStdDays": lead_std,
+                "regimeProbabilities": {"normal": 0.72, "promo": 0.18, "lull": 0.1},
+            }
+        )
+    return {
+        "ownerSub": owner,
+        "runId": run_id,
+        "latestObservedAt": latest_observation.get("observedAt") if latest_observation else None,
+        "skuCount": len(catalog.get("skus", [])),
+        "serviceCount": len(catalog.get("services", [])),
+        "intervalCount": len(observations),
+        "pendingReorderCount": len(high_risk_ids),
+        "topRegime": "normal",
+        "highRiskSkuIds": high_risk_ids[:12],
+        "skuSummaries": sku_summaries,
+    }
+
+
+def diagnostics_for_startup_fixture() -> dict[str, Any]:
+    return {
+        "effectiveSampleSizeMean": 128.0,
+        "resamplingCount": 0,
+        "smoothingEnabled": True,
+        "changePointProbability": 0.12,
+        "latestChangePointProbability": 0.12,
+        "seasonalityActive": True,
+        "posteriorPredictiveErrorMean": 0.08,
+        "coverageEstimate": 0.92,
+        "regimeHistory": [],
+    }
+
+
+def rebuild_startup_fixture_workspace(db_path: Path, marker_path: Path, catalog: dict[str, Any], observations: list[dict[str, Any]], owner: str) -> None:
+    if db_path.exists():
+        db_path.unlink()
+    if marker_path.exists():
+        marker_path.unlink()
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    updated_at = isoformat_z(datetime.now(UTC))
+    run_id = "benchmark-power-user-run"
+    summary = summary_for_startup_fixture(owner, catalog, observations, run_id)
+    diagnostics = diagnostics_for_startup_fixture()
+
+    with sqlite3.connect(db_path) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS sena_catalog (
+              owner_sub TEXT PRIMARY KEY,
+              payload TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS sena_observation (
+              observation_id TEXT PRIMARY KEY,
+              owner_sub TEXT NOT NULL,
+              observed_at TEXT NOT NULL,
+              payload TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_observation_owner_latest
+              ON sena_observation (owner_sub, observed_at DESC, observation_id DESC);
+            CREATE TABLE IF NOT EXISTS sena_run (
+              run_id TEXT PRIMARY KEY,
+              owner_sub TEXT NOT NULL,
+              algorithm_version TEXT NOT NULL,
+              status TEXT NOT NULL,
+              observation_count INTEGER NOT NULL,
+              created_at TEXT NOT NULL,
+              completed_at TEXT,
+              summary_json TEXT,
+              diagnostics_json TEXT,
+              primary_artifact_key TEXT,
+              error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_run_owner_created_at
+              ON sena_run (owner_sub, created_at DESC);
+            CREATE TABLE IF NOT EXISTS sena_read_model (
+              owner_sub TEXT PRIMARY KEY,
+              workspace_summary_json TEXT NOT NULL,
+              diagnostics_json TEXT NOT NULL,
+              sku_details_json TEXT NOT NULL,
+              service_details_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              run_id TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS sena_workspace_summary_hot (
+              owner_sub TEXT PRIMARY KEY,
+              run_id TEXT NOT NULL,
+              latest_observed_at TEXT,
+              sku_count INTEGER NOT NULL,
+              service_count INTEGER NOT NULL,
+              interval_count INTEGER NOT NULL,
+              pending_reorder_count INTEGER NOT NULL,
+              top_regime TEXT NOT NULL,
+              high_risk_sku_ids_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS sena_sku_summary_hot (
+              owner_sub TEXT NOT NULL,
+              sku_id TEXT NOT NULL,
+              run_id TEXT NOT NULL,
+              latest_posterior_units REAL NOT NULL,
+              credible_interval_low REAL NOT NULL,
+              credible_interval_high REAL NOT NULL,
+              demand_per_day_mean REAL NOT NULL,
+              stockout_risk REAL NOT NULL,
+              days_of_cover REAL,
+              expected_lead_time_demand REAL NOT NULL,
+              safety_stock REAL NOT NULL,
+              reorder_point REAL NOT NULL,
+              reorder_trigger_probability REAL NOT NULL,
+              reorder_quantity_json TEXT NOT NULL,
+              lead_time_mean_days REAL NOT NULL,
+              lead_time_std_days REAL NOT NULL,
+              regime_probabilities_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (owner_sub, sku_id)
+            );
+            """
+        )
+        connection.execute(
+            "INSERT INTO sena_catalog (owner_sub, payload, updated_at) VALUES (?, ?, ?)",
+            (owner, json.dumps(catalog), updated_at),
+        )
+        connection.executemany(
+            "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?, ?, ?, ?)",
+            [
+                (str(uuid.uuid4()), owner, observation["observedAt"], json.dumps(observation))
+                for observation in observations
+            ],
+        )
+
+        connection.execute(
+            """
+            INSERT INTO sena_run (
+              run_id, owner_sub, algorithm_version, status, observation_count, created_at,
+              completed_at, summary_json, diagnostics_json, primary_artifact_key, error
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                owner,
+                "sena-analysis-v3",
+                "succeeded",
+                len(observations),
+                updated_at,
+                updated_at,
+                json.dumps(summary),
+                json.dumps(diagnostics),
+                None,
+                None,
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO sena_read_model (
+              owner_sub, workspace_summary_json, diagnostics_json, sku_details_json,
+              service_details_json, updated_at, run_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (owner, json.dumps(summary), json.dumps(diagnostics), "{}", "{}", updated_at, run_id),
+        )
+        connection.execute(
+            """
+            INSERT INTO sena_workspace_summary_hot (
+              owner_sub, run_id, latest_observed_at, sku_count, service_count, interval_count,
+              pending_reorder_count, top_regime, high_risk_sku_ids_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                owner,
+                run_id,
+                summary["latestObservedAt"],
+                summary["skuCount"],
+                summary["serviceCount"],
+                summary["intervalCount"],
+                summary["pendingReorderCount"],
+                summary["topRegime"],
+                json.dumps(summary["highRiskSkuIds"]),
+                updated_at,
+            ),
+        )
+        connection.executemany(
+            """
+            INSERT INTO sena_sku_summary_hot (
+              owner_sub, sku_id, run_id, latest_posterior_units, credible_interval_low,
+              credible_interval_high, demand_per_day_mean, stockout_risk, days_of_cover,
+              expected_lead_time_demand, safety_stock, reorder_point,
+              reorder_trigger_probability, reorder_quantity_json, lead_time_mean_days,
+              lead_time_std_days, regime_probabilities_json, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            [
+                (
+                    owner,
+                    sku["skuId"],
+                    run_id,
+                    sku["latestPosteriorUnits"],
+                    sku["credibleIntervalLow"],
+                    sku["credibleIntervalHigh"],
+                    sku["demandPerDayMean"],
+                    sku["stockoutRisk"],
+                    sku["daysOfCover"],
+                    sku["expectedLeadTimeDemand"],
+                    sku["safetyStock"],
+                    sku["reorderPoint"],
+                    sku["reorderTriggerProbability"],
+                    json.dumps(sku["reorderQuantity"]),
+                    sku["leadTimeMeanDays"],
+                    sku["leadTimeStdDays"],
+                    json.dumps(sku["regimeProbabilities"]),
+                    updated_at,
+                )
+                for sku in summary["skuSummaries"]
+            ],
+        )
+
+
+def migrate_sena_workspace_schema(repo_root: Path, db_path: Path) -> None:
+    proc = start_desktop_core(repo_root, db_path)
+    try:
+        send_core_command(proc, 1, "sena.getCatalog", None)
+    finally:
+        close_desktop_core(proc)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate plausible SENA dev history for the current Banji app schema.")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -1044,6 +1317,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sena-db", type=Path, default=None)
     parser.add_argument("--seed-marker", type=Path, default=None)
     parser.add_argument("--force", action="store_true", help="Regenerate even when the history marker already matches.")
+    parser.add_argument(
+        "--startup-only-read-model",
+        action="store_true",
+        help="Bulk-load observations and compact startup read models without running full posterior analysis.",
+    )
     return parser.parse_args()
 
 
@@ -1088,7 +1366,11 @@ def main() -> None:
     sena_catalog = build_sena_catalog(latest_skus, latest_services)
     sena_observations = build_sena_observations(reports, latest_services, latest_services)
     enrich_lead_time_hints(sena_observations, latest_skus)
-    rebuild_sena_workspace(repo_root, sena_db_path, seed_marker_path, sena_catalog, sena_observations)
+    if args.startup_only_read_model:
+        rebuild_startup_fixture_workspace(sena_db_path, seed_marker_path, sena_catalog, sena_observations, args.owner)
+        migrate_sena_workspace_schema(repo_root, sena_db_path)
+    else:
+        rebuild_sena_workspace(repo_root, sena_db_path, seed_marker_path, sena_catalog, sena_observations)
     write_history_marker(seed_marker_path, args)
 
     print(

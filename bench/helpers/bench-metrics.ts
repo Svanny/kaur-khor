@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   evaluateBenchmarkTargets,
@@ -12,8 +12,13 @@ export type BenchmarkMetricSummary = BanjiBenchmarkMetricSummary;
 export type BenchmarkScenarioSummary = BanjiBenchmarkScenarioSummary;
 
 export async function readBenchmarkEvents(outputDirectory: string) {
+  const entries = await readdir(outputDirectory).catch(() => []);
+  const eventFiles = [
+    'events.jsonl',
+    ...entries.filter((entry) => entry === 'core-events.jsonl' || /^core-events-.+\.jsonl$/.test(entry)),
+  ];
   const streams = await Promise.all(
-    ['events.jsonl', 'core-events.jsonl'].map(async (fileName) => {
+    eventFiles.map(async (fileName) => {
       const path = join(outputDirectory, fileName);
       const raw = await readFile(path, 'utf8').catch(() => '');
       return raw
@@ -95,6 +100,27 @@ function p95DetailMetric(events: BanjiBenchmarkEvent[], eventName: string, detai
   return summarizeDurations(values).p95;
 }
 
+function p95DetailMetricWhere(
+  events: BanjiBenchmarkEvent[],
+  eventName: string,
+  detailKey: string,
+  predicate: (event: BanjiBenchmarkEvent) => boolean,
+) {
+  const values = events
+    .filter((event) => event.name === eventName && predicate(event))
+    .map((event) => event.detail?.[detailKey])
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  return summarizeDurations(values).p95;
+}
+
+function isReadOnlyBenchmarkCommand(command: string | null | undefined) {
+  return command === 'system.ping'
+    || command?.startsWith('sena.get') === true
+    || command?.startsWith('sena.list') === true
+    || command?.startsWith('inventory.load') === true
+    || command?.startsWith('inventory.list') === true;
+}
+
 function memoryValue(event: BanjiBenchmarkEvent | undefined) {
   const detail = event?.detail;
   const usedHeap = detail?.usedJSHeapSizeMb;
@@ -130,8 +156,8 @@ function deriveBenchmarkMetrics(
       firstSummaryMetric(metrics, ['ipc.banji:system:get-app-context.handle', 'preload.invoke.banji:system:get-app-context']),
     );
     maybeSet(
-      'ipc.sena_get_workspace_summary_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
+      'ipc.sena_get_startup_workspace_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-startup-workspace.handle', 'preload.invoke.banji:sena:get-startup-workspace']),
     );
   }
 
@@ -163,6 +189,28 @@ function deriveBenchmarkMetrics(
   maybeSet(
     'backend.core.queue_wait_p95_ms',
     p95DetailMetric(events, 'backend.core.request.resolve', 'queueWaitMs'),
+  );
+  maybeSet(
+    'backend.core.read_pool_queue_wait_p95_ms',
+    p95DetailMetricWhere(
+      events,
+      'backend.core.request.resolve',
+      'queueWaitMs',
+      (event) => isReadOnlyBenchmarkCommand(event.command),
+    ),
+  );
+  maybeSet(
+    'backend.core.writer_queue_wait_p95_ms',
+    p95DetailMetricWhere(
+      events,
+      'backend.core.request.resolve',
+      'queueWaitMs',
+      (event) => !isReadOnlyBenchmarkCommand(event.command),
+    ),
+  );
+  maybeSet(
+    'ipc.sena_list_observation_page_ms',
+    firstSummaryMetric(metrics, ['ipc.banji:sena:list-observation-page.handle', 'preload.invoke.banji:sena:list-observation-page']),
   );
 
   if (scenario === 'stability') {

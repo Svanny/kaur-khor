@@ -25,6 +25,7 @@ import {
   isBenchmarkRunTerminal,
   reconcileBenchmarkRunRecord,
 } from './benchmark-runner-state';
+import { settleBenchmarkTasksSequentially } from './benchmark-runner-scheduling';
 
 const MAX_TAIL_LINES = 200;
 const RUN_RECORD_DIRECTORY = 'gui-runs';
@@ -118,7 +119,7 @@ function normalizeRunOptions(options: BanjiBenchmarkRunOptions): BanjiBenchmarkR
   }
   return {
     scenarios,
-    fixtureSize: ['minimal', 'medium', 'heavy'].includes(options.fixtureSize) ? options.fixtureSize : 'medium',
+    fixtureSize: ['minimal', 'medium', 'heavy', 'power-user'].includes(options.fixtureSize) ? options.fixtureSize : 'medium',
     traceEnabled: Boolean(options.traceEnabled),
     repeatCount: Math.min(5, Math.max(1, Math.floor(Number(options.repeatCount) || 1))),
     buildBeforeRun: options.buildBeforeRun !== false,
@@ -466,10 +467,15 @@ export function registerBenchmarkRunnerIpc({
           return null;
         }
         const directory = dirname(summaryFile);
-        const [rendererEvents, coreEvents] = await Promise.all([
+        const directoryEntries = await readdir(directory).catch(() => []);
+        const coreEventFiles = directoryEntries
+          .filter((entry) => entry === 'core-events.jsonl' || /^core-events-.+\.jsonl$/.test(entry))
+          .map((entry) => join(directory, entry));
+        const [rendererEvents, ...coreEventStreams] = await Promise.all([
           readJsonlFile<BanjiBenchmarkEvent>(join(directory, 'events.jsonl')),
-          readJsonlFile<BanjiBenchmarkEvent>(join(directory, 'core-events.jsonl')),
+          ...coreEventFiles.map((file) => readJsonlFile<BanjiBenchmarkEvent>(file)),
         ]);
+        const coreEvents = coreEventStreams.flat();
         const events = [...rendererEvents, ...coreEvents].sort((left, right) => left.ts - right.ts);
         if (events.length === 0) {
           return null;
@@ -651,11 +657,11 @@ export function registerBenchmarkRunnerIpc({
         await setRunStatus(
           run,
           'running',
-          `Running ${scenario} with ${record.repeatCount} parallel repeat${record.repeatCount === 1 ? '' : 's'}.`,
+          `Running ${scenario} with ${record.repeatCount} sequential repeat${record.repeatCount === 1 ? '' : 's'}.`,
         );
-        const results = await Promise.allSettled(
+        const results = await settleBenchmarkTasksSequentially(
           Array.from({ length: record.repeatCount }, (_value, repeatIndex) =>
-            spawnScenarioRepeat(run, scenario, repeatIndex, env)),
+            () => spawnScenarioRepeat(run, scenario, repeatIndex, env)),
         );
         if (run.cancelled) {
           throw new Error('cancelled');
