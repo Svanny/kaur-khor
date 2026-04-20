@@ -215,6 +215,13 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - Checkpoint payloads live as compressed files under `sena-checkpoints/` with SQLite metadata. Do not put large checkpoint JSON blobs back into the hot SQLite path.
 - Benchmark fixtures are `minimal`, `medium`, `heavy`, and `power-user`; Power User means 10 years, 1 day interval, 3,653 observations.
 
+### Ticketing architecture
+- Banji removes the legacy batch update system in favor of ticket-backed operations. New customer orders, supplier orders, receipts, and adjustments must write ticket events with stable ticket identity instead of only grouped batch aggregates.
+- Supplier receipt is not a separate primary Record Update wizard. Receipt capture belongs inside Supplier order updates against an existing supplier ticket.
+- Customer and supplier order wizards must ask whether the operator is creating a new ticket or editing/updating an existing ticket before continuing.
+- Customer channel, name, and phone live in the Record Update notes section for UI placement, but must still be stored as structured ticket party metadata. Normalize channel/name/phone lookup keys case-insensitively.
+- Overview must keep exactly three top-level ticket-family toggles: Customer, Supplier, All. All view must retain visible family labels on every row.
+
 ### Forbidden
 - Do not run or document `pnpm run build --silent`; `electron-vite build` rejects the forwarded `--silent` flag.
 - Do not treat renderer-visible calculation changes as copy-only. Trace the model/data path, update the underlying calculation, and add or update focused tests.

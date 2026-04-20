@@ -40,6 +40,12 @@ Workspace summaries are stored in normalized hot SQLite tables for startup reads
 Legacy JSON read models remain available for compatibility and detail-oriented
 surfaces.
 
+Ticket-backed operational updates are stored on observations as structured
+`ticketEvents`. These events are evidence for SKU, service, performance,
+analysis, and financial projections. They should remain distinct from legacy
+order-signal and order-batch compatibility reads so new operational facts keep a
+stable ticket identity and event revision trail.
+
 SENA checkpoints are stored as compressed payload files under
 `sena-checkpoints/`, with SQLite rows holding metadata such as codec, path, byte
 size, owner, algorithm version, and catalog fingerprint.
@@ -83,7 +89,7 @@ not be copied into startup or route-first-render paths.
 The exported rows include:
 
 - observation identity fields
-- counts for stock, rankings, stockouts, order signals, prices, lead times, adjustments, and recipe usage hints
+- counts for stock, rankings, stockouts, order signals, ticket events, prices, lead times, adjustments, and recipe usage hints
 - regime hint and notes
 - the full input payload
 

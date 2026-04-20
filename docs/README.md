@@ -6,6 +6,7 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
+- [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd)
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd)
@@ -50,6 +51,7 @@ pnpm package:win:native
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, backup snapshots, restore, and clear-data behavior
+- [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Record Update authoring contract, Overview queue behavior, and downstream projections
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
@@ -75,6 +77,7 @@ If you are new to the repo, read the docs in this order:
 
 1. [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 2. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
-3. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
-4. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-5. [User guide (English)](/Users/svanny/banji/docs/user-guide.md)
+3. [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
+4. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
+5. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
+6. [User guide (English)](/Users/svanny/banji/docs/user-guide.md)

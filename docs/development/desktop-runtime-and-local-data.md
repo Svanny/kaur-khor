@@ -52,6 +52,12 @@ Read behavior:
 - `sena.getRecordUpdateContext()` returns latest stock, sales, order, receipt, and observation anchors for update flows.
 - `sena.listObservations()` remains available for compatibility and full export-style reads, but should not be used during startup.
 
+Record Update now authors customer, supplier, and adjustment work as ticket
+events on observations. The old order-batch data remains a compatibility read
+model where needed, but new operational writes should preserve ticket identity,
+line items, party metadata, lifecycle, stage, and revision in
+`SenaObservationInput.ticketEvents`.
+
 The managed backend starts one writer core and a small pool of read workers. The
 writer handles mutations and all destructive/backup-sensitive commands. Read-only
 commands can use read workers after they are ready, while identical read requests
