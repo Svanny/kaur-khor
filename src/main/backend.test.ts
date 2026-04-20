@@ -6,10 +6,12 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  isReadOnlyCoreCommand,
   resolveCoreLaunchCommand,
   resolveCoreLaunchCommands,
   resolveCoreWorkingDirectory,
   resolveManagedCoreEnv,
+  shouldWaitForReadWorker,
   terminateManagedChildProcess,
 } from './backend';
 
@@ -187,5 +189,36 @@ describe('desktop core host helpers', () => {
     } finally {
       processKill.mockRestore();
     }
+  });
+
+  it('classifies read-only commands for read-pool dispatch', () => {
+    expect(isReadOnlyCoreCommand('sena.getRecordUpdateContext')).toBe(true);
+    expect(isReadOnlyCoreCommand('sena.listOrderBatches')).toBe(true);
+    expect(isReadOnlyCoreCommand('inventory.loadSnapshot')).toBe(true);
+    expect(isReadOnlyCoreCommand('sena.ingestObservation')).toBe(false);
+    expect(isReadOnlyCoreCommand('sena.updateOrderBatch')).toBe(false);
+  });
+
+  it('waits for read workers only for deferred read-only commands', () => {
+    expect(shouldWaitForReadWorker({
+      commandName: 'sena.getRecordUpdateContext',
+      hasReadyReadWorker: false,
+      readPriority: 'deferred',
+    })).toBe(true);
+    expect(shouldWaitForReadWorker({
+      commandName: 'sena.getStartupWorkspace',
+      hasReadyReadWorker: false,
+      readPriority: 'critical',
+    })).toBe(false);
+    expect(shouldWaitForReadWorker({
+      commandName: 'sena.getRecordUpdateContext',
+      hasReadyReadWorker: true,
+      readPriority: 'deferred',
+    })).toBe(false);
+    expect(shouldWaitForReadWorker({
+      commandName: 'sena.ingestObservation',
+      hasReadyReadWorker: false,
+      readPriority: 'deferred',
+    })).toBe(false);
   });
 });

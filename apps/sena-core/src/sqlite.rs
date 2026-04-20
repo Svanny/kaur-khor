@@ -15,6 +15,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -44,6 +45,8 @@ impl SqliteSenaRepository {
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let previous_user_version: i64 =
+            connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         connection.execute_batch(
             r#"
             CREATE TABLE IF NOT EXISTS sena_catalog (
@@ -190,7 +193,21 @@ impl SqliteSenaRepository {
                 observation_count DESC,
                 completed_interval_count DESC
               );
-            PRAGMA user_version = 2;
+            CREATE TABLE IF NOT EXISTS sena_record_update_anchor_hot (
+              owner_sub TEXT NOT NULL,
+              anchor_kind TEXT NOT NULL,
+              entity_id TEXT NOT NULL,
+              observation_id TEXT NOT NULL,
+              observed_at TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              PRIMARY KEY (owner_sub, anchor_kind, entity_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_sena_record_update_anchor_owner_kind
+              ON sena_record_update_anchor_hot (owner_sub, anchor_kind);
+            CREATE INDEX IF NOT EXISTS idx_sena_record_update_anchor_owner_observation
+              ON sena_record_update_anchor_hot (owner_sub, observation_id);
+            PRAGMA user_version = 3;
             "#,
         )?;
         ensure_column(
@@ -211,6 +228,9 @@ impl SqliteSenaRepository {
             "payload_bytes",
             "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_bytes INTEGER",
         )?;
+        if previous_user_version < 3 {
+            backfill_record_update_anchors_locked(&connection)?;
+        }
         Ok(())
     }
 
@@ -260,6 +280,198 @@ fn ensure_column(
         }
     }
     connection.execute(alter_sql, [])?;
+    Ok(())
+}
+
+fn is_newer_record_update_anchor(
+    current_observed_at: &str,
+    current_observation_id: &str,
+    next_observed_at: &str,
+    next_observation_id: &str,
+) -> bool {
+    next_observed_at > current_observed_at
+        || (next_observed_at == current_observed_at && next_observation_id > current_observation_id)
+}
+
+fn upsert_record_update_anchor_locked<T: Serialize>(
+    connection: &Connection,
+    owner_sub: &str,
+    anchor_kind: &str,
+    entity_id: &str,
+    observation_id: &str,
+    observed_at: &str,
+    value: &T,
+    updated_at: &str,
+) -> Result<()> {
+    let current = connection
+        .query_row(
+            r#"
+            SELECT observed_at, observation_id
+            FROM sena_record_update_anchor_hot
+            WHERE owner_sub = ?1 AND anchor_kind = ?2 AND entity_id = ?3
+            "#,
+            params![owner_sub, anchor_kind, entity_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    if let Some((current_observed_at, current_observation_id)) = current {
+        if !is_newer_record_update_anchor(
+            &current_observed_at,
+            &current_observation_id,
+            observed_at,
+            observation_id,
+        ) {
+            return Ok(());
+        }
+    }
+
+    connection.execute(
+        r#"
+        INSERT INTO sena_record_update_anchor_hot (
+          owner_sub, anchor_kind, entity_id, observation_id, observed_at, payload_json, updated_at
+        )
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        ON CONFLICT(owner_sub, anchor_kind, entity_id) DO UPDATE SET
+          observation_id = excluded.observation_id,
+          observed_at = excluded.observed_at,
+          payload_json = excluded.payload_json,
+          updated_at = excluded.updated_at
+        "#,
+        params![
+            owner_sub,
+            anchor_kind,
+            entity_id,
+            observation_id,
+            observed_at,
+            serde_json::to_string(value)?,
+            updated_at,
+        ],
+    )?;
+    Ok(())
+}
+
+fn upsert_record_update_anchors_for_observation_locked(
+    connection: &Connection,
+    owner_sub: &str,
+    observation_id: &str,
+    input: &SenaObservationInput,
+    updated_at: &str,
+) -> Result<()> {
+    for snapshot in &input.stock_snapshot {
+        upsert_record_update_anchor_locked(
+            connection,
+            owner_sub,
+            "stock",
+            &snapshot.sku_id,
+            observation_id,
+            &input.observed_at,
+            snapshot,
+            updated_at,
+        )?;
+    }
+    for sale in &input.retail_sales_snapshot {
+        if sale.units_sold > 0.0 {
+            upsert_record_update_anchor_locked(
+                connection,
+                owner_sub,
+                "retail_sale",
+                &sale.sku_id,
+                observation_id,
+                &input.observed_at,
+                sale,
+                updated_at,
+            )?;
+        }
+    }
+    for sale in &input.service_sales_snapshot {
+        if sale.units_sold > 0.0 {
+            upsert_record_update_anchor_locked(
+                connection,
+                owner_sub,
+                "service_sale",
+                &sale.service_id,
+                observation_id,
+                &input.observed_at,
+                sale,
+                updated_at,
+            )?;
+        }
+    }
+    for signal in &input.order_signals {
+        if signal.order_placed || signal.approximate_order_quantity.is_some() {
+            let observed_at = signal
+                .placement_timestamp
+                .as_deref()
+                .unwrap_or(input.observed_at.as_str());
+            upsert_record_update_anchor_locked(
+                connection,
+                owner_sub,
+                "order",
+                &signal.sku_id,
+                observation_id,
+                observed_at,
+                signal,
+                updated_at,
+            )?;
+        }
+        if signal.receipt_arrived || signal.approximate_receipt_quantity.is_some() {
+            let observed_at = signal
+                .receipt_timestamp
+                .as_deref()
+                .unwrap_or(input.observed_at.as_str());
+            upsert_record_update_anchor_locked(
+                connection,
+                owner_sub,
+                "receipt",
+                &signal.sku_id,
+                observation_id,
+                observed_at,
+                signal,
+                updated_at,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+fn rebuild_record_update_anchors_locked(connection: &Connection, owner_sub: &str) -> Result<()> {
+    connection.execute(
+        "DELETE FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
+        params![owner_sub],
+    )?;
+    let updated_at = now_rfc3339();
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT observation_id, payload
+        FROM sena_observation
+        WHERE owner_sub = ?1
+        "#,
+    )?;
+    let rows = stmt.query_map(params![owner_sub], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    for row in rows {
+        let (observation_id, payload) = row?;
+        let input: SenaObservationInput = serde_json::from_str(&payload)?;
+        upsert_record_update_anchors_for_observation_locked(
+            connection,
+            owner_sub,
+            &observation_id,
+            &input,
+            &updated_at,
+        )?;
+    }
+    Ok(())
+}
+
+fn backfill_record_update_anchors_locked(connection: &Connection) -> Result<()> {
+    let mut stmt = connection.prepare("SELECT DISTINCT owner_sub FROM sena_observation")?;
+    let owners = stmt
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<std::result::Result<Vec<_>, _>>()?;
+    for owner_sub in owners {
+        rebuild_record_update_anchors_locked(connection, &owner_sub)?;
+    }
     Ok(())
 }
 
@@ -813,6 +1025,13 @@ impl SenaRepository for SqliteSenaRepository {
                 serde_json::to_string(&record.input)?
             ],
         )?;
+        upsert_record_update_anchors_for_observation_locked(
+            &connection,
+            owner_sub,
+            &record.observation_id,
+            &record.input,
+            &now_rfc3339(),
+        )?;
         Ok(record)
     }
 
@@ -842,6 +1061,7 @@ impl SenaRepository for SqliteSenaRepository {
         if updated == 0 {
             return Err(anyhow!("observation not found"));
         }
+        rebuild_record_update_anchors_locked(&connection, owner_sub)?;
         Ok(SenaObservationRecord {
             observation_id: observation_id.to_string(),
             owner_sub: owner_sub.to_string(),
@@ -861,6 +1081,7 @@ impl SenaRepository for SqliteSenaRepository {
         if deleted == 0 {
             return Err(anyhow!("observation not found"));
         }
+        rebuild_record_update_anchors_locked(&connection, owner_sub)?;
         Ok(())
     }
 
@@ -1017,12 +1238,22 @@ impl SenaRepository for SqliteSenaRepository {
         let mut latest_service_sale_by_service = BTreeMap::new();
         let mut latest_order_by_sku = BTreeMap::new();
         let mut latest_receipt_by_sku = BTreeMap::new();
+
+        let anchor_count: i64 = connection.query_row(
+            "SELECT COUNT(*) FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
+            params![owner_sub],
+            |row| row.get(0),
+        )?;
+        if observation_fingerprint.count > 0 && anchor_count == 0 {
+            rebuild_record_update_anchors_locked(&connection, owner_sub)?;
+        }
+
         let mut stmt = connection.prepare(
             r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
+            SELECT anchor_kind, entity_id, observation_id, observed_at, payload_json
+            FROM sena_record_update_anchor_hot
             WHERE owner_sub = ?1
-            ORDER BY observed_at DESC, observation_id DESC
+            ORDER BY anchor_kind ASC, entity_id ASC
             "#,
         )?;
         let rows = stmt.query_map(params![owner_sub], |row| {
@@ -1030,67 +1261,49 @@ impl SenaRepository for SqliteSenaRepository {
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
             ))
         })?;
         for row in rows {
-            let (observation_id, observed_at, payload) = row?;
-            let input: SenaObservationInput = serde_json::from_str(&payload)?;
-            for snapshot in input.stock_snapshot {
-                latest_stock_by_sku.entry(snapshot.sku_id.clone()).or_insert_with(|| {
-                    SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: snapshot,
-                    }
-                });
-            }
-            for sale in input.retail_sales_snapshot {
-                if sale.units_sold > 0.0 {
-                    latest_retail_sale_by_sku.entry(sale.sku_id.clone()).or_insert_with(|| {
-                        SenaRecordUpdateAnchor {
-                            observation_id: observation_id.clone(),
-                            observed_at: observed_at.clone(),
-                            value: sale,
-                        }
+            let (anchor_kind, entity_id, observation_id, observed_at, payload) = row?;
+            match anchor_kind.as_str() {
+                "stock" => {
+                    latest_stock_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
+                        observation_id,
+                        observed_at,
+                        value: serde_json::from_str(&payload)?,
                     });
                 }
-            }
-            for sale in input.service_sales_snapshot {
-                if sale.units_sold > 0.0 {
-                    latest_service_sale_by_service.entry(sale.service_id.clone()).or_insert_with(|| {
-                        SenaRecordUpdateAnchor {
-                            observation_id: observation_id.clone(),
-                            observed_at: observed_at.clone(),
-                            value: sale,
-                        }
+                "retail_sale" => {
+                    latest_retail_sale_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
+                        observation_id,
+                        observed_at,
+                        value: serde_json::from_str(&payload)?,
                     });
                 }
-            }
-            for signal in input.order_signals {
-                if signal.order_placed || signal.approximate_order_quantity.is_some() {
-                    latest_order_by_sku.entry(signal.sku_id.clone()).or_insert_with(|| {
-                        SenaRecordUpdateAnchor {
-                            observation_id: observation_id.clone(),
-                            observed_at: signal
-                                .placement_timestamp
-                                .clone()
-                                .unwrap_or_else(|| observed_at.clone()),
-                            value: signal.clone(),
-                        }
+                "service_sale" => {
+                    latest_service_sale_by_service.insert(entity_id, SenaRecordUpdateAnchor {
+                        observation_id,
+                        observed_at,
+                        value: serde_json::from_str(&payload)?,
                     });
                 }
-                if signal.receipt_arrived || signal.approximate_receipt_quantity.is_some() {
-                    latest_receipt_by_sku.entry(signal.sku_id.clone()).or_insert_with(|| {
-                        SenaRecordUpdateAnchor {
-                            observation_id: observation_id.clone(),
-                            observed_at: signal
-                                .receipt_timestamp
-                                .clone()
-                                .unwrap_or_else(|| observed_at.clone()),
-                            value: signal,
-                        }
+                "order" => {
+                    latest_order_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
+                        observation_id,
+                        observed_at,
+                        value: serde_json::from_str(&payload)?,
                     });
                 }
+                "receipt" => {
+                    latest_receipt_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
+                        observation_id,
+                        observed_at,
+                        value: serde_json::from_str(&payload)?,
+                    });
+                }
+                _ => {}
             }
         }
         Ok(SenaRecordUpdateContext {
@@ -2430,6 +2643,146 @@ mod tests {
                 .expect("receipt anchor should exist")
                 .observed_at,
             "2026-04-02T02:00:00Z"
+        );
+    }
+
+    #[test]
+    fn migration_backfills_record_update_anchor_rows_from_legacy_observations() {
+        let path = temp_store_path("record-update-anchor-backfill");
+        {
+            let connection = rusqlite::Connection::open(&path).expect("legacy db should open");
+            connection
+                .execute_batch(
+                    r#"
+                    CREATE TABLE sena_observation (
+                      observation_id TEXT PRIMARY KEY,
+                      owner_sub TEXT NOT NULL,
+                      observed_at TEXT NOT NULL,
+                      payload TEXT NOT NULL
+                    );
+                    PRAGMA user_version = 2;
+                    "#,
+                )
+                .expect("legacy schema should create");
+            connection
+                .execute(
+                    "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
+                    params![
+                        "legacy-obs",
+                        "owner",
+                        "2026-04-01T00:00:00Z",
+                        serde_json::to_string(&observation("2026-04-01T00:00:00Z", 12.0).input)
+                            .expect("payload should serialize")
+                    ],
+                )
+                .expect("legacy observation should insert");
+        }
+
+        let repo = SqliteSenaRepository::open(&path).expect("repo should migrate");
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        let count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
+                params!["owner"],
+                |row| row.get(0),
+            )
+            .expect("anchor count should load");
+        assert!(count > 0);
+    }
+
+    #[test]
+    fn record_update_context_reads_anchor_rows_without_observation_payload_scan() {
+        let path = temp_store_path("record-update-anchor-read");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let record = block_on(repo.insert_observation(
+            "owner",
+            &observation("2026-04-01T00:00:00Z", 12.0).input,
+        ))
+        .expect("observation should insert");
+        {
+            let connection = repo
+                .connection
+                .lock()
+                .expect("sqlite lock should be available");
+            connection
+                .execute(
+                    "UPDATE sena_observation SET payload = ?2 WHERE observation_id = ?1",
+                    params![record.observation_id, "{not-json"],
+                )
+                .expect("payload should corrupt");
+        }
+
+        let context = block_on(repo.get_record_update_context("owner"))
+            .expect("context should load from anchors");
+        assert_eq!(
+            context
+                .latest_stock_by_sku
+                .get("sku-1")
+                .expect("stock anchor should exist")
+                .value
+                .units_in_stock,
+            12.0
+        );
+    }
+
+    #[test]
+    fn record_update_anchors_rebuild_after_update_and_delete() {
+        let path = temp_store_path("record-update-anchor-maintenance");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let older = block_on(repo.insert_observation(
+            "owner",
+            &observation("2026-04-01T00:00:00Z", 8.0).input,
+        ))
+        .expect("older observation should insert");
+        let latest = block_on(repo.insert_observation(
+            "owner",
+            &observation("2026-04-02T00:00:00Z", 5.0).input,
+        ))
+        .expect("latest observation should insert");
+
+        block_on(repo.delete_observation("owner", &latest.observation_id))
+            .expect("latest observation should delete");
+        let after_delete = block_on(repo.get_record_update_context("owner"))
+            .expect("context should load after delete");
+        assert_eq!(
+            after_delete
+                .latest_stock_by_sku
+                .get("sku-1")
+                .expect("stock anchor should exist")
+                .value
+                .units_in_stock,
+            8.0
+        );
+
+        let mut updated = observation("2026-04-03T00:00:00Z", 3.0).input;
+        updated.retail_sales_snapshot = vec![crate::types::SenaRetailSalesSnapshot {
+            sku_id: "sku-1".to_string(),
+            units_sold: 4.0,
+        }];
+        block_on(repo.update_observation("owner", &older.observation_id, &updated))
+            .expect("older observation should update");
+        let after_update = block_on(repo.get_record_update_context("owner"))
+            .expect("context should load after update");
+        assert_eq!(
+            after_update
+                .latest_stock_by_sku
+                .get("sku-1")
+                .expect("stock anchor should exist")
+                .value
+                .units_in_stock,
+            3.0
+        );
+        assert_eq!(
+            after_update
+                .latest_retail_sale_by_sku
+                .get("sku-1")
+                .expect("retail sale anchor should exist")
+                .value
+                .units_sold,
+            4.0
         );
     }
 

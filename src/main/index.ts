@@ -111,6 +111,7 @@ registerBenchmarkRunnerIpc({
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
 const INVENTORY_READ_TIMEOUT_MS = 60_000;
+const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
 const PREFERRED_BASELINE_ZOOM_LEVEL = -1;
 const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
 const ZOOM_LEVEL_STEP = 0.5;
@@ -122,6 +123,7 @@ const windowZoomLevels = new WeakMap<BrowserWindow, number>();
 let senaObservationFingerprint: string | null = null;
 let senaFreshnessCheck: Promise<void> | null = null;
 let senaReadCacheValidated = false;
+let senaReadCachePersistTimer: ReturnType<typeof setTimeout> | null = null;
 
 recordBenchmarkEvent({
   layer: 'main',
@@ -339,8 +341,22 @@ function serializeSenaReadCache() {
 }
 
 async function persistSenaReadCache() {
+  if (senaReadCachePersistTimer) {
+    clearTimeout(senaReadCachePersistTimer);
+    senaReadCachePersistTimer = null;
+  }
   await mkdir(desktopDataPath, { recursive: true });
   await writeFile(senaReadCachePath(), JSON.stringify(serializeSenaReadCache()), 'utf8');
+}
+
+function schedulePersistSenaReadCache() {
+  if (senaReadCachePersistTimer) {
+    clearTimeout(senaReadCachePersistTimer);
+  }
+  senaReadCachePersistTimer = setTimeout(() => {
+    senaReadCachePersistTimer = null;
+    void persistSenaReadCache();
+  }, SENA_READ_CACHE_PERSIST_DEBOUNCE_MS);
 }
 
 async function loadPersistedSenaReadCache() {
@@ -395,6 +411,7 @@ function formatObservationFingerprint(fingerprint: SenaObservationFingerprint) {
 async function readCurrentObservationFingerprint() {
   const fingerprint = await managedCore.invoke<SenaObservationFingerprint>('sena.getObservationFingerprint', undefined, {
     timeoutMs: SENA_READ_TIMEOUT_MS,
+    readPriority: 'critical',
   });
   return formatObservationFingerprint(fingerprint);
 }
@@ -530,7 +547,9 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
     .then((value) => {
       senaReadCache.set(key, value);
       senaInflightReads.delete(key);
-      void persistSenaReadCache();
+      if (shouldPersistSenaReadCacheEntry(key, value)) {
+        schedulePersistSenaReadCache();
+      }
       endMiss({
         ok: true,
         result: summarizeBenchmarkPayload(value),
@@ -553,6 +572,7 @@ async function loadCachedSenaRead<T>(key: string, loader: () => Promise<T>): Pro
 async function loadStartupWorkspace(): Promise<SenaStartupWorkspace> {
   const workspace = await managedCore.invoke<SenaStartupWorkspace>('sena.getStartupWorkspace', undefined, {
     timeoutMs: SENA_READ_TIMEOUT_MS,
+    readPriority: 'critical',
   });
   const currentFingerprint = formatObservationFingerprint(workspace.observationFingerprint);
   if (senaObservationFingerprint !== currentFingerprint) {
@@ -1104,6 +1124,7 @@ ipcMain.handle(IPC_CHANNELS.senaGetCatalog, benchmarkIpcHandle(IPC_CHANNELS.sena
 ipcMain.handle(IPC_CHANNELS.senaGetObservationFingerprint, benchmarkIpcHandle(IPC_CHANNELS.senaGetObservationFingerprint, async () =>
   managedCore.invoke<SenaObservationFingerprint>('sena.getObservationFingerprint', undefined, {
     timeoutMs: SENA_READ_TIMEOUT_MS,
+    readPriority: 'critical',
   }),
 ));
 ipcMain.handle(IPC_CHANNELS.senaGetStartupWorkspace, benchmarkIpcHandle(IPC_CHANNELS.senaGetStartupWorkspace, async () =>

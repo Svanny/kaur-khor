@@ -28,23 +28,31 @@ interface PendingRequest {
   timeout: ReturnType<typeof setTimeout>;
 }
 
-interface QueuedRequest<T> {
+interface QueuedRequest {
   commandName: string;
   enqueuedAt: number;
   envelope: CoreRequestEnvelope;
   payloadSummary: string;
-  resolvePromise: (value: T | PromiseLike<T>) => void;
+  resolvePromise: (value: unknown) => void;
   rejectPromise: (reason?: unknown) => void;
   timeoutMs: number;
 }
 
 const DEFAULT_CORE_TIMEOUT_MS = 15_000;
+const DEFERRED_READ_WORKER_READY_TIMEOUT_MS = 1_000;
+
+export type CoreReadPriority = 'critical' | 'deferred';
+
+export interface CoreInvokeOptions {
+  timeoutMs?: number;
+  readPriority?: CoreReadPriority;
+}
 
 export interface ManagedCoreProcess {
   invoke: <T>(
     command: string,
     payload?: unknown,
-    options?: { timeoutMs?: number },
+    options?: CoreInvokeOptions,
   ) => Promise<T>;
   isStopped: () => boolean;
   stop: () => Promise<void>;
@@ -131,12 +139,26 @@ function summarizePayload(payload: unknown) {
   return `${typeof payload}(${String(payload)})`;
 }
 
-function isReadOnlyCoreCommand(commandName: string) {
+export function isReadOnlyCoreCommand(commandName: string) {
   return commandName === 'system.ping'
     || commandName.startsWith('sena.get')
     || commandName.startsWith('sena.list')
     || commandName.startsWith('inventory.load')
     || commandName.startsWith('inventory.list');
+}
+
+export function shouldWaitForReadWorker({
+  commandName,
+  hasReadyReadWorker,
+  readPriority,
+}: {
+  commandName: string;
+  hasReadyReadWorker: boolean;
+  readPriority?: CoreReadPriority;
+}) {
+  return isReadOnlyCoreCommand(commandName)
+    && readPriority !== 'critical'
+    && !hasReadyReadWorker;
 }
 
 function coreReadCoalesceKey(commandName: string, payload: unknown, timeoutMs: number) {
@@ -273,8 +295,51 @@ export async function startManagedCore(
   const readWorkers: CorePoolWorker[] = [];
   const coalescedReadRequests = new Map<string, Promise<unknown>>();
   const readPoolSize = resolveReadPoolSize();
+  const readWorkerReadyWaiters = new Set<() => void>();
   let stopped = false;
   let readGeneration = 0;
+
+  const notifyReadWorkerReady = () => {
+    for (const resolve of readWorkerReadyWaiters) {
+      resolve();
+    }
+    readWorkerReadyWaiters.clear();
+  };
+
+  const hasReadyReadWorker = () =>
+    readWorkers.some((worker) => !worker.process.isStopped());
+
+  const waitForReadWorker = async (timeoutMs: number) => {
+    if (hasReadyReadWorker() || stopped) {
+      return hasReadyReadWorker();
+    }
+
+    const startedAt = Date.now();
+    const ready = await new Promise<boolean>((resolve) => {
+      const timeout = setTimeout(() => {
+        readWorkerReadyWaiters.delete(resolveReady);
+        resolve(false);
+      }, timeoutMs);
+      const resolveReady = () => {
+        clearTimeout(timeout);
+        resolve(hasReadyReadWorker());
+      };
+      readWorkerReadyWaiters.add(resolveReady);
+    });
+    recordBenchmarkEvent({
+      layer: 'main',
+      category: 'core-command',
+      name: 'backend.core.read-pool.ready-wait',
+      phase: 'instant',
+      detail: {
+        ready,
+        waitMs: Date.now() - startedAt,
+        timeoutMs,
+        poolSize: readPoolSize,
+      },
+    });
+    return ready;
+  };
 
   for (let index = 0; index < readPoolSize; index += 1) {
     void startManagedCoreWithFallback(options, env, launchCommands, 'read', index + 1)
@@ -290,6 +355,7 @@ export async function startManagedCore(
           return;
         }
         readWorkers.push(worker);
+        notifyReadWorkerReady();
         recordBenchmarkEvent({
           layer: 'main',
           category: 'startup',
@@ -335,7 +401,7 @@ export async function startManagedCore(
     worker: CorePoolWorker,
     commandName: string,
     payload?: unknown,
-    invokeOptions?: { timeoutMs?: number },
+    invokeOptions?: CoreInvokeOptions,
   ) => {
     worker.activeCount += 1;
     recordBenchmarkEvent({
@@ -360,7 +426,7 @@ export async function startManagedCore(
   const invoke = async <T>(
     commandName: string,
     payload?: unknown,
-    invokeOptions?: { timeoutMs?: number },
+    invokeOptions?: CoreInvokeOptions,
   ): Promise<T> => {
     if (stopped || writer.isStopped()) {
       throw new Error('desktop core is not running');
@@ -388,6 +454,13 @@ export async function startManagedCore(
     const request = (async () => {
       if (readOnly) {
         const generationAtDispatch = readGeneration;
+        if (shouldWaitForReadWorker({
+          commandName,
+          hasReadyReadWorker: hasReadyReadWorker(),
+          readPriority: invokeOptions?.readPriority,
+        })) {
+          await waitForReadWorker(DEFERRED_READ_WORKER_READY_TIMEOUT_MS);
+        }
         const worker = selectReadWorker();
         const result = await invokeOnWorker<T>(worker, commandName, payload, invokeOptions);
         if (generationAtDispatch !== readGeneration) {
@@ -442,6 +515,7 @@ export async function startManagedCore(
         return;
       }
       stopped = true;
+      notifyReadWorkerReady();
       await Promise.allSettled([
         writer.stop(),
         ...readWorkers.map((worker) => worker.process.stop()),
@@ -530,7 +604,7 @@ async function startManagedCoreAttempt(
     },
   });
   const pending = new Map<number, PendingRequest>();
-  const queuedRequests: QueuedRequest<unknown>[] = [];
+  const queuedRequests: QueuedRequest[] = [];
   const coalescedReadRequests = new Map<string, Promise<unknown>>();
   const stderr: string[] = [];
   let nextId = 1;
@@ -793,7 +867,7 @@ async function startManagedCoreAttempt(
   const invoke = async <T>(
     commandName: string,
     payload?: unknown,
-    options?: { timeoutMs?: number },
+    options?: CoreInvokeOptions,
   ): Promise<T> => {
     if (stopped || child.killed) {
       throw new Error('desktop core is not running');
@@ -834,7 +908,7 @@ async function startManagedCoreAttempt(
         enqueuedAt: Date.now(),
         envelope,
         payloadSummary: summarizePayload(payload),
-        resolvePromise,
+        resolvePromise: (value) => resolvePromise(value as T),
         rejectPromise,
         timeoutMs,
       });
@@ -883,11 +957,12 @@ async function startManagedCoreAttempt(
       terminateManagedChildProcess(child, 'SIGTERM');
     }
     const details = stderr.join('\n').trim();
+    const launchErrorMessage = (launchError as Error | null)?.message ?? null;
     throw new Error(
       details
         ? `failed to start desktop core: ${details}`
-        : launchError?.message
-          ? `failed to start desktop core: ${launchError.message}`
+        : launchErrorMessage
+          ? `failed to start desktop core: ${launchErrorMessage}`
           : `failed to start desktop core: ${(error as Error).message}`,
     );
   }

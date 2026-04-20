@@ -1,5 +1,6 @@
 import {
   startManagedCore,
+  type CoreInvokeOptions,
   type ManagedCoreProcess,
   type StartManagedCoreOptions,
 } from './backend';
@@ -8,7 +9,7 @@ export interface ManagedCoreController {
   invoke: <T>(
     command: string,
     payload?: unknown,
-    options?: { timeoutMs?: number },
+    options?: CoreInvokeOptions,
   ) => Promise<T>;
   stop: () => Promise<void>;
 }
@@ -43,7 +44,7 @@ export function createManagedCoreController(
     invoke: async <T>(
       command: string,
       payload?: unknown,
-      options?: { timeoutMs?: number },
+      options?: CoreInvokeOptions,
     ): Promise<T> => {
       const core = await ensureManagedCore();
 
