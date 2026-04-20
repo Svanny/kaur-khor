@@ -170,7 +170,8 @@ export function AppRoutes() {
       ))}
       <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />} path="/record-update/sales-update" />
       <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path="/record-update/record-order" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />} path="/record-update/record-receipt" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path="/record-update/record-receipt" />
+      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />
       <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />} path="/record-update/immediate-sale" />
       <Route
         element={

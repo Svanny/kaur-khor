@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   ActionCreatePackageIcon,
   ActionLayoutGridIcon,
-  ActionReceiveInventoryIcon,
 } from '@icons/actions';
 import { EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import type { IconComponent } from '@icons';
@@ -19,7 +18,6 @@ import {
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
   type BaseRecordUpdateLaneId,
   type RecordUpdateLaneId,
 } from '@/lib/record-update-routes';
@@ -50,40 +48,32 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     tone: 'info',
   },
   {
-    title: 'Customer Orders Pending',
-    description: 'Record new customer orders, changes, or cancellations that are still open.',
+    title: 'Customer Order',
+    description: 'Create a ticket-backed customer commitment or update an existing customer ticket.',
     href: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
     icon: EntityRevenueIcon,
     laneId: 'customer-order-pending',
     tone: 'success',
   },
   {
-    title: 'Customer Orders Fulfilled',
-    description: 'Record fulfilled customer orders and immediate sales.',
+    title: 'Immediate Sale',
+    description: 'Record a same-session sale as realized demand without framing it as order fulfillment.',
     href: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
     icon: EntityServiceIcon,
     laneId: 'customer-order-completed',
     tone: 'orange',
   },
   {
-    title: 'Supplier Orders Pending',
-    description: 'Record supplier orders placed, changes, or cancellations still awaiting receipt.',
+    title: 'Supplier Order',
+    description: 'Create a supplier ticket or update an existing supplier ticket, including receipts.',
     href: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
     icon: ActionCreatePackageIcon,
     laneId: 'supplier-order-pending',
     tone: 'warning',
   },
   {
-    title: 'Supplier Receipts',
-    description: 'Record goods received from suppliers and immediate purchases.',
-    href: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
-    icon: ActionReceiveInventoryIcon,
-    laneId: 'supplier-receipt',
-    tone: 'danger',
-  },
-  {
     title: 'Custom',
-    description: 'Choose any update lanes for one combined capture flow.',
+    description: 'Choose multiple ticket-backed update lanes for one combined capture flow.',
     href: RECORD_UPDATE_CUSTOM_PATH,
     icon: ActionLayoutGridIcon,
     laneId: 'custom',
@@ -93,13 +83,12 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
 ];
 const PRIMARY_HUB_CARDS: RecordUpdateHubCard[] = [
   RECORD_UPDATE_HUB_CARDS[0]!,
+  RECORD_UPDATE_HUB_CARDS[1]!,
   RECORD_UPDATE_HUB_CARDS[3]!,
-  RECORD_UPDATE_HUB_CARDS[4]!,
 ];
 const SECONDARY_HUB_CARDS: RecordUpdateHubCard[] = [
-  RECORD_UPDATE_HUB_CARDS[1]!,
   RECORD_UPDATE_HUB_CARDS[2]!,
-  RECORD_UPDATE_HUB_CARDS[5]!,
+  RECORD_UPDATE_HUB_CARDS[4]!,
 ];
 const hubCardByLaneId = new Map(RECORD_UPDATE_HUB_CARDS.map((card) => [card.laneId, card]));
 
@@ -286,7 +275,7 @@ export function RecordUpdateHubRoute() {
         title={translateUiLiteral(language, 'Choose an update lane')}
         descriptor={translateUiLiteral(
           language,
-          'Choose the physical, customer, or supplier capture flow that matches the work you are recording.',
+          'Banji removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
         )}
       />
       <div className="flex min-h-[calc(100svh-20rem)] items-center justify-center">

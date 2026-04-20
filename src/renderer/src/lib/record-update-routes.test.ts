@@ -18,16 +18,15 @@ describe('record update routes', () => {
       RECORD_UPDATE_SALES_UPDATE_PATH,
       RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
       RECORD_UPDATE_RECORD_ORDER_PATH,
-      RECORD_UPDATE_RECORD_RECEIPT_PATH,
       RECORD_UPDATE_CUSTOM_PATH,
     ]);
     expect(new Set(RECORD_UPDATE_LANES.map((lane) => lane.draftStorageKey)).size).toBe(RECORD_UPDATE_LANES.length);
+    expect(RECORD_UPDATE_RECORD_RECEIPT_PATH).toBe(RECORD_UPDATE_RECORD_ORDER_PATH);
   });
 
   it('parses only known base lanes for custom updates', () => {
     expect(parseCustomRecordUpdateLaneIds('stock-count,custom,supplier-receipt,unknown,stock-count')).toEqual([
       'stock-count',
-      'supplier-receipt',
     ]);
   });
 

@@ -447,6 +447,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('uses the stock-count wizard shell for record orders and submits reorder details', async () => {
     renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    fireEvent.click(screen.getByRole('button', { name: 'New supplier order' }));
 
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
@@ -472,6 +473,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(expectedArrivalInput).not.toHaveValue(initialExpectedArrival));
     fireEvent.change(expectedArrivalInput, { target: { value: '2026-04-18' } });
 
+    goNext();
     goNext();
     chooseOptionalStepNo();
     goNext();
@@ -575,15 +577,15 @@ describe('StockUpdateSessionRoute', () => {
     );
   }, 10_000);
 
-  it('uses the stock-count wizard shell for record receipts and submits receipt details', async () => {
+  it('uses the supplier order wizard for receipt updates and submits receipt details', async () => {
     renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
 
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
 
-    goNext(2);
+    goNext(3);
 
-    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Supplier ticket receipt/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last receipt' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current receipt' })).toBeInTheDocument();
     expect(screen.getAllByText('No prior receipt')).toHaveLength(2);
@@ -620,26 +622,26 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('uses selected custom lanes to build a combined wizard without duplicate shared steps', () => {
-    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-order-pending`);
 
     expect(screen.getByRole('button', { name: /Count SKU stock/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Supplier orders/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Supplier orders/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Supplier ticket receipt/i })).toBeInTheDocument();
   });
 
-  it('lets a custom single-lane receipt wizard behave like the receipt lane', () => {
-    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=supplier-receipt`);
+  it('lets a custom single-lane supplier order wizard include the receipt branch', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=supplier-order-pending`);
 
-    goNext(2);
+    goNext(3);
 
-    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Supplier ticket receipt/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last receipt' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current receipt' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Count SKU stock/i })).not.toBeInTheDocument();
   });
 
   it('preserves the selected custom lanes in a saved draft', async () => {
-    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-order-pending`);
 
     goNext();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Custom draft note' } });
@@ -648,7 +650,7 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(JSON.parse(window.localStorage.getItem(CUSTOM_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
       expect.objectContaining({
-        customSelectedLaneIds: ['stock-count', 'supplier-receipt'],
+        customSelectedLaneIds: ['stock-count', 'supplier-order-pending'],
         notes: 'Custom draft note',
       }),
     );
@@ -656,19 +658,20 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, RECORD_UPDATE_CUSTOM_PATH);
 
     await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
-    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Supplier ticket receipt/i })).toBeInTheDocument();
     expect(screen.getByDisplayValue('Custom draft note')).toBeInTheDocument();
   });
 
   it('saves stock and supplier receipt signals from one custom update', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-receipt`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-order-pending`);
 
     goToStockStep();
     fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     goNext();
     chooseOptionalStepNo(3);
 
-    expect(screen.getByRole('button', { name: /Supplier receipts/i })).toHaveAttribute('aria-current', 'step');
+    goNext();
+    expect(screen.getByRole('button', { name: /Supplier ticket receipt/i })).toHaveAttribute('aria-current', 'step');
     fireEvent.change(screen.getByLabelText('Current receipt for Razor refill'), { target: { value: '6' } });
     goNext(2);
 

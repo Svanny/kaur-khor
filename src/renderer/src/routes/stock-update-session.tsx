@@ -37,7 +37,17 @@ import {
   StatusWarningIcon,
 } from '@icons/status';
 import type { IconComponent } from '@icons';
-import type { SenaCatalog, SenaLeadTimeVariabilityClass, SenaObservationRegimeHint, SenaStockSnapshot } from '@shared/sena';
+import type {
+  SenaCatalog,
+  SenaLeadTimeVariabilityClass,
+  SenaObservationInput,
+  SenaObservationRegimeHint,
+  SenaStockSnapshot,
+  SenaTicketEvent,
+  SenaTicketEventType,
+  SenaTicketLifecycle,
+  SenaTicketStage,
+} from '@shared/sena';
 import type { AppLanguage, InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
   classifyLeadTimeVariability,
@@ -81,6 +91,18 @@ import {
 } from '@/lib/record-update-routes';
 import { activeSenaCatalog, matchesServiceSupplier, matchesSkuSupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
+import {
+  buildCustomerLinkDirectory,
+  buildTicketPartyMetadata,
+  customerLinkWarning,
+  latestTicketEvents,
+  makeTicketId,
+  normalizeTicketLookupValue,
+  normalizeTicketPhone,
+  TICKET_CHANNEL_PRESETS,
+  ticketLabel,
+  type CustomerIdentityDraft,
+} from '@/lib/ticketing';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -129,13 +151,29 @@ type CustomerCompletedMode = 'from_pending' | 'immediate_sale' | 'refund_reversa
 type SupplierPendingMode = 'new_supplier_order' | 'update_pending_supplier_order' | 'cancel_supplier_order';
 type SupplierReceiptMode = 'against_pending_supplier_order' | 'immediate_purchase' | 'return_receipt_reversal';
 type RefundStockReturnChoice = 'later' | 'now';
+type TicketAuthoringMode = 'new' | 'edit';
+type SupplierTicketUpdateAction = 'revise_order' | 'revise_eta' | 'partial_received' | 'fully_received' | 'followup_logged' | 'canceled';
 type WorkflowStateFilterValue = CustomerPendingMode | CustomerCompletedMode | SupplierPendingMode | SupplierReceiptMode;
 type WorkflowStateFilterKind = 'order' | 'receipt';
 
 const CUSTOMER_PENDING_MODE_OPTIONS = ['new_pending', 'modify_pending', 'cancel_pending'] as const satisfies readonly CustomerPendingMode[];
-const CUSTOMER_COMPLETED_MODE_OPTIONS = ['immediate_sale', 'from_pending', 'refund_reversal'] as const satisfies readonly CustomerCompletedMode[];
+const CUSTOMER_COMPLETED_MODE_OPTIONS = ['immediate_sale', 'refund_reversal'] as const satisfies readonly CustomerCompletedMode[];
 const SUPPLIER_PENDING_MODE_OPTIONS = ['new_supplier_order', 'update_pending_supplier_order', 'cancel_supplier_order'] as const satisfies readonly SupplierPendingMode[];
 const SUPPLIER_RECEIPT_MODE_OPTIONS = ['immediate_purchase', 'against_pending_supplier_order', 'return_receipt_reversal'] as const satisfies readonly SupplierReceiptMode[];
+const SUPPLIER_TICKET_UPDATE_ACTIONS = [
+  'revise_order',
+  'revise_eta',
+  'partial_received',
+  'fully_received',
+  'followup_logged',
+  'canceled',
+] as const satisfies readonly SupplierTicketUpdateAction[];
+const DEFAULT_CUSTOMER_IDENTITY: CustomerIdentityDraft = {
+  channel: '',
+  customChannel: '',
+  customerName: '',
+  phone: '',
+};
 
 type StockRow = SenaStockSnapshot;
 type SalesCountDrafts = Record<string, string>;
@@ -187,6 +225,12 @@ interface StockUpdateSessionDraft {
   customerCompletedMode: CustomerCompletedMode;
   supplierPendingMode: SupplierPendingMode;
   supplierReceiptMode: SupplierReceiptMode;
+  customerTicketMode: TicketAuthoringMode | null;
+  supplierTicketMode: TicketAuthoringMode | null;
+  selectedCustomerTicketId: string | null;
+  selectedSupplierTicketId: string | null;
+  supplierTicketUpdateAction: SupplierTicketUpdateAction;
+  customerIdentity: CustomerIdentityDraft;
   refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
 }
 
@@ -219,6 +263,12 @@ interface StockUpdateDraftState {
   customerCompletedMode: CustomerCompletedMode;
   supplierPendingMode: SupplierPendingMode;
   supplierReceiptMode: SupplierReceiptMode;
+  customerTicketMode: TicketAuthoringMode | null;
+  supplierTicketMode: TicketAuthoringMode | null;
+  selectedCustomerTicketId: string | null;
+  selectedSupplierTicketId: string | null;
+  supplierTicketUpdateAction: SupplierTicketUpdateAction;
+  customerIdentity: CustomerIdentityDraft;
   refundStockReturnDrafts: Record<string, RefundStockReturnChoice>;
 }
 
@@ -266,7 +316,7 @@ const STOCK_UPDATE_FULL_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'repor
 const STOCK_COUNT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'stock', 'stock-cost', 'stock-price', 'stock-flags', 'context', 'review'];
 const CUSTOMER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'context', 'review'];
 const CUSTOMER_ORDER_COMPLETED_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'retail-sales', 'service-sales', 'stock-flags', 'context', 'review'];
-const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'stock-flags', 'context', 'review'];
+const SUPPLIER_ORDER_PENDING_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'reorder', 'receipt', 'stock-flags', 'context', 'review'];
 const SUPPLIER_RECEIPT_STEP_ORDER: StockUpdateStepId[] = ['observed-at', 'report-notes', 'receipt', 'stock-flags', 'context', 'review'];
 const BASE_RECORD_UPDATE_STEP_ORDER_BY_LANE: Record<BaseRecordUpdateLaneId, StockUpdateStepId[]> = {
   'stock-count': STOCK_COUNT_STEP_ORDER,
@@ -280,7 +330,6 @@ const BASE_RECORD_UPDATE_LANE_ORDER: BaseRecordUpdateLaneId[] = [
   'customer-order-pending',
   'customer-order-completed',
   'supplier-order-pending',
-  'supplier-receipt',
 ];
 const POST_SAVE_RERUN_DELAY_MS = 5_000;
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
@@ -671,6 +720,27 @@ function isSupplierPendingMode(value: unknown): value is SupplierPendingMode {
 
 function isSupplierReceiptMode(value: unknown): value is SupplierReceiptMode {
   return SUPPLIER_RECEIPT_MODE_OPTIONS.includes(value as SupplierReceiptMode);
+}
+
+function isTicketAuthoringMode(value: unknown): value is TicketAuthoringMode {
+  return value === 'new' || value === 'edit';
+}
+
+function isSupplierTicketUpdateAction(value: unknown): value is SupplierTicketUpdateAction {
+  return SUPPLIER_TICKET_UPDATE_ACTIONS.includes(value as SupplierTicketUpdateAction);
+}
+
+function sanitizeCustomerIdentity(value: unknown): CustomerIdentityDraft {
+  if (!value || typeof value !== 'object') {
+    return DEFAULT_CUSTOMER_IDENTITY;
+  }
+  const record = value as Record<string, unknown>;
+  return {
+    channel: typeof record.channel === 'string' ? record.channel : '',
+    customChannel: typeof record.customChannel === 'string' ? record.customChannel : '',
+    customerName: typeof record.customerName === 'string' ? record.customerName : '',
+    phone: typeof record.phone === 'string' ? record.phone : '',
+  };
 }
 
 function isRefundStockReturnChoice(value: unknown): value is RefundStockReturnChoice {
@@ -1102,9 +1172,15 @@ function hydrateStockUpdateDraft({
     serviceRankings: sanitizeDraftRanking(draft.serviceRankings, allowedServiceIds),
     retailRankings: sanitizeDraftRanking(draft.retailRankings, retailSkuIds),
     customerPendingMode: isCustomerPendingMode(draft.customerPendingMode) ? draft.customerPendingMode : 'new_pending',
-    customerCompletedMode: isCustomerCompletedMode(draft.customerCompletedMode) ? draft.customerCompletedMode : 'from_pending',
+    customerCompletedMode: isCustomerCompletedMode(draft.customerCompletedMode) ? draft.customerCompletedMode : 'immediate_sale',
     supplierPendingMode: isSupplierPendingMode(draft.supplierPendingMode) ? draft.supplierPendingMode : 'new_supplier_order',
     supplierReceiptMode: isSupplierReceiptMode(draft.supplierReceiptMode) ? draft.supplierReceiptMode : 'against_pending_supplier_order',
+    customerTicketMode: isTicketAuthoringMode(draft.customerTicketMode) ? draft.customerTicketMode : null,
+    supplierTicketMode: isTicketAuthoringMode(draft.supplierTicketMode) ? draft.supplierTicketMode : null,
+    selectedCustomerTicketId: typeof draft.selectedCustomerTicketId === 'string' ? draft.selectedCustomerTicketId : null,
+    selectedSupplierTicketId: typeof draft.selectedSupplierTicketId === 'string' ? draft.selectedSupplierTicketId : null,
+    supplierTicketUpdateAction: isSupplierTicketUpdateAction(draft.supplierTicketUpdateAction) ? draft.supplierTicketUpdateAction : 'revise_order',
+    customerIdentity: sanitizeCustomerIdentity(draft.customerIdentity),
     refundStockReturnDrafts: sanitizeRefundStockReturnDrafts(draft.refundStockReturnDrafts, retailSkuIds),
   };
 }
@@ -1130,6 +1206,12 @@ function hasMeaningfulStockUpdateChanges({
   skuSignalDrafts,
   stockStepChoices,
   stockBySku,
+  customerTicketMode,
+  supplierTicketMode,
+  selectedCustomerTicketId,
+  selectedSupplierTicketId,
+  supplierTicketUpdateAction,
+  customerIdentity,
   refundStockReturnDrafts,
 }: StockUpdateDraftState) {
   return (
@@ -1148,6 +1230,15 @@ function hasMeaningfulStockUpdateChanges({
     regimeHint !== '' ||
     serviceRankings.length > 0 ||
     retailRankings.length > 0 ||
+    customerTicketMode !== null ||
+    supplierTicketMode !== null ||
+    selectedCustomerTicketId !== null ||
+    selectedSupplierTicketId !== null ||
+    supplierTicketUpdateAction !== 'revise_order' ||
+    customerIdentity.channel.trim() !== '' ||
+    customerIdentity.customChannel.trim() !== '' ||
+    customerIdentity.customerName.trim() !== '' ||
+    customerIdentity.phone.trim() !== '' ||
     Object.keys(refundStockReturnDrafts).length > 0 ||
     notes.trim() !== '' ||
     observedAt !== initialObservedAt
@@ -1183,6 +1274,12 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     customerCompletedMode: state.customerCompletedMode,
     supplierPendingMode: state.supplierPendingMode,
     supplierReceiptMode: state.supplierReceiptMode,
+    customerTicketMode: state.customerTicketMode,
+    supplierTicketMode: state.supplierTicketMode,
+    selectedCustomerTicketId: state.selectedCustomerTicketId,
+    selectedSupplierTicketId: state.selectedSupplierTicketId,
+    supplierTicketUpdateAction: state.supplierTicketUpdateAction,
+    customerIdentity: state.customerIdentity,
     refundStockReturnDrafts: state.refundStockReturnDrafts,
   };
 }
@@ -1684,9 +1781,15 @@ function buildDraftsFromObservationInput({
     ),
     retailRankings: input.retailRankings.filter((skuId) => retailSkuIds.has(skuId)),
     customerPendingMode: 'new_pending' as const,
-    customerCompletedMode: 'from_pending' as const,
+    customerCompletedMode: 'immediate_sale' as const,
     supplierPendingMode: 'new_supplier_order' as const,
     supplierReceiptMode: 'against_pending_supplier_order' as const,
+    customerTicketMode: null,
+    supplierTicketMode: null,
+    selectedCustomerTicketId: null,
+    selectedSupplierTicketId: null,
+    supplierTicketUpdateAction: 'revise_order' as const,
+    customerIdentity: DEFAULT_CUSTOMER_IDENTITY,
     refundStockReturnDrafts: {},
   };
 }
@@ -3982,6 +4085,196 @@ function RecordReceiptStep({
   );
 }
 
+interface TicketPickerOption {
+  id: string;
+  label: string;
+  description: string;
+  metadata: string;
+}
+
+function CustomerMetadataFields({
+  directory,
+  identity,
+  warning,
+  onChange,
+}: {
+  directory: ReturnType<typeof buildCustomerLinkDirectory>;
+  identity: CustomerIdentityDraft;
+  warning: string | null;
+  onChange: (next: CustomerIdentityDraft) => void;
+}) {
+  const { language } = usePreferences();
+  const channelValue = identity.channel || 'none';
+  return (
+    <div className="grid gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
+      <div>
+        <p className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'Customer metadata')}</p>
+        <p className="text-sm leading-6 text-muted-foreground">
+          {translateUiLiteral(language, 'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.')}
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-foreground" htmlFor="ticket-channel">
+            {translateUiLiteral(language, 'Communication channel')}
+          </label>
+          <Select
+            value={channelValue}
+            onValueChange={(value) =>
+              onChange({
+                ...identity,
+                channel: value === 'none' ? '' : value,
+              })
+            }
+          >
+            <SelectTrigger id="ticket-channel" className={recordUpdateSelectTriggerClassName}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{translateUiLiteral(language, 'No channel')}</SelectItem>
+              {TICKET_CHANNEL_PRESETS.map((channel) => (
+                <SelectItem key={channel} value={channel}>
+                  {translateUiLiteral(language, channel)}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">{translateUiLiteral(language, 'Custom')}</SelectItem>
+            </SelectContent>
+          </Select>
+          {identity.channel === 'custom' ? (
+            <Input
+              aria-label={translateUiLiteral(language, 'Custom communication channel')}
+              className={recordUpdateInputClassName}
+              value={identity.customChannel}
+              onChange={(event) => onChange({ ...identity, customChannel: event.target.value })}
+            />
+          ) : null}
+        </div>
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-foreground" htmlFor="ticket-customer-name">
+            {translateUiLiteral(language, 'Customer name')}
+          </label>
+          <Input
+            aria-label={translateUiLiteral(language, 'Customer name')}
+            className={recordUpdateInputClassName}
+            id="ticket-customer-name"
+            list="ticket-customer-name-hints"
+            value={identity.customerName}
+            onChange={(event) => onChange({ ...identity, customerName: event.target.value })}
+          />
+          <datalist id="ticket-customer-name-hints">
+            {directory.names.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        </div>
+        <div className="grid gap-2">
+          <label className="text-sm font-medium text-foreground" htmlFor="ticket-phone">
+            {translateUiLiteral(language, 'Phone number')}
+          </label>
+          <Input
+            aria-label={translateUiLiteral(language, 'Phone number')}
+            className={recordUpdateInputClassName}
+            id="ticket-phone"
+            value={identity.phone}
+            onChange={(event) => onChange({ ...identity, phone: event.target.value })}
+          />
+        </div>
+      </div>
+      {warning ? <p className="text-sm text-amber-700">{translateUiLiteral(language, warning)}</p> : null}
+    </div>
+  );
+}
+
+function TicketEntryPrompt({
+  family,
+  mode,
+  options,
+  selectedTicketId,
+  supplierAction,
+  onModeChange,
+  onSelectTicket,
+  onSupplierActionChange,
+}: {
+  family: 'customer' | 'supplier';
+  mode: TicketAuthoringMode | null;
+  options: TicketPickerOption[];
+  selectedTicketId: string | null;
+  supplierAction?: SupplierTicketUpdateAction;
+  onModeChange: (mode: TicketAuthoringMode) => void;
+  onSelectTicket: (ticketId: string) => void;
+  onSupplierActionChange?: (action: SupplierTicketUpdateAction) => void;
+}) {
+  const { language } = usePreferences();
+  if (mode === 'new' || (mode === 'edit' && selectedTicketId)) {
+    return null;
+  }
+  const title = translateUiLiteral(language, 'What do you want to do?');
+  const newLabel = family === 'customer' ? 'New customer order' : 'New supplier order';
+  const editLabel = family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order';
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6">
+      <section
+        aria-label={title}
+        className="w-full max-w-2xl rounded-[2rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        role="dialog"
+      >
+        <div className="space-y-2">
+          <p className="text-xl font-semibold tracking-[-0.03em] text-foreground">{title}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {translateUiLiteral(language, 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Button type="button" variant={mode === 'new' ? 'default' : 'outline'} onClick={() => onModeChange('new')}>
+            {translateUiLiteral(language, newLabel)}
+          </Button>
+          <Button type="button" variant={mode === 'edit' ? 'default' : 'outline'} onClick={() => onModeChange('edit')}>
+            {translateUiLiteral(language, editLabel)}
+          </Button>
+        </div>
+        {mode === 'edit' ? (
+          <div className="mt-5 grid gap-3">
+            {family === 'supplier' && onSupplierActionChange ? (
+              <Select value={supplierAction ?? 'revise_order'} onValueChange={(value) => onSupplierActionChange(value as SupplierTicketUpdateAction)}>
+                <SelectTrigger className={recordUpdateSelectTriggerClassName}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="revise_order">{translateUiLiteral(language, 'Revise ordered quantity')}</SelectItem>
+                  <SelectItem value="revise_eta">{translateUiLiteral(language, 'Revise ETA')}</SelectItem>
+                  <SelectItem value="partial_received">{translateUiLiteral(language, 'Mark partial receipt')}</SelectItem>
+                  <SelectItem value="fully_received">{translateUiLiteral(language, 'Mark full receipt')}</SelectItem>
+                  <SelectItem value="followup_logged">{translateUiLiteral(language, 'Add follow-up note')}</SelectItem>
+                  <SelectItem value="canceled">{translateUiLiteral(language, 'Cancel order')}</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : null}
+            <div className="max-h-72 overflow-auto rounded-2xl border border-border/70">
+              {options.length > 0 ? options.map((option) => (
+                <button
+                  key={option.id}
+                  className="grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left last:border-b-0 hover:bg-muted/50"
+                  type="button"
+                  onClick={() => onSelectTicket(option.id)}
+                >
+                  <span className="font-medium text-foreground">{option.label}</span>
+                  <span className="text-sm text-muted-foreground">{option.description}</span>
+                  <span className="text-xs text-muted-foreground">{option.metadata}</span>
+                </button>
+              )) : (
+                <p className="px-4 py-6 text-sm text-muted-foreground">
+                  {translateUiLiteral(language, 'No existing open tickets were found. Start a new ticket instead.')}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 function ServiceSignalsStep({
   catalog,
   currency,
@@ -4515,9 +4808,15 @@ export function StockUpdateSessionRoute() {
   const [retailSalesDrafts, setRetailSalesDrafts] = useState<SalesCountDrafts>({});
   const [serviceSalesDrafts, setServiceSalesDrafts] = useState<SalesCountDrafts>({});
   const [customerPendingMode, setCustomerPendingMode] = useState<CustomerPendingMode>('new_pending');
-  const [customerCompletedMode, setCustomerCompletedMode] = useState<CustomerCompletedMode>('from_pending');
+  const [customerCompletedMode, setCustomerCompletedMode] = useState<CustomerCompletedMode>('immediate_sale');
   const [supplierPendingMode, setSupplierPendingMode] = useState<SupplierPendingMode>('new_supplier_order');
   const [supplierReceiptMode, setSupplierReceiptMode] = useState<SupplierReceiptMode>('against_pending_supplier_order');
+  const [customerTicketMode, setCustomerTicketMode] = useState<TicketAuthoringMode | null>(null);
+  const [supplierTicketMode, setSupplierTicketMode] = useState<TicketAuthoringMode | null>(null);
+  const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(null);
+  const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(routeBatchOrderId ?? routeChildOrderId);
+  const [supplierTicketUpdateAction, setSupplierTicketUpdateAction] = useState<SupplierTicketUpdateAction>('revise_order');
+  const [customerIdentity, setCustomerIdentity] = useState<CustomerIdentityDraft>(DEFAULT_CUSTOMER_IDENTITY);
   const [customerPendingModeFilters, setCustomerPendingModeFilters] = useState<CustomerPendingMode[]>(() => [...CUSTOMER_PENDING_MODE_OPTIONS]);
   const [customerCompletedModeFilters, setCustomerCompletedModeFilters] = useState<CustomerCompletedMode[]>(() => [...CUSTOMER_COMPLETED_MODE_OPTIONS]);
   const [supplierPendingModeFilters, setSupplierPendingModeFilters] = useState<SupplierPendingMode[]>(() => [...SUPPLIER_PENDING_MODE_OPTIONS]);
@@ -4721,7 +5020,62 @@ export function StockUpdateSessionRoute() {
   const isCustomerCompletedLane = selectedBaseLaneIds.includes('customer-order-completed');
   const isSupplierPendingLane = selectedBaseLaneIds.includes('supplier-order-pending');
   const isSupplierReceiptLane = selectedBaseLaneIds.includes('supplier-receipt');
+  const isCustomerTicketLane = isCustomerPendingLane || isCustomerCompletedLane;
   const skipsFirstStockRequirement = !hasStockCountLane;
+  const customerDirectory = useMemo(() => buildCustomerLinkDirectory(observations), [observations]);
+  const customerIdentityWarning = useMemo(
+    () => customerLinkWarning(customerIdentity, customerDirectory),
+    [customerDirectory, customerIdentity],
+  );
+  const ticketEvents = useMemo(() => latestTicketEvents(observations), [observations]);
+  const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
+    const seen = new Set<string>();
+    return ticketEvents.flatMap((event) => {
+      if (event.ticketFamily !== 'customer' || event.lifecycle !== 'open' || seen.has(event.ticketId)) {
+        return [];
+      }
+      seen.add(event.ticketId);
+      const channel = event.party?.channelLabel ?? event.party?.channelKey ?? 'No channel';
+      return [{
+        id: event.ticketId,
+        label: ticketLabel(event),
+        description: `${channel} · ${event.lines.length} item${event.lines.length === 1 ? '' : 's'}`,
+        metadata: event.party?.phone ?? event.note ?? event.occurredAt,
+      }];
+    });
+  }, [ticketEvents]);
+  const supplierTicketOptions = useMemo<TicketPickerOption[]>(() => {
+    const fromTicketEvents = ticketEvents.flatMap((event) => {
+      if (event.ticketFamily !== 'supplier' || event.lifecycle !== 'open') {
+        return [];
+      }
+      return [{
+        id: event.ticketId,
+        label: ticketLabel(event),
+        description: event.party?.supplierName ?? event.stage,
+        metadata: event.lines.map((line) => `${line.entityId}${line.orderedQuantity ? ` · ${line.orderedQuantity}u` : ''}`).join(', '),
+      }];
+    });
+    const fromLegacyBatches = orderBatches.flatMap((batch) => {
+      if (batch.status === 'received' || batch.status === 'reviewed') {
+        return [];
+      }
+      return [{
+        id: batch.batchOrderId,
+        label: batch.supplierName ?? batch.batchOrderId,
+        description: `${batch.children.length} SKU${batch.children.length === 1 ? '' : 's'} · ${batch.status.replaceAll('_', ' ')}`,
+        metadata: batch.shared.expectedArrivalAt ?? batch.updatedAt,
+      }];
+    });
+    const seen = new Set<string>();
+    return [...fromTicketEvents, ...fromLegacyBatches].filter((option) => {
+      if (seen.has(option.id)) {
+        return false;
+      }
+      seen.add(option.id);
+      return true;
+    });
+  }, [orderBatches, ticketEvents]);
 
   function updateCustomerPendingModeFilters(values: CustomerPendingMode[]) {
     setCustomerPendingModeFilters(values);
@@ -4733,7 +5087,7 @@ export function StockUpdateSessionRoute() {
   function updateCustomerCompletedModeFilters(values: CustomerCompletedMode[]) {
     setCustomerCompletedModeFilters(values);
     if (!values.includes(customerCompletedMode)) {
-      setCustomerCompletedMode(values[0] ?? 'from_pending');
+      setCustomerCompletedMode(values[0] ?? 'immediate_sale');
     }
   }
 
@@ -4749,6 +5103,23 @@ export function StockUpdateSessionRoute() {
     if (!values.includes(supplierReceiptMode)) {
       setSupplierReceiptMode(values[0] ?? 'against_pending_supplier_order');
     }
+  }
+
+  function updateCustomerIdentity(nextIdentity: CustomerIdentityDraft) {
+    setCustomerIdentity((current) => {
+      const next = { ...nextIdentity };
+      const nextNameKey = normalizeTicketLookupValue(next.customerName);
+      const nextPhoneKey = normalizeTicketPhone(next.phone);
+      const currentNameKey = normalizeTicketLookupValue(current.customerName);
+      const currentPhoneKey = normalizeTicketPhone(current.phone);
+      if (nextNameKey && nextNameKey !== currentNameKey && !next.phone.trim()) {
+        next.phone = customerDirectory.nameToPhone.get(nextNameKey) ?? next.phone;
+      }
+      if (nextPhoneKey && nextPhoneKey !== currentPhoneKey && !next.customerName.trim()) {
+        next.customerName = customerDirectory.phoneToName.get(nextPhoneKey) ?? next.customerName;
+      }
+      return next;
+    });
   }
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
@@ -4770,6 +5141,12 @@ export function StockUpdateSessionRoute() {
       recordReceiptReceivedDate,
       supplierPendingMode,
       supplierReceiptMode,
+      customerTicketMode,
+      supplierTicketMode,
+      selectedCustomerTicketId,
+      selectedSupplierTicketId,
+      supplierTicketUpdateAction,
+      customerIdentity,
       refundStockReturnDrafts,
       rows,
       serviceSalesChoice,
@@ -4800,6 +5177,12 @@ export function StockUpdateSessionRoute() {
       recordReceiptReceivedDate,
       supplierPendingMode,
       supplierReceiptMode,
+      customerTicketMode,
+      supplierTicketMode,
+      selectedCustomerTicketId,
+      selectedSupplierTicketId,
+      supplierTicketUpdateAction,
+      customerIdentity,
       refundStockReturnDrafts,
       rows,
       serviceSalesChoice,
@@ -4869,6 +5252,12 @@ export function StockUpdateSessionRoute() {
     setCustomerCompletedMode(hydratedState.customerCompletedMode);
     setSupplierPendingMode(hydratedState.supplierPendingMode);
     setSupplierReceiptMode(hydratedState.supplierReceiptMode);
+    setCustomerTicketMode(hydratedState.customerTicketMode);
+    setSupplierTicketMode(hydratedState.supplierTicketMode);
+    setSelectedCustomerTicketId(hydratedState.selectedCustomerTicketId);
+    setSelectedSupplierTicketId(hydratedState.selectedSupplierTicketId);
+    setSupplierTicketUpdateAction(hydratedState.supplierTicketUpdateAction);
+    setCustomerIdentity(hydratedState.customerIdentity);
     setSkuSignalDrafts(hydratedState.skuSignalDrafts);
     setRecordOrderExpectedArrivalDate(hydratedState.recordOrderExpectedArrivalDate);
     setRecordOrderLeadTimeMeanDays(hydratedState.recordOrderLeadTimeMeanDays);
@@ -4980,6 +5369,12 @@ export function StockUpdateSessionRoute() {
         setCustomerCompletedMode(hydratedDraft.customerCompletedMode);
         setSupplierPendingMode(hydratedDraft.supplierPendingMode);
         setSupplierReceiptMode(hydratedDraft.supplierReceiptMode);
+        setCustomerTicketMode(hydratedDraft.customerTicketMode);
+        setSupplierTicketMode(hydratedDraft.supplierTicketMode);
+        setSelectedCustomerTicketId(hydratedDraft.selectedCustomerTicketId);
+        setSelectedSupplierTicketId(hydratedDraft.selectedSupplierTicketId);
+        setSupplierTicketUpdateAction(hydratedDraft.supplierTicketUpdateAction);
+        setCustomerIdentity(hydratedDraft.customerIdentity);
         setSkuSignalDrafts(hydratedDraft.skuSignalDrafts);
         setRecordOrderExpectedArrivalDate(hydratedDraft.recordOrderExpectedArrivalDate);
         setRecordOrderLeadTimeMeanDays(hydratedDraft.recordOrderLeadTimeMeanDays);
@@ -5182,6 +5577,139 @@ export function StockUpdateSessionRoute() {
       setUnlockedStepCount((current) => Math.max(current, nextIndex + 1));
       setCurrentStepId(activeStepOrder[nextIndex]!);
     }
+  }
+
+  function ticketLinesFromCommercialEvents(payload: SenaObservationInput, party: 'customer' | 'supplier') {
+    return (payload.commercialEvents ?? [])
+      .filter((event) => event.party === party)
+      .map((event) => ({
+        entityType: event.entityType,
+        entityId: event.entityId,
+        quantityDelta: event.quantityDelta,
+        note: event.note ?? null,
+      }));
+  }
+
+  function ticketLinesFromSupplierSignals(payload: SenaObservationInput) {
+    return payload.orderSignals.flatMap((signal) => {
+      if (!signal.orderPlaced && !signal.receiptArrived) {
+        return [];
+      }
+      return [{
+        entityType: 'sku' as const,
+        entityId: signal.skuId,
+        orderedQuantity: signal.approximateOrderQuantity,
+        receivedQuantity: signal.approximateReceiptQuantity,
+        expectedArrivalAt: signal.receiptTimestamp ?? null,
+      }];
+    });
+  }
+
+  function finalizeTicketPayload(payload: SenaObservationInput) {
+    const observedAtValue = payload.observedAt || observedAtIso || new Date().toISOString();
+    const nextTicketEvents: SenaTicketEvent[] = [...(payload.ticketEvents ?? [])];
+
+    if (isCustomerPendingLane) {
+      const lines = ticketLinesFromCommercialEvents(payload, 'customer');
+      if (lines.length > 0) {
+        const eventType: SenaTicketEventType =
+          customerPendingMode === 'cancel_pending'
+            ? 'canceled'
+            : (customerTicketMode ?? 'new') === 'edit' || customerPendingMode === 'modify_pending'
+              ? 'revised'
+              : 'created';
+        const lifecycle: SenaTicketLifecycle = eventType === 'canceled' ? 'canceled' : 'open';
+        const stage: SenaTicketStage = 'pending';
+        nextTicketEvents.push({
+          ticketId: selectedCustomerTicketId ?? makeTicketId({ eventType, family: 'customer', lines, observedAt: observedAtValue }),
+          ticketFamily: 'customer',
+          lifecycle,
+          stage,
+          revision: selectedCustomerTicketId ? 2 : 1,
+          eventType,
+          occurredAt: observedAtValue,
+          nextTouchAt: null,
+          party: buildTicketPartyMetadata(customerIdentity),
+          lines,
+          note: notes.trim() || null,
+        });
+      }
+    }
+
+    if (isCustomerCompletedLane) {
+      const lines = ticketLinesFromCommercialEvents(payload, 'customer');
+      if (lines.length > 0) {
+        nextTicketEvents.push({
+          ticketId: makeTicketId({ eventType: 'fulfilled_immediate', family: 'customer', lines, observedAt: observedAtValue }),
+          ticketFamily: 'customer',
+          lifecycle: 'resolved',
+          stage: 'fulfilled_immediate',
+          revision: 1,
+          eventType: 'fulfilled_immediate',
+          occurredAt: observedAtValue,
+          nextTouchAt: null,
+          party: buildTicketPartyMetadata(customerIdentity),
+          lines,
+          note: notes.trim() || null,
+        });
+      }
+    }
+
+    if (isSupplierPendingLane || isSupplierReceiptLane) {
+      const commercialLines = ticketLinesFromCommercialEvents(payload, 'supplier');
+      const signalLines = ticketLinesFromSupplierSignals(payload);
+      const lines = commercialLines.length > 0 ? commercialLines : signalLines;
+      if (lines.length > 0) {
+        const hasReceipt = payload.orderSignals.some((signal) => signal.receiptArrived);
+        const eventType: SenaTicketEventType =
+          supplierPendingMode === 'cancel_supplier_order' || supplierTicketUpdateAction === 'canceled'
+            ? 'canceled'
+            : hasReceipt
+              ? supplierTicketUpdateAction === 'fully_received'
+                ? 'fully_received'
+                : 'partial_received'
+              : supplierTicketUpdateAction === 'revise_eta'
+                ? 'eta_updated'
+                : supplierTicketUpdateAction === 'followup_logged'
+                  ? 'followup_logged'
+                  : (supplierTicketMode ?? 'new') === 'edit' || supplierPendingMode === 'update_pending_supplier_order'
+                    ? 'revised'
+                    : 'created';
+        const lifecycle: SenaTicketLifecycle =
+          eventType === 'canceled'
+            ? 'canceled'
+            : eventType === 'fully_received'
+              ? 'resolved'
+              : 'open';
+        const stage: SenaTicketStage =
+          eventType === 'fully_received'
+            ? 'received'
+            : eventType === 'partial_received'
+              ? 'partial_received'
+              : eventType === 'canceled'
+                ? 'ordered_waiting'
+                : 'ordered_waiting';
+        nextTicketEvents.push({
+          ticketId: selectedSupplierTicketId ?? makeTicketId({ eventType, family: 'supplier', lines, observedAt: observedAtValue }),
+          ticketFamily: 'supplier',
+          lifecycle,
+          stage,
+          revision: selectedSupplierTicketId ? 2 : 1,
+          eventType,
+          occurredAt: observedAtValue,
+          nextTouchAt: recordOrderExpectedArrivalDate ? dateInputToIso(recordOrderExpectedArrivalDate) : null,
+          party: {
+            role: 'supplier',
+            supplierName: workingCatalog?.skus.find((sku) => sku.skuId === lines[0]?.entityId)?.supplierName ?? null,
+          },
+          lines,
+          note: notes.trim() || null,
+        });
+      }
+    }
+
+    payload.ticketEvents = nextTicketEvents;
+    return payload;
   }
 
   function buildPayload() {
@@ -5402,20 +5930,32 @@ export function StockUpdateSessionRoute() {
           ...(supplierPendingMode === 'cancel_supplier_order'
             ? []
             : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+                const signals = [];
                 const quantity = draft.orderedQuantity.trim();
-                if (quantity === '' || Number(quantity) <= 0) {
-                  return [];
+                if (quantity !== '' && Number(quantity) > 0) {
+                  signals.push({
+                    skuId,
+                    orderPlaced: true,
+                    receiptArrived: false,
+                    approximateOrderQuantity: Number(quantity),
+                    approximateReceiptQuantity: null,
+                    placementTimestamp: observedAtIso ?? new Date().toISOString(),
+                    receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
+                    leadTimeDaysHint: tableMeanDays,
+                  });
                 }
-                return [{
-                  skuId,
-                  orderPlaced: true,
-                  receiptArrived: false,
-                  approximateOrderQuantity: Number(quantity),
-                  approximateReceiptQuantity: null,
-                  placementTimestamp: observedAtIso ?? new Date().toISOString(),
-                  receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
-                  leadTimeDaysHint: tableMeanDays,
-                }];
+                const receivedQuantity = draft.receiptQuantity.trim();
+                if (receivedQuantity !== '' && Number(receivedQuantity) > 0) {
+                  signals.push({
+                    skuId,
+                    orderPlaced: false,
+                    receiptArrived: true,
+                    approximateOrderQuantity: null,
+                    approximateReceiptQuantity: Number(receivedQuantity),
+                    receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
+                  });
+                }
+                return signals;
               })),
         );
         payload.leadTimeHints.push(
@@ -5442,19 +5982,46 @@ export function StockUpdateSessionRoute() {
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
             const quantity = draft.orderedQuantity.trim();
-            if (quantity === '' || Number(quantity) <= 0) {
-              return [];
+            const receiptQuantity = draft.receiptQuantity.trim();
+            const events = [];
+            if (quantity !== '' && Number(quantity) > 0) {
+              events.push({
+                party: 'supplier' as const,
+                entityType: 'sku' as const,
+                entityId: skuId,
+                stage: 'pending' as const,
+                quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
+                flow: 'scheduled' as const,
+                reason: supplierPendingMode,
+                note: notes.trim() || null,
+              });
             }
-            return [{
-              party: 'supplier' as const,
-              entityType: 'sku' as const,
-              entityId: skuId,
-              stage: 'pending' as const,
-              quantityDelta: supplierPendingMode === 'cancel_supplier_order' ? -Number(quantity) : Number(quantity),
-              flow: 'scheduled' as const,
-              reason: supplierPendingMode,
-              note: notes.trim() || null,
-            }];
+            if (receiptQuantity !== '' && Number(receiptQuantity) > 0) {
+              const numericReceipt = Number(receiptQuantity);
+              events.push(
+                {
+                  party: 'supplier' as const,
+                  entityType: 'sku' as const,
+                  entityId: skuId,
+                  stage: 'pending' as const,
+                  quantityDelta: -numericReceipt,
+                  flow: 'scheduled' as const,
+                  reason: supplierTicketUpdateAction,
+                  note: notes.trim() || null,
+                },
+                {
+                  party: 'supplier' as const,
+                  entityType: 'sku' as const,
+                  entityId: skuId,
+                  stage: 'realized' as const,
+                  quantityDelta: numericReceipt,
+                  flow: 'scheduled' as const,
+                  reason: supplierTicketUpdateAction,
+                  note: notes.trim() || null,
+                },
+              );
+            }
+            return events;
           }),
         );
       }
@@ -5572,7 +6139,7 @@ export function StockUpdateSessionRoute() {
         ]),
       ];
       payload.regimeHint = regimeHint || null;
-      return payload;
+      return finalizeTicketPayload(payload);
     }
 
     if (lane.id === 'customer-order-pending') {
@@ -5643,7 +6210,7 @@ export function StockUpdateSessionRoute() {
         }),
       ];
       payload.regimeHint = regimeHint || null;
-      return payload;
+      return finalizeTicketPayload(payload);
     }
     if (lane.id === 'customer-order-completed') {
       const payload = createEmptyObservationInput({
@@ -5783,7 +6350,7 @@ export function StockUpdateSessionRoute() {
         }),
       ];
       payload.regimeHint = regimeHint || null;
-      return payload;
+      return finalizeTicketPayload(payload);
     }
     if (lane.id === 'supplier-order-pending') {
       const payload = createEmptyObservationInput({
@@ -5799,20 +6366,32 @@ export function StockUpdateSessionRoute() {
         return quantity !== '' && Number(quantity) > 0;
       });
       payload.orderSignals = supplierPendingMode === 'cancel_supplier_order' ? [] : Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-        const quantity = draft.orderedQuantity.trim();
-        if (quantity === '' || Number(quantity) <= 0) {
-          return [];
+        const signals = [];
+        const orderedQuantity = draft.orderedQuantity.trim();
+        if (orderedQuantity !== '' && Number(orderedQuantity) > 0) {
+          signals.push({
+            skuId,
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: Number(orderedQuantity),
+            approximateReceiptQuantity: null,
+            placementTimestamp: observedAtIso ?? new Date().toISOString(),
+            receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
+            leadTimeDaysHint: tableMeanDays,
+          });
         }
-        return [{
-          skuId,
-          orderPlaced: true,
-          receiptArrived: false,
-          approximateOrderQuantity: Number(quantity),
-          approximateReceiptQuantity: null,
-          placementTimestamp: observedAtIso ?? new Date().toISOString(),
-          receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
-          leadTimeDaysHint: tableMeanDays,
-        }];
+        const receivedQuantity = draft.receiptQuantity.trim();
+        if (receivedQuantity !== '' && Number(receivedQuantity) > 0) {
+          signals.push({
+            skuId,
+            orderPlaced: false,
+            receiptArrived: true,
+            approximateOrderQuantity: null,
+            approximateReceiptQuantity: Number(receivedQuantity),
+            receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
+          });
+        }
+        return signals;
       });
       payload.leadTimeHints = supplierPendingMode === 'cancel_supplier_order' ? [] : orderedEntries.flatMap(([skuId]) => {
         const variabilityClass =
@@ -5833,10 +6412,10 @@ export function StockUpdateSessionRoute() {
       });
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const quantity = draft.orderedQuantity.trim();
-        if (quantity === '' || Number(quantity) <= 0) {
-          return [];
-        }
-        return [{
+        const receiptQuantity = draft.receiptQuantity.trim();
+        const events = [];
+        if (quantity !== '' && Number(quantity) > 0) {
+          events.push({
           party: 'supplier' as const,
           entityType: 'sku' as const,
           entityId: skuId,
@@ -5845,13 +6424,40 @@ export function StockUpdateSessionRoute() {
           flow: 'scheduled' as const,
           reason: supplierPendingMode,
           note: notes.trim() || null,
-        }];
+          });
+        }
+        if (receiptQuantity !== '' && Number(receiptQuantity) > 0) {
+          const numericReceipt = Number(receiptQuantity);
+          events.push(
+            {
+              party: 'supplier' as const,
+              entityType: 'sku' as const,
+              entityId: skuId,
+              stage: 'pending' as const,
+              quantityDelta: -numericReceipt,
+              flow: 'scheduled' as const,
+              reason: supplierTicketUpdateAction,
+              note: notes.trim() || null,
+            },
+            {
+              party: 'supplier' as const,
+              entityType: 'sku' as const,
+              entityId: skuId,
+              stage: 'realized' as const,
+              quantityDelta: numericReceipt,
+              flow: 'scheduled' as const,
+              reason: supplierTicketUpdateAction,
+              note: notes.trim() || null,
+            },
+          );
+        }
+        return events;
       });
       payload.retailStockouts = Object.entries(visibleSkuSignalDrafts)
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
       payload.regimeHint = regimeHint || null;
-      return payload;
+      return finalizeTicketPayload(payload);
     }
     if (lane.id === 'supplier-receipt') {
       const payload = createEmptyObservationInput({
@@ -5912,7 +6518,7 @@ export function StockUpdateSessionRoute() {
         .filter(([skuId, draft]) => draft.blockedEnabled && Boolean(workingCatalog?.skus.find((sku) => sku.skuId === skuId)?.soldAsProduct))
         .map(([skuId]) => skuId);
       payload.regimeHint = regimeHint || null;
-      return payload;
+      return finalizeTicketPayload(payload);
     }
     if (editSession) {
       return buildFullObservationPayload({
@@ -5981,7 +6587,7 @@ export function StockUpdateSessionRoute() {
       .map(([serviceId]) => serviceId);
     payload.adjustmentSignals = [];
     payload.regimeHint = regimeHint || null;
-    return payload;
+    return finalizeTicketPayload(payload);
   }
 
   const previewPayload = buildPayload();
@@ -6023,11 +6629,11 @@ export function StockUpdateSessionRoute() {
           },
         ]
       : []),
-    ...(isSupplierReceiptLane
+    ...(isSupplierReceiptLane || isSupplierPendingLane
       ? [
           {
             id: 'receipt' as const,
-            title: 'Supplier receipts',
+            title: 'Supplier ticket receipt',
             description:
               receiptSignalCount > 0
                 ? translateUiLiteral(language, '{count} supplier receipt row{suffix}', {
@@ -6295,9 +6901,15 @@ export function StockUpdateSessionRoute() {
     setRetailSalesDrafts({});
     setServiceSalesDrafts({});
     setCustomerPendingMode('new_pending');
-    setCustomerCompletedMode('from_pending');
+    setCustomerCompletedMode('immediate_sale');
     setSupplierPendingMode('new_supplier_order');
     setSupplierReceiptMode('against_pending_supplier_order');
+    setCustomerTicketMode(null);
+    setSupplierTicketMode(null);
+    setSelectedCustomerTicketId(null);
+    setSelectedSupplierTicketId(null);
+    setSupplierTicketUpdateAction('revise_order');
+    setCustomerIdentity(DEFAULT_CUSTOMER_IDENTITY);
     setRefundStockReturnDrafts({});
     setSkuSignalDrafts({});
     setRecordOrderExpectedArrivalDate('');
@@ -6735,6 +7347,43 @@ export function StockUpdateSessionRoute() {
 
   return (
     <WorkspacePage className="pb-32 md:pb-36">
+      {isCustomerPendingLane ? (
+        <TicketEntryPrompt
+          family="customer"
+          mode={customerTicketMode}
+          options={customerTicketOptions}
+          selectedTicketId={selectedCustomerTicketId}
+          onModeChange={setCustomerTicketMode}
+          onSelectTicket={(ticketId) => {
+            setSelectedCustomerTicketId(ticketId);
+            setCustomerTicketMode('edit');
+          }}
+        />
+      ) : null}
+      {isSupplierPendingLane ? (
+        <TicketEntryPrompt
+          family="supplier"
+          mode={supplierTicketMode}
+          options={supplierTicketOptions}
+          selectedTicketId={selectedSupplierTicketId}
+          supplierAction={supplierTicketUpdateAction}
+          onModeChange={setSupplierTicketMode}
+          onSelectTicket={(ticketId) => {
+            setSelectedSupplierTicketId(ticketId);
+            setSupplierTicketMode('edit');
+          }}
+          onSupplierActionChange={(action) => {
+            setSupplierTicketUpdateAction(action);
+            if (action === 'partial_received' || action === 'fully_received') {
+              setSupplierReceiptMode('against_pending_supplier_order');
+            }
+            if (action === 'canceled') {
+              setSupplierPendingMode('cancel_supplier_order');
+            }
+            setSupplierTicketMode('edit');
+          }}
+        />
+      ) : null}
       <ConfirmActionDialog
         cancelLabel={translateUiLiteral(language, 'Cancel')}
         confirmLabel={translateUiLiteral(language, 'Replace draft')}
@@ -6868,6 +7517,14 @@ export function StockUpdateSessionRoute() {
             }
           >
             <div className="grid gap-2">
+              {isCustomerTicketLane ? (
+                <CustomerMetadataFields
+                  directory={customerDirectory}
+                  identity={customerIdentity}
+                  warning={customerIdentityWarning}
+                  onChange={updateCustomerIdentity}
+                />
+              ) : null}
               <Textarea
                 aria-label={t('stockReportNotes')}
                 className="min-h-32"

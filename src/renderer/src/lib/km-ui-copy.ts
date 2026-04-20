@@ -1747,9 +1747,20 @@ const exactValueTranslations: Record<string, string> = {
   'Choose an update lane': 'ជ្រើសផ្លូវអាប់ដេត',
   'Choose the physical, customer, or supplier capture flow that matches the work you are recording.':
     'ជ្រើសលំហូរកត់ត្រាស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ ដែលត្រូវនឹងការងារដែលអ្នកកំពុងកត់ត្រា។',
+  'Banji removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
+    'Banji ដកប្រព័ន្ធអាប់ដេតជាបាច់ចាស់ចេញ ហើយប្រើប្រព័ន្ធសំបុត្រការងារ។ ជ្រើសលំហូរស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ដែលត្រូវនឹងការងារ។',
   'Stock Count': 'រាប់ស្តុក',
   'Count what is physically on hand and reconcile mistakes.':
     'រាប់អ្វីដែលមាននៅក្នុងដៃពិតប្រាកដ ហើយកែសម្រួលកំហុស។',
+  'Customer Order': 'ការបញ្ជាទិញអតិថិជន',
+  'Create a ticket-backed customer commitment or update an existing customer ticket.':
+    'បង្កើតការប្តេជ្ញារបស់អតិថិជនដែលមានសំបុត្រការងារ ឬអាប់ដេតសំបុត្រអតិថិជនដែលមានស្រាប់។',
+  'Immediate Sale': 'ការលក់ភ្លាមៗ',
+  'Record a same-session sale as realized demand without framing it as order fulfillment.':
+    'កត់ត្រាការលក់ក្នុងវគ្គដដែលជាតម្រូវការដែលបានកើតឡើង ដោយមិនបង្ហាញថាជាការបំពេញការបញ្ជាទិញ។',
+  'Supplier Order': 'ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Create a supplier ticket or update an existing supplier ticket, including receipts.':
+    'បង្កើតសំបុត្រអ្នកផ្គត់ផ្គង់ ឬអាប់ដេតសំបុត្រដែលមានស្រាប់ រួមទាំងការទទួលទំនិញ។',
   'Customer Orders Pending': 'ការបញ្ជាទិញអតិថិជនកំពុងបើក',
   'Record new customer orders, changes, or cancellations that are still open.':
     'កត់ត្រាការបញ្ជាទិញថ្មី ការផ្លាស់ប្តូរ ឬការលុបចោលពីអតិថិជន ដែលនៅតែបើក។',
@@ -1764,6 +1775,8 @@ const exactValueTranslations: Record<string, string> = {
     'កត់ត្រាទំនិញដែលបានទទួលពីអ្នកផ្គត់ផ្គង់ និងការទិញភ្លាមៗ។',
   'Choose any update lanes for one combined capture flow.':
     'ជ្រើសផ្លូវអាប់ដេតណាមួយ សម្រាប់លំហូរកត់ត្រារួមមួយ។',
+  'Choose multiple ticket-backed update lanes for one combined capture flow.':
+    'ជ្រើសផ្លូវអាប់ដេតដែលមានសំបុត្រច្រើន សម្រាប់លំហូរកត់ត្រារួមមួយ។',
   'Build a custom update': 'បង្កើតការអាប់ដេតផ្ទាល់ខ្លួន',
   'Choose any lanes to include in one combined update wizard.':
     'ជ្រើសផ្លូវណាខ្លះត្រូវបញ្ចូលក្នុងជំនួយការអាប់ដេតរួមមួយ។',
@@ -1972,6 +1985,38 @@ const exactValueTranslations: Record<string, string> = {
   'Against pending': 'ទល់នឹងការរង់ចាំ',
   'Immediate purchase': 'ការទិញភ្លាមៗ',
   'Return / reversal': 'ត្រឡប់ទំនិញ / បញ្ច្រាស',
+  'Customer metadata': 'ព័ត៌មានអតិថិជន',
+  'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.':
+    'ប្រភពទំនាក់ទំនង ឈ្មោះអតិថិជន និងលេខទូរស័ព្ទស្ថិតក្នុងផ្នែកកំណត់ចំណាំ ប៉ុន្តែរក្សាទុកជាវាលសំបុត្រដែលមានរចនាសម្ព័ន្ធ។',
+  'Communication channel': 'ប្រភពទំនាក់ទំនង',
+  'No channel': 'គ្មានប្រភព',
+  'Walk-in': 'មកផ្ទាល់',
+  Call: 'ទូរស័ព្ទ',
+  Telegram: 'Telegram',
+  WhatsApp: 'WhatsApp',
+  Facebook: 'Facebook',
+  SMS: 'SMS',
+  'Custom communication channel': 'ប្រភពទំនាក់ទំនងផ្ទាល់ខ្លួន',
+  'Customer name': 'ឈ្មោះអតិថិជន',
+  'Phone number': 'លេខទូរស័ព្ទ',
+  'What do you want to do?': 'តើអ្នកចង់ធ្វើអ្វី?',
+  'New customer order': 'បញ្ជាទិញអតិថិជនថ្មី',
+  'Edit / update existing customer order': 'កែ / អាប់ដេតការបញ្ជាទិញអតិថិជនដែលមានស្រាប់',
+  'Edit / update existing supplier order': 'កែ / អាប់ដេតការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់',
+  'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.':
+    'Banji នឹងបង្កើត ឬអាប់ដេតសំបុត្រការងារដែលរក្សាទុកបាន ហើយបន្ថែមព្រឹត្តិការណ៍សំបុត្រ ជំនួសការសរសេរបាច់ដាច់ដោយឡែក។',
+  'Revise ordered quantity': 'កែបរិមាណបានបញ្ជាទិញ',
+  'Revise ETA': 'កែពេលមកដល់រំពឹង',
+  'Mark partial receipt': 'សម្គាល់ថាទទួលបានខ្លះ',
+  'Mark full receipt': 'សម្គាល់ថាទទួលបានពេញ',
+  'Add follow-up note': 'បន្ថែមកំណត់ចំណាំតាមដាន',
+  'Cancel order': 'លុបចោលការបញ្ជាទិញ',
+  'No existing open tickets were found. Start a new ticket instead.':
+    'រកមិនឃើញសំបុត្របើកដែលមានស្រាប់ទេ។ ចាប់ផ្តើមសំបុត្រថ្មីជំនួស។',
+  'This customer name was previously linked to a different phone. Save if this is intentional.':
+    'ឈ្មោះអតិថិជននេះធ្លាប់ភ្ជាប់ទៅលេខទូរស័ព្ទផ្សេង។ រក្សាទុក ប្រសិនបើនេះជាចេតនា។',
+  'This phone was previously linked to a different customer. Save if this is intentional.':
+    'លេខទូរស័ព្ទនេះធ្លាប់ភ្ជាប់ទៅអតិថិជនផ្សេង។ រក្សាទុក ប្រសិនបើនេះជាចេតនា។',
   'Replace draft': 'ជំនួសសេចក្តីព្រាង',
   'You already have an in-progress logs update on this device. Replace it with the saved report you chose to edit?':
     'អ្នកមានការអាប់ដេតកំណត់ហេតុដែលកំពុងធ្វើនៅលើឧបករណ៍នេះរួចហើយ។ ជំនួសវាដោយរបាយការណ៍ដែលបានរក្សាទុកដែលអ្នកជ្រើសកែឬ?',

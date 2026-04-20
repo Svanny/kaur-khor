@@ -7,7 +7,7 @@ export const RECORD_UPDATE_SUPPLIER_RECEIPT_PATH = '/record-update/supplier-rece
 export const RECORD_UPDATE_CUSTOM_PATH = '/record-update/custom';
 export const RECORD_UPDATE_SALES_UPDATE_PATH = RECORD_UPDATE_CUSTOMER_PENDING_PATH;
 export const RECORD_UPDATE_RECORD_ORDER_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
-export const RECORD_UPDATE_RECORD_RECEIPT_PATH = RECORD_UPDATE_SUPPLIER_RECEIPT_PATH;
+export const RECORD_UPDATE_RECORD_RECEIPT_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
 
 export type BaseRecordUpdateLaneId =
   | 'stock-count'
@@ -35,26 +35,20 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
   {
     id: 'customer-order-pending',
     path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
-    title: 'Customer Orders Pending',
+    title: 'Customer Order',
     draftStorageKey: 'banji:record-update:draft:customer-order-pending:v1',
   },
   {
     id: 'customer-order-completed',
     path: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
-    title: 'Customer Orders Fulfilled',
+    title: 'Immediate Sale',
     draftStorageKey: 'banji:record-update:draft:customer-order-completed:v1',
   },
   {
     id: 'supplier-order-pending',
     path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-    title: 'Supplier Orders Pending',
+    title: 'Supplier Order',
     draftStorageKey: 'banji:record-update:draft:supplier-order-pending:v1',
-  },
-  {
-    id: 'supplier-receipt',
-    path: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
-    title: 'Supplier Receipts',
-    draftStorageKey: 'banji:record-update:draft:supplier-receipt:v1',
   },
   {
     id: 'custom',
@@ -65,7 +59,8 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
 ];
 
 export const BASE_RECORD_UPDATE_LANES = RECORD_UPDATE_LANES.filter(
-  (lane): lane is RecordUpdateLaneDefinition & { id: BaseRecordUpdateLaneId } => lane.id !== 'custom',
+  (lane): lane is RecordUpdateLaneDefinition & { id: BaseRecordUpdateLaneId } =>
+    lane.id !== 'custom' && lane.id !== 'supplier-receipt',
 );
 
 const recordUpdateLaneByPath = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.path, lane]));
@@ -102,7 +97,7 @@ const ACTION_TO_LANE: Record<OverviewTaskAction, RecordUpdateLaneId> = {
   log_order: 'supplier-order-pending',
   update_eta: 'supplier-order-pending',
   follow_up: 'customer-order-pending',
-  receive: 'supplier-receipt',
+  receive: 'supplier-order-pending',
   review: 'stock-count',
   start_update: 'stock-count',
   remind_tomorrow: 'stock-count',
