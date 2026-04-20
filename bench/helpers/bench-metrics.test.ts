@@ -141,6 +141,55 @@ describe('buildScenarioSummary', () => {
     });
     expect(summary.targets?.find((target) => target.metricName === 'interaction.save_stock_count_ms')).toBeUndefined();
   });
+
+  it('keeps navigation targets scoped to metrics that navigation intentionally emits', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'navigation',
+      events: [
+        benchmarkEvent({
+          category: 'navigation',
+          name: 'nav.dashboard_to_performance_ms',
+          phase: 'end',
+          durationMs: 320,
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          command: 'sena.getSkuDetail',
+          durationMs: 40,
+          detail: { queueWaitMs: 12 },
+        }),
+      ],
+    });
+
+    expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_performance_ms')).toMatchObject({
+      value: 320,
+    });
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_workspace_summary_ms')).toBeUndefined();
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_list_observation_page_ms')).toBeUndefined();
+  });
+
+  it('derives record-update-context IPC metrics for record-update scenarios', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'record-update',
+      events: [
+        benchmarkEvent({
+          category: 'ipc',
+          name: 'ipc.banji:sena:get-record-update-context.handle',
+          phase: 'end',
+          durationMs: 42,
+        }),
+      ],
+    });
+
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_record_update_context_ms')).toMatchObject({
+      value: 42,
+      status: 'pass',
+    });
+  });
 });
 
 describe('benchmark fixture sizing', () => {

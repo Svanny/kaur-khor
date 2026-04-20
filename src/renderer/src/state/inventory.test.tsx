@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   DesktopBridge,
   DesktopPreferences,
@@ -314,6 +314,10 @@ function TestHarness() {
 }
 
 describe('InventoryProvider', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
@@ -476,13 +480,11 @@ describe('InventoryProvider', () => {
     expect(window.banjiDesktop.sena.getRunStatus).not.toHaveBeenCalled();
   });
 
-  it('marks startup ready before deferred workspace lists finish', async () => {
+  it('marks startup ready before route or idle support reads finish', async () => {
     const diagnostics = deferred<SenaDiagnostics | null>();
-    const recordContext = deferred<SenaRecordUpdateContext>();
-    const orderBatches = deferred<[]>();
     window.banjiDesktop.sena.getDiagnostics = vi.fn(async () => diagnostics.promise);
-    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => recordContext.promise);
-    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => orderBatches.promise);
+    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => sampleRecordUpdateContext);
+    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => []);
 
     render(
       <InventoryProvider>
@@ -496,17 +498,9 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
     expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('false');
     expect(screen.getByTestId('observation-count').textContent).toBe('0');
-
-    act(() => {
-      diagnostics.resolve(sampleDiagnostics);
-      recordContext.resolve(sampleRecordUpdateContext);
-      orderBatches.resolve([]);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('true');
-      expect(screen.getByTestId('observation-count').textContent).toBe('0');
-    });
+    expect(window.banjiDesktop.sena.getDiagnostics).not.toHaveBeenCalled();
+    expect(window.banjiDesktop.sena.getRecordUpdateContext).not.toHaveBeenCalled();
+    expect(window.banjiDesktop.sena.listOrderBatches).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
   });
 
@@ -672,7 +666,6 @@ describe('InventoryProvider', () => {
 
     window.banjiDesktop.sena.getRecordUpdateContext = vi
       .fn()
-      .mockResolvedValueOnce(sampleRecordUpdateContext)
       .mockResolvedValueOnce(sampleRecordUpdateContext)
       .mockResolvedValueOnce(emptyRecordUpdateContext);
 

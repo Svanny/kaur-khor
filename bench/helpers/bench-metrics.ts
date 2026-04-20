@@ -166,6 +166,10 @@ function deriveBenchmarkMetrics(
       'ipc.sena_get_workspace_summary_ms',
       firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
     );
+    maybeSet(
+      'ipc.sena_get_record_update_context_ms',
+      firstSummaryMetric(metrics, ['ipc.banji:sena:get-record-update-context.handle', 'preload.invoke.banji:sena:get-record-update-context']),
+    );
   }
 
   if (scenario === 'navigation' || scenario === 'stability') {
@@ -214,8 +218,8 @@ function deriveBenchmarkMetrics(
   );
 
   if (scenario === 'stability') {
-    maybeSet('renderer.long_task_max_ms', maxDetailMetric(events, 'renderer.long-task', 'durationMs'));
-    maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(events, 'renderer.long-animation-frame', 'blockingDuration'));
+    maybeSet('renderer.long_task_max_ms', maxDetailMetric(events, 'renderer.long-task', 'durationMs') ?? 0);
+    maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(events, 'renderer.long-animation-frame', 'blockingDuration') ?? 0);
 
     const firstRendererMemory = events.find((event) => event.name === 'memory.renderer_stability_cycle_1_mb');
     const lastRendererMemory = [...events].reverse().find((event) => event.name === 'memory.renderer_after_stability_mb');
