@@ -1,6 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState } from 'react';
-import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import {
   ActionOpenExternalIcon,
@@ -50,13 +49,11 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
 import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
-import { buildBatchUpdateHref, getLaneForTaskAction, type RecordUpdateLaneId } from '@/lib/record-update-routes';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OverviewTaskDrawer } from './overview/task-drawer';
-import { BatchActionPrompt, type TaskGroup } from '@/components/system/batch-action-prompt';
 import {
   buildOverviewModel,
   isOverviewSkuTask,
@@ -129,7 +126,7 @@ function scheduleBackgroundTask(task: () => void) {
   const id = window.setTimeout(task, 0);
   return () => window.clearTimeout(id);
 }
-type OverviewWorkflowScope = 'supply' | 'customer';
+type OverviewWorkflowScope = 'customer' | 'supplier' | 'all';
 
 function boardClassName() {
   return `${cardFrameClassName} ${cardSurfaceClassName} overflow-hidden rounded-[2rem]`;
@@ -237,24 +234,6 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
   return matchesSupplierName(task.supplierName, supplierFilter);
 }
 
-function preferenceKeyForTaskAction(
-  action: OverviewSkuTask['action'],
-): keyof DesktopTaskBatchUpdatePreferences {
-  switch (action) {
-    case 'log_order':
-      return 'logOrder';
-    case 'update_eta':
-      return 'updateEta';
-    case 'follow_up':
-      return 'followUp';
-    case 'receive':
-      return 'receive';
-    case 'review':
-    default:
-      return 'review';
-  }
-}
-
 export function DashboardRoute() {
   const inventory = useInventory();
   const {
@@ -263,26 +242,16 @@ export function DashboardRoute() {
     showExplanatoryTooltips,
     showOverviewTaskTabs,
     showRightRailCards,
-    savePreferences,
     t,
-    taskBatchUpdatePreferences,
   } = usePreferences();
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
-  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('supply');
+  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('all');
   const [customerFilter, setCustomerFilter] = useState<OverviewCustomerFilter>('all');
-  const [selectedTaskGroup, setSelectedTaskGroup] = useState<{
-    group: TaskGroup;
-    laneId: RecordUpdateLaneId;
-    preferenceKey: keyof DesktopTaskBatchUpdatePreferences;
-    selectedTask: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>;
-  } | null>(null);
   const requestedOrderBatchesRef = useRef(false);
-  const [rememberBatchChoice, setRememberBatchChoice] = useState(false);
   const routeState = readOverviewRouteState(searchParams);
   const searchScope = routeState.scope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
@@ -300,81 +269,8 @@ export function DashboardRoute() {
     updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode });
   }
 
-  function openBatchTaskGroup(group: TaskGroup, laneId: RecordUpdateLaneId) {
-    const firstTask = group.tasks[0] ?? null;
-    const batchHref = buildBatchUpdateHref(
-      group.action === 'log_order'
-        ? { skuIds: group.tasks.map((t) => t.skuId), laneId }
-        : {
-            batchOrderId: firstTask?.batchOrderId ?? null,
-            childOrderId: firstTask?.childOrderId ?? null,
-            skuIds: group.tasks.map((t) => t.skuId),
-            laneId,
-          },
-    );
-    navigate(batchHref);
-  }
-
-  async function persistRememberedBatchChoice(
-    preferenceKey: keyof DesktopTaskBatchUpdatePreferences,
-    nextValue: DesktopTaskBatchUpdatePreferences[keyof DesktopTaskBatchUpdatePreferences],
-  ) {
-    await savePreferences({
-      taskBatchUpdatePreferences: {
-        ...taskBatchUpdatePreferences,
-        [preferenceKey]: nextValue,
-      },
-    });
-  }
-
   function handleTaskActionClick(task: OverviewSkuTask) {
-    const { action, supplierName } = task;
-    const sameGroupTasks = visibleTasks.filter(
-      (t): t is OverviewSkuTask =>
-        isOverviewSkuTask(t) &&
-        t.action === action &&
-        (action === 'log_order'
-          ? t.supplierName === supplierName
-          : task.batchOrderId != null
-            ? t.batchOrderId === task.batchOrderId
-            : t.id === task.id),
-    );
-    const group: TaskGroup = {
-      action,
-      supplierName,
-      tasks: sameGroupTasks.map((t) => ({
-        id: t.id,
-        skuId: t.skuId,
-        skuName: t.skuName,
-        batchOrderId: t.batchOrderId,
-        childOrderId: t.childOrderId,
-      })),
-    };
-    if (group.tasks.length <= 1) {
-      openSingleTask(task);
-      return;
-    }
-    const laneId = getLaneForTaskAction(action as never);
-    const preferenceKey = preferenceKeyForTaskAction(action);
-    const taskBatchUpdatePreference = taskBatchUpdatePreferences[preferenceKey];
-    if (taskBatchUpdatePreference === 'always_batch') {
-      openBatchTaskGroup(group, laneId);
-      return;
-    }
-    if (taskBatchUpdatePreference === 'always_alone') {
-      openSingleTask(task);
-      return;
-    }
-    setRememberBatchChoice(false);
-    setSelectedTaskGroup({
-      group,
-      laneId,
-      preferenceKey,
-      selectedTask: {
-        id: task.id,
-        defaultDrawerMode: task.defaultDrawerMode,
-      },
-    });
+    openSingleTask(task);
   }
 
   useEffect(() => {
@@ -566,7 +462,7 @@ export function DashboardRoute() {
             />
           </div>
           <ToggleGroup
-            aria-label={translateUiLiteral(language, 'Select overview workflow scope')}
+            aria-label={translateUiLiteral(language, 'Select overview ticket family')}
             className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
             spacing={1}
             type="single"
@@ -577,39 +473,17 @@ export function DashboardRoute() {
               }
             }}
           >
-            <ToggleGroupItem value="supply">
-              <EntityTransitIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'Supply')}
-            </ToggleGroupItem>
             <ToggleGroupItem value="customer">
               <EntityCustomerIcon data-icon="inline-start" />
               {translateUiLiteral(language, 'Customer')}
             </ToggleGroupItem>
-          </ToggleGroup>
-          <ToggleGroup
-            aria-label={t('searchItems')}
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            spacing={1}
-            type="single"
-            value={searchScope}
-            disabled={overviewScope === 'customer'}
-            onValueChange={(nextValue) => {
-              if (nextValue) {
-                updateRouteState({ scope: nextValue as OverviewSearchScope });
-              }
-            }}
-          >
+            <ToggleGroupItem value="supplier">
+              <EntityTransitIcon data-icon="inline-start" />
+              {translateUiLiteral(language, 'Supplier')}
+            </ToggleGroupItem>
             <ToggleGroupItem value="all">
               <EntityLayersIcon data-icon="inline-start" />
               {translateUiLiteral(language, 'All')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="skus">
-              <EntitySkuIcon data-icon="inline-start" />
-              {t('filterSku')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="services">
-              <EntityServiceIcon data-icon="inline-start" />
-              {t('filterService')}
             </ToggleGroupItem>
           </ToggleGroup>
           <SupplierFilter
@@ -837,13 +711,15 @@ export function DashboardRoute() {
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {translateUiLiteral(language, '{count} visible', { count: visibleTasks.length })}
+                  {translateUiLiteral(language, '{count} visible', {
+                    count: visibleTasks.length + (overviewScope === 'all' ? visibleCustomerTasks.length : 0),
+                  })}
                   {isHydratingDetails ? ` · ${translateUiLiteral(language, 'refining receipt windows…')}` : null}
                 </p>
               </div>
             </div>
 
-            {visibleTasks.length > 0 ? (
+            {visibleTasks.length > 0 || (overviewScope === 'all' && visibleCustomerTasks.length > 0) ? (
               <HeaderedTable>
                 <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
                   <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
@@ -853,6 +729,48 @@ export function DashboardRoute() {
                     <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
                   <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
+                    {overviewScope === 'all' ? visibleCustomerTasks.map((task) => (
+                      <HeaderedTableRow
+                        key={task.id}
+                        className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName}`}
+                        data-slot="overview-task-row"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[0.72rem] font-semibold text-emerald-800">
+                              {translateUiLiteral(language, 'Customer')}
+                            </span>
+                            <span className="text-base font-semibold text-foreground">{task.label}</span>
+                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.state === 'need_stock' ? 'warning' : task.state === 'completed_today' ? 'success' : 'info')}`}>
+                              {task.stateLabel}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                            {translateUiLiteral(language, 'Why now')}
+                          </HeaderedTableMobileLabel>
+                          <p className="font-medium text-foreground">{task.whyNow}</p>
+                          {showExplanatoryTooltips ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p> : null}
+                        </div>
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
+                            {translateUiLiteral(language, 'Next touch')}
+                          </HeaderedTableMobileLabel>
+                          <p className="font-medium text-foreground">{translateUiLiteral(language, 'Next touch: Today')}</p>
+                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                            {translateUiLiteral(language, 'Ticket metadata lives in Record Update notes.')}
+                          </p>
+                        </div>
+                        <div className="flex items-start lg:justify-center">
+                          <Button asChild className="w-[136px] justify-center" size="sm" variant="outline">
+                            <Link to={task.href}>
+                              {translateUiLiteral(language, 'Update')}
+                            </Link>
+                          </Button>
+                        </div>
+                      </HeaderedTableRow>
+                    )) : null}
                     {visibleTasks.map((task) => {
                       const TaskActionIcon = overviewTaskActionIcons[task.action];
 
@@ -875,6 +793,9 @@ export function DashboardRoute() {
                                   imagePath={task.imagePath}
                                   metadata={
                                     <>
+                                      <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[0.72rem] font-semibold text-sky-800">
+                                        {translateUiLiteral(language, 'Supplier')}
+                                      </span>
                                       <SupplierBadge supplierName={task.supplierName} />
                                       <span
                                         className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.statusTone)}`}
@@ -1124,44 +1045,6 @@ export function DashboardRoute() {
             }}
           />
 
-          <BatchActionPrompt
-            open={selectedTaskGroup != null}
-            rememberChoice={rememberBatchChoice}
-            taskGroup={selectedTaskGroup?.group ?? { action: '', supplierName: null, tasks: [] }}
-            onBatchUpdate={() => {
-              if (!selectedTaskGroup) {
-                return;
-              }
-              const run = async () => {
-                if (rememberBatchChoice) {
-                  await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_batch');
-                }
-                openBatchTaskGroup(selectedTaskGroup.group, selectedTaskGroup.laneId);
-              };
-              void run();
-              setSelectedTaskGroup(null);
-              setRememberBatchChoice(false);
-            }}
-            onClose={() => {
-              setSelectedTaskGroup(null);
-              setRememberBatchChoice(false);
-            }}
-            onRememberChoiceChange={setRememberBatchChoice}
-            onUpdateIndividually={() => {
-              if (!selectedTaskGroup) {
-                return;
-              }
-              const run = async () => {
-                if (rememberBatchChoice) {
-                  await persistRememberedBatchChoice(selectedTaskGroup.preferenceKey, 'always_alone');
-                }
-                openSingleTask(selectedTaskGroup.selectedTask);
-              };
-              void run();
-              setSelectedTaskGroup(null);
-              setRememberBatchChoice(false);
-            }}
-          />
         </>
       ) : null}
     </WorkspacePage>

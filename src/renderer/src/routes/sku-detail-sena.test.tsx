@@ -783,6 +783,47 @@ describe('SKU detail SENA helpers', () => {
     expect(extractEvidence(observations, 'sku-1')[4]?.detail).toContain('Tight variability');
   });
 
+  test('includes ticket events in the SKU evidence timeline', () => {
+    const ticketedObservations: SenaObservationRecord[] = [
+      {
+        ...observations[0]!,
+        input: {
+          ...observations[0]!.input,
+          ticketEvents: [
+            {
+              ticketId: 'supplier-ticket-1',
+              ticketFamily: 'supplier',
+              eventType: 'created',
+              lifecycle: 'open',
+              stage: 'ordered_waiting',
+              revision: 1,
+              occurredAt: '2026-03-27T09:00:00Z',
+              lineItems: [
+                {
+                  entityType: 'sku',
+                  entityId: 'sku-1',
+                  quantity: 12,
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ];
+
+    const evidence = extractEvidence(ticketedObservations, 'sku-1');
+
+    expect(evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Supplier order placed',
+          detail: '12 units · ordered_waiting',
+          type: 'ticket_event',
+        }),
+      ]),
+    );
+  });
+
   test('builds a lead-time hint payload from typical days and ordinal variability', () => {
     const hint = buildLeadTimeHintFromInputs({
       skuId: 'sku-1',

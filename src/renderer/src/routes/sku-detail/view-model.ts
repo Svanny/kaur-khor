@@ -132,7 +132,7 @@ export interface SenaSkuDetailViewModel {
     observedAt: string;
     title: string;
     detail: string;
-    type: 'stock_reported' | 'order_placed' | 'receipt_logged' | 'price_changed' | 'retail_stockout' | 'lead_time_hint' | 'customer_pending' | 'customer_completed' | 'notes';
+    type: 'stock_reported' | 'order_placed' | 'receipt_logged' | 'price_changed' | 'retail_stockout' | 'lead_time_hint' | 'customer_pending' | 'customer_completed' | 'ticket_event' | 'notes';
   }>;
   actionContext: {
     currentStock: number;
@@ -431,6 +431,49 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
             reason: event.reason ?? event.flow,
           }),
           type: event.party === 'customer' && event.stage === 'pending' ? 'customer_pending' : 'customer_completed',
+        });
+      }
+      for (const event of observation.input.ticketEvents?.filter((entry) =>
+        entry.lineItems.some((line) => line.entityType === 'sku' && line.entityId === skuId),
+      ) ?? []) {
+        const matchedQuantity = event.lineItems
+          .filter((line) => line.entityType === 'sku' && line.entityId === skuId)
+          .reduce((total, line) => total + Math.abs(line.quantity), 0);
+        const title = (() => {
+          switch (event.eventType) {
+            case 'fulfilled_immediate':
+              return translateUiLiteral(language, 'Immediate sale');
+            case 'partial_received':
+              return translateUiLiteral(language, 'Partial receipt');
+            case 'fully_received':
+              return translateUiLiteral(language, 'Full receipt');
+            case 'eta_updated':
+              return translateUiLiteral(language, 'ETA changed');
+            case 'canceled':
+              return translateUiLiteral(language, 'Ticket canceled');
+            case 'created':
+              return event.ticketFamily === 'customer'
+                ? translateUiLiteral(language, 'Customer order created')
+                : event.ticketFamily === 'supplier'
+                  ? translateUiLiteral(language, 'Supplier order placed')
+                  : translateUiLiteral(language, 'Adjustment created');
+            default:
+              return event.ticketFamily === 'customer'
+                ? translateUiLiteral(language, 'Customer ticket updated')
+                : event.ticketFamily === 'supplier'
+                  ? translateUiLiteral(language, 'Supplier ticket updated')
+                  : translateUiLiteral(language, 'Adjustment updated');
+          }
+        })();
+        rows.push({
+          id: `${observation.observationId}:ticket:${event.ticketId}:${event.eventType}:${event.revision}`,
+          observedAt,
+          title,
+          detail: translateUiLiteral(language, '{count} units · {reason}', {
+            count: matchedQuantity,
+            reason: event.note?.trim() || event.stage,
+          }),
+          type: 'ticket_event',
         });
       }
       if (observation.input.notes?.trim()) {

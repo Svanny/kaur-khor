@@ -576,10 +576,10 @@ describe('DashboardRoute', () => {
     expect(screen.getByText('Overview')).toBeInTheDocument();
     expect(screen.getByText('Mission Control')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
-    const scopeToggle = screen.getByRole('group', { name: 'Search and segment' });
+    const scopeToggle = screen.getByRole('group', { name: 'Select overview ticket family' });
+    expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
+    expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'All' })).toBeInTheDocument();
-    expect(within(scopeToggle).getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
-    expect(within(scopeToggle).getByRole('radio', { name: 'Services' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
@@ -721,7 +721,7 @@ describe('DashboardRoute', () => {
     expect(taskRows.some((row) => row.textContent?.includes('Hair dye black'))).toBe(false);
   });
 
-  test('filters overview tasks by services even without a search query', async () => {
+  test('switches between customer and supplier ticket families', async () => {
     renderRoute();
     await waitFor(() => {
       expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalled();
@@ -729,11 +729,15 @@ describe('DashboardRoute', () => {
 
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Customer' }));
 
+    expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
     expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
-    expect(screen.getByText('Razor refill')).toBeInTheDocument();
-    expect(screen.getAllByText('Hair dye black').length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
+
+    expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
   });
 
   test('hydrates dashboard SKU details with a small concurrency cap', async () => {
@@ -779,12 +783,12 @@ describe('DashboardRoute', () => {
     expect(maxActiveLoads).toBe(2);
   });
 
-  test('scopes the overview search by services from the title card control', async () => {
+  test('scopes the overview search inside the supplier ticket family', async () => {
     renderRoute();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Services' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
     fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
-      target: { value: 'Haircut' },
+      target: { value: 'Razor' },
     });
 
     await waitFor(() => {
@@ -796,23 +800,15 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
   });
 
-  test('remembers an overview action choice from the batch prompt', async () => {
+  test('opens overview task actions without the legacy batch prompt', async () => {
     renderRoute();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
-
-    expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Remember my choice for this action.' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Update Alone' }));
-
-    await waitFor(() => {
-      expect(savePreferencesMock).toHaveBeenCalledWith({
-        taskBatchUpdatePreferences: {
-          ...preferenceState.taskBatchUpdatePreferences,
-          logOrder: 'always_alone',
-        },
-      });
+    await act(async () => {
+      fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
     });
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(savePreferencesMock).not.toHaveBeenCalled();
   });
 
   test('writes route-backed receive state when launching a task from the queue', async () => {
@@ -834,7 +830,7 @@ describe('DashboardRoute', () => {
     });
   });
 
-  test('navigates grouped log-order tasks through the router when batch mode is remembered', async () => {
+  test('ignores legacy grouped batch preferences for overview ticket actions', async () => {
     preferenceState.taskBatchUpdatePreferences = {
       ...preferenceState.taskBatchUpdatePreferences,
       logOrder: 'always_batch',
@@ -845,8 +841,8 @@ describe('DashboardRoute', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/record-update/supplier-orders-pending');
-      expect(screen.getByTestId('route-location').textContent).toContain('skus=');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?task=sku-1');
+      expect(screen.getByTestId('route-location').textContent).toContain('taskMode=not_ordered');
     });
   });
 
