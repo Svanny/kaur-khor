@@ -105,6 +105,8 @@ pub struct SenaObservationInput {
     #[serde(default)]
     pub commercial_events: Vec<SenaCommercialEvent>,
     #[serde(default)]
+    pub ticket_events: Vec<SenaTicketEvent>,
+    #[serde(default)]
     pub recipe_usage_hints: Vec<SenaRecipeUsageHint>,
     pub notes: Option<String>,
 }
@@ -190,6 +192,112 @@ pub struct SenaCommercialEvent {
     pub flow: SenaCommercialFlow,
     #[serde(default)]
     pub reason: Option<String>,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaTicketFamily {
+    Customer,
+    Supplier,
+    Adjustment,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaTicketLifecycle {
+    Open,
+    Resolved,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaTicketStage {
+    Pending,
+    Ready,
+    FulfilledImmediate,
+    ToOrder,
+    OrderedWaiting,
+    PartialReceived,
+    Received,
+    Draft,
+    Applied,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaTicketEventType {
+    Created,
+    Revised,
+    NoteAdded,
+    ReadyMarked,
+    FulfilledImmediate,
+    EtaUpdated,
+    FollowupLogged,
+    PartialReceived,
+    FullyReceived,
+    Applied,
+    Canceled,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaTicketPartyMetadata {
+    pub role: String,
+    #[serde(default)]
+    pub channel_key: Option<String>,
+    #[serde(default)]
+    pub channel_label: Option<String>,
+    #[serde(default)]
+    pub customer_name: Option<String>,
+    #[serde(default)]
+    pub customer_name_key: Option<String>,
+    #[serde(default)]
+    pub phone: Option<String>,
+    #[serde(default)]
+    pub phone_key: Option<String>,
+    #[serde(default)]
+    pub supplier_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaTicketLine {
+    pub entity_type: SenaCommercialEntityType,
+    pub entity_id: String,
+    #[serde(default)]
+    pub quantity_delta: Option<f64>,
+    #[serde(default)]
+    pub ordered_quantity: Option<f64>,
+    #[serde(default)]
+    pub received_quantity: Option<f64>,
+    #[serde(default)]
+    pub promised_at: Option<String>,
+    #[serde(default)]
+    pub expected_arrival_at: Option<String>,
+    #[serde(default)]
+    pub unit_cost: Option<f64>,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaTicketEvent {
+    pub ticket_id: String,
+    pub ticket_family: SenaTicketFamily,
+    pub lifecycle: SenaTicketLifecycle,
+    pub stage: SenaTicketStage,
+    pub revision: i32,
+    pub event_type: SenaTicketEventType,
+    pub occurred_at: String,
+    #[serde(default)]
+    pub next_touch_at: Option<String>,
+    #[serde(default)]
+    pub party: Option<SenaTicketPartyMetadata>,
+    pub lines: Vec<SenaTicketLine>,
     #[serde(default)]
     pub note: Option<String>,
 }
@@ -1023,6 +1131,7 @@ mod tests {
             regime_hint: None,
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
+            ticket_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
@@ -1048,6 +1157,7 @@ mod tests {
             regime_hint: None,
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
+            ticket_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: Some("operator note only".to_string()),
         };
@@ -1117,6 +1227,7 @@ mod tests {
             regime_hint: None,
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
+            ticket_events: Vec::new(),
             recipe_usage_hints: Vec::new(),
             notes: None,
         };

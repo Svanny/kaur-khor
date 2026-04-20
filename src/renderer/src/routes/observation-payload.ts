@@ -21,6 +21,7 @@ export interface ObservationSignalCounts {
   customerCompleted: number;
   supplierPending: number;
   supplierReceipts: number;
+  ticketEvents: number;
   recipeUsageHints: number;
   regime: number;
   notes: number;
@@ -48,6 +49,7 @@ export function createEmptyObservationInput({
     leadTimeHints: [],
     adjustmentSignals: [],
     commercialEvents: [],
+    ticketEvents: [],
     recipeUsageHints: [],
     notes,
   };
@@ -78,6 +80,7 @@ export function observationSignalCounts(input: SenaObservationInput): Observatio
     customerCompleted,
     supplierPending,
     supplierReceipts,
+    ticketEvents: input.ticketEvents?.length ?? 0,
     recipeUsageHints: input.recipeUsageHints?.length ?? 0,
     regime: input.regimeHint ? 1 : 0,
     notes: input.notes?.trim() ? 1 : 0,
@@ -100,6 +103,7 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
     counts.leadTimeHints > 0 ||
     counts.adjustments > 0 ||
     counts.commercialEvents > 0 ||
+    counts.ticketEvents > 0 ||
     counts.recipeUsageHints > 0 ||
     counts.regime > 0
   );
@@ -233,6 +237,14 @@ export function observationCompositionParts(input: SenaObservationInput, languag
       translateUiLiteral(language, '{count} supplier receipt{suffix}', {
         count: formatWholeNumber(counts.supplierReceipts, language),
         suffix: counts.supplierReceipts === 1 ? '' : 's',
+      }),
+    );
+  }
+  if (counts.ticketEvents > 0) {
+    parts.push(
+      translateUiLiteral(language, '{count} ticket event{suffix}', {
+        count: formatWholeNumber(counts.ticketEvents, language),
+        suffix: counts.ticketEvents === 1 ? '' : 's',
       }),
     );
   }

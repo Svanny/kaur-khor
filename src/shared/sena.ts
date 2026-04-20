@@ -61,6 +61,7 @@ export interface SenaObservationInput {
   regimeHint?: SenaObservationRegimeHint | null;
   adjustmentSignals?: SenaAdjustmentSignal[];
   commercialEvents?: SenaCommercialEvent[];
+  ticketEvents?: SenaTicketEvent[];
   recipeUsageHints?: SenaRecipeUsageHint[];
   notes: string | null;
 }
@@ -106,6 +107,70 @@ export interface SenaCommercialEvent {
   quantityDelta: number;
   flow: SenaCommercialFlow;
   reason?: string | null;
+  note?: string | null;
+}
+
+export type SenaTicketFamily = 'customer' | 'supplier' | 'adjustment';
+export type SenaTicketLifecycle = 'open' | 'resolved' | 'canceled';
+export type SenaCustomerTicketStage = 'pending' | 'ready' | 'fulfilled_immediate';
+export type SenaSupplierTicketStage = 'to_order' | 'ordered_waiting' | 'partial_received' | 'received';
+export type SenaAdjustmentTicketStage = 'draft' | 'applied';
+export type SenaTicketStage = SenaCustomerTicketStage | SenaSupplierTicketStage | SenaAdjustmentTicketStage;
+export type SenaCustomerTicketEventType =
+  | 'created'
+  | 'revised'
+  | 'note_added'
+  | 'ready_marked'
+  | 'fulfilled_immediate'
+  | 'canceled';
+export type SenaSupplierTicketEventType =
+  | 'created'
+  | 'revised'
+  | 'eta_updated'
+  | 'followup_logged'
+  | 'partial_received'
+  | 'fully_received'
+  | 'canceled';
+export type SenaAdjustmentTicketEventType = 'created' | 'revised' | 'applied' | 'canceled';
+export type SenaTicketEventType =
+  | SenaCustomerTicketEventType
+  | SenaSupplierTicketEventType
+  | SenaAdjustmentTicketEventType;
+
+export interface SenaTicketPartyMetadata {
+  role: 'customer' | 'supplier' | 'none';
+  channelKey?: string | null;
+  channelLabel?: string | null;
+  customerName?: string | null;
+  customerNameKey?: string | null;
+  phone?: string | null;
+  phoneKey?: string | null;
+  supplierName?: string | null;
+}
+
+export interface SenaTicketLine {
+  entityType: SenaCommercialEntityType;
+  entityId: string;
+  quantityDelta?: number | null;
+  orderedQuantity?: number | null;
+  receivedQuantity?: number | null;
+  promisedAt?: string | null;
+  expectedArrivalAt?: string | null;
+  unitCost?: number | null;
+  note?: string | null;
+}
+
+export interface SenaTicketEvent {
+  ticketId: string;
+  ticketFamily: SenaTicketFamily;
+  lifecycle: SenaTicketLifecycle;
+  stage: SenaTicketStage;
+  revision: number;
+  eventType: SenaTicketEventType;
+  occurredAt: string;
+  nextTouchAt?: string | null;
+  party?: SenaTicketPartyMetadata | null;
+  lines: SenaTicketLine[];
   note?: string | null;
 }
 
