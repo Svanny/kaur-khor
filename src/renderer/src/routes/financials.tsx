@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import {
@@ -452,6 +452,7 @@ export function FinancialsRoute() {
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
+  const requestedOrderBatchesRef = useRef(false);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -461,6 +462,24 @@ export function FinancialsRoute() {
   function updateRouteState(nextState: Parameters<typeof buildFinancialsSearchParams>[1], replace = false) {
     setSearchParams(buildFinancialsSearchParams(searchParams, nextState), { replace });
   }
+
+  useEffect(() => {
+    if (
+      typeof inventory.loadSenaOrderBatches !== 'function'
+      || requestedOrderBatchesRef.current
+      || (inventory.orderBatches?.length ?? 0) > 0
+    ) {
+      return;
+    }
+    requestedOrderBatchesRef.current = true;
+    const id = window.setTimeout(() => {
+      void inventory.loadSenaOrderBatches().catch((error) => {
+        requestedOrderBatchesRef.current = false;
+        console.warn('[financials] order batches load failed', error);
+      });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [inventory, inventory.orderBatches?.length]);
 
   const model = useMemo(() => {
     if (!visibleCatalog || !inventory.workspaceSummary) {
@@ -475,7 +494,7 @@ export function FinancialsRoute() {
       diagnostics: inventory.diagnostics,
       language,
       observations: inventory.observations,
-      orderBatches: inventory.orderBatches,
+      orderBatches: inventory.orderBatches ?? [],
       range,
       scope,
       serviceDetailsById,

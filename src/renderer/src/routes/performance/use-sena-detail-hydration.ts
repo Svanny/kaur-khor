@@ -11,6 +11,21 @@ interface SenaHydrationPages {
   skuPages: Record<string, SenaSkuDetailPage | null>;
 }
 
+const DETAIL_HYDRATION_CONCURRENCY = 2;
+
+async function runWithConcurrency(tasks: Array<() => Promise<void>>, concurrency: number) {
+  let nextIndex = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+      while (nextIndex < tasks.length) {
+        const task = tasks[nextIndex];
+        nextIndex += 1;
+        await task?.();
+      }
+    }),
+  );
+}
+
 function mergeSkuDetails(older: SenaSkuDetail, newer: SenaSkuDetail): SenaSkuDetail {
   return {
     ...newer,
@@ -73,11 +88,14 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     limit: number;
   }) => {
     let maxPrependedCount = 0;
-    const skuEntries = await Promise.all(
-      inventory.catalog?.skus.map(async (sku) => {
+    const skuPagesById = { ...currentSkuPagesById };
+    const servicePagesById = { ...currentServicePagesById };
+    const tasks: Array<() => Promise<void>> = [
+      ...(inventory.catalog?.skus ?? []).map((sku) => async () => {
         const current = currentSkuPagesById[sku.skuId];
         if (!current?.hasOlder || current.nextBeforeIntervalIndex == null) {
-          return [sku.skuId, current ?? null] as const;
+          skuPagesById[sku.skuId] = current ?? null;
+          return;
         }
         const older = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(sku.skuId, {
           beforeIntervalIndex: current.nextBeforeIntervalIndex,
@@ -85,23 +103,19 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
           strategy: 'network-only',
         }));
         maxPrependedCount = Math.max(maxPrependedCount, older?.detail.demandPosterior.length ?? 0);
-        return [
-          sku.skuId,
-          older && current
-            ? {
-                ...older,
-                latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
-                detail: mergeSkuDetails(older.detail, current.detail),
-              }
-            : current ?? older ?? null,
-        ] as const;
-      }) ?? [],
-    );
-    const serviceEntries = await Promise.all(
-      inventory.catalog?.services.map(async (service) => {
+        skuPagesById[sku.skuId] = older && current
+          ? {
+              ...older,
+              latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
+              detail: mergeSkuDetails(older.detail, current.detail),
+            }
+          : current ?? older ?? null;
+      }),
+      ...(inventory.catalog?.services ?? []).map((service) => async () => {
         const current = currentServicePagesById[service.serviceId];
         if (!current?.hasOlder || current.nextBeforeIntervalIndex == null) {
-          return [service.serviceId, current ?? null] as const;
+          servicePagesById[service.serviceId] = current ?? null;
+          return;
         }
         const older = normalizeServiceDetailPage(await inventory.loadSenaServiceDetail(service.serviceId, {
           beforeIntervalIndex: current.nextBeforeIntervalIndex,
@@ -109,23 +123,21 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
           strategy: 'network-only',
         }));
         maxPrependedCount = Math.max(maxPrependedCount, older?.detail.regimeTimeline.length ?? 0);
-        return [
-          service.serviceId,
-          older && current
-            ? {
-                ...older,
-                latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
-                detail: mergeServiceDetails(older.detail, current.detail),
-              }
-            : current ?? older ?? null,
-        ] as const;
-      }) ?? [],
-    );
+        servicePagesById[service.serviceId] = older && current
+          ? {
+              ...older,
+              latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
+              detail: mergeServiceDetails(older.detail, current.detail),
+            }
+          : current ?? older ?? null;
+      }),
+    ];
+    await runWithConcurrency(tasks, DETAIL_HYDRATION_CONCURRENCY);
 
     return {
       maxPrependedCount,
-      servicePagesById: Object.fromEntries(serviceEntries) as Record<string, SenaServiceDetailPage | null>,
-      skuPagesById: Object.fromEntries(skuEntries) as Record<string, SenaSkuDetailPage | null>,
+      servicePagesById,
+      skuPagesById,
     };
   };
 
@@ -213,28 +225,39 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
         skuPages: cachedSkuPages,
       });
     }
-    const [skuEntries, serviceEntries] = await Promise.all([
-      Promise.all(
-        (inventory.catalog?.skus ?? []).map(async (sku) => {
-          try {
-            return [sku.skuId, normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(sku.skuId, { limit: INTERVAL_PAGE_SIZE, strategy: 'network-only' }))] as const;
-          } catch {
-            return [sku.skuId, null] as const;
-          }
-        }),
-      ),
-      Promise.all(
-        (inventory.catalog?.services ?? []).map(async (service) => {
-          try {
-            return [service.serviceId, normalizeServiceDetailPage(await inventory.loadSenaServiceDetail(service.serviceId, { limit: INTERVAL_PAGE_SIZE, strategy: 'network-only' }))] as const;
-          } catch {
-            return [service.serviceId, null] as const;
-          }
-        }),
-      ),
-    ]);
-    let skuPages = Object.fromEntries(skuEntries) as Record<string, SenaSkuDetailPage | null>;
-    let servicePages = Object.fromEntries(serviceEntries) as Record<string, SenaServiceDetailPage | null>;
+    let skuPages = { ...cachedSkuPages };
+    let servicePages = { ...cachedServicePages };
+    const highRiskSkuIds = new Set(inventory.workspaceSummary?.highRiskSkuIds ?? []);
+    const orderedSkus = [...(inventory.catalog?.skus ?? [])].sort((left, right) => {
+      const leftPriority = highRiskSkuIds.has(left.skuId) ? 0 : 1;
+      const rightPriority = highRiskSkuIds.has(right.skuId) ? 0 : 1;
+      return leftPriority - rightPriority;
+    });
+    const hydrationTasks: Array<() => Promise<void>> = [
+      ...orderedSkus.map((sku) => async () => {
+        try {
+          skuPages = {
+            ...skuPages,
+            [sku.skuId]: normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(sku.skuId, { limit: INTERVAL_PAGE_SIZE })),
+          };
+        } catch {
+          skuPages = { ...skuPages, [sku.skuId]: null };
+        }
+        onPagesChange?.({ servicePages, skuPages });
+      }),
+      ...(inventory.catalog?.services ?? []).map((service) => async () => {
+        try {
+          servicePages = {
+            ...servicePages,
+            [service.serviceId]: normalizeServiceDetailPage(await inventory.loadSenaServiceDetail(service.serviceId, { limit: INTERVAL_PAGE_SIZE })),
+          };
+        } catch {
+          servicePages = { ...servicePages, [service.serviceId]: null };
+        }
+        onPagesChange?.({ servicePages, skuPages });
+      }),
+    ];
+    await runWithConcurrency(hydrationTasks, DETAIL_HYDRATION_CONCURRENCY);
     onPagesChange?.({ servicePages, skuPages });
     const boundary = deriveAnalysisTimeframeBoundary(inventory.workspaceSummary?.latestObservedAt, targetTimeframe);
     const effectiveBoundary =

@@ -72,6 +72,7 @@ type ReadCacheValue =
   | null;
 
 const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
+const DEFERRED_DIAGNOSTICS_DELAY_MS = 2_000;
 
 type SenaDetailLoadStrategy = 'cache-first' | 'network-only';
 type SenaDetailLoadOptions = {
@@ -311,6 +312,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
   const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
+  const deferredDiagnosticsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reloadSequenceRef = useRef(0);
   const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
@@ -482,6 +484,34 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return recordUpdateContext;
   }, [setStatePartial]);
 
+  const cancelDeferredDiagnostics = useCallback(() => {
+    if (deferredDiagnosticsTimerRef.current) {
+      clearTimeout(deferredDiagnosticsTimerRef.current);
+      deferredDiagnosticsTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleDeferredDiagnostics = useCallback((reloadId: number) => {
+    cancelDeferredDiagnostics();
+    deferredDiagnosticsTimerRef.current = setTimeout(() => {
+      deferredDiagnosticsTimerRef.current = null;
+      if (reloadSequenceRef.current !== reloadId) {
+        return;
+      }
+      void window.banjiDesktop.sena.getDiagnostics()
+        .then((diagnostics) => {
+          if (reloadSequenceRef.current !== reloadId) {
+            return;
+          }
+          readCacheRef.current.set('sena:diagnostics', diagnostics);
+          setStatePartial({ diagnostics });
+        })
+        .catch((error) => {
+          console.warn('[inventory] deferred diagnostics load failed', error);
+        });
+    }, DEFERRED_DIAGNOSTICS_DELAY_MS);
+  }, [cancelDeferredDiagnostics, setStatePartial]);
+
   useEffect(() => {
     syncPersistentSenaDetailCache(state.workspaceSummary);
   }, [state.workspaceSummary, syncPersistentSenaDetailCache]);
@@ -489,6 +519,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(async () => {
     const reloadId = reloadSequenceRef.current + 1;
     reloadSequenceRef.current = reloadId;
+    cancelDeferredDiagnostics();
     setState((current) => ({ ...current, error: null, isLoading: true }));
     try {
       readCacheRef.current.clear();
@@ -523,40 +554,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordUpdateContext: null,
         workspaceSummary,
       });
-      void Promise.allSettled([
-        window.banjiDesktop.sena.getDiagnostics(),
-        window.banjiDesktop.sena.getRecordUpdateContext(),
-        window.banjiDesktop.sena.listOrderBatches(),
-      ]).then((results) => {
-        if (reloadSequenceRef.current !== reloadId) {
-          return;
-        }
-        const [diagnosticsResult, observationsResult, orderBatchesResult] = results;
-        const patch: Partial<ReturnType<typeof emptyState>> = {};
-        if (diagnosticsResult.status === 'fulfilled') {
-          readCacheRef.current.set('sena:diagnostics', diagnosticsResult.value);
-          patch.diagnostics = diagnosticsResult.value;
-        } else {
-          console.warn('[inventory] deferred diagnostics load failed', diagnosticsResult.reason);
-        }
-        if (observationsResult.status === 'fulfilled') {
-          readCacheRef.current.set('sena:record-update-context', observationsResult.value);
-          readCacheRef.current.set('sena:observation-fingerprint', observationsResult.value.observationFingerprint);
-          patch.recordUpdateContext = observationsResult.value;
-          patch.observationFingerprint = observationsResult.value.observationFingerprint;
-        } else {
-          console.warn('[inventory] deferred record-update context load failed', observationsResult.reason);
-        }
-        if (orderBatchesResult.status === 'fulfilled') {
-          readCacheRef.current.set('sena:order-batches:{}', orderBatchesResult.value);
-          patch.orderBatches = orderBatchesResult.value;
-        } else {
-          console.warn('[inventory] deferred order batches load failed', orderBatchesResult.reason);
-        }
-        if (Object.keys(patch).length > 0) {
-          setState((current) => ({ ...current, ...patch }));
-        }
-      });
+      scheduleDeferredDiagnostics(reloadId);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -564,11 +562,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       }));
     }
-  }, [updateSenaMeta]);
+  }, [cancelDeferredDiagnostics, scheduleDeferredDiagnostics, updateSenaMeta]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => cancelDeferredDiagnostics, [cancelDeferredDiagnostics]);
 
   const withSaving = useCallback(async <T,>(task: () => Promise<T>) => {
     setState((current) => ({ ...current, error: null, isSaving: true }));

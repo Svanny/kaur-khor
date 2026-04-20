@@ -4385,6 +4385,8 @@ export function StockUpdateSessionRoute() {
     createSenaOrderBatch,
     ingestSenaObservation,
     isSaving,
+    loadSenaOrderBatches,
+    loadSenaRecordUpdateContext,
     observations,
     orderBatches,
     triggerSenaRun,
@@ -4425,6 +4427,8 @@ export function StockUpdateSessionRoute() {
   const latestAt = latestObservationAt(observations);
   const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
+  const requestedOrderBatchesRef = useRef(false);
+  const requestedRecordUpdateContextRef = useRef(false);
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
@@ -4470,6 +4474,32 @@ export function StockUpdateSessionRoute() {
           : selectedOrderBatch.children,
     [routeChildOrderId, selectedOrderBatch],
   );
+
+  useEffect(() => {
+    if (typeof loadSenaRecordUpdateContext !== 'function' || requestedRecordUpdateContextRef.current) {
+      return;
+    }
+    requestedRecordUpdateContextRef.current = true;
+    void loadSenaRecordUpdateContext().catch((error) => {
+      requestedRecordUpdateContextRef.current = false;
+      console.warn('[stock-update] record update context load failed', error);
+    });
+  }, [loadSenaRecordUpdateContext]);
+
+  useEffect(() => {
+    if (
+      typeof loadSenaOrderBatches !== 'function'
+      || requestedOrderBatchesRef.current
+      || (orderBatches?.length ?? 0) > 0
+    ) {
+      return;
+    }
+    requestedOrderBatchesRef.current = true;
+    void loadSenaOrderBatches().catch((error) => {
+      requestedOrderBatchesRef.current = false;
+      console.warn('[stock-update] order batches load failed', error);
+    });
+  }, [loadSenaOrderBatches, orderBatches.length]);
 
   useEffect(() => {
     const scopedIds =

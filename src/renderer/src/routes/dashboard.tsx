@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
@@ -281,6 +281,7 @@ export function DashboardRoute() {
     preferenceKey: keyof DesktopTaskBatchUpdatePreferences;
     selectedTask: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>;
   } | null>(null);
+  const requestedOrderBatchesRef = useRef(false);
   const [rememberBatchChoice, setRememberBatchChoice] = useState(false);
   const routeState = readOverviewRouteState(searchParams);
   const searchScope = routeState.scope;
@@ -377,6 +378,24 @@ export function DashboardRoute() {
   }
 
   useEffect(() => {
+    if (
+      typeof inventory.loadSenaOrderBatches !== 'function'
+      || requestedOrderBatchesRef.current
+      || (inventory.orderBatches?.length ?? 0) > 0
+    ) {
+      return undefined;
+    }
+    requestedOrderBatchesRef.current = true;
+    const cancel = scheduleBackgroundTask(() => {
+      void inventory.loadSenaOrderBatches().catch((error) => {
+        requestedOrderBatchesRef.current = false;
+        console.warn('[dashboard] order batches load failed', error);
+      });
+    });
+    return cancel;
+  }, [inventory, inventory.orderBatches?.length]);
+
+  useEffect(() => {
     const skuIds = orderedDashboardSkuDetailIds(inventory.workspaceSummary);
     if (skuIds.length === 0) {
       setDetailBySkuId({});
@@ -443,7 +462,7 @@ export function DashboardRoute() {
     forceStaleUpdateReminder: import.meta.env.MODE === 'development',
     language,
     observations: inventory.observations,
-    orderBatches: inventory.orderBatches,
+    orderBatches: inventory.orderBatches ?? [],
     staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
   });
