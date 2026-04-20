@@ -12,5 +12,5 @@ fi
 
 cd "${REPO_ROOT}"
 
-tree -a --gitignore > tree.txt
-tree -a -d --gitignore > tree_dir.txt
+tree -a --gitignore >tree.txt
+tree -a -d --gitignore >tree_dir.txt
