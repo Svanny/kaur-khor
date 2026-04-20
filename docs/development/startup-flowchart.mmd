@@ -33,13 +33,14 @@ flowchart LR
     ReadPool["Read-worker pool<br/>BANJI_READ_CORE_POOL_SIZE, clamped 1..8"]:::ipc
     Coalesce["Coalesce identical read-only requests globally"]:::cache
     Generation["Mutation generation bump<br/>discard stale read results"]:::cache
-    RouteRead["Route read to least-busy ready worker<br/>fallback to writer before pool is ready"]:::ipc
+    RouteRead["Route read to least-busy ready worker<br/>deferred reads wait up to 1s before writer fallback"]:::ipc
     RouteWrite["Route mutation to writer only"]:::mutation
   end
 
   subgraph Store["SQLite and file storage"]
     Fingerprint["Observation fingerprint query<br/>count + latest observed row"]:::store
     HotSummary["Hot startup tables<br/>workspace summary + SKU summary rows"]:::store
+    RecordAnchors["Record update anchors<br/>latest stock, sale, order, receipt rows"]:::store
     ObservationPage["Paged observations<br/>observed_at DESC, observation_id DESC"]:::store
     CheckpointFiles["Compressed checkpoints<br/>sena-checkpoints/*.json.zst + SQLite metadata"]:::store
   end
@@ -50,8 +51,9 @@ flowchart LR
     MountProviders["Mount preferences and inventory providers"]:::process
     StartupWorkspace["sena.getStartupWorkspace"]:::important
     Ready["Set inventory isLoading=false"]:::metric
-    DeferredReads["Deferred reads<br/>diagnostics, record-update context, order batches, capped SKU detail hydration"]:::ipc
-    RoutePages["Route-specific pages<br/>listObservationPage when history is needed"]:::ipc
+    DeferredDiagnostics["Deferred diagnostics<br/>idle after 2s when still needed"]:::ipc
+    RouteSupportReads["Route-scoped support reads<br/>record-update context and order batches"]:::ipc
+    RoutePages["Route-specific pages<br/>listObservationPage and detail windows when needed"]:::ipc
     LazyRoutes["Lazy non-dashboard route chunks<br/>performance, financials, analysis, detail, stock update"]:::process
   end
 
@@ -83,15 +85,19 @@ flowchart LR
   MountProviders --> StartupWorkspace
   StartupWorkspace --> Coalesce --> RouteRead --> Fingerprint --> HotSummary --> Ready
   Ready --> WorkspaceReady
-  Ready --> DeferredReads
-  DeferredReads --> Coalesce --> RouteRead
-  DeferredReads --> RoutePages
+  Ready --> DeferredDiagnostics
+  Ready --> RouteSupportReads
+  DeferredDiagnostics --> Coalesce --> RouteRead
+  RouteSupportReads --> Coalesce --> RouteRead
+  RouteSupportReads --> RecordAnchors
+  RouteSupportReads --> RoutePages
   RoutePages --> ObservationPage
   MountProviders --> LazyRoutes
 
   RouteWrite --> Generation
   Generation --> Coalesce
   HotSummary --> CheckpointFiles
+  RecordAnchors --> CheckpointFiles
 
   BootStart --> Events
   MainReady --> Events

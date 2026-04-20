@@ -9,6 +9,7 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd)
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd)
+- [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd)
 - [Benchmark guide](/Users/svanny/banji/bench/README.md)
 
 ## Repo Map
@@ -51,7 +52,8 @@ pnpm package:win:native
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, backup snapshots, restore, and clear-data behavior
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
-- [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, hydration, and benchmark summaries
+- [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
+- [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, read-pool readiness, route-scoped support reads, and navigation benchmark targets
 - [Benchmark guide](/Users/svanny/banji/bench/README.md): benchmark commands, fixture sizes, event files, and startup target names
 
 ### Security

@@ -208,7 +208,10 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - The renderer should request observation history explicitly through paged reads or compact context commands. Keep `sena.listObservations()` as a compatibility/export path, not a startup/session default.
 - Main-process SENA cache freshness uses `sena.getObservationFingerprint`; do not reintroduce per-read `sena.listObservations()` freshness scans.
 - The backend has a writer core plus a read-worker pool. Mutations must route to the writer; read-only commands may route to read workers and should remain globally coalesced when identical.
+- Deferred read-only commands should wait briefly for a ready read worker before falling back to the writer. Keep startup-critical reads on the immediate path.
 - Hot startup summary data lives in normalized SQLite tables. Keep legacy JSON read models only as compatibility/detail storage unless benchmark evidence justifies another shape.
+- `sena.getRecordUpdateContext()` is backed by normalized anchor rows, not a full observation scan. Keep latest stock, sale, order, and receipt anchors incremental on write.
+- `InventoryProvider.reload()` should not automatically fan out diagnostics, record-update context, or order batches right after readiness. Diagnostics are idle work; record-update context and order batches are route-driven support reads.
 - Checkpoint payloads live as compressed files under `sena-checkpoints/` with SQLite metadata. Do not put large checkpoint JSON blobs back into the hot SQLite path.
 - Benchmark fixtures are `minimal`, `medium`, `heavy`, and `power-user`; Power User means 10 years, 1 day interval, 3,653 observations.
 
