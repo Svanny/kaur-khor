@@ -4229,7 +4229,7 @@ function TicketEntryPrompt({
               language,
               mode === 'edit'
                 ? 'Select the existing ticket you want to update.'
-                : 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
+                : 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
             )}
           </p>
         </div>
@@ -4716,6 +4716,7 @@ export function StockUpdateSessionRoute() {
     const value = new URLSearchParams(location.search).get('ticketMode');
     return isTicketAuthoringMode(value) ? value : null;
   }, [location.search]);
+  const routeTicketId = useMemo(() => new URLSearchParams(location.search).get('ticketId'), [location.search]);
   const initialSkuIds = useMemo(() => {
     const search = location.search;
     const urlParams = new URLSearchParams(search);
@@ -4834,7 +4835,9 @@ export function StockUpdateSessionRoute() {
   const [supplierTicketMode, setSupplierTicketMode] = useState<TicketAuthoringMode | null>(
     () => (lane.id === 'supplier-order-pending' ? routeTicketMode : null),
   );
-  const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(null);
+  const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(
+    lane.id === 'customer-order-pending' ? routeTicketId : null,
+  );
   const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(routeBatchOrderId ?? routeChildOrderId);
   const [supplierTicketUpdateAction, setSupplierTicketUpdateAction] = useState<SupplierTicketUpdateAction>('revise_order');
   const [customerIdentity, setCustomerIdentity] = useState<CustomerIdentityDraft>(DEFAULT_CUSTOMER_IDENTITY);
@@ -5343,6 +5346,8 @@ export function StockUpdateSessionRoute() {
       setCustomerTicketMode(routeTicketMode);
       if (routeTicketMode === 'new') {
         setSelectedCustomerTicketId(null);
+      } else if (routeTicketId) {
+        setSelectedCustomerTicketId(routeTicketId);
       }
       return;
     }
@@ -5352,7 +5357,7 @@ export function StockUpdateSessionRoute() {
         setSelectedSupplierTicketId(routeBatchOrderId ?? routeChildOrderId);
       }
     }
-  }, [lane.id, routeBatchOrderId, routeChildOrderId, routeTicketMode]);
+  }, [lane.id, routeBatchOrderId, routeChildOrderId, routeTicketId, routeTicketMode]);
 
   useEffect(() => {
     if (!workingCatalog) {

@@ -799,8 +799,10 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation.mock.calls[0]![0].stockSnapshot).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ skuId: 'sku-2' })]),
     );
-    expect(triggerSenaRun).not.toHaveBeenCalled();
+    expect(triggerSenaRun).toHaveBeenCalledTimes(1);
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5_000);
+    window.clearTimeout(setTimeoutSpy.mock.results[0]?.value as number);
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
     setTimeoutSpy.mockRestore();
   });
@@ -880,8 +882,10 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(triggerSenaRun).not.toHaveBeenCalled();
+    expect(triggerSenaRun).toHaveBeenCalledTimes(1);
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5_000);
+    window.clearTimeout(setTimeoutSpy.mock.results[0]?.value as number);
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
 
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
