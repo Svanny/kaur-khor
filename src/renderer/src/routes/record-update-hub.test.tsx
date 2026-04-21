@@ -63,6 +63,16 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.queryByText('Available now')).not.toBeInTheDocument();
   });
 
+  it('uses the semantic danger tint for the immediate sale card', () => {
+    render(
+      <MemoryRouter>
+        <RecordUpdateHubRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Immediate Sale' })).toHaveClass('border-rose-200/80', 'bg-rose-50/70');
+  });
+
   it('opens the customer order chooser on the hub and navigates with explicit ticket mode', () => {
     render(
       <MemoryRouter initialEntries={['/record-update']}>

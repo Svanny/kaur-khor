@@ -67,7 +67,7 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     href: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
     icon: EntityServiceIcon,
     laneId: 'customer-order-completed',
-    tone: 'orange',
+    tone: 'danger',
   },
   {
     title: 'Supplier Order',
