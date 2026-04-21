@@ -13,6 +13,10 @@ const toggleGroupContext = createContext<{
   onValueChange?: (value: string) => void;
   value?: string;
 } | null>(null);
+const selectContext = createContext<{
+  onValueChange?: (value: string) => void;
+  value?: string;
+} | null>(null);
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -123,7 +127,15 @@ vi.mock('@/components/ui/toggle-group', () => ({
 }));
 
 vi.mock('@/components/ui/select', () => ({
-  Select: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Select: ({
+    children,
+    onValueChange,
+    value,
+  }: {
+    children: ReactNode;
+    onValueChange?: (value: string) => void;
+    value?: string;
+  }) => <selectContext.Provider value={{ onValueChange, value }}>{children}</selectContext.Provider>,
   SelectTrigger: ({ children, ...props }: HTMLAttributes<HTMLButtonElement>) => (
     <button type="button" {...props}>
       {children}
@@ -131,7 +143,22 @@ vi.mock('@/components/ui/select', () => ({
   ),
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? null}</span>,
   SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
+  SelectItem: ({ children, value, ...props }: HTMLAttributes<HTMLDivElement> & { value: string }) => {
+    const context = useContext(selectContext);
+    return (
+      <div
+        role="option"
+        aria-selected={context?.value === value}
+        {...props}
+        onClick={(event) => {
+          props.onClick?.(event);
+          context?.onValueChange?.(value);
+        }}
+      >
+        {children}
+      </div>
+    );
+  },
 }));
 
 const sampleTask: OverviewSkuTask = {
@@ -192,6 +219,13 @@ const sampleTask: OverviewSkuTask = {
   daysOfCover: 53,
 };
 
+const orderWaitingTask: OverviewSkuTask = {
+  ...sampleTask,
+  defaultDrawerMode: 'ordered_waiting',
+  expectedArrivalDate: '2026-04-14',
+  suggestedOrderQuantity: 12,
+};
+
 describe('OverviewTaskDrawer', () => {
   beforeEach(() => {
     inventoryHook.mockReturnValue({
@@ -244,5 +278,59 @@ describe('OverviewTaskDrawer', () => {
     });
 
     resolveTriggerRun?.({ runId: 'run-2' });
+  });
+
+  test('derives variability class from a typed uncertainty value when saving an order update', async () => {
+    render(
+      <OverviewTaskDrawer
+        mode="ordered_waiting"
+        open
+        task={orderWaitingTask}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Uncertainty ± days'), { target: { value: '3' } });
+    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        leadTimeHints: [
+          expect.objectContaining({
+            variabilityClass: 'very_wide',
+          }),
+        ],
+      }));
+    });
+  });
+
+  test('derives uncertainty days from the selected variability class when saving an order update', async () => {
+    render(
+      <OverviewTaskDrawer
+        mode="ordered_waiting"
+        open
+        task={orderWaitingTask}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('option', { name: 'Wide' }));
+    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        leadTimeHints: [
+          expect.objectContaining({
+            highDays: 7.25,
+            lowDays: 2.75,
+            variabilityClass: 'wide',
+          }),
+        ],
+      }));
+    });
   });
 });

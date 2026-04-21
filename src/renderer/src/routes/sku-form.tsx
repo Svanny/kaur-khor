@@ -1,13 +1,11 @@
 import { ActionSaveIcon } from '@icons/actions';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
 import {
-  classifyLeadTimeVariability,
-  compatibilityStdDaysForClass,
-  impliedLeadTimeRangeFromMeanStd,
+  deriveLeadTimeFromStdDays,
+  deriveLeadTimeFromVariabilityClass,
   leadTimeVariabilityOptions,
-  relativeLeadTimeWidth,
 } from '@shared/sena-lead-time';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { SupplierField } from '@/components/system/supplier';
@@ -24,7 +22,7 @@ import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { useNavigationHistory } from '@/state/navigation-history';
+import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
@@ -49,6 +47,8 @@ function emptySku(skuId = ''): SenaSku {
 
 const editorSelectTriggerClassName =
   'h-14 w-full rounded-xl border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
+type LeadTimeDraftMode = 'class' | 'std';
+
 function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | '') {
   return {
     name: sku.name.trim(),
@@ -76,33 +76,23 @@ function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdTo
 }
 
 function deriveCatalogVariabilityClass(sku: SenaSku): SenaLeadTimeVariabilityClass | null {
-  if (sku.leadTimeMeanDaysHint == null || sku.leadTimeStdDaysHint == null) {
-    return null;
-  }
-  const range = impliedLeadTimeRangeFromMeanStd(sku.leadTimeMeanDaysHint, sku.leadTimeStdDaysHint);
-  return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null));
+  return deriveLeadTimeFromStdDays(sku.leadTimeMeanDaysHint, sku.leadTimeStdDaysHint).variabilityClass;
 }
 
 function stdDaysDraftFromValue(value: number | null) {
   return value == null ? '' : String(value);
 }
 
-function deriveVariabilityFromLeadTimeInputs(
-  meanDays: number | null,
-  stdDays: number | null,
-): SenaLeadTimeVariabilityClass | '' {
-  if (meanDays == null || stdDays == null) {
-    return '';
-  }
-  const range = impliedLeadTimeRangeFromMeanStd(meanDays, stdDays);
-  return classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null)) ?? '';
+function deriveLeadTimeDraftMode(sku: SenaSku): LeadTimeDraftMode {
+  return sku.leadTimeStdDaysHint == null && deriveCatalogVariabilityClass(sku) ? 'class' : 'std';
 }
 
 export function SkuFormRoute() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { skuId } = useParams();
   const { catalog, isSaving, upsertSenaCatalog } = useInventory();
-  const { canGoBack, goBack } = useNavigationHistory();
+  const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const editing = Boolean(skuId);
   const initialExistingSku = catalog?.skus.find((entry) => entry.skuId === skuId) ?? null;
@@ -120,6 +110,9 @@ export function SkuFormRoute() {
   const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>(
     () => deriveCatalogVariabilityClass(initialExistingSku ?? emptySku(skuId)) ?? '',
   );
+  const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeDraftMode>(() =>
+    deriveLeadTimeDraftMode(initialExistingSku ?? emptySku(skuId)),
+  );
   const formId = 'sku-editor-form';
   const existingSku = useMemo(
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -133,12 +126,14 @@ export function SkuFormRoute() {
       setProductPriceDraft(moneyDraftFromUsd(existingSku.productPrice, currency, usdToKhrExchangeRate));
       setLeadTimeStdDaysDraft(stdDaysDraftFromValue(existingSku.leadTimeStdDaysHint));
       setLeadTimeVariability(deriveCatalogVariabilityClass(existingSku) ?? '');
+      setLeadTimeDraftMode(deriveLeadTimeDraftMode(existingSku));
     } else if (!editing) {
       setForm(emptySku(''));
       setCostPerUnitDraft(moneyDraftFromUsd(emptySku('').costPerUnit, currency, usdToKhrExchangeRate));
       setProductPriceDraft('');
       setLeadTimeStdDaysDraft('');
       setLeadTimeVariability('');
+      setLeadTimeDraftMode('std');
     }
   }, [currency, editing, existingSku, usdToKhrExchangeRate]);
 
@@ -147,6 +142,18 @@ export function SkuFormRoute() {
       setPriceEnableHintActive(false);
     }
   }, [form.soldAsProduct, priceEnableHintActive]);
+
+  useEffect(() => {
+    if (leadTimeDraftMode === 'class') {
+      const syncedStdDays = deriveLeadTimeFromVariabilityClass(form.leadTimeMeanDaysHint, leadTimeVariability || null).stdDays;
+      setLeadTimeStdDaysDraft(stdDaysDraftFromValue(syncedStdDays));
+      return;
+    }
+
+    const parsedStdDays = parseOptionalNumber(leadTimeStdDaysDraft);
+    const syncedClass = deriveLeadTimeFromStdDays(form.leadTimeMeanDaysHint, parsedStdDays).variabilityClass ?? '';
+    setLeadTimeVariability(syncedClass);
+  }, [form.leadTimeMeanDaysHint, leadTimeDraftMode, leadTimeStdDaysDraft, leadTimeVariability]);
 
   const normalizedBaseline = useMemo(() => existingSku ?? emptySku(editing ? (skuId ?? '') : ''), [editing, existingSku, skuId]);
   const baselineLeadTimeVariability = useMemo(
@@ -160,7 +167,7 @@ export function SkuFormRoute() {
       (form.leadTimeMeanDaysHint === normalizedBaseline.leadTimeMeanDaysHint &&
       leadTimeVariability === baselineLeadTimeVariability
         ? normalizedBaseline.leadTimeStdDaysHint
-        : compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, leadTimeVariability || null));
+        : deriveLeadTimeFromVariabilityClass(form.leadTimeMeanDaysHint, leadTimeVariability || null).stdDays);
 
     return {
       ...form,
@@ -187,6 +194,7 @@ export function SkuFormRoute() {
     setProductPriceDraft(moneyDraftFromUsd(normalizedBaseline.productPrice, currency, usdToKhrExchangeRate));
     setLeadTimeStdDaysDraft(stdDaysDraftFromValue(normalizedBaseline.leadTimeStdDaysHint));
     setLeadTimeVariability(baselineLeadTimeVariability);
+    setLeadTimeDraftMode(deriveLeadTimeDraftMode(normalizedBaseline));
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -209,7 +217,21 @@ export function SkuFormRoute() {
         };
     const nextCatalog = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
     await upsertSenaCatalog(nextCatalog);
-    await navigate(`/catalog/skus/${nextSku.skuId}`, { replace: !editing });
+    const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
+    const currentOrigin =
+      location.state &&
+      typeof location.state === 'object' &&
+      'banjiNavigationOrigin' in location.state &&
+      typeof location.state.banjiNavigationOrigin === 'string'
+        ? location.state.banjiNavigationOrigin
+        : null;
+    await navigate(`/catalog/skus/${nextSku.skuId}`, {
+      replace: true,
+      state: {
+        ...detailNavigationState,
+        banjiNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
+      },
+    });
   }
 
   return (
@@ -422,11 +444,8 @@ export function SkuFormRoute() {
               type="number"
               value={leadTimeStdDaysDraft}
               onChange={(event) => {
-                const nextValue = event.target.value;
-                setLeadTimeStdDaysDraft(nextValue);
-                setLeadTimeVariability(
-                  deriveVariabilityFromLeadTimeInputs(form.leadTimeMeanDaysHint, parseOptionalNumber(nextValue)),
-                );
+                setLeadTimeDraftMode('std');
+                setLeadTimeStdDaysDraft(event.target.value);
               }}
             />
           </EditorField>
@@ -442,9 +461,10 @@ export function SkuFormRoute() {
               onValueChange={(value) => {
                 const nextVariability =
                   value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass);
+                setLeadTimeDraftMode('class');
                 setLeadTimeVariability(nextVariability);
                 setLeadTimeStdDaysDraft(
-                  stdDaysDraftFromValue(compatibilityStdDaysForClass(form.leadTimeMeanDaysHint, nextVariability || null)),
+                  stdDaysDraftFromValue(deriveLeadTimeFromVariabilityClass(form.leadTimeMeanDaysHint, nextVariability || null).stdDays),
                 );
               }}
             >

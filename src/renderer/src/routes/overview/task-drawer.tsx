@@ -1,7 +1,8 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
-  deriveLeadTimeVariabilityClass,
+  deriveLeadTimeFromStdDays,
+  deriveLeadTimeFromVariabilityClass,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
 import {
@@ -59,6 +60,7 @@ import type { TranslationKey, TranslationVariables } from '@/lib/translations';
 import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
 
 type DrawerTranslate = (key: TranslationKey, variables?: TranslationVariables) => string;
+type LeadTimeDraftMode = 'class' | 'std';
 
 function initialObservedAt(value: string | null) {
   if (value) {
@@ -110,20 +112,17 @@ function leadTimeHintFromTaskInputs({
   }
 
   const uncertainty = uncertaintyDays ? Number(uncertaintyDays) : 0;
-  const lowDays = Math.max(0.5, typicalDays - uncertainty);
-  const highDays = Math.max(lowDays, typicalDays + uncertainty);
+  const derivedLeadTime = uncertaintyDays.trim()
+    ? deriveLeadTimeFromStdDays(typicalDays, uncertainty)
+    : deriveLeadTimeFromVariabilityClass(typicalDays, variabilityClass || null);
 
   return [
     {
       skuId,
       typicalDays,
-      lowDays,
-      highDays,
-      variabilityClass: deriveLeadTimeVariabilityClass({
-        lowDays,
-        highDays,
-        variabilityClass: variabilityClass || null,
-      }),
+      lowDays: derivedLeadTime.lowDays,
+      highDays: derivedLeadTime.highDays,
+      variabilityClass: derivedLeadTime.variabilityClass,
     },
   ];
 }
@@ -384,6 +383,7 @@ export function OverviewTaskDrawer({
   const [expectedArrivalDate, setExpectedArrivalDate] = useState(initialExpectedArrivalDate(null));
   const [uncertaintyDays, setUncertaintyDays] = useState('');
   const [variabilityClass, setVariabilityClass] = useState<SenaLeadTimeVariabilityClass | ''>('');
+  const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeDraftMode>('std');
   const [useLeadTimeEstimate, setUseLeadTimeEstimate] = useState(true);
   const [receivedQuantity, setReceivedQuantity] = useState('');
   const [receivedCost, setReceivedCost] = useState('');
@@ -403,6 +403,7 @@ export function OverviewTaskDrawer({
     setExpectedArrivalDate(initialExpectedArrivalDate(task.expectedArrivalDate));
     setUncertaintyDays(task.leadTimeStdDays != null ? String(Math.max(1, Math.round(task.leadTimeStdDays))) : '2');
     setVariabilityClass(task.variabilityClass ?? '');
+    setLeadTimeDraftMode('std');
     setUseLeadTimeEstimate(true);
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
     setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
@@ -441,6 +442,33 @@ export function OverviewTaskDrawer({
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!useLeadTimeEstimate) {
+      return;
+    }
+
+    const typicalDays = daysBetween(observedAt, expectedArrivalDate);
+    if (typicalDays == null) {
+      return;
+    }
+
+    if (leadTimeDraftMode === 'class') {
+      setUncertaintyDays(
+        (() => {
+          const stdDays = deriveLeadTimeFromVariabilityClass(typicalDays, variabilityClass || null).stdDays;
+          return stdDays == null ? '' : String(stdDays);
+        })(),
+      );
+      return;
+    }
+
+    const nextVariabilityClass = deriveLeadTimeFromStdDays(
+      typicalDays,
+      uncertaintyDays.trim() ? Number(uncertaintyDays) : null,
+    ).variabilityClass;
+    setVariabilityClass(nextVariabilityClass ?? '');
+  }, [expectedArrivalDate, leadTimeDraftMode, observedAt, uncertaintyDays, useLeadTimeEstimate, variabilityClass]);
 
   function drawerDraftSnapshot() {
     return {
@@ -822,7 +850,10 @@ export function OverviewTaskDrawer({
                           step="1"
                           type="number"
                           value={uncertaintyDays}
-                          onChange={(event) => setUncertaintyDays(event.target.value)}
+                          onChange={(event) => {
+                            setLeadTimeDraftMode('std');
+                            setUncertaintyDays(event.target.value);
+                          }}
                         />
                       </ActionSheetField>
                       <ActionSheetField
@@ -832,9 +863,18 @@ export function OverviewTaskDrawer({
                         <Select
                           value={variabilityClass || leadTimeVariabilityPlaceholderValue}
                           onValueChange={(value) =>
-                            setVariabilityClass(
-                              value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
-                            )
+                            {
+                              const nextVariabilityClass =
+                                value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass);
+                              setLeadTimeDraftMode('class');
+                              setVariabilityClass(nextVariabilityClass);
+                              const typicalDays = daysBetween(observedAt, expectedArrivalDate);
+                              setUncertaintyDays(
+                                typicalDays == null
+                                  ? ''
+                                  : String(deriveLeadTimeFromVariabilityClass(typicalDays, nextVariabilityClass || null).stdDays ?? ''),
+                              );
+                            }
                           }
                         >
                           <SelectTrigger aria-label={t('overviewDrawerVariabilityLabel')} className={actionSheetSelectTriggerClassName}>

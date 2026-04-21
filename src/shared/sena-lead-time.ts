@@ -63,6 +63,33 @@ export function deriveLeadTimeVariabilityClass({
   return variabilityClass ?? classifyLeadTimeVariability(relativeLeadTimeWidth(lowDays, highDays));
 }
 
+export function deriveLeadTimeFromStdDays(
+  meanDays: number | null,
+  stdDays: number | null,
+): {
+  highDays: number | null;
+  lowDays: number | null;
+  stdDays: number | null;
+  variabilityClass: SenaLeadTimeVariabilityClass | null;
+} {
+  if (meanDays == null || stdDays == null || !Number.isFinite(meanDays) || !Number.isFinite(stdDays) || meanDays < 0 || stdDays < 0) {
+    return {
+      highDays: null,
+      lowDays: null,
+      stdDays: null,
+      variabilityClass: null,
+    };
+  }
+
+  const range = impliedLeadTimeRangeFromMeanStd(meanDays, stdDays);
+  return {
+    highDays: range?.highDays ?? null,
+    lowDays: range?.lowDays ?? null,
+    stdDays,
+    variabilityClass: classifyLeadTimeVariability(relativeLeadTimeWidth(range?.lowDays ?? null, range?.highDays ?? null)),
+  };
+}
+
 export function leadTimeVariabilityOptions() {
   return CLASS_ORDER;
 }
@@ -116,4 +143,23 @@ export function compatibilityRangeForClass(
     return null;
   }
   return impliedLeadTimeRangeFromMeanStd(meanDays, stdDays);
+}
+
+export function deriveLeadTimeFromVariabilityClass(
+  meanDays: number | null,
+  variabilityClass: SenaLeadTimeVariabilityClass | null,
+): {
+  highDays: number | null;
+  lowDays: number | null;
+  stdDays: number | null;
+  variabilityClass: SenaLeadTimeVariabilityClass | null;
+} {
+  const stdDays = compatibilityStdDaysForClass(meanDays, variabilityClass);
+  const range = compatibilityRangeForClass(meanDays, variabilityClass);
+  return {
+    highDays: range?.highDays ?? null,
+    lowDays: range?.lowDays ?? null,
+    stdDays,
+    variabilityClass,
+  };
 }

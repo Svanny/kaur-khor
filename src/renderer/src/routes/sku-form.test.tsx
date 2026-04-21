@@ -473,4 +473,33 @@ describe('SkuFormRoute', () => {
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].leadTimeStdDaysHint).toBeCloseTo(1.8);
   });
+
+  test('updates lead time variability when uncertainty changes', async () => {
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('1'), { target: { value: '2.5' } });
+
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent(
+        leadTimeVariabilityLabel('wide'),
+      );
+    });
+  });
+
+  test('updates uncertainty when variability and mean days change', async () => {
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
+    fireEvent.click(screen.getByRole('option', { name: leadTimeVariabilityLabel('wide') }));
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('2.25')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByDisplayValue('5'), { target: { value: '8' } });
+
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('3.6')).toBeInTheDocument();
+    });
+  });
 });
