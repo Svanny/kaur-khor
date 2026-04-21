@@ -123,7 +123,7 @@ export function ArchiveRoute() {
         }}
       />
       <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Logs')}
+        eyebrow={translateUiLiteral(language, 'Settings')}
         title={translateUiLiteral(language, 'Archive')}
         descriptor={translateUiLiteral(language, 'Review archived catalog items and restore anything that should return to active workspaces.')}
       >

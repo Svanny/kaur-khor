@@ -5,6 +5,7 @@ type TranslationKey = keyof typeof enUiCopyV1;
 const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   appTitle: 'បញ្ជី កុំព្យូទ័រ',
   appBrand: 'បញ្ជី',
+  navAutomations: 'អូតូម៉ាស្យុង',
   navArchive: 'បណ្ណសារ',
   navHelp: 'ជំនួយ',
   helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
@@ -1729,7 +1730,10 @@ const exactValueTranslations: Record<string, string> = {
   Planning: 'ផែនការ',
   Logs: 'កំណត់ហេតុ',
   Operations: 'ប្រតិបត្តិការ',
+  'Data Insights': 'ការយល់ដឹងពីទិន្នន័យ',
   'Business health': 'សុខភាពអាជីវកម្ម',
+  'Business Health': 'សុខភាពអាជីវកម្ម',
+  'User Guide': 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
   Performance: 'សុខភាពអាជីវកម្ម',
   'Update Sheet': 'ផ្ទាំងអាប់ដេត',
   Merchandising: 'ការរៀបចំលក់',
@@ -1747,8 +1751,8 @@ const exactValueTranslations: Record<string, string> = {
   'Choose an update lane': 'ជ្រើសផ្លូវអាប់ដេត',
   'Choose the physical, customer, or supplier capture flow that matches the work you are recording.':
     'ជ្រើសលំហូរកត់ត្រាស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ ដែលត្រូវនឹងការងារដែលអ្នកកំពុងកត់ត្រា។',
-  'Banji removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
-    'Banji ដកប្រព័ន្ធអាប់ដេតជាបាច់ចាស់ចេញ ហើយប្រើប្រព័ន្ធសំបុត្រការងារ។ ជ្រើសលំហូរស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ដែលត្រូវនឹងការងារ។',
+  'banj removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
+    'បញ្ជី ដកប្រព័ន្ធអាប់ដេតជាបាច់ចាស់ចេញ ហើយប្រើប្រព័ន្ធសំបុត្រការងារ។ ជ្រើសលំហូរស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ដែលត្រូវនឹងការងារ។',
   'Stock Count': 'រាប់ស្តុក',
   'Count what is physically on hand and reconcile mistakes.':
     'រាប់អ្វីដែលមាននៅក្នុងដៃពិតប្រាកដ ហើយកែសម្រួលកំហុស។',
@@ -2007,8 +2011,8 @@ const exactValueTranslations: Record<string, string> = {
   'New customer order': 'បញ្ជាទិញអតិថិជនថ្មី',
   'Edit / update existing customer order': 'កែ / អាប់ដេតការបញ្ជាទិញអតិថិជនដែលមានស្រាប់',
   'Edit / update existing supplier order': 'កែ / អាប់ដេតការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់',
-  'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.':
-    'Banji នឹងបង្កើត ឬអាប់ដេតសំបុត្រការងារដែលរក្សាទុកបាន ហើយបន្ថែមព្រឹត្តិការណ៍សំបុត្រ ជំនួសការសរសេរបាច់ដាច់ដោយឡែក។',
+  'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.':
+    'បញ្ជី នឹងបង្កើត ឬអាប់ដេតសំបុត្រការងារដែលរក្សាទុកបាន ហើយបន្ថែមព្រឹត្តិការណ៍សំបុត្រ ជំនួសការសរសេរបាច់ដាច់ដោយឡែក។',
   'Revise ordered quantity': 'កែបរិមាណបានបញ្ជាទិញ',
   'Revise ETA': 'កែពេលមកដល់រំពឹង',
   'Mark partial receipt': 'សម្គាល់ថាទទួលបានខ្លះ',
@@ -2575,6 +2579,8 @@ const exactValueTranslations: Record<string, string> = {
     'Affected items': 'ធាតុដែលរងផលប៉ះពាល់',
     'Open details': 'បើកព័ត៌មានលម្អិត',
     'Catalog workspace': 'កន្លែងធ្វើការកាតាឡុក',
+    'Offered Selections': 'ជម្រើសដែលផ្តល់ជូន',
+    'Telegram Bot': 'បុត Telegram',
     'No counted stock update yet': 'មិនទាន់មានការរាប់ស្តុកចុងក្រោយទេ',
     'No active receipt windows are open right now.': 'ឥឡូវនេះមិនមានរយៈពេលទទួលទំនិញសកម្មទេ។',
     'Confirmed receipts will appear here as inventory closes the loop.':
@@ -3070,6 +3076,7 @@ function normalizeSpacing(text: string): string {
 
 function localizeKhmerProductWords(text: string): string {
   return text
+    .replace(/\bbanj\b/gi, 'បញ្ជី')
     .replace(/\bbanji\b/gi, 'បញ្ជី')
     .replace(/\bdesktop\b/gi, 'កុំព្យូទ័រ')
     .replace(/\bDesktop\b/g, 'កុំព្យូទ័រ')

@@ -1,16 +1,17 @@
 export const enUiCopyV1 = {
   appTitle: 'banji desktop',
-  appBrand: 'banji',
+  appBrand: 'banj',
   navOverview: 'Overview',
   navRecordUpdate: 'Record update',
   navPerformance: 'Performance',
   navFinancials: 'Financials',
+  navAutomations: 'Automations',
   navAnalysis: 'Analysis',
   navCatalog: 'Catalog',
   navOperations: 'Logs',
   navArchive: 'Archive',
   navHelp: 'Help',
-  helpPageTitle: 'User guide',
+  helpPageTitle: 'User Guide',
   helpPageDescriptor: 'Browse banji workflows, screen-by-screen explanations, glossary terms, and FAQ from one in-app help surface.',
   helpOpenOverviewAction: 'Open overview',
   helpStartUpdateAction: 'Start update',
@@ -1535,7 +1536,7 @@ export const enUiCopyV1 = {
   performanceRouteEmptyWorkspaceTitle: 'Performance needs the first SENA run',
   performanceRouteEmptyWorkspaceHint:
     'Capture a live observation so banji can read demand, capacity, pipeline, and price together.',
-  performanceRouteTitle: 'Business health',
+  performanceRouteTitle: 'Business Health',
   performanceRouteDescriptor: 'Demand, capacity, incoming stock, and pricing in one business view.',
   performanceRouteScopeAll: 'All',
   performanceRouteScopeServices: 'Services',
@@ -1627,7 +1628,7 @@ export const enUiCopyV1 = {
   financialsRouteEmptyWorkspaceHint:
     'Capture a live observation so banji can turn stock, sales, orders, receipts, and price evidence into a money view.',
   analysisRouteEyebrow: 'Analysis',
-  analysisRouteTitle: 'Deep Review',
+  analysisRouteTitle: 'Data Insights',
   analysisRouteDescriptor:
     'Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.',
   analysisRouteNeedCatalogTitle: 'Analysis needs the catalog first',
@@ -2581,7 +2582,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   performanceRouteConfidenceTitle: 'Confidence and coverage',
   performanceRouteTimelineDescriptor: 'What has been changing across the business.',
   analysisRouteEyebrow: 'Analysis',
-  analysisRouteTitle: 'Analysis details',
+  analysisRouteTitle: 'Data Insights',
   analysisRouteDescriptor:
     'See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.',
   analysisRouteNeedCatalogTitle: 'Analysis needs a catalog first',

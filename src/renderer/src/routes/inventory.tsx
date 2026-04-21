@@ -260,7 +260,7 @@ function CatalogLoadingState() {
         }
         descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
         eyebrow={translateUiLiteral(language, 'Catalog')}
-        title={translateUiLiteral(language, 'Catalog workspace')}
+        title={translateUiLiteral(language, 'Offered Selections')}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
           <Skeleton className="h-11 w-full max-w-xl rounded-2xl" />
@@ -436,7 +436,7 @@ export function InventoryRoute() {
     <WorkspacePage>
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Catalog')}
-        title={translateUiLiteral(language, 'Catalog workspace')}
+        title={translateUiLiteral(language, 'Offered Selections')}
         descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
         actions={
           <WorkspaceActionRow>

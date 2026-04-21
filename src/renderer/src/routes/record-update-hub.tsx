@@ -207,7 +207,7 @@ function TicketEntryPromptDialog({
             {title}
           </p>
           <p id="record-update-ticket-entry-description" className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
+            {translateUiLiteral(language, 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
           </p>
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
@@ -356,7 +356,7 @@ export function RecordUpdateHubRoute() {
         title={translateUiLiteral(language, 'Choose an update lane')}
         descriptor={translateUiLiteral(
           language,
-          'Banji removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
+          'banj removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
         )}
       />
       <div className="flex min-h-[calc(100svh-20rem)] items-center justify-center">
