@@ -4213,17 +4213,17 @@ function TicketEntryPrompt({
   const title = mode === 'edit'
     ? translateUiLiteral(language, family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order')
     : translateUiLiteral(language, 'What do you want to do?');
-  const newLabel = family === 'customer' ? 'New customer order' : 'New supplier order';
-  const editLabel = family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order';
+  const newLabel = 'New';
+  const editLabel = 'Edit/Update';
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6">
       <section
         aria-label={title}
-        className="w-full max-w-2xl rounded-[2rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
       >
         <div className="space-y-2">
-          <p className="text-xl font-semibold tracking-[-0.03em] text-foreground">{title}</p>
+          <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>
           <p className="text-sm leading-6 text-muted-foreground">
             {translateUiLiteral(
               language,
@@ -4234,12 +4234,12 @@ function TicketEntryPrompt({
           </p>
         </div>
         {mode == null ? (
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <Button className="justify-start gap-3" type="button" variant="outline" onClick={() => onModeChange('new')}>
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => onModeChange('new')}>
               <ActionAddBadgeIcon className="size-4" />
               {translateUiLiteral(language, newLabel)}
             </Button>
-            <Button className="justify-start gap-3" type="button" variant="outline" onClick={() => onModeChange('edit')}>
+            <Button type="button" variant="outline" onClick={() => onModeChange('edit')}>
               <ActionEditIcon className="size-4" />
               {translateUiLiteral(language, editLabel)}
             </Button>

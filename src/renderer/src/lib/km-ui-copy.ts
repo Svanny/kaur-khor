@@ -2000,6 +2000,8 @@ const exactValueTranslations: Record<string, string> = {
   'Custom communication channel': 'ប្រភពទំនាក់ទំនងផ្ទាល់ខ្លួន',
   'Customer name': 'ឈ្មោះអតិថិជន',
   'Phone number': 'លេខទូរស័ព្ទ',
+  New: 'ថ្មី',
+  'Edit/Update': 'កែ/អាប់ដេត',
   'What do you want to do?': 'តើអ្នកចង់ធ្វើអ្វី?',
   'Select the existing ticket you want to update.': 'ជ្រើសសំបុត្រដែលមានស្រាប់ដែលអ្នកចង់អាប់ដេត។',
   'New customer order': 'បញ្ជាទិញអតិថិជនថ្មី',

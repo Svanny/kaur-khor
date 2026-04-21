@@ -181,8 +181,8 @@ function TicketEntryPromptDialog({
   const { language } = usePreferences();
   const navigate = useNavigate();
   const title = translateUiLiteral(language, 'What do you want to do?');
-  const newLabel = family === 'customer' ? 'New customer order' : 'New supplier order';
-  const editLabel = family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order';
+  const newLabel = 'New';
+  const editLabel = 'Edit/Update';
 
   function openTicketMode(mode: 'new' | 'edit') {
     navigate(`${href}?ticketMode=${mode}`);
@@ -198,19 +198,19 @@ function TicketEntryPromptDialog({
         aria-describedby="record-update-ticket-entry-description"
         aria-labelledby="record-update-ticket-entry-title"
         aria-modal="true"
-        className="w-full max-w-2xl rounded-[2rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="space-y-2">
-          <p id="record-update-ticket-entry-title" className="text-xl font-semibold tracking-[-0.03em] text-foreground">
+          <p id="record-update-ticket-entry-title" className="text-lg font-semibold tracking-[-0.03em] text-foreground">
             {title}
           </p>
           <p id="record-update-ticket-entry-description" className="text-sm leading-6 text-muted-foreground">
             {translateUiLiteral(language, 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
           </p>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        <div className="mt-6 flex flex-wrap justify-end gap-3">
           <Button type="button" variant="outline" onClick={() => openTicketMode('new')}>
             <ActionAddBadgeIcon className="size-4" />
             {translateUiLiteral(language, newLabel)}

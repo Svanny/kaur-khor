@@ -447,7 +447,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('uses the stock-count wizard shell for record orders and submits reorder details', async () => {
     renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
-    fireEvent.click(screen.getByRole('button', { name: 'New supplier order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New' }));
 
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
@@ -508,8 +508,8 @@ describe('StockUpdateSessionRoute', () => {
   it('uses the hub-selected customer ticket mode without re-showing the entry chooser', () => {
     renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
 
-    expect(screen.queryByRole('button', { name: 'New customer order' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit / update existing customer order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit/Update' })).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toBeInTheDocument();
   });
 
@@ -552,7 +552,7 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, `${RECORD_UPDATE_RECORD_ORDER_PATH}?ticketMode=edit`);
 
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New supplier order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
     expect(screen.getByText('Edit / update existing supplier order')).toBeInTheDocument();
     expect(screen.getByText('Select the existing ticket you want to update.')).toBeInTheDocument();
   });

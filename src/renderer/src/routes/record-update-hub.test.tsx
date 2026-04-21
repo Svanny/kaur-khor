@@ -77,10 +77,10 @@ describe('RecordUpdateHubRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('What do you want to do?');
-    expect(within(dialog).getByRole('button', { name: 'New customer order' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Edit / update existing customer order' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Edit / update existing customer order' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Edit/Update' }));
 
     expect(screen.getByText('/record-update/customer-orders-pending?ticketMode=edit')).toBeInTheDocument();
   });
@@ -99,7 +99,7 @@ describe('RecordUpdateHubRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('What do you want to do?');
-    fireEvent.click(within(dialog).getByRole('button', { name: 'New supplier order' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'New' }));
 
     expect(screen.getByText('/record-update/supplier-orders-pending?ticketMode=new')).toBeInTheDocument();
   });
