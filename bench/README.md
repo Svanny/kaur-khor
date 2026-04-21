@@ -32,9 +32,9 @@ Fixture size can be selected with `BANJI_BENCHMARK_FIXTURE_SIZE`.
 
 | Fixture | History | Interval | Expected observations |
 | --- | ---: | ---: | ---: |
-| `minimal` | 30 days | 7 days | 5 |
+| `minimal` | 0 years | 7 days | 0 |
 | `medium` | 1 year | 7 days | 53 |
-| `heavy` | 3 years | 3 days | 366 |
+| `heavy` | 3 years | 3.5 days | 314 |
 | `power-user` | 10 years | 1 day | 3,653 |
 
 Run the Power User startup benchmark:
@@ -62,6 +62,8 @@ Compare two result directories:
 pnpm bench:compare bench-results/<baseline> bench-results/<candidate>
 ```
 
-The benchmark data directory is isolated per run. In dev builds the benchmark
-seed helper prepares the workspace first, then launches Banji with dev seeding
-disabled so the measured startup path uses the prepared fixture.
+The benchmark data directory is isolated per run. The benchmark seed helper and
+the development boot path now share the same generated-history seeding script.
+Benchmark runs still prepare the workspace first, then launch Banji with dev
+seeding disabled so the measured startup path uses the prepared fixture instead
+of reseeding during startup.

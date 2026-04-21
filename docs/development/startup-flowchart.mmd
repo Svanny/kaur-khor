@@ -20,7 +20,7 @@ flowchart LR
     DevMode{"Development build?"}:::decision
     MigrateLegacy["Migrate legacy desktop data"]:::process
     SeedDisabled{"Dev seed disabled?"}:::decision
-    DevSeed["Invoke sena.seedDevWorkspace"]:::mutation
+    DevSeed["Run generated dev-history seed when empty or marked<br/>fallback to sena.seedDevWorkspace otherwise"]:::mutation
     InvalidateSeedCache["Invalidate SENA read cache after seed/write"]:::cache
     PrewarmCore["Prewarm managed core with system.ping"]:::ipc
     CreateWindow["Create BrowserWindow<br/>inactive/background when appropriate"]:::process

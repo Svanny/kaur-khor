@@ -20,7 +20,7 @@ from typing import Any
 DEFAULT_OWNER = "desktop-owner"
 DEFAULT_YEARS = 5
 DEFAULT_INTERVAL_DAYS = 3.5
-DEV_HISTORY_VERSION = "current-sena-history-v1"
+DEV_HISTORY_VERSION = "current-sena-history-v2"
 
 
 @dataclass
@@ -1108,12 +1108,40 @@ def diagnostics_for_startup_fixture() -> dict[str, Any]:
     }
 
 
-def rebuild_startup_fixture_workspace(db_path: Path, marker_path: Path, catalog: dict[str, Any], observations: list[dict[str, Any]], owner: str) -> None:
+def bootstrap_sena_workspace_schema(repo_root: Path, db_path: Path) -> None:
+    proc = start_desktop_core(repo_root, db_path)
+    try:
+        send_core_command(proc, 1, "sena.getCatalog", None)
+    finally:
+        close_desktop_core(proc)
+
+
+def warm_startup_fixture_runtime_state(repo_root: Path, owner: str, db_path: Path) -> None:
+    proc = start_desktop_core(repo_root, db_path)
+    try:
+        command_id = 1
+        send_core_command(proc, command_id, "sena.getStartupWorkspace", None)
+        command_id += 1
+        if owner == DEFAULT_OWNER:
+            send_core_command(proc, command_id, "sena.getRecordUpdateContext", None)
+    finally:
+        close_desktop_core(proc)
+
+
+def rebuild_startup_fixture_workspace(
+    repo_root: Path,
+    db_path: Path,
+    marker_path: Path,
+    catalog: dict[str, Any],
+    observations: list[dict[str, Any]],
+    owner: str,
+) -> None:
     if db_path.exists():
         db_path.unlink()
     if marker_path.exists():
         marker_path.unlink()
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    bootstrap_sena_workspace_schema(repo_root, db_path)
 
     updated_at = isoformat_z(datetime.now(UTC))
     run_id = "benchmark-power-user-run"
@@ -1121,80 +1149,6 @@ def rebuild_startup_fixture_workspace(db_path: Path, marker_path: Path, catalog:
     diagnostics = diagnostics_for_startup_fixture()
 
     with sqlite3.connect(db_path) as connection:
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS sena_catalog (
-              owner_sub TEXT PRIMARY KEY,
-              payload TEXT NOT NULL,
-              updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS sena_observation (
-              observation_id TEXT PRIMARY KEY,
-              owner_sub TEXT NOT NULL,
-              observed_at TEXT NOT NULL,
-              payload TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS idx_sena_observation_owner_latest
-              ON sena_observation (owner_sub, observed_at DESC, observation_id DESC);
-            CREATE TABLE IF NOT EXISTS sena_run (
-              run_id TEXT PRIMARY KEY,
-              owner_sub TEXT NOT NULL,
-              algorithm_version TEXT NOT NULL,
-              status TEXT NOT NULL,
-              observation_count INTEGER NOT NULL,
-              created_at TEXT NOT NULL,
-              completed_at TEXT,
-              summary_json TEXT,
-              diagnostics_json TEXT,
-              primary_artifact_key TEXT,
-              error TEXT
-            );
-            CREATE INDEX IF NOT EXISTS idx_sena_run_owner_created_at
-              ON sena_run (owner_sub, created_at DESC);
-            CREATE TABLE IF NOT EXISTS sena_read_model (
-              owner_sub TEXT PRIMARY KEY,
-              workspace_summary_json TEXT NOT NULL,
-              diagnostics_json TEXT NOT NULL,
-              sku_details_json TEXT NOT NULL,
-              service_details_json TEXT NOT NULL,
-              updated_at TEXT NOT NULL,
-              run_id TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS sena_workspace_summary_hot (
-              owner_sub TEXT PRIMARY KEY,
-              run_id TEXT NOT NULL,
-              latest_observed_at TEXT,
-              sku_count INTEGER NOT NULL,
-              service_count INTEGER NOT NULL,
-              interval_count INTEGER NOT NULL,
-              pending_reorder_count INTEGER NOT NULL,
-              top_regime TEXT NOT NULL,
-              high_risk_sku_ids_json TEXT NOT NULL,
-              updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS sena_sku_summary_hot (
-              owner_sub TEXT NOT NULL,
-              sku_id TEXT NOT NULL,
-              run_id TEXT NOT NULL,
-              latest_posterior_units REAL NOT NULL,
-              credible_interval_low REAL NOT NULL,
-              credible_interval_high REAL NOT NULL,
-              demand_per_day_mean REAL NOT NULL,
-              stockout_risk REAL NOT NULL,
-              days_of_cover REAL,
-              expected_lead_time_demand REAL NOT NULL,
-              safety_stock REAL NOT NULL,
-              reorder_point REAL NOT NULL,
-              reorder_trigger_probability REAL NOT NULL,
-              reorder_quantity_json TEXT NOT NULL,
-              lead_time_mean_days REAL NOT NULL,
-              lead_time_std_days REAL NOT NULL,
-              regime_probabilities_json TEXT NOT NULL,
-              updated_at TEXT NOT NULL,
-              PRIMARY KEY (owner_sub, sku_id)
-            );
-            """
-        )
         connection.execute(
             "INSERT INTO sena_catalog (owner_sub, payload, updated_at) VALUES (?, ?, ?)",
             (owner, json.dumps(catalog), updated_at),
@@ -1291,14 +1245,7 @@ def rebuild_startup_fixture_workspace(db_path: Path, marker_path: Path, catalog:
                 for sku in summary["skuSummaries"]
             ],
         )
-
-
-def migrate_sena_workspace_schema(repo_root: Path, db_path: Path) -> None:
-    proc = start_desktop_core(repo_root, db_path)
-    try:
-        send_core_command(proc, 1, "sena.getCatalog", None)
-    finally:
-        close_desktop_core(proc)
+    warm_startup_fixture_runtime_state(repo_root, owner, db_path)
 
 
 def parse_args() -> argparse.Namespace:
@@ -1367,8 +1314,14 @@ def main() -> None:
     sena_observations = build_sena_observations(reports, latest_services, latest_services)
     enrich_lead_time_hints(sena_observations, latest_skus)
     if args.startup_only_read_model:
-        rebuild_startup_fixture_workspace(sena_db_path, seed_marker_path, sena_catalog, sena_observations, args.owner)
-        migrate_sena_workspace_schema(repo_root, sena_db_path)
+        rebuild_startup_fixture_workspace(
+            repo_root,
+            sena_db_path,
+            seed_marker_path,
+            sena_catalog,
+            sena_observations,
+            args.owner,
+        )
     else:
         rebuild_sena_workspace(repo_root, sena_db_path, seed_marker_path, sena_catalog, sena_observations)
     write_history_marker(seed_marker_path, args)

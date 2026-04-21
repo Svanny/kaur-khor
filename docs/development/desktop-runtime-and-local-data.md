@@ -37,6 +37,11 @@ Current storage files exposed by the main process:
 
 In development, the app uses `.banji-dev-data` in the repo root. Packaged builds use Electron `userData`.
 
+Development boot prefers the generated-history seed path when the repo-local
+workspace is empty or already carries `desktop-sena-dev-history.json`. That
+keeps benchmark fixtures and normal dev boot on the same seed generator without
+overwriting an existing non-generated local workspace.
+
 ## SENA Read Path
 
 The Electron main process owns the startup and IPC boundary for SENA reads. The

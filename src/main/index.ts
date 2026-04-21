@@ -60,6 +60,11 @@ import {
   startBenchmarkSpan,
 } from './benchmark';
 import { registerBenchmarkRunnerIpc } from './benchmark-runner';
+import {
+  detectDevWorkspaceSeedState,
+  prepareGeneratedWorkspace,
+  shouldPrepareGeneratedWorkspace,
+} from './dev-history-generator';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
@@ -941,14 +946,24 @@ async function boot() {
         name: 'main.boot.dev-seed',
       });
       try {
-        const seeded = await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
-          timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
-        });
+        const seedState = await detectDevWorkspaceSeedState(desktopDataPath);
+        const seeded = seedState.mode === 'generated-history'
+          ? shouldPrepareGeneratedWorkspace(seedState)
+            ? (await prepareGeneratedWorkspace({
+              dataDirectory: desktopDataPath,
+              size: 'medium',
+            }, {
+              repoRoot: projectRoot,
+            })).seeded
+            : false
+          : await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
+            timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+          });
         if (seeded) {
           await invalidateSenaReadCache();
-          console.log('[desktop-data] seeded local dev SENA workspace');
+          console.log(`[desktop-data] seeded local dev SENA workspace via ${seedState.mode}`);
         }
-        endSeed({ ok: true, seeded });
+        endSeed({ ok: true, seeded, mode: seedState.mode });
       } catch (error) {
         endSeed({
           ok: false,
