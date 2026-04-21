@@ -1,6 +1,6 @@
 # banji Developer Docs
 
-This directory is the contributor-facing entrypoint for banji as a local Electron app. It documents the desktop runtime, local workspace data, SENA analysis flows, security expectations, and the product behavior exposed in the app itself.
+This directory is the contributor-facing entrypoint for banji as a local Electron app. It documents the desktop runtime, local workspace data, automation and SENA flows, security expectations, and the product behavior exposed in the app itself.
 
 ## Start Here
 
@@ -19,7 +19,7 @@ banji is a desktop-first Electron app with a local Rust runtime:
 
 - `src/main`: Electron main-process boot, IPC handlers, local data paths, desktop backup/restore flow
 - `src/preload`: preload bridge exposed to the renderer
-- `src/renderer`: React UI, routes, command palette, settings flows, exported workspace actions
+- `src/renderer`: React UI, routes, command palette, settings flows, automation workspace, exported workspace actions
 - `src/shared`: IPC contracts and shared TypeScript types
 - `apps/desktop-core`: Rust desktop persistence/runtime
 - `apps/sena-core`: Rust SENA analysis engine
@@ -50,12 +50,12 @@ pnpm package:win:native
 ### Development
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
-- [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, backup snapshots, restore, and clear-data behavior
+- [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, automation storage, backup snapshots, restore, and clear-data behavior
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Record Update authoring contract, Overview queue behavior, and downstream projections
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
-- [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, read-pool readiness, route-scoped support reads, and navigation benchmark targets
+- [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, automation and financials navigation, read-pool readiness, route-scoped support reads, and navigation benchmark targets
 - [Benchmark guide](/Users/svanny/banji/bench/README.md): benchmark commands, fixture sizes, event files, and startup target names
 
 ### Security

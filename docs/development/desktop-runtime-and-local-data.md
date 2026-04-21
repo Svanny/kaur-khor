@@ -30,6 +30,7 @@ Current fields:
 Current storage files exposed by the main process:
 
 - `desktop-sena-store.sqlite3`: local workspace store
+- `desktop-automation-store.json`: persisted Telegram automation connection, catalog exposure, conversation, and intake state
 - `desktop-preferences.json`: persisted settings and preferences
 - `desktop-sena-read-cache.json`: persisted read cache for compact SENA UI reads; oversized list payloads such as full observations are intentionally excluded
 - `sena-checkpoints/`: compressed SENA checkpoint payload files referenced by SQLite metadata
@@ -67,6 +68,23 @@ The managed backend starts one writer core and a small pool of read workers. The
 writer handles mutations and all destructive/backup-sensitive commands. Read-only
 commands can use read workers after they are ready, while identical read requests
 are coalesced before worker selection.
+
+## Automation Workspace Data
+
+Automation state currently lives beside the main workspace files in
+`desktop-automation-store.json`.
+
+That file persists:
+
+- Telegram connection settings and health metadata
+- SKU and service exposure rules for customer-facing automation catalogs
+- conversation summaries and message records used by the automation workspace
+- intake rows that can later be resolved or promoted into ticket events
+
+Automation promotion still writes operational history into the main SENA
+workspace through ticket and commercial events. The JSON automation store is the
+staging layer for channel-facing state, not a replacement for the canonical
+inventory workspace.
 
 ## Backup Snapshot Model
 
@@ -146,8 +164,28 @@ The main IPC handlers for those actions live in [`src/main/index.ts`](/Users/sva
 
 The renderer reaches them through `window.banjiDesktop.system`, not through direct Node or filesystem access.
 
+The automation workspace uses the `DesktopAutomationBridge` contract from
+[`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it
+through `window.banjiDesktop.automation`.
+
+Current automation actions:
+
+- `getWorkspace()`
+- `getConnection()`
+- `saveConnection(payload)`
+- `listExposureRows()`
+- `patchExposureRow(payload)`
+- `listConversations()`
+- `readConversation(payload)`
+- `listIntakes(payload?)`
+- `readIntake(payload)`
+- `resolveIntake(payload)`
+- `promoteIntake(payload)`
+- `testTelegramConnection()`
+
 ## Contributor Notes
 
 - If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-backup.test.ts`](/Users/svanny/banji/src/main/local-backup.test.ts).
 - If you add or rename IPC fields, update [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) first and keep renderer/main behavior aligned.
+- If you change automation persistence shape or bridge methods, update this page and keep [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts), [`src/preload/index.ts`](/Users/svanny/banji/src/preload/index.ts), and [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) aligned.
 - If a workspace mutation becomes destructive or high-risk, prefer routing it through the existing automatic snapshot path instead of inventing a separate safety mechanism.

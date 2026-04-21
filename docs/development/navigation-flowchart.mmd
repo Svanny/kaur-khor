@@ -6,7 +6,7 @@ flowchart LR
   subgraph Bench["Benchmark navigation scenario"]
     BenchLaunch["Launch benchmark Electron app<br/>fixture + output dir + tracing"]:::process
     WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
-    RouteLoop["For each major route<br/>performance, financials, analysis, record-update, catalog, operations"]:::process
+    RouteLoop["For each major route<br/>performance, financials, automations, analysis, record-update, catalog, operations"]:::process
     ResetDash{"Route has dashboard reset?"}:::decision
     NavigateHash["navigateHashRoute<br/>update browser hash"]:::bridge
     WaitRouteReady["Wait for route.*.ready event"]:::metric
@@ -49,6 +49,7 @@ flowchart LR
     DashboardHydration["Dashboard SKU detail hydration<br/>initial limit + concurrency cap + background task"]:::ipc
     Performance["Performance route"]:::route
     Financials["Financials route"]:::route
+    Automations["Automations route"]:::route
     Analysis["Analysis route"]:::route
     DetailHydration["useSenaDetailHydration<br/>SKU/service pages across catalog"]:::hotspot
     DetailNetworkOnly["bounded detail page requests<br/>cache-first current page, network-only older pages"]:::hotspot
@@ -63,6 +64,7 @@ flowchart LR
     DesktopBridge["window.banjiDesktop"]:::bridge
     InvokeBenchmark["invokeWithBenchmark<br/>records preload.invoke spans"]:::metric
     SenaBridge["sena bridge methods<br/>getSkuDetail, getServiceDetail, getRecordUpdateContext, listOrderBatches"]:::bridge
+    AutomationBridge["automation bridge methods<br/>getWorkspace, saveConnection, readConversation, promoteIntake"]:::bridge
     SystemBridge["system bridge<br/>getAppContext and route-independent calls"]:::bridge
   end
 
@@ -136,6 +138,7 @@ flowchart LR
   RouteComponent --> Dashboard
   RouteComponent --> Performance
   RouteComponent --> Financials
+  RouteComponent --> Automations
   RouteComponent --> Analysis
   RouteComponent --> RecordUpdate
   RouteComponent --> Catalog
@@ -145,6 +148,7 @@ flowchart LR
   Performance --> DetailHydration
   Financials --> DetailHydration
   Financials --> RouteSupportReads
+  Automations --> AutomationBridge --> IpcHandlers
   Analysis --> DetailHydration
   DetailCache --> DetailHydration
   DetailHydration --> DetailNetworkOnly --> RendererInflight
@@ -153,6 +157,7 @@ flowchart LR
 
   RendererInflight --> DesktopBridge
   DesktopBridge --> InvokeBenchmark --> SenaBridge --> IpcHandlers
+  DesktopBridge --> InvokeBenchmark --> AutomationBridge --> IpcHandlers
   SystemBridge --> IpcHandlers
 
   IpcHandlers --> ReadCache --> Freshness
