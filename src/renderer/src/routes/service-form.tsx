@@ -1,6 +1,6 @@
 import { ActionConfirmIcon, ActionSaveIcon } from '@icons/actions';
 import { useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemAvatar } from '@/components/system/item-identity';
@@ -14,7 +14,7 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService, validateCatalogEntityId } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { useNavigationHistory } from '@/state/navigation-history';
+import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { catalogItemIdErrorMessage } from './catalog-id-validation';
 import { CatalogImageField } from './catalog-image-field';
@@ -213,10 +213,11 @@ function ServiceFormLoadingState({ title }: { title: string }) {
 }
 
 export function ServiceFormRoute() {
+  const location = useLocation();
   const navigate = useNavigate();
   const { serviceId } = useParams();
   const { catalog, isLoading, isSaving, renameCatalogEntity, upsertSenaCatalog } = useInventory();
-  const { canGoBack, goBack } = useNavigationHistory();
+  const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
@@ -300,7 +301,21 @@ export function ServiceFormRoute() {
       const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds, normalizedBaseline.serviceId);
       await upsertSenaCatalog(nextCatalog);
     }
-    await navigate(`/catalog/services/${normalizedDraft.serviceId}`, { replace: !editing });
+    const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
+    const currentOrigin =
+      location.state &&
+      typeof location.state === 'object' &&
+      'banjiNavigationOrigin' in location.state &&
+      typeof location.state.banjiNavigationOrigin === 'string'
+        ? location.state.banjiNavigationOrigin
+        : null;
+    await navigate(`/catalog/services/${normalizedDraft.serviceId}`, {
+      replace: true,
+      state: {
+        ...detailNavigationState,
+        banjiNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
+      },
+    });
   }
 
   const filteredSkus = useMemo(() => {

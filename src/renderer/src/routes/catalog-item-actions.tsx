@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
@@ -44,6 +44,7 @@ import {
 import { translateUiLiteral } from '@/lib/translations';
 import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { cn } from '@/lib/utils';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import {
   ActionSheetField,
   actionSheetInputClassName,
@@ -249,6 +250,7 @@ export function SkuMutationActions({
   layout = 'row',
   catalogEntityName,
 }: SkuMutationActionsProps) {
+  const location = useLocation();
   const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
@@ -479,7 +481,7 @@ export function SkuMutationActions({
           ) : null}
           {showEditButton ? (
             <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link to={`/catalog/skus/${skuId}/edit`}>
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${skuId}/edit`}>
                 <ActionEditIcon className="size-4" />
                 {t('catalogSkuEditAction')}
               </Link>
@@ -698,6 +700,7 @@ export function ServiceMutationActions({
   layout = 'row',
   catalogEntityName,
 }: ServiceMutationActionsProps) {
+  const location = useLocation();
   const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
@@ -935,7 +938,7 @@ export function ServiceMutationActions({
           </ActionButton>
           {showEditButton ? (
             <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link to={actions.editServiceHref}>
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to={actions.editServiceHref}>
                 <ActionEditIcon className="size-4" />
                 {translateUiLiteral(language, 'Edit service')}
               </Link>

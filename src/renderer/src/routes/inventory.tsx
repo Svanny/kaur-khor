@@ -12,7 +12,7 @@ import {
   EntitySkuIcon,
 } from '@icons/entities';
 import { StatusArchiveIcon } from '@icons/status';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
@@ -52,6 +52,7 @@ import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
 import type { SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
 import { deriveServiceDetailViewModel, type ServiceDetailViewModel } from '@/routes/service-detail/view-model';
 import { useInventory } from '@/state/inventory';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 
 function updateCatalogSearchParams(
@@ -297,6 +298,7 @@ function CatalogLoadingState() {
 export function InventoryRoute() {
   const inventory = useInventory();
   const { catalog, observations, reports, snapshot, workspaceSummary } = inventory;
+  const location = useLocation();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const [serviceActionModels, setServiceActionModels] = useState<Record<string, ServiceDetailViewModel>>({});
@@ -414,7 +416,7 @@ export function InventoryRoute() {
           descriptor={translateUiLiteral(language, 'Start with the first SKU. banji uses the catalog to connect stock, services, and planning.')}
           actions={
             <Button asChild>
-              <Link to="/catalog/skus/new">
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
                 <ActionCreatePackageIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'New SKU')}
               </Link>
@@ -439,13 +441,13 @@ export function InventoryRoute() {
         actions={
           <WorkspaceActionRow>
             <Button asChild>
-              <Link to="/catalog/skus/new">
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
                 <ActionCreatePackageIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'New SKU')}
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/catalog/services/new">
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/services/new">
                 <NewServiceIcon className="size-4 shrink-0" />
                 {translateUiLiteral(language, 'New service')}
               </Link>
@@ -521,7 +523,7 @@ export function InventoryRoute() {
                 {translateUiLiteral(language, 'Clear filters')}
               </Button>
               <Button asChild>
-                <Link to="/catalog/skus/new">{translateUiLiteral(language, 'New SKU')}</Link>
+                <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">{translateUiLiteral(language, 'New SKU')}</Link>
               </Button>
             </WorkspaceActionRow>
           }
@@ -593,7 +595,11 @@ export function InventoryRoute() {
                           imagePath={sku.imagePath}
                           metadata={<SupplierBadge supplierName={sku.supplierName} />}
                           name={
-                            <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/skus/${sku.skuId}`}>
+                            <Link
+                              className="font-medium text-foreground transition-colors group-hover:text-primary"
+                              state={buildBanjiNavigationState(location, '/catalog')}
+                              to={`/catalog/skus/${sku.skuId}`}
+                            >
                               {sku.name}
                             </Link>
                           }
@@ -610,13 +616,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow>
                           <Button asChild size="sm" variant="outline">
-                            <Link to={`/catalog/skus/${sku.skuId}`}>
+                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link to={`/catalog/skus/${sku.skuId}/edit`}>
+                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}/edit`}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>
@@ -691,7 +697,11 @@ export function InventoryRoute() {
                           }
                           imagePath={service.imagePath}
                           name={
-                            <Link className="font-medium text-foreground transition-colors group-hover:text-primary" to={`/catalog/services/${service.serviceId}`}>
+                            <Link
+                              className="font-medium text-foreground transition-colors group-hover:text-primary"
+                              state={buildBanjiNavigationState(location, '/catalog')}
+                              to={`/catalog/services/${service.serviceId}`}
+                            >
                               {service.name}
                             </Link>
                           }
@@ -703,13 +713,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow>
                           <Button asChild size="sm" variant="outline">
-                            <Link to={`/catalog/services/${service.serviceId}`}>
+                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link to={`/catalog/services/${service.serviceId}/edit`}>
+                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}/edit`}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>

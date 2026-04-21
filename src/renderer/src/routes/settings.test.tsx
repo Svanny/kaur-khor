@@ -359,25 +359,13 @@ describe('SettingsRoute', () => {
     expect(screen.queryByRole('button', { name: 'Inject onboarding stage' })).not.toBeInTheDocument();
   });
 
-  it('shows the onboarding injector when the dev flag is enabled', async () => {
+  it('keeps the onboarding injector hidden even when the dev flag is enabled', async () => {
     vi.stubEnv('VITE_BANJI_SHOW_DEV_ONBOARDING_INJECTOR', '1');
 
     renderSettingsRoute('/settings/workspace');
 
-    const button = await screen.findByRole('button', { name: 'Inject onboarding stage' });
-    fireEvent.click(button);
-
-    await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
-        onboardingCompletedAt: null,
-        seenUnlockedNavItems: {
-          catalog: false,
-          operations: false,
-          performance: false,
-          financials: false,
-        },
-      }));
-    });
+    await screen.findByText('Regional preferences');
+    expect(screen.queryByRole('button', { name: 'Inject onboarding stage' })).not.toBeInTheDocument();
   });
 
   it('filters benchmark targets by result status from the checklist menu', async () => {
@@ -585,7 +573,7 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/benchmarks');
 
     expect(await screen.findByText('Target status')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Selected benchmark summary' })).toHaveTextContent('All');
+    expect(await screen.findByRole('combobox', { name: 'Selected benchmark summary' })).toHaveTextContent('All');
     expect(screen.getByText('App to usable workspace')).toBeInTheDocument();
     expect(screen.getByText('Renderer memory growth')).toBeInTheDocument();
 

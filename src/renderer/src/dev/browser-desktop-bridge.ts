@@ -782,7 +782,7 @@ function createMockState(): BrowserMockState {
       customShowHeartbeatRibbons: true,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
       overviewStaleUpdateReminderSnoozeUntil: null,
-      onboardingCompletedAt: '2026-04-01T00:00:00.000Z',
+      onboardingCompletedAt: null,
       seenUnlockedNavItems: {
         catalog: true,
         operations: true,

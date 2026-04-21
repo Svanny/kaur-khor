@@ -36,8 +36,33 @@ describe('BanjiShell', () => {
       isLoading: false,
       isPreparingWorkspace: false,
       isSaving: false,
+      latestRun: {
+        runId: 'run-1',
+        ownerSub: 'desktop-owner',
+        algorithmVersion: 'sena-analysis-v3',
+        status: 'succeeded',
+        observationCount: 2,
+        createdAt: '2026-04-02T00:00:00Z',
+        completedAt: '2026-04-02T00:01:00Z',
+        summary: null,
+        diagnostics: null,
+        primaryArtifactKey: null,
+        error: null,
+      },
       observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }],
       reload: vi.fn(),
+      workspaceSummary: {
+        ownerSub: 'desktop-owner',
+        runId: 'run-1',
+        latestObservedAt: '2026-04-02T00:00:00Z',
+        skuCount: 1,
+        serviceCount: 0,
+        intervalCount: 2,
+        pendingReorderCount: 0,
+        topRegime: 'normal',
+        highRiskSkuIds: [],
+        skuSummaries: [],
+      },
     });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
@@ -333,6 +358,66 @@ describe('BanjiShell', () => {
     expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+  });
+
+  test('shows gated tabs from startup metadata before observations hydrate', () => {
+    setViewport({ width: 1440, isMobile: false });
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', leadTimeMeanDaysHint: 5, leadTimeStdDaysHint: 1, name: 'SKU 1', productPrice: 9, skuId: 'sku-1', soldAsProduct: true }],
+      },
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: {
+        runId: 'run-1',
+        ownerSub: 'desktop-owner',
+        algorithmVersion: 'sena-analysis-v3',
+        status: 'succeeded',
+        observationCount: 2,
+        createdAt: '2026-04-02T00:00:00Z',
+        completedAt: '2026-04-02T00:01:00Z',
+        summary: null,
+        diagnostics: null,
+        primaryArtifactKey: null,
+        error: null,
+      },
+      observations: [],
+      reload: vi.fn(),
+      workspaceSummary: {
+        ownerSub: 'desktop-owner',
+        runId: 'run-1',
+        latestObservedAt: '2026-04-02T00:00:00Z',
+        skuCount: 1,
+        serviceCount: 0,
+        intervalCount: 2,
+        pendingReorderCount: 0,
+        topRegime: 'normal',
+        highRiskSkuIds: [],
+        skuSummaries: [],
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Record update' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
   });
 
   test('highlights newly unlocked tabs and marks them seen after navigation', async () => {

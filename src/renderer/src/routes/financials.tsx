@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import {
   EntityComparisonIcon,
@@ -47,6 +47,7 @@ import { statusPillClassName, tintedSurfaceClassName, type StatusPillTone } from
 import { translateUiLiteral } from '@/lib/translations';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { useInventory } from '@/state/inventory';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { WireframeRailCards, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import { PerformanceRightRailBlock, PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
@@ -264,7 +265,11 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
                       imagePath={row.imagePath}
                       metadata={row.entityType === 'sku' ? <SupplierBadge supplierName={row.supplierName} /> : null}
                       name={
-                        <Link className="font-semibold text-foreground hover:text-primary" to={row.href}>
+                        <Link
+                          className="font-semibold text-foreground hover:text-primary"
+                          state={buildBanjiNavigationState(location, '/catalog')}
+                          to={row.href}
+                        >
                           {row.label}
                         </Link>
                       }
@@ -342,6 +347,7 @@ function MoneyBandColumn({
           <Link
             key={`${row.entityType}-${row.id}`}
             className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(tone)} ${rowHoverClassName}`}
+            state={buildBanjiNavigationState(location, '/catalog')}
             to={row.href}
           >
             <ItemIdentityBlock
@@ -371,7 +377,12 @@ function RailRows({ emptyLabel, rows }: { emptyLabel: string; rows: FinancialRai
   return (
     <div className="divide-y divide-border/60">
       {rows.map((row) => (
-        <Link key={row.id} className="block py-3 first:pt-0 last:pb-0" to={row.href}>
+        <Link
+          key={row.id}
+          className="block py-3 first:pt-0 last:pb-0"
+          state={buildBanjiNavigationState(location, '/catalog')}
+          to={row.href}
+        >
           <div className="flex items-start justify-between gap-3">
             <p className="font-medium text-foreground">{row.label}</p>
             {row.valueLabel ? (
@@ -436,6 +447,7 @@ function FinancialsLoadingState() {
 
 export function FinancialsRoute() {
   const inventory = useInventory();
+  const location = useLocation();
   const {
     currency,
     language,

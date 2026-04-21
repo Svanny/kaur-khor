@@ -1202,8 +1202,7 @@ export function SettingsRoute() {
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
   const senaEngineParameterFields = buildSenaEngineParameterFields(t);
   const interfaceVisibilityDisabled = displayViewMode === 'compact';
-  const showDevOnboardingInjector =
-    import.meta.env.DEV && import.meta.env.VITE_BANJI_SHOW_DEV_ONBOARDING_INJECTOR === '1';
+  const showDevOnboardingInjector = false;
   const isInterfaceSection = currentSection.id === 'interface';
   const showSaveAction =
     currentSection.id === 'workspace' ||

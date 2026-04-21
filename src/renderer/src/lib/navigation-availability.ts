@@ -17,13 +17,23 @@ export const GATED_NAV_ITEM_IDS: DesktopSeenUnlockedNavItemId[] = [
   'financials',
 ];
 
+function deriveAvailableObservationCount(
+  inventory: Pick<InventoryContextValue, 'latestRun' | 'observations' | 'workspaceSummary'>,
+) {
+  return Math.max(
+    inventory.observations?.length ?? 0,
+    inventory.latestRun?.observationCount ?? 0,
+    inventory.workspaceSummary?.intervalCount ?? 0,
+  );
+}
+
 export function deriveNavigationAvailability(
-  inventory: Pick<InventoryContextValue, 'catalog' | 'observations'>,
+  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'workspaceSummary'>,
 ): NavigationAvailability {
   const visibleCatalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const activeSkuCount = visibleCatalog?.skus.filter((sku) => !sku.archived).length ?? 0;
   const activeServiceCount = visibleCatalog?.services.filter((service) => !service.archived).length ?? 0;
-  const observationCount = inventory.observations?.length ?? 0;
+  const observationCount = deriveAvailableObservationCount(inventory);
 
   return {
     hasCatalogTab: activeSkuCount >= 1,

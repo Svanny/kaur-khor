@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { translateRegimeLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
@@ -50,6 +51,7 @@ export function ServiceDetailRightRail({
   model: ServiceDetailViewModel;
   selection: ServiceInspectorSelection;
 }) {
+  const location = useLocation();
   const { language, t } = usePreferences();
   const contributor = selectedContributor(model, selection);
   const interval = selectedInterval(model, selection);
@@ -91,7 +93,7 @@ export function ServiceDetailRightRail({
             {contributor.restockGuidance ? <p>{contributor.restockGuidance}</p> : null}
           </div>
           <Button asChild className="mt-4 w-full">
-            <Link to={contributor.openSkuHref}>
+            <Link state={buildBanjiNavigationState(location, '/catalog')} to={contributor.openSkuHref}>
               <ActionOpenExternalIcon className="size-4" />
               {t('catalogServiceOpenSkuDetailAction')}
             </Link>

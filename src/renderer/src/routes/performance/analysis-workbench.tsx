@@ -1,5 +1,5 @@
 import { Fragment, startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode, type RefObject, type UIEvent, type WheelEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   ActionOpenExternalIcon,
 } from '@icons/actions';
@@ -85,6 +85,7 @@ import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
 import type { ChartCustomTimeframeRange } from '@/components/system/chart-timeframe';
@@ -2047,6 +2048,7 @@ function IntervalRail({
 }
 
 function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
+  const location = useLocation();
   const { language, t } = usePreferences();
   return (
     <>
@@ -2062,7 +2064,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
           <p>{row.summary}</p>
         </div>
         <Button asChild className="mt-4 w-full">
-          <Link to={row.href}>
+          <Link state={buildBanjiNavigationState(location, '/catalog')} to={row.href}>
             <ActionOpenExternalIcon className="size-4" />
             {t('analysisWorkbenchOpenDetail')}
           </Link>

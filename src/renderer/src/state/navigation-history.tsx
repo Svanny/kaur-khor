@@ -9,8 +9,17 @@ import {
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 
 export const SIDEBAR_NAVIGATION_SOURCE = 'sidebar';
+const DEFAULT_NESTED_FALLBACK = '/catalog';
+
+export type BanjiNavigationState = {
+  banjiNavigationFallback?: string | null;
+  banjiNavigationOrigin?: string | null;
+  banjiNavigationSource?: string;
+};
 
 type NavigationEntry = {
+  fallbackTo?: string | null;
+  origin?: string | null;
   key: string;
   to: string;
 };
@@ -25,17 +34,49 @@ const STORAGE_KEY = 'banji.navigation-history';
 
 const NavigationHistoryContext = createContext<NavigationHistoryContextValue | null>(null);
 
-function currentLocationTarget(location: ReturnType<typeof useLocation>) {
+function currentLocationTarget(location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search'>) {
   return `${location.pathname}${location.search}${location.hash}`;
 }
 
-function isSidebarNavigation(location: ReturnType<typeof useLocation>) {
-  const state = location.state;
+function readBanjiNavigationState(state: unknown): BanjiNavigationState {
   if (!state || typeof state !== 'object') {
-    return false;
+    return {};
   }
 
-  return 'banjiNavigationSource' in state && state.banjiNavigationSource === SIDEBAR_NAVIGATION_SOURCE;
+  return {
+    banjiNavigationFallback:
+      'banjiNavigationFallback' in state && (typeof state.banjiNavigationFallback === 'string' || state.banjiNavigationFallback == null)
+        ? state.banjiNavigationFallback
+        : undefined,
+    banjiNavigationOrigin:
+      'banjiNavigationOrigin' in state && (typeof state.banjiNavigationOrigin === 'string' || state.banjiNavigationOrigin == null)
+        ? state.banjiNavigationOrigin
+        : undefined,
+    banjiNavigationSource:
+      'banjiNavigationSource' in state && typeof state.banjiNavigationSource === 'string' ? state.banjiNavigationSource : undefined,
+  };
+}
+
+function nestedFallbackForPath(pathname: string) {
+  if (pathname.startsWith('/catalog/skus/') || pathname.startsWith('/catalog/services/')) {
+    return DEFAULT_NESTED_FALLBACK;
+  }
+  return null;
+}
+
+export function buildBanjiNavigationState(
+  location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search' | 'state'>,
+  fallbackTo?: string | null,
+): BanjiNavigationState {
+  const currentState = readBanjiNavigationState(location.state);
+  return {
+    banjiNavigationFallback: currentState.banjiNavigationFallback ?? fallbackTo ?? nestedFallbackForPath(location.pathname),
+    banjiNavigationOrigin: currentState.banjiNavigationOrigin ?? currentLocationTarget(location),
+  };
+}
+
+function isSidebarNavigation(location: ReturnType<typeof useLocation>) {
+  return readBanjiNavigationState(location.state).banjiNavigationSource === SIDEBAR_NAVIGATION_SOURCE;
 }
 
 function readEntries(): NavigationEntry[] {
@@ -59,7 +100,9 @@ function readEntries(): NavigationEntry[] {
         Boolean(entry) &&
         typeof entry === 'object' &&
         typeof entry.key === 'string' &&
-        typeof entry.to === 'string',
+        typeof entry.to === 'string' &&
+        ('origin' in entry ? typeof entry.origin === 'string' || entry.origin == null : true) &&
+        ('fallbackTo' in entry ? typeof entry.fallbackTo === 'string' || entry.fallbackTo == null : true),
     );
   } catch {
     return [];
@@ -129,9 +172,15 @@ export function NavigationHistoryProvider({ children }: { children: ReactNode })
   const navigate = useNavigate();
   const [entries, setEntries] = useState<NavigationEntry[]>(() => readEntries());
   const resetHistory = isSidebarNavigation(location);
+  const currentState = readBanjiNavigationState(location.state);
   const currentEntry = useMemo<NavigationEntry>(
-    () => ({ key: location.key, to: currentLocationTarget(location) }),
-    [location],
+    () => ({
+      fallbackTo: currentState.banjiNavigationFallback ?? nestedFallbackForPath(location.pathname),
+      key: location.key,
+      origin: currentState.banjiNavigationOrigin ?? null,
+      to: currentLocationTarget(location),
+    }),
+    [currentState.banjiNavigationFallback, currentState.banjiNavigationOrigin, location],
   );
 
   useEffect(() => {
@@ -150,17 +199,22 @@ export function NavigationHistoryProvider({ children }: { children: ReactNode })
   }, [entries]);
 
   const value = useMemo<NavigationHistoryContextValue>(() => {
+    const currentStackEntry = entries[entries.length - 1] ?? null;
     const previousEntry = entries.length > 1 ? entries[entries.length - 2] : null;
+    const preferredBackTarget =
+      currentStackEntry?.origin && currentStackEntry.origin !== currentStackEntry.to
+        ? currentStackEntry.origin
+        : previousEntry?.to ?? currentStackEntry?.fallbackTo ?? null;
 
     return {
-      canGoBack: previousEntry != null,
-      previousLocation: previousEntry?.to ?? null,
+      canGoBack: preferredBackTarget != null,
+      previousLocation: preferredBackTarget,
       goBack: () => {
-        if (!previousEntry) {
+        if (!preferredBackTarget) {
           return;
         }
 
-        navigate(previousEntry.to, { replace: true });
+        navigate(preferredBackTarget, { replace: true });
       },
     };
   }, [entries, navigate]);

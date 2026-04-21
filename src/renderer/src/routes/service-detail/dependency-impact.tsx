@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { MeasuredPagedDetailPanel } from '@/routes/detail-panels';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel } from './view-model';
 
@@ -9,6 +10,7 @@ export function ServiceDependencyImpact({
 }: {
   rows: ServiceDetailViewModel['dependencyImpact'];
 }) {
+  const location = useLocation();
   const { t } = usePreferences();
 
   return (
@@ -24,7 +26,11 @@ export function ServiceDependencyImpact({
               description={row.role}
               imagePath={row.imagePath}
               name={
-                <Link className="font-medium text-foreground underline-offset-4 hover:underline" to={row.openSkuHref}>
+                <Link
+                  className="font-medium text-foreground underline-offset-4 hover:underline"
+                  state={buildBanjiNavigationState(location, '/catalog')}
+                  to={row.openSkuHref}
+                >
                   {row.name}
                 </Link>
               }

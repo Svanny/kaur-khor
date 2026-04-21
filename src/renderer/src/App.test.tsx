@@ -93,10 +93,10 @@ describe('AppRoutes', () => {
     );
   }
 
-  it('redirects the locked catalog landing page to create the first SKU', () => {
+  it('redirects the locked catalog landing page to create the first SKU', async () => {
     renderRoutes('/catalog');
 
-    expect(screen.getByText('SKU form screen')).toBeInTheDocument();
+    expect(await screen.findByText('SKU form screen')).toBeInTheDocument();
   });
 
   it('keeps direct catalog creation routes accessible before the catalog tab unlocks', () => {
@@ -111,7 +111,7 @@ describe('AppRoutes', () => {
     expect(screen.getByText('Overview screen')).toBeInTheDocument();
   });
 
-  it('redirects locked logs to record update after the catalog has a SKU or service', () => {
+  it('redirects locked logs to record update after the catalog has a SKU or service', async () => {
     inventoryHook.mockReturnValue({
       catalog: {
         schemaVersion: 1,
@@ -126,7 +126,7 @@ describe('AppRoutes', () => {
 
     renderRoutes('/operations');
 
-    expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(await screen.findByText('Record update screen')).toBeInTheDocument();
   });
 
   it('redirects record update to overview before the catalog has a SKU or service', () => {
