@@ -40,12 +40,14 @@ import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard }
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildFinancialsSearchParams, readFinancialsRouteState } from '@/lib/navigation-state';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { statusPillClassName, tintedSurfaceClassName, type StatusPillTone } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
+import { useOptionalAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
@@ -148,6 +150,19 @@ function financialsRibbonTargetId(metricKey: string) {
     default:
       return 'financials-statement';
   }
+}
+
+function rangeDaysForFinancials(range: FinancialsRange) {
+  if (range === '1d') {
+    return 1;
+  }
+  if (range === '7d') {
+    return 7;
+  }
+  if (range === '90d') {
+    return 90;
+  }
+  return 30;
 }
 
 function StatementBlock({ block }: { block: FinancialStatementBlock }) {
@@ -446,6 +461,7 @@ function FinancialsLoadingState() {
 }
 
 export function FinancialsRoute() {
+  const automation = useOptionalAutomation();
   const inventory = useInventory();
   const location = useLocation();
   const {
@@ -528,6 +544,28 @@ export function FinancialsRoute() {
     usdToKhrExchangeRate,
     visibleCatalog,
   ]);
+  const telegramWindowSummary = useMemo(() => {
+    const windowDays = rangeDaysForFinancials(range);
+    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+    const intakesInRange = automation.intakes.filter((intake) => new Date(intake.updatedAt).getTime() >= cutoff);
+    const openQuotedValue = intakesInRange
+      .filter((intake) => intake.status === 'new' || intake.status === 'needs_review' || intake.status === 'quoted' || intake.status === 'ticketed')
+      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+    const realizedValue = intakesInRange
+      .filter((intake) => intake.status === 'completed')
+      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+    const canceledValue = intakesInRange
+      .filter((intake) => intake.status === 'canceled')
+      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+
+    return {
+      canceledCount: intakesInRange.filter((intake) => intake.status === 'canceled').length,
+      canceledValueLabel: formatCurrency(canceledValue, currency, language, usdToKhrExchangeRate),
+      openQuotedValueLabel: formatCurrency(openQuotedValue, currency, language, usdToKhrExchangeRate),
+      realizedValueLabel: formatCurrency(realizedValue, currency, language, usdToKhrExchangeRate),
+      ticketedCount: intakesInRange.filter((intake) => intake.status === 'ticketed' || intake.status === 'completed').length,
+    };
+  }, [automation.intakes, currency, language, range, usdToKhrExchangeRate]);
 
   if (inventory.isLoading && !visibleCatalog) {
     return <FinancialsLoadingState />;
@@ -787,6 +825,32 @@ export function FinancialsRoute() {
                   <Link to="/record-update">
                     <ActionOpenExternalIcon className="size-4" />
                     {translateUiLiteral(language, 'Start update')}
+                  </Link>
+                </Button>
+              </div>
+            </PerformanceRightRailBlock>
+
+            <PerformanceRightRailBlock
+              title={translateUiLiteral(language, 'Telegram attribution')}
+              tooltip={translateUiLiteral(language, 'Quoted, realized, and canceled value attributed to Telegram-origin customer intake.')}
+            >
+              <div className="space-y-3">
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {translateUiLiteral(language, 'Open quoted Telegram value')} · {telegramWindowSummary.openQuotedValueLabel}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {translateUiLiteral(language, 'Realized Telegram value')} · {telegramWindowSummary.realizedValueLabel}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {translateUiLiteral(language, 'Telegram-origin reversals / cancellations')} · {telegramWindowSummary.canceledCount} · {telegramWindowSummary.canceledValueLabel}
+                </p>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  {translateUiLiteral(language, 'Ticketed Telegram intake')} · {telegramWindowSummary.ticketedCount}
+                </p>
+                <Button asChild className="w-full" size="sm" variant="outline">
+                  <Link to="/automations?section=intake">
+                    <ActionOpenExternalIcon className="size-4" />
+                    {translateUiLiteral(language, 'Open Automations')}
                   </Link>
                 </Button>
               </div>

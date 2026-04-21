@@ -34,6 +34,35 @@ export type FinancialsScopeValue = typeof financialsScopeValues[number];
 export const financialsRangeValues = ['1d', '7d', '30d', '90d'] as const;
 export type FinancialsRangeValue = typeof financialsRangeValues[number];
 
+export const automationChannelValues = ['telegram'] as const;
+export type AutomationChannelValue = typeof automationChannelValues[number];
+
+export const automationSectionValues = [
+  'overview',
+  'catalog',
+  'intake',
+  'exceptions',
+  'settings',
+] as const;
+export type AutomationSectionValue = typeof automationSectionValues[number];
+
+export const automationExposureValues = ['all', 'exposed', 'hidden'] as const;
+export type AutomationExposureValue = typeof automationExposureValues[number];
+
+export const automationIntakeFilterValues = [
+  'all',
+  'new',
+  'needs_review',
+  'quoted',
+  'ticketed',
+  'completed',
+  'canceled',
+] as const;
+export type AutomationIntakeFilterValue = typeof automationIntakeFilterValues[number];
+
+export const automationHealthValues = ['all', 'connected', 'paused', 'error'] as const;
+export type AutomationHealthValue = typeof automationHealthValues[number];
+
 export const analysisScopeValues = ['all', 'services', 'skus'] as const;
 export type AnalysisScopeValue = typeof analysisScopeValues[number];
 
@@ -86,6 +115,18 @@ export type FinancialsRouteState = {
   range: FinancialsRangeValue;
   scope: FinancialsScopeValue;
   supplier: string | null;
+};
+
+export type AutomationRouteState = {
+  channel: AutomationChannelValue;
+  section: AutomationSectionValue;
+  exposure: AutomationExposureValue;
+  intakeFilter: AutomationIntakeFilterValue;
+  health: AutomationHealthValue;
+  q: string | null;
+  conversationId: string | null;
+  intakeId: string | null;
+  ticketId: string | null;
 };
 
 export type OperationsRouteState = {
@@ -306,6 +347,48 @@ export function buildFinancialsHref(
   currentSearchParams?: URLSearchParams | null,
 ) {
   return createHref('/financials', buildFinancialsSearchParams(currentSearchParams, nextState));
+}
+
+export function readAutomationRouteState(searchParams: URLSearchParams): AutomationRouteState {
+  return {
+    channel: readEnumValue(searchParams, 'channel', automationChannelValues, 'telegram'),
+    section: readEnumValue(searchParams, 'section', automationSectionValues, 'overview'),
+    exposure: readEnumValue(searchParams, 'exposure', automationExposureValues, 'all'),
+    intakeFilter: readEnumValue(searchParams, 'filter', automationIntakeFilterValues, 'all'),
+    health: readEnumValue(searchParams, 'health', automationHealthValues, 'all'),
+    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
+    conversationId: searchParams.get('conversation')?.trim() ? searchParams.get('conversation')!.trim() : null,
+    intakeId: searchParams.get('intake')?.trim() ? searchParams.get('intake')!.trim() : null,
+    ticketId: searchParams.get('ticket')?.trim() ? searchParams.get('ticket')!.trim() : null,
+  };
+}
+
+export function buildAutomationSearchParams(
+  currentSearchParams?: URLSearchParams | null,
+  nextState?: Partial<AutomationRouteState>,
+) {
+  const currentState = readAutomationRouteState(cloneSearchParams(currentSearchParams));
+  const searchParams = cloneSearchParams(currentSearchParams);
+  const resolvedState = { ...currentState, ...nextState };
+
+  writeEnumValue(searchParams, 'channel', resolvedState.channel, 'telegram');
+  writeEnumValue(searchParams, 'section', resolvedState.section, 'overview');
+  writeEnumValue(searchParams, 'exposure', resolvedState.exposure, 'all');
+  writeEnumValue(searchParams, 'filter', resolvedState.intakeFilter, 'all');
+  writeEnumValue(searchParams, 'health', resolvedState.health, 'all');
+  writeOptionalValue(searchParams, 'q', resolvedState.q?.trim() ? resolvedState.q.trim() : null);
+  writeOptionalValue(searchParams, 'conversation', resolvedState.conversationId);
+  writeOptionalValue(searchParams, 'intake', resolvedState.intakeId);
+  writeOptionalValue(searchParams, 'ticket', resolvedState.ticketId);
+
+  return searchParams;
+}
+
+export function buildAutomationHref(
+  nextState?: Partial<AutomationRouteState>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  return createHref('/automations', buildAutomationSearchParams(currentSearchParams, nextState));
 }
 
 export function readOperationsRouteState(searchParams: URLSearchParams): OperationsRouteState {

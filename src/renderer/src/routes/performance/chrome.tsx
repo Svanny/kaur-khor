@@ -13,15 +13,17 @@ export function PerformanceSectionShell({
   descriptor,
   description,
   headerActions,
+  headerControls,
   children,
   className,
   contentClassName,
 }: {
   title: string;
   tooltip: string;
-  descriptor?: string;
-  description?: string;
+  descriptor?: ReactNode;
+  description?: ReactNode;
   headerActions?: ReactNode;
+  headerControls?: ReactNode;
   children: ReactNode;
   className?: string;
   contentClassName?: string;
@@ -29,6 +31,7 @@ export function PerformanceSectionShell({
   const descriptionVisible = useDescriptionTextVisible();
   const resolvedDescriptor = descriptor ?? description;
   const showDescription = hasDescriptionText(resolvedDescriptor, descriptionVisible);
+  const descriptorElement = typeof resolvedDescriptor === 'string' ? 'p' : 'div';
 
   return (
     <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, 'flex h-full flex-col', className)}>
@@ -37,13 +40,14 @@ export function PerformanceSectionShell({
           <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
             <SectionTitle title={title} tooltip={tooltip} />
             {showDescription ? (
-              <DescriptionText className="max-w-3xl text-sm leading-6 text-muted-foreground">
+              <DescriptionText as={descriptorElement} className="max-w-3xl text-sm leading-6 text-muted-foreground">
                 {resolvedDescriptor}
               </DescriptionText>
             ) : null}
           </div>
           {headerActions ? <div className="shrink-0">{headerActions}</div> : null}
         </div>
+        {headerControls ? <div className="mt-4">{headerControls}</div> : null}
       </div>
       <div className={cn('min-h-0 flex-1 px-6 py-5', contentClassName)}>{children}</div>
     </section>

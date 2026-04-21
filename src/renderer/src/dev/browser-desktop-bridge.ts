@@ -1,9 +1,25 @@
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import type {
+  AutomationChannelConnection,
+  AutomationConversationSummary,
+  AutomationExposureRow,
+  AutomationMessageRecord,
+  AutomationOrderIntake,
+  AutomationWorkspace,
+  PromoteAutomationIntakeResult,
+} from '@shared/automation';
+import type {
+  AutomationConnectionPatch,
+  AutomationExposurePatch,
+  AutomationListIntakesPayload,
+  AutomationReadConversationPayload,
+  AutomationReadIntakePayload,
+  AutomationResolveIntakePayload,
   DesktopAppContext,
   DesktopBridge,
   DesktopLocalDataInfo,
   DesktopPreferences,
+  PromoteAutomationIntakePayload,
   SenaRunLookupPayload,
   SenaServiceLookupPayload,
   SenaSkuLookupPayload,
@@ -688,6 +704,8 @@ const mockLocalDataInfo: DesktopLocalDataInfo = {
 
 type BrowserMockState = {
   appContext: DesktopAppContext;
+  automation: AutomationWorkspace;
+  automationMessages: Record<string, AutomationMessageRecord[]>;
   catalog: SenaCatalog;
   diagnostics: SenaDiagnostics;
   inventorySnapshot: InventorySnapshot;
@@ -701,7 +719,8 @@ type BrowserMockState = {
   workspaceSummary: SenaWorkspaceSummary;
 };
 
-function createMockState(): BrowserMockState {
+export function createMockState(): BrowserMockState {
+  const automation = createMockAutomationWorkspace();
   const serviceDetails = Object.fromEntries(
     mockCatalog.services.map((service) => [
       service.serviceId,
@@ -741,6 +760,19 @@ function createMockState(): BrowserMockState {
     appContext: {
       appVersion: 'browser-mock',
       platform: 'browser',
+    },
+    automation,
+    automationMessages: {
+      'conv-demo': [{
+        messageId: 'msg-demo',
+        conversationId: 'conv-demo',
+        externalMessageKey: 'telegram-message-demo',
+        direction: 'inbound',
+        sentAt: nowIso(),
+        rawText: 'I want 2 scarves',
+        normalizedText: '2 x Cotton Scarf',
+        parseConfidence: 'high',
+      }],
     },
     catalog: clone(mockCatalog),
     diagnostics: clone(mockDiagnostics),
@@ -801,6 +833,121 @@ let browserMockState = createMockState();
 let observationCounter = browserMockState.observations.length + 1;
 let reportCounter = 1;
 let runCounter = 2;
+let automationTicketCounter = 1;
+
+export function createMockAutomationWorkspace(): AutomationWorkspace {
+  const connection: AutomationChannelConnection = {
+    channel: 'telegram',
+    status: 'connected',
+    hasBotToken: true,
+    botDisplayName: 'banji demo bot',
+    botUsername: 'banji_demo_bot',
+    externalLink: 'https://t.me/banji_demo_bot',
+    connectedAt: nowIso(),
+    pausedAt: null,
+    lastWebhookAt: nowIso(),
+    lastErrorAt: null,
+    lastErrorMessage: null,
+  };
+  const conversationId = 'conv-demo';
+  const intakeId = 'intake-demo';
+  const exposures: AutomationExposureRow[] = [
+    {
+      entityType: 'sku',
+      entityId: 'sku-1',
+      label: 'Cotton Scarf',
+      imagePath: null,
+      supplierName: 'Mekong Looms',
+      archived: false,
+      exposed: true,
+      price: 12,
+      availabilityStatus: 'available',
+      availabilityLabel: 'Available',
+      alias: 'Scarf',
+      sortOrder: 0,
+    },
+    {
+      entityType: 'service',
+      entityId: 'service-1',
+      label: 'Wedding Styling',
+      imagePath: null,
+      supplierName: null,
+      archived: false,
+      exposed: true,
+      price: 35,
+      availabilityStatus: 'limited',
+      availabilityLabel: 'Limited',
+      alias: null,
+      sortOrder: 1,
+    },
+  ];
+  const conversations: AutomationConversationSummary[] = [{
+    conversationId,
+    channel: 'telegram',
+    externalConversationKey: 'telegram-chat-demo',
+    customerDisplayName: 'Sokha',
+    customerHandle: '@sokha',
+    phone: '+85512000000',
+    lastMessageAt: nowIso(),
+    messageCount: 1,
+    latestIntakeStatus: 'new',
+    latestTicketId: null,
+  }];
+  const messages: AutomationMessageRecord[] = [{
+    messageId: 'msg-demo',
+    conversationId,
+    externalMessageKey: 'telegram-message-demo',
+    direction: 'inbound',
+    sentAt: nowIso(),
+    rawText: 'I want 2 scarves',
+    normalizedText: '2 x Cotton Scarf',
+    parseConfidence: 'high',
+  }];
+  const intakes: AutomationOrderIntake[] = [{
+    intakeId,
+    conversationId,
+    channel: 'telegram',
+    status: 'new',
+    parseConfidence: 'high',
+    customerDisplayName: 'Sokha',
+    customerHandle: '@sokha',
+    phone: '+85512000000',
+    notes: 'Browser mock intake.',
+    quotedSubtotal: 24,
+    currencyCode: 'USD',
+    deliveryFee: null,
+    quotedTotal: 24,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    promotedTicketId: null,
+    lines: [{
+      lineId: 'line-demo',
+      entityType: 'sku',
+      entityId: 'sku-1',
+      requestedLabel: 'Scarf',
+      resolvedLabel: 'Cotton Scarf',
+      quantity: 2,
+      unitPrice: 12,
+      lineTotal: 24,
+      availabilityStatus: 'available',
+      ambiguityReason: null,
+    }],
+  }];
+  return {
+    connection,
+    metrics: {
+      ordersToday: 1,
+      needsReview: 0,
+      quotedToday: 0,
+      ticketedToday: 0,
+      completedToday: 0,
+      exposedSellables: exposures.filter((row) => row.exposed).length,
+    },
+    exposures,
+    conversations,
+    intakes,
+  };
+}
 
 function findInventoryItem(skuId: string) {
   return browserMockState.inventorySnapshot.items.find((item) => item.skuId === skuId) ?? null;
@@ -823,6 +970,123 @@ function installBrowserDesktopBridge() {
   }
 
   const bridge: DesktopBridge = {
+    automation: {
+      getWorkspace: async () => clone(browserMockState.automation),
+      getConnection: async () => clone(browserMockState.automation.connection),
+      saveConnection: async (payload: AutomationConnectionPatch) => {
+        browserMockState.automation.connection = {
+          ...browserMockState.automation.connection,
+          status: payload.status ?? browserMockState.automation.connection.status,
+          hasBotToken: payload.botToken === undefined ? browserMockState.automation.connection.hasBotToken : Boolean(payload.botToken?.trim()),
+          connectedAt: payload.status === 'connected' ? browserMockState.automation.connection.connectedAt ?? new Date().toISOString() : payload.status === 'disconnected' ? null : browserMockState.automation.connection.connectedAt,
+          pausedAt: payload.status === 'paused' ? new Date().toISOString() : payload.status === 'connected' || payload.status === 'disconnected' ? null : browserMockState.automation.connection.pausedAt,
+          lastErrorAt: payload.status === 'connected' || payload.status === 'disconnected' ? null : browserMockState.automation.connection.lastErrorAt,
+          lastErrorMessage: payload.status === 'connected' || payload.status === 'disconnected' ? null : browserMockState.automation.connection.lastErrorMessage,
+          botUsername: payload.botUsername ?? browserMockState.automation.connection.botUsername,
+          botDisplayName: payload.botDisplayName ?? browserMockState.automation.connection.botDisplayName,
+          externalLink: payload.externalLink ?? browserMockState.automation.connection.externalLink,
+        };
+        return clone(browserMockState.automation.connection);
+      },
+      listExposureRows: async () => clone(browserMockState.automation.exposures),
+      patchExposureRow: async (payload: AutomationExposurePatch) => {
+        const row = browserMockState.automation.exposures.find((entry) => entry.entityType === payload.entityType && entry.entityId === payload.entityId);
+        if (!row) {
+          throw new Error('Automation exposure row not found.');
+        }
+        row.exposed = payload.exposed ?? row.exposed;
+        row.alias = payload.alias === undefined ? row.alias : payload.alias;
+        row.sortOrder = payload.sortOrder ?? row.sortOrder;
+        browserMockState.automation.metrics.exposedSellables = browserMockState.automation.exposures.filter((entry) => entry.exposed).length;
+        return clone(row);
+      },
+      listConversations: async () => clone(browserMockState.automation.conversations),
+      readConversation: async ({ conversationId }: AutomationReadConversationPayload) => {
+        const conversation = browserMockState.automation.conversations.find((entry) => entry.conversationId === conversationId);
+        if (!conversation) {
+          throw new Error('Automation conversation not found.');
+        }
+        return {
+          conversation: clone(conversation),
+          messages: clone(browserMockState.automationMessages[conversationId] ?? []),
+          intakes: clone(browserMockState.automation.intakes.filter((entry) => entry.conversationId === conversationId)),
+        };
+      },
+      listIntakes: async (payload?: AutomationListIntakesPayload) => clone(
+        browserMockState.automation.intakes.filter((entry) =>
+          (!payload?.status || entry.status === payload.status)
+          && (!payload?.conversationId || entry.conversationId === payload.conversationId)
+          && (!payload?.ticketId || entry.promotedTicketId === payload.ticketId),
+        ),
+      ),
+      readIntake: async ({ intakeId }: AutomationReadIntakePayload) =>
+        clone(browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId) ?? null),
+      resolveIntake: async ({ intakeId, status, note }: AutomationResolveIntakePayload) => {
+        const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
+        if (!intake) {
+          throw new Error('Automation intake not found.');
+        }
+        intake.status = status;
+        intake.notes = note ?? intake.notes;
+        intake.updatedAt = nowIso();
+        return clone(intake);
+      },
+      promoteIntake: async ({ intakeId, mode, ticketId }: PromoteAutomationIntakePayload) => {
+        const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
+        if (!intake) {
+          throw new Error('Automation intake not found.');
+        }
+        intake.status = 'ticketed';
+        intake.promotedTicketId = ticketId ?? `ticket:customer:browser:${automationTicketCounter++}`;
+        intake.updatedAt = nowIso();
+        const result: PromoteAutomationIntakeResult = {
+          intake: clone(intake),
+          ticketEvent: {
+            ticketId: intake.promotedTicketId,
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: mode === 'append_ticket' ? 2 : 1,
+            eventType: mode === 'append_ticket' ? 'revised' : 'created',
+            occurredAt: nowIso(),
+            nextTouchAt: null,
+            party: {
+              role: 'customer',
+              channelKey: 'telegram',
+              channelLabel: 'Telegram',
+              customerName: intake.customerDisplayName,
+              customerNameKey: intake.customerDisplayName?.toLowerCase() ?? null,
+              phone: intake.phone,
+              phoneKey: intake.phone ?? null,
+              supplierName: null,
+            },
+            lines: intake.lines.filter((line) => line.entityId != null).map((line) => ({
+              entityType: line.entityType,
+              entityId: line.entityId!,
+              quantityDelta: line.quantity,
+              note: line.requestedLabel,
+            })),
+            note: intake.notes,
+          },
+          commercialEvents: intake.lines.filter((line) => line.entityId != null).map((line) => ({
+            party: 'customer',
+            entityType: line.entityType,
+            entityId: line.entityId!,
+            stage: 'pending',
+            quantityDelta: line.quantity ?? 0,
+            flow: 'scheduled',
+            reason: 'browser_mock',
+            note: intake.notes,
+          })),
+        };
+        return result;
+      },
+      testTelegramConnection: async () => {
+        browserMockState.automation.connection.status = 'connected';
+        browserMockState.automation.connection.lastWebhookAt = nowIso();
+        return clone(browserMockState.automation.connection);
+      },
+    },
     system: {
       getAppContext: async () => clone(browserMockState.appContext),
       getLocalDataInfo: async () => clone(browserMockState.localDataInfo),

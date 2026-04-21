@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import type { DesktopSeenUnlockedNavItemId } from '@shared/ipc';
 import {
   NavigationAnalysisIcon,
+  NavigationAutomationIcon,
   NavigationBackIcon,
   NavigationCatalogIcon,
   NavigationCommandPaletteIcon,
@@ -54,8 +55,30 @@ type ShellSectionConfig = {
   availabilityKey?: keyof NavigationAvailability;
   gatedNavItemId?: DesktopSeenUnlockedNavItemId;
   icon: IconComponent;
-  id: 'overview' | 'recordUpdate' | 'performance' | 'financials' | 'analysis' | 'catalog' | 'operations' | 'archive' | 'help' | 'settings';
-  labelKey: 'navOverview' | 'navRecordUpdate' | 'navPerformance' | 'navFinancials' | 'navAnalysis' | 'navCatalog' | 'navOperations' | 'navArchive' | 'navHelp' | 'navSettings';
+  id:
+    | 'overview'
+    | 'recordUpdate'
+    | 'performance'
+    | 'financials'
+    | 'automations'
+    | 'analysis'
+    | 'catalog'
+    | 'operations'
+    | 'archive'
+    | 'help'
+    | 'settings';
+  labelKey:
+    | 'navOverview'
+    | 'navRecordUpdate'
+    | 'navPerformance'
+    | 'navFinancials'
+    | 'navAutomations'
+    | 'navAnalysis'
+    | 'navCatalog'
+    | 'navOperations'
+    | 'navArchive'
+    | 'navHelp'
+    | 'navSettings';
   matches: (pathname: string) => boolean;
 };
 
@@ -129,6 +152,13 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
     labelKey: 'navFinancials',
     icon: NavigationFinancialsIcon,
     matches: (pathname) => matchesSection(pathname, '/financials'),
+  },
+  {
+    id: 'automations',
+    destination: '/automations',
+    labelKey: 'navAutomations',
+    icon: NavigationAutomationIcon,
+    matches: (pathname) => matchesSection(pathname, '/automations'),
   },
   {
     id: 'analysis',

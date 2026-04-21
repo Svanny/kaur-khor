@@ -17,6 +17,7 @@ import {
 } from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
+import { AutomationProvider } from '@/state/automation';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -34,6 +35,7 @@ const ArchiveRoute = lazy(() => import('@/routes/archive').then((module) => ({ d
 const FinancialsRoute = lazy(() => import('@/routes/financials').then((module) => ({ default: module.FinancialsRoute })));
 const HelpRoute = lazy(() => import('@/routes/help').then((module) => ({ default: module.HelpRoute })));
 const InventoryRoute = lazy(() => import('@/routes/inventory').then((module) => ({ default: module.InventoryRoute })));
+const AutomationsRoute = lazy(() => import('@/routes/automations').then((module) => ({ default: module.AutomationsRoute })));
 const PerformanceRoute = lazy(() => import('@/routes/performance').then((module) => ({ default: module.PerformanceRoute })));
 const RecordUpdateHubRoute = lazy(() => import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })));
 const ServiceDetailRoute = lazy(() => import('@/routes/service-detail').then((module) => ({ default: module.ServiceDetailRoute })));
@@ -45,7 +47,7 @@ const SkuFormRoute = lazy(() => import('@/routes/sku-form').then((module) => ({ 
 const StockUpdateRoute = lazy(() => import('@/routes/stock-update').then((module) => ({ default: module.StockUpdateRoute })));
 const StockUpdateSessionRoute = lazy(() => import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
 
-function routeBenchmarkName(pathname: string) {
+export function routeBenchmarkName(pathname: string) {
   if (pathname === '/') {
     return 'dashboard';
   }
@@ -57,6 +59,9 @@ function routeBenchmarkName(pathname: string) {
   }
   if (pathname === '/financials') {
     return 'financials';
+  }
+  if (pathname === '/automations') {
+    return 'automations';
   }
   if (pathname === '/analysis') {
     return 'analysis';
@@ -185,6 +190,7 @@ export function AppRoutes() {
         }
         path="/financials"
       />
+      <Route element={<AutomationsRoute />} path="/automations" />
       <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
       <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />
       <Route element={<RedirectWithSearch to="/catalog/skus/:skuId" />} path="/inventory/skus/:skuId" />
@@ -276,12 +282,14 @@ function AppFrame() {
   );
 }
 
-function LoadedApp() {
+export function LoadedApp() {
   return (
     <PreferencesProvider>
       <InventoryProvider>
-        <BenchmarkRouteObserver />
-        <AppFrame />
+        <AutomationProvider>
+          <BenchmarkRouteObserver />
+          <AppFrame />
+        </AutomationProvider>
       </InventoryProvider>
     </PreferencesProvider>
   );
