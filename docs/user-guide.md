@@ -92,7 +92,7 @@ Overview is banji's "what should I do next?" workspace. It is the best starting 
 Use Overview when you want to:
 
 - see the strongest reorder or follow-up issues first
-- switch between supply-side and customer-side work
+- switch between supplier-side and customer-side ticket work
 - start the next update session
 - open the next SKU or queue item that deserves inspection
 
@@ -127,14 +127,18 @@ This queue organizes the items that deserve review next. It is meant to answer f
 - what state the item is in
 - what to open next
 
+Overview opens on the **Supplier** queue by default. Switch to **Customer** when
+you want to review open customer commitments, stock blockers, or ready-to-complete
+customer work.
+
 #### Recent activity
 
 This summarizes what changed recently across saved updates. Use it when you need context before deciding whether to open Operations or start another update.
 
 ### Important Controls And Buttons
 
-- **Supply / Customer scope** switches the queue between supply-side and customer-side work.
-- **Task filters** narrow the queue to issue types such as to order, awaiting receipt, or follow up today.
+- **Supplier / Customer scope** switches the queue between supplier tickets and customer tickets.
+- **Task filters** narrow the current family queue to issue types such as to order, awaiting receipt, need stock, or follow up today.
 - **Search** narrows visible tasks and entities without changing saved data.
 - **Supplier filter** narrows the page to one supplier slice.
 - **Start update** opens the record-update hub.
@@ -158,9 +162,9 @@ Use Record update when:
 
 - stock counts changed
 - new customer orders came in
-- customer orders were fulfilled
+- immediate sales happened or customer orders were fulfilled
 - supplier orders were placed or changed
-- supplier receipts arrived
+- supplier receipts arrived against an existing supplier ticket
 - one event needs a combined custom capture flow
 
 ### Update Lanes
@@ -168,17 +172,22 @@ Use Record update when:
 banji currently offers these lanes:
 
 - **Stock Count**: count what is physically on hand and reconcile stock facts
-- **Customer Orders Pending**: capture open customer demand, changes, or cancellations
-- **Customer Orders Fulfilled**: record fulfilled customer orders and immediate sales
-- **Supplier Orders Pending**: capture supplier orders that have been placed but not yet received
-- **Supplier Receipts**: record goods received and immediate purchases
+- **Customer Order**: create a new customer ticket or update an existing customer ticket for open demand, changes, or cancellations
+- **Immediate Sale**: record same-session sales that resolve immediately
+- **Supplier Order**: create a new supplier ticket or update an existing supplier ticket for orders, ETA changes, and receipts
 - **Custom**: combine multiple lanes into one guided flow
 
 Draft badges on the hub mean banji found unfinished work saved on this device.
 
+Customer Order and Supplier Order now ask whether you are creating a **new**
+ticket or editing an **existing** ticket before the wizard continues.
+Supplier receipts are captured inside **Supplier Order** when you choose to
+update an existing supplier ticket.
+
 ### Important Controls And Buttons
 
 - **Lane cards** open the matching capture flow.
+- **New / existing ticket choice** appears for customer and supplier order lanes before the form opens.
 - **Custom update builder** lets you choose multiple base lanes before starting.
 - **Draft saved** badges tell you a draft already exists for that lane.
 - **Save** commits the update and makes it available to Overview, Performance, Financials, Analysis, and Operations.
@@ -188,6 +197,7 @@ Draft badges on the hub mean banji found unfinished work saved on this device.
 ### Common Mistakes
 
 - Choosing a lane that does not match the event you are recording.
+- Treating supplier receipt as a separate primary flow instead of updating the existing supplier ticket.
 - Mixing unrelated real-world events into one update just because they happened on the same day.
 - Forgetting to save after reviewing the final step.
 - Ignoring saved drafts and starting duplicate work from scratch.
