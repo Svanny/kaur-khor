@@ -15,13 +15,36 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import {
+  finalizeAutomationPromotion,
+  listAutomationConversations,
+  listAutomationExposureRows,
+  listAutomationIntakes,
+  patchAutomationExposureRow,
+  prepareAutomationPromotion,
+  readAutomationConnection,
+  readAutomationConversation,
+  readAutomationIntake,
+  readAutomationWorkspace,
+  resolveAutomationIntake,
+  saveAutomationConnection,
+  testAutomationTelegramConnection,
+} from './automation-store';
+import { loadAutomationCatalog, loadAutomationObservations, loadAutomationWorkspaceContext } from './automation-read-context';
+import {
   IPC_CHANNELS,
+  type AutomationConnectionPatch,
+  type AutomationExposurePatch,
+  type AutomationListIntakesPayload,
+  type AutomationReadConversationPayload,
+  type AutomationReadIntakePayload,
+  type AutomationResolveIntakePayload,
   type DesktopAppContext,
   type DesktopBackupRestoreResult,
   type DesktopBackupSnapshotResult,
   type DesktopClearCurrentDataResult,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
+  type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
   type SenaServiceLookupPayload,
@@ -30,6 +53,12 @@ import {
 } from '@shared/ipc';
 import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
+  AutomationChannelConnection,
+  AutomationConversationSummary,
+  AutomationExposureRow,
+  AutomationOrderIntake,
+  AutomationWorkspace,
+  PromoteAutomationIntakeResult,
   SenaAnalysisRunRecord,
   SenaCatalog,
   SenaCreateOrderBatchPayload,
@@ -1113,6 +1142,85 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
   const targetPath = join(targetDirectory, `${randomUUID()}${normalizedImage.extension}`);
   await writeFile(targetPath, normalizedImage.bytes);
   return targetPath;
+}));
+
+ipcMain.handle(IPC_CHANNELS.automationGetWorkspace, benchmarkIpcHandle(IPC_CHANNELS.automationGetWorkspace, async () => {
+  const context = await loadAutomationWorkspaceContext({
+    loadCachedSenaRead,
+    invoke: managedCore.invoke.bind(managedCore),
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  return readAutomationWorkspace(desktopDataPath, context);
+}));
+ipcMain.handle(IPC_CHANNELS.automationGetConnection, benchmarkIpcHandle(IPC_CHANNELS.automationGetConnection, async () =>
+  readAutomationConnection(desktopDataPath),
+));
+ipcMain.handle(IPC_CHANNELS.automationSaveConnection, benchmarkIpcHandle(IPC_CHANNELS.automationSaveConnection, async (_event, payload: AutomationConnectionPatch) =>
+  saveAutomationConnection(desktopDataPath, payload),
+));
+ipcMain.handle(IPC_CHANNELS.automationListExposureRows, benchmarkIpcHandle(IPC_CHANNELS.automationListExposureRows, async () => {
+  const context = await loadAutomationWorkspaceContext({
+    loadCachedSenaRead,
+    invoke: managedCore.invoke.bind(managedCore),
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  return listAutomationExposureRows(desktopDataPath, context);
+}));
+ipcMain.handle(IPC_CHANNELS.automationPatchExposureRow, benchmarkIpcHandle(IPC_CHANNELS.automationPatchExposureRow, async (_event, payload: AutomationExposurePatch) => {
+  const context = await loadAutomationWorkspaceContext({
+    loadCachedSenaRead,
+    invoke: managedCore.invoke.bind(managedCore),
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  return patchAutomationExposureRow(desktopDataPath, context, payload);
+}));
+ipcMain.handle(IPC_CHANNELS.automationListConversations, benchmarkIpcHandle(IPC_CHANNELS.automationListConversations, async () =>
+  listAutomationConversations(desktopDataPath),
+));
+ipcMain.handle(IPC_CHANNELS.automationReadConversation, benchmarkIpcHandle(IPC_CHANNELS.automationReadConversation, async (_event, payload: AutomationReadConversationPayload) =>
+  readAutomationConversation(desktopDataPath, payload.conversationId),
+));
+ipcMain.handle(IPC_CHANNELS.automationListIntakes, benchmarkIpcHandle(IPC_CHANNELS.automationListIntakes, async (_event, payload?: AutomationListIntakesPayload) =>
+  listAutomationIntakes(desktopDataPath, payload),
+));
+ipcMain.handle(IPC_CHANNELS.automationReadIntake, benchmarkIpcHandle(IPC_CHANNELS.automationReadIntake, async (_event, payload: AutomationReadIntakePayload) =>
+  readAutomationIntake(desktopDataPath, payload.intakeId),
+));
+ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHANNELS.automationResolveIntake, async (_event, payload: AutomationResolveIntakePayload) =>
+  resolveAutomationIntake(desktopDataPath, payload),
+));
+ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHANNELS.automationPromoteIntake, async (_event, payload: PromoteAutomationIntakePayload) => {
+  const observations = await loadAutomationObservations({
+    loadCachedSenaRead,
+    invoke: managedCore.invoke.bind(managedCore),
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  const prepared = await prepareAutomationPromotion(desktopDataPath, payload, { observations });
+  await snapshotBeforeWorkspaceMutation('automation-promote-intake');
+  await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', prepared.observationInput, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await finalizeAutomationPromotion(desktopDataPath, prepared.updatedIntake);
+  await invalidateSenaReadCache();
+  return {
+    intake: prepared.updatedIntake,
+    ticketEvent: prepared.ticketEvent,
+    commercialEvents: prepared.commercialEvents,
+  } satisfies PromoteAutomationIntakeResult;
+}));
+ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle(IPC_CHANNELS.automationTestTelegramConnection, async () => {
+  const [context, preferences] = await Promise.all([
+    loadAutomationWorkspaceContext({
+      loadCachedSenaRead,
+      invoke: managedCore.invoke.bind(managedCore),
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+    loadDesktopPreferences(desktopDataPath),
+  ]);
+  return testAutomationTelegramConnection(desktopDataPath, {
+    ...context,
+    currency: preferences.currency,
+  });
 }));
 
 ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, benchmarkIpcHandle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>

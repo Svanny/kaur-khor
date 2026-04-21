@@ -34,6 +34,17 @@ import type {
   BanjiBenchmarkMetadata,
   BanjiBenchmarkRunnerBridge,
 } from './benchmark';
+import type {
+  AutomationChannelConnection,
+  AutomationConversationSummary,
+  AutomationExposureRow,
+  AutomationMessageRecord,
+  AutomationOrderIntake,
+  AutomationIntakeStatus,
+  AutomationWorkspace,
+  PromoteAutomationIntakePayload,
+  PromoteAutomationIntakeResult,
+} from './automation';
 
 export interface DesktopAppContext {
   appVersion: string;
@@ -203,7 +214,65 @@ export interface DesktopBenchmarkBridge extends BanjiBenchmarkMetadata {
   recordEvent: (event: BanjiBenchmarkEvent) => void;
 }
 
+export interface AutomationExposurePatch {
+  entityType: 'sku' | 'service';
+  entityId: string;
+  exposed?: boolean;
+  alias?: string | null;
+  sortOrder?: number | null;
+}
+
+export interface AutomationConnectionPatch {
+  channel: 'telegram';
+  status?: 'connected' | 'paused' | 'disconnected' | 'error';
+  botToken?: string | null;
+  botUsername?: string | null;
+  botDisplayName?: string | null;
+  externalLink?: string | null;
+}
+
+export interface AutomationListIntakesPayload {
+  status?: AutomationIntakeStatus;
+  q?: string | null;
+  conversationId?: string | null;
+  ticketId?: string | null;
+}
+
+export interface AutomationReadConversationPayload {
+  conversationId: string;
+}
+
+export interface AutomationReadIntakePayload {
+  intakeId: string;
+}
+
+export interface AutomationResolveIntakePayload {
+  intakeId: string;
+  status: 'needs_review' | 'quoted' | 'canceled';
+  note?: string | null;
+}
+
+export interface DesktopAutomationBridge {
+  getWorkspace: () => Promise<AutomationWorkspace>;
+  getConnection: () => Promise<AutomationChannelConnection>;
+  saveConnection: (payload: AutomationConnectionPatch) => Promise<AutomationChannelConnection>;
+  listExposureRows: () => Promise<AutomationExposureRow[]>;
+  patchExposureRow: (payload: AutomationExposurePatch) => Promise<AutomationExposureRow>;
+  listConversations: () => Promise<AutomationConversationSummary[]>;
+  readConversation: (payload: AutomationReadConversationPayload) => Promise<{
+    conversation: AutomationConversationSummary;
+    messages: AutomationMessageRecord[];
+    intakes: AutomationOrderIntake[];
+  }>;
+  listIntakes: (payload?: AutomationListIntakesPayload) => Promise<AutomationOrderIntake[]>;
+  readIntake: (payload: AutomationReadIntakePayload) => Promise<AutomationOrderIntake | null>;
+  resolveIntake: (payload: AutomationResolveIntakePayload) => Promise<AutomationOrderIntake>;
+  promoteIntake: (payload: PromoteAutomationIntakePayload) => Promise<PromoteAutomationIntakeResult>;
+  testTelegramConnection: () => Promise<AutomationChannelConnection>;
+}
+
 export interface DesktopBridge {
+  automation?: DesktopAutomationBridge;
   benchmark?: DesktopBenchmarkBridge;
   benchmarkRunner?: BanjiBenchmarkRunnerBridge;
   inventory: DesktopInventoryBridge;
@@ -213,6 +282,18 @@ export interface DesktopBridge {
 }
 
 export const IPC_CHANNELS = {
+  automationGetWorkspace: 'banji:automation:get-workspace',
+  automationGetConnection: 'banji:automation:get-connection',
+  automationSaveConnection: 'banji:automation:save-connection',
+  automationListExposureRows: 'banji:automation:list-exposure-rows',
+  automationPatchExposureRow: 'banji:automation:patch-exposure-row',
+  automationListConversations: 'banji:automation:list-conversations',
+  automationReadConversation: 'banji:automation:read-conversation',
+  automationListIntakes: 'banji:automation:list-intakes',
+  automationReadIntake: 'banji:automation:read-intake',
+  automationResolveIntake: 'banji:automation:resolve-intake',
+  automationPromoteIntake: 'banji:automation:promote-intake',
+  automationTestTelegramConnection: 'banji:automation:test-telegram-connection',
   systemGetAppContext: 'banji:system:get-app-context',
   systemGetLocalDataInfo: 'banji:system:get-local-data-info',
   systemCreateBackupSnapshot: 'banji:system:create-backup-snapshot',

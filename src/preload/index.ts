@@ -2,8 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 import {
   IPC_CHANNELS,
+  type AutomationConnectionPatch,
+  type AutomationExposurePatch,
+  type AutomationListIntakesPayload,
+  type AutomationReadConversationPayload,
+  type AutomationReadIntakePayload,
+  type AutomationResolveIntakePayload,
   type DesktopBridge,
   type DesktopPreferences,
+  type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
   type SenaServiceLookupPayload,
@@ -110,6 +117,27 @@ async function invokeWithBenchmark<T>(channel: string, payload?: unknown): Promi
 }
 
 const desktopBridge: DesktopBridge = {
+  automation: {
+    getWorkspace: () => invokeWithBenchmark(IPC_CHANNELS.automationGetWorkspace),
+    getConnection: () => invokeWithBenchmark(IPC_CHANNELS.automationGetConnection),
+    saveConnection: (payload: AutomationConnectionPatch) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationSaveConnection, payload),
+    listExposureRows: () => invokeWithBenchmark(IPC_CHANNELS.automationListExposureRows),
+    patchExposureRow: (payload: AutomationExposurePatch) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationPatchExposureRow, payload),
+    listConversations: () => invokeWithBenchmark(IPC_CHANNELS.automationListConversations),
+    readConversation: (payload: AutomationReadConversationPayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationReadConversation, payload),
+    listIntakes: (payload?: AutomationListIntakesPayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationListIntakes, payload),
+    readIntake: (payload: AutomationReadIntakePayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationReadIntake, payload),
+    resolveIntake: (payload: AutomationResolveIntakePayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationResolveIntake, payload),
+    promoteIntake: (payload: PromoteAutomationIntakePayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationPromoteIntake, payload),
+    testTelegramConnection: () => invokeWithBenchmark(IPC_CHANNELS.automationTestTelegramConnection),
+  },
   benchmark: {
     enabled: benchmarkEnabled,
     runId: benchmarkRunId,
