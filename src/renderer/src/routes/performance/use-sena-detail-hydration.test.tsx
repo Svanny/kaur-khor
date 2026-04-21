@@ -285,7 +285,7 @@ describe('useSenaDetailHydration', () => {
     await user.click(screen.getByRole('button', { name: 'Load twice' }));
 
     await waitFor(() => expect(screen.getByTestId('length')).toHaveTextContent('40'));
-    expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(1, 'sku-1', { limit: 20, strategy: 'network-only' });
+    expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(1, 'sku-1', { limit: 20 });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(2, 'sku-1', { beforeIntervalIndex: 20, limit: 10, strategy: 'network-only' });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10, strategy: 'network-only' });
   });
