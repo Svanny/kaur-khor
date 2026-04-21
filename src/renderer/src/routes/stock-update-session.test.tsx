@@ -505,6 +505,58 @@ describe('StockUpdateSessionRoute', () => {
     );
   });
 
+  it('uses the hub-selected customer ticket mode without re-showing the entry chooser', () => {
+    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+
+    expect(screen.queryByRole('button', { name: 'New customer order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit / update existing customer order' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toBeInTheDocument();
+  });
+
+  it('uses the hub-selected supplier ticket mode and only shows ticket selection in-page', () => {
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        orderBatches: [
+          {
+            batchOrderId: 'batch-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'open',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+              supplierNote: '',
+            },
+            children: [
+              {
+                childOrderId: 'child-1',
+                skuId: 'sku-1',
+                status: 'open',
+                updatedAt: '2026-04-03T12:00:00.000Z',
+                effective: {
+                  orderedQuantity: 8,
+                  receivedQuantity: 0,
+                  expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+                  leadTimeDaysHint: 6,
+                  leadTimeVariability: 'tight',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    renderRoute(observations, `${RECORD_UPDATE_RECORD_ORDER_PATH}?ticketMode=edit`);
+
+    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New supplier order' })).not.toBeInTheDocument();
+    expect(screen.getByText('Edit / update existing supplier order')).toBeInTheDocument();
+    expect(screen.getByText('Select the existing ticket you want to update.')).toBeInTheDocument();
+  });
+
   it('stays on an optional stock step when changing an existing Yes choice to No', () => {
     renderRoute();
 

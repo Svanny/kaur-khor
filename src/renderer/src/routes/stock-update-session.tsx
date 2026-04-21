@@ -18,9 +18,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
+  ActionAddBadgeIcon,
   ActionCreatePackageIcon,
   ActionDragHandleIcon,
   ActionDeleteIcon,
+  ActionEditIcon,
   ActionReceiveInventoryIcon,
   ActionSaveIcon,
   ActionUndoIcon,
@@ -4208,7 +4210,9 @@ function TicketEntryPrompt({
   if (mode === 'new' || (mode === 'edit' && selectedTicketId)) {
     return null;
   }
-  const title = translateUiLiteral(language, 'What do you want to do?');
+  const title = mode === 'edit'
+    ? translateUiLiteral(language, family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order')
+    : translateUiLiteral(language, 'What do you want to do?');
   const newLabel = family === 'customer' ? 'New customer order' : 'New supplier order';
   const editLabel = family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order';
   return createPortal(
@@ -4221,17 +4225,26 @@ function TicketEntryPrompt({
         <div className="space-y-2">
           <p className="text-xl font-semibold tracking-[-0.03em] text-foreground">{title}</p>
           <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
+            {translateUiLiteral(
+              language,
+              mode === 'edit'
+                ? 'Select the existing ticket you want to update.'
+                : 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
+            )}
           </p>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <Button type="button" variant={mode === 'new' ? 'default' : 'outline'} onClick={() => onModeChange('new')}>
-            {translateUiLiteral(language, newLabel)}
-          </Button>
-          <Button type="button" variant={mode === 'edit' ? 'default' : 'outline'} onClick={() => onModeChange('edit')}>
-            {translateUiLiteral(language, editLabel)}
-          </Button>
-        </div>
+        {mode == null ? (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <Button className="justify-start gap-3" type="button" variant="outline" onClick={() => onModeChange('new')}>
+              <ActionAddBadgeIcon className="size-4" />
+              {translateUiLiteral(language, newLabel)}
+            </Button>
+            <Button className="justify-start gap-3" type="button" variant="outline" onClick={() => onModeChange('edit')}>
+              <ActionEditIcon className="size-4" />
+              {translateUiLiteral(language, editLabel)}
+            </Button>
+          </div>
+        ) : null}
         {mode === 'edit' ? (
           <div className="mt-5 grid gap-3">
             {family === 'supplier' && onSupplierActionChange ? (
@@ -4699,6 +4712,10 @@ export function StockUpdateSessionRoute() {
     const selected = parseCustomRecordUpdateLaneIds(new URLSearchParams(location.search).get('lanes'));
     return selected.length > 0 ? selected : (['stock-count'] satisfies BaseRecordUpdateLaneId[]);
   }, [lane.id, location.search]);
+  const routeTicketMode = useMemo(() => {
+    const value = new URLSearchParams(location.search).get('ticketMode');
+    return isTicketAuthoringMode(value) ? value : null;
+  }, [location.search]);
   const initialSkuIds = useMemo(() => {
     const search = location.search;
     const urlParams = new URLSearchParams(search);
@@ -4811,8 +4828,12 @@ export function StockUpdateSessionRoute() {
   const [customerCompletedMode, setCustomerCompletedMode] = useState<CustomerCompletedMode>('immediate_sale');
   const [supplierPendingMode, setSupplierPendingMode] = useState<SupplierPendingMode>('new_supplier_order');
   const [supplierReceiptMode, setSupplierReceiptMode] = useState<SupplierReceiptMode>('against_pending_supplier_order');
-  const [customerTicketMode, setCustomerTicketMode] = useState<TicketAuthoringMode | null>(null);
-  const [supplierTicketMode, setSupplierTicketMode] = useState<TicketAuthoringMode | null>(null);
+  const [customerTicketMode, setCustomerTicketMode] = useState<TicketAuthoringMode | null>(
+    () => (lane.id === 'customer-order-pending' ? routeTicketMode : null),
+  );
+  const [supplierTicketMode, setSupplierTicketMode] = useState<TicketAuthoringMode | null>(
+    () => (lane.id === 'supplier-order-pending' ? routeTicketMode : null),
+  );
   const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(null);
   const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(routeBatchOrderId ?? routeChildOrderId);
   const [supplierTicketUpdateAction, setSupplierTicketUpdateAction] = useState<SupplierTicketUpdateAction>('revise_order');
@@ -5316,6 +5337,22 @@ export function StockUpdateSessionRoute() {
       setCustomSelectedLaneIds(routeCustomSelectedLaneIds);
     }
   }, [draftWasRestored, lane.id, routeCustomSelectedLaneIds]);
+
+  useEffect(() => {
+    if (lane.id === 'customer-order-pending' && routeTicketMode) {
+      setCustomerTicketMode(routeTicketMode);
+      if (routeTicketMode === 'new') {
+        setSelectedCustomerTicketId(null);
+      }
+      return;
+    }
+    if (lane.id === 'supplier-order-pending' && routeTicketMode) {
+      setSupplierTicketMode(routeTicketMode);
+      if (routeTicketMode === 'new') {
+        setSelectedSupplierTicketId(routeBatchOrderId ?? routeChildOrderId);
+      }
+    }
+  }, [lane.id, routeBatchOrderId, routeChildOrderId, routeTicketMode]);
 
   useEffect(() => {
     if (!workingCatalog) {

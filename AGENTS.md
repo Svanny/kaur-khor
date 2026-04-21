@@ -220,7 +220,7 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - Supplier receipt is not a separate primary Record Update wizard. Receipt capture belongs inside Supplier order updates against an existing supplier ticket.
 - Customer and supplier order wizards must ask whether the operator is creating a new ticket or editing/updating an existing ticket before continuing.
 - Customer channel, name, and phone live in the Record Update notes section for UI placement, but must still be stored as structured ticket party metadata. Normalize channel/name/phone lookup keys case-insensitively.
-- Overview must keep exactly three top-level ticket-family toggles: Customer, Supplier, All. All view must retain visible family labels on every row.
+- Overview keeps top-level ticket-family toggles for Customer and Supplier. Default the queue to Supplier, and keep customer-family filtering inside the customer queue.
 
 ### Forbidden
 - Do not run or document `pnpm run build --silent`; `electron-vite build` rejects the forwarded `--silent` flag.

@@ -2,7 +2,9 @@ import type { CSSProperties } from 'react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  ActionAddBadgeIcon,
   ActionCreatePackageIcon,
+  ActionEditIcon,
   ActionLayoutGridIcon,
 } from '@icons/actions';
 import { EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
@@ -29,11 +31,16 @@ import { usePreferences } from '@/state/preferences';
 interface RecordUpdateHubCard {
   title: string;
   description: string;
-  href: string;
+  href?: string;
   icon: IconComponent;
   laneId: RecordUpdateLaneId;
   tone: TintedSurfaceTone;
   rainbow?: boolean;
+}
+
+interface TicketEntryPromptState {
+  family: 'customer' | 'supplier';
+  href: string;
 }
 
 const draftStorageKeyByLaneId = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.id, lane.draftStorageKey]));
@@ -50,7 +57,6 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
   {
     title: 'Customer Order',
     description: 'Create a ticket-backed customer commitment or update an existing customer ticket.',
-    href: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
     icon: EntityRevenueIcon,
     laneId: 'customer-order-pending',
     tone: 'success',
@@ -66,7 +72,6 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
   {
     title: 'Supplier Order',
     description: 'Create a supplier ticket or update an existing supplier ticket, including receipts.',
-    href: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
     icon: ActionCreatePackageIcon,
     laneId: 'supplier-order-pending',
     tone: 'warning',
@@ -128,7 +133,7 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
       <CardIcon className="size-20 shrink-0" />
       <div className="space-y-3">
         <h2 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h2>
-        <p className="max-w-[18rem] text-sm leading-6 text-muted-foreground">{description}</p>
+        <p className="min-h-[4.5rem] max-w-[18rem] text-sm leading-6 text-muted-foreground">{description}</p>
         <p
           aria-hidden={!hasDraftSaved}
           className={cn(
@@ -159,10 +164,64 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
     <Link
       aria-label={title}
       className={className}
-      to={card.href}
+      to={card.href ?? RECORD_UPDATE_CUSTOM_PATH}
     >
       {contents}
     </Link>
+  );
+}
+
+function TicketEntryPromptDialog({
+  family,
+  href,
+  onClose,
+}: TicketEntryPromptState & {
+  onClose: () => void;
+}) {
+  const { language } = usePreferences();
+  const navigate = useNavigate();
+  const title = translateUiLiteral(language, 'What do you want to do?');
+  const newLabel = family === 'customer' ? 'New customer order' : 'New supplier order';
+  const editLabel = family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order';
+
+  function openTicketMode(mode: 'new' | 'edit') {
+    navigate(`${href}?ticketMode=${mode}`);
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
+      role="presentation"
+      onClick={onClose}
+    >
+      <section
+        aria-describedby="record-update-ticket-entry-description"
+        aria-labelledby="record-update-ticket-entry-title"
+        aria-modal="true"
+        className="w-full max-w-2xl rounded-[2rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        role="dialog"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="space-y-2">
+          <p id="record-update-ticket-entry-title" className="text-xl font-semibold tracking-[-0.03em] text-foreground">
+            {title}
+          </p>
+          <p id="record-update-ticket-entry-description" className="text-sm leading-6 text-muted-foreground">
+            {translateUiLiteral(language, 'Banji will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
+          </p>
+        </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <Button type="button" variant="outline" onClick={() => openTicketMode('new')}>
+            <ActionAddBadgeIcon className="size-4" />
+            {translateUiLiteral(language, newLabel)}
+          </Button>
+          <Button type="button" variant="outline" onClick={() => openTicketMode('edit')}>
+            <ActionEditIcon className="size-4" />
+            {translateUiLiteral(language, editLabel)}
+          </Button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -170,6 +229,7 @@ export function RecordUpdateHubRoute() {
   const { language } = usePreferences();
   const navigate = useNavigate();
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
   const [selectedCustomLaneIds, setSelectedCustomLaneIds] = useState<BaseRecordUpdateLaneId[]>([]);
   const baseCustomLanes = useMemo(() => BASE_RECORD_UPDATE_LANES, []);
 
@@ -191,8 +251,29 @@ export function RecordUpdateHubRoute() {
     navigate(`${RECORD_UPDATE_CUSTOM_PATH}?${params.toString()}`);
   }
 
+  function handleHubCardClick(card: RecordUpdateHubCard) {
+    if (card.laneId === 'custom') {
+      setCustomDialogOpen(true);
+      return;
+    }
+    if (card.laneId === 'customer-order-pending') {
+      setTicketEntryPrompt({ family: 'customer', href: RECORD_UPDATE_CUSTOMER_PENDING_PATH });
+      return;
+    }
+    if (card.laneId === 'supplier-order-pending') {
+      setTicketEntryPrompt({ family: 'supplier', href: RECORD_UPDATE_SUPPLIER_PENDING_PATH });
+    }
+  }
+
   return (
     <WorkspacePage className="gap-5">
+      {ticketEntryPrompt ? (
+        <TicketEntryPromptDialog
+          family={ticketEntryPrompt.family}
+          href={ticketEntryPrompt.href}
+          onClose={() => setTicketEntryPrompt(null)}
+        />
+      ) : null}
       {customDialogOpen ? (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
@@ -289,7 +370,15 @@ export function RecordUpdateHubRoute() {
         >
           <div className="flex flex-wrap justify-center gap-4">
             {PRIMARY_HUB_CARDS.map((card) => (
-              <HubCard key={card.title} card={card} />
+              <HubCard
+                key={card.title}
+                card={card}
+                onClick={
+                  card.laneId === 'customer-order-pending' || card.laneId === 'supplier-order-pending'
+                    ? () => handleHubCardClick(card)
+                    : undefined
+                }
+              />
             ))}
           </div>
           <div className="flex flex-wrap justify-center gap-4">
@@ -297,7 +386,7 @@ export function RecordUpdateHubRoute() {
               <HubCard
                 key={card.title}
                 card={card}
-                onClick={card.laneId === 'custom' ? () => setCustomDialogOpen(true) : undefined}
+                onClick={card.laneId === 'custom' ? () => handleHubCardClick(card) : undefined}
               />
             ))}
           </div>

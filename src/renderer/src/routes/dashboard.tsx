@@ -12,7 +12,6 @@ import {
 } from '@icons/domain';
 import {
   EntityCustomerIcon,
-  EntityLayersIcon,
   EntityReceiptDocumentIcon,
   EntityServiceIcon,
   EntitySignalIcon,
@@ -126,7 +125,7 @@ function scheduleBackgroundTask(task: () => void) {
   const id = window.setTimeout(task, 0);
   return () => window.clearTimeout(id);
 }
-type OverviewWorkflowScope = 'customer' | 'supplier' | 'all';
+type OverviewWorkflowScope = 'customer' | 'supplier';
 
 function boardClassName() {
   return `${cardFrameClassName} ${cardSurfaceClassName} overflow-hidden rounded-[2rem]`;
@@ -249,7 +248,7 @@ export function DashboardRoute() {
   const deferredQuery = useDeferredValue(query);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
-  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('all');
+  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('supplier');
   const [customerFilter, setCustomerFilter] = useState<OverviewCustomerFilter>('all');
   const requestedOrderBatchesRef = useRef(false);
   const routeState = readOverviewRouteState(searchParams);
@@ -481,10 +480,6 @@ export function DashboardRoute() {
               <EntityTransitIcon data-icon="inline-start" />
               {translateUiLiteral(language, 'Supplier')}
             </ToggleGroupItem>
-            <ToggleGroupItem value="all">
-              <EntityLayersIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'All')}
-            </ToggleGroupItem>
           </ToggleGroup>
           <SupplierFilter
             catalog={inventory.catalog}
@@ -518,7 +513,7 @@ export function DashboardRoute() {
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
               {(overviewScope === 'customer'
                 ? [
-                    { value: 'all', label: translateUiLiteral(language, 'All') },
+                    { value: 'all', label: translateUiLiteral(language, 'All Task') },
                     { value: 'open', label: translateUiLiteral(language, 'Open') },
                     { value: 'need_stock', label: translateUiLiteral(language, 'Need stock') },
                     { value: 'ready_to_complete', label: translateUiLiteral(language, 'Ready to complete') },
@@ -712,14 +707,14 @@ export function DashboardRoute() {
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {translateUiLiteral(language, '{count} visible', {
-                    count: visibleTasks.length + (overviewScope === 'all' ? visibleCustomerTasks.length : 0),
+                    count: visibleTasks.length,
                   })}
                   {isHydratingDetails ? ` · ${translateUiLiteral(language, 'refining receipt windows…')}` : null}
                 </p>
               </div>
             </div>
 
-            {visibleTasks.length > 0 || (overviewScope === 'all' && visibleCustomerTasks.length > 0) ? (
+            {visibleTasks.length > 0 ? (
               <HeaderedTable>
                 <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
                   <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
@@ -729,48 +724,6 @@ export function DashboardRoute() {
                     <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
                   <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
-                    {overviewScope === 'all' ? visibleCustomerTasks.map((task) => (
-                      <HeaderedTableRow
-                        key={task.id}
-                        className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName}`}
-                        data-slot="overview-task-row"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[0.72rem] font-semibold text-emerald-800">
-                              {translateUiLiteral(language, 'Customer')}
-                            </span>
-                            <span className="text-base font-semibold text-foreground">{task.label}</span>
-                            <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.state === 'need_stock' ? 'warning' : task.state === 'completed_today' ? 'success' : 'info')}`}>
-                              {task.stateLabel}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
-                            {translateUiLiteral(language, 'Why now')}
-                          </HeaderedTableMobileLabel>
-                          <p className="font-medium text-foreground">{task.whyNow}</p>
-                          {showExplanatoryTooltips ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{task.whyDetail}</p> : null}
-                        </div>
-                        <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
-                            {translateUiLiteral(language, 'Next touch')}
-                          </HeaderedTableMobileLabel>
-                          <p className="font-medium text-foreground">{translateUiLiteral(language, 'Next touch: Today')}</p>
-                          <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                            {translateUiLiteral(language, 'Ticket metadata lives in Record Update notes.')}
-                          </p>
-                        </div>
-                        <div className="flex items-start lg:justify-center">
-                          <Button asChild className="w-[136px] justify-center" size="sm" variant="outline">
-                            <Link to={task.href}>
-                              {translateUiLiteral(language, 'Update')}
-                            </Link>
-                          </Button>
-                        </div>
-                      </HeaderedTableRow>
-                    )) : null}
                     {visibleTasks.map((task) => {
                       const TaskActionIcon = overviewTaskActionIcons[task.action];
 

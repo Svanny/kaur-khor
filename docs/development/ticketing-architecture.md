@@ -68,16 +68,15 @@ demand event that is resolved immediately, but it should not be framed as
 
 ## Overview
 
-Overview is the operational queue. Its top-level family switch is exactly:
+Overview is the operational queue. Its top-level family switch is:
 
 - Customer
 - Supplier
-- All
 
-Customer mode shows customer-family ticket work. Supplier mode shows
-supplier-family ticket work. All mode may combine both families, but rows must
-retain clear family labels so customer commitments and supplier replenishment do
-not visually merge.
+Customer mode shows customer-family ticket work, including the customer-only
+status filters needed to separate open work from stock blockers and ready
+completions. Supplier mode shows supplier-family ticket work and is the default
+queue when Overview opens.
 
 Do not reintroduce the legacy batch-action prompt. Overview task actions should
 open or update one ticket-backed work item at a time.

@@ -579,7 +579,7 @@ describe('DashboardRoute', () => {
     const scopeToggle = screen.getByRole('group', { name: 'Select overview ticket family' });
     expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
-    expect(within(scopeToggle).getByRole('radio', { name: 'All' })).toBeInTheDocument();
+    expect(within(scopeToggle).queryByRole('radio', { name: 'All' })).toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
@@ -858,7 +858,7 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'Business signals' })).not.toBeInTheDocument();
   });
 
-  test('hides the overview tabs and defaults to the all tasks queue when tab view is disabled', async () => {
+  test('hides the overview tabs and defaults to the supplier queue when tab view is disabled', async () => {
     preferenceState.showOverviewTaskTabs = false;
 
     renderRouteWithLocation('/?filter=ready_to_receive');
