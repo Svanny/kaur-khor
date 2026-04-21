@@ -18,6 +18,22 @@ vi.mock('@/state/preferences', () => ({
   }),
 }));
 
+vi.mock('@/state/automation', () => ({
+  AutomationProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
+vi.mock('@/components/banji-shell', () => ({
+  BanjiShell: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/components/command-palette', () => ({
+  CommandPaletteProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
+vi.mock('@/state/navigation-history', () => ({
+  NavigationHistoryProvider: ({ children }: { children: ReactNode }) => children,
+}));
+
 vi.mock('@/routes/dashboard', () => ({
   DashboardRoute: () => <div>Overview screen</div>,
 }));
@@ -32,6 +48,9 @@ vi.mock('@/routes/performance', () => ({
 }));
 vi.mock('@/routes/financials', () => ({
   FinancialsRoute: () => <div>Financials screen</div>,
+}));
+vi.mock('@/routes/automations', () => ({
+  AutomationsRoute: () => <div>Automations screen</div>,
 }));
 vi.mock('@/routes/inventory', () => ({
   InventoryRoute: () => <div>Catalog screen</div>,
@@ -68,7 +87,7 @@ vi.mock('@/routes/onboarding', () => ({
   OnboardingRoute: () => <div>Onboarding screen</div>,
 }));
 
-import { AppRoutes } from './App';
+import { AppRoutes, LoadedApp, routeBenchmarkName } from './App';
 
 describe('AppRoutes', () => {
   beforeEach(() => {
@@ -143,5 +162,45 @@ describe('AppRoutes', () => {
   it('redirects locked financials pages to overview', () => {
     renderRoutes('/financials');
     expect(screen.getByText('Overview screen')).toBeInTheDocument();
+  });
+
+  it('keeps automations pages reachable from the app shell', async () => {
+    renderRoutes('/automations');
+    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
+  });
+
+  it('keeps automations query-state routes reachable from the app shell', async () => {
+    renderRoutes('/automations?section=intake&filter=needs_review');
+    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
+  });
+});
+
+describe('routeBenchmarkName', () => {
+  it.each([
+    ['/', 'dashboard'],
+    ['/record-update', 'record-update'],
+    ['/performance', 'performance'],
+    ['/financials', 'financials'],
+    ['/automations', 'automations'],
+    ['/analysis', 'analysis'],
+    ['/catalog/skus/sku-1', 'sku-detail'],
+    ['/catalog/services/service-1', 'service-detail'],
+    ['/operations', 'operations'],
+    ['/catalog', 'catalog'],
+    ['/settings/local-data', 'settings-local-data'],
+  ])('maps %s to %s', (pathname, expected) => {
+    expect(routeBenchmarkName(pathname)).toBe(expected);
+  });
+});
+
+describe('LoadedApp', () => {
+  it('renders the automations route through the provider stack', async () => {
+    render(
+      <MemoryRouter initialEntries={['/automations']}>
+        <LoadedApp />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
   });
 });

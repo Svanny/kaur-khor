@@ -87,6 +87,7 @@ describe('BanjiShell', () => {
           navRecordUpdate: 'Record update',
           navPerformance: 'Performance',
           navFinancials: 'Financials',
+          navAutomations: 'Automations',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -173,6 +174,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Archive' })).not.toBeInTheDocument();
@@ -184,7 +186,8 @@ describe('BanjiShell', () => {
     expect(navLinks.indexOf('Overview')).toBeLessThan(navLinks.indexOf('Record update'));
     expect(navLinks.indexOf('Record update')).toBeLessThan(navLinks.indexOf('Performance'));
     expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Financials'));
-    expect(navLinks.indexOf('Financials')).toBeLessThan(navLinks.indexOf('Analysis'));
+    expect(navLinks.indexOf('Financials')).toBeLessThan(navLinks.indexOf('Automations'));
+    expect(navLinks.indexOf('Automations')).toBeLessThan(navLinks.indexOf('Analysis'));
     expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');

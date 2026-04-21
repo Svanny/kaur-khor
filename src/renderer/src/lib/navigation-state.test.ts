@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'vitest';
 import {
   buildAnalysisHref,
+  buildAutomationHref,
   buildFinancialsHref,
   buildOverviewHref,
   buildPerformanceHref,
   buildSkuDetailHref,
   readAnalysisRouteState,
+  readAutomationRouteState,
   readFinancialsRouteState,
   readOverviewRouteState,
   readPerformanceRouteState,
@@ -97,6 +99,37 @@ describe('navigation-state', () => {
     expect(buildFinancialsHref({ compare: true, range: '1d', scope: 'all' })).toBe('/financials');
     expect(buildFinancialsHref({ compare: false, range: '7d', scope: 'skus' })).toBe(
       '/financials?compare=0&range=7d&scope=skus',
+    );
+  });
+
+  test('reads automation route state safely and omits default params', () => {
+    expect(readAutomationRouteState(new URLSearchParams('section=intake&filter=needs_review&conversation=conv_1&intake=intake_1'))).toEqual({
+      channel: 'telegram',
+      section: 'intake',
+      exposure: 'all',
+      intakeFilter: 'needs_review',
+      health: 'all',
+      q: null,
+      conversationId: 'conv_1',
+      intakeId: 'intake_1',
+      ticketId: null,
+    });
+
+    expect(readAutomationRouteState(new URLSearchParams('section=bad&filter=oops&health=nope&q=%20%20'))).toEqual({
+      channel: 'telegram',
+      section: 'overview',
+      exposure: 'all',
+      intakeFilter: 'all',
+      health: 'all',
+      q: null,
+      conversationId: null,
+      intakeId: null,
+      ticketId: null,
+    });
+
+    expect(buildAutomationHref({ section: 'catalog', exposure: 'hidden' })).toBe('/automations?section=catalog&exposure=hidden');
+    expect(buildAutomationHref({ section: 'intake', intakeFilter: 'needs_review', conversationId: 'conv_1', intakeId: 'intake_1' })).toBe(
+      '/automations?section=intake&filter=needs_review&conversation=conv_1&intake=intake_1',
     );
   });
 

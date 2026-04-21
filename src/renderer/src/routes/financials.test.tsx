@@ -5,6 +5,7 @@ import { getTranslation } from '@/lib/translations';
 import { FinancialsRoute } from './financials';
 
 const inventoryHook = vi.fn();
+const optionalAutomationHook = vi.fn();
 const preferenceState = {
   currency: 'USD',
   language: 'en',
@@ -23,6 +24,10 @@ vi.mock('@/state/inventory', () => ({
 
 vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferenceState,
+}));
+
+vi.mock('@/state/automation', () => ({
+  useOptionalAutomation: () => optionalAutomationHook(),
 }));
 
 vi.mock('./performance/use-sena-detail-hydration', () => ({
@@ -237,6 +242,65 @@ describe('FinancialsRoute', () => {
     preferenceState.showPerformanceCompareToggle = true;
     preferenceState.showRightRailCards = true;
     inventoryHook.mockReturnValue(createInventoryState());
+    optionalAutomationHook.mockReturnValue({
+      connection: null,
+      conversations: [],
+      exposures: [],
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          status: 'ticketed',
+          parseConfidence: 'high',
+          customerDisplayName: 'Telegram customer',
+          customerHandle: '@telegram_customer',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 24,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 24,
+          createdAt: '2026-04-16T07:30:00.000Z',
+          updatedAt: '2026-04-16T07:30:00.000Z',
+          promotedTicketId: 'ticket-1',
+          lines: [],
+        },
+        {
+          intakeId: 'intake-2',
+          conversationId: 'conversation-2',
+          channel: 'telegram',
+          status: 'canceled',
+          parseConfidence: 'medium',
+          customerDisplayName: 'Canceled customer',
+          customerHandle: '@canceled_customer',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 8,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 8,
+          createdAt: '2026-04-16T07:40:00.000Z',
+          updatedAt: '2026-04-16T07:40:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+      ],
+      metrics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      reload: vi.fn(),
+      loadWorkspace: vi.fn(),
+      saveConnection: vi.fn(),
+      patchExposureRow: vi.fn(),
+      readConversation: vi.fn(),
+      listIntakes: vi.fn(),
+      readIntake: vi.fn(),
+      resolveIntake: vi.fn(),
+      promoteIntake: vi.fn(),
+      testTelegramConnection: vi.fn(),
+    });
   });
 
   function renderRoute(initialEntry = '/financials') {
@@ -320,5 +384,18 @@ describe('FinancialsRoute', () => {
     expect(screen.getByRole('radio', { name: /Services/i })).toHaveAttribute('data-state', 'on');
     expect(screen.getByRole('button', { name: /Single view/i })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Filter by supplier' })).toHaveTextContent('Mekong Looms');
+  });
+
+  test('summarizes Telegram attribution in the right rail', () => {
+    renderRoute();
+
+    expect(screen.getByRole('heading', { name: 'Telegram attribution' })).toBeInTheDocument();
+    expect(screen.getByText(/Open quoted Telegram value/i)).toBeInTheDocument();
+    expect(screen.getByText(/Realized Telegram value/i)).toBeInTheDocument();
+    expect(screen.getByText(/Telegram-origin reversals \/ cancellations/i)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Automations' })).toHaveAttribute(
+      'href',
+      '/automations?section=intake',
+    );
   });
 });
