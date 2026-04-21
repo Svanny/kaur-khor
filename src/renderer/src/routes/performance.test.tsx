@@ -486,6 +486,15 @@ describe('PerformanceRoute', () => {
     return view;
   }
 
+  async function renderAnalysisRouteSettled(initialEntry = '/analysis') {
+    let view!: ReturnType<typeof renderAnalysisRoute>;
+    await act(async () => {
+      view = renderAnalysisRoute(initialEntry);
+      await Promise.resolve();
+    });
+    return view;
+  }
+
   async function renderAnalysisRouteSettledWithDescriptionVisibility(visible: boolean) {
     let view!: ReturnType<typeof renderAnalysisRouteWithDescriptionVisibility>;
     await act(async () => {
@@ -509,7 +518,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('shows supplier filter on analysis page', async () => {
-    renderAnalysisRoute();
+    await renderAnalysisRouteSettled();
 
     expect(await screen.findByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();
   });
@@ -530,7 +539,7 @@ describe('PerformanceRoute', () => {
   test('renders the dedicated analysis workbench route', async () => {
     renderAnalysisRoute();
 
-    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.getByText('Data Insights')).toBeInTheDocument();
     expect(
       screen.getByText('Inspect how saved updates shaped banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.'),
     ).toBeInTheDocument();
@@ -582,7 +591,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.getByText('Data Insights')).toBeInTheDocument();
     expect(screen.queryByText('Analysis needs a catalog first')).not.toBeInTheDocument();
     expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
   });
@@ -611,7 +620,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.getByText('Data Insights')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
     expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
   });
@@ -711,7 +720,7 @@ describe('PerformanceRoute', () => {
   test('keeps the analysis chart on the workbench tab only', async () => {
     renderAnalysisRoute('/analysis?section=pressure');
 
-    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.getByText('Data Insights')).toBeInTheDocument();
     expect(await screen.findByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
@@ -727,7 +736,7 @@ describe('PerformanceRoute', () => {
   test('hides analysis page descriptors when explanatory text is disabled', async () => {
     await renderAnalysisRouteSettledWithDescriptionVisibility(false);
 
-    expect(screen.getByText('Analysis details')).toBeInTheDocument();
+    expect(screen.getByText('Data Insights')).toBeInTheDocument();
     expect(
       screen.queryByText('See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.'),
     ).not.toBeInTheDocument();

@@ -33,7 +33,7 @@ function translationsFor(language: 'en' | 'km') {
 
   return {
     navHelp: 'Help',
-    helpPageTitle: 'User guide',
+    helpPageTitle: 'User Guide',
     helpPageDescriptor: 'Browse banji workflows.',
     helpOpenOverviewAction: 'Open overview',
     helpStartUpdateAction: 'Start update',
@@ -202,6 +202,7 @@ describe('HelpRoute', () => {
       'CSV',
       'JSON',
       'K',
+      'ETA',
     ];
 
     let sanitizedGuide = guideSourceKm;

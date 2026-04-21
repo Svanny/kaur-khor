@@ -49,9 +49,10 @@ describe('getTranslation', () => {
     );
   });
 
-  test('uses lowercase English and Khmer brand variants', () => {
-    expect(getTranslation('en', 'appBrand')).toBe('banji');
+  test('uses canonical English and Khmer brand variants', () => {
+    expect(getTranslation('en', 'appBrand')).toBe('banj');
     expect(getTranslation('km', 'appBrand')).toBe('បញ្ជី');
+    expect(translateUiLiteral('km', 'banj')).toBe('បញ្ជី');
     expect(translateUiLiteral('km', 'banji')).toBe('បញ្ជី');
   });
 

@@ -59,6 +59,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Supplier Receipts' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Custom' })).toBeInTheDocument();
+    expect(screen.getByText(/banj removes the legacy batch update system/i)).toBeInTheDocument();
     expect(screen.queryByText('Coming soon')).not.toBeInTheDocument();
     expect(screen.queryByText('Available now')).not.toBeInTheDocument();
   });
@@ -87,6 +88,7 @@ describe('RecordUpdateHubRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('What do you want to do?');
+    expect(dialog).toHaveTextContent('banj will create or update a durable ticket');
     expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeInTheDocument();
 

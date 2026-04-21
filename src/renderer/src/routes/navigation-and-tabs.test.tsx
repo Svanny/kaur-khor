@@ -272,7 +272,7 @@ describe('SENA routes', () => {
       expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
     });
 
-    expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
+    expect(screen.getByText('Offered Selections')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
@@ -296,7 +296,7 @@ describe('SENA routes', () => {
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    expect(screen.getByText('Catalog workspace')).toBeInTheDocument();
+    expect(screen.getByText('Offered Selections')).toBeInTheDocument();
     expect(screen.getByText('SKUs')).toBeInTheDocument();
     expect(screen.getByText('Services')).toBeInTheDocument();
     expect(screen.queryByText('No catalog loaded yet')).not.toBeInTheDocument();
