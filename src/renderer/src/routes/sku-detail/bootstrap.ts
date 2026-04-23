@@ -156,9 +156,11 @@ export function buildSkuDetailBootstrapPreview({
 
 export async function bootstrapSkuDetail({
   inventory,
+  shouldContinue = () => true,
   skuId,
 }: {
   inventory: BootstrapInventory;
+  shouldContinue?: () => boolean;
   skuId: string;
 }): Promise<BootstrapSkuDetailResult> {
   const catalog = await inventory.loadSenaCatalog();
@@ -196,6 +198,7 @@ export async function bootstrapSkuDetail({
     diagnostics = await inventory.loadSenaDiagnostics();
 
     if (
+      shouldContinue() &&
       shouldTriggerBootstrapRun({
         detail,
         latestObservationAt: observations[observations.length - 1]?.input.observedAt ?? null,
@@ -215,7 +218,7 @@ export async function bootstrapSkuDetail({
       observations = reloaded.observations;
       projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
       linkedServiceDetails = reloaded.linkedServiceDetails;
-    } else if (observations.length >= 2) {
+    } else if (shouldContinue() && observations.length >= 2) {
       linkedServiceDetails = await loadLinkedServiceDetails(inventory, projectedSnapshot, skuId);
     }
     uiState = observations.length < 2 ? 'needs_observations' : detail ? 'ready' : 'degraded';

@@ -279,6 +279,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
 
     return () => {
       active = false;
+      hydrationRequestIdRef.current += 1;
     };
   }, [hydrateTimeframe, initialPage, latestObservedAt, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
 

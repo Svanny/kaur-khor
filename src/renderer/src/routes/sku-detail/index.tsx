@@ -136,7 +136,7 @@ function SkuDetailScreen() {
     setSearchParams(nextSearchParams, { replace });
   }
 
-  async function loadPage() {
+  async function loadPage(shouldContinue = () => true) {
     if (inventory.catalog && !hasActiveSenaSku(inventory.catalog, skuId)) {
       setBootstrap(emptyBootstrap());
       setSelectedIntervalIndex(null);
@@ -144,11 +144,16 @@ function SkuDetailScreen() {
     }
     setIsRefreshing(true);
     try {
-      const result = await bootstrapSkuDetail({ inventory, skuId, language });
+      const result = await bootstrapSkuDetail({ inventory, skuId, shouldContinue });
+      if (!shouldContinue()) {
+        return;
+      }
       setBootstrap(result);
       setSelectedIntervalIndex(result.detailPage?.latestIntervalIndex ?? result.detail?.demandPosterior.at(-1)?.intervalIndex ?? null);
     } finally {
-      setIsRefreshing(false);
+      if (shouldContinue()) {
+        setIsRefreshing(false);
+      }
     }
   }
 
@@ -178,7 +183,12 @@ function SkuDetailScreen() {
       workspaceSummary: inventory.workspaceSummary,
     }));
     setSelectedIntervalIndex(null);
-    void loadPage();
+    let active = true;
+    void loadPage(() => active);
+
+    return () => {
+      active = false;
+    };
   }, [inventory.catalog, skuId]);
 
   const snapshotSku = bootstrap?.snapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
