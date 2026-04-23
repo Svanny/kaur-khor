@@ -35,6 +35,7 @@ describe('ConfirmActionDialog', () => {
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
     expect(screen.getByText('This cannot be undone.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive');
 
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
@@ -58,5 +59,20 @@ describe('ConfirmActionDialog', () => {
 
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Working…' })).toBeDisabled();
+  });
+
+  it('allows non-destructive confirmation buttons to opt out explicitly', () => {
+    render(
+      <ConfirmActionDialog
+        confirmLabel="Keep order"
+        confirmVariant="default"
+        open
+        title="Keep order?"
+        onCancel={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Keep order' })).toHaveAttribute('data-variant', 'default');
   });
 });

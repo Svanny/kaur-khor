@@ -15,6 +15,7 @@ function PreferencesProbe() {
     persistedCustomShowFloatingTitleActions,
     persistedCustomShowRightRailCards,
     persistedCustomShowOverviewTaskTabs,
+    persistedCustomShowAutomationsPage,
     persistedCustomShowAnalysisPage,
     persistedCustomShowPerformanceCompareToggle,
     persistedCustomShowPerformanceTimelineCard,
@@ -30,6 +31,7 @@ function PreferencesProbe() {
     persistedShowFloatingTitleActions,
     persistedShowRightRailCards,
     persistedShowOverviewTaskTabs,
+    persistedShowAutomationsPage,
     persistedShowAnalysisPage,
     persistedShowPerformanceCompareToggle,
     persistedShowPerformanceTimelineCard,
@@ -39,6 +41,7 @@ function PreferencesProbe() {
     customShowFloatingTitleActions,
     customShowRightRailCards,
     customShowOverviewTaskTabs,
+    customShowAutomationsPage,
     customShowAnalysisPage,
     customShowPerformanceCompareToggle,
     customShowPerformanceTimelineCard,
@@ -55,6 +58,7 @@ function PreferencesProbe() {
     setShowFloatingTitleActions,
     setShowRightRailCards,
     setShowOverviewTaskTabs,
+    setShowAutomationsPage,
     setShowAnalysisPage,
     setShowPerformanceCompareToggle,
     setShowPerformanceTimelineCard,
@@ -62,6 +66,7 @@ function PreferencesProbe() {
     setShowHeartbeatRibbons,
     showFloatingTitleActions,
     showOverviewTaskTabs,
+    showAutomationsPage,
     showAnalysisPage,
     showPerformanceCompareToggle,
     showPerformanceTimelineCard,
@@ -71,6 +76,7 @@ function PreferencesProbe() {
     showExplanatoryTooltips,
     onboardingCompletedAt,
     seenUnlockedNavItems,
+    workbenchTileOrderByLane,
     t,
     usdToKhrExchangeRate,
   } = usePreferences();
@@ -90,6 +96,7 @@ function PreferencesProbe() {
       <div data-testid="custom-show-floating-title-actions">{String(customShowFloatingTitleActions)}</div>
       <div data-testid="custom-show-right-rail-cards">{String(customShowRightRailCards)}</div>
       <div data-testid="custom-show-overview-task-tabs">{String(customShowOverviewTaskTabs)}</div>
+      <div data-testid="custom-show-automations-page">{String(customShowAutomationsPage)}</div>
       <div data-testid="custom-show-analysis-page">{String(customShowAnalysisPage)}</div>
       <div data-testid="custom-show-performance-compare-toggle">{String(customShowPerformanceCompareToggle)}</div>
       <div data-testid="custom-show-performance-timeline-card">{String(customShowPerformanceTimelineCard)}</div>
@@ -105,6 +112,8 @@ function PreferencesProbe() {
       <div data-testid="persisted-show-right-rail-cards">{String(persistedShowRightRailCards)}</div>
       <div data-testid="show-overview-task-tabs">{String(showOverviewTaskTabs)}</div>
       <div data-testid="persisted-show-overview-task-tabs">{String(persistedShowOverviewTaskTabs)}</div>
+      <div data-testid="show-automations-page">{String(showAutomationsPage)}</div>
+      <div data-testid="persisted-show-automations-page">{String(persistedShowAutomationsPage)}</div>
       <div data-testid="show-analysis-page">{String(showAnalysisPage)}</div>
       <div data-testid="persisted-show-analysis-page">{String(persistedShowAnalysisPage)}</div>
       <div data-testid="show-performance-compare-toggle">{String(showPerformanceCompareToggle)}</div>
@@ -119,6 +128,7 @@ function PreferencesProbe() {
       <div data-testid="persisted-custom-show-floating-title-actions">{String(persistedCustomShowFloatingTitleActions)}</div>
       <div data-testid="persisted-custom-show-right-rail-cards">{String(persistedCustomShowRightRailCards)}</div>
       <div data-testid="persisted-custom-show-overview-task-tabs">{String(persistedCustomShowOverviewTaskTabs)}</div>
+      <div data-testid="persisted-custom-show-automations-page">{String(persistedCustomShowAutomationsPage)}</div>
       <div data-testid="persisted-custom-show-analysis-page">{String(persistedCustomShowAnalysisPage)}</div>
       <div data-testid="persisted-custom-show-performance-compare-toggle">{String(persistedCustomShowPerformanceCompareToggle)}</div>
       <div data-testid="persisted-custom-show-performance-timeline-card">{String(persistedCustomShowPerformanceTimelineCard)}</div>
@@ -127,6 +137,7 @@ function PreferencesProbe() {
       <div data-testid="persisted-item-image-mode">{persistedItemImageMode}</div>
       <div data-testid="onboarding-completed-at">{onboardingCompletedAt ?? 'null'}</div>
       <div data-testid="seen-unlocked-nav-items">{JSON.stringify(seenUnlockedNavItems)}</div>
+      <div data-testid="workbench-tile-order-by-lane">{JSON.stringify(workbenchTileOrderByLane)}</div>
       <div data-testid="pending">{String(hasPendingChanges)}</div>
       <div data-testid="translation">{t('settingsTitle')}</div>
       <div data-testid="description-translation">{t('settingsBody')}</div>
@@ -156,6 +167,9 @@ function PreferencesProbe() {
       </button>
       <button type="button" onClick={() => setShowOverviewTaskTabs(false)}>
         hide-overview-task-tabs
+      </button>
+      <button type="button" onClick={() => setShowAutomationsPage(false)}>
+        hide-automations-page
       </button>
       <button type="button" onClick={() => setShowAnalysisPage(false)}>
         hide-analysis-page
@@ -200,6 +214,7 @@ describe('preferences state', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -216,6 +231,7 @@ describe('preferences state', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -229,6 +245,10 @@ describe('preferences state', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
+      },
+      workbenchTileOrderByLane: {
+        'supplier-order-pending': ['supplier-order:sku-2'],
       },
     });
     savePreferences.mockImplementation(async (payload) => ({
@@ -242,6 +262,7 @@ describe('preferences state', () => {
       showFloatingTitleActions: false,
       showRightRailCards: false,
       showOverviewTaskTabs: false,
+      showAutomationsPage: false,
       showAnalysisPage: false,
       showPerformanceCompareToggle: false,
       showPerformanceTimelineCard: false,
@@ -258,6 +279,7 @@ describe('preferences state', () => {
       customShowFloatingTitleActions: false,
       customShowRightRailCards: false,
       customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: false,
       customShowAnalysisPage: false,
       customShowPerformanceCompareToggle: false,
       customShowPerformanceTimelineCard: false,
@@ -271,6 +293,10 @@ describe('preferences state', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
+      },
+      workbenchTileOrderByLane: payload.workbenchTileOrderByLane ?? {
+        'supplier-order-pending': ['supplier-order:sku-2'],
       },
     }));
     window.banjiDesktop = {
@@ -304,6 +330,7 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
     fireEvent.click(screen.getByText('hide-overview-task-tabs'));
+    fireEvent.click(screen.getByText('hide-automations-page'));
     fireEvent.click(screen.getByText('hide-analysis-page'));
     fireEvent.click(screen.getByText('hide-performance-compare-toggle'));
     fireEvent.click(screen.getByText('hide-performance-timeline-card'));
@@ -322,6 +349,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
     expect(screen.getByTestId('show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('show-automations-page').textContent).toBe('false');
     expect(screen.getByTestId('show-analysis-page').textContent).toBe('false');
     expect(screen.getByTestId('show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('false');
@@ -329,6 +357,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-automations-page').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-analysis-page').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-performance-timeline-card').textContent).toBe('false');
@@ -338,6 +367,9 @@ describe('preferences state', () => {
     expect(screen.getByTestId('translation').textContent).toBe('ការកំណត់');
     expect(screen.getByTestId('description-translation').textContent).toBe(
       'កែប្រែរបៀបដំណើរការក្នុងម៉ាស៊ីន ជំនួយស្រេចចិត្ត និងចំណូលចិត្តសម្រាប់កន្លែងធ្វើការពីទំព័រតែមួយ។',
+    );
+    expect(screen.getByTestId('workbench-tile-order-by-lane').textContent).toBe(
+      JSON.stringify({ 'supplier-order-pending': ['supplier-order:sku-2'] }),
     );
     expect(savePreferences).not.toHaveBeenCalled();
 
@@ -351,6 +383,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-floating-title-actions').textContent).toBe('true');
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('true');
     expect(screen.getByTestId('show-overview-task-tabs').textContent).toBe('true');
+    expect(screen.getByTestId('show-automations-page').textContent).toBe('true');
     expect(screen.getByTestId('show-analysis-page').textContent).toBe('true');
     expect(screen.getByTestId('show-performance-compare-toggle').textContent).toBe('true');
     expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('true');
@@ -358,7 +391,10 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('true');
     expect(screen.getByTestId('onboarding-completed-at').textContent).toBe('null');
     expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
-      JSON.stringify({ catalog: false, operations: false, performance: false, financials: false }),
+      JSON.stringify({ catalog: false, operations: false, performance: false, financials: false, automations: false }),
+    );
+    expect(screen.getByTestId('workbench-tile-order-by-lane').textContent).toBe(
+      JSON.stringify({ 'supplier-order-pending': ['supplier-order:sku-2'] }),
     );
 
     fireEvent.click(screen.getByText('hide-item-pictures'));
@@ -378,6 +414,7 @@ describe('preferences state', () => {
     fireEvent.click(screen.getByText('hide-floating-title-actions'));
     fireEvent.click(screen.getByText('hide-right-rail-cards'));
     fireEvent.click(screen.getByText('hide-overview-task-tabs'));
+    fireEvent.click(screen.getByText('hide-automations-page'));
     fireEvent.click(screen.getByText('hide-analysis-page'));
     fireEvent.click(screen.getByText('hide-performance-compare-toggle'));
     fireEvent.click(screen.getByText('hide-performance-timeline-card'));
@@ -396,6 +433,7 @@ describe('preferences state', () => {
         showFloatingTitleActions: false,
         showRightRailCards: false,
         showOverviewTaskTabs: false,
+        showAutomationsPage: false,
         showAnalysisPage: false,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
@@ -413,6 +451,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-show-floating-title-actions').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-right-rail-cards').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-automations-page').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-analysis-page').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-performance-timeline-card').textContent).toBe('false');
@@ -420,6 +459,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-show-heartbeat-ribbons').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-overview-task-tabs').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-automations-page').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-analysis-page').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-performance-timeline-card').textContent).toBe('false');

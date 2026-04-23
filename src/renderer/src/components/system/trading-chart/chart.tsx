@@ -53,11 +53,13 @@ import {
   ActionChartLineTypeIcon,
   ActionChartStepLineTypeIcon,
   ActionCloseIcon,
+  ActionConfirmIcon,
   ActionCreatePackageIcon,
   ActionDeleteIcon,
   ActionDragHandleIcon,
   ActionReceiveInventoryIcon,
   ActionResetIcon,
+  ActionUndoIcon,
 } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
 import {
@@ -79,6 +81,7 @@ import {
   StatusReadyIcon,
   StatusReorderPointIcon,
   StatusSettingsControlIcon,
+  StatusTimingIcon,
   StatusWarningIcon,
   StatusTrendChartIcon,
 } from '@icons/status';
@@ -2191,12 +2194,15 @@ function ChartSettingsLeavePrompt({
         </div>
         <div className="mt-6 flex items-center justify-end gap-2">
           <Button className="h-11 px-4" type="button" variant="ghost" onClick={onKeepEditing}>
+            <ActionUndoIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Keep editing')}
           </Button>
           <Button className="h-11 px-4" type="button" variant="destructive-outline" onClick={onDiscard}>
+            <ActionDeleteIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Discard changes')}
           </Button>
           <Button className="h-11 px-4" type="button" onClick={onApply}>
+            <ActionConfirmIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Apply changes')}
           </Button>
         </div>
@@ -4230,7 +4236,7 @@ export function SkuTradingChart({
                                 type="button"
                                 onClick={() => setStylePopover((current) => current?.indicatorId === id && current.kind === 'plotStyle' ? null : { indicatorId: id, kind: 'plotStyle' })}
                               >
-                                <span className="text-xl leading-none">~</span>
+                                <ActionChartLineTypeIcon data-icon="inline-start" className="size-4" />
                               </button>
                             </div>
                           </div>
@@ -4350,6 +4356,7 @@ export function SkuTradingChart({
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
                     >
+                      <ActionCloseIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
@@ -4363,6 +4370,7 @@ export function SkuTradingChart({
                         leaveSettingsDialog();
                       }}
                     >
+                      <ActionConfirmIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
@@ -4489,6 +4497,7 @@ export function SkuTradingChart({
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
                     >
+                      <ActionCloseIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
@@ -4502,6 +4511,7 @@ export function SkuTradingChart({
                         leaveIndicatorsDialog();
                       }}
                     >
+                      <ActionConfirmIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
@@ -4625,6 +4635,7 @@ export function SkuTradingChart({
                       variant="outline"
                       onClick={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
                     >
+                      <ActionCloseIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
@@ -4638,6 +4649,7 @@ export function SkuTradingChart({
                         leaveLayoutDialog();
                       }}
                     >
+                      <ActionConfirmIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Ok')}
                     </Button>
                   </div>
@@ -4833,6 +4845,7 @@ export function SkuTradingChart({
                 }
               }}
             >
+              <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
               {option === 'MAX' ? translateUiLiteral(language, 'All') : translateChartTimeframeLabel(language, option)}
             </button>
           ))}
@@ -4848,6 +4861,7 @@ export function SkuTradingChart({
                 type="button"
                 onClick={openCustomRangeDialog}
               >
+                <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                 {translateUiLiteral(language, 'Custom')}
               </button>
             </DialogPrimitive.Trigger>
@@ -4892,6 +4906,7 @@ export function SkuTradingChart({
                       setCustomRangeDialogOpen(false);
                     }}
                   >
+                    <ActionResetIcon data-icon="inline-start" />
                     {translateUiLiteral(language, 'Clear')}
                   </Button>
                   <div className="flex flex-wrap items-center justify-end gap-3">
@@ -4900,6 +4915,7 @@ export function SkuTradingChart({
                       variant="ghost"
                       onClick={() => setCustomRangeDialogOpen(false)}
                     >
+                      <ActionCloseIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Cancel')}
                     </Button>
                     <Button
@@ -4907,6 +4923,7 @@ export function SkuTradingChart({
                       type="button"
                       onClick={applyCustomRange}
                     >
+                      <ActionConfirmIcon data-icon="inline-start" />
                       {translateUiLiteral(language, 'Apply')}
                     </Button>
                   </div>
@@ -4933,6 +4950,7 @@ export function SkuTradingChart({
                       )}
                       type="button"
                     >
+                      <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                       {formatChartResolution(option, customChartResolution)}
                     </button>
                   </DialogPrimitive.Trigger>
@@ -4957,6 +4975,7 @@ export function SkuTradingChart({
                       </div>
                       <div className="mt-6 flex flex-wrap items-center justify-end gap-3">
                         <Button type="button" variant="ghost" onClick={() => setCustomResolutionDialogOpen(false)}>
+                          <ActionCloseIcon data-icon="inline-start" />
                           {translateUiLiteral(language, 'Cancel')}
                         </Button>
                         <Button
@@ -4964,6 +4983,7 @@ export function SkuTradingChart({
                           type="button"
                           onClick={applyCustomResolution}
                         >
+                          <ActionConfirmIcon data-icon="inline-start" />
                           {translateUiLiteral(language, 'Apply')}
                         </Button>
                       </div>
@@ -4982,6 +5002,7 @@ export function SkuTradingChart({
                 type="button"
                 onClick={() => onChartResolutionChange?.(option, null)}
               >
+                <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                 {option}
               </button>
             );

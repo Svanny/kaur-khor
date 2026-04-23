@@ -20,6 +20,7 @@ import {
 import {
   StatusGaugeIcon,
   StatusRadarIcon,
+  StatusScheduleIcon,
   StatusSettingsControlIcon,
   StatusTrendChartIcon,
   StatusWaveformIcon,
@@ -1315,6 +1316,7 @@ function SystemLedger({
                           type="button"
                           onClick={() => onIntervalChartLabelClick(span.intervalIndex, 'orders-transit-lead-time')}
                         >
+                          <StatusScheduleIcon data-icon="inline-start" className="mr-1 inline size-3" />
                           <span className="truncate">
                             {t('analysisWorkbenchPipelinePillLabel', {
                               count: Math.round(span.inTransitMean),

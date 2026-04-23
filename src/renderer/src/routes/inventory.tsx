@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActionCreatePackageIcon,
   ActionEditPencilIcon,
+  ActionSearchOffIcon,
 } from '@icons/actions';
 import { NewServiceIcon } from '@icons/custom';
 import {
@@ -520,10 +521,14 @@ export function InventoryRoute() {
                 variant="outline"
                 onClick={() => setSearchParams(updateCatalogSearchParams(searchParams, { q: '', supplier: null, view: 'all' }))}
               >
+                <ActionSearchOffIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Clear filters')}
               </Button>
               <Button asChild>
-                <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">{translateUiLiteral(language, 'New SKU')}</Link>
+                <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
+                  <ActionCreatePackageIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'New SKU')}
+                </Link>
               </Button>
             </WorkspaceActionRow>
           }

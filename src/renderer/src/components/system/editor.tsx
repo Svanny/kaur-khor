@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { ActionSaveIcon } from '@icons/actions';
+import { ActionCloseIcon, ActionSaveIcon } from '@icons/actions';
 import { DescriptionText, hasDescriptionText, useDescriptionTextVisible } from '@/components/system/description-text';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { Button } from '@/components/ui/button';
@@ -79,6 +79,7 @@ export function EditorHeader({
             </div>
           ) : null}
           <Button disabled={disableCancel} type="button" variant="ghost" onClick={onCancel}>
+            <ActionCloseIcon data-icon="inline-start" />
             {cancelLabel}
           </Button>
           <Button

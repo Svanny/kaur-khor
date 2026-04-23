@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ActionCloseIcon, ActionConfirmIcon } from '@icons/actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -62,6 +63,7 @@ export function TypedConfirmDialog({
         />
         <div className="mt-5 flex justify-end gap-3">
           <Button type="button" variant="ghost" onClick={onCancel}>
+            <ActionCloseIcon data-icon="inline-start" />
             {cancelLabel}
           </Button>
           <Button
@@ -70,6 +72,7 @@ export function TypedConfirmDialog({
             variant="destructive"
             onClick={onConfirm}
           >
+            <ActionConfirmIcon data-icon="inline-start" />
             {confirmLabel}
           </Button>
         </div>

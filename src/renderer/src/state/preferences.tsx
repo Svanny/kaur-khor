@@ -10,17 +10,20 @@ import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
   DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
+  DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
   DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
   normalizeDesktopSeenUnlockedNavItems,
   normalizeDesktopTaskBatchUpdatePreferences,
+  normalizeDesktopWorkbenchTileOrderByLane,
   normalizeSenaEngineParameters,
   senaEngineParametersEqual,
   type DesktopItemImageMode,
   type DesktopSeenUnlockedNavItems,
   type DesktopTaskBatchUpdatePreference,
   type DesktopTaskBatchUpdatePreferences,
+  type DesktopWorkbenchTileOrderByLane,
   type SenaEngineParameters,
 } from '@shared/ipc';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
@@ -39,6 +42,7 @@ interface PreferencesContextValue {
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
   showOverviewTaskTabs: boolean;
+  showAutomationsPage: boolean;
   showAnalysisPage: boolean;
   showPerformanceCompareToggle: boolean;
   showPerformanceTimelineCard: boolean;
@@ -48,6 +52,7 @@ interface PreferencesContextValue {
   customShowFloatingTitleActions: boolean;
   customShowRightRailCards: boolean;
   customShowOverviewTaskTabs: boolean;
+  customShowAutomationsPage: boolean;
   customShowAnalysisPage: boolean;
   customShowPerformanceCompareToggle: boolean;
   customShowPerformanceTimelineCard: boolean;
@@ -57,6 +62,7 @@ interface PreferencesContextValue {
   overviewStaleUpdateReminderSnoozeUntil: string | null;
   onboardingCompletedAt: string | null;
   seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
+  workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
   persistedUsdToKhrExchangeRate: number;
@@ -67,6 +73,7 @@ interface PreferencesContextValue {
   persistedShowFloatingTitleActions: boolean;
   persistedShowRightRailCards: boolean;
   persistedShowOverviewTaskTabs: boolean;
+  persistedShowAutomationsPage: boolean;
   persistedShowAnalysisPage: boolean;
   persistedShowPerformanceCompareToggle: boolean;
   persistedShowPerformanceTimelineCard: boolean;
@@ -77,6 +84,7 @@ interface PreferencesContextValue {
   persistedCustomShowFloatingTitleActions: boolean;
   persistedCustomShowRightRailCards: boolean;
   persistedCustomShowOverviewTaskTabs: boolean;
+  persistedCustomShowAutomationsPage: boolean;
   persistedCustomShowAnalysisPage: boolean;
   persistedCustomShowPerformanceCompareToggle: boolean;
   persistedCustomShowPerformanceTimelineCard: boolean;
@@ -86,6 +94,7 @@ interface PreferencesContextValue {
   persistedOverviewStaleUpdateReminderSnoozeUntil: string | null;
   persistedOnboardingCompletedAt: string | null;
   persistedSeenUnlockedNavItems: DesktopSeenUnlockedNavItems;
+  persistedWorkbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setUsdToKhrExchangeRate: (value: number) => void;
@@ -96,6 +105,7 @@ interface PreferencesContextValue {
   setShowFloatingTitleActions: (value: boolean) => void;
   setShowRightRailCards: (value: boolean) => void;
   setShowOverviewTaskTabs: (value: boolean) => void;
+  setShowAutomationsPage: (value: boolean) => void;
   setShowAnalysisPage: (value: boolean) => void;
   setShowPerformanceCompareToggle: (value: boolean) => void;
   setShowPerformanceTimelineCard: (value: boolean) => void;
@@ -121,6 +131,7 @@ interface PreferencesContextValue {
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
     showOverviewTaskTabs: boolean;
+    showAutomationsPage: boolean;
     showAnalysisPage: boolean;
     showPerformanceCompareToggle: boolean;
     showPerformanceTimelineCard: boolean;
@@ -130,6 +141,7 @@ interface PreferencesContextValue {
     customShowFloatingTitleActions: boolean;
     customShowRightRailCards: boolean;
     customShowOverviewTaskTabs: boolean;
+    customShowAutomationsPage: boolean;
     customShowAnalysisPage: boolean;
     customShowPerformanceCompareToggle: boolean;
     customShowPerformanceTimelineCard: boolean;
@@ -140,6 +152,7 @@ interface PreferencesContextValue {
     overviewStaleUpdateReminderSnoozeUntil: string | null;
     onboardingCompletedAt: string | null;
     seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
+    workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
   }>) => Promise<void>;
   markUnlockedNavItemSeen: (itemId: keyof DesktopSeenUnlockedNavItems) => Promise<void>;
   resetPreferences: () => void;
@@ -169,6 +182,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(true);
   const [showOverviewTaskTabs, setShowOverviewTaskTabsState] = useState(true);
+  const [showAutomationsPage, setShowAutomationsPageState] = useState(true);
   const [showAnalysisPage, setShowAnalysisPageState] = useState(true);
   const [showPerformanceCompareToggle, setShowPerformanceCompareToggleState] = useState(true);
   const [showPerformanceTimelineCard, setShowPerformanceTimelineCardState] = useState(true);
@@ -180,6 +194,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [customShowFloatingTitleActions, setCustomShowFloatingTitleActionsState] = useState(true);
   const [customShowRightRailCards, setCustomShowRightRailCardsState] = useState(true);
   const [customShowOverviewTaskTabs, setCustomShowOverviewTaskTabsState] = useState(true);
+  const [customShowAutomationsPage, setCustomShowAutomationsPageState] = useState(true);
   const [customShowAnalysisPage, setCustomShowAnalysisPageState] = useState(true);
   const [customShowPerformanceCompareToggle, setCustomShowPerformanceCompareToggleState] = useState(true);
   const [customShowPerformanceTimelineCard, setCustomShowPerformanceTimelineCardState] = useState(true);
@@ -194,6 +209,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [seenUnlockedNavItems, setSeenUnlockedNavItemsState] = useState<DesktopSeenUnlockedNavItems>(
     DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   );
+  const [workbenchTileOrderByLane, setWorkbenchTileOrderByLaneState] = useState<DesktopWorkbenchTileOrderByLane>(
+    DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
+  );
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedUsdToKhrExchangeRate, setPersistedUsdToKhrExchangeRate] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
@@ -205,6 +223,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
   const [persistedShowOverviewTaskTabs, setPersistedShowOverviewTaskTabs] = useState(true);
+  const [persistedShowAutomationsPage, setPersistedShowAutomationsPage] = useState(true);
   const [persistedShowAnalysisPage, setPersistedShowAnalysisPage] = useState(true);
   const [persistedShowPerformanceCompareToggle, setPersistedShowPerformanceCompareToggle] = useState(true);
   const [persistedShowPerformanceTimelineCard, setPersistedShowPerformanceTimelineCard] = useState(true);
@@ -216,6 +235,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedCustomShowFloatingTitleActions, setPersistedCustomShowFloatingTitleActions] = useState(true);
   const [persistedCustomShowRightRailCards, setPersistedCustomShowRightRailCards] = useState(true);
   const [persistedCustomShowOverviewTaskTabs, setPersistedCustomShowOverviewTaskTabs] = useState(true);
+  const [persistedCustomShowAutomationsPage, setPersistedCustomShowAutomationsPage] = useState(true);
   const [persistedCustomShowAnalysisPage, setPersistedCustomShowAnalysisPage] = useState(true);
   const [persistedCustomShowPerformanceCompareToggle, setPersistedCustomShowPerformanceCompareToggle] = useState(true);
   const [persistedCustomShowPerformanceTimelineCard, setPersistedCustomShowPerformanceTimelineCard] = useState(true);
@@ -230,6 +250,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedSeenUnlockedNavItems, setPersistedSeenUnlockedNavItems] = useState<DesktopSeenUnlockedNavItems>(
     DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   );
+  const [persistedWorkbenchTileOrderByLane, setPersistedWorkbenchTileOrderByLane] = useState<DesktopWorkbenchTileOrderByLane>(
+    DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -243,6 +266,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
 
         const nextSenaEngineParameters = normalizeSenaEngineParameters(preferences.senaEngineParameters);
         const nextSeenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(preferences.seenUnlockedNavItems);
+        const nextWorkbenchTileOrderByLane = normalizeDesktopWorkbenchTileOrderByLane(
+          preferences.workbenchTileOrderByLane,
+        );
 
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
@@ -256,6 +282,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowFloatingTitleActionsState(preferences.showFloatingTitleActions);
         setShowRightRailCardsState(preferences.showRightRailCards);
         setShowOverviewTaskTabsState(preferences.showOverviewTaskTabs);
+        setShowAutomationsPageState(preferences.showAutomationsPage);
         setShowAnalysisPageState(preferences.showAnalysisPage);
         setShowPerformanceCompareToggleState(preferences.showPerformanceCompareToggle);
         setShowPerformanceTimelineCardState(preferences.showPerformanceTimelineCard);
@@ -269,6 +296,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCustomShowFloatingTitleActionsState(preferences.customShowFloatingTitleActions);
         setCustomShowRightRailCardsState(preferences.customShowRightRailCards);
         setCustomShowOverviewTaskTabsState(preferences.customShowOverviewTaskTabs);
+        setCustomShowAutomationsPageState(preferences.customShowAutomationsPage);
         setCustomShowAnalysisPageState(preferences.customShowAnalysisPage);
         setCustomShowPerformanceCompareToggleState(preferences.customShowPerformanceCompareToggle);
         setCustomShowPerformanceTimelineCardState(preferences.customShowPerformanceTimelineCard);
@@ -280,6 +308,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         );
         setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(preferences.onboardingCompletedAt));
         setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
+        setWorkbenchTileOrderByLaneState(nextWorkbenchTileOrderByLane);
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
         setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
@@ -290,6 +319,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedShowFloatingTitleActions(preferences.showFloatingTitleActions);
         setPersistedShowRightRailCards(preferences.showRightRailCards);
         setPersistedShowOverviewTaskTabs(preferences.showOverviewTaskTabs);
+        setPersistedShowAutomationsPage(preferences.showAutomationsPage);
         setPersistedShowAnalysisPage(preferences.showAnalysisPage);
         setPersistedShowPerformanceCompareToggle(preferences.showPerformanceCompareToggle);
         setPersistedShowPerformanceTimelineCard(preferences.showPerformanceTimelineCard);
@@ -300,6 +330,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedCustomShowFloatingTitleActions(preferences.customShowFloatingTitleActions);
         setPersistedCustomShowRightRailCards(preferences.customShowRightRailCards);
         setPersistedCustomShowOverviewTaskTabs(preferences.customShowOverviewTaskTabs);
+        setPersistedCustomShowAutomationsPage(preferences.customShowAutomationsPage);
         setPersistedCustomShowAnalysisPage(preferences.customShowAnalysisPage);
         setPersistedCustomShowPerformanceCompareToggle(preferences.customShowPerformanceCompareToggle);
         setPersistedCustomShowPerformanceTimelineCard(preferences.customShowPerformanceTimelineCard);
@@ -311,6 +342,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         );
         setPersistedOnboardingCompletedAt(normalizeDesktopPreferenceTimestamp(preferences.onboardingCompletedAt));
         setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
+        setPersistedWorkbenchTileOrderByLane(nextWorkbenchTileOrderByLane);
         setIsHydrated(true);
       })
       .catch((error) => {
@@ -334,6 +366,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     showFloatingTitleActions: boolean;
     showRightRailCards: boolean;
     showOverviewTaskTabs: boolean;
+    showAutomationsPage: boolean;
     showAnalysisPage: boolean;
     showPerformanceCompareToggle: boolean;
     showPerformanceTimelineCard: boolean;
@@ -343,6 +376,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     customShowFloatingTitleActions: boolean;
     customShowRightRailCards: boolean;
     customShowOverviewTaskTabs: boolean;
+    customShowAutomationsPage: boolean;
     customShowAnalysisPage: boolean;
     customShowPerformanceCompareToggle: boolean;
     customShowPerformanceTimelineCard: boolean;
@@ -353,6 +387,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     overviewStaleUpdateReminderSnoozeUntil: string | null;
     onboardingCompletedAt: string | null;
     seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
+    workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
   }>) {
     const nextPreferences = await window.banjiDesktop.preferences.save(next);
     const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
@@ -360,6 +395,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       nextPreferences.overviewStaleUpdateReminderSnoozeUntil,
     );
     const nextSeenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(nextPreferences.seenUnlockedNavItems);
+    const nextWorkbenchTileOrderByLane = normalizeDesktopWorkbenchTileOrderByLane(
+      nextPreferences.workbenchTileOrderByLane,
+    );
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
     const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(nextPreferences.usdToKhrExchangeRate);
@@ -371,6 +409,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setShowFloatingTitleActionsState(nextPreferences.showFloatingTitleActions);
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
     setShowOverviewTaskTabsState(nextPreferences.showOverviewTaskTabs);
+    setShowAutomationsPageState(nextPreferences.showAutomationsPage);
     setShowAnalysisPageState(nextPreferences.showAnalysisPage);
     setShowPerformanceCompareToggleState(nextPreferences.showPerformanceCompareToggle);
     setShowPerformanceTimelineCardState(nextPreferences.showPerformanceTimelineCard);
@@ -384,6 +423,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setCustomShowFloatingTitleActionsState(nextPreferences.customShowFloatingTitleActions);
     setCustomShowRightRailCardsState(nextPreferences.customShowRightRailCards);
     setCustomShowOverviewTaskTabsState(nextPreferences.customShowOverviewTaskTabs);
+    setCustomShowAutomationsPageState(nextPreferences.customShowAutomationsPage);
     setCustomShowAnalysisPageState(nextPreferences.customShowAnalysisPage);
     setCustomShowPerformanceCompareToggleState(nextPreferences.customShowPerformanceCompareToggle);
     setCustomShowPerformanceTimelineCardState(nextPreferences.customShowPerformanceTimelineCard);
@@ -393,6 +433,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setOverviewStaleUpdateReminderSnoozeUntilState(nextOverviewStaleUpdateReminderSnoozeUntil);
     setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
     setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
+    setWorkbenchTileOrderByLaneState(nextWorkbenchTileOrderByLane);
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
     setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
@@ -403,6 +444,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedShowFloatingTitleActions(nextPreferences.showFloatingTitleActions);
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
     setPersistedShowOverviewTaskTabs(nextPreferences.showOverviewTaskTabs);
+    setPersistedShowAutomationsPage(nextPreferences.showAutomationsPage);
     setPersistedShowAnalysisPage(nextPreferences.showAnalysisPage);
     setPersistedShowPerformanceCompareToggle(nextPreferences.showPerformanceCompareToggle);
     setPersistedShowPerformanceTimelineCard(nextPreferences.showPerformanceTimelineCard);
@@ -413,6 +455,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedCustomShowFloatingTitleActions(nextPreferences.customShowFloatingTitleActions);
     setPersistedCustomShowRightRailCards(nextPreferences.customShowRightRailCards);
     setPersistedCustomShowOverviewTaskTabs(nextPreferences.customShowOverviewTaskTabs);
+    setPersistedCustomShowAutomationsPage(nextPreferences.customShowAutomationsPage);
     setPersistedCustomShowAnalysisPage(nextPreferences.customShowAnalysisPage);
     setPersistedCustomShowPerformanceCompareToggle(nextPreferences.customShowPerformanceCompareToggle);
     setPersistedCustomShowPerformanceTimelineCard(nextPreferences.customShowPerformanceTimelineCard);
@@ -422,6 +465,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedOverviewStaleUpdateReminderSnoozeUntil(nextOverviewStaleUpdateReminderSnoozeUntil);
     setPersistedOnboardingCompletedAt(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
     setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
+    setPersistedWorkbenchTileOrderByLane(nextWorkbenchTileOrderByLane);
     return nextPreferences;
   }
 
@@ -438,6 +482,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       showFloatingTitleActions,
       showRightRailCards,
       showOverviewTaskTabs,
+      showAutomationsPage,
       showAnalysisPage,
       showPerformanceCompareToggle,
       showPerformanceTimelineCard,
@@ -448,6 +493,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       customShowFloatingTitleActions,
       customShowRightRailCards,
       customShowOverviewTaskTabs,
+      customShowAutomationsPage,
       customShowAnalysisPage,
       customShowPerformanceCompareToggle,
       customShowPerformanceTimelineCard,
@@ -457,6 +503,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       overviewStaleUpdateReminderSnoozeUntil,
       onboardingCompletedAt,
       seenUnlockedNavItems,
+      workbenchTileOrderByLane,
       persistedLanguage,
       persistedCurrency,
       persistedUsdToKhrExchangeRate,
@@ -467,6 +514,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
       persistedShowOverviewTaskTabs,
+      persistedShowAutomationsPage,
       persistedShowAnalysisPage,
       persistedShowPerformanceCompareToggle,
       persistedShowPerformanceTimelineCard,
@@ -477,6 +525,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCustomShowFloatingTitleActions,
       persistedCustomShowRightRailCards,
       persistedCustomShowOverviewTaskTabs,
+      persistedCustomShowAutomationsPage,
       persistedCustomShowAnalysisPage,
       persistedCustomShowPerformanceCompareToggle,
       persistedCustomShowPerformanceTimelineCard,
@@ -486,6 +535,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedOverviewStaleUpdateReminderSnoozeUntil,
       persistedOnboardingCompletedAt,
       persistedSeenUnlockedNavItems,
+      persistedWorkbenchTileOrderByLane,
       setLanguage: setLanguageState,
       setCurrency: setCurrencyState,
       setUsdToKhrExchangeRate: setUsdToKhrExchangeRateState,
@@ -498,6 +548,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           setShowFloatingTitleActionsState(false);
           setShowRightRailCardsState(false);
           setShowOverviewTaskTabsState(false);
+          setShowAutomationsPageState(false);
           setShowAnalysisPageState(false);
           setShowPerformanceCompareToggleState(false);
           setShowPerformanceTimelineCardState(false);
@@ -510,6 +561,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowFloatingTitleActionsState(customShowFloatingTitleActions);
         setShowRightRailCardsState(customShowRightRailCards);
         setShowOverviewTaskTabsState(customShowOverviewTaskTabs);
+        setShowAutomationsPageState(customShowAutomationsPage);
         setShowAnalysisPageState(customShowAnalysisPage);
         setShowPerformanceCompareToggleState(customShowPerformanceCompareToggle);
         setShowPerformanceTimelineCardState(customShowPerformanceTimelineCard);
@@ -535,6 +587,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setDisplayViewModeState('custom');
         setShowOverviewTaskTabsState(next);
         setCustomShowOverviewTaskTabsState(next);
+      },
+      setShowAutomationsPage: (next) => {
+        setDisplayViewModeState('custom');
+        setShowAutomationsPageState(next);
+        setCustomShowAutomationsPageState(next);
       },
       setShowAnalysisPage: (next) => {
         setDisplayViewModeState('custom');
@@ -588,6 +645,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             showFloatingTitleActions: false,
             showRightRailCards: false,
             showOverviewTaskTabs: false,
+            showAutomationsPage: false,
             showAnalysisPage: false,
             showPerformanceCompareToggle: false,
             showPerformanceTimelineCard: false,
@@ -597,6 +655,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             customShowFloatingTitleActions,
             customShowRightRailCards,
             customShowOverviewTaskTabs,
+            customShowAutomationsPage,
             customShowAnalysisPage,
             customShowPerformanceCompareToggle,
             customShowPerformanceTimelineCard,
@@ -612,6 +671,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           showFloatingTitleActions: customShowFloatingTitleActions,
           showRightRailCards: customShowRightRailCards,
           showOverviewTaskTabs: customShowOverviewTaskTabs,
+          showAutomationsPage: customShowAutomationsPage,
           showAnalysisPage: customShowAnalysisPage,
           showPerformanceCompareToggle: customShowPerformanceCompareToggle,
           showPerformanceTimelineCard: customShowPerformanceTimelineCard,
@@ -621,6 +681,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           customShowFloatingTitleActions,
           customShowRightRailCards,
           customShowOverviewTaskTabs,
+          customShowAutomationsPage,
           customShowAnalysisPage,
           customShowPerformanceCompareToggle,
           customShowPerformanceTimelineCard,
@@ -637,6 +698,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.showRightRailCards ?? showRightRailCards;
         const resolvedShowOverviewTaskTabs =
           overrides?.showOverviewTaskTabs ?? showOverviewTaskTabs;
+        const resolvedShowAutomationsPage =
+          overrides?.showAutomationsPage ?? showAutomationsPage;
         const resolvedShowAnalysisPage =
           overrides?.showAnalysisPage ?? showAnalysisPage;
         const resolvedShowPerformanceCompareToggle =
@@ -663,6 +726,10 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.customShowOverviewTaskTabs ?? (
             overrides?.showOverviewTaskTabs ?? customShowOverviewTaskTabs
           );
+        const resolvedCustomShowAutomationsPage =
+          overrides?.customShowAutomationsPage ?? (
+            overrides?.showAutomationsPage ?? customShowAutomationsPage
+          );
         const resolvedCustomShowAnalysisPage =
           overrides?.customShowAnalysisPage ?? (
             overrides?.showAnalysisPage ?? customShowAnalysisPage
@@ -688,6 +755,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.showFloatingTitleActions != null ||
           overrides?.showRightRailCards != null ||
           overrides?.showOverviewTaskTabs != null ||
+          overrides?.showAutomationsPage != null ||
           overrides?.showAnalysisPage != null ||
           overrides?.showPerformanceCompareToggle != null ||
           overrides?.showPerformanceTimelineCard != null ||
@@ -697,6 +765,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.customShowFloatingTitleActions != null ||
           overrides?.customShowRightRailCards != null ||
           overrides?.customShowOverviewTaskTabs != null ||
+          overrides?.customShowAutomationsPage != null ||
           overrides?.customShowAnalysisPage != null ||
           overrides?.customShowPerformanceCompareToggle != null ||
           overrides?.customShowPerformanceTimelineCard != null ||
@@ -721,6 +790,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
             resolvedDisplayViewMode === 'compact' ? false : resolvedShowRightRailCards,
           showOverviewTaskTabs:
             resolvedDisplayViewMode === 'compact' ? false : resolvedShowOverviewTaskTabs,
+          showAutomationsPage:
+            resolvedDisplayViewMode === 'compact' ? false : resolvedShowAutomationsPage,
           showAnalysisPage:
             resolvedDisplayViewMode === 'compact' ? false : resolvedShowAnalysisPage,
           showPerformanceCompareToggle:
@@ -735,6 +806,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           customShowFloatingTitleActions: resolvedCustomShowFloatingTitleActions,
           customShowRightRailCards: resolvedCustomShowRightRailCards,
           customShowOverviewTaskTabs: resolvedCustomShowOverviewTaskTabs,
+          customShowAutomationsPage: resolvedCustomShowAutomationsPage,
           customShowAnalysisPage: resolvedCustomShowAnalysisPage,
           customShowPerformanceCompareToggle: resolvedCustomShowPerformanceCompareToggle,
           customShowPerformanceTimelineCard: resolvedCustomShowPerformanceTimelineCard,
@@ -751,6 +823,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
               : onboardingCompletedAt,
           seenUnlockedNavItems:
             overrides?.seenUnlockedNavItems ?? seenUnlockedNavItems,
+          workbenchTileOrderByLane:
+            overrides?.workbenchTileOrderByLane ?? workbenchTileOrderByLane,
         });
       },
       markUnlockedNavItemSeen: async (itemId) => {
@@ -776,6 +850,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowFloatingTitleActionsState(persistedShowFloatingTitleActions);
         setShowRightRailCardsState(persistedShowRightRailCards);
         setShowOverviewTaskTabsState(persistedShowOverviewTaskTabs);
+        setShowAutomationsPageState(persistedShowAutomationsPage);
         setShowAnalysisPageState(persistedShowAnalysisPage);
         setShowPerformanceCompareToggleState(persistedShowPerformanceCompareToggle);
         setShowPerformanceTimelineCardState(persistedShowPerformanceTimelineCard);
@@ -785,6 +860,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCustomShowFloatingTitleActionsState(persistedCustomShowFloatingTitleActions);
         setCustomShowRightRailCardsState(persistedCustomShowRightRailCards);
         setCustomShowOverviewTaskTabsState(persistedCustomShowOverviewTaskTabs);
+        setCustomShowAutomationsPageState(persistedCustomShowAutomationsPage);
         setCustomShowAnalysisPageState(persistedCustomShowAnalysisPage);
         setCustomShowPerformanceCompareToggleState(persistedCustomShowPerformanceCompareToggle);
         setCustomShowPerformanceTimelineCardState(persistedCustomShowPerformanceTimelineCard);
@@ -797,6 +873,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         );
         setOnboardingCompletedAtState(persistedOnboardingCompletedAt);
         setSeenUnlockedNavItemsState(persistedSeenUnlockedNavItems);
+        setWorkbenchTileOrderByLaneState(persistedWorkbenchTileOrderByLane);
       },
       hasPendingChanges:
         language !== persistedLanguage ||
@@ -809,6 +886,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         showFloatingTitleActions !== persistedShowFloatingTitleActions ||
         showRightRailCards !== persistedShowRightRailCards ||
         showOverviewTaskTabs !== persistedShowOverviewTaskTabs ||
+        showAutomationsPage !== persistedShowAutomationsPage ||
         showAnalysisPage !== persistedShowAnalysisPage ||
         showPerformanceCompareToggle !== persistedShowPerformanceCompareToggle ||
         showPerformanceTimelineCard !== persistedShowPerformanceTimelineCard ||
@@ -818,6 +896,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         customShowFloatingTitleActions !== persistedCustomShowFloatingTitleActions ||
         customShowRightRailCards !== persistedCustomShowRightRailCards ||
         customShowOverviewTaskTabs !== persistedCustomShowOverviewTaskTabs ||
+        customShowAutomationsPage !== persistedCustomShowAutomationsPage ||
         customShowAnalysisPage !== persistedCustomShowAnalysisPage ||
         customShowPerformanceCompareToggle !== persistedCustomShowPerformanceCompareToggle ||
         customShowPerformanceTimelineCard !== persistedCustomShowPerformanceTimelineCard ||
@@ -825,6 +904,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         customShowHeartbeatRibbons !== persistedCustomShowHeartbeatRibbons ||
         JSON.stringify(taskBatchUpdatePreferences) !== JSON.stringify(persistedTaskBatchUpdatePreferences) ||
         overviewStaleUpdateReminderSnoozeUntil !== persistedOverviewStaleUpdateReminderSnoozeUntil ||
+        JSON.stringify(workbenchTileOrderByLane) !== JSON.stringify(persistedWorkbenchTileOrderByLane) ||
         !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
       t: (key, variables) => getTranslation(language, key, variables),
       rawT: (key, variables) => getTranslation(language, key, variables),
@@ -837,6 +917,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       customShowFloatingTitleActions,
       customShowRightRailCards,
       customShowOverviewTaskTabs,
+      customShowAutomationsPage,
       customShowAnalysisPage,
       customShowPerformanceCompareToggle,
       customShowPerformanceTimelineCard,
@@ -850,6 +931,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedCustomShowFloatingTitleActions,
       persistedCustomShowRightRailCards,
       persistedCustomShowOverviewTaskTabs,
+      persistedCustomShowAutomationsPage,
       persistedCustomShowAnalysisPage,
       persistedCustomShowPerformanceCompareToggle,
       persistedCustomShowPerformanceTimelineCard,
@@ -866,6 +948,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowFloatingTitleActions,
       persistedShowRightRailCards,
       persistedShowOverviewTaskTabs,
+      persistedShowAutomationsPage,
       persistedShowAnalysisPage,
       persistedShowPerformanceCompareToggle,
       persistedShowPerformanceTimelineCard,
@@ -873,16 +956,19 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       persistedShowHeartbeatRibbons,
       persistedSenaEngineParameters,
       persistedOverviewStaleUpdateReminderSnoozeUntil,
+      persistedWorkbenchTileOrderByLane,
       senaEngineParameters,
       taskBatchUpdatePreferences,
       overviewStaleUpdateReminderSnoozeUntil,
       onboardingCompletedAt,
       usdToKhrExchangeRate,
       seenUnlockedNavItems,
+      workbenchTileOrderByLane,
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showRightRailCards,
       showOverviewTaskTabs,
+      showAutomationsPage,
       showAnalysisPage,
       showPerformanceCompareToggle,
       showPerformanceTimelineCard,

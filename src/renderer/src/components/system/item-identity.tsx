@@ -60,11 +60,13 @@ function fallbackIcon(type: ItemIdentityType) {
 }
 
 export function ItemAvatar({
+  className,
   imagePath,
   name,
   size = 'default',
   type,
 }: {
+  className?: string;
   imagePath?: string | null;
   name: string;
   size?: ItemIdentitySize;
@@ -91,12 +93,14 @@ export function ItemAvatar({
       className={cn(
         'relative shrink-0 overflow-hidden border border-border/70 bg-muted/35 text-muted-foreground shadow-sm',
         containerClassName,
+        className,
       )}
     >
       {showImage ? (
         <img
           alt=""
-          className="size-full object-cover"
+          className="pointer-events-none size-full select-none object-cover"
+          draggable={false}
           loading="lazy"
           src={imageUrl ?? undefined}
           onError={() => setImageFailed(true)}

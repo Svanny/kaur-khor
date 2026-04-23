@@ -5,6 +5,7 @@ import {
   ActionDatabaseUploadIcon,
   ActionExplosionIcon,
   ActionOpenFolderIcon,
+  ActionResumeIcon,
   ActionSaveIcon,
   ActionSquareDashedIcon,
   ActionSquareIcon,
@@ -14,6 +15,7 @@ import { overviewTaskActionIcons } from '@icons/domain';
 import { EntityBackupIcon, EntityComparisonIcon, EntityFavoriteIcon, EntitySignalIcon } from '@icons/entities';
 import {
   NavigationAnalysisIcon,
+  NavigationAutomationIcon,
   NavigationBoardViewIcon,
   NavigationListIcon,
   NavigationPerformanceIcon,
@@ -641,6 +643,7 @@ function WorkspacePreferencesPage({
             </div>
             <WorkspaceActionRow>
               <Button type="button" variant="outline" onClick={onInjectOnboarding}>
+                <ActionResumeIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Inject onboarding stage')}
               </Button>
             </WorkspaceActionRow>
@@ -692,6 +695,7 @@ function InterfaceVisibilityPage({
   setShowFloatingTitleActions,
   setShowHeartbeatRibbons,
   setShowOverviewTaskTabs,
+  setShowAutomationsPage,
   setShowAnalysisPage,
   setShowLogsViewToggle,
   setShowPerformanceCompareToggle,
@@ -701,6 +705,7 @@ function InterfaceVisibilityPage({
   showFloatingTitleActions,
   showHeartbeatRibbons,
   showOverviewTaskTabs,
+  showAutomationsPage,
   showAnalysisPage,
   showLogsViewToggle,
   showPerformanceCompareToggle,
@@ -713,6 +718,7 @@ function InterfaceVisibilityPage({
   setShowFloatingTitleActions: (checked: boolean) => void;
   setShowHeartbeatRibbons: (checked: boolean) => void;
   setShowOverviewTaskTabs: (checked: boolean) => void;
+  setShowAutomationsPage: (checked: boolean) => void;
   setShowAnalysisPage: (checked: boolean) => void;
   setShowLogsViewToggle: (checked: boolean) => void;
   setShowPerformanceCompareToggle: (checked: boolean) => void;
@@ -722,6 +728,7 @@ function InterfaceVisibilityPage({
   showFloatingTitleActions: boolean;
   showHeartbeatRibbons: boolean;
   showOverviewTaskTabs: boolean;
+  showAutomationsPage: boolean;
   showAnalysisPage: boolean;
   showLogsViewToggle: boolean;
   showPerformanceCompareToggle: boolean;
@@ -780,6 +787,19 @@ function InterfaceVisibilityPage({
             icon={<NavigationTaskListIcon className="size-4" />}
             label="Show overview task tabs"
             onCheckedChange={setShowOverviewTaskTabs}
+            variant="flat"
+          />
+        </div>
+        <div className="border-b border-border/60" />
+        <div>
+          <CheckboxRow
+            checked={showAutomationsPage}
+            disabled={interfaceVisibilityDisabled}
+            helper="Show automations page"
+            hint="Keeps the automations route available in navigation once the workspace unlocks it."
+            icon={<NavigationAutomationIcon className="size-4" />}
+            label="Show automations page"
+            onCheckedChange={setShowAutomationsPage}
             variant="flat"
           />
         </div>
@@ -1144,6 +1164,7 @@ export function SettingsRoute() {
     setShowHeartbeatRibbons,
     setShowRightRailCards,
     setShowOverviewTaskTabs,
+    setShowAutomationsPage,
     setShowAnalysisPage,
     setShowLogsViewToggle,
     setShowPerformanceCompareToggle,
@@ -1159,6 +1180,7 @@ export function SettingsRoute() {
     showHeartbeatRibbons,
     showRightRailCards,
     showOverviewTaskTabs,
+    showAutomationsPage,
     showAnalysisPage,
     showLogsViewToggle,
     showPerformanceCompareToggle,
@@ -1477,6 +1499,7 @@ export function SettingsRoute() {
                   setShowFloatingTitleActions={setShowFloatingTitleActions}
                   setShowHeartbeatRibbons={setShowHeartbeatRibbons}
                   setShowAnalysisPage={setShowAnalysisPage}
+                  setShowAutomationsPage={setShowAutomationsPage}
                   setShowLogsViewToggle={setShowLogsViewToggle}
                   setShowPerformanceCompareToggle={setShowPerformanceCompareToggle}
                   setShowPerformanceTimelineCard={setShowPerformanceTimelineCard}
@@ -1490,6 +1513,7 @@ export function SettingsRoute() {
                   showFloatingTitleActions={showFloatingTitleActions}
                   showHeartbeatRibbons={showHeartbeatRibbons}
                   showOverviewTaskTabs={showOverviewTaskTabs}
+                  showAutomationsPage={showAutomationsPage}
                   showRightRailCards={showRightRailCards}
                   t={t}
                 />

@@ -128,6 +128,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -144,6 +145,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -157,6 +159,7 @@ describe('SettingsRoute', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
     });
     savePreferences.mockResolvedValue({
@@ -170,6 +173,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: false,
       showRightRailCards: false,
       showOverviewTaskTabs: false,
+      showAutomationsPage: false,
       showAnalysisPage: false,
       showPerformanceCompareToggle: false,
       showPerformanceTimelineCard: false,
@@ -186,6 +190,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: false,
       customShowRightRailCards: false,
       customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: false,
       customShowAnalysisPage: false,
       customShowPerformanceCompareToggle: false,
       customShowPerformanceTimelineCard: false,
@@ -199,6 +204,7 @@ describe('SettingsRoute', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
     });
     triggerRun.mockResolvedValue({ runId: 'run-parameters' });
@@ -747,6 +753,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -757,6 +764,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -797,6 +805,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -806,6 +815,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -854,6 +864,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -863,6 +874,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -927,6 +939,22 @@ describe('SettingsRoute', () => {
         showFloatingTitleActions: true,
         showRightRailCards: true,
         showOverviewTaskTabs: false,
+      }));
+    });
+  });
+
+  it('renders and saves the automations page visibility preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await screen.findByRole('checkbox', { name: /show automations page/i });
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    fireEvent.click(firstSavePreferencesButton());
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showAutomationsPage: false,
       }));
     });
   });
@@ -1037,6 +1065,7 @@ describe('SettingsRoute', () => {
         showFloatingTitleActions: false,
         showRightRailCards: false,
         showOverviewTaskTabs: false,
+        showAutomationsPage: false,
         showAnalysisPage: false,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
@@ -1046,6 +1075,7 @@ describe('SettingsRoute', () => {
         customShowFloatingTitleActions: true,
         customShowRightRailCards: true,
         customShowOverviewTaskTabs: true,
+        customShowAutomationsPage: true,
         customShowAnalysisPage: true,
         customShowPerformanceCompareToggle: true,
         customShowPerformanceTimelineCard: true,
@@ -1068,6 +1098,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: false,
       showRightRailCards: false,
       showOverviewTaskTabs: false,
+      showAutomationsPage: false,
       showAnalysisPage: false,
       showPerformanceCompareToggle: false,
       showPerformanceTimelineCard: false,
@@ -1077,6 +1108,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: false,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: false,
@@ -1095,6 +1127,7 @@ describe('SettingsRoute', () => {
       showFloatingTitleActions: payload.showFloatingTitleActions ?? false,
       showRightRailCards: payload.showRightRailCards ?? false,
       showOverviewTaskTabs: payload.showOverviewTaskTabs ?? false,
+      showAutomationsPage: payload.showAutomationsPage ?? false,
       showAnalysisPage: payload.showAnalysisPage ?? false,
       showPerformanceCompareToggle: payload.showPerformanceCompareToggle ?? false,
       showPerformanceTimelineCard: payload.showPerformanceTimelineCard ?? false,
@@ -1104,6 +1137,7 @@ describe('SettingsRoute', () => {
       customShowFloatingTitleActions: payload.customShowFloatingTitleActions ?? false,
       customShowRightRailCards: payload.customShowRightRailCards ?? true,
       customShowOverviewTaskTabs: payload.customShowOverviewTaskTabs ?? false,
+      customShowAutomationsPage: payload.customShowAutomationsPage ?? true,
       customShowAnalysisPage: payload.customShowAnalysisPage ?? true,
       customShowPerformanceCompareToggle: payload.customShowPerformanceCompareToggle ?? true,
       customShowPerformanceTimelineCard: payload.customShowPerformanceTimelineCard ?? false,
@@ -1135,6 +1169,7 @@ describe('SettingsRoute', () => {
         showFloatingTitleActions: false,
         showRightRailCards: true,
         showOverviewTaskTabs: false,
+        showAutomationsPage: true,
         showAnalysisPage: true,
         showPerformanceCompareToggle: true,
         showPerformanceTimelineCard: false,
@@ -1144,6 +1179,7 @@ describe('SettingsRoute', () => {
         customShowFloatingTitleActions: false,
         customShowRightRailCards: true,
         customShowOverviewTaskTabs: false,
+        customShowAutomationsPage: true,
         customShowAnalysisPage: true,
         customShowPerformanceCompareToggle: true,
         customShowPerformanceTimelineCard: false,
@@ -1277,7 +1313,9 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: /delete current/i }));
+    const deleteCurrentButton = await screen.findByRole('button', { name: /delete current data/i });
+    expect(deleteCurrentButton).toHaveAttribute('data-variant', 'destructive');
+    fireEvent.click(deleteCurrentButton);
     fireEvent.change(
       screen.getByLabelText(/deletion confirmation token/i),
       { target: { value: 'DELETE CURRENT DATA' } },

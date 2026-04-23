@@ -19,4 +19,20 @@ describe('TooltipContent', () => {
 
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Apr 10, 2026');
   });
+
+  test('renders above dialog surfaces', async () => {
+    render(
+      <TooltipProvider>
+        <Tooltip defaultOpen>
+          <TooltipTrigger asChild>
+            <button type="button">Delivery fee help</button>
+          </TooltipTrigger>
+          <TooltipContent>Delivery rules</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>,
+    );
+
+    await screen.findByRole('tooltip');
+    expect(document.querySelector('[data-slot="tooltip-content"]')).toHaveClass('z-[120]');
+  });
 });

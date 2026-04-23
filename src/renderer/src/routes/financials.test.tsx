@@ -328,6 +328,14 @@ describe('FinancialsRoute', () => {
     expect(screen.queryByRole('heading', { name: 'Move now' })).not.toBeInTheDocument();
   });
 
+  test('renders icons inside financial toggle pills', () => {
+    renderRoute();
+
+    expect(screen.getByRole('radio', { name: 'All' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /Services/i }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /SKUs/i }).querySelector('svg')).not.toBeNull();
+  });
+
   test('applies shared semantic tones to money deltas and quality bands', () => {
     renderRoute();
 

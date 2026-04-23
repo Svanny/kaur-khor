@@ -68,10 +68,9 @@ export function buildBanjiNavigationState(
   location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search' | 'state'>,
   fallbackTo?: string | null,
 ): BanjiNavigationState {
-  const currentState = readBanjiNavigationState(location.state);
   return {
-    banjiNavigationFallback: currentState.banjiNavigationFallback ?? fallbackTo ?? nestedFallbackForPath(location.pathname),
-    banjiNavigationOrigin: currentState.banjiNavigationOrigin ?? currentLocationTarget(location),
+    banjiNavigationFallback: fallbackTo ?? nestedFallbackForPath(location.pathname),
+    banjiNavigationOrigin: currentLocationTarget(location),
   };
 }
 

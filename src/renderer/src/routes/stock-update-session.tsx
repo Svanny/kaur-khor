@@ -1,17 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
+  type DragCancelEvent,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import {
+  defaultAnimateLayoutChanges,
   SortableContext,
+  arrayMove,
+  rectSortingStrategy,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
@@ -19,6 +26,9 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import {
   ActionAddBadgeIcon,
+  ActionClipboardAddIcon,
+  ActionCloseIcon,
+  ActionConfirmIcon,
   ActionCreatePackageIcon,
   ActionDragHandleIcon,
   ActionDeleteIcon,
@@ -26,9 +36,28 @@ import {
   ActionReceiveInventoryIcon,
   ActionSaveIcon,
   ActionUndoIcon,
+  ActionZoomInIcon,
+  ActionZoomOutIcon,
 } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
-import { EntityFlagIcon, EntityLayersIcon } from '@icons/entities';
+import {
+  EntityCallChannelIcon,
+  EntityCustomChannelIcon,
+  EntityCustomerIcon,
+  EntityDeliveryIcon,
+  EntityFacebookChannelIcon,
+  EntityFlagIcon,
+  EntityLayersIcon,
+  EntityNoChannelIcon,
+  EntityOverflowMenuIcon,
+  EntityReceiptDocumentIcon,
+  EntityServiceIcon,
+  EntitySkuIcon,
+  EntitySmsChannelIcon,
+  EntityTelegramChannelIcon,
+  EntityWalkInChannelIcon,
+  EntityWhatsAppChannelIcon,
+} from '@icons/entities';
 import { NavigationBackIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
   StatusGaugeIcon,
@@ -41,6 +70,9 @@ import {
 import type { IconComponent } from '@icons';
 import type {
   SenaCatalog,
+  SenaDeliveryFeeBucket,
+  SenaDeliveryFeeMetadata,
+  SenaDeliveryFeePayer,
   SenaLeadTimeVariabilityClass,
   SenaObservationInput,
   SenaObservationRegimeHint,
@@ -52,14 +84,32 @@ import type {
 } from '@shared/sena';
 import type { AppLanguage, InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
+  DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS,
+  type DesktopWorkbenchTileOrderLaneId,
+} from '@shared/ipc';
+import { formatPhoneForDisplay, normalizePhoneNumber } from '@shared/phone';
+import {
   classifyLeadTimeVariability,
   compatibilityRangeForClass,
   impliedLeadTimeRangeFromMeanStd,
   leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
 import { HelpTooltip } from '@/components/system/help-tooltip';
+import { AutoFitContainer } from '@/components/system/auto-fit-text';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
+import { SearchInput } from '@/components/system/search-input';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
+import {
+  createHeaderedTableLayout,
+  HeaderedTable,
+  HeaderedTableBody,
+  HeaderedTableHeader,
+  HeaderedTableHeaderCell,
+  HeaderedTableMobileLabel,
+  HeaderedTableRow,
+  HeaderedTableCellStack,
+} from '@/components/system/headered-table';
 import {
   recordUpdateTableCellClassName,
   recordUpdateTableHeadClassName,
@@ -77,8 +127,10 @@ import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
 import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { leadTimeVariabilityPlaceholderValue } from '@/lib/lead-time-variability-select';
@@ -91,16 +143,21 @@ import {
   RECORD_UPDATE_HUB_PATH,
   type BaseRecordUpdateLaneId,
 } from '@/lib/record-update-routes';
+import { readRecordUpdateSessionViewMode, type SessionViewMode } from '@/lib/record-update-session-view';
 import { activeSenaCatalog, matchesServiceSupplier, matchesSkuSupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import {
   buildCustomerLinkDirectory,
+  buildDeliveryFeeMetadata,
   buildTicketPartyMetadata,
   customerLinkWarning,
+  deliveryFeeBucketForWorkflow,
+  latestDeliveryFeeMetadata,
   latestTicketEvents,
   makeTicketId,
   normalizeTicketLookupValue,
   normalizeTicketPhone,
+  summarizeDeliveryFee,
   TICKET_CHANNEL_PRESETS,
   ticketLabel,
   type CustomerIdentityDraft,
@@ -108,6 +165,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { actionSheetTextareaClassName } from './detail-action-sheet';
 import { buildRankChangeByEntryKey } from './ranking-order';
 import {
   applyStockRowOrder,
@@ -116,6 +174,10 @@ import {
   reorderStockRows,
   writeStockRowOrder,
 } from './stock-row-order';
+import {
+  applyWorkbenchTileOrder,
+  mergeWorkbenchTileOrderForVisibleSubset,
+} from './workbench-tile-order';
 import { SectionLabel } from './sku-detail/section-heading';
 import { formatSenaDateTime, formatSenaLongDate } from './sku-detail/format';
 import {
@@ -123,10 +185,13 @@ import {
   hasStructuredObservationSignal,
   intervalDaysBetween,
   latestObservationAt,
+  observationSignalCounts,
   observationCompositionParts,
 } from './observation-payload';
 
 type StockView = 'priority' | 'counted' | 'all';
+type PosMetadataPopupId = 'timing' | 'customer' | 'notes' | 'context' | 'delivery';
+type PosWorkbenchFilterId = 'all' | 'services' | 'skus' | 'recent' | 'touched';
 type StockoutFlagValue = 'blocked' | 'stockout';
 type StockEventDropdownValue = 'none' | StockoutFlagValue;
 type StockUpdateStepId =
@@ -157,6 +222,504 @@ type TicketAuthoringMode = 'new' | 'edit';
 type SupplierTicketUpdateAction = 'revise_order' | 'revise_eta' | 'partial_received' | 'fully_received' | 'followup_logged' | 'canceled';
 type WorkflowStateFilterValue = CustomerPendingMode | CustomerCompletedMode | SupplierPendingMode | SupplierReceiptMode;
 type WorkflowStateFilterKind = 'order' | 'receipt';
+type WorkbenchReorderLaneId = DesktopWorkbenchTileOrderLaneId;
+
+const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS];
+const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
+
+interface PosWorkbenchTile {
+  key: string;
+  entityId: string;
+  title: string;
+  imagePath: string | null;
+  itemType: 'sku' | 'service';
+  kind: 'stock' | 'retail' | 'service' | 'supplier-order' | 'supplier-receipt';
+  stepId: StockUpdateStepId;
+  typeLabel: string;
+  metaLabel: string;
+  currentQuantity: number;
+  baselineQuantity: number;
+  unitAmount: number | null;
+  recentAt: string | null;
+  touched: boolean;
+}
+
+interface PosActiveLine {
+  key: string;
+  itemType: 'sku' | 'service';
+  title: string;
+  quantity: number;
+  unitAmount: number | null;
+  amountLabel: string;
+  stepId: StockUpdateStepId;
+  setQuantity: (value: number) => void;
+  increment: () => void;
+  decrement: () => void;
+  remove: () => void;
+}
+
+interface PosReceiptTextLine {
+  title: string;
+  quantity: number;
+  unitPriceLabel: string;
+  totalLabel: string;
+}
+
+interface StockCountPosChangeField {
+  key: 'units' | 'cost' | 'price' | 'flags';
+  label: string;
+  value: string;
+}
+
+interface StockCountPosChangeRow {
+  key: string;
+  skuId: string;
+  title: string;
+  imagePath: string | null;
+  changedFields: StockCountPosChangeField[];
+}
+
+interface DeliveryFeeDraftState {
+  amount: string;
+  payer: SenaDeliveryFeePayer;
+}
+
+const posReceiptConfirmTableLayout = createHeaderedTableLayout({
+  breakpoint: 'lg',
+  columns: 'minmax(0, 0.9fr) 4rem minmax(0, 1.25fr)',
+  gap: 4,
+});
+
+const stockCountPosSummaryTableLayout = createHeaderedTableLayout({
+  breakpoint: 'lg',
+  columns: 'minmax(0, 0.82fr) 7rem minmax(0, 1.24fr)',
+  gap: 4,
+});
+
+function posDialogQuantityValue(quantity: number) {
+  return String(Math.max(1, Math.trunc(quantity || 0)));
+}
+
+function parsePosQuantityInput(value: string, minimum = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return minimum;
+  }
+  return Math.max(minimum, Math.trunc(parsed));
+}
+
+function StockCountPosChangeTable({
+  changedRows,
+  emptyState,
+  language,
+  onOpenRow,
+}: {
+  changedRows: StockCountPosChangeRow[];
+  emptyState: string;
+  language: AppLanguage;
+  onOpenRow?: (row: StockCountPosChangeRow) => void;
+}) {
+  if (changedRows.length === 0) {
+    return (
+      <p className="rounded-2xl border border-dashed border-border/70 bg-background/80 px-3 py-4 text-sm text-muted-foreground">
+        {emptyState}
+      </p>
+    );
+  }
+
+  return (
+    <div style={stockCountPosSummaryTableLayout.style}>
+      <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} variant="overview">
+        <HeaderedTableHeader className={stockCountPosSummaryTableLayout.headerClassName}>
+          <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Details')}</HeaderedTableHeaderCell>
+        </HeaderedTableHeader>
+        <HeaderedTableBody className={stockCountPosSummaryTableLayout.bodyClassName}>
+          {changedRows.map((row) => {
+            const interactive = Boolean(onOpenRow);
+            return (
+              <HeaderedTableRow
+                aria-label={interactive ? translateUiLiteral(language, 'Edit {name} changed item', { name: row.title }) : undefined}
+                key={row.key}
+                className={cn(
+                  stockCountPosSummaryTableLayout.rowClassName,
+                  'items-start',
+                  interactive &&
+                    'cursor-pointer transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35',
+                )}
+                role={interactive ? 'button' : undefined}
+                tabIndex={interactive ? 0 : undefined}
+                onClick={interactive ? () => onOpenRow?.(row) : undefined}
+                onKeyDown={
+                  interactive
+                    ? (event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          onOpenRow?.(row);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <HeaderedTableCellStack
+                  primary={row.title}
+                  primaryClassName="font-semibold tracking-[-0.02em]"
+                />
+                <div className="min-w-0">
+                  <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
+                    {translateUiLiteral(language, 'Changed')}
+                  </HeaderedTableMobileLabel>
+                  <p className="text-center font-medium text-foreground tabular-nums">
+                    {translateUiLiteral(language, '{count} field{suffix}', {
+                      count: row.changedFields.length,
+                      suffix: row.changedFields.length === 1 ? '' : 's',
+                    })}
+                  </p>
+                </div>
+                <div className="grid gap-1 text-sm">
+                  <HeaderedTableMobileLabel className={stockCountPosSummaryTableLayout.mobileLabelClassName}>
+                    {translateUiLiteral(language, 'Details')}
+                  </HeaderedTableMobileLabel>
+                  {row.changedFields.map((field) => (
+                    <p key={field.key} className="flex items-baseline justify-between gap-3 whitespace-nowrap">
+                      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                        {field.label}
+                      </span>
+                      <span className="text-right font-medium text-foreground tabular-nums">{field.value}</span>
+                    </p>
+                  ))}
+                </div>
+              </HeaderedTableRow>
+            );
+          })}
+        </HeaderedTableBody>
+      </HeaderedTable>
+    </div>
+  );
+}
+
+function isWorkbenchReorderLaneId(value: string): value is WorkbenchReorderLaneId {
+  return WORKBENCH_REORDERABLE_LANE_IDS.includes(value as WorkbenchReorderLaneId);
+}
+
+function WorkbenchTileCard({
+  tile,
+}: {
+  tile: PosWorkbenchTile;
+}) {
+  return (
+    <>
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+        <ItemAvatar
+          className="size-full rounded-[1.8rem] border-border/60 bg-white text-muted-foreground shadow-sm"
+          imagePath={tile.imagePath}
+          name={tile.title}
+          size="hero"
+          type={tile.itemType}
+        />
+      </div>
+      <div className="flex min-h-[4.5rem] w-full items-center justify-center">
+        <p
+          className={cn(
+            'mx-auto max-w-[12rem] text-balance text-center text-lg font-semibold tracking-[-0.03em]',
+            tile.touched ? 'text-background' : 'text-foreground',
+          )}
+        >
+          {tile.itemType === 'service' ? (
+            <EntityServiceIcon data-icon="inline-start" className="mr-1 inline size-4 align-[-0.125em]" />
+          ) : (
+            <EntitySkuIcon data-icon="inline-start" className="mr-1 inline size-4 align-[-0.125em]" />
+          )}
+          <span>{tile.title}</span>
+        </p>
+      </div>
+    </>
+  );
+}
+
+function WorkbenchTileQuantityPill({
+  tile,
+}: {
+  tile: PosWorkbenchTile;
+}) {
+  if (tile.currentQuantity <= 0) {
+    return null;
+  }
+
+  return (
+    <span className="absolute right-2 top-2 z-20 translate-x-[28%] -translate-y-[28%]" data-slot="workbench-quantity-pill">
+      <span
+        className="inline-flex size-10 items-center justify-center rounded-full border border-foreground/45 bg-background text-foreground shadow-[0_8px_20px_rgba(48,31,20,0.12)]"
+      >
+        {tile.currentQuantity}
+      </span>
+    </span>
+  );
+}
+
+function workbenchTileButtonClassName({
+  isDragging = false,
+  reorderMode = false,
+}: {
+  isDragging?: boolean;
+  reorderMode?: boolean;
+}) {
+  return cn(
+    'relative block w-full aspect-square min-h-0 h-auto overflow-visible',
+    reorderMode && 'cursor-grab touch-none select-none',
+    isDragging && 'z-20 cursor-grabbing',
+  );
+}
+
+function workbenchTileShellClassName({
+  isDragging = false,
+  reorderMode = false,
+  touched,
+}: {
+  isDragging?: boolean;
+  reorderMode?: boolean;
+  touched: boolean;
+}) {
+  return cn(
+    'relative flex size-full min-h-0 flex-col items-center overflow-visible rounded-[1.45rem] border p-5 text-center transition-all',
+    touched
+      ? 'border-foreground/70 bg-foreground text-background shadow-[0_16px_44px_rgba(48,31,20,0.14)]'
+      : 'border-border/70 bg-white hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_14px_38px_rgba(48,31,20,0.10)]',
+    reorderMode && !isDragging && 'motion-safe:animate-[banji-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
+    isDragging && 'shadow-[0_24px_50px_rgba(48,31,20,0.22)]',
+  );
+}
+
+function workbenchTileInnerClassName() {
+  return 'relative flex size-full min-h-0 flex-col items-center justify-start overflow-visible text-inherit';
+}
+
+function WorkbenchTileVisual({
+  isDragging = false,
+  reorderMode = false,
+  tile,
+}: {
+  isDragging?: boolean;
+  reorderMode?: boolean;
+  tile: PosWorkbenchTile;
+}) {
+  return (
+    <div
+      className={workbenchTileShellClassName({ isDragging, reorderMode, touched: tile.touched })}
+      data-slot="workbench-tile-visual"
+    >
+      <div className={workbenchTileInnerClassName()}>
+        <WorkbenchTileQuantityPill tile={tile} />
+        <WorkbenchTileCard tile={tile} />
+      </div>
+    </div>
+  );
+}
+
+function SortableWorkbenchTile({
+  onHoldStart,
+  onHoldEnd,
+  tile,
+  reorderMode,
+  onActivate,
+}: {
+  onHoldStart: (tileKey: string) => void;
+  onHoldEnd: () => void;
+  tile: PosWorkbenchTile;
+  reorderMode: boolean;
+  onActivate: (tile: PosWorkbenchTile) => void;
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: tile.key,
+    animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true }),
+    transition: {
+      duration: 240,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    },
+  });
+
+  return (
+    <button
+      {...attributes}
+      {...listeners}
+      className={cn(
+        workbenchTileButtonClassName({ isDragging, reorderMode }),
+        isDragging && 'opacity-0',
+      )}
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+      }}
+      type="button"
+      onClick={() => {
+        if (reorderMode) {
+          return;
+        }
+        onActivate(tile);
+      }}
+      onPointerCancelCapture={onHoldEnd}
+      onPointerDownCapture={() => onHoldStart(tile.key)}
+      onPointerLeave={onHoldEnd}
+      onPointerUpCapture={onHoldEnd}
+    >
+      <WorkbenchTileVisual isDragging={isDragging} reorderMode={reorderMode} tile={tile} />
+    </button>
+  );
+}
+
+function PosQuantityEditor({
+  decrementLabel,
+  incrementLabel,
+  inputClassName,
+  inputLabel,
+  inputValue,
+  language,
+  onDecrement,
+  onIncrement,
+  onInputChange,
+  showLabel = false,
+  size = 'default',
+}: {
+  decrementLabel: string;
+  incrementLabel: string;
+  inputClassName?: string;
+  inputLabel: string;
+  inputValue: string;
+  language: AppLanguage;
+  onDecrement: () => void;
+  onIncrement: () => void;
+  onInputChange: (value: string) => void;
+  showLabel?: boolean;
+  size?: 'compact' | 'default';
+}) {
+  const buttonClassName =
+    size === 'compact'
+      ? 'inline-flex shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-foreground transition-colors hover:border-foreground/30'
+      : 'inline-flex shrink-0 items-center justify-center rounded-full border border-border/70 bg-background text-foreground transition-colors hover:border-foreground/30';
+  const resolvedInputClassName =
+    size === 'compact'
+      ? 'min-w-0 basis-0 rounded-full border-border/70 px-[0.65em] text-center shadow-none !text-[1em] md:!text-[1em] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+      : 'min-w-0 rounded-full border-border/70 text-center shadow-none !text-[1em] md:!text-[1em] [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+  const controlsClassName =
+    size === 'compact'
+      ? 'mx-auto flex w-full max-w-[12em] items-center gap-[0.5em]'
+      : 'grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3';
+  const buttonStyle =
+    size === 'compact'
+      ? { width: '2em', height: '2em' }
+      : { width: '2.75em', height: '2.75em' };
+  const inputStyle =
+    size === 'compact'
+      ? { height: '2.25em', fontSize: 'inherit' }
+      : { height: '2.75em', fontSize: 'inherit' };
+
+  return (
+    <div className="grid gap-2">
+      {showLabel ? (
+        <p className="text-center text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+          {translateUiLiteral(language, 'Qty')}
+        </p>
+      ) : null}
+      <div className={controlsClassName}>
+        <button aria-label={decrementLabel} className={buttonClassName} style={buttonStyle} type="button" onClick={onDecrement}>
+          <ActionZoomOutIcon data-icon="inline-start" style={{ height: '1em', width: '1em' }} />
+        </button>
+        <Input
+          aria-label={inputLabel}
+          className={cn(resolvedInputClassName, inputClassName)}
+          inputMode="numeric"
+          style={inputStyle}
+          type="number"
+          value={inputValue}
+          onChange={(event) => onInputChange(event.target.value)}
+        />
+        <button aria-label={incrementLabel} className={buttonClassName} style={buttonStyle} type="button" onClick={onIncrement}>
+          <ActionZoomInIcon data-icon="inline-start" style={{ height: '1em', width: '1em' }} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PosReceiptLineEditor({
+  currency,
+  language,
+  line,
+  onOpen,
+  usdToKhrExchangeRate,
+}: {
+  currency: 'USD' | 'KHR';
+  language: AppLanguage;
+  line: PosActiveLine;
+  onOpen: () => void;
+  usdToKhrExchangeRate: number;
+}) {
+  const unitPriceLabel =
+    line.unitAmount == null
+      ? translateUiLiteral(language, 'n/a')
+      : formatCurrency(line.unitAmount, currency, language, usdToKhrExchangeRate);
+  const totalLabel =
+    line.unitAmount == null
+      ? translateUiLiteral(language, '{count} units', { count: line.quantity })
+      : formatCurrency(line.quantity * line.unitAmount, currency, language, usdToKhrExchangeRate);
+
+  return (
+    <AutoFitContainer
+      aria-label={translateUiLiteral(language, 'Edit {name} receipt line', { name: line.title })}
+      className="grid min-w-0 cursor-pointer items-center gap-3 rounded-2xl px-3 py-4 text-left transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35"
+      maxFontSizePx={16}
+      minFontSizePx={8}
+      role="button"
+      tabIndex={0}
+      style={{ gridTemplateColumns: 'minmax(0, 0.86fr) 3.5em minmax(0, 1.34fr)' }}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+    >
+      <div className="min-w-0">
+        <p className="font-semibold leading-tight text-foreground" style={{ fontSize: '1em' }}>
+          {line.title}
+        </p>
+      </div>
+      <p className="min-w-0 text-center font-medium text-foreground tabular-nums" style={{ fontSize: '1em' }}>
+        {line.quantity}
+      </p>
+      <div className="min-w-0">
+        <div className="grid gap-[0.6em]" style={{ fontSize: '1em' }}>
+          <div className="flex min-w-0 items-baseline justify-between gap-[0.75em] whitespace-nowrap">
+            <span className="shrink-0 font-semibold uppercase tracking-[0.16em] text-muted-foreground" style={{ fontSize: '0.68em' }}>
+              {translateUiLiteral(language, 'Unit price')}
+            </span>
+            <span className="min-w-0 text-right font-medium text-foreground tabular-nums">
+              {unitPriceLabel}
+            </span>
+          </div>
+          <div className="flex min-w-0 items-baseline justify-between gap-[0.75em] whitespace-nowrap">
+            <span className="shrink-0 font-semibold uppercase tracking-[0.16em] text-muted-foreground" style={{ fontSize: '0.68em' }}>
+              {translateUiLiteral(language, 'Total price')}
+            </span>
+            <span className="min-w-0 text-right font-semibold text-foreground tabular-nums">
+              {totalLabel}
+            </span>
+          </div>
+        </div>
+      </div>
+    </AutoFitContainer>
+  );
+}
 
 const CUSTOMER_PENDING_MODE_OPTIONS = ['new_pending', 'modify_pending', 'cancel_pending'] as const satisfies readonly CustomerPendingMode[];
 const CUSTOMER_COMPLETED_MODE_OPTIONS = ['immediate_sale', 'refund_reversal'] as const satisfies readonly CustomerCompletedMode[];
@@ -213,6 +776,8 @@ interface StockUpdateSessionDraft {
   recordOrderLeadTimeMeanDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
   recordReceiptReceivedDate: string;
+  deliveryFeeAmount: string;
+  deliveryFeePayer: SenaDeliveryFeePayer;
   retailSalesChoice: OptionalStockStepChoice;
   serviceSalesChoice: OptionalStockStepChoice;
   retailSalesDrafts: SalesCountDrafts;
@@ -252,6 +817,10 @@ interface StockUpdateDraftState {
   recordOrderLeadTimeMeanDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
   recordReceiptReceivedDate: string;
+  deliveryFeeAmount: string;
+  deliveryFeePayer: SenaDeliveryFeePayer;
+  deliveryFeeBaselineAmount: string;
+  deliveryFeeBaselinePayer: SenaDeliveryFeePayer;
   serviceSalesChoice: OptionalStockStepChoice;
   serviceSalesDrafts: SalesCountDrafts;
   serviceRankings: string[];
@@ -732,6 +1301,10 @@ function isSupplierTicketUpdateAction(value: unknown): value is SupplierTicketUp
   return SUPPLIER_TICKET_UPDATE_ACTIONS.includes(value as SupplierTicketUpdateAction);
 }
 
+function isDeliveryFeePayer(value: unknown): value is SenaDeliveryFeePayer {
+  return value === 'customer' || value === 'merchant';
+}
+
 function sanitizeCustomerIdentity(value: unknown): CustomerIdentityDraft {
   if (!value || typeof value !== 'object') {
     return DEFAULT_CUSTOMER_IDENTITY;
@@ -741,8 +1314,20 @@ function sanitizeCustomerIdentity(value: unknown): CustomerIdentityDraft {
     channel: typeof record.channel === 'string' ? record.channel : '',
     customChannel: typeof record.customChannel === 'string' ? record.customChannel : '',
     customerName: typeof record.customerName === 'string' ? record.customerName : '',
-    phone: typeof record.phone === 'string' ? record.phone : '',
+    phone: typeof record.phone === 'string' ? normalizePhoneNumber(record.phone) : '',
   };
+}
+
+function defaultDeliveryFeePayer(bucket: SenaDeliveryFeeBucket | null): SenaDeliveryFeePayer {
+  return bucket === 'supplier' ? 'merchant' : 'customer';
+}
+
+function sanitizeDeliveryFeeAmount(value: unknown) {
+  return typeof value === 'string' ? value : '';
+}
+
+function deliveryFeeHelpText(language: AppLanguage) {
+  return translateUiLiteral(language, 'If the customer pays, delivery is added to the receipt total. If the merchant pays, the receipt shows $0 delivery and banji deducts the fee from the final net amount settled.');
 }
 
 function isRefundStockReturnChoice(value: unknown): value is RefundStockReturnChoice {
@@ -1159,6 +1744,8 @@ function hydrateStockUpdateDraft({
     recordOrderLeadTimeMeanDays: typeof draft.recordOrderLeadTimeMeanDays === 'string' ? draft.recordOrderLeadTimeMeanDays : '',
     recordOrderLeadTimeVariability: sanitizeLeadTimeVariability(draft.recordOrderLeadTimeVariability),
     recordReceiptReceivedDate: typeof draft.recordReceiptReceivedDate === 'string' ? draft.recordReceiptReceivedDate : '',
+    deliveryFeeAmount: sanitizeDeliveryFeeAmount(draft.deliveryFeeAmount),
+    deliveryFeePayer: isDeliveryFeePayer(draft.deliveryFeePayer) ? draft.deliveryFeePayer : 'customer',
     retailSalesChoice,
     serviceSalesChoice,
     retailSalesDrafts: sanitizeSalesCountDrafts(draft.retailSalesDrafts, retailSkuIds),
@@ -1200,6 +1787,10 @@ function hasMeaningfulStockUpdateChanges({
   recordOrderLeadTimeMeanDays,
   recordOrderLeadTimeVariability,
   recordReceiptReceivedDate,
+  deliveryFeeAmount,
+  deliveryFeePayer,
+  deliveryFeeBaselineAmount,
+  deliveryFeeBaselinePayer,
   rows,
   serviceSalesChoice,
   serviceSalesDrafts,
@@ -1222,6 +1813,8 @@ function hasMeaningfulStockUpdateChanges({
     recordOrderLeadTimeMeanDays.trim() !== '' ||
     recordOrderLeadTimeVariability !== '' ||
     recordReceiptReceivedDate.trim() !== '' ||
+    deliveryFeeAmount.trim() !== deliveryFeeBaselineAmount.trim() ||
+    deliveryFeePayer !== deliveryFeeBaselinePayer ||
     Object.keys(retailSalesDrafts).length > 0 ||
     Object.keys(serviceSalesDrafts).length > 0 ||
     retailSalesChoice !== 'unset' ||
@@ -1262,6 +1855,8 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     recordOrderLeadTimeMeanDays: state.recordOrderLeadTimeMeanDays,
     recordOrderLeadTimeVariability: state.recordOrderLeadTimeVariability,
     recordReceiptReceivedDate: state.recordReceiptReceivedDate,
+    deliveryFeeAmount: state.deliveryFeeAmount,
+    deliveryFeePayer: state.deliveryFeePayer,
     retailSalesChoice: state.retailSalesChoice,
     serviceSalesChoice: state.serviceSalesChoice,
     retailSalesDrafts: state.retailSalesDrafts,
@@ -1300,6 +1895,7 @@ function writeStockUpdateDraft(state: StockUpdateDraftState, draftStorageKey: st
 
 function buildFullObservationPayload({
   currency,
+  deliveryFee,
   editSession,
   notes,
   observedAtIso,
@@ -1314,6 +1910,7 @@ function buildFullObservationPayload({
   stockBySku,
 }: {
   currency: 'USD' | 'KHR';
+  deliveryFee: SenaDeliveryFeeMetadata | null;
   editSession: EditSessionState;
   notes: string;
   observedAtIso: string | null;
@@ -1331,6 +1928,7 @@ function buildFullObservationPayload({
     observedAt: observedAtIso ?? new Date().toISOString(),
     notes: notes.trim() || null,
   });
+  payload.deliveryFee = deliveryFee;
   payload.stockSnapshot = rows
     .filter((row) => shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku }))
     .map((row) => ({
@@ -1702,6 +2300,11 @@ function buildDraftsFromObservationInput({
         ? String(firstLeadTimeHint.typicalDays)
         : '';
   const recordOrderLeadTimeVariability = firstLeadTimeHint?.variabilityClass ?? '';
+  const deliveryFeeAmount =
+    input.deliveryFee?.feeUsd != null
+      ? String(displayMoneyFromUsd(input.deliveryFee.feeUsd, currency, usdToKhrExchangeRate))
+      : '';
+  const deliveryFeePayer = input.deliveryFee?.payer ?? 'customer';
 
   const serviceSignalDrafts: Record<string, ServiceSignalDraft> = {};
   for (const servicePrice of input.servicePrices) {
@@ -1758,6 +2361,10 @@ function buildDraftsFromObservationInput({
     recordOrderLeadTimeMeanDays,
     recordOrderLeadTimeVariability,
     recordReceiptReceivedDate,
+    deliveryFeeAmount,
+    deliveryFeePayer,
+    deliveryFeeBaselineAmount: deliveryFeeAmount,
+    deliveryFeeBaselinePayer: deliveryFeePayer,
     retailSalesChoice:
       Object.keys(retailSalesDrafts).length > 0 ? 'yes' : input.retailRankings.length > 0 ? 'no' : 'unset',
     serviceSalesChoice:
@@ -2494,15 +3101,98 @@ function RecordUpdateMobileLabel({
 
 function RecordUpdateFieldLabel({
   children,
+  className,
   htmlFor,
 }: {
   children: ReactNode;
+  className?: string;
   htmlFor?: string;
 }) {
   return (
-    <label className={cn(recordUpdateTableHeaderClassName, 'mb-2 block')} htmlFor={htmlFor}>
+    <label className={cn(recordUpdateTableHeaderClassName, 'mb-2 block', className)} htmlFor={htmlFor}>
       {children}
     </label>
+  );
+}
+
+function DeliveryFeeFields({
+  amountId,
+  amountInputRef,
+  amountLabel,
+  amountValue,
+  lockedPayer,
+  payer,
+  onAmountChange,
+  onPayerChange,
+}: {
+  amountId: string;
+  amountInputRef?: Ref<HTMLInputElement>;
+  amountLabel: string;
+  amountValue: string;
+  lockedPayer: boolean;
+  payer: SenaDeliveryFeePayer;
+  onAmountChange: (value: string) => void;
+  onPayerChange: (payer: SenaDeliveryFeePayer) => void;
+}) {
+  const { currency, language } = usePreferences();
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="grid gap-2">
+          <RecordUpdateFieldLabel htmlFor={amountId}>
+            <span className="inline-flex items-center gap-2">
+              <span>{amountLabel}</span>
+              <HelpTooltip
+                content={deliveryFeeHelpText(language)}
+                label={translateUiLiteral(language, 'Delivery fee')}
+              />
+            </span>
+          </RecordUpdateFieldLabel>
+          <Input
+            ref={amountInputRef}
+            id={amountId}
+            aria-label={amountLabel}
+            inputMode="decimal"
+            min="0"
+            step={moneyInputStep(currency)}
+            type="number"
+            value={amountValue}
+            onChange={(event) => onAmountChange(event.target.value)}
+          />
+        </div>
+        <div className="grid gap-2">
+          <RecordUpdateFieldLabel>{translateUiLiteral(language, 'Paid by')}</RecordUpdateFieldLabel>
+          {lockedPayer ? (
+            <div className="inline-flex h-10 w-fit items-center gap-2 rounded-full border border-border/70 bg-muted/40 px-4 text-sm font-medium text-foreground">
+              <EntityServiceIcon data-icon="inline-start" className="size-4" />
+              {translateUiLiteral(language, 'Merchant')}
+            </div>
+          ) : (
+            <ToggleGroup
+              aria-label={translateUiLiteral(language, 'Select who pays delivery')}
+              className="max-w-full justify-start self-start overflow-x-auto rounded-full bg-muted/40"
+              spacing={1}
+              type="single"
+              value={payer}
+              onValueChange={(value) => {
+                if (isDeliveryFeePayer(value)) {
+                  onPayerChange(value);
+                }
+              }}
+            >
+              <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="customer">
+                <EntityCustomerIcon data-icon="inline-start" className="size-4" />
+                {translateUiLiteral(language, 'Customer')}
+              </ToggleGroupItem>
+              <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="merchant">
+                <EntityServiceIcon data-icon="inline-start" className="size-4" />
+                {translateUiLiteral(language, 'Merchant')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2529,9 +3219,11 @@ function OptionalStockDecisionCard({
       </div>
       <div className="flex items-center justify-center gap-2">
         <Button type="button" variant={choice === 'yes' ? 'default' : 'outline'} onClick={onYes}>
+          <ActionConfirmIcon data-icon="inline-start" />
           {t('stockUpdateOptionalStepYes')}
         </Button>
         <Button type="button" variant={choice === 'no' ? 'secondary' : 'outline'} onClick={onNo}>
+          <ActionCloseIcon data-icon="inline-start" />
           {t('stockUpdateOptionalStepNo')}
         </Button>
       </div>
@@ -4094,12 +4786,26 @@ interface TicketPickerOption {
   metadata: string;
 }
 
+const customerChannelIconByValue: Record<string, IconComponent> = {
+  none: EntityNoChannelIcon,
+  'Walk-in': EntityWalkInChannelIcon,
+  Call: EntityCallChannelIcon,
+  Telegram: EntityTelegramChannelIcon,
+  WhatsApp: EntityWhatsAppChannelIcon,
+  Facebook: EntityFacebookChannelIcon,
+  SMS: EntitySmsChannelIcon,
+  Other: EntityOverflowMenuIcon,
+  custom: EntityCustomChannelIcon,
+};
+
 function CustomerMetadataFields({
+  compact = false,
   directory,
   identity,
   warning,
   onChange,
 }: {
+  compact?: boolean;
   directory: ReturnType<typeof buildCustomerLinkDirectory>;
   identity: CustomerIdentityDraft;
   warning: string | null;
@@ -4107,15 +4813,18 @@ function CustomerMetadataFields({
 }) {
   const { language } = usePreferences();
   const channelValue = identity.channel || 'none';
+  const SelectedChannelIcon = customerChannelIconByValue[channelValue] ?? EntityOverflowMenuIcon;
   return (
-    <div className="grid gap-4 rounded-2xl border border-border/70 bg-muted/20 p-4">
-      <div>
-        <p className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'Customer metadata')}</p>
-        <p className="text-sm leading-6 text-muted-foreground">
-          {translateUiLiteral(language, 'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.')}
-        </p>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
+    <div className={cn('grid gap-4', compact ? '' : 'rounded-2xl border border-border/70 bg-muted/20 p-4')}>
+      {!compact ? (
+        <div>
+          <p className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'Customer metadata')}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            {translateUiLiteral(language, 'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.')}
+          </p>
+        </div>
+      ) : null}
+      <div className={cn('grid gap-3', compact ? '' : 'md:grid-cols-3')}>
         <div className="grid gap-2">
           <label className="text-sm font-medium text-foreground" htmlFor="ticket-channel">
             {translateUiLiteral(language, 'Communication channel')}
@@ -4130,16 +4839,41 @@ function CustomerMetadataFields({
             }
           >
             <SelectTrigger id="ticket-channel" className={recordUpdateSelectTriggerClassName}>
-              <SelectValue />
+              <SelectValue>
+                <span className="flex items-center gap-2">
+                  <SelectedChannelIcon className="size-4 text-muted-foreground" />
+                  <span>
+                    {channelValue === 'none'
+                      ? translateUiLiteral(language, 'No channel')
+                      : channelValue === 'custom'
+                        ? translateUiLiteral(language, 'Custom')
+                        : translateUiLiteral(language, channelValue)}
+                  </span>
+                </span>
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">{translateUiLiteral(language, 'No channel')}</SelectItem>
+              <SelectItem value="none">
+                <EntityNoChannelIcon className="size-4" />
+                <span>{translateUiLiteral(language, 'No channel')}</span>
+              </SelectItem>
               {TICKET_CHANNEL_PRESETS.map((channel) => (
                 <SelectItem key={channel} value={channel}>
-                  {translateUiLiteral(language, channel)}
+                  {(() => {
+                    const ChannelIcon = customerChannelIconByValue[channel] ?? EntityOverflowMenuIcon;
+                    return (
+                      <>
+                        <ChannelIcon className="size-4" />
+                        <span>{translateUiLiteral(language, channel)}</span>
+                      </>
+                    );
+                  })()}
                 </SelectItem>
               ))}
-              <SelectItem value="custom">{translateUiLiteral(language, 'Custom')}</SelectItem>
+              <SelectItem value="custom">
+                <EntityCustomChannelIcon className="size-4" />
+                <span>{translateUiLiteral(language, 'Custom')}</span>
+              </SelectItem>
             </SelectContent>
           </Select>
           {identity.channel === 'custom' ? (
@@ -4179,6 +4913,7 @@ function CustomerMetadataFields({
             id="ticket-phone"
             value={identity.phone}
             onChange={(event) => onChange({ ...identity, phone: event.target.value })}
+            onBlur={() => onChange({ ...identity, phone: normalizePhoneNumber(identity.phone) })}
           />
         </div>
       </div>
@@ -4191,20 +4926,22 @@ function TicketEntryPrompt({
   family,
   mode,
   options,
+  onBeginEdit,
+  onBeginNew,
+  onDismiss,
   selectedTicketId,
-  supplierAction,
   onModeChange,
   onSelectTicket,
-  onSupplierActionChange,
 }: {
   family: 'customer' | 'supplier';
   mode: TicketAuthoringMode | null;
   options: TicketPickerOption[];
+  onBeginEdit?: () => void;
+  onBeginNew?: () => void;
+  onDismiss?: () => void;
   selectedTicketId: string | null;
-  supplierAction?: SupplierTicketUpdateAction;
   onModeChange: (mode: TicketAuthoringMode) => void;
   onSelectTicket: (ticketId: string) => void;
-  onSupplierActionChange?: (action: SupplierTicketUpdateAction) => void;
 }) {
   const { language } = usePreferences();
   if (mode === 'new' || (mode === 'edit' && selectedTicketId)) {
@@ -4215,8 +4952,16 @@ function TicketEntryPrompt({
     : translateUiLiteral(language, 'What do you want to do?');
   const newLabel = 'New';
   const editLabel = 'Edit/Update';
+  const canEdit = options.length > 0;
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6">
+    <div
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) {
+          onDismiss?.();
+        }
+      }}
+    >
       <section
         aria-label={title}
         className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
@@ -4235,11 +4980,26 @@ function TicketEntryPrompt({
         </div>
         {mode == null ? (
           <div className="mt-6 flex flex-wrap justify-end gap-3">
-            <Button type="button" variant="outline" onClick={() => onModeChange('new')}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onBeginNew?.();
+                onModeChange('new');
+              }}
+            >
               <ActionAddBadgeIcon className="size-4" />
               {translateUiLiteral(language, newLabel)}
             </Button>
-            <Button type="button" variant="outline" onClick={() => onModeChange('edit')}>
+            <Button
+              disabled={!canEdit}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                onBeginEdit?.();
+                onModeChange('edit');
+              }}
+            >
               <ActionEditIcon className="size-4" />
               {translateUiLiteral(language, editLabel)}
             </Button>
@@ -4247,21 +5007,6 @@ function TicketEntryPrompt({
         ) : null}
         {mode === 'edit' ? (
           <div className="mt-5 grid gap-3">
-            {family === 'supplier' && onSupplierActionChange ? (
-              <Select value={supplierAction ?? 'revise_order'} onValueChange={(value) => onSupplierActionChange(value as SupplierTicketUpdateAction)}>
-                <SelectTrigger className={recordUpdateSelectTriggerClassName}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="revise_order">{translateUiLiteral(language, 'Revise ordered quantity')}</SelectItem>
-                  <SelectItem value="revise_eta">{translateUiLiteral(language, 'Revise ETA')}</SelectItem>
-                  <SelectItem value="partial_received">{translateUiLiteral(language, 'Mark partial receipt')}</SelectItem>
-                  <SelectItem value="fully_received">{translateUiLiteral(language, 'Mark full receipt')}</SelectItem>
-                  <SelectItem value="followup_logged">{translateUiLiteral(language, 'Add follow-up note')}</SelectItem>
-                  <SelectItem value="canceled">{translateUiLiteral(language, 'Cancel order')}</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : null}
             <div className="max-h-72 overflow-auto rounded-2xl border border-border/70">
               {options.length > 0 ? options.map((option) => (
                 <button
@@ -4270,7 +5015,10 @@ function TicketEntryPrompt({
                   type="button"
                   onClick={() => onSelectTicket(option.id)}
                 >
-                  <span className="font-medium text-foreground">{option.label}</span>
+                  <span className="flex items-center gap-2 font-medium text-foreground">
+                    <EntityFlagIcon data-icon="inline-start" className="size-4 shrink-0" />
+                    <span>{option.label}</span>
+                  </span>
                   <span className="text-sm text-muted-foreground">{option.description}</span>
                   <span className="text-xs text-muted-foreground">{option.metadata}</span>
                 </button>
@@ -4325,6 +5073,7 @@ function ServiceSignalsStep({
           variant={debugCellBoundaries ? 'secondary' : 'outline'}
           onClick={onToggleDebugCellBoundaries}
         >
+          <ActionEditIcon data-icon="inline-start" />
           Cell boundaries
         </Button>
       }
@@ -4701,10 +5450,21 @@ export function StockUpdateSessionRoute() {
     updateSenaOrderChild,
     workspaceSummary,
   } = useInventory();
-  const { currency, language, showHeartbeatRibbons = true, t, usdToKhrExchangeRate } = usePreferences();
+  const {
+    currency,
+    language,
+    savePreferences,
+    showHeartbeatRibbons = true,
+    t,
+    usdToKhrExchangeRate,
+    workbenchTileOrderByLane,
+  } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
+  const workbenchReorderLaneId = isWorkbenchReorderLaneId(lane.id) ? lane.id : null;
+  const posViewAvailable = lane.id !== 'custom';
+  const [sessionViewMode, setSessionViewMode] = useState<SessionViewMode>(() => (posViewAvailable ? readRecordUpdateSessionViewMode() : 'form'));
   const routeCustomSelectedLaneIds = useMemo(() => {
     if (lane.id !== 'custom') {
       return [];
@@ -4744,6 +5504,8 @@ export function StockUpdateSessionRoute() {
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
+  const posDeliveryFeeInputRef = useRef<HTMLInputElement | null>(null);
+  const posReviewCancelButtonRef = useRef<HTMLButtonElement | null>(null);
   const [editSession, setEditSession] = useState<EditSessionState | null>(() =>
     incomingEditSession
       ? {
@@ -4764,6 +5526,7 @@ export function StockUpdateSessionRoute() {
   const [persistedStockRowOrder, setPersistedStockRowOrder] = useState(() => readStockRowOrder(stockRowOrderStorageKey));
   const [persistedRetailSalesRowOrder, setPersistedRetailSalesRowOrder] = useState(() => readStockRowOrder(retailSalesRowOrderStorageKey));
   const [persistedServiceSalesRowOrder, setPersistedServiceSalesRowOrder] = useState(() => readStockRowOrder(serviceSalesRowOrderStorageKey));
+  const [workbenchTileOrderDraftByLane, setWorkbenchTileOrderDraftByLane] = useState(workbenchTileOrderByLane);
   const [rows, setRows] = useState(() => buildInitialRows(catalog, observations));
   const selectedOrderBatch = useMemo(
     () =>
@@ -4821,6 +5584,7 @@ export function StockUpdateSessionRoute() {
       setRows(applyStockRowOrder(filtered, readStockRowOrder(stockRowOrderStorageKey)));
     }
   }, [initialSkuIds, catalog, observations, selectedOrderChildren, stockRowOrderStorageKey]);
+
   const [retailSalesChoice, setRetailSalesChoice] = useState<OptionalStockStepChoice>('unset');
   const [serviceSalesChoice, setServiceSalesChoice] = useState<OptionalStockStepChoice>('unset');
   const [retailSalesDrafts, setRetailSalesDrafts] = useState<SalesCountDrafts>({});
@@ -4829,6 +5593,10 @@ export function StockUpdateSessionRoute() {
   const [customerCompletedMode, setCustomerCompletedMode] = useState<CustomerCompletedMode>('immediate_sale');
   const [supplierPendingMode, setSupplierPendingMode] = useState<SupplierPendingMode>('new_supplier_order');
   const [supplierReceiptMode, setSupplierReceiptMode] = useState<SupplierReceiptMode>('against_pending_supplier_order');
+  const [deliveryFeeAmount, setDeliveryFeeAmount] = useState('');
+  const [deliveryFeePayer, setDeliveryFeePayer] = useState<SenaDeliveryFeePayer>('customer');
+  const [deliveryFeeBaselineAmount, setDeliveryFeeBaselineAmount] = useState('');
+  const [deliveryFeeBaselinePayer, setDeliveryFeeBaselinePayer] = useState<SenaDeliveryFeePayer>('customer');
   const [customerTicketMode, setCustomerTicketMode] = useState<TicketAuthoringMode | null>(
     () => (lane.id === 'customer-order-pending' ? routeTicketMode : null),
   );
@@ -4838,9 +5606,22 @@ export function StockUpdateSessionRoute() {
   const [selectedCustomerTicketId, setSelectedCustomerTicketId] = useState<string | null>(
     lane.id === 'customer-order-pending' ? routeTicketId : null,
   );
-  const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(routeBatchOrderId ?? routeChildOrderId);
+  const [selectedSupplierTicketId, setSelectedSupplierTicketId] = useState<string | null>(
+    routeBatchOrderId ?? routeChildOrderId ?? (lane.id === 'supplier-order-pending' ? routeTicketId : null),
+  );
   const [supplierTicketUpdateAction, setSupplierTicketUpdateAction] = useState<SupplierTicketUpdateAction>('revise_order');
   const [customerIdentity, setCustomerIdentity] = useState<CustomerIdentityDraft>(DEFAULT_CUSTOMER_IDENTITY);
+  const [activePosMetadataPopup, setActivePosMetadataPopup] = useState<PosMetadataPopupId | null>(null);
+  const [activePosTileKey, setActivePosTileKey] = useState<string | null>(null);
+  const [activeWorkbenchDragTileKey, setActiveWorkbenchDragTileKey] = useState<string | null>(null);
+  const [posTileDialogQuantity, setPosTileDialogQuantity] = useState('1');
+  const [posReceiptConfirmOpen, setPosReceiptConfirmOpen] = useState(false);
+  const [posReceiptCopyStatus, setPosReceiptCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [posWorkbenchSearch, setPosWorkbenchSearch] = useState('');
+  const [posWorkbenchFilter, setPosWorkbenchFilter] = useState<PosWorkbenchFilterId>('all');
+  const [workbenchReorderMode, setWorkbenchReorderMode] = useState(false);
+  const [workbenchReorderPromptOpen, setWorkbenchReorderPromptOpen] = useState(false);
+  const [posTouchedLineKeys, setPosTouchedLineKeys] = useState<string[]>([]);
   const [customerPendingModeFilters, setCustomerPendingModeFilters] = useState<CustomerPendingMode[]>(() => [...CUSTOMER_PENDING_MODE_OPTIONS]);
   const [customerCompletedModeFilters, setCustomerCompletedModeFilters] = useState<CustomerCompletedMode[]>(() => [...CUSTOMER_COMPLETED_MODE_OPTIONS]);
   const [supplierPendingModeFilters, setSupplierPendingModeFilters] = useState<SupplierPendingMode[]>(() => [...SUPPLIER_PENDING_MODE_OPTIONS]);
@@ -4863,8 +5644,52 @@ export function StockUpdateSessionRoute() {
   const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft(draftStorageKey));
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
+  const workbenchHoldTimerRef = useRef<number | null>(null);
+  const pendingWorkbenchInteractionRef = useRef<null | (() => void)>(null);
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
   const workingCatalog = editSession ? catalog : visibleCatalog;
+  useEffect(() => {
+    setWorkbenchTileOrderDraftByLane(workbenchTileOrderByLane);
+  }, [workbenchTileOrderByLane]);
+  useEffect(() => {
+    if (sessionViewMode === 'pos' && workbenchReorderLaneId) {
+      return;
+    }
+    setWorkbenchReorderMode(false);
+    setWorkbenchReorderPromptOpen(false);
+    setActiveWorkbenchDragTileKey(null);
+  }, [sessionViewMode, workbenchReorderLaneId]);
+  useEffect(() => {
+    if (!workbenchReorderMode) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape') {
+        return;
+      }
+      pendingWorkbenchInteractionRef.current = null;
+      setWorkbenchReorderPromptOpen(false);
+      setWorkbenchReorderMode(false);
+      setActiveWorkbenchDragTileKey(null);
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [workbenchReorderMode]);
+  useEffect(() => {
+    setSessionViewMode(posViewAvailable ? readRecordUpdateSessionViewMode() : 'form');
+  }, [lane.id, posViewAvailable]);
+  useEffect(() => {
+    setPosWorkbenchSearch('');
+    setPosWorkbenchFilter('all');
+    setPosTouchedLineKeys([]);
+    setActivePosMetadataPopup(null);
+    setActivePosTileKey(null);
+    setPosTileDialogQuantity('1');
+    setPosReceiptConfirmOpen(false);
+    setPosReceiptCopyStatus('idle');
+  }, [lane.id]);
   useEffect(() => {
     if (selectedOrderChildren.length === 0 || draftWasRestored || editSession) {
       return;
@@ -5040,11 +5865,26 @@ export function StockUpdateSessionRoute() {
   const serviceFlagsValid = !serviceFlagsHaveEmptyRequiredValues(serviceSignalDrafts);
   const isCustomLane = lane.id === 'custom';
   const hasStockCountLane = selectedBaseLaneIds.includes('stock-count');
+  const stockCountPosMode = sessionViewMode === 'pos' && lane.id === 'stock-count';
   const isCustomerPendingLane = selectedBaseLaneIds.includes('customer-order-pending');
   const isCustomerCompletedLane = selectedBaseLaneIds.includes('customer-order-completed');
   const isSupplierPendingLane = selectedBaseLaneIds.includes('supplier-order-pending');
   const isSupplierReceiptLane = selectedBaseLaneIds.includes('supplier-receipt');
   const isCustomerTicketLane = isCustomerPendingLane || isCustomerCompletedLane;
+  const deliveryFeeBucket = useMemo(
+    () =>
+      deliveryFeeBucketForWorkflow({
+        customerCompletedMode,
+        isCustomerCompletedLane,
+        isCustomerPendingLane,
+        isSupplierPendingLane,
+        isSupplierReceiptLane,
+      }),
+    [customerCompletedMode, isCustomerCompletedLane, isCustomerPendingLane, isSupplierPendingLane, isSupplierReceiptLane],
+  );
+  const deliveryFeeEnabled = deliveryFeeBucket != null;
+  const deliveryFeePayerLocked = deliveryFeeBucket === 'supplier';
+  const deliveryFeeDefaultPayer = defaultDeliveryFeePayer(deliveryFeeBucket);
   const skipsFirstStockRequirement = !hasStockCountLane;
   const customerDirectory = useMemo(() => buildCustomerLinkDirectory(observations), [observations]);
   const customerIdentityWarning = useMemo(
@@ -5052,6 +5892,38 @@ export function StockUpdateSessionRoute() {
     [customerDirectory, customerIdentity],
   );
   const ticketEvents = useMemo(() => latestTicketEvents(observations), [observations]);
+  const latestHistoricalDeliveryFee = useMemo(
+    () => (deliveryFeeBucket == null ? null : latestDeliveryFeeMetadata(observations, deliveryFeeBucket)),
+    [deliveryFeeBucket, observations],
+  );
+  useEffect(() => {
+    if (draftWasRestored || editSession) {
+      return;
+    }
+    const sourceMetadata =
+      selectedOrderBatch?.shared.deliveryFee
+      ?? latestHistoricalDeliveryFee;
+    const nextAmount =
+      sourceMetadata?.feeUsd != null
+        ? String(displayMoneyFromUsd(sourceMetadata.feeUsd, currency, usdToKhrExchangeRate))
+        : '';
+    const nextPayer = deliveryFeePayerLocked
+      ? 'merchant'
+      : sourceMetadata?.payer ?? deliveryFeeDefaultPayer;
+    setDeliveryFeeAmount(nextAmount);
+    setDeliveryFeePayer(nextPayer);
+    setDeliveryFeeBaselineAmount(nextAmount);
+    setDeliveryFeeBaselinePayer(nextPayer);
+  }, [
+    currency,
+    deliveryFeeDefaultPayer,
+    deliveryFeePayerLocked,
+    draftWasRestored,
+    editSession,
+    latestHistoricalDeliveryFee,
+    selectedOrderBatch,
+    usdToKhrExchangeRate,
+  ]);
   const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
     const seen = new Set<string>();
     return ticketEvents.flatMap((event) => {
@@ -5064,7 +5936,7 @@ export function StockUpdateSessionRoute() {
         id: event.ticketId,
         label: ticketLabel(event),
         description: `${channel} · ${event.lines.length} item${event.lines.length === 1 ? '' : 's'}`,
-        metadata: event.party?.phone ?? event.note ?? event.occurredAt,
+        metadata: event.party?.phone ? formatPhoneForDisplay(event.party.phone) : event.note ?? event.occurredAt,
       }];
     });
   }, [ticketEvents]);
@@ -5100,6 +5972,129 @@ export function StockUpdateSessionRoute() {
       return true;
     });
   }, [orderBatches, ticketEvents]);
+  const deferredPosWorkbenchSearch = useDeferredValue(posWorkbenchSearch);
+  const posTouchedLineKeySet = useMemo(() => new Set(posTouchedLineKeys), [posTouchedLineKeys]);
+  const workbenchTileOrder = useMemo(
+    () => (workbenchReorderLaneId ? workbenchTileOrderDraftByLane[workbenchReorderLaneId] ?? [] : []),
+    [workbenchReorderLaneId, workbenchTileOrderDraftByLane],
+  );
+  const skuById = useMemo(() => new Map((workingCatalog?.skus ?? []).map((sku) => [sku.skuId, sku] as const)), [workingCatalog?.skus]);
+  const serviceById = useMemo(() => new Map((workingCatalog?.services ?? []).map((service) => [service.serviceId, service] as const)), [workingCatalog?.services]);
+  const deliveryFeeUsd = useMemo(() => {
+    const trimmed = deliveryFeeAmount.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      return null;
+    }
+    return usdMoneyFromDisplay(parsed, currency, usdToKhrExchangeRate);
+  }, [currency, deliveryFeeAmount, usdToKhrExchangeRate]);
+  const deliverySubtotalUsd = useMemo(() => {
+    if (!deliveryFeeEnabled) {
+      return null;
+    }
+    if (isSupplierPendingLane || isSupplierReceiptLane) {
+      return Object.entries(skuSignalDrafts).reduce((sum, [skuId, draft]) => {
+        const quantityText = isSupplierPendingLane ? draft.orderedQuantity.trim() : draft.receiptQuantity.trim();
+        if (!quantityText) {
+          return sum;
+        }
+        const quantity = Number(quantityText);
+        if (!Number.isFinite(quantity) || quantity <= 0) {
+          return sum;
+        }
+        const row = rows.find((entry) => entry.skuId === skuId);
+        const unitCost = row?.costPerUnit ?? skuById.get(skuId)?.costPerUnit ?? null;
+        return unitCost == null ? sum : sum + unitCost * quantity;
+      }, 0);
+    }
+    if (isCustomerPendingLane || isCustomerCompletedLane) {
+      return [
+        ...Object.entries(retailSalesDrafts).map(([skuId, value]) => {
+          const quantity = Number(value.trim());
+          const unitAmount = skuById.get(skuId)?.productPrice ?? null;
+          return Number.isFinite(quantity) && quantity > 0 && unitAmount != null ? quantity * unitAmount : 0;
+        }),
+        ...Object.entries(serviceSalesDrafts).map(([serviceId, value]) => {
+          const quantity = Number(value.trim());
+          const unitAmount = serviceById.get(serviceId)?.price ?? null;
+          return Number.isFinite(quantity) && quantity > 0 && unitAmount != null ? quantity * unitAmount : 0;
+        }),
+      ].reduce((sum, value) => sum + value, 0);
+    }
+    return null;
+  }, [
+    deliveryFeeEnabled,
+    isCustomerCompletedLane,
+    isCustomerPendingLane,
+    isSupplierPendingLane,
+    isSupplierReceiptLane,
+    retailSalesDrafts,
+    rows,
+    serviceById,
+    serviceSalesDrafts,
+    skuById,
+    skuSignalDrafts,
+  ]);
+  const activeDeliveryFeeMetadata = useMemo(() => {
+    if (!deliveryFeeEnabled || deliveryFeeBucket == null) {
+      return null;
+    }
+    return buildDeliveryFeeMetadata({
+      bucket: deliveryFeeBucket,
+      feeUsd: deliveryFeeUsd,
+      payer: deliveryFeePayerLocked ? 'merchant' : deliveryFeePayer,
+      subtotalUsd: deliverySubtotalUsd,
+    });
+  }, [deliveryFeeBucket, deliveryFeeEnabled, deliveryFeePayer, deliveryFeePayerLocked, deliveryFeeUsd, deliverySubtotalUsd]);
+  const activeDeliverySummary = useMemo(
+    () =>
+      activeDeliveryFeeMetadata == null
+        ? summarizeDeliveryFee({
+            bucket: deliveryFeeBucket ?? 'customer_order',
+            feeUsd: null,
+            payer: deliveryFeePayerLocked ? 'merchant' : deliveryFeePayer,
+            subtotalUsd: deliverySubtotalUsd,
+          })
+        : {
+            subtotalUsd: activeDeliveryFeeMetadata.subtotalUsd,
+            displayDeliveryUsd: activeDeliveryFeeMetadata.displayDeliveryUsd,
+            displayTotalUsd: activeDeliveryFeeMetadata.displayTotalUsd,
+            netSettlementUsd: activeDeliveryFeeMetadata.netSettlementUsd,
+          },
+    [activeDeliveryFeeMetadata, deliveryFeeBucket, deliveryFeePayer, deliveryFeePayerLocked, deliverySubtotalUsd],
+  );
+  const deliverySubtotalLabel = useMemo(
+    () =>
+      activeDeliverySummary.subtotalUsd == null
+        ? translateUiLiteral(language, 'n/a')
+        : formatCurrency(activeDeliverySummary.subtotalUsd, currency, language, usdToKhrExchangeRate),
+    [activeDeliverySummary.subtotalUsd, currency, language, usdToKhrExchangeRate],
+  );
+  const deliveryDisplayLabel = useMemo(
+    () =>
+      activeDeliverySummary.displayDeliveryUsd == null
+        ? translateUiLiteral(language, 'n/a')
+        : formatCurrency(activeDeliverySummary.displayDeliveryUsd, currency, language, usdToKhrExchangeRate),
+    [activeDeliverySummary.displayDeliveryUsd, currency, language, usdToKhrExchangeRate],
+  );
+  const deliveryTotalLabel = useMemo(
+    () =>
+      activeDeliverySummary.displayTotalUsd == null
+        ? translateUiLiteral(language, 'n/a')
+        : formatCurrency(activeDeliverySummary.displayTotalUsd, currency, language, usdToKhrExchangeRate),
+    [activeDeliverySummary.displayTotalUsd, currency, language, usdToKhrExchangeRate],
+  );
+
+  const markPosLineTouched = useCallback((key: string) => {
+    setPosTouchedLineKeys((current) => (current.includes(key) ? current : [...current, key]));
+  }, []);
+
+  const clearPosLineTouched = useCallback((key: string) => {
+    setPosTouchedLineKeys((current) => current.filter((entry) => entry !== key));
+  }, []);
 
   function updateCustomerPendingModeFilters(values: CustomerPendingMode[]) {
     setCustomerPendingModeFilters(values);
@@ -5163,6 +6158,10 @@ export function StockUpdateSessionRoute() {
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
+      deliveryFeeAmount,
+      deliveryFeePayer,
+      deliveryFeeBaselineAmount,
+      deliveryFeeBaselinePayer,
       supplierPendingMode,
       supplierReceiptMode,
       customerTicketMode,
@@ -5199,6 +6198,10 @@ export function StockUpdateSessionRoute() {
       recordOrderLeadTimeMeanDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
+      deliveryFeeAmount,
+      deliveryFeePayer,
+      deliveryFeeBaselineAmount,
+      deliveryFeeBaselinePayer,
       supplierPendingMode,
       supplierReceiptMode,
       customerTicketMode,
@@ -5287,6 +6290,10 @@ export function StockUpdateSessionRoute() {
     setRecordOrderLeadTimeMeanDays(hydratedState.recordOrderLeadTimeMeanDays);
     setRecordOrderLeadTimeVariability(hydratedState.recordOrderLeadTimeVariability);
     setRecordReceiptReceivedDate(hydratedState.recordReceiptReceivedDate);
+    setDeliveryFeeAmount(hydratedState.deliveryFeeAmount);
+    setDeliveryFeePayer(hydratedState.deliveryFeePayer);
+    setDeliveryFeeBaselineAmount(hydratedState.deliveryFeeBaselineAmount);
+    setDeliveryFeeBaselinePayer(hydratedState.deliveryFeeBaselinePayer);
     setStockStepChoices(hydratedState.stockStepChoices);
     setServiceSignalDrafts(hydratedState.serviceSignalDrafts);
     setRegimeHint(hydratedState.regimeHint);
@@ -5355,6 +6362,8 @@ export function StockUpdateSessionRoute() {
       setSupplierTicketMode(routeTicketMode);
       if (routeTicketMode === 'new') {
         setSelectedSupplierTicketId(routeBatchOrderId ?? routeChildOrderId);
+      } else if (routeTicketId) {
+        setSelectedSupplierTicketId(routeTicketId);
       }
     }
   }, [lane.id, routeBatchOrderId, routeChildOrderId, routeTicketId, routeTicketMode]);
@@ -5422,6 +6431,10 @@ export function StockUpdateSessionRoute() {
         setRecordOrderLeadTimeMeanDays(hydratedDraft.recordOrderLeadTimeMeanDays);
         setRecordOrderLeadTimeVariability(hydratedDraft.recordOrderLeadTimeVariability);
         setRecordReceiptReceivedDate(hydratedDraft.recordReceiptReceivedDate);
+        setDeliveryFeeAmount(hydratedDraft.deliveryFeeAmount);
+        setDeliveryFeePayer(hydratedDraft.deliveryFeePayer);
+        setDeliveryFeeBaselineAmount(hydratedDraft.deliveryFeeAmount);
+        setDeliveryFeeBaselinePayer(hydratedDraft.deliveryFeePayer);
         setStockStepChoices(hydratedDraft.stockStepChoices);
         setServiceSignalDrafts(hydratedDraft.serviceSignalDrafts);
         setRegimeHint(hydratedDraft.regimeHint);
@@ -5508,6 +6521,24 @@ export function StockUpdateSessionRoute() {
           },
         ]),
       ),
+    );
+    setDeliveryFeeAmount((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
+    );
+    setDeliveryFeeBaselineAmount((current) =>
+      reformatMoneyDraftValue({
+        value: current,
+        previousCurrency: previous.currency,
+        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
+        nextCurrency: currency,
+        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
+      }),
     );
     previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
   }, [currency, usdToKhrExchangeRate]);
@@ -5650,6 +6681,7 @@ export function StockUpdateSessionRoute() {
   function finalizeTicketPayload(payload: SenaObservationInput) {
     const observedAtValue = payload.observedAt || observedAtIso || new Date().toISOString();
     const nextTicketEvents: SenaTicketEvent[] = [...(payload.ticketEvents ?? [])];
+    payload.deliveryFee = activeDeliveryFeeMetadata;
 
     if (isCustomerPendingLane) {
       const lines = ticketLinesFromCommercialEvents(payload, 'customer');
@@ -5673,6 +6705,7 @@ export function StockUpdateSessionRoute() {
           nextTouchAt: null,
           party: buildTicketPartyMetadata(customerIdentity),
           lines,
+          deliveryFee: activeDeliveryFeeMetadata,
           note: notes.trim() || null,
         });
       }
@@ -5692,6 +6725,7 @@ export function StockUpdateSessionRoute() {
           nextTouchAt: null,
           party: buildTicketPartyMetadata(customerIdentity),
           lines,
+          deliveryFee: activeDeliveryFeeMetadata,
           note: notes.trim() || null,
         });
       }
@@ -5745,6 +6779,7 @@ export function StockUpdateSessionRoute() {
             supplierName: workingCatalog?.skus.find((sku) => sku.skuId === lines[0]?.entityId)?.supplierName ?? null,
           },
           lines,
+          deliveryFee: activeDeliveryFeeMetadata,
           note: notes.trim() || null,
         });
       }
@@ -6565,6 +7600,7 @@ export function StockUpdateSessionRoute() {
     if (editSession) {
       return buildFullObservationPayload({
         currency,
+        deliveryFee: activeDeliveryFeeMetadata,
         editSession,
         notes,
         observedAtIso,
@@ -6634,6 +7670,7 @@ export function StockUpdateSessionRoute() {
 
   const previewPayload = buildPayload();
   const previewParts = observationCompositionParts(previewPayload);
+  const previewCounts = observationSignalCounts(previewPayload);
   const requiresFirstStockSnapshot = isFirstObservation && previewPayload.stockSnapshot.length === 0;
   const submitDisabled =
     isSaving ||
@@ -6926,10 +7963,26 @@ export function StockUpdateSessionRoute() {
 
   function resetRecordUpdateState() {
     const nextObservedAt = localDateTimeInputValue(null);
+    const resetDeliverySource = selectedOrderBatch?.shared.deliveryFee ?? latestHistoricalDeliveryFee;
+    const resetDeliveryAmount =
+      resetDeliverySource?.feeUsd != null
+        ? String(displayMoneyFromUsd(resetDeliverySource.feeUsd, currency, usdToKhrExchangeRate))
+        : '';
+    const resetDeliveryPayer = deliveryFeePayerLocked
+      ? 'merchant'
+      : resetDeliverySource?.payer ?? deliveryFeeDefaultPayer;
     initialObservedAtRef.current = nextObservedAt;
     setEditSession(null);
     setPendingEditSession(null);
     setReplaceDraftDialogOpen(false);
+    setActivePosMetadataPopup(null);
+    setActivePosTileKey(null);
+    setPosTileDialogQuantity('1');
+    setPosReceiptConfirmOpen(false);
+    setPosReceiptCopyStatus('idle');
+    setPosWorkbenchSearch('');
+    setPosWorkbenchFilter('all');
+    setPosTouchedLineKeys([]);
     setCustomSelectedLaneIds(lane.id === 'custom' ? routeCustomSelectedLaneIds : []);
     setCurrentStepId('observed-at');
     setUnlockedStepCount(1);
@@ -6946,10 +7999,12 @@ export function StockUpdateSessionRoute() {
     setCustomerCompletedMode('immediate_sale');
     setSupplierPendingMode('new_supplier_order');
     setSupplierReceiptMode('against_pending_supplier_order');
-    setCustomerTicketMode(null);
-    setSupplierTicketMode(null);
-    setSelectedCustomerTicketId(null);
-    setSelectedSupplierTicketId(null);
+    setCustomerTicketMode(lane.id === 'customer-order-pending' ? routeTicketMode : null);
+    setSupplierTicketMode(lane.id === 'supplier-order-pending' ? routeTicketMode : null);
+    setSelectedCustomerTicketId(lane.id === 'customer-order-pending' ? routeTicketId : null);
+    setSelectedSupplierTicketId(
+      lane.id === 'supplier-order-pending' ? routeBatchOrderId ?? routeChildOrderId ?? routeTicketId : null,
+    );
     setSupplierTicketUpdateAction('revise_order');
     setCustomerIdentity(DEFAULT_CUSTOMER_IDENTITY);
     setRefundStockReturnDrafts({});
@@ -6958,6 +8013,10 @@ export function StockUpdateSessionRoute() {
     setRecordOrderLeadTimeMeanDays('');
     setRecordOrderLeadTimeVariability('');
     setRecordReceiptReceivedDate('');
+    setDeliveryFeeAmount(resetDeliveryAmount);
+    setDeliveryFeePayer(resetDeliveryPayer);
+    setDeliveryFeeBaselineAmount(resetDeliveryAmount);
+    setDeliveryFeeBaselinePayer(resetDeliveryPayer);
     setStockStepChoices(createDefaultStockStepChoices());
     setServiceSignalDrafts({});
     setRegimeHint('');
@@ -6966,7 +8025,7 @@ export function StockUpdateSessionRoute() {
     setError(null);
   }
 
-  function handleDiscardChanges() {
+  function clearCurrentSession() {
     skipNextDraftPersistRef.current = true;
     removeStockUpdateDraft(draftStorageKey);
     setHasSavedDraft(false);
@@ -6974,28 +8033,42 @@ export function StockUpdateSessionRoute() {
     resetRecordUpdateState();
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
+  function handleDiscardChanges() {
+    clearCurrentSession();
+    navigate(RECORD_UPDATE_HUB_PATH, { replace: true });
+  }
+
+  function submitValidationError(payload: SenaObservationInput) {
     if (!observedAtIso) {
-      setError(t('stockUpdateSaveObservedAtError'));
-      return;
+      return t('stockUpdateSaveObservedAtError');
     }
-    const payload = buildPayload();
     if (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) {
-      setError(t('stockUpdateGuidanceFillSkuFlagsSave'));
-      return;
+      return t('stockUpdateGuidanceFillSkuFlagsSave');
     }
     if (lane.id !== 'stock-count' && !serviceFlagsValid) {
-      setError(t('stockUpdateGuidanceFillServiceFlagsSave'));
-      return;
+      return t('stockUpdateGuidanceFillServiceFlagsSave');
     }
     if (!hasStructuredObservationSignal(payload)) {
-      setError(addSignalGuidanceText);
-      return;
+      return addSignalGuidanceText;
     }
     if (!skipsFirstStockRequirement && isFirstObservation && payload.stockSnapshot.length === 0) {
-      setError(t('stockUpdateGuidanceFirstUpdateNeedsCount'));
+      return t('stockUpdateGuidanceFirstUpdateNeedsCount');
+    }
+    if (deliveryFeeAmount.trim() !== '') {
+      const parsed = Number(deliveryFeeAmount);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        return translateUiLiteral(language, 'Delivery fee must be a non-negative amount.');
+      }
+    }
+    return null;
+  }
+
+  async function saveCurrentSession() {
+    setError(null);
+    const payload = buildPayload();
+    const validationError = submitValidationError(payload);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     try {
@@ -7010,15 +8083,20 @@ export function StockUpdateSessionRoute() {
           placementTimestamp: observedAtIso,
           leadTimeDaysHint: tableMeanDays,
           leadTimeVariability: recordOrderLeadTimeVariability || null,
+          deliveryFee: activeDeliveryFeeMetadata,
         };
         if (selectedOrderBatch && routeBatchOrderId) {
           if (routeChildOrderId) {
             const selectedChild = selectedOrderChildren[0] ?? null;
             const draft = selectedChild ? visibleSkuSignalDrafts[selectedChild.skuId] : null;
+            await updateSenaOrderBatch({
+              batchOrderId: routeBatchOrderId,
+              supplierName: selectedOrderBatch.supplierName,
+              shared: sharedFields,
+            });
             await updateSenaOrderChild({
               childOrderId: routeChildOrderId,
               overrides: {
-                ...sharedFields,
                 orderedQuantity: draft?.orderedQuantity ? Number(draft.orderedQuantity) : null,
               },
             });
@@ -7063,6 +8141,13 @@ export function StockUpdateSessionRoute() {
       }
       if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && routeBatchOrderId) {
         const targetChildren = selectedOrderChildren.length > 0 ? selectedOrderChildren : [];
+        await updateSenaOrderBatch({
+          batchOrderId: routeBatchOrderId,
+          supplierName: selectedOrderBatch?.supplierName ?? null,
+          shared: {
+            deliveryFee: activeDeliveryFeeMetadata,
+          },
+        });
         for (const child of targetChildren) {
           const draft = visibleSkuSignalDrafts[child.skuId];
           const quantity = draft?.receiptQuantity?.trim() ? Number(draft.receiptQuantity) : null;
@@ -7114,6 +8199,32 @@ export function StockUpdateSessionRoute() {
       });
     };
     window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const payload = buildPayload();
+    const validationError = submitValidationError(payload);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    if (sessionViewMode === 'pos') {
+      setPosReceiptCopyStatus('idle');
+      setPosReceiptConfirmOpen(true);
+      return;
+    }
+    await saveCurrentSession();
+  }
+
+  async function copyPosReceiptPlainText() {
+    try {
+      await navigator.clipboard.writeText(posReceiptPlainText);
+      setPosReceiptCopyStatus('copied');
+    } catch {
+      setPosReceiptCopyStatus('failed');
+    }
   }
 
   const discardChangesDescription =
@@ -7291,7 +8402,7 @@ export function StockUpdateSessionRoute() {
         disabled={!canDiscardChanges}
         title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
         type="button"
-        variant="ghost"
+        variant="destructive-outline"
         onClick={() => requestDiscard()}
       >
         <ActionDeleteIcon className="size-4" />
@@ -7307,7 +8418,7 @@ export function StockUpdateSessionRoute() {
         disabled={!canDiscardChanges}
         title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
         type="button"
-        variant="ghost"
+        variant="destructive-outline"
         onClick={() => requestDiscard()}
       >
         <ActionDeleteIcon className="size-4" />
@@ -7386,13 +8497,1441 @@ export function StockUpdateSessionRoute() {
       onChange={updateSupplierReceiptModeFilters}
     />
   );
+  const notesSummary = notes.trim() ? t('stockUpdateStepNotesAdded') : t('stockUpdateOptional');
+  const customerSummaryParts = [
+    customerIdentity.channel === 'custom'
+      ? customerIdentity.customChannel.trim()
+      : customerIdentity.channel.trim(),
+    customerIdentity.customerName.trim(),
+    formatPhoneForDisplay(customerIdentity.phone),
+  ].filter(Boolean);
+  const partyAndNotesSummary = customerSummaryParts.length > 0
+    ? customerSummaryParts.join(' · ')
+    : notesSummary;
+  const metadataSections: Array<{
+    id: PosMetadataPopupId;
+    stepId: Extract<StockUpdateStepId, 'observed-at' | 'report-notes' | 'context'>;
+    icon: IconComponent;
+    label: string;
+    summary: string;
+  }> = [
+    {
+      id: 'timing',
+      stepId: 'observed-at',
+      icon: StatusTimingIcon,
+      label: t('stockUpdateSessionTiming'),
+      summary: observedAtIso ? formatSenaDateTime(observedAtIso, language) : t('stockStepStatusRequired'),
+    },
+    ...(isCustomerTicketLane
+      ? [
+          {
+            id: 'customer' as const,
+            stepId: 'report-notes' as const,
+            icon: ActionEditIcon,
+            label: translateUiLiteral(language, 'Customer'),
+            summary: customerSummaryParts.length > 0 ? customerSummaryParts.join(' · ') : t('stockUpdateOptional'),
+          },
+        ]
+      : []),
+    {
+      id: 'notes',
+      stepId: 'report-notes',
+      icon: ActionEditIcon,
+      label: t('stockUpdateSessionNotes'),
+      summary: notesSummary,
+    },
+    {
+      id: 'context',
+      stepId: 'context',
+      icon: EntityLayersIcon,
+      label: t('stockUpdateSessionMetaContext'),
+      summary: regimeHint ? regimeHint.replaceAll('_', ' ') : t('stockUpdateOptional'),
+    },
+    ...(deliveryFeeEnabled
+      ? [{
+          id: 'delivery' as const,
+          stepId: 'context' as const,
+          icon: EntityDeliveryIcon,
+          label: translateUiLiteral(language, 'Delivery'),
+          summary: deliveryFeeAmount.trim() ? `${deliveryDisplayLabel} · ${translateUiLiteral(language, deliveryFeePayerLocked ? 'Merchant' : deliveryFeePayer === 'customer' ? 'Customer' : 'Merchant')}` : t('stockUpdateOptional'),
+        }]
+      : []),
+  ];
+  const activatePosStep = useCallback((stepId: StockUpdateStepId) => {
+    const targetIndex = activeStepOrder.indexOf(stepId);
+    if (targetIndex < 0) {
+      return;
+    }
+    setUnlockedStepCount((current) => Math.max(current, targetIndex + 1));
+    setCurrentStepId(stepId);
+  }, [activeStepOrder]);
+  const posTiles = useMemo<PosWorkbenchTile[]>(() => {
+    const nextTiles: PosWorkbenchTile[] = [];
+
+    if (hasStockCountLane) {
+      for (const row of supplierFilteredRows) {
+        const sku = skuById.get(row.skuId);
+        if (!sku) {
+          continue;
+        }
+        const baselineUnits = stockBySku.get(row.skuId)?.unitsInStock ?? 0;
+        const changed = stockRowChanged(workingCatalog, stockBySku, row);
+        nextTiles.push({
+          key: `stock:${row.skuId}`,
+          entityId: row.skuId,
+          title: sku.name,
+          imagePath: sku.imagePath ?? null,
+          itemType: 'sku',
+          kind: 'stock',
+          stepId: 'stock',
+          typeLabel: translateUiLiteral(language, 'SKU'),
+          metaLabel: changed
+            ? translateUiLiteral(language, 'Counted {count}', { count: row.unitsInStock })
+            : countedAtBySku.get(row.skuId)
+              ? translateUiLiteral(language, 'Last count {date}', { date: formatSenaLongDate(countedAtBySku.get(row.skuId)!, language) })
+              : translateUiLiteral(language, 'Not counted yet'),
+          currentQuantity: row.unitsInStock,
+          baselineQuantity: baselineUnits,
+          unitAmount: row.costPerUnit,
+          recentAt: countedAtBySku.get(row.skuId) ?? null,
+          touched: changed || posTouchedLineKeySet.has(`stock:${row.skuId}`),
+        });
+      }
+    }
+
+    if (isCustomerPendingLane || isCustomerCompletedLane) {
+      for (const skuId of retailSkuIds) {
+        const sku = skuById.get(skuId);
+        if (!sku) {
+          continue;
+        }
+        const quantity = Number(retailSalesDrafts[skuId] ?? 0);
+        const previousPending = latestCustomerPendingBySku.get(skuId) ?? 0;
+        nextTiles.push({
+          key: `retail:${skuId}`,
+          entityId: skuId,
+          title: sku.name,
+          imagePath: sku.imagePath ?? null,
+          itemType: 'sku',
+          kind: 'retail',
+          stepId: 'retail-sales',
+          typeLabel: translateUiLiteral(language, 'SKU'),
+          metaLabel: isCustomerPendingLane
+            ? translateUiLiteral(language, 'Open {count}', { count: previousPending })
+            : translateUiLiteral(language, 'Price {amount}', {
+                amount: sku.productPrice == null ? t('stockUpdateNoMoneyValue') : formatCurrency(sku.productPrice, currency, language, usdToKhrExchangeRate),
+              }),
+          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          baselineQuantity: 0,
+          unitAmount: sku.productPrice ?? null,
+          recentAt: latestRetailSalesAt.get(skuId) ?? null,
+          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`retail:${skuId}`),
+        });
+      }
+      for (const serviceId of serviceIds) {
+        const service = serviceById.get(serviceId);
+        if (!service) {
+          continue;
+        }
+        const quantity = Number(serviceSalesDrafts[serviceId] ?? 0);
+        const previousPending = latestCustomerPendingByService.get(serviceId) ?? 0;
+        nextTiles.push({
+          key: `service:${serviceId}`,
+          entityId: serviceId,
+          title: service.name,
+          imagePath: service.imagePath ?? null,
+          itemType: 'service',
+          kind: 'service',
+          stepId: 'service-sales',
+          typeLabel: translateUiLiteral(language, 'Service'),
+          metaLabel: isCustomerPendingLane
+            ? translateUiLiteral(language, 'Open {count}', { count: previousPending })
+            : translateUiLiteral(language, 'Price {amount}', {
+                amount: formatCurrency(service.price, currency, language, usdToKhrExchangeRate),
+              }),
+          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          baselineQuantity: 0,
+          unitAmount: service.price,
+          recentAt: latestServiceSalesAt.get(serviceId) ?? null,
+          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`service:${serviceId}`),
+        });
+      }
+    }
+
+    if (isSupplierPendingLane) {
+      for (const row of supplierFilteredRows) {
+        const sku = skuById.get(row.skuId);
+        if (!sku) {
+          continue;
+        }
+        const quantity = Number(skuSignalDrafts[row.skuId]?.orderedQuantity ?? 0);
+        nextTiles.push({
+          key: `supplier-order:${row.skuId}`,
+          entityId: row.skuId,
+          title: sku.name,
+          imagePath: sku.imagePath ?? null,
+          itemType: 'sku',
+          kind: 'supplier-order',
+          stepId: 'reorder',
+          typeLabel: translateUiLiteral(language, 'SKU'),
+          metaLabel: latestOrderedAt.get(row.skuId)
+            ? translateUiLiteral(language, 'Last order {date}', { date: formatSenaLongDate(latestOrderedAt.get(row.skuId)!, language) })
+            : translateUiLiteral(language, 'No pending order'),
+          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          baselineQuantity: 0,
+          unitAmount: row.costPerUnit,
+          recentAt: latestOrderedAt.get(row.skuId) ?? null,
+          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-order:${row.skuId}`),
+        });
+      }
+    }
+
+    if (isSupplierReceiptLane) {
+      for (const row of supplierFilteredRows) {
+        const sku = skuById.get(row.skuId);
+        if (!sku) {
+          continue;
+        }
+        const quantity = Number(skuSignalDrafts[row.skuId]?.receiptQuantity ?? 0);
+        nextTiles.push({
+          key: `supplier-receipt:${row.skuId}`,
+          entityId: row.skuId,
+          title: sku.name,
+          imagePath: sku.imagePath ?? null,
+          itemType: 'sku',
+          kind: 'supplier-receipt',
+          stepId: 'receipt',
+          typeLabel: translateUiLiteral(language, 'SKU'),
+          metaLabel: latestReceiptAt.get(row.skuId)
+            ? translateUiLiteral(language, 'Last receipt {date}', { date: formatSenaLongDate(latestReceiptAt.get(row.skuId)!, language) })
+            : translateUiLiteral(language, 'Awaiting receipt'),
+          currentQuantity: Number.isFinite(quantity) ? quantity : 0,
+          baselineQuantity: 0,
+          unitAmount: row.costPerUnit,
+          recentAt: latestReceiptAt.get(row.skuId) ?? null,
+          touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-receipt:${row.skuId}`),
+        });
+      }
+    }
+
+    return workbenchReorderLaneId ? applyWorkbenchTileOrder(nextTiles, workbenchTileOrder) : nextTiles;
+  }, [
+    countedAtBySku,
+    currency,
+    hasStockCountLane,
+    isCustomerCompletedLane,
+    isCustomerPendingLane,
+    isSupplierPendingLane,
+    isSupplierReceiptLane,
+    language,
+    latestCustomerPendingByService,
+    latestCustomerPendingBySku,
+    latestOrderedAt,
+    latestReceiptAt,
+    latestRetailSalesAt,
+    latestServiceSalesAt,
+    posTouchedLineKeySet,
+    retailSalesDrafts,
+    retailSkuIds,
+    rows,
+    serviceIds,
+    serviceSalesDrafts,
+    serviceById,
+    skuById,
+    skuSignalDrafts,
+    stockBySku,
+    supplierFilteredRows,
+    t,
+    usdToKhrExchangeRate,
+    workbenchReorderLaneId,
+    workbenchTileOrder,
+    workingCatalog,
+  ]);
+  const posFilterOptions = useMemo(() => {
+    const hasSkuTiles = posTiles.some((tile) => tile.itemType === 'sku');
+    const hasServiceTiles = posTiles.some((tile) => tile.itemType === 'service');
+    const options: Array<{ icon: IconComponent; id: PosWorkbenchFilterId; label: string }> = [
+      { icon: EntityLayersIcon, id: 'all', label: translateUiLiteral(language, 'All') },
+    ];
+    if (hasServiceTiles) {
+      options.push({ icon: EntityServiceIcon, id: 'services', label: translateUiLiteral(language, 'Services') });
+    }
+    if (hasSkuTiles && !stockCountPosMode) {
+      options.push({ icon: EntitySkuIcon, id: 'skus', label: translateUiLiteral(language, 'SKUs') });
+    }
+    options.push(
+      { icon: StatusScheduleIcon, id: 'recent', label: translateUiLiteral(language, 'Recent') },
+      { icon: StatusReadyIcon, id: 'touched', label: translateUiLiteral(language, 'Touched') },
+    );
+    return options;
+  }, [language, posTiles, stockCountPosMode]);
+  const filteredPosTiles = useMemo(() => {
+    const search = deferredPosWorkbenchSearch.trim().toLowerCase();
+    const matchesSearch = (tile: PosWorkbenchTile) =>
+      search.length === 0 || [tile.title, tile.typeLabel, tile.metaLabel].some((value) => value.toLowerCase().includes(search));
+    const matchesFilter = (tile: PosWorkbenchTile) => {
+      if (posWorkbenchFilter === 'services') {
+        return tile.itemType === 'service';
+      }
+      if (posWorkbenchFilter === 'skus') {
+        return tile.itemType === 'sku';
+      }
+      if (posWorkbenchFilter === 'recent') {
+        return tile.recentAt != null;
+      }
+      if (posWorkbenchFilter === 'touched') {
+        return tile.touched;
+      }
+      return true;
+    };
+    return posTiles.filter((tile) => matchesSearch(tile) && matchesFilter(tile));
+  }, [deferredPosWorkbenchSearch, posTiles, posWorkbenchFilter]);
+  const activeWorkbenchDragTile = useMemo(
+    () => (activeWorkbenchDragTileKey == null ? null : posTiles.find((tile) => tile.key === activeWorkbenchDragTileKey) ?? null),
+    [activeWorkbenchDragTileKey, posTiles],
+  );
+  const clearWorkbenchHoldTimer = useCallback(() => {
+    if (workbenchHoldTimerRef.current != null) {
+      window.clearTimeout(workbenchHoldTimerRef.current);
+      workbenchHoldTimerRef.current = null;
+    }
+  }, []);
+  const finishWorkbenchReorderMode = useCallback((resumePendingAction: boolean) => {
+    clearWorkbenchHoldTimer();
+    setWorkbenchReorderMode(false);
+    setWorkbenchReorderPromptOpen(false);
+    setActiveWorkbenchDragTileKey(null);
+    const pendingAction = pendingWorkbenchInteractionRef.current;
+    pendingWorkbenchInteractionRef.current = null;
+    if (resumePendingAction) {
+      pendingAction?.();
+    }
+  }, [clearWorkbenchHoldTimer]);
+  const requestWorkbenchReorderPrompt = useCallback((pendingAction?: () => void) => {
+    pendingWorkbenchInteractionRef.current = pendingAction ?? null;
+    setWorkbenchReorderPromptOpen(true);
+  }, []);
+  const guardWorkbenchReorderInteraction = useCallback((pendingAction?: () => void) => {
+    if (!workbenchReorderMode) {
+      pendingAction?.();
+      return false;
+    }
+    requestWorkbenchReorderPrompt(pendingAction);
+    return true;
+  }, [requestWorkbenchReorderPrompt, workbenchReorderMode]);
+  const persistWorkbenchTileOrder = useCallback(
+    (nextTileOrder: string[]) => {
+      if (!workbenchReorderLaneId) {
+        return;
+      }
+
+      const nextOrderByLane = {
+        ...workbenchTileOrderDraftByLane,
+        [workbenchReorderLaneId]: nextTileOrder,
+      };
+      setWorkbenchTileOrderDraftByLane(nextOrderByLane);
+      void savePreferences({
+        workbenchTileOrderByLane: nextOrderByLane,
+      });
+    },
+    [savePreferences, workbenchReorderLaneId, workbenchTileOrderDraftByLane],
+  );
+  const beginWorkbenchHold = useCallback((tileKey: string) => {
+    if (!workbenchReorderLaneId || workbenchReorderMode) {
+      return;
+    }
+    clearWorkbenchHoldTimer();
+    workbenchHoldTimerRef.current = window.setTimeout(() => {
+      setWorkbenchReorderMode(true);
+      workbenchHoldTimerRef.current = null;
+    }, WORKBENCH_REORDER_HOLD_DELAY_MS);
+  }, [clearWorkbenchHoldTimer, workbenchReorderLaneId, workbenchReorderMode]);
+  const endWorkbenchHold = useCallback(() => {
+    clearWorkbenchHoldTimer();
+  }, [clearWorkbenchHoldTimer]);
+  const handleWorkbenchDragStart = useCallback((event: DragStartEvent) => {
+    if (!workbenchReorderLaneId) {
+      return;
+    }
+    clearWorkbenchHoldTimer();
+    setWorkbenchReorderMode(true);
+    setActiveWorkbenchDragTileKey(String(event.active.id));
+  }, [clearWorkbenchHoldTimer, workbenchReorderLaneId]);
+  const clearWorkbenchDragState = useCallback(() => {
+    setActiveWorkbenchDragTileKey(null);
+  }, []);
+  const handleWorkbenchDragCancel = useCallback((_event: DragCancelEvent) => {
+    clearWorkbenchDragState();
+  }, [clearWorkbenchDragState]);
+  const handleWorkbenchDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    clearWorkbenchDragState();
+    if (!workbenchReorderLaneId || !over) {
+      return;
+    }
+
+    const nextTileOrder = mergeWorkbenchTileOrderForVisibleSubset({
+      allTileKeys: posTiles.map((tile) => tile.key),
+      visibleTileKeys: filteredPosTiles.map((tile) => tile.key),
+      activeTileKey: String(active.id),
+      overTileKey: String(over.id),
+    });
+
+    if (JSON.stringify(nextTileOrder) === JSON.stringify(posTiles.map((tile) => tile.key))) {
+      return;
+    }
+
+    persistWorkbenchTileOrder(nextTileOrder);
+  }, [clearWorkbenchDragState, filteredPosTiles, persistWorkbenchTileOrder, posTiles, workbenchReorderLaneId]);
+  const workbenchDndSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: workbenchReorderMode ? 4 : 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const posLineControllers = useMemo(() => {
+    const nextLines = new Map<string, PosActiveLine>();
+
+    for (const tile of posTiles) {
+      if (tile.kind === 'stock') {
+        const row = rows.find((entry) => entry.skuId === tile.entityId);
+        const baseline = baselineStockRow(workingCatalog, stockBySku, tile.entityId);
+        if (!row || !baseline) {
+          continue;
+        }
+        const currentQuantity = row.unitsInStock;
+        nextLines.set(tile.key, {
+          key: tile.key,
+          itemType: tile.itemType,
+          title: tile.title,
+          quantity: currentQuantity,
+          unitAmount: row.costPerUnit,
+          amountLabel: translateUiLiteral(language, 'Cost'),
+          stepId: tile.stepId,
+          setQuantity: (value) => {
+            markPosLineTouched(tile.key);
+            activatePosStep('stock');
+            updateRow(tile.entityId, { unitsInStock: Math.max(0, value) });
+          },
+          increment: () => {
+            markPosLineTouched(tile.key);
+            activatePosStep('stock');
+            updateRow(tile.entityId, { unitsInStock: currentQuantity + 1 });
+          },
+          decrement: () => {
+            markPosLineTouched(tile.key);
+            activatePosStep('stock');
+            updateRow(tile.entityId, { unitsInStock: Math.max(0, currentQuantity - 1) });
+          },
+          remove: () => {
+            clearPosLineTouched(tile.key);
+            updateRow(tile.entityId, { unitsInStock: baseline.unitsInStock, costPerUnit: baseline.costPerUnit, productPrice: baseline.productPrice });
+          },
+        });
+        continue;
+      }
+
+      if (tile.kind === 'retail') {
+        const currentQuantity = Number(retailSalesDrafts[tile.entityId] ?? 0);
+        const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+        nextLines.set(tile.key, {
+          key: tile.key,
+          itemType: tile.itemType,
+          title: tile.title,
+          quantity: safeQuantity,
+          unitAmount: tile.unitAmount,
+          amountLabel: translateUiLiteral(language, 'Unit price'),
+          stepId: tile.stepId,
+          setQuantity: (value) => {
+            const nextValue = Math.max(0, value);
+            markPosLineTouched(tile.key);
+            activatePosStep('retail-sales');
+            updateRetailSalesDraft(tile.entityId, nextValue === 0 ? '' : String(nextValue));
+            if (nextValue === 0) {
+              clearPosLineTouched(tile.key);
+            }
+          },
+          increment: () => {
+            markPosLineTouched(tile.key);
+            activatePosStep('retail-sales');
+            updateRetailSalesDraft(tile.entityId, String(safeQuantity + 1));
+          },
+          decrement: () => {
+            const nextValue = Math.max(0, safeQuantity - 1);
+            markPosLineTouched(tile.key);
+            activatePosStep('retail-sales');
+            updateRetailSalesDraft(tile.entityId, nextValue === 0 ? '' : String(nextValue));
+            if (nextValue === 0) {
+              clearPosLineTouched(tile.key);
+            }
+          },
+          remove: () => {
+            clearPosLineTouched(tile.key);
+            updateRetailSalesDraft(tile.entityId, '');
+          },
+        });
+        continue;
+      }
+
+      if (tile.kind === 'service') {
+        const currentQuantity = Number(serviceSalesDrafts[tile.entityId] ?? 0);
+        const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+        nextLines.set(tile.key, {
+          key: tile.key,
+          itemType: tile.itemType,
+          title: tile.title,
+          quantity: safeQuantity,
+          unitAmount: tile.unitAmount,
+          amountLabel: translateUiLiteral(language, 'Unit price'),
+          stepId: tile.stepId,
+          setQuantity: (value) => {
+            const nextValue = Math.max(0, value);
+            markPosLineTouched(tile.key);
+            activatePosStep('service-sales');
+            updateServiceSalesDraft(tile.entityId, nextValue === 0 ? '' : String(nextValue));
+            if (nextValue === 0) {
+              clearPosLineTouched(tile.key);
+            }
+          },
+          increment: () => {
+            markPosLineTouched(tile.key);
+            activatePosStep('service-sales');
+            updateServiceSalesDraft(tile.entityId, String(safeQuantity + 1));
+          },
+          decrement: () => {
+            const nextValue = Math.max(0, safeQuantity - 1);
+            markPosLineTouched(tile.key);
+            activatePosStep('service-sales');
+            updateServiceSalesDraft(tile.entityId, nextValue === 0 ? '' : String(nextValue));
+            if (nextValue === 0) {
+              clearPosLineTouched(tile.key);
+            }
+          },
+          remove: () => {
+            clearPosLineTouched(tile.key);
+            updateServiceSalesDraft(tile.entityId, '');
+          },
+        });
+        continue;
+      }
+
+      const currentQuantity = Number(
+        tile.kind === 'supplier-order'
+          ? skuSignalDrafts[tile.entityId]?.orderedQuantity ?? 0
+          : skuSignalDrafts[tile.entityId]?.receiptQuantity ?? 0,
+      );
+      const safeQuantity = Number.isFinite(currentQuantity) ? currentQuantity : 0;
+      const quantityField = tile.kind === 'supplier-order' ? 'orderedQuantity' : 'receiptQuantity';
+      const stepId = tile.kind === 'supplier-order' ? 'reorder' : 'receipt';
+      nextLines.set(tile.key, {
+        key: tile.key,
+        itemType: tile.itemType,
+        title: tile.title,
+        quantity: safeQuantity,
+        unitAmount: tile.unitAmount,
+        amountLabel: translateUiLiteral(language, 'Unit cost'),
+        stepId,
+        setQuantity: (value) => {
+          const nextValue = Math.max(0, value);
+          markPosLineTouched(tile.key);
+          activatePosStep(stepId);
+          updateSkuSignalDraft(tile.entityId, (draft) => ({
+            ...draft,
+            [quantityField]: nextValue === 0 ? '' : String(nextValue),
+            ...(tile.kind === 'supplier-order' ? { orderEnabled: nextValue > 0 } : { receiptEnabled: nextValue > 0 }),
+          }));
+          if (nextValue === 0) {
+            clearPosLineTouched(tile.key);
+          }
+        },
+        increment: () => {
+          markPosLineTouched(tile.key);
+          activatePosStep(stepId);
+          updateSkuSignalDraft(tile.entityId, (draft) => ({
+            ...draft,
+            [quantityField]: String(safeQuantity + 1),
+            ...(tile.kind === 'supplier-order' ? { orderEnabled: true } : { receiptEnabled: true }),
+          }));
+        },
+        decrement: () => {
+          const nextValue = Math.max(0, safeQuantity - 1);
+          markPosLineTouched(tile.key);
+          activatePosStep(stepId);
+          updateSkuSignalDraft(tile.entityId, (draft) => ({
+            ...draft,
+            [quantityField]: nextValue === 0 ? '' : String(nextValue),
+            ...(tile.kind === 'supplier-order' ? { orderEnabled: nextValue > 0 } : { receiptEnabled: nextValue > 0 }),
+          }));
+          if (nextValue === 0) {
+            clearPosLineTouched(tile.key);
+          }
+        },
+        remove: () => {
+          clearPosLineTouched(tile.key);
+          updateSkuSignalDraft(tile.entityId, (draft) => ({
+            ...draft,
+            [quantityField]: '',
+            ...(tile.kind === 'supplier-order' ? { orderEnabled: false } : { receiptEnabled: false }),
+          }));
+        },
+      });
+    }
+
+    return nextLines;
+  }, [
+    activatePosStep,
+    clearPosLineTouched,
+    isCustomerPendingLane,
+    language,
+    markPosLineTouched,
+    posTiles,
+    retailSalesDrafts,
+    rows,
+    serviceSalesDrafts,
+    skuSignalDrafts,
+    stockBySku,
+    updateRetailSalesDraft,
+    updateRow,
+    updateServiceSalesDraft,
+    updateSkuSignalDraft,
+    workingCatalog,
+  ]);
+  const posActiveLines = useMemo(
+    () => [...posLineControllers.values()].filter((line) => line.quantity > 0).sort((left, right) => left.title.localeCompare(right.title)),
+    [posLineControllers],
+  );
+  const posReceiptTextLines = useMemo<PosReceiptTextLine[]>(
+    () =>
+      posActiveLines.map((line) => ({
+        title: line.title,
+        quantity: line.quantity,
+        unitPriceLabel:
+          line.unitAmount == null
+            ? translateUiLiteral(language, 'n/a')
+            : formatCurrency(line.unitAmount, currency, language, usdToKhrExchangeRate),
+        totalLabel:
+          line.unitAmount == null
+            ? translateUiLiteral(language, '{count} units', { count: line.quantity })
+            : formatCurrency(line.unitAmount * line.quantity, currency, language, usdToKhrExchangeRate),
+      })),
+    [currency, language, posActiveLines, usdToKhrExchangeRate],
+  );
+  const posReceiptTotalLabel = useMemo(() => {
+    if (deliveryFeeEnabled) {
+      return deliveryTotalLabel;
+    }
+    const totalAmount = posActiveLines.reduce<number | null>((sum, line) => {
+      if (line.unitAmount == null) {
+        return sum;
+      }
+      return (sum ?? 0) + line.unitAmount * line.quantity;
+    }, null);
+
+    return totalAmount == null
+      ? translateUiLiteral(language, 'n/a')
+      : formatCurrency(totalAmount, currency, language, usdToKhrExchangeRate);
+  }, [currency, deliveryFeeEnabled, deliveryTotalLabel, language, posActiveLines, usdToKhrExchangeRate]);
+  const posReceiptPlainText = useMemo(() => {
+    const lines = [
+      translateUiLiteral(language, 'Receipt'),
+      '',
+      ...posReceiptTextLines.map((line) => `${line.title} (${line.quantity})`),
+      '',
+      ...(deliveryFeeEnabled
+        ? [
+            `${translateUiLiteral(language, 'Subtotal')}: ${deliverySubtotalLabel}`,
+            `${translateUiLiteral(language, 'Delivery')}: ${deliveryDisplayLabel}`,
+          ]
+        : []),
+      `${translateUiLiteral(language, 'Total')}: ${posReceiptTotalLabel}`,
+    ];
+    return lines.join('\n');
+  }, [deliveryDisplayLabel, deliveryFeeEnabled, deliverySubtotalLabel, language, posReceiptTextLines, posReceiptTotalLabel]);
+  const posDownstreamEffects = isCustomerPendingLane
+    ? [
+        translateUiLiteral(language, 'Pending customer queue will refresh.'),
+        translateUiLiteral(language, 'Open quantity commitments will update.'),
+      ]
+    : isCustomerCompletedLane
+      ? [
+          translateUiLiteral(language, 'Realized customer sales will refresh.'),
+          translateUiLiteral(language, 'Pending customer quantities will net down where relevant.'),
+        ]
+      : isSupplierPendingLane
+        ? [
+            translateUiLiteral(language, 'Pending supplier queue will refresh.'),
+            translateUiLiteral(language, 'Incoming inventory commitments will update.'),
+          ]
+        : isSupplierReceiptLane
+          ? [
+              translateUiLiteral(language, 'Inventory on hand will refresh.'),
+              translateUiLiteral(language, 'Pending supplier quantities will net down where relevant.'),
+            ]
+          : [
+              translateUiLiteral(language, 'Inventory truth will refresh for touched SKUs.'),
+              translateUiLiteral(language, 'Availability and reorder guidance will update after save.'),
+            ];
+  const activePosTile = useMemo(
+    () => (activePosTileKey == null ? null : posTiles.find((tile) => tile.key === activePosTileKey) ?? null),
+    [activePosTileKey, posTiles],
+  );
+  const stockCountPosChangedRows = useMemo<StockCountPosChangeRow[]>(() => {
+    if (!stockCountPosMode) {
+      return [];
+    }
+
+    return supplierFilteredRows.flatMap((row) => {
+      const sku = skuById.get(row.skuId);
+      const baseline = baselineStockRow(workingCatalog, stockBySku, row.skuId);
+      if (!sku || !baseline) {
+        return [];
+      }
+
+      const changedFields: StockCountPosChangeField[] = [];
+      if (row.unitsInStock !== baseline.unitsInStock) {
+        changedFields.push({
+          key: 'units',
+          label: translateUiLiteral(language, 'Units'),
+          value: `${baseline.unitsInStock} → ${row.unitsInStock}`,
+        });
+      }
+      if (row.costPerUnit !== baseline.costPerUnit) {
+        changedFields.push({
+          key: 'cost',
+          label: translateUiLiteral(language, 'Cost'),
+          value: `${
+            baseline.costPerUnit == null
+              ? translateUiLiteral(language, 'n/a')
+              : formatCurrency(baseline.costPerUnit, currency, language, usdToKhrExchangeRate)
+          } → ${
+            row.costPerUnit == null
+              ? translateUiLiteral(language, 'n/a')
+              : formatCurrency(row.costPerUnit, currency, language, usdToKhrExchangeRate)
+          }`,
+        });
+      }
+      if (sku.soldAsProduct && row.productPrice !== baseline.productPrice) {
+        changedFields.push({
+          key: 'price',
+          label: translateUiLiteral(language, 'Retail'),
+          value: `${
+            baseline.productPrice == null
+              ? translateUiLiteral(language, 'n/a')
+              : formatCurrency(baseline.productPrice, currency, language, usdToKhrExchangeRate)
+          } → ${
+            row.productPrice == null
+              ? translateUiLiteral(language, 'n/a')
+              : formatCurrency(row.productPrice, currency, language, usdToKhrExchangeRate)
+          }`,
+        });
+      }
+      if (skuSignalDrafts[row.skuId]?.blockedEnabled) {
+        changedFields.push({
+          key: 'flags',
+          label: translateUiLiteral(language, 'Flags'),
+          value:
+            skuSignalDrafts[row.skuId]?.blockedState === 'stockout'
+              ? translateUiLiteral(language, 'Stockout')
+              : translateUiLiteral(language, 'Blocked'),
+        });
+      }
+
+      return changedFields.length > 0
+        ? [{
+            key: `stock-change:${row.skuId}`,
+            skuId: row.skuId,
+            title: sku.name,
+            imagePath: sku.imagePath ?? null,
+            changedFields,
+          }]
+        : [];
+    });
+  }, [
+    currency,
+    language,
+    skuById,
+    skuSignalDrafts,
+    stockBySku,
+    stockCountPosMode,
+    supplierFilteredRows,
+    usdToKhrExchangeRate,
+    workingCatalog,
+  ]);
+  const activePosTileLine = useMemo(
+    () => (activePosTileKey == null ? null : posLineControllers.get(activePosTileKey) ?? null),
+    [activePosTileKey, posLineControllers],
+  );
+  const activePosStockCountRow = useMemo(() => {
+    if (!stockCountPosMode || activePosTile?.kind !== 'stock') {
+      return null;
+    }
+
+    const sku = skuById.get(activePosTile.entityId);
+    const row = rows.find((entry) => entry.skuId === activePosTile.entityId);
+    const baseline = baselineStockRow(workingCatalog, stockBySku, activePosTile.entityId);
+    if (!sku || !row || !baseline) {
+      return null;
+    }
+
+    const flagDraft = skuSignalDrafts[activePosTile.entityId] ?? createEmptySkuSignalDraft();
+    return {
+      baseline,
+      flagDraft,
+      row,
+      sku,
+    };
+  }, [activePosTile, rows, skuById, skuSignalDrafts, stockBySku, stockCountPosMode, workingCatalog]);
+  useEffect(() => {
+    if (activePosTileKey == null || !activePosTileLine) {
+      setPosTileDialogQuantity('1');
+      return;
+    }
+    setPosTileDialogQuantity(posDialogQuantityValue(activePosTileLine.quantity));
+  }, [activePosTileKey]);
+  const closePosTileDialog = useCallback(() => {
+    setActivePosTileKey(null);
+    setPosTileDialogQuantity('1');
+  }, []);
+  const resetActivePosStockCountChanges = useCallback(() => {
+    if (!activePosStockCountRow) {
+      return;
+    }
+    clearPosLineTouched(`stock:${activePosStockCountRow.sku.skuId}`);
+    updateRow(activePosStockCountRow.sku.skuId, {
+      unitsInStock: activePosStockCountRow.baseline.unitsInStock,
+      costPerUnit: activePosStockCountRow.baseline.costPerUnit,
+      productPrice: activePosStockCountRow.baseline.productPrice,
+    });
+    updateSkuSignalDraft(activePosStockCountRow.sku.skuId, (draft) => skuWithoutEventDraft(skuEventOnlyDraft(draft)));
+  }, [activePosStockCountRow, clearPosLineTouched, updateRow, updateSkuSignalDraft]);
+  const commitPosTileDialog = useCallback(() => {
+    if (!activePosTileLine) {
+      return;
+    }
+    const nextQuantity = parsePosQuantityInput(posTileDialogQuantity);
+    activePosTileLine.setQuantity(nextQuantity);
+    closePosTileDialog();
+  }, [activePosTileLine, closePosTileDialog, posTileDialogQuantity]);
+  const netStockDelta = rows.reduce((sum, row) => {
+    if (!stockRowChanged(workingCatalog, stockBySku, row)) {
+      return sum;
+    }
+    return sum + (row.unitsInStock - (stockBySku.get(row.skuId)?.unitsInStock ?? 0));
+  }, 0);
+  const retailUnits = Object.values(retailSalesDrafts).reduce((sum, value) => {
+    if (value.trim() === '') {
+      return sum;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+  const serviceUnits = Object.values(serviceSalesDrafts).reduce((sum, value) => {
+    if (value.trim() === '') {
+      return sum;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+  const orderUnits = Object.values(skuSignalDrafts).reduce((sum, draft) => {
+    if (draft.orderedQuantity.trim() === '') {
+      return sum;
+    }
+    const parsed = Number(draft.orderedQuantity);
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+  const receiptUnits = Object.values(skuSignalDrafts).reduce((sum, draft) => {
+    if (draft.receiptQuantity.trim() === '') {
+      return sum;
+    }
+    const parsed = Number(draft.receiptQuantity);
+    return Number.isFinite(parsed) ? sum + parsed : sum;
+  }, 0);
+  const posSummaryMetrics =
+    lane.id === 'stock-count'
+      ? [
+          { label: t('stockUpdateSessionRowsTouched'), value: String(countedSkuCount) },
+          { label: t('stockUpdateSessionInventoryEffect'), value: netStockDelta >= 0 ? `+${netStockDelta}` : String(netStockDelta) },
+          { label: t('stockUpdateAddFlags'), value: String(previewCounts.stockouts) },
+        ]
+      : isCustomerPendingLane
+        ? [
+            { label: t('stockUpdateSessionRetailLines'), value: String(retailSalesCount) },
+            { label: t('stockUpdateSessionServiceLines'), value: String(serviceSalesCount) },
+            { label: t('stockUpdateSessionOpenQuantityImpact'), value: String(retailUnits + serviceUnits) },
+          ]
+        : isCustomerCompletedLane
+          ? [
+              { label: t('stockUpdateSessionRetailLines'), value: String(retailSalesCount) },
+              { label: t('stockUpdateSessionServiceLines'), value: String(serviceSalesCount) },
+              { label: t('stockUpdateSessionRealizedCount'), value: String(previewCounts.customerCompleted) },
+            ]
+          : isSupplierPendingLane
+            ? [
+                { label: t('stockUpdateSessionOrderedRows'), value: String(orderSignalCount) },
+                { label: t('stockUpdateSessionOrderedUnits'), value: String(orderUnits) },
+                { label: t('stockUpdateSessionSupplierTicketEvents'), value: String(previewCounts.ticketEvents) },
+              ]
+            : [
+                { label: t('stockUpdateSessionReceiptRows'), value: String(receiptSignalCount) },
+                { label: t('stockUpdateSessionReceivedUnits'), value: String(receiptUnits) },
+                { label: t('stockUpdateSessionInventoryIncreasePreview'), value: String(previewCounts.receiptArrived) },
+              ];
+  const observedAtPanel = (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t(STOCK_UPDATE_STEP_COPY['observed-at'].descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
+      footer={
+        stepGuidance ? (
+          <p className="text-sm text-muted-foreground">{stepGuidance}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t('stockUpdateObservedAtHelp')}</p>
+        )
+      }
+      title={
+        <SectionLabel
+          tooltip={t('stockUpdateObservedAtTooltip')}
+          tooltipLabel={t('stockUpdateObservedAt')}
+        >
+          {t(STOCK_UPDATE_STEP_COPY['observed-at'].titleKey)}
+        </SectionLabel>
+      }
+    >
+      <div className="grid gap-2">
+        <Input
+          aria-label={t('stockUpdateObservedAt')}
+          required
+          type="datetime-local"
+          value={observedAt}
+          onChange={(event) => setObservedAt(event.target.value)}
+        />
+      </div>
+    </WorkspacePanel>
+  );
+  const reportNotesPanel = (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t(STOCK_UPDATE_STEP_COPY['report-notes'].descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
+      footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
+      title={
+        <SectionLabel
+          tooltip={t('stockUpdateNotesTooltip')}
+          tooltipLabel={t('stockReportNotes')}
+        >
+          {t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey)}
+        </SectionLabel>
+      }
+    >
+      <div className="grid gap-2">
+        {isCustomerTicketLane ? (
+          <CustomerMetadataFields
+            directory={customerDirectory}
+            identity={customerIdentity}
+            warning={customerIdentityWarning}
+            onChange={updateCustomerIdentity}
+          />
+        ) : null}
+        <Textarea
+          aria-label={t('stockReportNotes')}
+          className="min-h-32"
+          placeholder={t(notesPlaceholderKey)}
+          value={notes}
+          onChange={(event) => setNotes(event.target.value)}
+        />
+      </div>
+    </WorkspacePanel>
+  );
+  const notesOnlyPanel = (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t(STOCK_UPDATE_STEP_COPY['report-notes'].descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
+      footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
+      title={
+        <SectionLabel
+          tooltip={t('stockUpdateNotesTooltip')}
+          tooltipLabel={t('stockReportNotes')}
+        >
+          {t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey)}
+        </SectionLabel>
+      }
+    >
+      <Textarea
+        aria-label={t('stockReportNotes')}
+        className={cn('min-h-40', actionSheetTextareaClassName)}
+        placeholder={t(notesPlaceholderKey)}
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+      />
+    </WorkspacePanel>
+  );
+  const customerMetadataPanel = isCustomerTicketLane ? (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral(language, 'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.')}
+      style={recordUpdateWhiteCardStyle}
+      title={translateUiLiteral(language, 'Customer metadata')}
+    >
+      <CustomerMetadataFields
+        directory={customerDirectory}
+        identity={customerIdentity}
+        warning={customerIdentityWarning}
+        onChange={updateCustomerIdentity}
+      />
+    </WorkspacePanel>
+  ) : null;
+  const deliveryMetadataPanel = deliveryFeeEnabled ? (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={translateUiLiteral(language, 'Store the default delivery charge and who covers it for this order.')}
+      style={recordUpdateWhiteCardStyle}
+      title={translateUiLiteral(language, 'Delivery')}
+    >
+      <DeliveryFeeFields
+        amountId="record-delivery-fee"
+        amountLabel={translateUiLiteral(language, 'Fee amount')}
+        amountValue={deliveryFeeAmount}
+        lockedPayer={deliveryFeePayerLocked}
+        payer={deliveryFeePayerLocked ? 'merchant' : deliveryFeePayer}
+        onAmountChange={setDeliveryFeeAmount}
+        onPayerChange={setDeliveryFeePayer}
+      />
+    </WorkspacePanel>
+  ) : null;
+  const contextPanel = (
+    <WorkspacePanel
+      className={recordUpdateWhiteCardClassName}
+      descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
+      style={recordUpdateWhiteCardStyle}
+      footer={<p className="text-sm text-muted-foreground">{t('stockUpdateContextFooterEmpty')}</p>}
+      title={
+        <SectionLabel
+          tooltip={t('stockUpdateRegimeHelp')}
+          tooltipLabel={t('stockUpdateOverallRegime')}
+        >
+          {t('stockUpdateOverallRegime')} <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
+        </SectionLabel>
+      }
+    >
+      <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
+    </WorkspacePanel>
+  );
+  const currentMetadataPanel =
+    currentStepId === 'observed-at'
+      ? observedAtPanel
+      : currentStepId === 'report-notes'
+        ? (
+            <div className="grid gap-6">
+              {reportNotesPanel}
+              {deliveryMetadataPanel}
+            </div>
+          )
+        : currentStepId === 'context'
+          ? (
+              <div className="grid gap-6">
+                {deliveryMetadataPanel}
+                {contextPanel}
+              </div>
+            )
+          : null;
+  const posTimingMetadataContent = (
+    <div className="grid gap-2">
+      <RecordUpdateFieldLabel htmlFor="pos-observed-at">{translateUiLiteral(language, 'Date and time')}</RecordUpdateFieldLabel>
+      <Input
+        aria-label={t('stockUpdateObservedAt')}
+        id="pos-observed-at"
+        required
+        type="datetime-local"
+        value={observedAt}
+        onChange={(event) => setObservedAt(event.target.value)}
+      />
+    </div>
+  );
+  const posCustomerMetadataContent = isCustomerTicketLane ? (
+    <CustomerMetadataFields
+      compact
+      directory={customerDirectory}
+      identity={customerIdentity}
+      warning={customerIdentityWarning}
+      onChange={updateCustomerIdentity}
+    />
+  ) : null;
+  const posNotesMetadataContent = (
+    <div className="grid gap-2">
+      <RecordUpdateFieldLabel htmlFor="pos-report-notes">{translateUiLiteral(language, 'Notes text')}</RecordUpdateFieldLabel>
+      <Textarea
+        aria-label={t('stockReportNotes')}
+        className={cn('min-h-40', actionSheetTextareaClassName)}
+        id="pos-report-notes"
+        placeholder={t(notesPlaceholderKey)}
+        value={notes}
+        onChange={(event) => setNotes(event.target.value)}
+      />
+    </div>
+  );
+  const posContextMetadataContent = (
+    <div className="grid gap-2">
+      <RecordUpdateFieldLabel>{translateUiLiteral(language, 'Regime signal')}</RecordUpdateFieldLabel>
+      <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
+    </div>
+  );
+  const posDeliveryMetadataContent = deliveryFeeEnabled ? (
+    <DeliveryFeeFields
+      amountId="pos-delivery-fee"
+      amountInputRef={posDeliveryFeeInputRef}
+      amountLabel={translateUiLiteral(language, 'Fee amount')}
+      amountValue={deliveryFeeAmount}
+      lockedPayer={deliveryFeePayerLocked}
+      payer={deliveryFeePayerLocked ? 'merchant' : deliveryFeePayer}
+      onAmountChange={setDeliveryFeeAmount}
+      onPayerChange={setDeliveryFeePayer}
+    />
+  ) : null;
+  const activePosMetadataContent =
+    activePosMetadataPopup === 'timing'
+      ? posTimingMetadataContent
+      : activePosMetadataPopup === 'customer'
+        ? posCustomerMetadataContent
+        : activePosMetadataPopup === 'notes'
+          ? posNotesMetadataContent
+          : activePosMetadataPopup === 'context'
+            ? posContextMetadataContent
+            : activePosMetadataPopup === 'delivery'
+              ? posDeliveryMetadataContent
+            : null;
+  const activePosMetadataTitle =
+    activePosMetadataPopup === 'timing'
+      ? t('stockUpdateObservedAt')
+      : activePosMetadataPopup === 'customer'
+        ? translateUiLiteral(language, 'Customer metadata')
+        : activePosMetadataPopup === 'notes'
+          ? t('stockReportNotes')
+          : activePosMetadataPopup === 'context'
+            ? t('stockUpdateOverallRegime')
+            : activePosMetadataPopup === 'delivery'
+              ? translateUiLiteral(language, 'Delivery')
+            : '';
+  const activePosMetadataDescription =
+    activePosMetadataPopup === 'timing'
+      ? t('stockUpdateObservedAtHelp')
+      : activePosMetadataPopup === 'customer'
+        ? translateUiLiteral(language, 'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.')
+        : activePosMetadataPopup === 'notes'
+          ? t('stockUpdateNotesHelp')
+          : activePosMetadataPopup === 'context'
+            ? t('stockUpdateContextFooterEmpty')
+            : activePosMetadataPopup === 'delivery'
+              ? translateUiLiteral(language, 'Set the delivery charge and choose whether the customer or merchant covers it.')
+            : '';
+  const posSummaryTitle = stockCountPosMode ? translateUiLiteral(language, 'Changed items') : translateUiLiteral(language, 'Receipt');
+  const posSummaryDescriptor = stockCountPosMode
+    ? translateUiLiteral(language, 'Changed SKU fields for the current record update.')
+    : translateUiLiteral(language, 'Editable receipt for the current record update.');
+  const posSummaryEmptyState = stockCountPosMode
+    ? translateUiLiteral(language, 'No SKU changes yet. Open a tile to update units, cost, retail price, or flags.')
+    : t('stockUpdateSessionNoLineItems');
+  const posReviewActionLabel = stockCountPosMode
+    ? translateUiLiteral(language, 'Review update')
+    : translateUiLiteral(language, 'Review receipt');
+  const posReviewDialogTitle = stockCountPosMode
+    ? translateUiLiteral(language, 'Review update')
+    : translateUiLiteral(language, 'Confirm receipt');
+  const posReviewDialogDescription = stockCountPosMode
+    ? translateUiLiteral(language, 'Review these stock-count changes before saving the record update. This is the final confirmation step.')
+    : translateUiLiteral(language, 'Review this receipt before saving the record update. This is the final confirmation step.');
+  const currentWorkbenchPanel =
+    currentStepId === 'stock' ? (
+      <StockCountStep
+        catalog={workingCatalog}
+        countedAtBySku={countedAtBySku}
+        debugCellBoundaries={debugCellBoundaries}
+        guidance={currentStepId === 'stock' ? stepGuidance : null}
+        onReorderRows={handleStockRowReorder}
+        rows={rows}
+        stockBySku={stockBySku}
+        supplierFilterControl={supplierFilterControl}
+        updateRow={updateRow}
+        visibleRows={visibleRows}
+      />
+    ) : currentStepId === 'reorder' ? (
+      <RecordOrderStep
+        catalog={workingCatalog}
+        debugCellBoundaries={debugCellBoundaries}
+        filterControl={supplierPendingStateFilterControl}
+        guidance={currentStepId === 'reorder' ? stepGuidance : null}
+        latestOrderAtBySku={latestOrderedAt}
+        latestOrderQuantity={latestOrderedQuantity}
+        leadTimeMeanDefaults={leadTimeMeanDefaults}
+        leadTimeVariabilityDefaults={leadTimeVariabilityDefaults}
+        mode={supplierPendingMode}
+        modes={supplierPendingModeFilters}
+        observedAtIso={observedAtIso}
+        onReorderRows={handleStockRowReorder}
+        orderRecommendationBySku={recommendedOrderBySku}
+        recordOrderExpectedArrivalDate={recordOrderExpectedArrivalDate}
+        recordOrderLeadTimeMeanDays={recordOrderLeadTimeMeanDays}
+        recordOrderLeadTimeVariability={recordOrderLeadTimeVariability}
+        rows={supplierFilteredRows}
+        setRecordOrderExpectedArrivalDate={setRecordOrderExpectedArrivalDate}
+        setRecordOrderLeadTimeMeanDays={setRecordOrderLeadTimeMeanDays}
+        setRecordOrderLeadTimeVariability={setRecordOrderLeadTimeVariability}
+        setMode={setSupplierPendingMode}
+        skuSignalDrafts={skuSignalDrafts}
+        supplierFilterControl={supplierFilterControl}
+        updateSkuSignalDraft={updateSkuSignalDraft}
+      />
+    ) : currentStepId === 'receipt' ? (
+      <RecordReceiptStep
+        catalog={workingCatalog}
+        debugCellBoundaries={debugCellBoundaries}
+        filterControl={supplierReceiptStateFilterControl}
+        guidance={currentStepId === 'receipt' ? stepGuidance : null}
+        latestReceiptAtBySku={latestReceiptAt}
+        latestReceiptQuantity={latestReceiptQuantity}
+        mode={supplierReceiptMode}
+        modes={supplierReceiptModeFilters}
+        observedAtIso={observedAtIso}
+        onReorderRows={handleStockRowReorder}
+        recordReceiptReceivedDate={recordReceiptReceivedDate}
+        rows={supplierFilteredRows}
+        setRecordReceiptReceivedDate={setRecordReceiptReceivedDate}
+        setMode={setSupplierReceiptMode}
+        skuSignalDrafts={skuSignalDrafts}
+        supplierFilterControl={supplierFilterControl}
+        updateSkuSignalDraft={updateSkuSignalDraft}
+      />
+    ) : currentStepId === 'retail-sales' ? (
+      isCustomerPendingLane ? (
+        <CustomerPendingRetailStep
+          catalog={workingCatalog}
+          debugCellBoundaries={debugCellBoundaries}
+          filterControl={customerPendingStateFilterControl}
+          guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
+          latestOpenBySku={latestCustomerPendingBySku}
+          mode={customerPendingMode}
+          modes={customerPendingModeFilters}
+          onReorderRows={handleRetailSalesRowReorder}
+          retailSalesDrafts={retailSalesDrafts}
+          retailSkuIds={retailSkuIds}
+          setMode={setCustomerPendingMode}
+          setRetailSalesDraft={updateRetailSalesDraft}
+          supplierFilterControl={supplierFilterControl}
+        />
+      ) : (
+        <SalesRetailStep
+          catalog={workingCatalog}
+          choice={retailSalesChoice}
+          debugCellBoundaries={debugCellBoundaries}
+          descriptor={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Record reversed customer completions and choose whether usable stock should return now or later.')
+            : translateUiLiteral(language, 'Record fulfilled retail orders or immediate retail sales.')}
+          filterControl={customerCompletedStateFilterControl}
+          guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
+          helper={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Choose Yes when you know exact retail refunds or reversals for this interval. Choose No to keep only ordinal retail demand ranking.')
+            : translateUiLiteral(language, 'Choose Yes when you know exact fulfilled retail counts for this interval. Choose No to record only ordinal ranking for SENA.')}
+          latestSalesAtBySku={latestRetailSalesAt}
+          latestSalesBySku={customerCompletedMode === 'from_pending' ? latestCustomerPendingBySku : latestRetailSales}
+          mode={customerCompletedMode}
+          modes={customerCompletedModeFilters}
+          onChooseNo={() => setRetailSalesChoice('no')}
+          onChooseYes={() => setRetailSalesChoice('yes')}
+          onReorderRows={handleRetailSalesRowReorder}
+          question={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Do you know the exact count of retail refunds or reversals this interval?')
+            : translateUiLiteral(language, 'Do you know the exact count of completed retail orders this interval?')}
+          refundMode={customerCompletedMode === 'refund_reversal'}
+          refundStockReturnDrafts={refundStockReturnDrafts}
+          retailRankingSeedValues={defaultRetailRankingIds}
+          retailSalesDrafts={retailSalesDrafts}
+          retailSkuIds={retailSkuIds}
+          retailRankings={retailRankings}
+          setRefundStockReturnDraft={updateRefundStockReturnDraft}
+          setMode={setCustomerCompletedMode}
+          setRetailRankings={setRetailRankings}
+          setRetailSalesDraft={updateRetailSalesDraft}
+          supplierFilterControl={supplierFilterControl}
+          title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Retail refunds / reversals' : 'Completed retail / sellable orders')}
+        />
+      )
+    ) : currentStepId === 'service-sales' ? (
+      isCustomerPendingLane ? (
+        <CustomerPendingServiceStep
+          catalog={workingCatalog}
+          debugCellBoundaries={debugCellBoundaries}
+          filterControl={customerPendingStateFilterControl}
+          guidance={currentStepId === 'service-sales' ? stepGuidance : null}
+          latestOpenByService={latestCustomerPendingByService}
+          mode={customerPendingMode}
+          modes={customerPendingModeFilters}
+          onReorderRows={handleServiceSalesRowReorder}
+          serviceIds={serviceIds}
+          serviceSalesDrafts={serviceSalesDrafts}
+          setMode={setCustomerPendingMode}
+          setServiceSalesDraft={updateServiceSalesDraft}
+          supplierFilterControl={supplierFilterControl}
+        />
+      ) : (
+        <SalesServiceStep
+          catalog={workingCatalog}
+          choice={serviceSalesChoice}
+          debugCellBoundaries={debugCellBoundaries}
+          descriptor={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Record reversed service completions or refunds.')
+            : translateUiLiteral(language, 'Record fulfilled service orders or immediate service sales.')}
+          filterControl={customerCompletedStateFilterControl}
+          guidance={currentStepId === 'service-sales' ? stepGuidance : null}
+          helper={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Choose Yes when you know exact service refunds or reversals for this interval. Choose No to keep only ordinal service ranking.')
+            : translateUiLiteral(language, 'Choose Yes when you know exact completed service counts for this interval. Choose No to record only ordinal ranking for SENA.')}
+          latestSalesAtByService={latestServiceSalesAt}
+          latestSalesByService={customerCompletedMode === 'from_pending' ? latestCustomerPendingByService : latestServiceSales}
+          mode={customerCompletedMode}
+          modes={customerCompletedModeFilters}
+          onChooseNo={() => setServiceSalesChoice('no')}
+          onChooseYes={() => setServiceSalesChoice('yes')}
+          onReorderRows={handleServiceSalesRowReorder}
+          question={customerCompletedMode === 'refund_reversal'
+            ? translateUiLiteral(language, 'Do you know the exact count of service refunds or reversals this interval?')
+            : translateUiLiteral(language, 'Do you know the exact count of completed service orders this interval?')}
+          serviceIds={serviceIds}
+          serviceRankingSeedValues={defaultServiceRankingIds}
+          serviceSalesDrafts={serviceSalesDrafts}
+          serviceRankings={serviceRankings}
+          setMode={setCustomerCompletedMode}
+          setServiceRankings={setServiceRankings}
+          setServiceSalesDraft={updateServiceSalesDraft}
+          supplierFilterControl={supplierFilterControl}
+          title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Service refunds / reversals' : 'Completed service orders')}
+        />
+      )
+    ) : currentStepId === 'stock-cost' ? (
+      <StockCostStep
+        catalog={workingCatalog}
+        choice={stockStepChoices['stock-cost']}
+        countedAtBySku={countedAtBySku}
+        currency={currency}
+        debugCellBoundaries={debugCellBoundaries}
+        guidance={currentStepId === 'stock-cost' ? stepGuidance : null}
+        onReorderRows={handleStockRowReorder}
+        rows={rows}
+        stockBySku={stockBySku}
+        usdToKhrExchangeRate={usdToKhrExchangeRate}
+        updateRow={updateRow}
+        visibleRows={visibleRows}
+        supplierFilterControl={supplierFilterControl}
+        onChooseNo={() => handleSkipOptionalStockStep('stock-cost')}
+        onChooseYes={() => updateStockStepChoice('stock-cost', 'yes')}
+      />
+    ) : currentStepId === 'stock-price' ? (
+      <StockRetailPriceStep
+        catalog={workingCatalog}
+        choice={stockStepChoices['stock-price']}
+        countedAtBySku={countedAtBySku}
+        currency={currency}
+        debugCellBoundaries={debugCellBoundaries}
+        guidance={currentStepId === 'stock-price' ? stepGuidance : null}
+        onReorderRows={handleStockRowReorder}
+        rows={rows}
+        stockBySku={stockBySku}
+        usdToKhrExchangeRate={usdToKhrExchangeRate}
+        updateRow={updateRow}
+        visibleRows={visibleRows}
+        supplierFilterControl={supplierFilterControl}
+        onChooseNo={() => handleSkipOptionalStockStep('stock-price')}
+        onChooseYes={() => updateStockStepChoice('stock-price', 'yes')}
+      />
+    ) : currentStepId === 'stock-flags' ? (
+      <StockFlagsStep
+        catalog={workingCatalog}
+        choice={stockStepChoices['stock-flags']}
+        countedAtBySku={countedAtBySku}
+        debugCellBoundaries={debugCellBoundaries}
+        guidance={currentStepId === 'stock-flags' ? stepGuidance : null}
+        onReorderRows={handleStockRowReorder}
+        skuSignalDrafts={skuSignalDrafts}
+        stockBySku={stockBySku}
+        updateSkuSignalDraft={updateSkuSignalDraft}
+        visibleRows={isCustomerCompletedLane ? salesFlagRows : visibleRows}
+        supplierFilterControl={supplierFilterControl}
+        onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
+        onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
+      />
+    ) : currentStepId === 'service' ? (
+      <ServiceSignalsStep
+        catalog={workingCatalog}
+        currency={currency}
+        debugCellBoundaries={debugCellBoundaries}
+        guidance={currentStepId === 'service' ? stepGuidance : null}
+        language={language}
+        serviceSignalDrafts={serviceSignalDrafts}
+        usdToKhrExchangeRate={usdToKhrExchangeRate}
+        updateServiceSignalDraft={updateServiceSignalDraft}
+        onToggleDebugCellBoundaries={() => setDebugCellBoundaries((current) => !current)}
+      />
+    ) : currentStepId === 'rankings' ? (
+      <WorkspacePanel
+        className={recordUpdateWhiteCardClassName}
+        descriptor={t(STOCK_UPDATE_STEP_COPY.rankings.descriptionKey)}
+        style={recordUpdateWhiteCardStyle}
+        title={
+          <SectionLabel
+            tooltip={t('stockUpdateRankingsTooltip')}
+            tooltipLabel={t('stockUpdateRankingsTooltipLabel')}
+          >
+            {t(STOCK_UPDATE_STEP_COPY.rankings.titleKey)}
+          </SectionLabel>
+        }
+      >
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <RankingSignalEditor
+            catalog={workingCatalog}
+            entryType="service"
+            label={t('stockUpdateTopServicesLabel')}
+            seedValues={defaultServiceRankingIds}
+            values={serviceRankings}
+            onChange={setServiceRankings}
+          />
+          <RankingSignalEditor
+            catalog={workingCatalog}
+            entryType="sku"
+            label={t('stockUpdateTopRetailItemsLabel')}
+            seedValues={defaultRetailRankingIds}
+            values={retailRankings}
+            onChange={setRetailRankings}
+          />
+        </div>
+      </WorkspacePanel>
+    ) : currentStepId === 'review' ? (
+      <ReviewStep
+        blockers={reviewBlockers}
+        catalog={workingCatalog}
+        error={error}
+        payload={previewPayload}
+        previewParts={previewParts}
+        serviceSignalDrafts={serviceSignalDrafts}
+        skuSignalDrafts={skuSignalDrafts}
+      />
+    ) : null;
 
   return (
-    <WorkspacePage className="pb-32 md:pb-36">
+    <WorkspacePage className="relative pb-32 md:pb-36">
       {isCustomerPendingLane ? (
         <TicketEntryPrompt
           family="customer"
           mode={customerTicketMode}
+          onBeginEdit={() => setSelectedCustomerTicketId(null)}
+          onBeginNew={() => setSelectedCustomerTicketId(null)}
+          onDismiss={() => {
+            setCustomerTicketMode(null);
+            setSelectedCustomerTicketId(null);
+            navigate(RECORD_UPDATE_HUB_PATH);
+          }}
           options={customerTicketOptions}
           selectedTicketId={selectedCustomerTicketId}
           onModeChange={setCustomerTicketMode}
@@ -7406,22 +9945,18 @@ export function StockUpdateSessionRoute() {
         <TicketEntryPrompt
           family="supplier"
           mode={supplierTicketMode}
+          onBeginEdit={() => setSelectedSupplierTicketId(null)}
+          onBeginNew={() => setSelectedSupplierTicketId(null)}
+          onDismiss={() => {
+            setSupplierTicketMode(null);
+            setSelectedSupplierTicketId(null);
+            navigate(RECORD_UPDATE_HUB_PATH);
+          }}
           options={supplierTicketOptions}
           selectedTicketId={selectedSupplierTicketId}
-          supplierAction={supplierTicketUpdateAction}
           onModeChange={setSupplierTicketMode}
           onSelectTicket={(ticketId) => {
             setSelectedSupplierTicketId(ticketId);
-            setSupplierTicketMode('edit');
-          }}
-          onSupplierActionChange={(action) => {
-            setSupplierTicketUpdateAction(action);
-            if (action === 'partial_received' || action === 'fully_received') {
-              setSupplierReceiptMode('against_pending_supplier_order');
-            }
-            if (action === 'canceled') {
-              setSupplierPendingMode('cancel_supplier_order');
-            }
             setSupplierTicketMode('edit');
           }}
         />
@@ -7469,6 +10004,21 @@ export function StockUpdateSessionRoute() {
           pendingNavigation?.continueNavigation();
         }}
       />
+      <ConfirmActionDialog
+        cancelLabel={translateUiLiteral(language, 'Keep reordering')}
+        confirmLabel={translateUiLiteral(language, 'Done')}
+        confirmVariant="default"
+        description={translateUiLiteral(language, 'Finish and save this card ordering before doing anything else in POS view.')}
+        open={workbenchReorderPromptOpen}
+        title={translateUiLiteral(language, 'Save ordering first?')}
+        onCancel={() => {
+          pendingWorkbenchInteractionRef.current = null;
+          setWorkbenchReorderPromptOpen(false);
+        }}
+        onConfirm={() => {
+          finishWorkbenchReorderMode(true);
+        }}
+      />
       <WorkspaceTitleCard
         actions={titleActions}
         floatingActions={floatingTitleActions}
@@ -7497,401 +10047,839 @@ export function StockUpdateSessionRoute() {
         }
       >
         <div className="grid gap-5">
-          <StepWizard
-            currentStepId={currentStepId}
-            percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
-            steps={stepStates}
-            unlockedStepCount={unlockedStepCount}
-            onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
-          />
+          {sessionViewMode === 'pos' ? (
+            <div className="flex w-full flex-wrap gap-3">
+              {metadataSections.map((section) => {
+                const active = activePosMetadataPopup === section.id;
+                const Icon = section.icon;
+                return (
+                  <Button
+                    key={section.id}
+                    className={cn(
+                      'h-auto min-w-[12rem] flex-1 items-start justify-start rounded-[1.25rem] px-4 py-3 text-left',
+                      active ? 'text-background' : 'bg-white',
+                    )}
+                    type="button"
+                    variant={active ? 'default' : 'outline'}
+                    onClick={() => {
+                      guardWorkbenchReorderInteraction(() => {
+                        selectStep(section.stepId);
+                        setActivePosMetadataPopup(section.id);
+                      });
+                    }}
+                  >
+                    <span className="grid gap-1">
+                      <span className="flex items-center gap-2">
+                        <Icon className={cn('size-4 shrink-0', active ? 'text-background/80' : 'text-muted-foreground')} />
+                        <span className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', active ? 'text-background/80' : 'text-muted-foreground')}>
+                          {section.label}
+                        </span>
+                      </span>
+                      <span className={cn('text-sm font-medium', active ? 'text-background' : 'text-foreground')}>
+                        {section.summary}
+                      </span>
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          ) : null}
+          <div className={sessionViewMode === 'pos' ? 'sr-only' : undefined}>
+            <StepWizard
+              currentStepId={currentStepId}
+              percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
+              steps={stepStates}
+              unlockedStepCount={unlockedStepCount}
+              onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
+            />
 
-          {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
+            {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
+          </div>
         </div>
       </WorkspaceTitleCard>
 
       <form id="stock-update-session-form" className="grid gap-6" onSubmit={(event) => void handleSubmit(event)}>
-        {currentStepId === 'observed-at' ? (
-          <WorkspacePanel
-            className={recordUpdateWhiteCardClassName}
-            descriptor={t(STOCK_UPDATE_STEP_COPY['observed-at'].descriptionKey)}
-            style={recordUpdateWhiteCardStyle}
-            footer={
-              stepGuidance ? (
-                <p className="text-sm text-muted-foreground">{stepGuidance}</p>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t('stockUpdateObservedAtHelp')}</p>
-              )
-            }
-            title={
-              <SectionLabel
-                tooltip={t('stockUpdateObservedAtTooltip')}
-                tooltipLabel={t('stockUpdateObservedAt')}
+        {sessionViewMode === 'pos' ? (
+          <div className="grid gap-6">
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_clamp(28rem,31vw,34rem)]">
+              <section
+                className={cn(
+                  'min-w-0 overflow-hidden rounded-[1.9rem] border border-border/70 bg-white shadow-[0_18px_60px_rgba(48,31,20,0.08)]',
+                  workbenchReorderMode && 'relative z-30',
+                )}
               >
-                {t(STOCK_UPDATE_STEP_COPY['observed-at'].titleKey)}
-              </SectionLabel>
-            }
-          >
-            <div className="grid gap-2">
-              <Input
-                aria-label={t('stockUpdateObservedAt')}
-                required
-                type="datetime-local"
-                value={observedAt}
-                onChange={(event) => setObservedAt(event.target.value)}
-              />
+                <div className="border-b border-border/60 px-5 py-5">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                          {translateUiLiteral(language, 'Main workbench')}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {workbenchReorderLaneId
+                            ? translateUiLiteral(
+                                language,
+                                workbenchReorderMode
+                                  ? 'Drag cards to rearrange this bucket. Tap Done, press Escape, or tap empty space to exit.'
+                                  : stockCountPosMode
+                                    ? 'Tap a tile to update this SKU. Drag a card to rearrange this bucket.'
+                                    : 'Tap a tile to set quantity. Drag a card to rearrange this bucket.',
+                              )
+                            : translateUiLiteral(
+                                language,
+                                stockCountPosMode
+                                  ? 'Tap a tile to update units, price, cost, or flags, then review the changed SKU summary.'
+                                  : 'Tap a tile to set quantity, then review the line in the receipt.',
+                              )}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-3">
+                        {stepGuidance ? (
+                          <p className="max-w-sm text-sm leading-6 text-muted-foreground">{stepGuidance}</p>
+                        ) : null}
+                        {workbenchReorderLaneId && workbenchReorderMode ? (
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              finishWorkbenchReorderMode(false);
+                            }}
+                          >
+                            <ActionConfirmIcon className="size-4" />
+                            {translateUiLiteral(language, 'Done')}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                      <SearchInput
+                        aria-label={translateUiLiteral(language, 'Search workbench items')}
+                        className="h-11 min-w-[18rem] max-w-xl rounded-full border border-border/70 bg-white shadow-none"
+                        inputClassName="bg-transparent"
+                        placeholder={translateUiLiteral(language, 'Search items, services, or SKUs')}
+                        value={posWorkbenchSearch}
+                        onFocus={(event) => {
+                          if (workbenchReorderMode) {
+                            event.target.blur();
+                            requestWorkbenchReorderPrompt();
+                          }
+                        }}
+                        onPointerDown={(event) => {
+                          if (!workbenchReorderMode) {
+                            return;
+                          }
+                          event.preventDefault();
+                          requestWorkbenchReorderPrompt();
+                        }}
+                        onChange={(event) => setPosWorkbenchSearch(event.target.value)}
+                      />
+                      <ToggleGroup
+                        aria-label={translateUiLiteral(language, 'Workbench filters')}
+                        className="max-w-full justify-start self-start overflow-x-auto rounded-full bg-muted/40"
+                        size="lg"
+                        spacing={1}
+                        type="single"
+                        value={posWorkbenchFilter}
+                        onValueChange={(nextValue) => {
+                          if (workbenchReorderMode) {
+                            requestWorkbenchReorderPrompt();
+                            return;
+                          }
+                          if (nextValue) {
+                            setPosWorkbenchFilter(nextValue as PosWorkbenchFilterId);
+                          }
+                        }}
+                      >
+                        {posFilterOptions.map((option) => (
+                          <ToggleGroupItem
+                            key={option.id}
+                            className="rounded-full border border-transparent px-4 text-sm"
+                            value={option.id}
+                          >
+                            <option.icon data-icon="inline-start" className="size-4" />
+                            {option.label}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="px-5 py-5"
+                  onClick={(event) => {
+                    if (event.target !== event.currentTarget) {
+                      return;
+                    }
+                    if (!workbenchReorderMode) {
+                      return;
+                    }
+                    requestWorkbenchReorderPrompt();
+                  }}
+                >
+                  {filteredPosTiles.length > 0 ? (
+                    workbenchReorderLaneId ? (
+                      <DndContext
+                        collisionDetection={closestCenter}
+                        sensors={workbenchDndSensors}
+                        onDragCancel={handleWorkbenchDragCancel}
+                        onDragEnd={handleWorkbenchDragEnd}
+                        onDragStart={handleWorkbenchDragStart}
+                      >
+                        <SortableContext items={filteredPosTiles.map((tile) => tile.key)} strategy={rectSortingStrategy}>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {filteredPosTiles.map((tile) => (
+                              <SortableWorkbenchTile
+                                key={tile.key}
+                                onHoldEnd={endWorkbenchHold}
+                                onHoldStart={beginWorkbenchHold}
+                                reorderMode={workbenchReorderMode}
+                                tile={tile}
+                                onActivate={(nextTile) => {
+                                  guardWorkbenchReorderInteraction(() => {
+                                    activatePosStep(nextTile.stepId);
+                                    setActivePosTileKey(nextTile.key);
+                                  });
+                                }}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                        {createPortal(
+                          <DragOverlay>
+                            {activeWorkbenchDragTile ? (
+                              <div
+                                className={cn(
+                                  workbenchTileButtonClassName({ isDragging: true, reorderMode: true }),
+                                  'w-[min(20rem,32vw)]',
+                                )}
+                              >
+                                <WorkbenchTileVisual isDragging reorderMode tile={activeWorkbenchDragTile} />
+                              </div>
+                            ) : null}
+                          </DragOverlay>,
+                          document.body,
+                        )}
+                      </DndContext>
+                    ) : (
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                        {filteredPosTiles.map((tile) => (
+                          <button
+                            key={tile.key}
+                            className={workbenchTileButtonClassName({})}
+                            type="button"
+                            onClick={() => {
+                              guardWorkbenchReorderInteraction(() => {
+                                activatePosStep(tile.stepId);
+                                setActivePosTileKey(tile.key);
+                              });
+                            }}
+                          >
+                            <WorkbenchTileVisual tile={tile} />
+                          </button>
+                        ))}
+                      </div>
+                    )
+                  ) : (
+                    <div className="rounded-[1.45rem] border border-dashed border-border/70 bg-background/75 px-4 py-8 text-sm text-muted-foreground">
+                      {translateUiLiteral(language, 'No workbench items match the current search and filter.')}
+                    </div>
+                  )}
+                </div>
+
+              </section>
+
+              <div className="min-w-0 grid gap-4">
+                <WorkspacePanel
+                  className={recordUpdateWhiteCardClassName}
+                  descriptor={posSummaryDescriptor}
+                  style={recordUpdateWhiteCardStyle}
+                  title={posSummaryTitle}
+                >
+                  <div className="grid gap-4">
+                    <div className="grid gap-2">
+                      {stockCountPosMode ? (
+                        <StockCountPosChangeTable
+                          changedRows={stockCountPosChangedRows}
+                          emptyState={posSummaryEmptyState}
+                          language={language}
+                          onOpenRow={(row) => guardWorkbenchReorderInteraction(() => setActivePosTileKey(`stock:${row.skuId}`))}
+                        />
+                      ) : posActiveLines.length > 0 ? (
+                        <div className="grid gap-0">
+                          <div className="grid grid-cols-[minmax(0,0.86fr)_3.5rem_minmax(0,1.34fr)] items-end gap-3 border-b border-border/60 px-3 py-2">
+                            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {translateUiLiteral(language, 'Item')}
+                            </p>
+                            <p className="text-center text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {translateUiLiteral(language, 'Qty')}
+                            </p>
+                            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                              {translateUiLiteral(language, 'Pricing')}
+                            </p>
+                          </div>
+                          <div className="divide-y divide-border/60">
+                            {posActiveLines.map((line) => (
+                              <PosReceiptLineEditor
+                                key={line.key}
+                                currency={currency}
+                                language={language}
+                                line={line}
+                                onOpen={() => guardWorkbenchReorderInteraction(() => setActivePosTileKey(line.key))}
+                                usdToKhrExchangeRate={usdToKhrExchangeRate}
+                              />
+                            ))}
+                          </div>
+                          <div className="mt-3 border-t border-border/60 px-3 pt-3">
+                            {deliveryFeeEnabled ? (
+                              <div className="grid gap-2">
+                                <div className="grid grid-cols-[minmax(0,0.86fr)_3.5rem_minmax(0,1.34fr)] items-center gap-3">
+                                  <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'Subtotal')}</p>
+                                  <span aria-hidden="true" />
+                                  <p className="text-right font-medium text-foreground tabular-nums">{deliverySubtotalLabel}</p>
+                                </div>
+                                <div className="grid grid-cols-[minmax(0,0.86fr)_3.5rem_minmax(0,1.34fr)] items-center gap-3">
+                                  <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'Delivery')}</p>
+                                  <span aria-hidden="true" />
+                                  <p className="text-right font-medium text-foreground tabular-nums">{deliveryDisplayLabel}</p>
+                                </div>
+                                <div className="grid grid-cols-[minmax(0,0.86fr)_3.5rem_minmax(0,1.34fr)] items-center gap-3">
+                                  <p className="text-base font-semibold text-foreground">
+                                    {translateUiLiteral(language, 'Total')}
+                                  </p>
+                                  <span aria-hidden="true" />
+                                  <p className="text-right text-lg font-semibold text-foreground tabular-nums">
+                                    {posReceiptTotalLabel}
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-[minmax(0,0.86fr)_3.5rem_minmax(0,1.34fr)] items-center gap-3">
+                                <p className="text-base font-semibold text-foreground">
+                                  {translateUiLiteral(language, 'Total')}
+                                </p>
+                                <span aria-hidden="true" />
+                                <p className="text-right text-lg font-semibold text-foreground tabular-nums">
+                                  {posReceiptTotalLabel}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="rounded-2xl border border-dashed border-border/70 bg-background/80 px-3 py-4 text-sm text-muted-foreground">
+                          {posSummaryEmptyState}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2">
+                      {error ? (
+                        <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                          {error}
+                        </p>
+                      ) : null}
+                      {reviewBlockers.length > 0 ? (
+                        <div className="grid gap-2">
+                          {reviewBlockers.map((blocker) => (
+                            <p key={blocker} className="text-sm text-muted-foreground">
+                              {blocker}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          disabled={!canDiscardChanges}
+                          type="button"
+                          variant="destructive-outline"
+                          onClick={() => {
+                            guardWorkbenchReorderInteraction(() => clearCurrentSession());
+                          }}
+                        >
+                          <ActionDeleteIcon className="size-4" />
+                          {translateUiLiteral(language, 'Clear session')}
+                        </Button>
+                        <Button
+                          disabled={submitDisabled}
+                          form="stock-update-session-form"
+                          type="submit"
+                          onClick={(event) => {
+                            if (!workbenchReorderMode) {
+                              return;
+                            }
+                            event.preventDefault();
+                            requestWorkbenchReorderPrompt();
+                          }}
+                        >
+                          <EntityReceiptDocumentIcon className="size-4" />
+                          {isSaving ? t('catalogSenaSkuSaving') : posReviewActionLabel}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </WorkspacePanel>
+              </div>
             </div>
-          </WorkspacePanel>
-        ) : null}
-
-        {currentStepId === 'report-notes' ? (
-          <WorkspacePanel
-            className={recordUpdateWhiteCardClassName}
-            descriptor={t(STOCK_UPDATE_STEP_COPY['report-notes'].descriptionKey)}
-            style={recordUpdateWhiteCardStyle}
-            footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
-            title={
-              <SectionLabel
-                tooltip={t('stockUpdateNotesTooltip')}
-                tooltipLabel={t('stockReportNotes')}
-              >
-                {t(STOCK_UPDATE_STEP_COPY['report-notes'].titleKey)}
-              </SectionLabel>
-            }
-          >
-            <div className="grid gap-2">
-              {isCustomerTicketLane ? (
-                <CustomerMetadataFields
-                  directory={customerDirectory}
-                  identity={customerIdentity}
-                  warning={customerIdentityWarning}
-                  onChange={updateCustomerIdentity}
-                />
-              ) : null}
-              <Textarea
-                aria-label={t('stockReportNotes')}
-                className="min-h-32"
-                placeholder={t(notesPlaceholderKey)}
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-              />
-            </div>
-          </WorkspacePanel>
-        ) : null}
-
-        {currentStepId === 'context' ? (
-          <WorkspacePanel
-            className={recordUpdateWhiteCardClassName}
-            descriptor={t(STOCK_UPDATE_STEP_COPY.context.descriptionKey)}
-            style={recordUpdateWhiteCardStyle}
-            footer={<p className="text-sm text-muted-foreground">{t('stockUpdateContextFooterEmpty')}</p>}
-            title={
-              <SectionLabel
-                tooltip={t('stockUpdateRegimeHelp')}
-                tooltipLabel={t('stockUpdateOverallRegime')}
-              >
-                {t('stockUpdateOverallRegime')} <span className="font-normal text-muted-foreground">{t('stockUpdateOptional')}</span>
-              </SectionLabel>
-            }
-          >
-            <RegimeFields regimeHint={regimeHint} setRegimeHint={setRegimeHint} />
-          </WorkspacePanel>
-        ) : null}
-
-        {currentStepId === 'stock' ? (
-          <StockCountStep
-            catalog={workingCatalog}
-            countedAtBySku={countedAtBySku}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'stock' ? stepGuidance : null}
-            onReorderRows={handleStockRowReorder}
-            rows={rows}
-            stockBySku={stockBySku}
-            supplierFilterControl={supplierFilterControl}
-            updateRow={updateRow}
-            visibleRows={visibleRows}
-          />
-        ) : null}
-
-        {currentStepId === 'reorder' ? (
-          <RecordOrderStep
-            catalog={workingCatalog}
-            debugCellBoundaries={debugCellBoundaries}
-            filterControl={supplierPendingStateFilterControl}
-            guidance={currentStepId === 'reorder' ? stepGuidance : null}
-            latestOrderAtBySku={latestOrderedAt}
-            latestOrderQuantity={latestOrderedQuantity}
-            leadTimeMeanDefaults={leadTimeMeanDefaults}
-            leadTimeVariabilityDefaults={leadTimeVariabilityDefaults}
-            mode={supplierPendingMode}
-            modes={supplierPendingModeFilters}
-            observedAtIso={observedAtIso}
-            onReorderRows={handleStockRowReorder}
-            orderRecommendationBySku={recommendedOrderBySku}
-            recordOrderExpectedArrivalDate={recordOrderExpectedArrivalDate}
-            recordOrderLeadTimeMeanDays={recordOrderLeadTimeMeanDays}
-            recordOrderLeadTimeVariability={recordOrderLeadTimeVariability}
-            rows={supplierFilteredRows}
-            setRecordOrderExpectedArrivalDate={setRecordOrderExpectedArrivalDate}
-            setRecordOrderLeadTimeMeanDays={setRecordOrderLeadTimeMeanDays}
-            setRecordOrderLeadTimeVariability={setRecordOrderLeadTimeVariability}
-            setMode={setSupplierPendingMode}
-            skuSignalDrafts={skuSignalDrafts}
-            supplierFilterControl={supplierFilterControl}
-            updateSkuSignalDraft={updateSkuSignalDraft}
-          />
-        ) : null}
-
-        {currentStepId === 'receipt' ? (
-          <RecordReceiptStep
-            catalog={workingCatalog}
-            debugCellBoundaries={debugCellBoundaries}
-            filterControl={supplierReceiptStateFilterControl}
-            guidance={currentStepId === 'receipt' ? stepGuidance : null}
-            latestReceiptAtBySku={latestReceiptAt}
-            latestReceiptQuantity={latestReceiptQuantity}
-            mode={supplierReceiptMode}
-            modes={supplierReceiptModeFilters}
-            observedAtIso={observedAtIso}
-            onReorderRows={handleStockRowReorder}
-            recordReceiptReceivedDate={recordReceiptReceivedDate}
-            rows={supplierFilteredRows}
-            setRecordReceiptReceivedDate={setRecordReceiptReceivedDate}
-            setMode={setSupplierReceiptMode}
-            skuSignalDrafts={skuSignalDrafts}
-            supplierFilterControl={supplierFilterControl}
-            updateSkuSignalDraft={updateSkuSignalDraft}
-          />
-        ) : null}
-
-        {currentStepId === 'retail-sales' ? (
-          isCustomerPendingLane ? (
-            <CustomerPendingRetailStep
-              catalog={workingCatalog}
-              debugCellBoundaries={debugCellBoundaries}
-              filterControl={customerPendingStateFilterControl}
-              guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
-              latestOpenBySku={latestCustomerPendingBySku}
-              mode={customerPendingMode}
-              modes={customerPendingModeFilters}
-              onReorderRows={handleRetailSalesRowReorder}
-              retailSalesDrafts={retailSalesDrafts}
-              retailSkuIds={retailSkuIds}
-              setMode={setCustomerPendingMode}
-              setRetailSalesDraft={updateRetailSalesDraft}
-              supplierFilterControl={supplierFilterControl}
-            />
-          ) : (
-            <SalesRetailStep
-              catalog={workingCatalog}
-              choice={retailSalesChoice}
-              debugCellBoundaries={debugCellBoundaries}
-              descriptor={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Record reversed customer completions and choose whether usable stock should return now or later.')
-                : translateUiLiteral(language, 'Record fulfilled retail orders or immediate retail sales.')}
-              filterControl={customerCompletedStateFilterControl}
-              guidance={currentStepId === 'retail-sales' ? stepGuidance : null}
-              helper={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Choose Yes when you know exact retail refunds or reversals for this interval. Choose No to keep only ordinal retail demand ranking.')
-                : translateUiLiteral(language, 'Choose Yes when you know exact fulfilled retail counts for this interval. Choose No to record only ordinal ranking for SENA.')}
-              latestSalesAtBySku={latestRetailSalesAt}
-              latestSalesBySku={customerCompletedMode === 'from_pending' ? latestCustomerPendingBySku : latestRetailSales}
-              mode={customerCompletedMode}
-              modes={customerCompletedModeFilters}
-              onChooseNo={() => setRetailSalesChoice('no')}
-              onChooseYes={() => setRetailSalesChoice('yes')}
-              onReorderRows={handleRetailSalesRowReorder}
-              question={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Do you know the exact count of retail refunds or reversals this interval?')
-                : translateUiLiteral(language, 'Do you know the exact count of completed retail orders this interval?')}
-              refundMode={customerCompletedMode === 'refund_reversal'}
-              refundStockReturnDrafts={refundStockReturnDrafts}
-              retailRankingSeedValues={defaultRetailRankingIds}
-              retailSalesDrafts={retailSalesDrafts}
-              retailSkuIds={retailSkuIds}
-              retailRankings={retailRankings}
-              setRefundStockReturnDraft={updateRefundStockReturnDraft}
-              setMode={setCustomerCompletedMode}
-              setRetailRankings={setRetailRankings}
-              setRetailSalesDraft={updateRetailSalesDraft}
-              supplierFilterControl={supplierFilterControl}
-              title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Retail refunds / reversals' : 'Completed retail / sellable orders')}
-            />
-          )
-        ) : null}
-
-        {currentStepId === 'service-sales' ? (
-          isCustomerPendingLane ? (
-            <CustomerPendingServiceStep
-              catalog={workingCatalog}
-              debugCellBoundaries={debugCellBoundaries}
-              filterControl={customerPendingStateFilterControl}
-              guidance={currentStepId === 'service-sales' ? stepGuidance : null}
-              latestOpenByService={latestCustomerPendingByService}
-              mode={customerPendingMode}
-              modes={customerPendingModeFilters}
-              onReorderRows={handleServiceSalesRowReorder}
-              serviceIds={serviceIds}
-              serviceSalesDrafts={serviceSalesDrafts}
-              setMode={setCustomerPendingMode}
-              setServiceSalesDraft={updateServiceSalesDraft}
-              supplierFilterControl={supplierFilterControl}
-            />
-          ) : (
-            <SalesServiceStep
-              catalog={workingCatalog}
-              choice={serviceSalesChoice}
-              debugCellBoundaries={debugCellBoundaries}
-              descriptor={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Record reversed service completions or refunds.')
-                : translateUiLiteral(language, 'Record fulfilled service orders or immediate service sales.')}
-              filterControl={customerCompletedStateFilterControl}
-              guidance={currentStepId === 'service-sales' ? stepGuidance : null}
-              helper={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Choose Yes when you know exact service refunds or reversals for this interval. Choose No to keep only ordinal service ranking.')
-                : translateUiLiteral(language, 'Choose Yes when you know exact completed service counts for this interval. Choose No to record only ordinal ranking for SENA.')}
-              latestSalesAtByService={latestServiceSalesAt}
-              latestSalesByService={customerCompletedMode === 'from_pending' ? latestCustomerPendingByService : latestServiceSales}
-              mode={customerCompletedMode}
-              modes={customerCompletedModeFilters}
-              onChooseNo={() => setServiceSalesChoice('no')}
-              onChooseYes={() => setServiceSalesChoice('yes')}
-              onReorderRows={handleServiceSalesRowReorder}
-              question={customerCompletedMode === 'refund_reversal'
-                ? translateUiLiteral(language, 'Do you know the exact count of service refunds or reversals this interval?')
-                : translateUiLiteral(language, 'Do you know the exact count of completed service orders this interval?')}
-              serviceIds={serviceIds}
-              serviceRankingSeedValues={defaultServiceRankingIds}
-              serviceSalesDrafts={serviceSalesDrafts}
-              serviceRankings={serviceRankings}
-              setMode={setCustomerCompletedMode}
-              setServiceRankings={setServiceRankings}
-              setServiceSalesDraft={updateServiceSalesDraft}
-              supplierFilterControl={supplierFilterControl}
-              title={translateUiLiteral(language, customerCompletedMode === 'refund_reversal' ? 'Service refunds / reversals' : 'Completed service orders')}
-            />
-          )
-        ) : null}
-
-        {currentStepId === 'stock-cost' ? (
-          <StockCostStep
-            catalog={workingCatalog}
-            choice={stockStepChoices['stock-cost']}
-            countedAtBySku={countedAtBySku}
-            currency={currency}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'stock-cost' ? stepGuidance : null}
-            onReorderRows={handleStockRowReorder}
-            rows={rows}
-            stockBySku={stockBySku}
-            usdToKhrExchangeRate={usdToKhrExchangeRate}
-            updateRow={updateRow}
-            visibleRows={visibleRows}
-            supplierFilterControl={supplierFilterControl}
-            onChooseNo={() => handleSkipOptionalStockStep('stock-cost')}
-            onChooseYes={() => updateStockStepChoice('stock-cost', 'yes')}
-          />
-        ) : null}
-
-        {currentStepId === 'stock-price' ? (
-          <StockRetailPriceStep
-            catalog={workingCatalog}
-            choice={stockStepChoices['stock-price']}
-            countedAtBySku={countedAtBySku}
-            currency={currency}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'stock-price' ? stepGuidance : null}
-            onReorderRows={handleStockRowReorder}
-            rows={rows}
-            stockBySku={stockBySku}
-            usdToKhrExchangeRate={usdToKhrExchangeRate}
-            updateRow={updateRow}
-            visibleRows={visibleRows}
-            supplierFilterControl={supplierFilterControl}
-            onChooseNo={() => handleSkipOptionalStockStep('stock-price')}
-            onChooseYes={() => updateStockStepChoice('stock-price', 'yes')}
-          />
-        ) : null}
-
-        {currentStepId === 'stock-flags' ? (
-          <StockFlagsStep
-            catalog={workingCatalog}
-            choice={stockStepChoices['stock-flags']}
-            countedAtBySku={countedAtBySku}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'stock-flags' ? stepGuidance : null}
-            onReorderRows={handleStockRowReorder}
-            skuSignalDrafts={skuSignalDrafts}
-            stockBySku={stockBySku}
-            updateSkuSignalDraft={updateSkuSignalDraft}
-            visibleRows={isCustomerCompletedLane ? salesFlagRows : visibleRows}
-            supplierFilterControl={supplierFilterControl}
-            onChooseNo={() => handleSkipOptionalStockStep('stock-flags')}
-            onChooseYes={() => updateStockStepChoice('stock-flags', 'yes')}
-          />
-        ) : null}
-
-        {currentStepId === 'service' ? (
-          <ServiceSignalsStep
-            catalog={workingCatalog}
-            currency={currency}
-            debugCellBoundaries={debugCellBoundaries}
-            guidance={currentStepId === 'service' ? stepGuidance : null}
-            language={language}
-            serviceSignalDrafts={serviceSignalDrafts}
-            usdToKhrExchangeRate={usdToKhrExchangeRate}
-            updateServiceSignalDraft={updateServiceSignalDraft}
-            onToggleDebugCellBoundaries={() => setDebugCellBoundaries((current) => !current)}
-          />
-        ) : null}
-
-        {currentStepId === 'rankings' ? (
-          <WorkspacePanel
-            className={recordUpdateWhiteCardClassName}
-            descriptor={t(STOCK_UPDATE_STEP_COPY.rankings.descriptionKey)}
-            style={recordUpdateWhiteCardStyle}
-            title={
-              <SectionLabel
-                tooltip={t('stockUpdateRankingsTooltip')}
-                tooltipLabel={t('stockUpdateRankingsTooltipLabel')}
-              >
-                {t(STOCK_UPDATE_STEP_COPY.rankings.titleKey)}
-              </SectionLabel>
-            }
-          >
-            <div className="grid items-start gap-6 lg:grid-cols-2">
-              <RankingSignalEditor
-                catalog={workingCatalog}
-                entryType="service"
-                label={t('stockUpdateTopServicesLabel')}
-                seedValues={defaultServiceRankingIds}
-                values={serviceRankings}
-                onChange={setServiceRankings}
-              />
-              <RankingSignalEditor
-                catalog={workingCatalog}
-                entryType="sku"
-                label={t('stockUpdateTopRetailItemsLabel')}
-                seedValues={defaultRetailRankingIds}
-                values={retailRankings}
-                onChange={setRetailRankings}
-              />
-            </div>
-          </WorkspacePanel>
-        ) : null}
-
-        {currentStepId === 'review' ? (
-          <ReviewStep
-            blockers={reviewBlockers}
-            catalog={workingCatalog}
-            error={error}
-            payload={previewPayload}
-            previewParts={previewParts}
-            serviceSignalDrafts={serviceSignalDrafts}
-            skuSignalDrafts={skuSignalDrafts}
-          />
-        ) : null}
+          </div>
+        ) : (
+          currentMetadataPanel ?? currentWorkbenchPanel
+        )}
       </form>
-      {bottomNavigationIsland}
+      {sessionViewMode === 'pos' && workbenchReorderMode ? (
+        <button
+          aria-label={translateUiLiteral(language, 'Save ordering first')}
+          className="fixed inset-0 z-20 bg-transparent"
+          type="button"
+          onClick={() => requestWorkbenchReorderPrompt()}
+        />
+      ) : null}
+      <DialogPrimitive.Root
+        open={sessionViewMode === 'pos' && activePosTile != null && (stockCountPosMode ? activePosStockCountRow != null : activePosTileLine != null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closePosTileDialog();
+          }
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+          {activePosTile && stockCountPosMode && activePosStockCountRow ? (
+            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
+                  <div className="min-w-0">
+                    <DialogPrimitive.Title className="truncate text-3xl font-semibold tracking-[-0.04em] text-foreground">
+                      {activePosTile.title}
+                    </DialogPrimitive.Title>
+                    <DialogPrimitive.Description className="mt-1 text-base leading-7 text-muted-foreground">
+                      {translateUiLiteral(language, 'Review and update this SKU directly from POS view.')}
+                    </DialogPrimitive.Description>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-5">
+                <div className="grid gap-3">
+                  <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-units">{translateUiLiteral(language, 'Units in stock')}</RecordUpdateFieldLabel>
+                  <Input
+                    aria-label={translateUiLiteral(language, 'Units in stock')}
+                    className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    id="pos-stock-units"
+                    min="0"
+                    type="number"
+                    value={String(activePosStockCountRow.row.unitsInStock)}
+                    onChange={(event) => {
+                      markPosLineTouched(activePosTile.key);
+                      activatePosStep('stock');
+                      updateRow(activePosStockCountRow.sku.skuId, {
+                        unitsInStock:
+                          event.target.value === ''
+                            ? activePosStockCountRow.baseline.unitsInStock
+                            : Math.max(0, Number(event.target.value)),
+                      });
+                    }}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {translateUiLiteral(language, 'Baseline: {count}', { count: activePosStockCountRow.baseline.unitsInStock })}
+                  </p>
+                </div>
+                <div className="grid gap-3">
+                  <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-cost">{translateUiLiteral(language, 'Cost per unit')}</RecordUpdateFieldLabel>
+                  <Input
+                    aria-label={translateUiLiteral(language, 'Cost per unit')}
+                    className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    id="pos-stock-cost"
+                    min="0"
+                    step={moneyInputStep(currency)}
+                    type="number"
+                    value={
+                      activePosStockCountRow.row.costPerUnit == null
+                        ? ''
+                        : displayMoneyFromUsd(activePosStockCountRow.row.costPerUnit, currency, usdToKhrExchangeRate)
+                    }
+                    onChange={(event) => {
+                      markPosLineTouched(activePosTile.key);
+                      activatePosStep('stock');
+                      updateRow(activePosStockCountRow.sku.skuId, {
+                        costPerUnit: event.target.value === ''
+                          ? activePosStockCountRow.baseline.costPerUnit
+                          : usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                      });
+                    }}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {translateUiLiteral(language, 'Baseline: {amount}', {
+                      amount:
+                        activePosStockCountRow.baseline.costPerUnit == null
+                          ? translateUiLiteral(language, 'n/a')
+                          : formatCurrency(activePosStockCountRow.baseline.costPerUnit, currency, language, usdToKhrExchangeRate),
+                    })}
+                  </p>
+                </div>
+                {activePosStockCountRow.sku.soldAsProduct ? (
+                  <div className="grid gap-3">
+                    <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-price">{translateUiLiteral(language, 'Retail price')}</RecordUpdateFieldLabel>
+                    <Input
+                      aria-label={translateUiLiteral(language, 'Retail price')}
+                      className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                      id="pos-stock-price"
+                      min="0"
+                      step={moneyInputStep(currency)}
+                      type="number"
+                      value={
+                        activePosStockCountRow.row.productPrice == null
+                          ? ''
+                          : displayMoneyFromUsd(activePosStockCountRow.row.productPrice, currency, usdToKhrExchangeRate)
+                      }
+                      onChange={(event) => {
+                        markPosLineTouched(activePosTile.key);
+                        activatePosStep('stock');
+                        updateRow(activePosStockCountRow.sku.skuId, {
+                          productPrice: event.target.value === ''
+                            ? activePosStockCountRow.baseline.productPrice
+                            : usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                        });
+                      }}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      {translateUiLiteral(language, 'Baseline: {amount}', {
+                        amount:
+                          activePosStockCountRow.baseline.productPrice == null
+                            ? translateUiLiteral(language, 'n/a')
+                            : formatCurrency(activePosStockCountRow.baseline.productPrice, currency, language, usdToKhrExchangeRate),
+                      })}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="grid gap-3">
+                  <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]">{translateUiLiteral(language, 'Flags')}</RecordUpdateFieldLabel>
+                  <Select
+                    value={activePosStockCountRow.flagDraft.blockedEnabled ? activePosStockCountRow.flagDraft.blockedState : 'none'}
+                    onValueChange={(value) => {
+                      markPosLineTouched(activePosTile.key);
+                      activatePosStep('stock');
+                      updateSkuSignalDraft(activePosStockCountRow.sku.skuId, (draft) => ({
+                        ...skuEventOnlyDraft(draft),
+                        blockedEnabled: value !== 'none',
+                        blockedState: value === 'stockout' ? 'stockout' : 'blocked',
+                      }));
+                    }}
+                  >
+                    <SelectTrigger
+                      aria-label={translateUiLiteral(language, 'Flags')}
+                      className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between !h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    >
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="z-[110] text-base">
+                      <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="none">
+                        <span className="flex items-center gap-2">
+                          <StatusReadyIcon aria-hidden="true" className="size-4" />
+                          <span>{translateUiLiteral(language, 'No event')}</span>
+                        </span>
+                      </SelectItem>
+                      <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="blocked">
+                        <span className="flex items-center gap-2">
+                          <StatusWarningIcon aria-hidden="true" className="size-4" />
+                          <span>{translateUiLiteral(language, 'Blocked')}</span>
+                        </span>
+                      </SelectItem>
+                      <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="stockout">
+                        <span className="flex items-center gap-2">
+                          <EntityFlagIcon aria-hidden="true" className="size-4" />
+                          <span>{translateUiLiteral(language, 'Stockout')}</span>
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Button className="h-12 rounded-xl px-5 text-base" type="button" variant="outline" onClick={resetActivePosStockCountChanges}>
+                  <ActionUndoIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Reset changes')}
+                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="h-12 rounded-xl px-6 text-base" type="button" onClick={closePosTileDialog}>
+                    <ActionConfirmIcon data-icon="inline-start" />
+                    {translateUiLiteral(language, 'Done')}
+                  </Button>
+                </div>
+              </div>
+            </DialogPrimitive.Content>
+          ) : activePosTile && activePosTileLine ? (
+            <DialogPrimitive.Content className="fixed left-1/2 top-1/2 z-[100] grid w-[calc(100vw-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-6 rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-4">
+                  <ItemAvatar imagePath={activePosTile.imagePath} name={activePosTile.title} size="hero" type={activePosTile.itemType} />
+                  <div className="min-w-0">
+                    <DialogPrimitive.Title className="truncate text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                      {activePosTile.title}
+                    </DialogPrimitive.Title>
+                    <DialogPrimitive.Description className="mt-1 text-sm text-muted-foreground">
+                      {translateUiLiteral(language, 'Choose the quantity for this receipt line and review the pricing before adding it.')}
+                    </DialogPrimitive.Description>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <PosQuantityEditor
+                  decrementLabel={translateUiLiteral(language, 'Decrease {name}', { name: activePosTile.title })}
+                  incrementLabel={translateUiLiteral(language, 'Increase {name}', { name: activePosTile.title })}
+                  inputLabel={translateUiLiteral(language, 'Quantity for {name}', { name: activePosTile.title })}
+                  inputValue={posTileDialogQuantity}
+                  language={language}
+                  onDecrement={() =>
+                    setPosTileDialogQuantity((current) => String(Math.max(0, parsePosQuantityInput(current) - 1)))
+                  }
+                  onIncrement={() =>
+                    setPosTileDialogQuantity((current) => String(Math.max(0, parsePosQuantityInput(current) + 1)))
+                  }
+                  onInputChange={setPosTileDialogQuantity}
+                />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-[1.35rem] border border-border/70 bg-background/70 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{activePosTileLine.amountLabel}</p>
+                  <p className="mt-2 text-lg font-semibold text-foreground">
+                    {activePosTileLine.unitAmount == null
+                      ? translateUiLiteral(language, 'n/a')
+                      : formatCurrency(activePosTileLine.unitAmount, currency, language, usdToKhrExchangeRate)}
+                  </p>
+                </div>
+                <div className="rounded-[1.35rem] border border-border/70 bg-background/70 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {translateUiLiteral(language, 'Item subtotal')}
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-foreground">
+                    {activePosTileLine.unitAmount == null
+                      ? translateUiLiteral(language, '{count} units', {
+                          count: Number.isFinite(Number(posTileDialogQuantity)) ? Math.max(0, Math.trunc(Number(posTileDialogQuantity))) : 0,
+                        })
+                      : formatCurrency(
+                          Math.max(0, Math.trunc(Number(posTileDialogQuantity) || 0)) * activePosTileLine.unitAmount,
+                          currency,
+                          language,
+                          usdToKhrExchangeRate,
+                        )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                {activePosTileLine.quantity > 0 ? (
+                  <Button type="button" variant="destructive-outline" onClick={() => {
+                    activePosTileLine.remove();
+                    closePosTileDialog();
+                  }}>
+                    <ActionDeleteIcon className="size-4" />
+                    {translateUiLiteral(language, 'Remove line')}
+                  </Button>
+                ) : (
+                  <span />
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={closePosTileDialog}>
+                    <ActionCloseIcon data-icon="inline-start" />
+                    {translateUiLiteral(language, 'Cancel')}
+                  </Button>
+                  <Button type="button" onClick={commitPosTileDialog}>
+                    <ActionConfirmIcon data-icon="inline-start" />
+                    {translateUiLiteral(language, activePosTileLine.quantity > 0 ? 'Update line' : 'Add line')}
+                  </Button>
+                </div>
+              </div>
+            </DialogPrimitive.Content>
+          ) : null}
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+      <DialogPrimitive.Root
+        open={sessionViewMode === 'pos' && posReceiptConfirmOpen}
+        onOpenChange={(open) => {
+          setPosReceiptConfirmOpen(open);
+          if (!open && !stockCountPosMode) {
+            setPosReceiptCopyStatus('idle');
+          }
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-[rgba(29,20,12,0.42)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+          <DialogPrimitive.Content
+            className="fixed left-1/2 top-1/2 z-[100] grid max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-2xl -translate-x-1/2 -translate-y-1/2 gap-5 overflow-y-auto rounded-[1.9rem] border border-border/70 bg-white p-6 shadow-[0_28px_90px_rgba(48,31,20,0.18)]"
+            onOpenAutoFocus={(event) => {
+              event.preventDefault();
+              window.requestAnimationFrame(() => {
+                posReviewCancelButtonRef.current?.focus({ preventScroll: true });
+              });
+            }}
+          >
+            <div className="grid gap-2">
+              <DialogPrimitive.Title className="text-2xl font-semibold tracking-[-0.04em] text-foreground">
+                {posReviewDialogTitle}
+              </DialogPrimitive.Title>
+              <DialogPrimitive.Description className="text-sm leading-6 text-muted-foreground">
+                {posReviewDialogDescription}
+              </DialogPrimitive.Description>
+            </div>
+
+            {stockCountPosMode ? (
+              <StockCountPosChangeTable
+                changedRows={stockCountPosChangedRows}
+                emptyState={posSummaryEmptyState}
+                language={language}
+              />
+            ) : (
+              <div style={posReceiptConfirmTableLayout.style}>
+                <HeaderedTable
+                  className={posReceiptConfirmTableLayout.containerClassName}
+                  variant="overview"
+                >
+                  <HeaderedTableHeader className={posReceiptConfirmTableLayout.headerClassName}>
+                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Qty')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Pricing')}</HeaderedTableHeaderCell>
+                  </HeaderedTableHeader>
+                  <HeaderedTableBody className={posReceiptConfirmTableLayout.bodyClassName}>
+                    {posReceiptTextLines.map((line) => (
+                      <HeaderedTableRow
+                        key={`${line.title}:${line.quantity}:${line.totalLabel}`}
+                        className={cn(posReceiptConfirmTableLayout.rowClassName, 'items-center')}
+                      >
+                        <HeaderedTableCellStack
+                          primary={line.title}
+                          primaryClassName="font-semibold tracking-[-0.02em]"
+                        />
+                        <div className="min-w-0">
+                          <HeaderedTableMobileLabel className={posReceiptConfirmTableLayout.mobileLabelClassName}>
+                            {translateUiLiteral(language, 'Qty')}
+                          </HeaderedTableMobileLabel>
+                          <p className="font-medium text-foreground tabular-nums lg:text-center">{line.quantity}</p>
+                        </div>
+                        <div className="grid gap-1 text-sm">
+                          <HeaderedTableMobileLabel className={posReceiptConfirmTableLayout.mobileLabelClassName}>
+                            {translateUiLiteral(language, 'Pricing')}
+                          </HeaderedTableMobileLabel>
+                          <p className="flex items-baseline justify-between gap-3 whitespace-nowrap">
+                            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              {translateUiLiteral(language, 'Unit price')}
+                            </span>
+                            <span className="font-medium text-foreground tabular-nums">{line.unitPriceLabel}</span>
+                          </p>
+                          <p className="flex items-baseline justify-between gap-3 whitespace-nowrap">
+                            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                              {translateUiLiteral(language, 'Total price')}
+                            </span>
+                            <span className="font-semibold text-foreground tabular-nums">{line.totalLabel}</span>
+                          </p>
+                        </div>
+                      </HeaderedTableRow>
+                    ))}
+                    {deliveryFeeEnabled ? (
+                      <>
+                        <HeaderedTableRow className={cn(posReceiptConfirmTableLayout.rowClassName, 'items-center border-t border-border/60')}>
+                          <HeaderedTableCellStack
+                            primary={translateUiLiteral(language, 'Subtotal')}
+                            primaryClassName="font-medium tracking-[-0.02em]"
+                          />
+                          <span aria-hidden="true" />
+                          <p className="text-right font-medium text-foreground tabular-nums">{deliverySubtotalLabel}</p>
+                        </HeaderedTableRow>
+                        <HeaderedTableRow className={cn(posReceiptConfirmTableLayout.rowClassName, 'items-center')}>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <HeaderedTableCellStack
+                              primary={translateUiLiteral(language, 'Delivery')}
+                              primaryClassName="font-medium tracking-[-0.02em]"
+                            />
+                            <HelpTooltip
+                              content={deliveryFeeHelpText(language)}
+                              label={translateUiLiteral(language, 'Delivery fee')}
+                            />
+                          </div>
+                          <span aria-hidden="true" />
+                          <p className="text-right font-medium text-foreground tabular-nums">{deliveryDisplayLabel}</p>
+                        </HeaderedTableRow>
+                      </>
+                    ) : null}
+                    <HeaderedTableRow className={cn(posReceiptConfirmTableLayout.rowClassName, 'items-center', deliveryFeeEnabled ? '' : 'border-t border-border/60')}>
+                      <HeaderedTableCellStack
+                        primary={translateUiLiteral(language, 'Total')}
+                        primaryClassName="font-semibold tracking-[-0.02em]"
+                      />
+                      <span aria-hidden="true" />
+                      <p className="text-right text-lg font-semibold text-foreground tabular-nums">{posReceiptTotalLabel}</p>
+                    </HeaderedTableRow>
+                  </HeaderedTableBody>
+                </HeaderedTable>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {!stockCountPosMode ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => void copyPosReceiptPlainText()}>
+                      <ActionClipboardAddIcon className="size-4" />
+                      {translateUiLiteral(language, 'Copy receipt')}
+                    </Button>
+                    {posReceiptCopyStatus === 'copied' ? (
+                      <p className="text-sm text-emerald-700">{translateUiLiteral(language, 'Copied receipt to clipboard.')}</p>
+                    ) : posReceiptCopyStatus === 'failed' ? (
+                      <p className="text-sm text-destructive">{translateUiLiteral(language, 'Could not copy receipt to clipboard.')}</p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button ref={posReviewCancelButtonRef} type="button" variant="outline" onClick={() => setPosReceiptConfirmOpen(false)}>
+                  <ActionCloseIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Cancel')}
+                </Button>
+                <Button disabled={isSaving} type="button" onClick={() => void saveCurrentSession()}>
+                  <ActionSaveIcon className="size-4" />
+                  {isSaving ? t('catalogSenaSkuSaving') : translateUiLiteral(language, 'Confirm save')}
+                </Button>
+              </div>
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+      <Sheet open={sessionViewMode === 'pos' && activePosMetadataPopup != null} onOpenChange={(open) => {
+        if (!open) {
+          setActivePosMetadataPopup(null);
+        }
+      }}>
+        <SheetContent
+          aria-describedby={undefined}
+          className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl"
+          onOpenAutoFocus={(event) => {
+            if (activePosMetadataPopup !== 'delivery') {
+              return;
+            }
+
+            event.preventDefault();
+            window.requestAnimationFrame(() => {
+              posDeliveryFeeInputRef.current?.focus({ preventScroll: true });
+            });
+          }}
+        >
+          <SheetHeader className="gap-3 border-b border-border/60 px-8 py-7">
+            <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{activePosMetadataTitle}</SheetTitle>
+            <SheetDescription className="max-w-2xl text-base leading-7">
+              {activePosMetadataDescription}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-6 px-8 py-7">
+            {activePosMetadataContent}
+          </div>
+        </SheetContent>
+      </Sheet>
+      {sessionViewMode === 'form' ? bottomNavigationIsland : null}
     </WorkspacePage>
   );
 }

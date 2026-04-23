@@ -7,87 +7,6 @@ import { translateUiLiteral } from './translations';
 import { activeEnUiCopy } from './ui-copy-map';
 
 const rendererRoot = resolve(process.cwd(), 'src/renderer/src');
-const existingIconlessButtons = [
-  'components/banji-shell.tsx:662',
-  'components/system/batch-action-prompt.tsx:62',
-  'components/system/confirm-action-dialog.tsx:60',
-  'components/system/confirm-action-dialog.tsx:63',
-  'components/system/editor.tsx:81',
-  'components/system/hover-tooltip.tsx:70',
-  'components/system/interval-strip.tsx:483',
-  'components/system/trading-chart/chart.tsx:2193',
-  'components/system/trading-chart/chart.tsx:2196',
-  'components/system/trading-chart/chart.tsx:2199',
-  'components/system/trading-chart/chart.tsx:3999',
-  'components/system/trading-chart/chart.tsx:4021',
-  'components/system/trading-chart/chart.tsx:4049',
-  'components/system/trading-chart/chart.tsx:4210',
-  'components/system/trading-chart/chart.tsx:4226',
-  'components/system/trading-chart/chart.tsx:4346',
-  'components/system/trading-chart/chart.tsx:4355',
-  'components/system/trading-chart/chart.tsx:4485',
-  'components/system/trading-chart/chart.tsx:4494',
-  'components/system/trading-chart/chart.tsx:4621',
-  'components/system/trading-chart/chart.tsx:4630',
-  'components/system/trading-chart/chart.tsx:4823',
-  'components/system/trading-chart/chart.tsx:4842',
-  'components/system/trading-chart/chart.tsx:4886',
-  'components/system/trading-chart/chart.tsx:4898',
-  'components/system/trading-chart/chart.tsx:4905',
-  'components/system/trading-chart/chart.tsx:4928',
-  'components/system/trading-chart/chart.tsx:4959',
-  'components/system/trading-chart/chart.tsx:4962',
-  'components/system/trading-chart/chart.tsx:4976',
-  'components/system/trading-chart/ledger-overlay.tsx:22',
-  'components/system/typed-confirm-dialog.tsx:64',
-  'components/system/typed-confirm-dialog.tsx:67',
-  'components/ui/anchored-menu.tsx:93',
-  'components/ui/input-group.tsx:84',
-  'components/ui/sidebar.tsx:287',
-  'routes/benchmark-settings.tsx:52',
-  'routes/benchmark-settings.tsx:556',
-  'routes/benchmark-settings.tsx:559',
-  'routes/benchmark-settings.tsx:631',
-  'routes/benchmark-settings.tsx:693',
-  'routes/catalog-item-actions.tsx:143',
-  'routes/catalog-item-actions.tsx:173',
-  'routes/dashboard.tsx:614',
-  'routes/dashboard.tsx:654',
-  'routes/dashboard.tsx:738',
-  'routes/dashboard.tsx:870',
-  'routes/dashboard.tsx:895',
-  'routes/dashboard.tsx:924',
-  'routes/detail-panels.tsx:81',
-  'routes/detail-panels.tsx:90',
-  'routes/detail-regime-overlay.tsx:132',
-  'routes/help.tsx:103',
-  'routes/help.tsx:206',
-  'routes/inventory.tsx:518',
-  'routes/inventory.tsx:525',
-  'routes/performance/analysis-workbench.tsx:968',
-  'routes/performance/analysis-workbench.tsx:1110',
-  'routes/performance/analysis-workbench.tsx:1153',
-  'routes/performance/analysis-workbench.tsx:1299',
-  'routes/performance/analysis-workbench.tsx:1330',
-  'routes/performance/analysis-workbench.tsx:1446',
-  'routes/performance/analysis-workbench.tsx:1867',
-  'routes/performance/analysis-workbench.tsx:1894',
-  'routes/performance.tsx:85',
-  'routes/record-update-hub.tsx:152',
-  'routes/record-update-hub.tsx:340',
-  'routes/record-update-hub.tsx:343',
-  'routes/service-detail.tsx:335',
-  'routes/service-detail.tsx:363',
-  'routes/settings.tsx:361',
-  'routes/settings.tsx:643',
-  'routes/sku-detail/index.tsx:289',
-  'routes/stock-update-session.tsx:2010',
-  'routes/stock-update-session.tsx:2531',
-  'routes/stock-update-session.tsx:2534',
-  'routes/stock-update-session.tsx:4267',
-  'routes/stock-update-session.tsx:4320',
-  'routes/stock-update.tsx:940',
-];
 
 async function collectSourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
@@ -145,6 +64,83 @@ function jsxTagName(name: ts.JsxTagNameExpression): string {
   return name.getText();
 }
 
+function jsxElementChildren(node: ts.JsxElement | ts.JsxFragment): ts.NodeArray<ts.JsxChild> {
+  return node.children;
+}
+
+function jsxAttributeName(node: ts.JsxAttributeLike): string | null {
+  if (ts.isJsxAttribute(node) && ts.isIdentifier(node.name)) {
+    return node.name.text;
+  }
+
+  return null;
+}
+
+function isIconName(name: string): boolean {
+  return name === 'svg' || name === 'Icon' || name.endsWith('Icon') || name.toLowerCase() === 'icon';
+}
+
+function isDestructiveIconName(name: string): boolean {
+  return name === 'ActionDeleteIcon' || name === 'ActionExplosionIcon';
+}
+
+function expressionLooksLikeIcon(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) {
+    return /(^icon$|Icon$)/.test(expression.text);
+  }
+
+  if (ts.isPropertyAccessExpression(expression)) {
+    return /(^icon$|Icon$)/.test(expression.name.text);
+  }
+
+  if (ts.isJsxElement(expression)) {
+    return isIconName(jsxTagName(expression.openingElement.tagName)) || hasIconDescendant(expression);
+  }
+
+  if (ts.isJsxSelfClosingElement(expression)) {
+    return isIconName(jsxTagName(expression.tagName));
+  }
+
+  if (ts.isConditionalExpression(expression)) {
+    return expressionLooksLikeIcon(expression.whenTrue) || expressionLooksLikeIcon(expression.whenFalse);
+  }
+
+  if (ts.isParenthesizedExpression(expression)) {
+    return expressionLooksLikeIcon(expression.expression);
+  }
+
+  return false;
+}
+
+function expressionLooksLikeDestructiveIcon(expression: ts.Expression): boolean {
+  if (ts.isIdentifier(expression)) {
+    return isDestructiveIconName(expression.text);
+  }
+
+  if (ts.isPropertyAccessExpression(expression)) {
+    return isDestructiveIconName(expression.name.text);
+  }
+
+  if (ts.isJsxElement(expression)) {
+    return isDestructiveIconName(jsxTagName(expression.openingElement.tagName));
+  }
+
+  if (ts.isJsxSelfClosingElement(expression)) {
+    return isDestructiveIconName(jsxTagName(expression.tagName));
+  }
+
+  if (ts.isConditionalExpression(expression)) {
+    return expressionLooksLikeDestructiveIcon(expression.whenTrue)
+      || expressionLooksLikeDestructiveIcon(expression.whenFalse);
+  }
+
+  if (ts.isParenthesizedExpression(expression)) {
+    return expressionLooksLikeDestructiveIcon(expression.expression);
+  }
+
+  return false;
+}
+
 function hasIconDescendant(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
   let found = false;
 
@@ -155,24 +151,146 @@ function hasIconDescendant(node: ts.JsxElement | ts.JsxSelfClosingElement): bool
 
     if (ts.isJsxElement(child)) {
       const tagName = jsxTagName(child.openingElement.tagName);
-      if (tagName === 'svg' || tagName.endsWith('Icon')) {
+      if (isIconName(tagName)) {
         found = true;
         return;
       }
+
+      for (const attribute of child.openingElement.attributes.properties) {
+        if (jsxAttributeName(attribute) === 'data-icon') {
+          found = true;
+          return;
+        }
+      }
+
+      jsxElementChildren(child).forEach(visit);
+      return;
     }
 
     if (ts.isJsxSelfClosingElement(child)) {
       const tagName = jsxTagName(child.tagName);
-      if (tagName === 'svg' || tagName.endsWith('Icon')) {
+      if (isIconName(tagName)) {
         found = true;
         return;
       }
+
+      for (const attribute of child.attributes.properties) {
+        if (jsxAttributeName(attribute) === 'data-icon') {
+          found = true;
+          return;
+        }
+      }
     }
 
-    ts.forEachChild(child, visit);
+    if (ts.isJsxExpression(child) && child.expression && expressionLooksLikeIcon(child.expression)) {
+      found = true;
+      return;
+    }
   }
 
-  ts.forEachChild(node, visit);
+  if (ts.isJsxElement(node)) {
+    jsxElementChildren(node).forEach(visit);
+  }
+  return found;
+}
+
+function hasDestructiveIconDescendant(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  let found = false;
+
+  function visit(child: ts.Node) {
+    if (found) {
+      return;
+    }
+
+    if (ts.isJsxElement(child)) {
+      if (isDestructiveIconName(jsxTagName(child.openingElement.tagName))) {
+        found = true;
+        return;
+      }
+
+      jsxElementChildren(child).forEach(visit);
+      return;
+    }
+
+    if (ts.isJsxSelfClosingElement(child) && isDestructiveIconName(jsxTagName(child.tagName))) {
+      found = true;
+      return;
+    }
+
+    if (ts.isJsxExpression(child) && child.expression && expressionLooksLikeDestructiveIcon(child.expression)) {
+      found = true;
+    }
+  }
+
+  if (ts.isJsxElement(node)) {
+    jsxElementChildren(node).forEach(visit);
+  }
+
+  return found;
+}
+
+function expressionLooksLikeVisibleLabel(expression: ts.Expression | undefined): boolean {
+  if (!expression) {
+    return false;
+  }
+
+  if (ts.isStringLiteral(expression) || ts.isNoSubstitutionTemplateLiteral(expression)) {
+    return expression.text.trim().length > 0;
+  }
+
+  if (ts.isTemplateExpression(expression) || ts.isBinaryExpression(expression)) {
+    return true;
+  }
+
+  if (ts.isConditionalExpression(expression)) {
+    return expressionLooksLikeVisibleLabel(expression.whenTrue)
+      || expressionLooksLikeVisibleLabel(expression.whenFalse);
+  }
+
+  if (ts.isCallExpression(expression)) {
+    const callee = expression.expression.getText();
+    return /(^|\.)t$|translateUiLiteral|format|Label|label/i.test(callee);
+  }
+
+  if (ts.isIdentifier(expression)) {
+    return /label|title|name/i.test(expression.text);
+  }
+
+  if (ts.isPropertyAccessExpression(expression)) {
+    return /label|title|name/i.test(expression.name.text);
+  }
+
+  return false;
+}
+
+function hasVisibleButtonLabel(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  if (ts.isJsxSelfClosingElement(node)) {
+    return false;
+  }
+
+  let found = false;
+
+  function visit(child: ts.JsxChild) {
+    if (found) {
+      return;
+    }
+
+    if (ts.isJsxText(child) && child.getText().trim().length > 0) {
+      found = true;
+      return;
+    }
+
+    if (ts.isJsxExpression(child) && expressionLooksLikeVisibleLabel(child.expression)) {
+      found = true;
+      return;
+    }
+
+    if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
+      jsxElementChildren(child).forEach(visit);
+    }
+  }
+
+  jsxElementChildren(node).forEach(visit);
   return found;
 }
 
@@ -181,6 +299,184 @@ function isButtonElement(node: ts.JsxElement | ts.JsxSelfClosingElement): boolea
     ? jsxTagName(node.openingElement.tagName)
     : jsxTagName(node.tagName);
   return tagName === 'button' || tagName === 'Button';
+}
+
+function isTogglePillElement(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  const tagName = ts.isJsxElement(node)
+    ? jsxTagName(node.openingElement.tagName)
+    : jsxTagName(node.tagName);
+  return tagName === 'ToggleGroupItem';
+}
+
+function attributeExpressionText(attribute: ts.JsxAttributeLike): string {
+  if (!ts.isJsxAttribute(attribute) || !attribute.initializer) {
+    return '';
+  }
+
+  if (ts.isStringLiteral(attribute.initializer)) {
+    return attribute.initializer.text;
+  }
+
+  if (ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
+    return attribute.initializer.expression.getText();
+  }
+
+  return '';
+}
+
+function collectIntentText(node: ts.JsxElement | ts.JsxSelfClosingElement): string {
+  const parts: string[] = [];
+
+  function add(value: string | undefined) {
+    if (value) {
+      parts.push(value);
+    }
+  }
+
+  function visit(child: ts.Node) {
+    if (ts.isJsxText(child)) {
+      add(child.getText());
+      return;
+    }
+
+    if (ts.isJsxExpression(child) && child.expression) {
+      add(child.expression.getText());
+      return;
+    }
+
+    if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
+      jsxElementChildren(child).forEach(visit);
+    }
+  }
+
+  if (ts.isJsxElement(node)) {
+    jsxElementChildren(node).forEach(visit);
+  }
+
+  for (const attribute of ts.isJsxElement(node) ? node.openingElement.attributes.properties : node.attributes.properties) {
+    const name = jsxAttributeName(attribute);
+    if (!name || (name !== 'aria-label' && name !== 'title')) {
+      continue;
+    }
+
+    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
+      add(attribute.initializer.text);
+    }
+
+    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
+      add(attribute.initializer.expression.getText());
+    }
+  }
+
+  return parts.join(' ');
+}
+
+const destructiveIntentPattern = /\b(delete|remove|discard|destroy|erase)\b|clear current/i;
+
+function hasDestructiveIntent(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  return hasDestructiveIconDescendant(node) || destructiveIntentPattern.test(collectIntentText(node));
+}
+
+function buttonVariantExpression(node: ts.JsxElement | ts.JsxSelfClosingElement): string | null {
+  const attributes = ts.isJsxElement(node) ? node.openingElement.attributes.properties : node.attributes.properties;
+
+  for (const attribute of attributes) {
+    if (jsxAttributeName(attribute) !== 'variant') {
+      continue;
+    }
+
+    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
+      return attribute.initializer.text;
+    }
+
+    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
+      return attribute.initializer.expression.getText();
+    }
+  }
+
+  return null;
+}
+
+function buttonClassExpression(node: ts.JsxElement | ts.JsxSelfClosingElement): string {
+  const attributes = ts.isJsxElement(node) ? node.openingElement.attributes.properties : node.attributes.properties;
+
+  for (const attribute of attributes) {
+    if (jsxAttributeName(attribute) !== 'className') {
+      continue;
+    }
+
+    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
+      return attribute.initializer.text;
+    }
+
+    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
+      return attribute.initializer.expression.getText();
+    }
+  }
+
+  return '';
+}
+
+function togglePillValueExpression(node: ts.JsxElement | ts.JsxSelfClosingElement): string {
+  const attributes = ts.isJsxElement(node) ? node.openingElement.attributes.properties : node.attributes.properties;
+
+  for (const attribute of attributes) {
+    if (jsxAttributeName(attribute) === 'value') {
+      return attributeExpressionText(attribute);
+    }
+  }
+
+  return '';
+}
+
+function parentToggleGroup(node: ts.Node): ts.JsxElement | ts.JsxSelfClosingElement | null {
+  let current: ts.Node | undefined = node.parent;
+
+  while (current) {
+    if (ts.isJsxElement(current) && jsxTagName(current.openingElement.tagName) === 'ToggleGroup') {
+      return current;
+    }
+    if (ts.isJsxSelfClosingElement(current) && jsxTagName(current.tagName) === 'ToggleGroup') {
+      return current;
+    }
+    current = current.parent;
+  }
+
+  return null;
+}
+
+const timeframeToggleValuePattern = /^(h|d|w|m|y|max|ytd|recent|custom|all|\d+[hdwmy])$/i;
+const timeframeToggleGroupPattern = /time\s*range|timeframe|date\s*range|business\s*window/i;
+
+function isTimeframeTogglePill(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  const valueExpression = togglePillValueExpression(node);
+  if (timeframeToggleValuePattern.test(valueExpression.trim())) {
+    return true;
+  }
+
+  const group = parentToggleGroup(node);
+  if (!group) {
+    return false;
+  }
+
+  const attributes = ts.isJsxElement(group) ? group.openingElement.attributes.properties : group.attributes.properties;
+  return attributes.some((attribute) =>
+    jsxAttributeName(attribute) === 'aria-label' &&
+    timeframeToggleGroupPattern.test(attributeExpressionText(attribute)),
+  );
+}
+
+function hasDestructiveTreatment(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  const tagName = isButtonElement(node) ? (ts.isJsxElement(node) ? jsxTagName(node.openingElement.tagName) : jsxTagName(node.tagName)) : null;
+  if (!tagName) {
+    return false;
+  }
+
+  if (tagName === 'Button') {
+    return /destructive/.test(buttonVariantExpression(node) ?? '');
+  }
+
+  return /destructive|rose-|red-/.test(buttonClassExpression(node));
 }
 
 describe('global design rules', () => {
@@ -210,7 +506,7 @@ describe('global design rules', () => {
     expect(offenders).toEqual([]);
   });
 
-  test('tracks iconless button debt so new buttons include icons', async () => {
+  test('requires every visible-label button to include an icon', async () => {
     const sourceFiles = await collectSourceFiles(rendererRoot);
     const iconlessButtons: string[] = [];
 
@@ -228,6 +524,7 @@ describe('global design rules', () => {
         if (
           (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
           isButtonElement(node) &&
+          hasVisibleButtonLabel(node) &&
           !hasIconDescendant(node)
         ) {
           const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
@@ -239,6 +536,73 @@ describe('global design rules', () => {
       visit(ast);
     }
 
-    expect(iconlessButtons).toEqual(existingIconlessButtons);
+    expect(iconlessButtons).toEqual([]);
+  });
+
+  test('requires every visible-label toggle pill to include an icon', async () => {
+    const sourceFiles = await collectSourceFiles(rendererRoot);
+    const iconlessTogglePills: string[] = [];
+
+    for (const sourceFile of sourceFiles) {
+      const source = await readFile(sourceFile, 'utf8');
+      const ast = ts.createSourceFile(
+        sourceFile,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        scriptKindForPath(sourceFile),
+      );
+
+      function visit(node: ts.Node) {
+        if (
+          (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+          isTogglePillElement(node) &&
+          hasVisibleButtonLabel(node) &&
+          !isTimeframeTogglePill(node) &&
+          !hasIconDescendant(node)
+        ) {
+          const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
+          iconlessTogglePills.push(`${relative(rendererRoot, sourceFile)}:${line + 1}`);
+        }
+        ts.forEachChild(node, visit);
+      }
+
+      visit(ast);
+    }
+
+    expect(iconlessTogglePills).toEqual([]);
+  });
+
+  test('requires destructive buttons to use destructive treatment', async () => {
+    const sourceFiles = await collectSourceFiles(rendererRoot);
+    const unsafeDestructiveButtons: string[] = [];
+
+    for (const sourceFile of sourceFiles) {
+      const source = await readFile(sourceFile, 'utf8');
+      const ast = ts.createSourceFile(
+        sourceFile,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        scriptKindForPath(sourceFile),
+      );
+
+      function visit(node: ts.Node) {
+        if (
+          (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
+          isButtonElement(node) &&
+          hasDestructiveIntent(node) &&
+          !hasDestructiveTreatment(node)
+        ) {
+          const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
+          unsafeDestructiveButtons.push(`${relative(rendererRoot, sourceFile)}:${line + 1}`);
+        }
+        ts.forEachChild(node, visit);
+      }
+
+      visit(ast);
+    }
+
+    expect(unsafeDestructiveButtons).toEqual([]);
   });
 });

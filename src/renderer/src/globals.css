@@ -36,6 +36,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@keyframes banji-workbench-jiggle {
+  from {
+    transform: translateY(-1px) rotate(-1.9deg);
+  }
+
+  to {
+    transform: translateY(1px) rotate(1.9deg);
+  }
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Noto Sans Oriya", "Helvetica Neue", "Noto Sans Khmer", "Segoe UI", sans-serif;

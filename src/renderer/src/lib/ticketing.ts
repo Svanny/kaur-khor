@@ -1,10 +1,18 @@
 import type {
+  SenaDeliveryFeeBucket,
+  SenaDeliveryFeeMetadata,
+  SenaDeliveryFeePayer,
   SenaCommercialEntityType,
   SenaObservationRecord,
   SenaTicketEvent,
   SenaTicketFamily,
   SenaTicketPartyMetadata,
 } from '@shared/sena';
+import {
+  formatPhoneForDisplay,
+  normalizePhoneLookupKey,
+  normalizePhoneNumber,
+} from '@shared/phone';
 
 export const TICKET_CHANNEL_PRESETS = [
   'Walk-in',
@@ -29,6 +37,13 @@ export interface CustomerLinkDirectory {
   phoneToName: Map<string, string>;
 }
 
+export interface DeliveryFeeSummary {
+  subtotalUsd: number | null;
+  displayDeliveryUsd: number | null;
+  displayTotalUsd: number | null;
+  netSettlementUsd: number | null;
+}
+
 function collapseSpaces(value: string) {
   return value.trim().replace(/\s+/g, ' ');
 }
@@ -38,7 +53,7 @@ export function normalizeTicketLookupValue(value: string) {
 }
 
 export function normalizeTicketPhone(value: string) {
-  return value.replace(/[^\d+]/g, '').toLowerCase();
+  return normalizePhoneLookupKey(value);
 }
 
 export function normalizeTicketChannel(value: string) {
@@ -55,7 +70,7 @@ export function resolveTicketChannel(draft: CustomerIdentityDraft) {
 export function buildTicketPartyMetadata(draft: CustomerIdentityDraft): SenaTicketPartyMetadata {
   const channel = resolveTicketChannel(draft);
   const customerName = collapseSpaces(draft.customerName);
-  const phone = collapseSpaces(draft.phone);
+  const phone = normalizePhoneNumber(draft.phone);
   return {
     role: 'customer',
     channelKey: channel.key,
@@ -77,9 +92,9 @@ export function buildCustomerLinkDirectory(observations: SenaObservationRecord[]
       continue;
     }
     const name = collapseSpaces(event.party.customerName ?? '');
-    const phone = collapseSpaces(event.party.phone ?? '');
+    const phone = formatPhoneForDisplay(event.party.phone ?? '');
     const nameKey = event.party.customerNameKey ?? normalizeTicketLookupValue(name);
-    const phoneKey = event.party.phoneKey ?? normalizeTicketPhone(phone);
+    const phoneKey = normalizePhoneLookupKey(event.party.phone ?? event.party.phoneKey ?? '');
     if (name && nameKey) {
       nameByKey.set(nameKey, name);
     }
@@ -142,6 +157,119 @@ export function latestTicketEvents(observations: SenaObservationRecord[]) {
   return observations
     .flatMap((observation) => observation.input.ticketEvents ?? [])
     .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
+}
+
+export function deliveryFeeBucketForWorkflow({
+  customerCompletedMode,
+  isCustomerCompletedLane,
+  isCustomerPendingLane,
+  isSupplierPendingLane,
+  isSupplierReceiptLane,
+}: {
+  customerCompletedMode: 'from_pending' | 'immediate_sale' | 'refund_reversal';
+  isCustomerCompletedLane: boolean;
+  isCustomerPendingLane: boolean;
+  isSupplierPendingLane: boolean;
+  isSupplierReceiptLane: boolean;
+}): SenaDeliveryFeeBucket | null {
+  if (isSupplierPendingLane || isSupplierReceiptLane) {
+    return 'supplier';
+  }
+  if (isCustomerPendingLane) {
+    return 'customer_order';
+  }
+  if (!isCustomerCompletedLane || customerCompletedMode === 'refund_reversal') {
+    return null;
+  }
+  return customerCompletedMode === 'immediate_sale' ? 'immediate_sale' : 'customer_order';
+}
+
+export function summarizeDeliveryFee({
+  bucket,
+  feeUsd,
+  payer,
+  subtotalUsd,
+}: {
+  bucket: SenaDeliveryFeeBucket;
+  feeUsd: number | null;
+  payer: SenaDeliveryFeePayer;
+  subtotalUsd: number | null;
+}): DeliveryFeeSummary {
+  if (subtotalUsd == null) {
+    return {
+      subtotalUsd: null,
+      displayDeliveryUsd: null,
+      displayTotalUsd: null,
+      netSettlementUsd: null,
+    };
+  }
+  const safeFee = feeUsd != null && Number.isFinite(feeUsd) && feeUsd > 0 ? feeUsd : 0;
+  if (bucket === 'supplier') {
+    return {
+      subtotalUsd,
+      displayDeliveryUsd: safeFee,
+      displayTotalUsd: subtotalUsd + safeFee,
+      netSettlementUsd: subtotalUsd + safeFee,
+    };
+  }
+  if (payer === 'customer') {
+    return {
+      subtotalUsd,
+      displayDeliveryUsd: safeFee,
+      displayTotalUsd: subtotalUsd + safeFee,
+      netSettlementUsd: subtotalUsd + safeFee,
+    };
+  }
+  return {
+    subtotalUsd,
+    displayDeliveryUsd: 0,
+    displayTotalUsd: subtotalUsd,
+    netSettlementUsd: subtotalUsd - safeFee,
+  };
+}
+
+export function buildDeliveryFeeMetadata({
+  bucket,
+  feeUsd,
+  payer,
+  subtotalUsd,
+}: {
+  bucket: SenaDeliveryFeeBucket;
+  feeUsd: number | null;
+  payer: SenaDeliveryFeePayer;
+  subtotalUsd: number | null;
+}): SenaDeliveryFeeMetadata {
+  return {
+    feeUsd,
+    payer,
+    bucket,
+    ...summarizeDeliveryFee({ bucket, feeUsd, payer, subtotalUsd }),
+  };
+}
+
+export function latestDeliveryFeeMetadata(
+  observations: SenaObservationRecord[],
+  bucket: SenaDeliveryFeeBucket,
+): SenaDeliveryFeeMetadata | null {
+  const candidates: Array<{ at: string; metadata: SenaDeliveryFeeMetadata }> = [];
+  for (const observation of observations) {
+    if (observation.input.deliveryFee?.bucket === bucket) {
+      candidates.push({
+        at: observation.input.observedAt,
+        metadata: observation.input.deliveryFee,
+      });
+    }
+    for (const event of observation.input.ticketEvents ?? []) {
+      if (event.deliveryFee?.bucket === bucket) {
+        candidates.push({
+          at: event.occurredAt,
+          metadata: event.deliveryFee,
+        });
+      }
+    }
+  }
+  candidates.sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
+  return candidates[0]?.metadata ?? null;
 }
 
 export function ticketLabel(event: SenaTicketEvent) {

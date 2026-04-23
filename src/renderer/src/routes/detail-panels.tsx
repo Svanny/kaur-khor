@@ -85,6 +85,7 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(0)}
         >
+          <NavigationPreviousIcon data-icon="inline-start" className="mr-1 inline size-4" />
           {resolvedFirstLabel}
         </button>
         <button
@@ -94,6 +95,7 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(pageCount - 1)}
         >
+          <NavigationNextIcon data-icon="inline-start" className="mr-1 inline size-4" />
           {resolvedLastLabel}
         </button>
         <button

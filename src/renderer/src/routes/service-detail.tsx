@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'reac
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
+import { NavigationBackIcon } from '@icons/navigation';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
 import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController } from '@/components/system/trading-chart';
@@ -13,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
-import { readServiceAction } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
@@ -104,6 +104,7 @@ export function ServiceDetailRoute() {
   } = useInventory();
   const { serviceId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [actionMode, setActionMode] = useState<Parameters<typeof ServiceDetailActions>[0]['mode']>(null);
   const [detailPage, setDetailPage] = useState<SenaServiceDetailPage | null>(null);
   const [loadedSnapshot, setLoadedSnapshot] = useState<InventorySnapshot | null>(null);
   const [loadedReports, setLoadedReports] = useState<StockReport[] | null>(null);
@@ -114,7 +115,6 @@ export function ServiceDetailRoute() {
     subjectId: serviceId,
     subtype: 'service',
   });
-  const actionMode = readServiceAction(searchParams);
   const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
   const cachedRecentDetailPage = useMemo(
@@ -132,17 +132,8 @@ export function ServiceDetailRoute() {
     [serviceId, workspaceSummary],
   );
 
-  function updateActionMode(nextMode: typeof actionMode, replace = false) {
-    const nextSearchParams = buildServiceDetailSearchParams(searchParams, {
-      action: nextMode,
-      chart: chartSearchValue(searchParams),
-    });
-    setSearchParams(nextSearchParams, { replace });
-  }
-
   function setLedgerExpanded(nextExpanded: boolean, replace = false) {
     const nextSearchParams = buildServiceDetailSearchParams(searchParams, {
-      action: actionMode,
       chart: nextExpanded ? 'expanded' : null,
     });
     setSearchParams(nextSearchParams, { replace });
@@ -333,7 +324,10 @@ export function ServiceDetailRoute() {
           hint={t('catalogServiceDetailNotFoundDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">{t('backToCatalog')}</Link>
+              <Link to="/catalog">
+                <NavigationBackIcon data-icon="inline-start" />
+                {t('backToCatalog')}
+              </Link>
             </Button>
           }
         />
@@ -361,7 +355,10 @@ export function ServiceDetailRoute() {
           hint={error ?? t('catalogServiceDetailUnavailableDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">{t('backToCatalog')}</Link>
+              <Link to="/catalog">
+                <NavigationBackIcon data-icon="inline-start" />
+                {t('backToCatalog')}
+              </Link>
             </Button>
           }
         />
@@ -390,7 +387,7 @@ export function ServiceDetailRoute() {
             <ServiceDetailActions
               actions={model.actions}
               mode={actionMode}
-              onModeChange={(nextMode) => updateActionMode(nextMode, true)}
+              onModeChange={setActionMode}
               onComplete={refreshPage}
             />
           )}

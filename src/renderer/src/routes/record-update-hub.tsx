@@ -1,16 +1,21 @@
 import type { CSSProperties } from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { formatPhoneForDisplay } from '@shared/phone';
 import {
   ActionAddBadgeIcon,
+  ActionCloseIcon,
+  ActionConfirmIcon,
   ActionCreatePackageIcon,
   ActionEditIcon,
   ActionLayoutGridIcon,
+  ActionResumeIcon,
 } from '@icons/actions';
 import { EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import {
   BASE_RECORD_UPDATE_LANES,
@@ -23,9 +28,12 @@ import {
   type BaseRecordUpdateLaneId,
   type RecordUpdateLaneId,
 } from '@/lib/record-update-routes';
+import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
+import { latestTicketEvents, ticketLabel } from '@/lib/ticketing';
 import { tintedSurfaceClassName, type TintedSurfaceTone } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
+import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
 interface RecordUpdateHubCard {
@@ -39,8 +47,22 @@ interface RecordUpdateHubCard {
 }
 
 interface TicketEntryPromptState {
+  canEdit: boolean;
+  canResumeDraft: boolean;
   family: 'customer' | 'supplier';
   href: string;
+  laneId: RecordUpdateLaneId;
+  mode: 'actions' | 'edit';
+  options: TicketPickerOption[];
+  showEdit: boolean;
+}
+
+interface TicketPickerOption {
+  description: string;
+  id: string;
+  label: string;
+  metadata: string;
+  queryParam: 'batchOrderId' | 'ticketId';
 }
 
 const draftStorageKeyByLaneId = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.id, lane.draftStorageKey]));
@@ -86,14 +108,11 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     rainbow: true,
   },
 ];
-const PRIMARY_HUB_CARDS: RecordUpdateHubCard[] = [
+const VISIBLE_HUB_CARDS: RecordUpdateHubCard[] = [
   RECORD_UPDATE_HUB_CARDS[0]!,
-  RECORD_UPDATE_HUB_CARDS[1]!,
   RECORD_UPDATE_HUB_CARDS[3]!,
-];
-const SECONDARY_HUB_CARDS: RecordUpdateHubCard[] = [
   RECORD_UPDATE_HUB_CARDS[2]!,
-  RECORD_UPDATE_HUB_CARDS[4]!,
+  RECORD_UPDATE_HUB_CARDS[1]!,
 ];
 const hubCardByLaneId = new Map(RECORD_UPDATE_HUB_CARDS.map((card) => [card.laneId, card]));
 
@@ -113,6 +132,20 @@ function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
   }
 }
 
+function removeDraftSavedForLane(laneId: RecordUpdateLaneId) {
+  if (
+    typeof window === 'undefined' ||
+    !window.localStorage ||
+    typeof window.localStorage.removeItem !== 'function'
+  ) {
+    return;
+  }
+  const draftStorageKey = draftStorageKeyByLaneId.get(laneId);
+  if (draftStorageKey) {
+    window.localStorage.removeItem(draftStorageKey);
+  }
+}
+
 function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () => void }) {
   const CardIcon = card.icon;
   const { language } = usePreferences();
@@ -120,7 +153,7 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
   const title = translateUiLiteral(language, card.title);
   const description = translateUiLiteral(language, card.description);
   const className = cn(
-    'group flex size-[var(--hub-tile-size)] min-h-0 flex-col rounded-[2rem] border p-8 shadow-[0_22px_50px_rgba(48,31,20,0.10)] transition duration-200 hover:-translate-y-1 hover:border-foreground/30 hover:shadow-[0_28px_60px_rgba(48,31,20,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+    'group flex aspect-square w-[var(--hub-tile-size)] min-h-0 flex-col rounded-[2rem] border px-8 py-6 shadow-[0_22px_50px_rgba(48,31,20,0.10)] transition duration-200 hover:-translate-y-1 hover:border-foreground/30 hover:shadow-[0_28px_60px_rgba(48,31,20,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
     card.rainbow
       ? 'border-fuchsia-200/80 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.62),rgba(255,255,255,0.18)_34%,rgba(255,255,255,0.02)_100%),linear-gradient(135deg,rgba(239,68,68,0.16),rgba(245,158,11,0.15)_18%,rgba(234,179,8,0.15)_34%,rgba(34,197,94,0.14)_50%,rgba(14,165,233,0.15)_66%,rgba(99,102,241,0.15)_82%,rgba(217,70,239,0.16))]'
       : tintedSurfaceClassName(card.tone),
@@ -172,20 +205,37 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
 }
 
 function TicketEntryPromptDialog({
+  canEdit,
+  canResumeDraft,
   family,
   href,
+  mode,
+  options,
+  showEdit,
   onClose,
-}: TicketEntryPromptState & {
+  onOpenEdit,
+  onRequestNewWithDraft,
+}: Omit<TicketEntryPromptState, 'mode'> & {
+  mode: 'actions' | 'edit';
   onClose: () => void;
+  onOpenEdit: () => void;
+  onRequestNewWithDraft: () => void;
 }) {
   const { language } = usePreferences();
   const navigate = useNavigate();
-  const title = translateUiLiteral(language, 'What do you want to do?');
   const newLabel = 'New';
+  const resumeDraftLabel = 'Resume draft';
   const editLabel = 'Edit/Update';
+  const title = mode === 'edit'
+    ? translateUiLiteral(language, family === 'customer' ? 'Edit / update existing customer order' : 'Edit / update existing supplier order')
+    : translateUiLiteral(language, 'What do you want to do?');
 
-  function openTicketMode(mode: 'new' | 'edit') {
-    navigate(`${href}?ticketMode=${mode}`);
+  function openTicketRoute(mode: 'new' | 'edit' | 'draft') {
+    navigate(mode === 'draft' ? href : `${href}?ticketMode=${mode}`);
+  }
+
+  function openExistingTicket(option: TicketPickerOption) {
+    navigate(`${href}?ticketMode=edit&${option.queryParam}=${encodeURIComponent(option.id)}`);
   }
 
   return (
@@ -207,19 +257,56 @@ function TicketEntryPromptDialog({
             {title}
           </p>
           <p id="record-update-ticket-entry-description" className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.')}
+            {translateUiLiteral(
+              language,
+              mode === 'edit'
+                ? 'Select the existing ticket you want to update.'
+                : 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
+            )}
           </p>
         </div>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" onClick={() => openTicketMode('new')}>
-            <ActionAddBadgeIcon className="size-4" />
-            {translateUiLiteral(language, newLabel)}
-          </Button>
-          <Button type="button" variant="outline" onClick={() => openTicketMode('edit')}>
-            <ActionEditIcon className="size-4" />
-            {translateUiLiteral(language, editLabel)}
-          </Button>
-        </div>
+        {mode === 'actions' ? (
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <Button type="button" variant="outline" onClick={canResumeDraft ? onRequestNewWithDraft : () => openTicketRoute('new')}>
+              <ActionAddBadgeIcon className="size-4" />
+              {translateUiLiteral(language, newLabel)}
+            </Button>
+            <Button disabled={!canResumeDraft} type="button" variant="outline" onClick={() => openTicketRoute('draft')}>
+              <ActionResumeIcon className="size-4" />
+              {translateUiLiteral(language, resumeDraftLabel)}
+            </Button>
+            {showEdit ? (
+              <Button disabled={!canEdit} type="button" variant="outline" onClick={onOpenEdit}>
+                <ActionEditIcon className="size-4" />
+                {translateUiLiteral(language, editLabel)}
+              </Button>
+            ) : null}
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3">
+            <div className="max-h-72 overflow-auto rounded-2xl border border-border/70 bg-white">
+              {options.length > 0 ? options.map((option) => (
+                <button
+                  key={`${option.queryParam}:${option.id}`}
+                  className="grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left last:border-b-0 hover:bg-muted/50"
+                  type="button"
+                  onClick={() => openExistingTicket(option)}
+                >
+                  <span className="flex items-center gap-2 font-medium text-foreground">
+                    <ActionConfirmIcon className="size-4 text-muted-foreground" />
+                    <span>{option.label}</span>
+                  </span>
+                  <span className="text-sm text-muted-foreground">{option.description}</span>
+                  <span className="text-xs text-muted-foreground">{option.metadata}</span>
+                </button>
+              )) : (
+                <p className="px-4 py-6 text-sm text-muted-foreground">
+                  {translateUiLiteral(language, 'No existing open tickets were found. Start a new ticket instead.')}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -227,11 +314,79 @@ function TicketEntryPromptDialog({
 
 export function RecordUpdateHubRoute() {
   const { language } = usePreferences();
+  const { observations, orderBatches } = useInventory();
   const navigate = useNavigate();
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [confirmNewDiscardDraftOpen, setConfirmNewDiscardDraftOpen] = useState(false);
   const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
   const [selectedCustomLaneIds, setSelectedCustomLaneIds] = useState<BaseRecordUpdateLaneId[]>([]);
   const baseCustomLanes = useMemo(() => BASE_RECORD_UPDATE_LANES, []);
+  const ticketEvents = useMemo(() => latestTicketEvents(observations), [observations]);
+  const canEditCustomerTicket = useMemo(
+    () => ticketEvents.some((event) => event.ticketFamily === 'customer' && event.lifecycle === 'open'),
+    [ticketEvents],
+  );
+  const canEditSupplierTicket = useMemo(
+    () =>
+      ticketEvents.some((event) => event.ticketFamily === 'supplier' && event.lifecycle === 'open')
+      || orderBatches.some((batch) => batch.status !== 'received' && batch.status !== 'reviewed'),
+    [orderBatches, ticketEvents],
+  );
+  const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
+    const seen = new Set<string>();
+    return ticketEvents.flatMap((event) => {
+      if (event.ticketFamily !== 'customer' || event.lifecycle !== 'open' || seen.has(event.ticketId)) {
+        return [];
+      }
+      seen.add(event.ticketId);
+      const channel = event.party?.channelLabel ?? event.party?.channelKey ?? 'No channel';
+      return [{
+        id: event.ticketId,
+        label: ticketLabel(event),
+        description: `${channel} · ${event.lines.length} item${event.lines.length === 1 ? '' : 's'}`,
+        metadata: event.party?.phone ? formatPhoneForDisplay(event.party.phone) : event.note ?? event.occurredAt,
+        queryParam: 'ticketId',
+      }];
+    });
+  }, [ticketEvents]);
+  const supplierTicketOptions = useMemo<TicketPickerOption[]>(() => {
+    const fromTicketEvents = ticketEvents.flatMap((event) => {
+      if (event.ticketFamily !== 'supplier' || event.lifecycle !== 'open') {
+        return [];
+      }
+      return [{
+        id: event.ticketId,
+        label: ticketLabel(event),
+        description: event.party?.supplierName ?? event.stage,
+        metadata: event.lines.map((line) => `${line.entityId}${line.orderedQuantity ? ` · ${line.orderedQuantity}u` : ''}`).join(', '),
+        queryParam: 'ticketId' as const,
+      }];
+    });
+    const fromLegacyBatches = orderBatches.flatMap((batch) => {
+      if (batch.status === 'received' || batch.status === 'reviewed') {
+        return [];
+      }
+      return [{
+        id: batch.batchOrderId,
+        label: batch.supplierName ?? batch.batchOrderId,
+        description: `${batch.children.length} SKU${batch.children.length === 1 ? '' : 's'} · ${batch.status.replaceAll('_', ' ')}`,
+        metadata: batch.shared.expectedArrivalAt ?? batch.updatedAt,
+        queryParam: 'batchOrderId' as const,
+      }];
+    });
+    const seen = new Set<string>();
+    return [...fromTicketEvents, ...fromLegacyBatches].filter((option) => {
+      if (seen.has(`${option.queryParam}:${option.id}`)) {
+        return false;
+      }
+      seen.add(`${option.queryParam}:${option.id}`);
+      return true;
+    });
+  }, [orderBatches, ticketEvents]);
+
+  useEffect(() => {
+    writeRecordUpdateSessionViewMode('pos');
+  }, []);
 
   function toggleCustomLane(laneId: BaseRecordUpdateLaneId) {
     setSelectedCustomLaneIds((current) =>
@@ -257,23 +412,83 @@ export function RecordUpdateHubRoute() {
       return;
     }
     if (card.laneId === 'customer-order-pending') {
-      setTicketEntryPrompt({ family: 'customer', href: RECORD_UPDATE_CUSTOMER_PENDING_PATH });
+      setTicketEntryPrompt({
+        canEdit: canEditCustomerTicket,
+        canResumeDraft: hasDraftSavedForLane(card.laneId),
+        family: 'customer',
+        href: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+        laneId: card.laneId,
+        mode: 'actions',
+        options: customerTicketOptions,
+        showEdit: true,
+      });
+      return;
+    }
+    if (card.laneId === 'customer-order-completed') {
+      setTicketEntryPrompt({
+        canEdit: false,
+        canResumeDraft: hasDraftSavedForLane(card.laneId),
+        family: 'customer',
+        href: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
+        laneId: card.laneId,
+        mode: 'actions',
+        options: [],
+        showEdit: false,
+      });
       return;
     }
     if (card.laneId === 'supplier-order-pending') {
-      setTicketEntryPrompt({ family: 'supplier', href: RECORD_UPDATE_SUPPLIER_PENDING_PATH });
+      setTicketEntryPrompt({
+        canEdit: canEditSupplierTicket,
+        canResumeDraft: hasDraftSavedForLane(card.laneId),
+        family: 'supplier',
+        href: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+        laneId: card.laneId,
+        mode: 'actions',
+        options: supplierTicketOptions,
+        showEdit: true,
+      });
     }
   }
 
   return (
     <WorkspacePage className="gap-5">
-      {ticketEntryPrompt ? (
+      {ticketEntryPrompt && !confirmNewDiscardDraftOpen ? (
         <TicketEntryPromptDialog
+          canEdit={ticketEntryPrompt.canEdit}
+          canResumeDraft={ticketEntryPrompt.canResumeDraft}
           family={ticketEntryPrompt.family}
           href={ticketEntryPrompt.href}
+          laneId={ticketEntryPrompt.laneId}
+          mode={ticketEntryPrompt.mode}
+          options={ticketEntryPrompt.options}
+          showEdit={ticketEntryPrompt.showEdit}
           onClose={() => setTicketEntryPrompt(null)}
+          onOpenEdit={() =>
+            setTicketEntryPrompt((current) => (current ? { ...current, mode: 'edit' } : current))
+          }
+          onRequestNewWithDraft={() => setConfirmNewDiscardDraftOpen(true)}
         />
       ) : null}
+      <ConfirmActionDialog
+        cancelLabel={translateUiLiteral(language, 'Keep draft')}
+        confirmLabel={translateUiLiteral(language, 'Delete draft and start new')}
+        description={translateUiLiteral(language, 'Starting a new update will permanently delete the saved draft for this lane. Resume the draft instead if you want to keep it.')}
+        open={confirmNewDiscardDraftOpen}
+        title={translateUiLiteral(language, 'Delete saved draft?')}
+        onCancel={() => setConfirmNewDiscardDraftOpen(false)}
+        onConfirm={() => {
+          if (!ticketEntryPrompt) {
+            setConfirmNewDiscardDraftOpen(false);
+            return;
+          }
+          const nextHref = ticketEntryPrompt.href;
+          removeDraftSavedForLane(ticketEntryPrompt.laneId);
+          setTicketEntryPrompt(null);
+          setConfirmNewDiscardDraftOpen(false);
+          navigate(`${nextHref}?ticketMode=new`);
+        }}
+      />
       {customDialogOpen ? (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
@@ -338,6 +553,7 @@ export function RecordUpdateHubRoute() {
             ) : null}
             <div className="mt-6 flex flex-wrap justify-end gap-3">
               <Button type="button" variant="ghost" onClick={() => setCustomDialogOpen(false)}>
+                <ActionCloseIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Cancel')}
               </Button>
               <Button
@@ -345,6 +561,7 @@ export function RecordUpdateHubRoute() {
                 type="button"
                 onClick={startCustomUpdate}
               >
+                <ActionConfirmIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'Start custom update')}
               </Button>
             </div>
@@ -361,35 +578,24 @@ export function RecordUpdateHubRoute() {
       />
       <div className="flex min-h-[calc(100svh-20rem)] items-center justify-center">
         <div
-          className="flex w-full max-w-[82rem] flex-col gap-4"
+          className="grid w-full max-w-[46rem] grid-cols-1 justify-items-center gap-4 md:grid-cols-2"
           style={
             {
-              '--hub-tile-size': 'min(22rem, calc((100vw - 11rem) / 3), calc((100svh - 19rem) / 2))',
+              '--hub-tile-size': 'min(22rem, calc((100vw - 9rem) / 2), calc((100svh - 19rem) / 2))',
             } as CSSProperties
           }
         >
-          <div className="flex flex-wrap justify-center gap-4">
-            {PRIMARY_HUB_CARDS.map((card) => (
-              <HubCard
-                key={card.title}
-                card={card}
-                onClick={
-                  card.laneId === 'customer-order-pending' || card.laneId === 'supplier-order-pending'
-                    ? () => handleHubCardClick(card)
-                    : undefined
-                }
-              />
-            ))}
-          </div>
-          <div className="flex flex-wrap justify-center gap-4">
-            {SECONDARY_HUB_CARDS.map((card) => (
-              <HubCard
-                key={card.title}
-                card={card}
-                onClick={card.laneId === 'custom' ? () => handleHubCardClick(card) : undefined}
-              />
-            ))}
-          </div>
+          {VISIBLE_HUB_CARDS.map((card) => (
+            <HubCard
+              key={card.title}
+              card={card}
+              onClick={
+                card.laneId === 'customer-order-pending' || card.laneId === 'customer-order-completed' || card.laneId === 'supplier-order-pending'
+                  ? () => handleHubCardClick(card)
+                  : undefined
+              }
+            />
+          ))}
         </div>
       </div>
     </WorkspacePage>

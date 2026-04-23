@@ -13,7 +13,7 @@ vi.mock('@/state/preferences', () => ({
 
 function CurrentPath() {
   const location = useLocation();
-  return <div data-testid="path">{location.pathname}</div>;
+  return <div data-testid="path">{`${location.pathname}${location.search}`}</div>;
 }
 
 function OverviewPage() {
@@ -89,6 +89,17 @@ describe('NavigationHistoryProvider', () => {
     expect(screen.getByTestId('path')).toHaveTextContent('/');
   });
 
+  test('returns to the exact overview route including search params', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/?filter=to_order&scope=skus']);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKU' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/?filter=to_order&scope=skus');
+  });
+
   test('returns to service detail when sku detail was opened from a linked service view', async () => {
     const user = userEvent.setup();
     renderHistoryApp(['/catalog/services/service-1']);
@@ -98,6 +109,26 @@ describe('NavigationHistoryProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('path')).toHaveTextContent('/catalog/services/service-1');
+  });
+
+  test('uses the current nested page as the next back target instead of reusing an older origin', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp([
+      {
+        pathname: '/catalog/services/service-1',
+        search: '?action=receipt',
+        state: {
+          banjiNavigationFallback: '/catalog',
+          banjiNavigationOrigin: '/?filter=to_order',
+        },
+      },
+    ]);
+
+    await user.click(screen.getByRole('link', { name: 'Open linked SKU' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/services/service-1?action=receipt');
   });
 
   test('returns to financials when sku detail was opened from financials', async () => {

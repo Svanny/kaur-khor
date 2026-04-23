@@ -19,6 +19,18 @@ export const overviewTaskModeValues = [
 ] as const;
 export type OverviewTaskModeValue = typeof overviewTaskModeValues[number];
 
+export const overviewWorkflowValues = ['supplier', 'customer'] as const;
+export type OverviewWorkflowValue = typeof overviewWorkflowValues[number];
+
+export const overviewCustomerFilterValues = [
+  'all',
+  'review',
+  'quoted',
+  'open',
+  'closed',
+] as const;
+export type OverviewCustomerFilterValue = typeof overviewCustomerFilterValues[number];
+
 export const catalogViewValues = ['all', 'skus', 'services'] as const;
 export type CatalogViewValue = typeof catalogViewValues[number];
 
@@ -93,6 +105,9 @@ export type OverviewRouteState = {
   supplier: string | null;
   taskId: string | null;
   taskMode: OverviewTaskModeValue | null;
+  workflow: OverviewWorkflowValue;
+  customerFilter: OverviewCustomerFilterValue;
+  customerTaskId: string | null;
 };
 
 export type AnalysisRouteState = {
@@ -233,6 +248,9 @@ export function readOverviewRouteState(searchParams: URLSearchParams): OverviewR
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     taskId: taskId?.trim() ? taskId : null,
     taskMode: taskId?.trim() ? taskMode : null,
+    workflow: readEnumValue(searchParams, 'workflow', overviewWorkflowValues, 'supplier'),
+    customerFilter: readEnumValue(searchParams, 'customerFilter', overviewCustomerFilterValues, 'all'),
+    customerTaskId: searchParams.get('customerTask')?.trim() ? searchParams.get('customerTask')!.trim() : null,
   };
 }
 
@@ -249,6 +267,9 @@ export function buildOverviewSearchParams(
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeOptionalValue(searchParams, 'task', resolvedState.taskId);
   writeOptionalValue(searchParams, 'taskMode', resolvedState.taskId ? resolvedState.taskMode : null);
+  writeEnumValue(searchParams, 'workflow', resolvedState.workflow, 'supplier');
+  writeEnumValue(searchParams, 'customerFilter', resolvedState.customerFilter, 'all');
+  writeOptionalValue(searchParams, 'customerTask', resolvedState.customerTaskId);
   return searchParams;
 }
 
@@ -499,14 +520,10 @@ export function readServiceAction(searchParams: URLSearchParams): ServiceActionV
     : null;
 }
 
-export function buildSkuDetailHref(skuId: string, action?: SkuActionValue | null) {
-  const searchParams = new URLSearchParams();
-  writeOptionalValue(searchParams, 'action', action);
-  return createHref(`/catalog/skus/${skuId}`, searchParams);
+export function buildSkuDetailHref(skuId: string) {
+  return `/catalog/skus/${skuId}`;
 }
 
-export function buildServiceDetailHref(serviceId: string, action?: ServiceActionValue | null) {
-  const searchParams = new URLSearchParams();
-  writeOptionalValue(searchParams, 'action', action);
-  return createHref(`/catalog/services/${serviceId}`, searchParams);
+export function buildServiceDetailHref(serviceId: string) {
+  return `/catalog/services/${serviceId}`;
 }

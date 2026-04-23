@@ -51,6 +51,7 @@ export function createEmptyObservationInput({
     commercialEvents: [],
     ticketEvents: [],
     recipeUsageHints: [],
+    deliveryFee: null,
     notes,
   };
 }

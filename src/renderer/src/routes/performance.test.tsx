@@ -517,6 +517,14 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
   });
 
+  test('renders icons inside performance toggle pills', async () => {
+    await renderPerformanceRouteSettled();
+
+    expect(screen.getByRole('radio', { name: 'All' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: 'Services' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: 'SKUs' }).querySelector('svg')).not.toBeNull();
+  });
+
   test('shows supplier filter on analysis page', async () => {
     await renderAnalysisRouteSettled();
 

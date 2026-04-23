@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { ActionCloseIcon, ActionConfirmIcon } from '@icons/actions';
 import { StatusAlertIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
 
@@ -9,8 +10,11 @@ export function ConfirmActionDialog({
   confirmLabel,
   cancelLabel = 'Cancel',
   confirmVariant = 'destructive',
+  hideCancel = false,
   isConfirmDisabled = false,
   isSubmitting = false,
+  icon,
+  iconTone = 'destructive',
   onCancel,
   onConfirm,
 }: {
@@ -20,8 +24,11 @@ export function ConfirmActionDialog({
   confirmLabel: string;
   cancelLabel?: string;
   confirmVariant?: 'default' | 'destructive';
+  hideCancel?: boolean;
   isConfirmDisabled?: boolean;
   isSubmitting?: boolean;
+  icon?: ReactNode;
+  iconTone?: 'default' | 'destructive' | 'success';
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -46,8 +53,16 @@ export function ConfirmActionDialog({
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 rounded-full border border-destructive/20 bg-destructive/10 p-2 text-destructive">
-            <StatusAlertIcon className="size-4" />
+          <span
+            className={`mt-0.5 rounded-full p-2 ${
+              iconTone === 'success'
+                ? 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
+                : iconTone === 'default'
+                  ? 'border border-border/70 bg-muted/50 text-foreground'
+                  : 'border border-destructive/20 bg-destructive/10 text-destructive'
+            }`}
+          >
+            {icon ?? (iconTone === 'success' ? <ActionConfirmIcon className="size-4" /> : <StatusAlertIcon className="size-4" />)}
           </span>
           <div className="min-w-0">
             <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{title}</p>
@@ -57,15 +72,19 @@ export function ConfirmActionDialog({
           </div>
         </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
-          <Button disabled={isSubmitting} type="button" variant="ghost" onClick={onCancel}>
-            {cancelLabel}
-          </Button>
+          {hideCancel ? null : (
+            <Button disabled={isSubmitting} type="button" variant="ghost" onClick={onCancel}>
+              <ActionCloseIcon data-icon="inline-start" />
+              {cancelLabel}
+            </Button>
+          )}
           <Button
             disabled={isConfirmDisabled || isSubmitting}
             type="button"
             variant={confirmVariant}
             onClick={onConfirm}
           >
+            <ActionConfirmIcon data-icon="inline-start" />
             {isSubmitting ? 'Working…' : confirmLabel}
           </Button>
         </div>

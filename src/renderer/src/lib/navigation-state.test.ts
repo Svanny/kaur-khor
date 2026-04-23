@@ -27,6 +27,9 @@ describe('navigation-state', () => {
       supplier: null,
       taskId: 'sku-1',
       taskMode: 'not_ordered',
+      workflow: 'supplier',
+      customerFilter: 'all',
+      customerTaskId: null,
     });
   });
 
@@ -37,8 +40,11 @@ describe('navigation-state', () => {
         scope: 'services',
         taskId: 'sku-1',
         taskMode: 'goods_received',
+        workflow: 'customer',
+        customerFilter: 'quoted',
+        customerTaskId: 'automation:intake:intake-1',
       }),
-    ).toBe('/?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received');
+    ).toBe('/?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received&workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
 
     expect(buildAnalysisHref({ section: 'pressure', timeframe: '1Y', supplier: 'Mekong Looms' })).toBe(
       '/analysis?section=pressure&supplier=Mekong+Looms&timeframe=1Y',
@@ -138,6 +144,25 @@ describe('navigation-state', () => {
     expect(readSkuAction(new URLSearchParams('action=invalid'))).toBeNull();
     expect(readServiceAction(new URLSearchParams('action=price'))).toBe('price');
     expect(readServiceAction(new URLSearchParams('action=order'))).toBeNull();
-    expect(buildSkuDetailHref('sku-1', 'receipt')).toBe('/catalog/skus/sku-1?action=receipt');
+    expect(buildSkuDetailHref('sku-1')).toBe('/catalog/skus/sku-1');
+  });
+
+  test('round-trips overview customer workflow params safely', () => {
+    expect(readOverviewRouteState(new URLSearchParams('workflow=customer&customerFilter=review&customerTask=automation:intake:intake-7'))).toEqual({
+      filter: 'all',
+      scope: 'all',
+      supplier: null,
+      taskId: null,
+      taskMode: null,
+      workflow: 'customer',
+      customerFilter: 'review',
+      customerTaskId: 'automation:intake:intake-7',
+    });
+
+    expect(buildOverviewHref({
+      workflow: 'customer',
+      customerFilter: 'open',
+      customerTaskId: 'automation:intake:intake-9',
+    })).toBe('/?workflow=customer&customerFilter=open&customerTask=automation%3Aintake%3Aintake-9');
   });
 });

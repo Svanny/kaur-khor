@@ -1,3 +1,4 @@
+import { StatusTimingIcon } from '@icons/status';
 import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import type { RefObject, UIEvent } from 'react';
 import { getTranslation } from '@/lib/translations';
@@ -488,6 +489,7 @@ function ResponsivePillButton({
           type="button"
           onClick={onClick}
         >
+          <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3" />
           <span aria-hidden="true" className="block overflow-hidden whitespace-nowrap">
             {visibleLabel}
           </span>

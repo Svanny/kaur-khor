@@ -1,4 +1,4 @@
-import { ActionPackageIcon, ActionBoxesIcon } from '@icons/actions';
+import { ActionCloseIcon, ActionPackageIcon, ActionBoxesIcon } from '@icons/actions';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 
@@ -60,6 +60,7 @@ export function BatchActionPrompt({
         </label>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <Button type="button" variant="ghost" onClick={onClose}>
+            <ActionCloseIcon data-icon="inline-start" />
             Cancel
           </Button>
           <div className="flex flex-wrap gap-3">

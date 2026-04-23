@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, generatePath, useParams, useSearchParams } from 'react-router-dom';
+import { NavigationBackIcon } from '@icons/navigation';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
 import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController } from '@/components/system/trading-chart';
@@ -11,7 +12,6 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
-import { readSkuAction } from '@/lib/navigation-state';
 import { hasActiveSenaSku } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
@@ -116,6 +116,7 @@ function SkuDetailScreen() {
   const inventory = useInventory();
   const { skuId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [actionMode, setActionMode] = useState<Parameters<typeof SkuDetailActions>[0]['mode']>(null);
   const [bootstrap, setBootstrap] = useState<BootstrapSkuDetailResult | null>(() => emptyBootstrap());
   const [selectedIntervalIndex, setSelectedIntervalIndex] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -123,18 +124,7 @@ function SkuDetailScreen() {
     subjectId: skuId,
     subtype: 'sku',
   });
-  const actionMode = readSkuAction(searchParams);
   const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
-
-  function updateActionMode(nextMode: typeof actionMode, replace = false) {
-    const nextSearchParams = new URLSearchParams(searchParams);
-    if (nextMode) {
-      nextSearchParams.set('action', nextMode);
-    } else {
-      nextSearchParams.delete('action');
-    }
-    setSearchParams(nextSearchParams, { replace });
-  }
 
   function setLedgerExpanded(nextExpanded: boolean, replace = false) {
     const nextSearchParams = buildSkuDetailSearchParams(searchParams, {
@@ -287,7 +277,10 @@ function SkuDetailScreen() {
           hint={t('catalogSkuDetailNotFoundDescription')}
           action={
           <Button asChild variant="outline">
-              <Link to="/catalog">{t('backToCatalog')}</Link>
+              <Link to="/catalog">
+                <NavigationBackIcon data-icon="inline-start" />
+                {t('backToCatalog')}
+              </Link>
             </Button>
           }
         />
@@ -330,7 +323,7 @@ function SkuDetailScreen() {
             <SkuDetailActions
               actionContext={model.actionContext}
               mode={actionMode}
-              onModeChange={(nextMode) => updateActionMode(nextMode, true)}
+              onModeChange={setActionMode}
               skuId={skuId}
               onComplete={loadPage}
             />
