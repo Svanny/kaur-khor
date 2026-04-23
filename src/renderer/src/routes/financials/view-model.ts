@@ -13,7 +13,7 @@ import type {
 } from '@shared/sena';
 import { buildServiceCommercialSnapshots, buildSkuCommercialSnapshots } from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
-import { buildBatchUpdateHref, RECORD_UPDATE_RECORD_RECEIPT_PATH } from '@/lib/record-update-routes';
+import { buildBatchUpdateHref, RECORD_UPDATE_SUPPLIER_PENDING_PATH } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate } from '@/routes/sku-detail/format';
@@ -1034,7 +1034,7 @@ export function deriveFinancialsViewModel({
 
   if (commitmentsDue.length === 0) {
     const pipelineFallback = sortByValueThenLabel(entitySets.scopedSkus.map((sku) => ({
-      href: `${RECORD_UPDATE_RECORD_RECEIPT_PATH}?skus=${encodeURIComponent(sku.skuId)}`,
+      href: `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?skus=${encodeURIComponent(sku.skuId)}`,
       id: `pipeline-${sku.skuId}`,
       label: sku.name,
       units: currentInTransitUnits(skuDetailsById[sku.skuId]),

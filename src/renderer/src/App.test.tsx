@@ -173,6 +173,20 @@ describe('AppRoutes', () => {
     renderRoutes('/automations?section=intake&filter=needs_review');
     expect(await screen.findByText('Automations screen')).toBeInTheDocument();
   });
+
+  it.each([
+    '/planning',
+    '/sist',
+    '/inventory',
+    '/record-update/sales-update',
+    '/record-update/record-order',
+    '/record-update/record-receipt',
+    '/record-update/supplier-receipts',
+  ])('does not preserve deprecated route alias %s', (pathname) => {
+    renderRoutes(pathname);
+
+    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+  });
 });
 
 describe('routeBenchmarkName', () => {

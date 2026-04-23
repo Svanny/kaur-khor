@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { generatePath, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
@@ -8,13 +8,8 @@ import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { PageStateMemoryObserver } from '@/lib/page-state-memory';
 import { OnboardingRoute } from '@/routes/onboarding';
 import {
-  RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
-  RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_LANES,
-  RECORD_UPDATE_STOCK_COUNT_PATH,
-  RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
 } from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider } from '@/state/inventory';
@@ -139,21 +134,6 @@ function BenchmarkRouteObserver() {
   return null;
 }
 
-function RedirectWithSearch({ to }: { to: string }) {
-  const location = useLocation();
-  const params = useParams();
-
-  return (
-    <Navigate
-      replace
-      to={{
-        pathname: generatePath(to, params),
-        search: location.search,
-      }}
-    />
-  );
-}
-
 export function AppRoutes() {
   const inventory = useInventory();
   const availability = deriveNavigationAvailability(inventory);
@@ -174,11 +154,6 @@ export function AppRoutes() {
       {RECORD_UPDATE_LANES.map((lane) => (
         <Route key={lane.id} element={canRedirectFromLockedPage ? stockUpdateSessionGuardedElement : <StockUpdateSessionRoute />} path={lane.path} />
       ))}
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />} path="/record-update/sales-update" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path="/record-update/record-order" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path="/record-update/record-receipt" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />} path={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />} path="/record-update/immediate-sale" />
       <Route
         element={
           canRedirectFromLockedPage && !availability.hasPerformanceTab ? <Navigate replace to="/" /> : <PerformanceRoute />
@@ -192,19 +167,6 @@ export function AppRoutes() {
         path="/financials"
       />
       <Route element={<AutomationsRoute />} path="/automations" />
-      <Route element={<RedirectWithSearch to="/catalog" />} path="/inventory" />
-      <Route element={<RedirectWithSearch to="/catalog/skus/new" />} path="/inventory/skus/new" />
-      <Route element={<RedirectWithSearch to="/catalog/skus/:skuId" />} path="/inventory/skus/:skuId" />
-      <Route element={<RedirectWithSearch to="/catalog/services/new" />} path="/inventory/services/new" />
-      <Route
-        element={<RedirectWithSearch to="/catalog/services/:serviceId" />}
-        path="/inventory/services/:serviceId"
-      />
-      <Route element={<RedirectWithSearch to="/operations" />} path="/inventory/stock" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_STOCK_COUNT_PATH} />} path="/inventory/stock/session" />
-      <Route element={<RedirectWithSearch to="/operations" />} path="/inventory/ranking" />
-      <Route element={<RedirectWithSearch to="/operations" />} path="/planning" />
-      <Route element={<RedirectWithSearch to="/operations" />} path="/sist" />
       <Route
         element={
           canRedirectFromLockedPage && !availability.hasCatalogTab ? <Navigate replace to="/catalog/skus/new" /> : <InventoryRoute />
@@ -228,7 +190,6 @@ export function AppRoutes() {
         path="/operations"
       />
       <Route element={<ArchiveRoute />} path="/operations/archive" />
-      <Route element={<RedirectWithSearch to={RECORD_UPDATE_STOCK_COUNT_PATH} />} path="/operations/session" />
       <Route element={<SettingsRoute />} path="/settings/*" />
       <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>

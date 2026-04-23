@@ -3,18 +3,13 @@ export const RECORD_UPDATE_STOCK_COUNT_PATH = '/record-update/stock-count';
 export const RECORD_UPDATE_CUSTOMER_PENDING_PATH = '/record-update/customer-orders-pending';
 export const RECORD_UPDATE_CUSTOMER_COMPLETED_PATH = '/record-update/customer-orders-completed';
 export const RECORD_UPDATE_SUPPLIER_PENDING_PATH = '/record-update/supplier-orders-pending';
-export const RECORD_UPDATE_SUPPLIER_RECEIPT_PATH = '/record-update/supplier-receipts';
 export const RECORD_UPDATE_CUSTOM_PATH = '/record-update/custom';
-export const RECORD_UPDATE_SALES_UPDATE_PATH = RECORD_UPDATE_CUSTOMER_PENDING_PATH;
-export const RECORD_UPDATE_RECORD_ORDER_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
-export const RECORD_UPDATE_RECORD_RECEIPT_PATH = RECORD_UPDATE_SUPPLIER_PENDING_PATH;
 
 export type BaseRecordUpdateLaneId =
   | 'stock-count'
   | 'customer-order-pending'
   | 'customer-order-completed'
-  | 'supplier-order-pending'
-  | 'supplier-receipt';
+  | 'supplier-order-pending';
 
 export type RecordUpdateLaneId = BaseRecordUpdateLaneId | 'custom';
 
@@ -60,7 +55,7 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
 
 export const BASE_RECORD_UPDATE_LANES = RECORD_UPDATE_LANES.filter(
   (lane): lane is RecordUpdateLaneDefinition & { id: BaseRecordUpdateLaneId } =>
-    lane.id !== 'custom' && lane.id !== 'supplier-receipt',
+    lane.id !== 'custom',
 );
 
 const recordUpdateLaneByPath = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.path, lane]));

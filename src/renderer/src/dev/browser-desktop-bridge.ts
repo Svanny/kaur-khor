@@ -1,4 +1,5 @@
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
+import { SENA_SCHEMA_VERSION } from '@shared/sena';
 import type {
   AutomationChannelConnection,
   AutomationConversationSummary,
@@ -27,17 +28,14 @@ import type {
   SenaTriggerRunPayload,
 } from '@shared/ipc';
 import type {
-  InventorySnapshot,
-  StockReport,
-  StockReportSubmission,
-} from '@shared/inventory';
-import {
-  SENA_SCHEMA_VERSION,
   type SenaAnalysisRunRecord,
   type SenaCatalog,
   type SenaDiagnostics,
   type SenaObservationFingerprint,
   type SenaObservationInput,
+  type SenaOrderBatchRecord,
+  type SenaOrderChildRecord,
+  type SenaOrderFieldValues,
   type SenaObservationPage,
   type SenaObservationPageRequest,
   type SenaObservationRecord,
@@ -174,6 +172,81 @@ function observationPage(
     hasOlder,
     totalCount: observations.length,
     latestObservedAt: fingerprint.latestObservedAt,
+  };
+}
+
+function makeOrderFieldValues(overrides: Partial<SenaOrderFieldValues> = {}): SenaOrderFieldValues {
+  return {
+    supplierName: null,
+    supplierNote: null,
+    orderedQuantity: null,
+    receivedQuantity: null,
+    costPerUnit: null,
+    expectedArrivalAt: null,
+    placementTimestamp: null,
+    receiptTimestamp: null,
+    leadTimeDaysHint: null,
+    leadTimeVariability: null,
+    deliveryFee: null,
+    ...overrides,
+  };
+}
+
+function mergeOrderFieldValues(
+  base: SenaOrderFieldValues,
+  patch?: Partial<SenaOrderFieldValues>,
+): SenaOrderFieldValues {
+  return makeOrderFieldValues({
+    ...base,
+    ...patch,
+  });
+}
+
+function deriveOrderChildEffective(
+  shared: SenaOrderFieldValues,
+  overrides?: Partial<SenaOrderFieldValues>,
+): SenaOrderFieldValues {
+  return makeOrderFieldValues({
+    ...shared,
+    ...overrides,
+  });
+}
+
+function orderBatchMatchesLookup(
+  batch: SenaOrderBatchRecord,
+  payload?: { batchOrderId?: string; childOrderId?: string; skuId?: string; supplierName?: string; status?: string },
+) {
+  if (!payload) {
+    return true;
+  }
+  if (payload.batchOrderId && batch.batchOrderId !== payload.batchOrderId) {
+    return false;
+  }
+  if (payload.supplierName && batch.supplierName !== payload.supplierName) {
+    return false;
+  }
+  if (payload.status && batch.status !== payload.status) {
+    return false;
+  }
+  if (payload.childOrderId && !batch.children.some((child) => child.childOrderId === payload.childOrderId)) {
+    return false;
+  }
+  if (payload.skuId && !batch.children.some((child) => child.skuId === payload.skuId)) {
+    return false;
+  }
+  return true;
+}
+
+function syncMockWorkspaceSummary(state: BrowserMockState) {
+  const latestObservedAt = [...state.observations]
+    .map((observation) => observation.input.observedAt)
+    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+  state.workspaceSummary.latestObservedAt = latestObservedAt;
+  state.workspaceSummary.intervalCount = state.observations.length;
+  state.latestRun = {
+    ...state.latestRun,
+    observationCount: state.observations.length,
+    summary: clone(state.workspaceSummary),
   };
 }
 
@@ -663,37 +736,6 @@ const mockDiagnostics: SenaDiagnostics = {
   regimeHistory: [],
 };
 
-const mockInventorySnapshot: InventorySnapshot = {
-  items: mockCatalog.skus.map((sku) => {
-    const summary = mockWorkspaceSummary.skuSummaries.find((entry) => entry.skuId === sku.skuId);
-    return {
-      skuId: sku.skuId,
-      name: sku.name,
-      description: sku.description,
-      unitsInStock: Math.max(0, Math.round(summary?.latestPosteriorUnits ?? 0)),
-      costPerUnit: sku.costPerUnit,
-      soldAsProduct: sku.soldAsProduct,
-      productPrice: sku.productPrice,
-      leadTimeMeanDays: sku.leadTimeMeanDaysHint,
-      leadTimeStdDays: sku.leadTimeStdDaysHint,
-    };
-  }),
-  services: mockCatalog.services.map((service) => ({
-    serviceId: service.serviceId,
-    name: service.name,
-    description: service.description,
-    price: service.price,
-    skuIds: mockCatalog.sharingMask
-      .filter((entry) => entry.enabled && entry.serviceId === service.serviceId)
-      .map((entry) => entry.skuId),
-  })),
-  rankings: {
-    topServiceIds: [],
-    topRetailSkuIds: [],
-  },
-  lastReportAt: '2025-03-30T15:00:00.000Z',
-};
-
 const mockLocalDataInfo: DesktopLocalDataInfo = {
   dataDirectoryPath: '/tmp/banji-browser-mock',
   workspaceStorePath: '/tmp/banji-browser-mock/sena.sqlite',
@@ -709,12 +751,11 @@ type BrowserMockState = {
   automationMessages: Record<string, AutomationMessageRecord[]>;
   catalog: SenaCatalog;
   diagnostics: SenaDiagnostics;
-  inventorySnapshot: InventorySnapshot;
   latestRun: SenaAnalysisRunRecord;
   localDataInfo: DesktopLocalDataInfo;
   observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
   preferences: DesktopPreferences;
-  reports: StockReport[];
   serviceDetails: Record<string, SenaServiceDetail>;
   skuDetails: Record<string, SenaSkuDetail>;
   workspaceSummary: SenaWorkspaceSummary;
@@ -756,6 +797,90 @@ export function createMockState(): BrowserMockState {
     primaryArtifactKey: null,
     error: null,
   };
+  const orderBatches: SenaOrderBatchRecord[] = [
+    {
+      batchOrderId: 'browser-batch-1',
+      ownerSub: MOCK_OWNER_SUB,
+      supplierName: 'Siem Reap Rattan',
+      status: 'awaiting_receipt',
+      createdAt: '2025-03-29T09:00:00.000Z',
+      updatedAt: '2025-03-30T10:00:00.000Z',
+      shared: makeOrderFieldValues({
+        supplierName: 'Siem Reap Rattan',
+        supplierNote: 'Waiting on woven tote replenishment.',
+        expectedArrivalAt: '2025-04-02T09:00:00.000Z',
+        placementTimestamp: '2025-03-29T09:00:00.000Z',
+        leadTimeDaysHint: 4,
+        leadTimeVariability: 'tight',
+      }),
+      children: [
+        {
+          childOrderId: 'browser-child-1',
+          skuId: 'sku-1',
+          status: 'awaiting_receipt',
+          createdAt: '2025-03-29T09:00:00.000Z',
+          updatedAt: '2025-03-30T10:00:00.000Z',
+          inheritedFromBatch: true,
+          effective: makeOrderFieldValues({
+            supplierName: 'Siem Reap Rattan',
+            supplierNote: 'Waiting on woven tote replenishment.',
+            orderedQuantity: 18,
+            receivedQuantity: 0,
+            costPerUnit: 18,
+            expectedArrivalAt: '2025-04-02T09:00:00.000Z',
+            placementTimestamp: '2025-03-29T09:00:00.000Z',
+            leadTimeDaysHint: 4,
+            leadTimeVariability: 'tight',
+          }),
+          overrides: {
+            orderedQuantity: 18,
+            receivedQuantity: 0,
+            costPerUnit: 18,
+          },
+        },
+      ],
+    },
+    {
+      batchOrderId: 'browser-batch-2',
+      ownerSub: MOCK_OWNER_SUB,
+      supplierName: 'Phnom Silk Collective',
+      status: 'open',
+      createdAt: '2025-03-30T11:00:00.000Z',
+      updatedAt: '2025-03-30T11:00:00.000Z',
+      shared: makeOrderFieldValues({
+        supplierName: 'Phnom Silk Collective',
+        supplierNote: 'Premium wedding replenishment not placed yet.',
+        expectedArrivalAt: '2025-04-07T09:00:00.000Z',
+        leadTimeDaysHint: 8,
+        leadTimeVariability: 'wide',
+      }),
+      children: [
+        {
+          childOrderId: 'browser-child-2',
+          skuId: 'sku-5',
+          status: 'open',
+          createdAt: '2025-03-30T11:00:00.000Z',
+          updatedAt: '2025-03-30T11:00:00.000Z',
+          inheritedFromBatch: true,
+          effective: makeOrderFieldValues({
+            supplierName: 'Phnom Silk Collective',
+            supplierNote: 'Premium wedding replenishment not placed yet.',
+            orderedQuantity: 24,
+            receivedQuantity: 0,
+            costPerUnit: 26,
+            expectedArrivalAt: '2025-04-07T09:00:00.000Z',
+            leadTimeDaysHint: 8,
+            leadTimeVariability: 'wide',
+          }),
+          overrides: {
+            orderedQuantity: 24,
+            receivedQuantity: 0,
+            costPerUnit: 26,
+          },
+        },
+      ],
+    },
+  ];
 
   return {
     appContext: {
@@ -777,10 +902,10 @@ export function createMockState(): BrowserMockState {
     },
     catalog: clone(mockCatalog),
     diagnostics: clone(mockDiagnostics),
-    inventorySnapshot: clone(mockInventorySnapshot),
     latestRun,
     localDataInfo: clone(mockLocalDataInfo),
     observations: clone(mockObservations),
+    orderBatches,
     preferences: {
       language: 'en',
       currency: 'USD',
@@ -826,7 +951,6 @@ export function createMockState(): BrowserMockState {
         automations: true,
       },
     },
-    reports: [],
     serviceDetails,
     skuDetails: clone(mockSkuDetails),
     workspaceSummary: clone(mockWorkspaceSummary),
@@ -835,9 +959,10 @@ export function createMockState(): BrowserMockState {
 
 let browserMockState = createMockState();
 let observationCounter = browserMockState.observations.length + 1;
-let reportCounter = 1;
 let runCounter = 2;
 let automationTicketCounter = 1;
+let orderBatchCounter = browserMockState.orderBatches.length + 1;
+let orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
 
 export function createMockAutomationWorkspace(): AutomationWorkspace {
   const connection: AutomationChannelConnection = {
@@ -951,21 +1076,6 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
     conversations,
     intakes,
   };
-}
-
-function findInventoryItem(skuId: string) {
-  return browserMockState.inventorySnapshot.items.find((item) => item.skuId === skuId) ?? null;
-}
-
-function syncSummaryFromSnapshot(skuId: string) {
-  const item = findInventoryItem(skuId);
-  const summary = browserMockState.workspaceSummary.skuSummaries.find((entry) => entry.skuId === skuId);
-  if (!item || !summary) {
-    return;
-  }
-  summary.latestPosteriorUnits = item.unitsInStock;
-  summary.credibleIntervalLow = Math.max(0, item.unitsInStock - 3);
-  summary.credibleIntervalHigh = item.unitsInStock + 4;
 }
 
 function installBrowserDesktopBridge() {
@@ -1132,36 +1242,6 @@ function installBrowserDesktopBridge() {
         return clone(browserMockState.preferences);
       },
     },
-    inventory: {
-      loadSnapshot: async () => clone(browserMockState.inventorySnapshot),
-      listReports: async () => clone(browserMockState.reports),
-      submitReport: async (payload: StockReportSubmission) => {
-        const report: StockReport = {
-          reportId: `mock-report-${reportCounter++}`,
-          reportSource: 'compat-stock-update',
-          reportedAt: payload.reportedAt,
-          skuObservations: payload.skuObservations,
-          serviceSignals: payload.serviceSignals ?? [],
-          servicePriceAdjustments: payload.servicePriceAdjustments ?? [],
-          topServiceRanking: payload.topServiceRanking ?? [],
-          topRetailRanking: payload.topRetailRanking ?? [],
-          notes: payload.notes ?? null,
-        };
-        browserMockState.reports = [report, ...browserMockState.reports];
-        browserMockState.inventorySnapshot.lastReportAt = payload.reportedAt;
-        for (const observation of payload.skuObservations) {
-          const item = findInventoryItem(observation.skuId);
-          if (!item) {
-            continue;
-          }
-          item.unitsInStock = observation.unitsInStock;
-          item.costPerUnit = observation.costPerUnit;
-          item.productPrice = observation.productPrice ?? item.productPrice;
-          syncSummaryFromSnapshot(observation.skuId);
-        }
-        return clone(report);
-      },
-    },
     sena: {
       getCatalog: async () => clone(browserMockState.catalog),
       getObservationFingerprint: async () => observationFingerprint(browserMockState.observations),
@@ -1175,7 +1255,8 @@ function installBrowserDesktopBridge() {
       listObservationPage: async (payload?: SenaObservationPageRequest) =>
         observationPage(browserMockState.observations, payload),
       listObservations: async () => clone(browserMockState.observations),
-      listOrderBatches: async () => [],
+      listOrderBatches: async (payload) =>
+        clone(browserMockState.orderBatches.filter((batch) => orderBatchMatchesLookup(batch, payload))),
       upsertCatalog: async (payload) => {
         browserMockState.catalog = clone(payload);
         return clone(browserMockState.catalog);
@@ -1187,7 +1268,7 @@ function installBrowserDesktopBridge() {
           input: payload,
         };
         browserMockState.observations = [observation, ...browserMockState.observations];
-        browserMockState.workspaceSummary.latestObservedAt = payload.observedAt;
+        syncMockWorkspaceSummary(browserMockState);
         return clone(observation);
       },
       updateObservation: async ({ observationId, input }) => {
@@ -1201,28 +1282,131 @@ function installBrowserDesktopBridge() {
           input,
         };
         browserMockState.observations[index] = updated;
-        browserMockState.workspaceSummary.latestObservedAt = [...browserMockState.observations]
-          .map((observation) => observation.input.observedAt)
-          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+        syncMockWorkspaceSummary(browserMockState);
         return clone(updated);
       },
       deleteObservation: async ({ observationId }) => {
         browserMockState.observations = browserMockState.observations.filter((observation) => observation.observationId !== observationId);
-        browserMockState.workspaceSummary.latestObservedAt = [...browserMockState.observations]
-          .map((observation) => observation.input.observedAt)
-          .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+        syncMockWorkspaceSummary(browserMockState);
       },
-      createOrderBatch: async () => {
-        throw new Error('Order batches are not available in the browser mock.');
+      createOrderBatch: async (payload) => {
+        const timestamp = nowIso();
+        const shared = makeOrderFieldValues({
+          ...payload.shared,
+          supplierName: payload.supplierName ?? payload.shared.supplierName ?? null,
+        });
+        const batch: SenaOrderBatchRecord = {
+          batchOrderId: `browser-batch-${orderBatchCounter++}`,
+          ownerSub: MOCK_OWNER_SUB,
+          supplierName: payload.supplierName ?? shared.supplierName ?? null,
+          status: 'open',
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          shared,
+          children: payload.children.map((child) => {
+            const overrides = child.overrides ? clone(child.overrides) : {};
+            return {
+              childOrderId: `browser-child-${orderChildCounter++}`,
+              skuId: child.skuId,
+              status: 'open',
+              createdAt: timestamp,
+              updatedAt: timestamp,
+              inheritedFromBatch: Object.keys(overrides).length === 0,
+              effective: deriveOrderChildEffective(shared, overrides),
+              overrides,
+            };
+          }),
+        };
+        browserMockState.orderBatches = [batch, ...browserMockState.orderBatches];
+        return clone(batch);
       },
-      updateOrderBatch: async () => {
-        throw new Error('Order batches are not available in the browser mock.');
+      updateOrderBatch: async (payload) => {
+        const index = browserMockState.orderBatches.findIndex((batch) => batch.batchOrderId === payload.batchOrderId);
+        if (index < 0) {
+          throw new Error('Order batch not found');
+        }
+        const current = browserMockState.orderBatches[index]!;
+        const shared = payload.shared ? mergeOrderFieldValues(current.shared, payload.shared) : current.shared;
+        const updatedAt = nowIso();
+        const updated: SenaOrderBatchRecord = {
+          ...current,
+          supplierName: payload.supplierName ?? current.supplierName,
+          status: payload.status ?? current.status,
+          updatedAt,
+          shared,
+          children: current.children.map((child) => ({
+            ...child,
+            updatedAt,
+            effective: deriveOrderChildEffective(shared, child.overrides),
+          })),
+        };
+        browserMockState.orderBatches[index] = updated;
+        return clone(updated);
       },
-      updateOrderChild: async () => {
-        throw new Error('Order batches are not available in the browser mock.');
+      updateOrderChild: async (payload) => {
+        const batchIndex = browserMockState.orderBatches.findIndex((batch) =>
+          batch.children.some((child) => child.childOrderId === payload.childOrderId),
+        );
+        if (batchIndex < 0) {
+          throw new Error('Order child not found');
+        }
+        const batch = browserMockState.orderBatches[batchIndex]!;
+        const childIndex = batch.children.findIndex((child) => child.childOrderId === payload.childOrderId);
+        const currentChild = batch.children[childIndex]!;
+        const nextOverrides = {
+          ...currentChild.overrides,
+          ...(payload.overrides ?? {}),
+        };
+        if (payload.appendSupplierNote) {
+          nextOverrides.supplierNote = [currentChild.effective.supplierNote, payload.appendSupplierNote]
+            .filter(Boolean)
+            .join('\n');
+        }
+        const updatedAt = nowIso();
+        const updatedChild: SenaOrderChildRecord = {
+          ...currentChild,
+          skuId: payload.skuId ?? currentChild.skuId,
+          status: payload.status ?? currentChild.status,
+          updatedAt,
+          inheritedFromBatch: Object.keys(nextOverrides).length === 0,
+          overrides: nextOverrides,
+          effective: deriveOrderChildEffective(batch.shared, nextOverrides),
+        };
+        const updatedBatch: SenaOrderBatchRecord = {
+          ...batch,
+          updatedAt,
+          children: batch.children.map((child, index) => (index === childIndex ? updatedChild : child)),
+        };
+        browserMockState.orderBatches[batchIndex] = updatedBatch;
+        return clone(updatedBatch);
       },
-      splitOrderChild: async () => {
-        throw new Error('Order batches are not available in the browser mock.');
+      splitOrderChild: async (payload) => {
+        const batchIndex = browserMockState.orderBatches.findIndex((batch) =>
+          batch.children.some((child) => child.childOrderId === payload.childOrderId),
+        );
+        if (batchIndex < 0) {
+          throw new Error('Order child not found');
+        }
+        const batch = browserMockState.orderBatches[batchIndex]!;
+        const sourceChild = batch.children.find((child) => child.childOrderId === payload.childOrderId)!;
+        const updatedAt = nowIso();
+        const splitChild: SenaOrderChildRecord = {
+          childOrderId: `browser-child-${orderChildCounter++}`,
+          skuId: sourceChild.skuId,
+          status: sourceChild.status,
+          createdAt: updatedAt,
+          updatedAt,
+          inheritedFromBatch: false,
+          effective: clone(sourceChild.effective),
+          overrides: clone(sourceChild.effective),
+        };
+        const updatedBatch: SenaOrderBatchRecord = {
+          ...batch,
+          updatedAt,
+          children: [...batch.children, splitChild],
+        };
+        browserMockState.orderBatches[batchIndex] = updatedBatch;
+        return clone(updatedBatch);
       },
       triggerRun: async (payload?: SenaTriggerRunPayload) => {
         const runId = `browser-run-${runCounter++}`;
@@ -1269,8 +1453,10 @@ function installBrowserDesktopBridge() {
 function resetBrowserDesktopBridgeMock() {
   browserMockState = createMockState();
   observationCounter = browserMockState.observations.length + 1;
-  reportCounter = 1;
   runCounter = 2;
+  automationTicketCounter = 1;
+  orderBatchCounter = browserMockState.orderBatches.length + 1;
+  orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
 }
 
 export { installBrowserDesktopBridge, resetBrowserDesktopBridgeMock };

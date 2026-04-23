@@ -3,10 +3,10 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
+  RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_LANES,
-  RECORD_UPDATE_RECORD_ORDER_PATH,
-  RECORD_UPDATE_SALES_UPDATE_PATH,
   RECORD_UPDATE_STOCK_COUNT_PATH,
+  RECORD_UPDATE_SUPPLIER_PENDING_PATH,
 } from '@/lib/record-update-routes';
 import { recordUpdateSessionViewStorageKey } from '@/lib/record-update-session-view';
 import { RecordUpdateHubRoute } from './record-update-hub';
@@ -56,9 +56,9 @@ function HubRouteTestShell() {
       <LocationPreview />
       <Routes>
         <Route element={<RecordUpdateHubRoute />} path="/record-update" />
-        <Route element={<LocationPreview />} path={RECORD_UPDATE_SALES_UPDATE_PATH} />
+        <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />
-        <Route element={<LocationPreview />} path={RECORD_UPDATE_RECORD_ORDER_PATH} />
+        <Route element={<LocationPreview />} path={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />
       </Routes>
     </>
   );

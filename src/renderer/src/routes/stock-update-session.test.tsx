@@ -3,13 +3,12 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
+  RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOM_PATH,
-  RECORD_UPDATE_RECORD_ORDER_PATH,
-  RECORD_UPDATE_RECORD_RECEIPT_PATH,
-  RECORD_UPDATE_SALES_UPDATE_PATH,
   RECORD_UPDATE_STOCK_COUNT_PATH,
+  RECORD_UPDATE_SUPPLIER_PENDING_PATH,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
 import { buildDeliveryFeeMetadata } from '@/lib/ticketing';
@@ -547,14 +546,14 @@ describe('StockUpdateSessionRoute', () => {
 
     cleanup();
     setStoredSessionViewMode('pos');
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     expect(screen.queryByRole('button', { name: 'Point of Sale View' })).not.toBeInTheDocument();
     expect(screen.getAllByText('Receipt').length).toBeGreaterThan(0);
 
     cleanup();
     setStoredSessionViewMode('form');
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     expect(screen.queryByText('Receipt')).not.toBeInTheDocument();
   });
@@ -562,7 +561,7 @@ describe('StockUpdateSessionRoute', () => {
   it('renders the POS receipt as a normal stacked card instead of a right rail landmark', () => {
     setStoredSessionViewMode('pos');
 
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
 
@@ -575,7 +574,7 @@ describe('StockUpdateSessionRoute', () => {
   it('renders POS workbench item cards as square tiles', () => {
     setStoredSessionViewMode('pos');
 
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     const razorTile = getPosWorkbenchTile('Razor refill');
 
@@ -586,7 +585,7 @@ describe('StockUpdateSessionRoute', () => {
   it('anchors the POS quantity pill to the outer item card corner', async () => {
     setStoredSessionViewMode('pos');
 
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
@@ -755,7 +754,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('uses whole-card dragging for POS workbench reordering', () => {
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     expect(screen.queryByRole('button', { name: 'Reorder Razor refill' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Reorder Towel' })).not.toBeInTheDocument();
@@ -768,7 +767,7 @@ describe('StockUpdateSessionRoute', () => {
     vi.useFakeTimers();
 
     try {
-      renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+      renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
       fireEvent.pointerDown(getPosWorkbenchTile('Razor refill'));
       act(() => {
@@ -831,7 +830,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('uses the stock-count wizard shell for record orders and submits reorder details', async () => {
     setStoredSessionViewMode('form');
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
     fireEvent.click(screen.getByRole('button', { name: 'New' }));
 
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
@@ -891,7 +890,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('uses the hub-selected customer ticket mode without re-showing the entry chooser', () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit/Update' })).not.toBeInTheDocument();
@@ -899,7 +898,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('shows customer data and notes in separate POS popups', () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     openPosMetadataPopup(/^Customer/i);
     expect(within(posMetadataDialog()).getByRole('heading', { name: 'Customer metadata' })).toBeInTheDocument();
@@ -913,7 +912,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('defaults customer delivery fee payer to customer without opening the helper tooltip', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     openPosMetadataPopup(/^Delivery/i);
     const dialog = posMetadataDialog();
@@ -967,7 +966,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('opens a POS item popup before adding the line into the receipt card', () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
 
@@ -997,7 +996,7 @@ describe('StockUpdateSessionRoute', () => {
       value: { writeText },
     });
 
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
@@ -1021,7 +1020,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('shows supplier delivery fee as merchant-paid and non-editable', () => {
     setStoredSessionViewMode('form');
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     goNext();
     expect(screen.getByRole('spinbutton', { name: 'Fee amount' })).toHaveValue(null);
@@ -1031,7 +1030,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('persists merchant-paid delivery math into the receipt review and saved payload', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     openPosMetadataPopup(/^Delivery/i);
     const metadataDialog = posMetadataDialog();
@@ -1069,7 +1068,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('shows tile pictures in POS view when item pictures are enabled', () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     const razorTile = getPosWorkbenchTile('Razor refill');
     const razorImage = razorTile.querySelector('img');
@@ -1078,7 +1077,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('keeps POS tile order stable when a line is added or removed, including within filters', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     const initialAllOrder = posWorkbenchTileNames();
     expect(initialAllOrder).toEqual(['Razor refill', 'Haircut', 'Towel wrap']);
@@ -1114,7 +1113,7 @@ describe('StockUpdateSessionRoute', () => {
       'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
     };
 
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     expect(visibleWorkbenchTileTitles()).toEqual(['Towel', 'Razor refill']);
   });
@@ -1125,7 +1124,7 @@ describe('StockUpdateSessionRoute', () => {
       'customer-order-completed': ['service:service-1', 'retail:sku-2', 'retail:sku-1', 'service:service-2'],
     };
 
-    const supplierView = renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    const supplierView = renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
     expect(visibleWorkbenchTileTitles()).toEqual(['Towel', 'Razor refill']);
     supplierView.unmount();
 
@@ -1145,11 +1144,11 @@ describe('StockUpdateSessionRoute', () => {
     expect(visibleWorkbenchTileTitles()).toEqual(['Towel', 'Razor refill']);
     stockCountView.unmount();
 
-    const supplierView = renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    const supplierView = renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
     expect(visibleWorkbenchTileTitles()).toEqual(['Towel', 'Razor refill']);
     supplierView.unmount();
 
-    const customerPendingView = renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    const customerPendingView = renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
     expect(visibleWorkbenchTileTitles()).toEqual(['Haircut', 'Razor refill', 'Towel wrap']);
     customerPendingView.unmount();
 
@@ -1193,7 +1192,7 @@ describe('StockUpdateSessionRoute', () => {
       }),
     );
 
-    renderRoute(observations, `${RECORD_UPDATE_RECORD_ORDER_PATH}?ticketMode=edit`);
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit`);
 
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
@@ -1224,7 +1223,7 @@ describe('StockUpdateSessionRoute', () => {
     );
 
     render(
-      <MemoryRouter initialEntries={[`${RECORD_UPDATE_RECORD_ORDER_PATH}?batchOrderId=batch-1`]}>
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?batchOrderId=batch-1`]}>
         <StockUpdateSessionRoute />
       </MemoryRouter>,
     );
@@ -1239,14 +1238,14 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('disables edit-update when no existing supplier tickets are available', () => {
-    renderRoute(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     expect(screen.getByRole('button', { name: 'Edit/Update' })).toBeDisabled();
     expect(screen.queryByText('Edit / update existing supplier order')).not.toBeInTheDocument();
   });
 
   it('dismisses the supplier ticket prompt to the record update hub when clicking the backdrop', async () => {
-    renderRouteWithHub(observations, RECORD_UPDATE_RECORD_ORDER_PATH);
+    renderRouteWithHub(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     const prompt = screen.getByRole('dialog', { name: 'What do you want to do?' });
     fireEvent.click(prompt.parentElement as HTMLElement);
@@ -1331,7 +1330,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('uses the supplier order wizard for receipt updates and submits receipt details', async () => {
     setStoredSessionViewMode('form');
-    renderRoute(observations, RECORD_UPDATE_RECORD_RECEIPT_PATH);
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     expect(screen.queryByRole('button', { name: /Add service updates/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Rank recent selling order/i })).not.toBeInTheDocument();
@@ -1762,7 +1761,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('uses a separate draft key for the customer pending lane', () => {
     setStoredSessionViewMode('form');
-    const { unmount } = renderRoute(observations, RECORD_UPDATE_SALES_UPDATE_PATH);
+    const { unmount } = renderRoute(observations, RECORD_UPDATE_CUSTOMER_PENDING_PATH);
 
     goNext(2);
     fireEvent.change(screen.getByLabelText('New pending quantity for Razor refill'), { target: { value: '3' } });
@@ -1826,7 +1825,7 @@ describe('StockUpdateSessionRoute', () => {
 
     cleanup();
     setStoredSessionViewMode('pos');
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).queryByRole('button', { name: 'Remove line' }))
       .not.toBeInTheDocument();
@@ -1837,7 +1836,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('clears a POS session immediately without reopening the ticket mode chooser', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
@@ -1857,7 +1856,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('updates POS popup quantities from the stepper controls and closes on cancel', async () => {
-    renderRoute(observations, `${RECORD_UPDATE_SALES_UPDATE_PATH}?ticketMode=new`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
 

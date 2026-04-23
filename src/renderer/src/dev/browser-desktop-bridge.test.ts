@@ -54,6 +54,7 @@ describe('installBrowserDesktopBridge', () => {
     expect(state.automation.connection.status).toBe('connected');
     expect(state.automationMessages['conv-demo']).toHaveLength(1);
     expect(state.automation.intakes[0]?.intakeId).toBe('intake-demo');
+    expect(state.orderBatches.some((batch) => batch.status === 'awaiting_receipt')).toBe(true);
   });
 
   it('builds automation workspace fixtures with exposed sellables', () => {
@@ -62,5 +63,29 @@ describe('installBrowserDesktopBridge', () => {
     expect(workspace.connection.botUsername).toBe('banji_demo_bot');
     expect(workspace.exposures.some((row) => row.entityType === 'sku' && row.exposed)).toBe(true);
     expect(workspace.metrics.exposedSellables).toBeGreaterThan(0);
+  });
+
+  it('supports current order-batch reads and edits in the browser bridge', async () => {
+    installBrowserDesktopBridge();
+
+    const batches = await window.banjiDesktop.sena.listOrderBatches();
+    expect(batches.length).toBeGreaterThan(0);
+
+    const firstChild = batches[0]?.children[0];
+    expect(firstChild).toBeTruthy();
+    if (!firstChild) {
+      return;
+    }
+
+    const updatedBatch = await window.banjiDesktop.sena.updateOrderChild({
+      childOrderId: firstChild.childOrderId,
+      overrides: { receivedQuantity: 6, receiptTimestamp: '2026-04-11T00:00:00.000Z' },
+      status: 'received',
+    });
+
+    expect(updatedBatch.children.find((child) => child.childOrderId === firstChild.childOrderId)?.effective.receivedQuantity).toBe(6);
+    expect(
+      await window.banjiDesktop.sena.listOrderBatches({ childOrderId: firstChild.childOrderId }),
+    ).toHaveLength(1);
   });
 });
