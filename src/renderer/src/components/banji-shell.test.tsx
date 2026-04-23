@@ -456,7 +456,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
   });
 
@@ -516,11 +516,14 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
   });
 
-  test('hides the automations navigation item before the first saved report', () => {
+  test('hides the automations navigation item before the first observation', () => {
     setViewport({ width: 1440, isMobile: false });
     inventoryHook.mockReturnValue({
       ...inventoryHook(),
-      reports: [],
+      latestRun: null,
+      observations: [],
+      reports: [{ reportId: 'report-1' }],
+      workspaceSummary: null,
     });
 
     render(

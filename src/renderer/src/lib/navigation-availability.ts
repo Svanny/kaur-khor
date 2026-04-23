@@ -31,7 +31,7 @@ function deriveAvailableObservationCount(
 }
 
 export function deriveNavigationAvailability(
-  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'reports' | 'workspaceSummary'>,
+  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'workspaceSummary'>,
 ): NavigationAvailability {
   const visibleCatalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const activeSkuCount = visibleCatalog?.skus.filter((sku) => !sku.archived).length ?? 0;
@@ -40,7 +40,7 @@ export function deriveNavigationAvailability(
 
   return {
     hasAutomationsTab:
-      (inventory.reports?.length ?? 0) >= 1 &&
+      observationCount >= 1 &&
       hasAutomationEligibleSellable(visibleCatalog),
     hasCatalogTab: activeSkuCount >= 1,
     hasLogsTab: observationCount >= 1,
