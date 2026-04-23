@@ -24,6 +24,7 @@ import {
   readAutomationConnection,
   readAutomationConversation,
   readAutomationIntake,
+  testAutomationTelegramConnection,
   readAutomationWorkspace,
   resolveAutomationIntake,
 } from './automation-store';
@@ -1170,6 +1171,21 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
   } satisfies PromoteAutomationIntakeResult;
 }));
 ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle(IPC_CHANNELS.automationTestTelegramConnection, async () => {
+  if (process.env.BANJI_BENCHMARK === '1') {
+    const [preferences, context] = await Promise.all([
+      loadDesktopPreferences(desktopDataPath),
+      loadAutomationWorkspaceContext({
+        loadCachedSenaRead,
+        invoke: managedCore.invoke.bind(managedCore),
+        timeoutMs: SENA_READ_TIMEOUT_MS,
+      }),
+    ]);
+    return testAutomationTelegramConnection(desktopDataPath, {
+      ...context,
+      currency: preferences.currency,
+    });
+  }
+
   const latestConversationChatId = (await listAutomationConversations(desktopDataPath))[0]?.externalConversationKey ?? null;
   const connection = await runTelegramConnectionTest(desktopDataPath, {
     latestConversationChatId,

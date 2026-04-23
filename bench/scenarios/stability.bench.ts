@@ -19,7 +19,7 @@ const CYCLE_SECTIONS: Array<{
   { label: 'Performance', metricName: 'nav.dashboard_to_performance_ms', path: '/performance', readyEvent: 'route.performance.ready' },
   { label: 'Catalog', path: '/catalog', readyEvent: 'route.catalog.ready' },
   { label: 'Financials', metricName: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
-  { label: 'Automations', path: '/automations', readyEvent: 'route.automations.ready' },
+  { label: 'Automations', metricName: 'nav.to_automations_ms', path: '/automations', readyEvent: 'route.automations.ready' },
   { label: 'Analysis', metricName: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
   { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
   { label: 'Overview', path: '/', readyEvent: 'route.dashboard.ready' },

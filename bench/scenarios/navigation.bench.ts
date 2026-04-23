@@ -1,10 +1,8 @@
 import { test } from '@playwright/test';
 import {
-  clickSidebarNavigation,
+  clickSidebarNavigationAndMeasureDuration,
   closeBanjiBenchmarkApp,
   launchBanjiForBenchmark,
-  persistedBenchmarkEventCount,
-  recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
@@ -19,37 +17,12 @@ const SIDEBAR_SECTIONS: Array<{
   { label: 'Performance', metric: 'nav.dashboard_to_performance_ms', path: '/performance', readyEvent: 'route.performance.ready' },
   { label: 'Catalog', metric: 'nav.dashboard_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
   { label: 'Financials', metric: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
-  { label: 'Automations', path: '/automations', readyEvent: 'route.automations.ready' },
+  { label: 'Automations', metric: 'nav.to_automations_ms', path: '/automations', readyEvent: 'route.automations.ready' },
   { label: 'Analysis', metric: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
   { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
   { label: 'Help', path: '/help', readyEvent: 'route.help.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
 ];
-
-async function measureOverviewTaskDrawerOpen(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
-) {
-  const recentReceiptsSection = launched.page
-    .locator('section')
-    .filter({ has: launched.page.getByRole('heading', { name: 'Recent receipts' }) });
-  const recentReceiptButton = recentReceiptsSection
-    .locator('button[data-slot="overview-rail-row"]')
-    .first();
-  if (await recentReceiptButton.count() === 0) {
-    return;
-  }
-
-  const startedAt = Date.now();
-  await recentReceiptButton.click();
-  await launched.page.getByRole('dialog').waitFor({ state: 'visible', timeout: 30_000 });
-  await recordPlaywrightDuration(launched.page, {
-    metricName: 'interaction.open_task_drawer_ms',
-    durationMs: Date.now() - startedAt,
-    route: '/',
-    category: 'interaction',
-    detail: { source: 'recent-receipts' },
-  });
-}
 
 test('major sidebar transitions reach ready state', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('navigation-sidebar-routes', testInfo);
@@ -57,28 +30,25 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
 
     for (const section of SIDEBAR_SECTIONS) {
-      const previousCount = await persistedBenchmarkEventCount(launched, section.readyEvent);
-      const startedAt = Date.now();
-      await clickSidebarNavigation(launched.page, section.label);
-      await waitForPersistedBenchmarkEventCount(launched, section.readyEvent, previousCount + 1);
-      if (section.metric) {
-        await recordPlaywrightDuration(launched.page, {
-          metricName: section.metric,
-          durationMs: Date.now() - startedAt,
-          route: section.path,
-          category: 'navigation',
-        });
-      }
+      await clickSidebarNavigationAndMeasureDuration(launched, {
+        label: section.label,
+        readyEvent: section.readyEvent,
+        metricName: section.metric,
+        route: section.path,
+        category: 'navigation',
+      });
       await snapshotRendererBenchmarkMemory(
         launched.page,
         `memory.renderer_after_${section.path.replace(/\W+/g, '_')}_mb`,
       );
     }
 
-    const previousDashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-    await clickSidebarNavigation(launched.page, 'Back to app');
-    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', previousDashboardCount + 1);
-    await measureOverviewTaskDrawerOpen(launched);
+    await clickSidebarNavigationAndMeasureDuration(launched, {
+      label: 'Back to app',
+      readyEvent: 'route.dashboard.ready',
+      route: '/',
+      category: 'navigation',
+    });
   } finally {
     await closeBanjiBenchmarkApp(launched, 'navigation');
   }

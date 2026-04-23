@@ -32,6 +32,8 @@
     "bench": "pnpm build && playwright test -c playwright.bench.config.ts",
     "bench:startup": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/startup.bench.ts",
     "bench:navigation": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/navigation.bench.ts",
+    "bench:overview": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/overview.bench.ts",
+    "bench:automations": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/automations.bench.ts",
     "bench:record-update": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/record-update.bench.ts",
     "bench:detail-pages": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/detail-pages.bench.ts",
     "bench:stability": "pnpm build && playwright test -c playwright.bench.config.ts bench/scenarios/stability.bench.ts",
