@@ -32,7 +32,7 @@ import {
   responsivePillLabel,
 } from './sku-detail/ledger';
 import { regimeInitials } from './detail-regime-overlay';
-import { backfillLegacyReportsIntoSenaIfEmpty, bootstrapSkuDetail, mapLegacyReportToSenaObservation, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
+import { bootstrapSkuDetail, shouldTriggerBootstrapRun } from './sku-detail/bootstrap';
 import { hashSenaCatalog, seedSenaCatalogFromSnapshot } from './sku-detail/catalog-seed';
 import { deriveIntervalPriceMarkers, deriveRecommendedOrderBand, deriveSenaSkuDetailViewModel, extractEvidence, type SenaSkuDetailViewModel } from './sku-detail/view-model';
 
@@ -123,17 +123,66 @@ const report: StockReport = {
   notes: 'Front shelf was restocked.',
 };
 
+function observationInputFromReport(source: StockReport): SenaObservationRecord['input'] {
+  return {
+    observedAt: source.reportedAt,
+    stockSnapshot: source.skuObservations.map((item) => ({
+      skuId: item.skuId,
+      unitsInStock: item.unitsInStock,
+      costPerUnit: item.costPerUnit ?? null,
+      productPrice: item.productPrice ?? null,
+    })),
+    serviceRankings: source.topServiceRanking,
+    retailRankings: source.topRetailRanking,
+    serviceStockouts: source.serviceSignals
+      .filter((signal) => signal.stockout)
+      .map((signal) => signal.serviceId),
+    retailStockouts: source.skuObservations
+      .filter((item) => item.retailStockout)
+      .map((item) => item.skuId),
+    orderSignals: source.skuObservations.map((item) => ({
+      skuId: item.skuId,
+      orderPlaced: item.approximateOrderQuantity != null,
+      receiptArrived: item.approximateReceiptQuantity != null || Boolean(item.restockIncluded),
+      approximateOrderQuantity: item.approximateOrderQuantity ?? null,
+      approximateReceiptQuantity: item.approximateReceiptQuantity ?? null,
+      receiptTimestamp: item.approximateReceiptQuantity != null ? source.reportedAt : null,
+    })),
+    servicePrices: source.servicePriceAdjustments.map((item) => ({
+      serviceId: item.serviceId,
+      price: item.price,
+    })),
+    retailPrices: source.skuObservations
+      .filter((item) => item.productPrice != null)
+      .map((item) => ({
+        skuId: item.skuId,
+        price: item.productPrice!,
+      })),
+    leadTimeHints: [],
+    regimeHint: source.regimeHint ?? null,
+    adjustmentSignals: source.skuObservations
+      .filter((item) => item.adjustmentDelta != null && item.adjustmentDelta !== 0)
+      .map((item) => ({
+        skuId: item.skuId,
+        quantityDelta: item.adjustmentDelta!,
+        reason: item.notes ?? 'manual_adjustment',
+      })),
+    recipeUsageHints: [],
+    notes: source.notes,
+  };
+}
+
 const observations: SenaObservationRecord[] = [
   {
     observationId: 'obs-1',
     ownerSub: 'desktop-owner',
-    input: mapLegacyReportToSenaObservation(report),
+    input: observationInputFromReport(report),
   },
   {
     observationId: 'obs-2',
     ownerSub: 'desktop-owner',
     input: {
-      ...mapLegacyReportToSenaObservation(report),
+      ...observationInputFromReport(report),
       observedAt: '2026-03-29T09:00:00Z',
       orderSignals: [
         {
@@ -412,41 +461,6 @@ describe('SKU detail SENA helpers', () => {
       usageProbability: null,
     });
     expect(hashSenaCatalog(catalog)).toMatch(/^catalog-/);
-  });
-
-  test('maps legacy reports into SENA observations and backfills once', async () => {
-    const ingest = vi.fn(async () => observations[0]);
-    const list = vi
-      .fn<() => Promise<SenaObservationRecord[]>>()
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([observations[0]]);
-
-    const mapped = mapLegacyReportToSenaObservation(report);
-    expect(mapped.serviceStockouts).toEqual(['service-1']);
-    expect(mapped.retailStockouts).toEqual(['sku-1']);
-    expect(mapped.orderSignals[0]?.receiptArrived).toBe(true);
-    expect(mapped.orderSignals[0]?.approximateReceiptQuantity).toBe(6);
-    expect(mapped.orderSignals[0]?.receiptTimestamp).toBe(report.reportedAt);
-    expect(mapped.regimeHint).toBe('stockout_constrained');
-    expect(mapped.adjustmentSignals).toEqual([{ skuId: 'sku-1', quantityDelta: -1, reason: 'Cycle count write-off.' }]);
-    expect(mapped.recipeUsageHints).toEqual([
-      {
-        serviceId: 'service-1',
-        skuId: 'sku-1',
-        usageProbability: 0.7,
-        typicalUnitsPerInstance: 1,
-        variability: 0.2,
-      },
-    ]);
-
-    const result = await backfillLegacyReportsIntoSenaIfEmpty({
-      reports: [report],
-      ingestSenaObservation: ingest,
-      listSenaObservations: list,
-    });
-
-    expect(ingest).toHaveBeenCalledTimes(1);
-    expect(result).toEqual([observations[0]]);
   });
 
   test('decides when the bootstrap should trigger a v2 run', () => {
@@ -775,6 +789,7 @@ describe('SKU detail SENA helpers', () => {
       'lead_time_hint',
       'notes',
       'stock_reported',
+      'order_placed',
       'receipt_logged',
       'price_changed',
       'retail_stockout',
@@ -932,7 +947,6 @@ describe('SKU detail SENA helpers', () => {
       reload: vi.fn(),
       loadInventorySnapshot: vi.fn(async () => snapshot),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),
@@ -985,7 +999,6 @@ describe('SKU detail SENA helpers', () => {
       reload: vi.fn(),
       loadInventorySnapshot: vi.fn(async () => snapshot),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),
@@ -1157,7 +1170,6 @@ describe('SKU detail route', () => {
       reload: vi.fn(),
       loadInventorySnapshot: vi.fn(async () => snapshot),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),
@@ -1238,7 +1250,6 @@ describe('SKU detail route', () => {
       reload: vi.fn(),
       loadInventorySnapshot: vi.fn(async () => snapshot),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),
@@ -1280,7 +1291,6 @@ describe('SKU detail route', () => {
       reload: vi.fn(),
       loadInventorySnapshot: vi.fn(async () => snapshot),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),
@@ -1334,7 +1344,6 @@ describe('SKU detail route', () => {
         resolveSnapshot = resolve;
       })),
       listStockReports: vi.fn(async () => [report]),
-      submitLegacyReport: vi.fn(async () => report),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
       loadSenaCatalog: vi.fn(async () => seedSenaCatalogFromSnapshot(snapshot)),
       ingestSenaObservation: vi.fn(async () => observations[0]),

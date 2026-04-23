@@ -67,7 +67,7 @@ export interface StockReportServicePriceAdjustment {
 
 export interface StockReport {
   reportId: string;
-  reportSource: 'manual' | 'compat-stock-update' | 'legacy-baseline';
+  reportSource: 'manual';
   reportedAt: string;
   skuObservations: StockReportSkuObservation[];
   serviceSignals: StockReportServiceSignal[];

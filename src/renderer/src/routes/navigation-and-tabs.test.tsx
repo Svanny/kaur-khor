@@ -152,7 +152,6 @@ describe('SENA routes', () => {
         },
       })),
       listStockReports: vi.fn(async () => []),
-      submitLegacyReport: vi.fn(),
       runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       loadSenaCatalog: vi.fn(async () => sampleCatalog),
       loadSenaObservations: vi.fn(async () => []),

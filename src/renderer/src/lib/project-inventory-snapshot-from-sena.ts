@@ -1,10 +1,11 @@
 import type { InventorySnapshot } from '@shared/inventory';
-import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
+import type { SenaCatalog, SenaObservationRecord, SenaWorkspaceSummary } from '@shared/sena';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
 
 export function projectInventorySnapshotFromSena(
   catalog: SenaCatalog,
   observations: SenaObservationRecord[],
+  workspaceSummary: SenaWorkspaceSummary | null = null,
 ): InventorySnapshot {
   const latestObservation = observations.at(-1) ?? null;
   const stockBySkuId = new Map(
@@ -52,10 +53,30 @@ export function projectInventorySnapshotFromSena(
         smoothingWindowReports: 90,
       },
       asOf: latestObservation?.input.observedAt ?? null,
-      topRegime: null,
-      pendingReorderCount: 0,
-      highRiskSkuIds: [],
-      skuInsights: [],
+      topRegime: workspaceSummary?.topRegime ?? null,
+      pendingReorderCount: workspaceSummary?.pendingReorderCount ?? 0,
+      highRiskSkuIds: workspaceSummary?.highRiskSkuIds ?? [],
+      skuInsights: (workspaceSummary?.skuSummaries ?? []).map((summary) => ({
+        skuId: summary.skuId,
+        latestPosteriorUnits: summary.latestPosteriorUnits,
+        credibleIntervalLow: summary.credibleIntervalLow,
+        credibleIntervalHigh: summary.credibleIntervalHigh,
+        daysOfCover: summary.daysOfCover,
+        stockoutRisk: summary.stockoutRisk,
+        reorderPoint: summary.reorderPoint,
+        safetyStock: summary.safetyStock,
+        reorderTriggerProbability: summary.reorderTriggerProbability,
+        expectedDemandPerDay: summary.demandPerDayMean,
+        demandIntervalLow: summary.demandPerDayMean,
+        demandIntervalHigh: summary.demandPerDayMean,
+        leadTime: {
+          meanDays: summary.leadTimeMeanDays,
+          stdDays: summary.leadTimeStdDays,
+          source: 'inferred',
+        },
+        regimeProbabilities: summary.regimeProbabilities,
+        confidence: observations.length >= 2 ? 'medium' : 'low',
+      })),
     },
   };
 }

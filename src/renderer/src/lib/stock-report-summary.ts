@@ -1,12 +1,7 @@
 import type { StockReport } from '@shared/inventory';
 
 export function stockReportSourceKey(source: StockReport['reportSource']) {
-  if (source === 'legacy-baseline') {
-    return 'stockHistorySourceLegacy';
-  }
-  if (source === 'compat-stock-update') {
-    return 'stockHistorySourceCompat';
-  }
+  void source;
   return 'stockHistorySourceManual';
 }
 

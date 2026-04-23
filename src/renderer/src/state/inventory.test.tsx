@@ -5,7 +5,6 @@ import type {
   DesktopBridge,
   DesktopPreferences,
 } from '@shared/ipc';
-import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -152,64 +151,6 @@ const emptyRecordUpdateContext: SenaRecordUpdateContext = {
   latestReceiptBySku: {},
 };
 
-const sampleSnapshot: InventorySnapshot = {
-  skus: [
-    {
-      skuId: 'sku-1',
-      name: 'SKU 1',
-      description: 'Cotton tee',
-      unitsInStock: 10,
-      costPerUnit: 4,
-      soldAsProduct: true,
-      productPrice: 9,
-      leadTimeMeanDays: 5,
-      leadTimeStdDays: 1,
-    },
-  ],
-  services: [
-    {
-      serviceId: 'service-1',
-      name: 'Service 1',
-      description: 'Service',
-      price: 15,
-      skuIds: ['sku-1'],
-    },
-  ],
-  ranking: [],
-  sist: {
-    status: {
-      state: 'ready',
-      updatedAt: '2026-04-02T00:00:00Z',
-      reportCount: 1,
-      confidence: 'medium',
-      reason: null,
-    },
-    settings: {
-      targetServiceLevel: 0.95,
-      forecastHorizonDays: 14,
-      particleCount: 512,
-      smoothingWindowReports: 90,
-    },
-    asOf: '2026-04-02T00:00:00Z',
-    topRegime: 'normal',
-    pendingReorderCount: 1,
-    highRiskSkuIds: ['sku-1'],
-    skuInsights: [],
-  },
-};
-
-const sampleReport: StockReport = {
-  reportId: 'report-1',
-  reportSource: 'manual',
-  reportedAt: '2026-04-02T00:00:00Z',
-  skuObservations: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
-  serviceSignals: [],
-  servicePriceAdjustments: [],
-  topServiceRanking: [],
-  topRetailRanking: [],
-  notes: null,
-};
-
 const sampleRun: SenaAnalysisRunRecord = {
   runId: 'run-1',
   ownerSub: 'desktop-owner',
@@ -328,11 +269,6 @@ describe('InventoryProvider', () => {
         getAppContext: vi.fn(),
         getLocalDataInfo: vi.fn(),
         revealPath: vi.fn(),
-      },
-      inventory: {
-        loadSnapshot: vi.fn(async () => sampleSnapshot),
-        listReports: vi.fn(async () => [sampleReport]),
-        submitReport: vi.fn(async () => sampleReport),
       },
       preferences: {
         get: vi.fn<() => Promise<DesktopPreferences>>(),
@@ -474,8 +410,6 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
     expect(window.banjiDesktop.sena.getStartupWorkspace).toHaveBeenCalledTimes(1);
     expect(window.banjiDesktop.sena.getCatalog).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.inventory.loadSnapshot).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.inventory.listReports).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.getWorkspaceSummary).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.getRunStatus).not.toHaveBeenCalled();
   });

@@ -21,9 +21,6 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
       throw new Error('not implemented');
     },
     listStockReports: async () => [],
-    submitLegacyReport: async () => {
-      throw new Error('not implemented');
-    },
     upsertSenaCatalog: async (payload) => payload,
     archiveCatalogEntity: async (payload) => {
       throw new Error(`not implemented: ${payload.entityType}:${payload.entityId}`);

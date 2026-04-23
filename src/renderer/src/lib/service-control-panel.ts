@@ -180,10 +180,9 @@ export function latestEvidenceHint(reports: StockReport[], language: AppLanguage
   const latest = [...reports].sort(
     (left, right) => new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime(),
   )[0];
-  if (latest.reportSource === 'manual' || latest.reportSource === 'compat-stock-update') {
-    return translateUiLiteral(language, 'Reviewed in latest session');
-  }
-  return translateUiLiteral(language, 'Reviewed in recent update');
+  return latest?.reportSource === 'manual'
+    ? translateUiLiteral(language, 'Reviewed in latest session')
+    : translateUiLiteral(language, 'Reviewed in recent update');
 }
 
 export function serviceHeartbeatSummary({

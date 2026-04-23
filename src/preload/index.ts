@@ -29,7 +29,6 @@ import {
   type BanjiBenchmarkRunRecord,
   type BanjiBenchmarkRunnerAvailability,
 } from '@shared/benchmark';
-import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -183,12 +182,6 @@ const desktopBridge: DesktopBridge = {
     revealPath: (path: string) => invokeWithBenchmark(IPC_CHANNELS.systemRevealPath, path),
     openExternalUrl: (url: string) => invokeWithBenchmark(IPC_CHANNELS.systemOpenExternalUrl, url),
     pickAndStoreImage: (): Promise<string | null> => invokeWithBenchmark(IPC_CHANNELS.systemPickAndStoreImage),
-  },
-  inventory: {
-    loadSnapshot: (): Promise<InventorySnapshot> => invokeWithBenchmark(IPC_CHANNELS.inventoryLoadSnapshot),
-    listReports: (): Promise<StockReport[]> => invokeWithBenchmark(IPC_CHANNELS.inventoryListReports),
-    submitReport: (payload: StockReportSubmission): Promise<StockReport> =>
-      invokeWithBenchmark(IPC_CHANNELS.inventorySubmitReport, payload),
   },
   sena: {
     getCatalog: (): Promise<SenaCatalog | null> => invokeWithBenchmark(IPC_CHANNELS.senaGetCatalog),

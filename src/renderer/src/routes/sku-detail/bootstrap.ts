@@ -1,24 +1,20 @@
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type {
-  SenaAdjustmentSignal,
   SenaCatalog,
   SenaDiagnostics,
-  SenaObservationInput,
   SenaObservationRecord,
-  SenaRecipeUsageHint,
   SenaServiceDetail,
   SenaServiceDetailPage,
   SenaSkuDetail,
   SenaSkuDetailPage,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import type { AppLanguage } from '@shared/inventory';
 import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timeframe';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import type { InventoryContextValue } from '@/state/inventory';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
-import { hashSenaCatalog, projectInventorySnapshotFromSena, seedSenaCatalogFromSnapshot } from './catalog-seed';
+import { hashSenaCatalog, projectInventorySnapshotFromSena } from './catalog-seed';
 
 export type SkuDetailUiState = 'ready' | 'bootstrapping' | 'running' | 'needs_observations' | 'degraded';
 
@@ -38,11 +34,8 @@ export interface BootstrapSkuDetailResult {
 
 type BootstrapInventory = Pick<
   InventoryContextValue,
-  | 'ingestSenaObservation'
   | 'listSenaObservations'
   | 'loadSenaCatalog'
-  | 'loadInventorySnapshot'
-  | 'listStockReports'
   | 'loadSenaDiagnostics'
   | 'loadSenaServiceDetail'
   | 'loadSenaSkuDetail'
@@ -51,86 +44,8 @@ type BootstrapInventory = Pick<
   | 'senaMeta'
   | 'triggerSenaRun'
   | 'updateSenaMeta'
-  | 'upsertSenaCatalog'
+  | 'listStockReports'
 >;
-
-export function mapLegacyReportToSenaObservation(report: StockReport): SenaObservationInput {
-  const adjustmentSignals: SenaAdjustmentSignal[] = report.skuObservations
-    .filter((observation) => observation.adjustmentDelta != null && observation.adjustmentDelta !== 0)
-    .map((observation) => ({
-      skuId: observation.skuId,
-      quantityDelta: observation.adjustmentDelta ?? 0,
-      reason: observation.notes?.trim() || 'legacy_report_adjustment',
-    }));
-
-  const recipeUsageHints: SenaRecipeUsageHint[] = report.serviceSignals.flatMap((signal) =>
-    report.skuObservations.map((observation) => ({
-      serviceId: signal.serviceId,
-      skuId: observation.skuId,
-      usageProbability: observation.retailStockout ? 0.7 : 0.55,
-      typicalUnitsPerInstance: 1,
-      variability: 0.2,
-    })),
-  );
-
-  return {
-    observedAt: report.reportedAt,
-    stockSnapshot: report.skuObservations.map((observation) => ({
-      skuId: observation.skuId,
-      unitsInStock: observation.unitsInStock,
-      costPerUnit: observation.costPerUnit,
-      productPrice: observation.productPrice ?? null,
-    })),
-    serviceRankings: report.topServiceRanking,
-    retailRankings: report.topRetailRanking,
-    serviceStockouts: report.serviceSignals.filter((signal) => signal.stockout).map((signal) => signal.serviceId),
-    retailStockouts: report.skuObservations.filter((observation) => observation.retailStockout).map((observation) => observation.skuId),
-    orderSignals: report.skuObservations
-      .filter((observation) => observation.restockIncluded)
-      .map((observation) => ({
-        skuId: observation.skuId,
-        orderPlaced: false,
-        receiptArrived: true,
-        approximateOrderQuantity: observation.approximateOrderQuantity ?? null,
-        approximateReceiptQuantity: observation.approximateReceiptQuantity ?? null,
-        placementTimestamp: null,
-        receiptTimestamp: report.reportedAt,
-        leadTimeDaysHint: null,
-      })),
-    servicePrices: report.servicePriceAdjustments.map((adjustment) => ({
-      serviceId: adjustment.serviceId,
-      price: adjustment.price,
-    })),
-    retailPrices: report.skuObservations
-      .filter((observation) => observation.productPrice !== undefined)
-      .map((observation) => ({
-        skuId: observation.skuId,
-        price: observation.productPrice ?? 0,
-      })),
-    leadTimeHints: [],
-    regimeHint: report.regimeHint ?? null,
-    adjustmentSignals,
-    recipeUsageHints,
-    notes: report.notes,
-  };
-}
-
-export async function backfillLegacyReportsIntoSenaIfEmpty({
-  reports,
-  ingestSenaObservation,
-  listSenaObservations,
-}: Pick<BootstrapInventory, 'ingestSenaObservation' | 'listSenaObservations'> & {
-  reports: StockReport[];
-}) {
-  const observations = await listSenaObservations();
-  if (observations.length > 0) {
-    return observations;
-  }
-  for (const report of [...reports].sort((left, right) => left.reportedAt.localeCompare(right.reportedAt))) {
-    await ingestSenaObservation(mapLegacyReportToSenaObservation(report));
-  }
-  return listSenaObservations();
-}
 
 export function shouldTriggerBootstrapRun({
   detail,
@@ -219,7 +134,7 @@ export function buildSkuDetailBootstrapPreview({
   if (!visibleCatalog) {
     return null;
   }
-  const snapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
+  const snapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
   const snapshotSku = snapshot.skus.find((entry) => entry.skuId === skuId);
   if (!snapshotSku) {
     return null;
@@ -245,24 +160,16 @@ export async function bootstrapSkuDetail({
 }: {
   inventory: BootstrapInventory;
   skuId: string;
-  language?: AppLanguage;
 }): Promise<BootstrapSkuDetailResult> {
-  const existingCatalog = await inventory.loadSenaCatalog();
-  const legacySnapshot = existingCatalog ? null : await inventory.loadInventorySnapshot();
-  const reports = existingCatalog ? [] : await inventory.listStockReports();
-  const catalog = existingCatalog ?? seedSenaCatalogFromSnapshot(legacySnapshot);
+  const catalog = await inventory.loadSenaCatalog();
+  if (!catalog) {
+    throw new Error('Catalog is unavailable.');
+  }
+  const reports = await inventory.listStockReports();
   const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
   const catalogHash = hashSenaCatalog(catalog);
-  if (!existingCatalog) {
-    await inventory.upsertSenaCatalog(catalog);
-  }
   inventory.updateSenaMeta({ catalogHash, lastBootstrapSkuId: skuId });
-
-  let observations = await backfillLegacyReportsIntoSenaIfEmpty({
-    reports,
-    ingestSenaObservation: inventory.ingestSenaObservation,
-    listSenaObservations: inventory.listSenaObservations,
-  });
+  let observations = await inventory.listSenaObservations();
 
   let workspaceSummary: SenaWorkspaceSummary | null = null;
   let detailPage: SenaSkuDetailPage | null = null;
@@ -272,10 +179,11 @@ export async function bootstrapSkuDetail({
   let latestRunObservationCount: number | null = null;
   let uiState: SkuDetailUiState = observations.length < 2 ? 'needs_observations' : 'bootstrapping';
   let error: string | null = null;
-  let projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
+  let projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
 
   try {
     workspaceSummary = await inventory.loadSenaWorkspaceSummary();
+    projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
     latestRunObservationCount =
       workspaceSummary?.runId != null
         ? (await inventory.loadSenaRunStatus(workspaceSummary.runId).catch(() => null))?.observationCount ?? null
@@ -298,14 +206,14 @@ export async function bootstrapSkuDetail({
     ) {
       uiState = 'running';
       await inventory.triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
+      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
       const reloaded = await reloadSenaSkuData({ inventory, skuId, snapshot: projectedSnapshot });
       workspaceSummary = reloaded.workspaceSummary;
       detailPage = reloaded.detailPage;
       detail = reloaded.detail;
       diagnostics = reloaded.diagnostics;
       observations = reloaded.observations;
-      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations);
+      projectedSnapshot = projectInventorySnapshotFromSena(visibleCatalog, observations, workspaceSummary);
       linkedServiceDetails = reloaded.linkedServiceDetails;
     } else if (observations.length >= 2) {
       linkedServiceDetails = await loadLinkedServiceDetails(inventory, projectedSnapshot, skuId);

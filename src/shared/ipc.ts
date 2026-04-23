@@ -1,9 +1,6 @@
 import type {
   AppCurrency,
   AppLanguage,
-  InventorySnapshot,
-  StockReport,
-  StockReportSubmission,
 } from './inventory';
 import type {
   SenaAnalysisRunRecord,
@@ -209,12 +206,6 @@ export interface DesktopSenaBridge {
   getRunStatus: (payload: SenaRunLookupPayload) => Promise<SenaAnalysisRunRecord | null>;
 }
 
-export interface DesktopInventoryBridge {
-  loadSnapshot: () => Promise<InventorySnapshot>;
-  listReports: () => Promise<StockReport[]>;
-  submitReport: (payload: StockReportSubmission) => Promise<StockReport>;
-}
-
 export interface DesktopPreferencesBridge {
   get: () => Promise<DesktopPreferences>;
   save: (payload: Partial<DesktopPreferences>) => Promise<DesktopPreferences>;
@@ -296,7 +287,6 @@ export interface DesktopBridge {
   automation?: DesktopAutomationBridge;
   benchmark?: DesktopBenchmarkBridge;
   benchmarkRunner?: BanjiBenchmarkRunnerBridge;
-  inventory: DesktopInventoryBridge;
   preferences: DesktopPreferencesBridge;
   sena: DesktopSenaBridge;
   system: DesktopSystemBridge;
@@ -323,9 +313,6 @@ export const IPC_CHANNELS = {
   systemRevealPath: 'banji:system:reveal-path',
   systemOpenExternalUrl: 'banji:system:open-external-url',
   systemPickAndStoreImage: 'banji:system:pick-and-store-image',
-  inventoryLoadSnapshot: 'banji:inventory:load-snapshot',
-  inventoryListReports: 'banji:inventory:list-reports',
-  inventorySubmitReport: 'banji:inventory:submit-report',
   senaGetCatalog: 'banji:sena:get-catalog',
   senaGetObservationFingerprint: 'banji:sena:get-observation-fingerprint',
   senaGetStartupWorkspace: 'banji:sena:get-startup-workspace',
