@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BANJI_BENCHMARK_SCENARIOS,
   BANJI_BENCHMARK_TARGETS,
   aggregateBenchmarkScenarioSummaries,
   benchmarkTargetsForScenario,
@@ -36,6 +37,22 @@ describe('benchmark targets', () => {
     expect(benchmarkTargetsForScenario('stability').map((target) => target.metricName)).toContain(
       'renderer.long_task_max_ms',
     );
+    expect(benchmarkTargetsForScenario('overview').map((target) => target.metricName)).toContain(
+      'interaction.open_overview_supplier_drawer_ms',
+    );
+    expect(benchmarkTargetsForScenario('automations').map((target) => target.metricName)).toContain(
+      'interaction.open_automation_intake_drawer_ms',
+    );
+  });
+
+  it('registers overview and automations scenarios and removes stale task drawer targets', () => {
+    expect(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('overview');
+    expect(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('automations');
+    expect(BANJI_BENCHMARK_TARGETS.some((target) => target.metricName === 'interaction.open_task_drawer_ms')).toBe(false);
+    expect(BANJI_BENCHMARK_TARGETS.find((target) => target.metricName === 'interaction.open_automation_intake_drawer_ms')).toMatchObject({
+      nonNegotiable: 100,
+      acceptable: 200,
+    });
   });
 
   it('evaluates scenario targets with stable metadata', () => {
