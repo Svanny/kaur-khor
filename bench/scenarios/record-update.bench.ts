@@ -2,6 +2,7 @@ import { test } from '@playwright/test';
 import {
   clickSidebarNavigation,
   closeBanjiBenchmarkApp,
+  currentBenchmarkRoute,
   launchBanjiForBenchmark,
   persistedBenchmarkEventCount,
   recordPlaywrightDuration,
@@ -56,9 +57,17 @@ async function waitForRecordUpdateReady(
 async function returnToRecordUpdateHub(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
 ) {
+  const currentRoute = await currentBenchmarkRoute(launched.page);
+  const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
   await clickSidebarNavigation(launched.page, 'Record update');
-  await waitForRecordUpdateReady(launched);
-  await launched.page.getByRole('heading', { name: 'Choose an update lane' }).waitFor({ state: 'visible', timeout: 30_000 });
+  const leaveDialog = launched.page.getByRole('dialog').filter({ hasText: 'Leave record update?' });
+  if (await leaveDialog.isVisible().catch(() => false)) {
+    await leaveDialog.getByRole('button', { name: 'Save draft and leave', exact: true }).click();
+  }
+  if (currentRoute !== '/record-update') {
+    await waitForRecordUpdateReady(launched, previousCount);
+  }
+  await launched.page.getByText('Choose an update lane', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
 }
 
 async function openHubLane(
@@ -67,9 +76,11 @@ async function openHubLane(
 ) {
   const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
   const startedAt = Date.now();
-  await launched.page.getByRole('button', { name: lane.cardLabel }).click().catch(async () => {
+  if (lane.actionLabel) {
+    await launched.page.getByRole('button', { name: lane.cardLabel }).click();
+  } else {
     await launched.page.getByRole('link', { name: lane.cardLabel }).click();
-  });
+  }
   if (lane.actionLabel) {
     await launched.page.getByRole('button', { name: lane.actionLabel, exact: true }).click();
   }
@@ -88,62 +99,42 @@ async function openHubLane(
   );
 }
 
-async function clickButtonTimes(
+async function openFirstWorkbenchTile(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
-  name: string,
-  times = 1,
 ) {
-  for (let index = 0; index < times; index += 1) {
-    await launched.page.getByRole('button', { name, exact: true }).click();
-  }
+  const tileVisual = launched.page.locator('[data-slot="workbench-tile-visual"]').first();
+  await tileVisual.waitFor({ state: 'visible', timeout: 30_000 });
+  await tileVisual.click();
 }
 
-async function completeSaveFlow(
+async function completeReviewSaveFlow(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
   {
     dashboardCount,
     metricName,
+    reviewDialogTitle,
+    reviewLabel,
     route,
   }: {
     dashboardCount: number;
     metricName: string;
+    reviewDialogTitle: string;
+    reviewLabel: string;
     route: `/${string}`;
   },
 ) {
   const startedAt = Date.now();
-  await clickButtonTimes(launched, 'Next');
-
-  const saveButton = launched.page.getByRole('button', { name: 'Save update', exact: true });
-  const deadline = Date.now() + 30_000;
-
-  while (Date.now() < deadline) {
-    const nextDashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-    if (nextDashboardCount >= dashboardCount + 1) {
-      await recordPlaywrightDuration(launched.page, {
-        metricName,
-        durationMs: Date.now() - startedAt,
-        route,
-        category: 'interaction',
-      });
-      return;
-    }
-
-    if (await saveButton.isVisible().catch(() => false)) {
-      await saveButton.click();
-      await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
-      await recordPlaywrightDuration(launched.page, {
-        metricName,
-        durationMs: Date.now() - startedAt,
-        route,
-        category: 'interaction',
-      });
-      return;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 200));
-  }
-
-  throw new Error(`Timed out waiting for ${metricName} to complete.`);
+  await launched.page.getByRole('button', { name: reviewLabel, exact: true }).click();
+  const reviewDialog = launched.page.getByRole('dialog', { name: reviewDialogTitle });
+  await reviewDialog.waitFor({ state: 'visible', timeout: 30_000 });
+  await reviewDialog.getByRole('button', { name: 'Confirm save', exact: true }).click();
+  await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
+  await recordPlaywrightDuration(launched.page, {
+    metricName,
+    durationMs: Date.now() - startedAt,
+    route,
+    category: 'interaction',
+  });
 }
 
 async function benchmarkStockCountSave(
@@ -153,15 +144,15 @@ async function benchmarkStockCountSave(
   await openHubLane(launched, HUB_LANES[0]!);
 
   const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-  await clickButtonTimes(launched, 'Next', 2);
-  await launched.page.getByLabel('Current Units').first().waitFor({ state: 'visible', timeout: 30_000 });
-  await launched.page.getByLabel('Current Units').first().fill('7');
-  await clickButtonTimes(launched, 'Next');
-  await clickButtonTimes(launched, 'No', 2);
-  await clickButtonTimes(launched, 'No');
-  await completeSaveFlow(launched, {
+  await openFirstWorkbenchTile(launched);
+  const itemDialog = launched.page.getByRole('dialog').first();
+  await itemDialog.getByLabel('Units in stock').fill('7');
+  await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await completeReviewSaveFlow(launched, {
     dashboardCount,
     metricName: 'interaction.save_stock_count_ms',
+    reviewDialogTitle: 'Review update',
+    reviewLabel: 'Review update',
     route: '/record-update/stock-count',
   });
 }
@@ -172,20 +163,27 @@ async function benchmarkSupplierReceiptSave(
   await returnToRecordUpdateHub(launched);
   const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
   await launched.page.getByRole('button', { name: 'Supplier Order' }).click();
-  await launched.page.getByRole('button', { name: 'Edit/Update', exact: true }).click();
-  await launched.page.locator('[role="dialog"] button').filter({ hasText: /Siem Reap Rattan|browser-batch-1/i }).first().click();
+  const editButton = launched.page.getByRole('button', { name: 'Edit/Update', exact: true });
+  if (await editButton.isEnabled().catch(() => false)) {
+    await editButton.click();
+    await launched.page.locator('[role="dialog"] button').filter({ hasText: /Siem Reap Rattan|browser-batch-1/i }).first().click();
+  } else {
+    await launched.page.getByRole('button', { name: 'New', exact: true }).click();
+    const replaceDraftDialog = launched.page.getByRole('dialog').filter({ hasText: 'Delete saved draft?' });
+    if (await replaceDraftDialog.isVisible().catch(() => false)) {
+      await replaceDraftDialog.getByRole('button', { name: 'Delete draft and start new', exact: true }).click();
+    }
+  }
   await waitForRecordUpdateReady(launched, previousCount);
 
   const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-  await clickButtonTimes(launched, 'Next', 2);
-  await launched.page.getByLabel('Received date').waitFor({ state: 'visible', timeout: 30_000 });
-  await launched.page.getByLabel('Received date').fill('2026-04-11');
-  await launched.page.getByLabel(/Current receipt for/i).first().fill('6');
-  await clickButtonTimes(launched, 'Next');
-  await clickButtonTimes(launched, 'No');
-  await completeSaveFlow(launched, {
+  await openFirstWorkbenchTile(launched);
+  await launched.page.getByRole('dialog').first().getByRole('button', { name: 'Add line', exact: true }).click();
+  await completeReviewSaveFlow(launched, {
     dashboardCount,
     metricName: 'interaction.save_supplier_order_receipt_ms',
+    reviewDialogTitle: 'Confirm receipt',
+    reviewLabel: 'Review receipt',
     route: '/record-update/supplier-orders-pending',
   });
 }

@@ -43,12 +43,19 @@ Run the Power User startup benchmark:
 BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup
 ```
 
+Run every scenario against the Power User fixture and retain Playwright traces:
+
+```bash
+BANJI_BENCHMARK_FIXTURE_SIZE=power-user BANJI_BENCHMARK_TRACE=1 pnpm bench
+```
+
 Each run writes:
 
 - `events.jsonl`: Electron-side event stream from renderer, preload, main, and Playwright
 - `core-events-<role>-<index>-<pid>.jsonl`: Rust core events from the writer and read workers, kept in per-worker files to avoid concurrent append interleaving
 - `<scenario>.summary.json`: duration summaries and slowest IPC/core entries
-- Playwright artifacts under `bench-results/playwright-artifacts`
+- Playwright artifacts under `bench-results/playwright-artifacts`; trace-enabled runs
+  include a `trace.zip` beside each scenario's screenshots and error context
 
 Startup summaries track the compact startup architecture. The old startup target
 for `ipc.sena_get_workspace_summary_ms` has been replaced by
@@ -73,3 +80,5 @@ deprecated deep-link aliases. Sidebar benchmarks click the visible shell
 navigation order, and record-update benchmarks open lanes through the hub cards
 and the New or Edit/Update ticket prompts. Supplier receipt coverage is measured
 inside the supplier-order flow rather than through a standalone receipt route.
+Detail-page benchmarks navigate through the app's hash routes and measure SKU
+and service repeat timings against the current detail surfaces.

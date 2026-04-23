@@ -139,11 +139,10 @@ export async function waitForPersistedBenchmarkEventCount(
 
 export async function navigateBenchmarkRoute(page: Page, route: `/${string}`) {
   await page.evaluate((nextRoute) => {
-    window.history.pushState({}, '', nextRoute);
-    window.dispatchEvent(new PopStateEvent('popstate'));
+    window.location.hash = `#${nextRoute}`;
   }, route);
   await page.waitForFunction(
-    (expectedRoute) => `${window.location.pathname}${window.location.search}` === expectedRoute,
+    (expectedRoute) => window.location.hash.slice(1) === expectedRoute,
     route,
   );
 }
@@ -153,7 +152,12 @@ export async function clickSidebarNavigation(page: Page, label: string) {
 }
 
 export async function currentBenchmarkRoute(page: Page) {
-  return page.evaluate(() => `${window.location.pathname}${window.location.search}`);
+  return page.evaluate(() => {
+    if (window.location.hash.startsWith('#/')) {
+      return window.location.hash.slice(1) || '/';
+    }
+    return `${window.location.pathname}${window.location.search}` || '/';
+  });
 }
 
 export async function recordPlaywrightBenchmarkEvent(
@@ -240,6 +244,9 @@ export async function snapshotRendererBenchmarkMemory(page: Page, name: string) 
         usedJSHeapSize: number;
       };
     }).memory;
+    const route = window.location.hash.startsWith('#/')
+      ? window.location.hash.slice(1) || '/'
+      : `${window.location.pathname}${window.location.search}` || '/';
     const event = {
       runId: benchmarkWindow.banjiDesktop.benchmark?.runId ?? 'playwright',
       ts: Date.now(),
@@ -247,7 +254,7 @@ export async function snapshotRendererBenchmarkMemory(page: Page, name: string) 
       category: 'memory' as const,
       name: snapshotName,
       phase: 'instant' as const,
-      route: `${window.location.pathname}${window.location.search}` || '/',
+      route,
       entityType: null,
       entityId: null,
       command: null,

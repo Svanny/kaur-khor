@@ -21,7 +21,7 @@ const CYCLE_SECTIONS: Array<{
   { label: 'Financials', metricName: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
   { label: 'Automations', path: '/automations', readyEvent: 'route.automations.ready' },
   { label: 'Analysis', metricName: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
-  { label: 'Operations', path: '/operations', readyEvent: 'route.operations.ready' },
+  { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
   { label: 'Overview', path: '/', readyEvent: 'route.dashboard.ready' },
 ];
 

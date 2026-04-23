@@ -21,18 +21,10 @@ const SIDEBAR_SECTIONS: Array<{
   { label: 'Financials', metric: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
   { label: 'Automations', path: '/automations', readyEvent: 'route.automations.ready' },
   { label: 'Analysis', metric: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
-  { label: 'Operations', path: '/operations', readyEvent: 'route.operations.ready' },
+  { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
   { label: 'Help', path: '/help', readyEvent: 'route.help.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
 ];
-
-async function waitForRouteReady(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
-  readyEvent: string,
-) {
-  const previousCount = await persistedBenchmarkEventCount(launched, readyEvent);
-  await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1);
-}
 
 async function measureOverviewTaskDrawerOpen(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
@@ -40,7 +32,9 @@ async function measureOverviewTaskDrawerOpen(
   const recentReceiptsSection = launched.page
     .locator('section')
     .filter({ has: launched.page.getByRole('heading', { name: 'Recent receipts' }) });
-  const recentReceiptButton = recentReceiptsSection.getByRole('button').first();
+  const recentReceiptButton = recentReceiptsSection
+    .locator('button[data-slot="overview-rail-row"]')
+    .first();
   if (await recentReceiptButton.count() === 0) {
     return;
   }
@@ -63,9 +57,10 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
 
     for (const section of SIDEBAR_SECTIONS) {
+      const previousCount = await persistedBenchmarkEventCount(launched, section.readyEvent);
       const startedAt = Date.now();
       await clickSidebarNavigation(launched.page, section.label);
-      await waitForRouteReady(launched, section.readyEvent);
+      await waitForPersistedBenchmarkEventCount(launched, section.readyEvent, previousCount + 1);
       if (section.metric) {
         await recordPlaywrightDuration(launched.page, {
           metricName: section.metric,
@@ -80,8 +75,9 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
       );
     }
 
-    await clickSidebarNavigation(launched.page, 'Overview');
-    await waitForRouteReady(launched, 'route.dashboard.ready');
+    const previousDashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
+    await clickSidebarNavigation(launched.page, 'Back to app');
+    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', previousDashboardCount + 1);
     await measureOverviewTaskDrawerOpen(launched);
   } finally {
     await closeBanjiBenchmarkApp(launched, 'navigation');

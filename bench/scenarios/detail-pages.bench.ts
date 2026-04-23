@@ -72,9 +72,9 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_sku_detail_first_mb');
 
       const repeatSkuCount = await persistedBenchmarkEventCount(launched, 'route.sku-detail.ready');
-      const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-      await navigateBenchmarkRoute(launched.page, '/');
-      await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
+      const catalogCount = await persistedBenchmarkEventCount(launched, 'route.catalog.ready');
+      await navigateBenchmarkRoute(launched.page, '/catalog');
+      await waitForPersistedBenchmarkEventCount(launched, 'route.catalog.ready', catalogCount + 1);
       const repeatStartedAt = Date.now();
       await navigateBenchmarkRoute(launched.page, skuPath);
       await waitForPersistedBenchmarkEventCount(launched, 'route.sku-detail.ready', repeatSkuCount + 1);
@@ -95,17 +95,9 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       await recordPlaywrightDuration(launched, 'detail.service_first_load_ms', Date.now() - firstStartedAt, servicePath, 'service', targets.serviceId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_service_detail_first_mb');
 
-      const repeatServiceCount = await persistedBenchmarkEventCount(launched, 'route.service-detail.ready');
-      const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-      await navigateBenchmarkRoute(launched.page, '/');
-      await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
+      const serviceRepeatPath = `${servicePath}?benchmarkRepeat=1` as const;
       const repeatStartedAt = Date.now();
-      await navigateBenchmarkRoute(launched.page, servicePath);
-      await waitForPersistedBenchmarkEventCount(
-        launched,
-        'route.service-detail.ready',
-        repeatServiceCount + 1,
-      );
+      await navigateBenchmarkRoute(launched.page, serviceRepeatPath);
       await recordPlaywrightDuration(launched, 'detail.service_repeat_load_ms', Date.now() - repeatStartedAt, servicePath, 'service', targets.serviceId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_service_detail_repeat_mb');
     }

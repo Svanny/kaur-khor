@@ -15,6 +15,9 @@ type RendererMemoryPerformance = Performance & {
 const activeSpans = new Map<string, number>();
 
 function currentBenchmarkRoute() {
+  if (window.location.hash.startsWith('#/')) {
+    return window.location.hash.slice(1) || '/';
+  }
   return `${window.location.pathname}${window.location.search}` || '/';
 }
 
