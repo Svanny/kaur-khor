@@ -67,3 +67,9 @@ the development boot path now share the same generated-history seeding script.
 Benchmark runs still prepare the workspace first, then launch Banji with dev
 seeding disabled so the measured startup path uses the prepared fixture instead
 of reseeding during startup.
+
+Navigation and record-update scenarios now follow the current UI instead of
+deprecated deep-link aliases. Sidebar benchmarks click the visible shell
+navigation order, and record-update benchmarks open lanes through the hub cards
+and the New or Edit/Update ticket prompts. Supplier receipt coverage is measured
+inside the supplier-order flow rather than through a standalone receipt route.

@@ -18,9 +18,8 @@ flowchart LR
     InstallBoot["Install CSP, asset protocol, menu"]:::process
     LoadCache["Load persisted compact SENA read cache"]:::cache
     DevMode{"Development build?"}:::decision
-    MigrateLegacy["Migrate legacy desktop data"]:::process
     SeedDisabled{"Dev seed disabled?"}:::decision
-    DevSeed["Run generated dev-history seed when empty or marked<br/>fallback to sena.seedDevWorkspace otherwise"]:::mutation
+    DevSeed["Run generated dev-history seed when empty or marked"]:::mutation
     InvalidateSeedCache["Invalidate SENA read cache after seed/write"]:::cache
     PrewarmCore["Prewarm managed core with system.ping"]:::ipc
     CreateWindow["Create BrowserWindow<br/>inactive/background when appropriate"]:::process
@@ -71,7 +70,7 @@ flowchart LR
   BenchEnabled -- "no" --> AppReady
 
   AppReady --> BootStart --> InstallBoot --> LoadCache --> DevMode
-  DevMode -- "yes" --> MigrateLegacy --> SeedDisabled
+  DevMode -- "yes" --> SeedDisabled
   SeedDisabled -- "no" --> DevSeed --> RouteWrite --> Writer --> InvalidateSeedCache --> CreateWindow
   SeedDisabled -- "yes" --> PrewarmCore
   DevMode -- "no" --> PrewarmCore

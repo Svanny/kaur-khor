@@ -2,7 +2,7 @@ import { test } from '@playwright/test';
 import {
   closeBanjiBenchmarkApp,
   launchBanjiForBenchmark,
-  navigateHashRoute,
+  navigateBenchmarkRoute,
   persistedBenchmarkEventCount,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
@@ -66,17 +66,17 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       const firstSkuCount = await persistedBenchmarkEventCount(launched, 'route.sku-detail.ready');
       const skuPath = `/catalog/skus/${targets.skuId}` as const;
       const firstStartedAt = Date.now();
-      await navigateHashRoute(launched.page, skuPath);
+      await navigateBenchmarkRoute(launched.page, skuPath);
       await waitForPersistedBenchmarkEventCount(launched, 'route.sku-detail.ready', firstSkuCount + 1);
       await recordPlaywrightDuration(launched, 'detail.sku_first_load_ms', Date.now() - firstStartedAt, skuPath, 'sku', targets.skuId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_sku_detail_first_mb');
 
       const repeatSkuCount = await persistedBenchmarkEventCount(launched, 'route.sku-detail.ready');
       const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-      await navigateHashRoute(launched.page, '/');
+      await navigateBenchmarkRoute(launched.page, '/');
       await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
       const repeatStartedAt = Date.now();
-      await navigateHashRoute(launched.page, skuPath);
+      await navigateBenchmarkRoute(launched.page, skuPath);
       await waitForPersistedBenchmarkEventCount(launched, 'route.sku-detail.ready', repeatSkuCount + 1);
       await recordPlaywrightDuration(launched, 'detail.sku_repeat_load_ms', Date.now() - repeatStartedAt, skuPath, 'sku', targets.skuId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_sku_detail_repeat_mb');
@@ -86,7 +86,7 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       const firstServiceCount = await persistedBenchmarkEventCount(launched, 'route.service-detail.ready');
       const servicePath = `/catalog/services/${targets.serviceId}` as const;
       const firstStartedAt = Date.now();
-      await navigateHashRoute(launched.page, servicePath);
+      await navigateBenchmarkRoute(launched.page, servicePath);
       await waitForPersistedBenchmarkEventCount(
         launched,
         'route.service-detail.ready',
@@ -97,10 +97,10 @@ test('SKU and service detail pages expose first and repeat load timings', async 
 
       const repeatServiceCount = await persistedBenchmarkEventCount(launched, 'route.service-detail.ready');
       const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
-      await navigateHashRoute(launched.page, '/');
+      await navigateBenchmarkRoute(launched.page, '/');
       await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
       const repeatStartedAt = Date.now();
-      await navigateHashRoute(launched.page, servicePath);
+      await navigateBenchmarkRoute(launched.page, servicePath);
       await waitForPersistedBenchmarkEventCount(
         launched,
         'route.service-detail.ready',

@@ -14,6 +14,10 @@ type RendererMemoryPerformance = Performance & {
 
 const activeSpans = new Map<string, number>();
 
+function currentBenchmarkRoute() {
+  return `${window.location.pathname}${window.location.search}` || '/';
+}
+
 function benchmarkMetadata() {
   return window.banjiDesktop?.benchmark ?? {
     enabled: false,
@@ -39,7 +43,7 @@ export function recordBenchmarkEvent(event: BanjiBenchmarkEventInput) {
     runId: event.runId ?? currentBenchmarkRunId(),
     ts: event.ts ?? Date.now(),
     layer: 'renderer',
-    route: event.route ?? (window.location.hash.replace(/^#/, '') || '/'),
+    route: event.route ?? currentBenchmarkRoute(),
     entityType: event.entityType ?? null,
     entityId: event.entityId ?? null,
     command: event.command ?? null,
@@ -146,7 +150,7 @@ export function installLongTaskObserver() {
         recordBenchmarkInstant('renderer.long-task', 'interaction', {
           startTime: entry.startTime,
           durationMs: entry.duration,
-          route: window.location.hash.replace(/^#/, '') || '/',
+          route: currentBenchmarkRoute(),
         });
       }
     });
@@ -168,7 +172,7 @@ export function installLongTaskObserver() {
             startTime: loafEntry.startTime,
             durationMs: loafEntry.duration,
             blockingDuration: loafEntry.blockingDuration ?? null,
-            route: window.location.hash.replace(/^#/, '') || '/',
+            route: currentBenchmarkRoute(),
           });
         }
       });

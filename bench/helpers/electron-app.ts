@@ -137,10 +137,23 @@ export async function waitForPersistedBenchmarkEventCount(
   throw new Error(`Timed out waiting for benchmark event "${name}" count >= ${minimumCount}`);
 }
 
-export async function navigateHashRoute(page: Page, route: `/${string}`) {
+export async function navigateBenchmarkRoute(page: Page, route: `/${string}`) {
   await page.evaluate((nextRoute) => {
-    window.location.hash = nextRoute;
+    window.history.pushState({}, '', nextRoute);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   }, route);
+  await page.waitForFunction(
+    (expectedRoute) => `${window.location.pathname}${window.location.search}` === expectedRoute,
+    route,
+  );
+}
+
+export async function clickSidebarNavigation(page: Page, label: string) {
+  await page.getByRole('link', { name: label, exact: true }).click();
+}
+
+export async function currentBenchmarkRoute(page: Page) {
+  return page.evaluate(() => `${window.location.pathname}${window.location.search}`);
 }
 
 export async function recordPlaywrightBenchmarkEvent(
@@ -158,7 +171,7 @@ export async function recordPlaywrightBenchmarkEvent(
       };
     };
     const normalized = {
-      route: window.location.hash.replace(/^#/, '') || '/',
+      route: `${window.location.pathname}${window.location.search}` || '/',
       entityType: null,
       entityId: null,
       command: null,
@@ -234,7 +247,7 @@ export async function snapshotRendererBenchmarkMemory(page: Page, name: string) 
       category: 'memory' as const,
       name: snapshotName,
       phase: 'instant' as const,
-      route: window.location.hash.replace(/^#/, '') || '/',
+      route: `${window.location.pathname}${window.location.search}` || '/',
       entityType: null,
       entityId: null,
       command: null,

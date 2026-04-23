@@ -6,9 +6,8 @@ flowchart LR
   subgraph Bench["Benchmark navigation scenario"]
     BenchLaunch["Launch benchmark Electron app<br/>fixture + output dir + tracing"]:::process
     WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
-    RouteLoop["For each major route<br/>performance, financials, automations, analysis, record-update, catalog, operations"]:::process
-    ResetDash{"Route has dashboard reset?"}:::decision
-    NavigateHash["navigateHashRoute<br/>update browser hash"]:::bridge
+    RouteLoop["Click visible sidebar items in current order<br/>record-update, performance, catalog, financials, automations, analysis, operations, help, settings"]:::process
+    OpenHubLane["Record-update scenario clicks hub cards<br/>and uses New or Edit/Update prompts"]:::process
     WaitRouteReady["Wait for route.*.ready event"]:::metric
     RecordMetric["Record nav.* duration<br/>and renderer memory snapshot"]:::metric
     OpenDrawer["Return dashboard<br/>open recent receipt task drawer"]:::process
@@ -27,7 +26,7 @@ flowchart LR
     ObserverStart["BenchmarkRouteObserver<br/>mark renderer.route.navigation start"]:::metric
     Suspense["Suspense boundary<br/>lazy route chunk loads"]:::process
     Guards{"Route allowed by availability?"}:::decision
-    Redirects["Legacy and locked-route redirects"]:::process
+    Redirects["Locked-route redirects only"]:::process
     RouteComponent["Route component mounts"]:::process
     ReadyCheck{"Preferences hydrated<br/>inventory not loading<br/>workspace not preparing"}:::decision
     MarkReady["markRouteReady<br/>route.*.ready + memory snapshot"]:::metric
@@ -109,11 +108,8 @@ flowchart LR
     Summary["navigation.summary.json<br/>pass, watch, fail, missing"]:::metric
   end
 
-  Start --> BenchLaunch --> WaitWorkspace --> RouteLoop
-  RouteLoop --> ResetDash
-  ResetDash -- "yes" --> NavigateHash
-  ResetDash -- "no" --> NavigateHash
-  NavigateHash --> Location
+  Start --> BenchLaunch --> WaitWorkspace --> RouteLoop --> Location
+  RouteLoop --> OpenHubLane --> Location
   WaitRouteReady --> RecordMetric --> RouteLoop
   RouteLoop --> OpenDrawer --> CloseBench
 

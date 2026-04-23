@@ -17,11 +17,7 @@ sequenceDiagram
   Main->>Main: load persisted compact SENA read cache
 
   alt development seed enabled
-    Main->>Backend: invoke sena.seedDevWorkspace
-    Backend->>Writer: spawn writer and send mutation
-    Writer->>Store: seed or upgrade local workspace
-    Writer-->>Backend: seed result
-    Backend-->>Main: seeded?
+    Main->>Main: prepare generated dev-history workspace when empty or marked
     Main->>Main: invalidate SENA read cache when seeded
   else packaged or benchmark seed disabled
     Main->>Backend: prewarm with system.ping
