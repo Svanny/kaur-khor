@@ -583,7 +583,7 @@ def generate_reports(
         service_stockout_count = sum(1 for signal in service_signals if signal.get("stockout"))
         notes = build_report_note(final_regime, restock_count, retail_stockout_count, service_stockout_count, adjustment_count)
         if report_index == 0:
-            notes = "Synthetic historical baseline generated for the current desktop catalog."
+            notes = "Synthetic generated history seeded from the current desktop catalog."
 
         service_sales_snapshot = [
             {
@@ -605,7 +605,7 @@ def generate_reports(
         reports.append(
             {
                 "reportId": f"report-{report_index + 1:04d}",
-                "reportSource": "legacy-baseline" if report_index == 0 else "manual",
+                "reportSource": "manual",
                 "reportedAt": isoformat_z(report_at),
                 "skuObservations": sku_observations,
                 "serviceSignals": service_signals,
@@ -918,18 +918,127 @@ def close_desktop_core(proc: subprocess.Popen[str]) -> None:
         raise RuntimeError(f"desktop core exited with {return_code}: {stderr.strip()}")
 
 
+def bundled_current_sena_catalog() -> dict[str, Any]:
+    return {
+        "schemaVersion": 1,
+        "skus": [
+            {
+                "skuId": "sku-001",
+                "name": "Rattan Market Tote",
+                "description": "Woven tote with steady tourist demand.",
+                "supplierName": "Siem Reap Rattan",
+                "costPerUnit": 18.0,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 42.0,
+                "leadTimeMeanDaysHint": 5.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-002",
+                "name": "Children's Krama Set",
+                "description": "Giftable woven set for family bundles.",
+                "supplierName": "Mekong Looms",
+                "costPerUnit": 12.0,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 28.0,
+                "leadTimeMeanDaysHint": 6.0,
+                "leadTimeStdDaysHint": 2.0,
+            },
+            {
+                "skuId": "sku-003",
+                "name": "Cotton Scarf",
+                "description": "Everyday scarf used across service bundles.",
+                "supplierName": "Mekong Looms",
+                "costPerUnit": 9.0,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 21.0,
+                "leadTimeMeanDaysHint": 4.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-004",
+                "name": "Handwoven Belt",
+                "description": "Accessory SKU with quick replenishment.",
+                "supplierName": None,
+                "costPerUnit": 7.0,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 17.0,
+                "leadTimeMeanDaysHint": 3.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-005",
+                "name": "Wedding Sampot",
+                "description": "High-value ceremonial fabric with long lead time.",
+                "supplierName": "Phnom Silk Collective",
+                "costPerUnit": 26.0,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 58.0,
+                "leadTimeMeanDaysHint": 8.0,
+                "leadTimeStdDaysHint": 3.0,
+            },
+        ],
+        "services": [
+            {
+                "serviceId": "service-001",
+                "name": "Market Tote Add-On",
+                "description": "Accessory upsell anchored on woven totes.",
+                "price": 18.0,
+                "archived": False,
+                "bundle": False,
+            },
+            {
+                "serviceId": "service-002",
+                "name": "Family Krama Bundle",
+                "description": "Multi-item family set for holiday promos.",
+                "price": 35.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-003",
+                "name": "Tourist Gift Pairing",
+                "description": "Giftable pairing for quick checkout.",
+                "price": 16.0,
+                "archived": False,
+                "bundle": False,
+            },
+            {
+                "serviceId": "service-004",
+                "name": "Wedding Premium Bundle",
+                "description": "Ceremony package built around premium fabric.",
+                "price": 72.0,
+                "archived": False,
+                "bundle": True,
+            },
+        ],
+        "bundles": [
+            {"bundleId": "bundle-service-002", "serviceId": "service-002", "name": "Family Krama Bundle"},
+            {"bundleId": "bundle-service-004", "serviceId": "service-004", "name": "Wedding Premium Bundle"},
+        ],
+        "sharingMask": [
+            {"serviceId": "service-001", "skuId": "sku-001", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-002", "skuId": "sku-002", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-002", "skuId": "sku-003", "enabled": True, "usageProbability": 0.8},
+            {"serviceId": "service-003", "skuId": "sku-003", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-003", "skuId": "sku-004", "enabled": True, "usageProbability": 0.75},
+            {"serviceId": "service-004", "skuId": "sku-005", "enabled": True, "usageProbability": 1.0},
+        ],
+    }
+
+
 def load_current_sena_catalog(repo_root: Path, db_path: Path) -> dict[str, Any]:
     proc = start_desktop_core(repo_root, db_path)
     try:
         command_id = 1
         catalog = send_core_command(proc, command_id, "sena.getCatalog", None)
-        command_id += 1
         if catalog is None:
-            send_core_command(proc, command_id, "sena.seedDevWorkspace", None)
-            command_id += 1
-            catalog = send_core_command(proc, command_id, "sena.getCatalog", None)
-        if catalog is None:
-            raise RuntimeError("desktop core did not provide a SENA catalog")
+            return bundled_current_sena_catalog()
         return catalog
     finally:
         close_desktop_core(proc)
@@ -1258,7 +1367,7 @@ def parse_args() -> argparse.Namespace:
         "--source-catalog-json",
         type=Path,
         default=None,
-        help="Optional current-schema SENA catalog JSON. Defaults to the catalog already in the target SENA DB, seeding it first if empty.",
+        help="Optional current-schema SENA catalog JSON. Defaults to the catalog already stored in the target SENA DB, or a bundled current-schema catalog when the DB is empty.",
     )
     parser.add_argument("--store", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--sena-db", type=Path, default=None)

@@ -27,7 +27,7 @@ export interface GeneratedWorkspaceSeedResult extends GeneratedWorkspaceSeed {
 export interface DevWorkspaceSeedState {
   hasGeneratedHistoryMarker: boolean;
   hasWorkspaceStore: boolean;
-  mode: 'generated-history' | 'legacy-seed';
+  mode: 'generated-history';
 }
 
 export const BENCHMARK_WORKSPACE_HISTORY_SIZES: Record<BenchmarkWorkspaceSize, BenchmarkWorkspaceHistorySize> = {
@@ -75,18 +75,6 @@ export function buildGenerateDevHistoryArgs({
   ];
 }
 
-export function resolveDevWorkspaceSeedMode({
-  hasGeneratedHistoryMarker,
-  hasWorkspaceStore,
-}: {
-  hasGeneratedHistoryMarker: boolean;
-  hasWorkspaceStore: boolean;
-}): 'generated-history' | 'legacy-seed' {
-  return hasGeneratedHistoryMarker || !hasWorkspaceStore
-    ? 'generated-history'
-    : 'legacy-seed';
-}
-
 export function shouldPrepareGeneratedWorkspace({
   hasGeneratedHistoryMarker,
   hasWorkspaceStore,
@@ -120,15 +108,8 @@ export async function detectDevWorkspaceSeedState(dataDirectory: string): Promis
   return {
     hasGeneratedHistoryMarker,
     hasWorkspaceStore,
-    mode: resolveDevWorkspaceSeedMode({
-      hasGeneratedHistoryMarker,
-      hasWorkspaceStore,
-    }),
+    mode: 'generated-history',
   };
-}
-
-export async function detectDevWorkspaceSeedMode(dataDirectory: string) {
-  return (await detectDevWorkspaceSeedState(dataDirectory)).mode;
 }
 
 export async function prepareGeneratedWorkspace(

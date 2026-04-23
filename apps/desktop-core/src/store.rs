@@ -1,7 +1,3 @@
-use crate::legacy_inventory::{
-    store as legacy_store,
-    types::{DesktopInventoryResponse, StockReportRecord, SubmitStockReportRequest},
-};
 use anyhow::Result;
 use banji_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
@@ -180,31 +176,11 @@ fn repository() -> Result<SqliteSenaRepository> {
     SqliteSenaRepository::open(db_path())
 }
 
-fn legacy_store_path() -> PathBuf {
-    let current = db_path();
-    current
-        .parent()
-        .unwrap_or_else(|| std::path::Path::new("."))
-        .join("desktop-inventory-store.json")
-}
-
 fn dev_seed_marker_path() -> PathBuf {
     db_path()
         .parent()
         .unwrap_or_else(|| std::path::Path::new("."))
         .join("desktop-sena-dev-seed.txt")
-}
-
-fn with_legacy_store_env<T>(task: impl FnOnce() -> Result<T>) -> Result<T> {
-    let previous = env::var_os("BANJI_DESKTOP_DATA_PATH");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", legacy_store_path());
-    let result = task();
-    if let Some(value) = previous {
-        env::set_var("BANJI_DESKTOP_DATA_PATH", value);
-    } else {
-        env::remove_var("BANJI_DESKTOP_DATA_PATH");
-    }
-    result
 }
 
 pub fn default_owner() -> &'static str {
@@ -1515,21 +1491,6 @@ pub fn get_diagnostics(owner_sub: &str) -> Result<Option<SenaDiagnostics>> {
 
 pub fn get_run(run_id: &str) -> Result<Option<SenaAnalysisRunRecord>> {
     block_on(repository()?.get_run(run_id))
-}
-
-pub fn load_inventory_snapshot(owner_sub: &str) -> Result<DesktopInventoryResponse> {
-    with_legacy_store_env(|| legacy_store::load_inventory(owner_sub))
-}
-
-pub fn list_stock_reports(owner_sub: &str) -> Result<Vec<StockReportRecord>> {
-    with_legacy_store_env(|| legacy_store::list_stock_reports(owner_sub))
-}
-
-pub fn submit_stock_report(
-    owner_sub: &str,
-    request: SubmitStockReportRequest,
-) -> Result<StockReportRecord> {
-    with_legacy_store_env(|| legacy_store::submit_stock_report(owner_sub, request))
 }
 
 pub fn ensure_dev_seed(owner_sub: &str) -> Result<bool> {

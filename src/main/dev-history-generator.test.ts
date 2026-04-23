@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BENCHMARK_WORKSPACE_HISTORY_SIZES,
   buildGenerateDevHistoryArgs,
-  resolveDevWorkspaceSeedMode,
   shouldPrepareGeneratedWorkspace,
 } from './dev-history-generator';
 
@@ -28,21 +27,6 @@ describe('dev history generator helpers', () => {
       '1',
       '--startup-only-read-model',
     ]);
-  });
-
-  it('keeps dev boot on generated history only for empty or generated workspaces', () => {
-    expect(resolveDevWorkspaceSeedMode({
-      hasGeneratedHistoryMarker: true,
-      hasWorkspaceStore: true,
-    })).toBe('generated-history');
-    expect(resolveDevWorkspaceSeedMode({
-      hasGeneratedHistoryMarker: false,
-      hasWorkspaceStore: false,
-    })).toBe('generated-history');
-    expect(resolveDevWorkspaceSeedMode({
-      hasGeneratedHistoryMarker: false,
-      hasWorkspaceStore: true,
-    })).toBe('legacy-seed');
   });
 
   it('does not regenerate an existing generated-history workspace on dev boot', () => {

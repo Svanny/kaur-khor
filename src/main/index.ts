@@ -5,7 +5,6 @@ import { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
-import { migrateLegacyDesktopData } from './data-migration';
 import {
   clearCurrentDesktopData,
   createAutomaticDesktopBackupSnapshot,
@@ -57,7 +56,6 @@ import {
   type SenaSkuLookupPayload,
   type SenaTriggerRunPayload,
 } from '@shared/ipc';
-import type { InventorySnapshot, StockReport, StockReportSubmission } from '@shared/inventory';
 import type {
   AutomationChannelConnection,
   AutomationConversationSummary,
@@ -163,7 +161,6 @@ registerBenchmarkRunnerIpc({
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
-const INVENTORY_READ_TIMEOUT_MS = 60_000;
 const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
 const PREFERRED_BASELINE_ZOOM_LEVEL = -1;
 const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
@@ -908,23 +905,6 @@ async function boot() {
   });
   await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
-    const endMigration = startBenchmarkSpan({
-      category: 'startup',
-      name: 'main.boot.dev-migration',
-    });
-    const migratedFiles = await migrateLegacyDesktopData(
-      desktopDataPath,
-      app.getPath('userData'),
-    );
-    endMigration({
-      ok: true,
-      migratedFiles: migratedFiles.length,
-    });
-    if (migratedFiles.length > 0) {
-      console.log(
-        `[desktop-data] migrated ${migratedFiles.join(', ')} from legacy Electron userData`,
-      );
-    }
     if (process.env.BANJI_BENCHMARK_DISABLE_DEV_SEED !== '1') {
       const endSeed = startBenchmarkSpan({
         category: 'startup',
@@ -932,18 +912,14 @@ async function boot() {
       });
       try {
         const seedState = await detectDevWorkspaceSeedState(desktopDataPath);
-        const seeded = seedState.mode === 'generated-history'
-          ? shouldPrepareGeneratedWorkspace(seedState)
-            ? (await prepareGeneratedWorkspace({
-              dataDirectory: desktopDataPath,
-              size: 'medium',
-            }, {
-              repoRoot: projectRoot,
-            })).seeded
-            : false
-          : await managedCore.invoke<boolean>('sena.seedDevWorkspace', undefined, {
-            timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
-          });
+        const seeded = shouldPrepareGeneratedWorkspace(seedState)
+          ? (await prepareGeneratedWorkspace({
+            dataDirectory: desktopDataPath,
+            size: 'medium',
+          }, {
+            repoRoot: projectRoot,
+          })).seeded
+          : false;
         if (seeded) {
           await invalidateSenaReadCache();
           console.log(`[desktop-data] seeded local dev SENA workspace via ${seedState.mode}`);
@@ -1202,20 +1178,6 @@ ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle
   return connection;
 }));
 
-ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, benchmarkIpcHandle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
-  managedCore.invoke<InventorySnapshot>('inventory.loadSnapshot', undefined, {
-    timeoutMs: INVENTORY_READ_TIMEOUT_MS,
-  }),
-));
-ipcMain.handle(IPC_CHANNELS.inventoryListReports, benchmarkIpcHandle(IPC_CHANNELS.inventoryListReports, async () =>
-  managedCore.invoke<StockReport[]>('inventory.listReports', undefined, {
-    timeoutMs: INVENTORY_READ_TIMEOUT_MS,
-  }),
-));
-ipcMain.handle(IPC_CHANNELS.inventorySubmitReport, benchmarkIpcHandle(IPC_CHANNELS.inventorySubmitReport, async (_event, payload: StockReportSubmission) => {
-  await snapshotBeforeWorkspaceMutation('inventory-submit-report');
-  return managedCore.invoke<StockReport>('inventory.submitReport', payload);
-}));
 ipcMain.handle(IPC_CHANNELS.senaGetCatalog, benchmarkIpcHandle(IPC_CHANNELS.senaGetCatalog, async () =>
   loadCachedSenaRead('catalog', () =>
     managedCore.invoke<SenaCatalog | null>('sena.getCatalog', undefined, {

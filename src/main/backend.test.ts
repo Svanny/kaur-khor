@@ -194,7 +194,6 @@ describe('desktop core host helpers', () => {
   it('classifies read-only commands for read-pool dispatch', () => {
     expect(isReadOnlyCoreCommand('sena.getRecordUpdateContext')).toBe(true);
     expect(isReadOnlyCoreCommand('sena.listOrderBatches')).toBe(true);
-    expect(isReadOnlyCoreCommand('inventory.loadSnapshot')).toBe(true);
     expect(isReadOnlyCoreCommand('sena.ingestObservation')).toBe(false);
     expect(isReadOnlyCoreCommand('sena.updateOrderBatch')).toBe(false);
   });
