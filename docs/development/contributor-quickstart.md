@@ -21,6 +21,7 @@ pnpm install
 pnpm dev
 pnpm test
 cargo test --manifest-path apps/desktop-core/Cargo.toml
+cargo test --manifest-path apps/sena-core/Cargo.toml
 ```
 
 Packaging commands:
@@ -55,10 +56,11 @@ The paths that matter most during normal contributor work:
 ## Day-One Reading Order
 
 1. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
-2. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
-3. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
-4. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-5. [User guide](/Users/svanny/banji/docs/user-guide.md)
+2. [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
+3. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
+4. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
+5. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
+6. [User guide](/Users/svanny/banji/docs/user-guide.md)
 
 ## Typical Change Paths
 
@@ -73,6 +75,7 @@ For desktop-local data changes:
 - start in `src/main/index.ts`
 - inspect backup and restore behavior in `src/main/local-backup.ts`
 - inspect preference persistence in `src/main/preferences.ts`
+- inspect automation state and Telegram orchestration in `src/main/automation-store.ts` and `src/main/automation-telegram.ts`
 
 For SENA analysis changes:
 
@@ -86,6 +89,7 @@ Primary contributor checks:
 
 - `pnpm test`
 - `cargo test --manifest-path apps/desktop-core/Cargo.toml`
+- `cargo test --manifest-path apps/sena-core/Cargo.toml`
 
 Security gate:
 
@@ -98,5 +102,6 @@ Update `docs/` when you change:
 - contributor setup or local commands
 - IPC surfaces that change how the desktop app behaves
 - local workspace storage, backup, restore, or clear-data behavior
+- automation transport, staging, exposure, or promotion behavior
 - SENA export shapes or settings flows
 - security gate expectations or user-visible product behavior

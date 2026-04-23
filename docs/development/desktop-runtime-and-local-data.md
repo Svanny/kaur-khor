@@ -169,6 +169,9 @@ The automation workspace uses the `DesktopAutomationBridge` contract from
 [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it
 through `window.banjiDesktop.automation`.
 
+The operator-facing route and Telegram workflow details are documented in
+[Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md).
+
 Current automation actions:
 
 - `getWorkspace()`

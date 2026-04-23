@@ -11,6 +11,7 @@ banji is local-first and desktop-first. It helps you keep a catalog, capture rea
 - [Navigation And Global Controls](#navigation-and-global-controls)
 - [Overview](#overview)
 - [Record Update](#record-update)
+- [Automations](#automations)
 - [Performance](#performance)
 - [Financials](#financials)
 - [Catalog](#catalog)
@@ -190,6 +191,9 @@ update an existing supplier ticket.
 - **New / existing ticket choice** appears for customer and supplier order lanes before the form opens.
 - **Custom update builder** lets you choose multiple base lanes before starting.
 - **Draft saved** badges tell you a draft already exists for that lane.
+- **Resume draft / delete draft** appears when banji finds unfinished lane work on this device.
+- **Save ordering first** prevents you from leaving POS reordering with unsaved card-order changes.
+- **Delivery fee / paid by** controls appear on customer-facing receipt flows when delivery needs to be charged or absorbed.
 - **Save** commits the update and makes it available to Overview, Performance, Financials, Analysis, and Operations.
 - **Back / Next** moves through the current lane without discarding the draft.
 - **Discard draft** abandons the in-progress lane when you no longer want it.
@@ -201,6 +205,49 @@ update an existing supplier ticket.
 - Mixing unrelated real-world events into one update just because they happened on the same day.
 - Forgetting to save after reviewing the final step.
 - Ignoring saved drafts and starting duplicate work from scratch.
+
+## Automations
+
+### Purpose
+
+Automations is banji's operator workspace for channel-facing intake. It is
+currently built around Telegram and helps you connect a bot, expose sellable
+catalog items, review customer messages, and promote clean intake into
+ticket-backed work.
+
+### When To Use It
+
+Use Automations when you want to:
+
+- connect or pause the Telegram bot
+- control which SKUs and services customers can request through the bot
+- review incoming customer orders and ambiguous requests
+- promote quoted intake into customer tickets
+- resolve or dismiss intake that should not become operational work
+
+### Main Sections
+
+- **Overview**: connection health, queue totals, and recent activity
+- **Catalog**: exposure controls for automation-eligible SKUs and services
+- **Live intake**: inbound customer requests that are still active
+- **Needs review**: ambiguous or unresolved requests that need operator action
+- **Settings**: Telegram connection details, test message, and transport state
+
+### Important Controls And Buttons
+
+- **Connect / pause** changes whether the Telegram transport is actively serving customers.
+- **Open Telegram** jumps to the connected bot when banji knows the bot username or link.
+- **Exposure toggles** decide which sellables customers can order through automation.
+- **Promote intake** turns a clean intake row into ticket-backed operational work.
+- **Resolve intake** clears or closes intake that should not keep waiting in the queue.
+- **Test message** confirms that the bot token and current chat are working.
+
+### Common Mistakes
+
+- Treating Automations as the source of truth for inventory instead of a staging layer.
+- Exposing catalog items before their names, prices, and images are ready for customers.
+- Leaving ambiguous intake rows in Needs review instead of resolving or promoting them.
+- Assuming promotion only updates Automations. Promotion also writes operational ticket history used elsewhere in banji.
 
 ## Performance
 

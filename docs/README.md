@@ -6,6 +6,7 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
+- [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
 - [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
@@ -52,6 +53,7 @@ pnpm package:win:native
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, automation storage, backup snapshots, restore, and clear-data behavior
+- [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md): Telegram transport, automation staging store, route sections, promotion flow, and focused verification commands
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Record Update authoring contract, Overview queue behavior, and downstream projections
 - [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md): brand rules for renderer UI controls, including strict button icon requirements
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
@@ -79,8 +81,9 @@ If you are new to the repo, read the docs in this order:
 
 1. [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 2. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
-3. [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
-4. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
-5. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
-6. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-7. [User guide (English)](/Users/svanny/banji/docs/user-guide.md)
+3. [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
+4. [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
+5. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
+6. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
+7. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
+8. [User guide (English)](/Users/svanny/banji/docs/user-guide.md)

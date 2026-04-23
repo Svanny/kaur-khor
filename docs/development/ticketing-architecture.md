@@ -67,6 +67,17 @@ Immediate sale is its own same-session sale flow. It records a customer-family
 demand event that is resolved immediately, but it should not be framed as
 "completed customer fulfillment" inside Customer order.
 
+Record Update now also keeps more route-local state around the ticket-driven
+workbench:
+
+- saved lane drafts can be resumed or explicitly discarded from the hub
+- customer and supplier lane entry uses a local action dialog instead of
+  navigating immediately
+- the POS/workbench reorder lane can force the operator to save ordering first
+  before leaving the route
+- delivery fee, payer, and phone metadata are structured fields, even when the
+  surface groups them under notes or receipt review UI
+
 ## Overview
 
 Overview is the operational queue. Its top-level family switch is:
@@ -102,6 +113,10 @@ ticket editing.
 Financials must not count open customer tickets as realized revenue. Supplier
 ticket creation affects commitments and in-transit expectations; receipt events
 move value into inventory capital; immediate sales count as realized sales.
+
+Automation intake promotion is another downstream writer. Promoted Telegram
+orders should create customer-family ticket history instead of a separate
+channel-only order model.
 
 ## Tests and Verification
 
