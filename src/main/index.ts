@@ -14,6 +14,7 @@ import {
   restoreDesktopBackupSnapshot,
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
+import { normalizeDesktopImage } from './desktop-image';
 import {
   finalizeAutomationPromotion,
   listAutomationConversations,
@@ -26,9 +27,14 @@ import {
   readAutomationIntake,
   readAutomationWorkspace,
   resolveAutomationIntake,
-  saveAutomationConnection,
-  testAutomationTelegramConnection,
 } from './automation-store';
+import {
+  notifyTelegramCustomerOfTicketUpdate,
+  notifyTelegramCustomerOfPromotion,
+  runTelegramConnectionTest,
+  startTelegramAutomationLoop,
+  validateAndSaveTelegramAutomationConnection,
+} from './automation-telegram';
 import { loadAutomationCatalog, loadAutomationObservations, loadAutomationWorkspaceContext } from './automation-read-context';
 import {
   IPC_CHANNELS,
@@ -94,6 +100,11 @@ import {
   prepareGeneratedWorkspace,
   shouldPrepareGeneratedWorkspace,
 } from './dev-history-generator';
+import {
+  prepareInactiveMacDevWindowLaunch,
+  shouldPrepareInactiveMacDevWindowLaunch,
+  showWindowWithoutStealingFocus,
+} from './window-activation';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
@@ -101,6 +112,18 @@ const iconAssets = macIconAssets(projectRoot);
 const configuredDesktopDataPath = process.env.BANJI_BENCHMARK_DATA_DIR?.trim()
   || process.env.BANJI_DESKTOP_DATA_DIR?.trim();
 const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';
+const shouldUseInactiveMacDevWindowLaunch = shouldPrepareInactiveMacDevWindowLaunch({
+  benchmarkWindowBackgroundMode,
+  isPackaged: app.isPackaged,
+  platform: process.platform,
+  rendererUrl: process.env.ELECTRON_RENDERER_URL,
+});
+
+prepareInactiveMacDevWindowLaunch({
+  app,
+  shouldPrepare: shouldUseInactiveMacDevWindowLaunch,
+});
+
 const desktopDataPath = app.isPackaged
   ? app.getPath('userData')
   : configuredDesktopDataPath || join(projectRoot, '.banji-dev-data');
@@ -119,10 +142,6 @@ const DESKTOP_ASSET_PROTOCOL = 'banji-asset';
 const DESKTOP_ASSET_HOST = 'local';
 const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg'] as const;
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
-const DESKTOP_IMAGE_MAX_DIMENSION_PX = 1600;
-const DESKTOP_IMAGE_TARGET_MAX_BYTES = 1_500_000;
-const DESKTOP_IMAGE_SCALE_STEPS = [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.25] as const;
-const DESKTOP_IMAGE_JPEG_QUALITY_STEPS = [88, 80, 72, 64, 56, 48] as const;
 
 let mainWindow: BrowserWindow | null = null;
 let desktopContext: DesktopAppContext = {
@@ -158,6 +177,7 @@ let senaObservationFingerprint: string | null = null;
 let senaFreshnessCheck: Promise<void> | null = null;
 let senaReadCacheValidated = false;
 let senaReadCachePersistTimer: ReturnType<typeof setTimeout> | null = null;
+let telegramAutomationLoop: ReturnType<typeof startTelegramAutomationLoop> | null = null;
 
 recordBenchmarkEvent({
   layer: 'main',
@@ -232,83 +252,6 @@ function senaReadCachePath() {
 
 function desktopAssetDirectoryPath() {
   return join(desktopDataPath, DESKTOP_ASSET_DIRECTORY);
-}
-
-function normalizeImportedImageExtension(sourcePath: string) {
-  const extension = extname(sourcePath).toLowerCase();
-  if (extension === '.png') {
-    return '.png' as const;
-  }
-  if (extension === '.jpg' || extension === '.jpeg') {
-    return '.jpg' as const;
-  }
-  return null;
-}
-
-function computeImportedImageDimensions(width: number, height: number, scaleStep: number) {
-  const maxEdge = Math.max(width, height);
-  const boundedScale = Math.min(1, DESKTOP_IMAGE_MAX_DIMENSION_PX / maxEdge);
-  const effectiveScale = Math.min(1, boundedScale * scaleStep);
-
-  return {
-    width: Math.max(1, Math.round(width * effectiveScale)),
-    height: Math.max(1, Math.round(height * effectiveScale)),
-  };
-}
-
-function encodeImportedImage(
-  image: Electron.NativeImage,
-  targetExtension: '.png' | '.jpg',
-  jpegQuality?: number,
-) {
-  return targetExtension === '.png' ? image.toPNG() : image.toJPEG(jpegQuality ?? 80);
-}
-
-function normalizeImportedImage(sourcePath: string) {
-  const targetExtension = normalizeImportedImageExtension(sourcePath);
-  if (!targetExtension) {
-    throw new Error('Please choose a PNG or JPEG image.');
-  }
-
-  const importedImage = nativeImage.createFromPath(sourcePath);
-  if (importedImage.isEmpty()) {
-    throw new Error('banji could not read that image file.');
-  }
-
-  const { width, height } = importedImage.getSize();
-  if (width <= 0 || height <= 0) {
-    throw new Error('banji could not determine the image dimensions.');
-  }
-
-  let bestBytes = encodeImportedImage(importedImage, targetExtension);
-
-  for (const scaleStep of DESKTOP_IMAGE_SCALE_STEPS) {
-    const dimensions = computeImportedImageDimensions(width, height, scaleStep);
-    const resizedImage = importedImage.resize(dimensions);
-
-    if (targetExtension === '.png') {
-      const pngBytes = encodeImportedImage(resizedImage, '.png');
-      if (pngBytes.byteLength < bestBytes.byteLength) {
-        bestBytes = pngBytes;
-      }
-      if (pngBytes.byteLength <= DESKTOP_IMAGE_TARGET_MAX_BYTES) {
-        return { bytes: pngBytes, extension: '.png' as const };
-      }
-      continue;
-    }
-
-    for (const jpegQuality of DESKTOP_IMAGE_JPEG_QUALITY_STEPS) {
-      const jpegBytes = encodeImportedImage(resizedImage, '.jpg', jpegQuality);
-      if (jpegBytes.byteLength < bestBytes.byteLength) {
-        bestBytes = jpegBytes;
-      }
-      if (jpegBytes.byteLength <= DESKTOP_IMAGE_TARGET_MAX_BYTES) {
-        return { bytes: jpegBytes, extension: '.jpg' as const };
-      }
-    }
-  }
-
-  return { bytes: bestBytes, extension: targetExtension };
 }
 
 function resolveDesktopAssetPathFromRequest(requestUrl: string) {
@@ -731,6 +674,12 @@ function createMainWindowWebPreferences(): Electron.BrowserWindowConstructorOpti
   };
 }
 
+function installMacDockIcon() {
+  if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
+    app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));
+  }
+}
+
 function setFocusedWindowToActualSize() {
   // banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
@@ -901,7 +850,12 @@ async function createMainWindow() {
   }
   endLoad({ ok: true });
   if (!benchmarkWindowBackgroundMode) {
-    mainWindow.showInactive();
+    showWindowWithoutStealingFocus({
+      app,
+      targetWindow: mainWindow,
+      restoreRegularActivationPolicy: shouldUseInactiveMacDevWindowLaunch,
+    });
+    installMacDockIcon();
   }
   snapshotProcessMemory('main.window.renderer.loaded');
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
@@ -910,6 +864,8 @@ async function createMainWindow() {
 }
 
 async function boot() {
+  installMacDockIcon();
+
   const prewarmManagedCore = async () => {
     const endPrewarm = startBenchmarkSpan({
       category: 'startup',
@@ -1012,9 +968,21 @@ async function boot() {
   } else {
     await prewarmManagedCore();
   }
-  if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
-    app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));
-  }
+  telegramAutomationLoop = startTelegramAutomationLoop(desktopDataPath, {
+    loadContext: () => loadAutomationWorkspaceContext({
+      loadCachedSenaRead,
+      invoke: managedCore.invoke.bind(managedCore),
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+    loadPreferences: async () => {
+      const preferences = await loadDesktopPreferences(desktopDataPath);
+      return {
+        currency: preferences.currency,
+        language: preferences.language,
+        usdToKhrExchangeRate: preferences.usdToKhrExchangeRate,
+      };
+    },
+  });
   await createMainWindow();
   snapshotProcessMemory('main.boot.ready');
 }
@@ -1095,6 +1063,13 @@ ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.sy
 
   shell.showItemInFolder(normalizedPath);
 }));
+ipcMain.handle(IPC_CHANNELS.systemOpenExternalUrl, benchmarkIpcHandle(IPC_CHANNELS.systemOpenExternalUrl, async (_event, targetUrl: string) => {
+  if (typeof targetUrl !== 'string' || targetUrl.trim().length === 0) {
+    throw new Error('A URL is required.');
+  }
+
+  await shell.openExternal(targetUrl.trim());
+}));
 ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
   const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
     buttonLabel: 'Use image',
@@ -1130,7 +1105,7 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
       sourceBytes: sourceStats?.size ?? null,
     },
   });
-  const normalizedImage = normalizeImportedImage(sourcePath);
+  const normalizedImage = normalizeDesktopImage(sourcePath);
   endNormalize({
     ok: true,
     outputBytes: normalizedImage.bytes.byteLength,
@@ -1156,7 +1131,9 @@ ipcMain.handle(IPC_CHANNELS.automationGetConnection, benchmarkIpcHandle(IPC_CHAN
   readAutomationConnection(desktopDataPath),
 ));
 ipcMain.handle(IPC_CHANNELS.automationSaveConnection, benchmarkIpcHandle(IPC_CHANNELS.automationSaveConnection, async (_event, payload: AutomationConnectionPatch) =>
-  saveAutomationConnection(desktopDataPath, payload),
+  validateAndSaveTelegramAutomationConnection(desktopDataPath, payload).finally(() => {
+    telegramAutomationLoop?.triggerSoon();
+  }),
 ));
 ipcMain.handle(IPC_CHANNELS.automationListExposureRows, benchmarkIpcHandle(IPC_CHANNELS.automationListExposureRows, async () => {
   const context = await loadAutomationWorkspaceContext({
@@ -1201,6 +1178,14 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await finalizeAutomationPromotion(desktopDataPath, prepared.updatedIntake);
+  try {
+    await notifyTelegramCustomerOfPromotion(desktopDataPath, {
+      conversationId: prepared.updatedIntake.conversationId,
+      intake: prepared.updatedIntake,
+    });
+  } catch (error) {
+    console.warn('[automation] failed to notify Telegram customer after promotion', error);
+  }
   await invalidateSenaReadCache();
   return {
     intake: prepared.updatedIntake,
@@ -1209,18 +1194,12 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
   } satisfies PromoteAutomationIntakeResult;
 }));
 ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle(IPC_CHANNELS.automationTestTelegramConnection, async () => {
-  const [context, preferences] = await Promise.all([
-    loadAutomationWorkspaceContext({
-      loadCachedSenaRead,
-      invoke: managedCore.invoke.bind(managedCore),
-      timeoutMs: SENA_READ_TIMEOUT_MS,
-    }),
-    loadDesktopPreferences(desktopDataPath),
-  ]);
-  return testAutomationTelegramConnection(desktopDataPath, {
-    ...context,
-    currency: preferences.currency,
+  const latestConversationChatId = (await listAutomationConversations(desktopDataPath))[0]?.externalConversationKey ?? null;
+  const connection = await runTelegramConnectionTest(desktopDataPath, {
+    latestConversationChatId,
   });
+  telegramAutomationLoop?.triggerSoon();
+  return connection;
 }));
 
 ipcMain.handle(IPC_CHANNELS.inventoryLoadSnapshot, benchmarkIpcHandle(IPC_CHANNELS.inventoryLoadSnapshot, async () =>
@@ -1349,6 +1328,16 @@ ipcMain.handle(IPC_CHANNELS.senaTriggerRun, benchmarkIpcHandle(IPC_CHANNELS.sena
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
+  const telegramCustomerTicketEvents = (payload?.ticketEvents ?? []).filter((event) =>
+    event.ticketFamily === 'customer' && event.party?.channelKey === 'telegram',
+  );
+  for (const ticketEvent of telegramCustomerTicketEvents) {
+    try {
+      await notifyTelegramCustomerOfTicketUpdate(desktopDataPath, { ticketEvent });
+    } catch (error) {
+      console.warn('[automation] failed to notify Telegram customer after ticket update', error);
+    }
+  }
   await invalidateSenaReadCache();
   return result;
 }));
@@ -1434,11 +1423,13 @@ app.on('activate', async () => {
 
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
+    telegramAutomationLoop?.stop();
     await managedCore.stop();
     app.quit();
   }
 });
 
 app.on('before-quit', async () => {
+  telegramAutomationLoop?.stop();
   await managedCore.stop();
 });

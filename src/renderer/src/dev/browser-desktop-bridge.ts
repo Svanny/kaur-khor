@@ -8,6 +8,7 @@ import type {
   AutomationWorkspace,
   PromoteAutomationIntakeResult,
 } from '@shared/automation';
+import { normalizePhoneLookupKey } from '@shared/phone';
 import type {
   AutomationConnectionPatch,
   AutomationExposurePatch,
@@ -791,6 +792,7 @@ export function createMockState(): BrowserMockState {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -807,6 +809,7 @@ export function createMockState(): BrowserMockState {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -820,6 +823,7 @@ export function createMockState(): BrowserMockState {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
     },
     reports: [],
@@ -887,7 +891,7 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
     externalConversationKey: 'telegram-chat-demo',
     customerDisplayName: 'Sokha',
     customerHandle: '@sokha',
-    phone: '+85512000000',
+    phone: '+855 12000000',
     lastMessageAt: nowIso(),
     messageCount: 1,
     latestIntakeStatus: 'new',
@@ -911,7 +915,7 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
     parseConfidence: 'high',
     customerDisplayName: 'Sokha',
     customerHandle: '@sokha',
-    phone: '+85512000000',
+    phone: '+855 12000000',
     notes: 'Browser mock intake.',
     quotedSubtotal: 24,
     currencyCode: 'USD',
@@ -1057,7 +1061,7 @@ function installBrowserDesktopBridge() {
               customerName: intake.customerDisplayName,
               customerNameKey: intake.customerDisplayName?.toLowerCase() ?? null,
               phone: intake.phone,
-              phoneKey: intake.phone ?? null,
+              phoneKey: normalizePhoneLookupKey(intake.phone),
               supplierName: null,
             },
             lines: intake.lines.filter((line) => line.entityId != null).map((line) => ({
@@ -1115,6 +1119,7 @@ function installBrowserDesktopBridge() {
         },
       }),
       revealPath: async () => {},
+      openExternalUrl: async () => {},
       pickAndStoreImage: async () => null,
     },
     preferences: {

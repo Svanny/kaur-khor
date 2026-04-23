@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { PAGE_STATE_MEMORY_STORAGE_KEY } from '@/lib/page-state-memory';
 import { BanjiShell } from './banji-shell';
 
 const inventoryHook = vi.fn();
@@ -18,6 +19,7 @@ vi.mock('@/state/preferences', () => ({
 
 describe('BanjiShell', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     setViewport({ width: 375, isMobile: true });
     Object.defineProperty(window.navigator, 'platform', {
       configurable: true,
@@ -50,6 +52,7 @@ describe('BanjiShell', () => {
         error: null,
       },
       observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }],
+      reports: [{ reportId: 'report-1' }],
       reload: vi.fn(),
       workspaceSummary: {
         ownerSub: 'desktop-owner',
@@ -75,10 +78,12 @@ describe('BanjiShell', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key: string) => {
         const translations: Record<string, string> = {
@@ -200,6 +205,33 @@ describe('BanjiShell', () => {
     expect(screen.queryByRole('button', { name: 'Custom View' })).not.toBeInTheDocument();
   });
 
+  test('restores remembered page state from sidebar navigation links', () => {
+    setViewport({ width: 1440, isMobile: false });
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: '?q=scarf&view=skus',
+      performance: '?compare=0&range=7d&scope=skus',
+      settings: '/settings/interface',
+    }));
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+            <Route element={<div>Settings screen</div>} path="/settings/*" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
+    expect(screen.getByRole('link', { name: 'Performance' })).toHaveAttribute(
+      'href',
+      '/performance?compare=0&range=7d&scope=skus',
+    );
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings/interface');
+  });
+
   test('renders settings navigation in the rail and returns to the app overview', async () => {
     setViewport({ width: 1440, isMobile: false });
 
@@ -289,10 +321,12 @@ describe('BanjiShell', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key: string) =>
         ({
@@ -342,6 +376,7 @@ describe('BanjiShell', () => {
       isPreparingWorkspace: false,
       isSaving: false,
       observations: [],
+      reports: [],
       reload: vi.fn(),
     });
 
@@ -391,6 +426,7 @@ describe('BanjiShell', () => {
         error: null,
       },
       observations: [],
+      reports: [],
       reload: vi.fn(),
       workspaceSummary: {
         ownerSub: 'desktop-owner',
@@ -420,7 +456,121 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+  });
+
+  test('hides the automations navigation item when disabled', () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      isHydrated: true,
+      displayViewMode: 'custom',
+      language: 'en',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+        automations: true,
+      },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'banji',
+          navOverview: 'Overview',
+          navRecordUpdate: 'Record update',
+          navPerformance: 'Performance',
+          navFinancials: 'Financials',
+          navAutomations: 'Automations',
+          navAnalysis: 'Analysis',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navArchive: 'Archive',
+          navHelp: 'Help',
+          sidebarSectionMain: 'Main',
+          sidebarSectionOther: 'Other',
+          navSettings: 'Settings',
+          skipToContent: 'Skip to content',
+          openNavigation: 'Open navigation',
+          collapseNavigation: 'Collapse navigation',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
+  });
+
+  test('hides the automations navigation item before the first saved report', () => {
+    setViewport({ width: 1440, isMobile: false });
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      reports: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+  });
+
+  test('hides the automations navigation item when no automation-eligible sellable exists', () => {
+    setViewport({ width: 1440, isMobile: false });
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{
+          archived: false,
+          costPerUnit: 4,
+          description: 'SKU',
+          leadTimeMeanDaysHint: 5,
+          leadTimeStdDaysHint: 1,
+          name: 'SKU 1',
+          productPrice: null,
+          skuId: 'sku-1',
+          soldAsProduct: false,
+        }],
+      },
+      reports: [{ reportId: 'report-1' }],
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
   });
 
   test('highlights newly unlocked tabs and marks them seen after navigation', async () => {
@@ -436,10 +586,12 @@ describe('BanjiShell', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key: string) =>
         ({
@@ -492,7 +644,9 @@ describe('BanjiShell', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
+      showAutomationsPage: true,
       showAnalysisPage: false,
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -547,10 +701,12 @@ describe('BanjiShell', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       t: (key: string) =>
         ({
           appBrand: 'បញ្ជី',

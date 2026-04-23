@@ -153,6 +153,7 @@ function freezeDate(isoString: string) {
 }
 
 const inventoryHook = vi.fn();
+const automationHook = vi.fn();
 const savePreferencesMock = vi.fn(async () => undefined);
 const applyOverviewStaleUpdateReminderSnoozeUntil = vi.fn(async (value: string | null) => {
   preferenceState.overviewStaleUpdateReminderSnoozeUntil = value;
@@ -176,6 +177,10 @@ const preferenceState = {
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
+}));
+
+vi.mock('../state/automation', () => ({
+  useAutomation: () => automationHook(),
 }));
 
 vi.mock('../state/preferences', () => ({
@@ -550,6 +555,10 @@ describe('DashboardRoute', () => {
       y: 0,
       toJSON: () => ({}),
     } as DOMRect);
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: vi.fn(),
+    });
 
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -560,6 +569,9 @@ describe('DashboardRoute', () => {
       ingestSenaObservation: vi.fn(async (payload) => payload),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
       isSaving: false,
+    });
+    automationHook.mockReturnValue({
+      intakes: [],
     });
   });
 
@@ -740,6 +752,137 @@ describe('DashboardRoute', () => {
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
   });
 
+  test('deep-links into customer workflow and highlights a Telegram intake task', async () => {
+    automationHook.mockReturnValue({
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: 'Dara',
+          customerHandle: '@dara',
+          phone: null,
+          notes: 'Telegram quote',
+          quotedSubtotal: 12,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 12,
+          createdAt: '2026-04-03T10:00:00.000Z',
+          updatedAt: '2026-04-03T11:00:00.000Z',
+          promotedTicketId: null,
+          lines: [
+            {
+              lineId: 'line-1',
+              entityType: 'sku',
+              entityId: 'sku-1',
+              requestedLabel: 'Cotton pads',
+              resolvedLabel: 'Cotton pads',
+              quantity: 2,
+              unitPrice: 6,
+              lineTotal: 12,
+              availabilityStatus: 'available',
+              ambiguityReason: null,
+            },
+          ],
+        },
+      ],
+    });
+
+    renderRouteWithLocation('/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
+      expect(screen.getByRole('tab', { name: 'Quoted' })).toHaveAttribute('data-state', 'active');
+      expect(screen.getByText('Dara')).toBeInTheDocument();
+    });
+
+    const highlightedRow = document.querySelector('[data-customer-task-id="automation:intake:intake-1"]');
+    expect(highlightedRow?.className).toContain('ring-emerald-300');
+    expect(screen.getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
+    expect(screen.getByTestId('route-location')).toHaveTextContent(
+      '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+    );
+  });
+
+  test('opens Telegram intake directly from the customer queue without leaving Overview', async () => {
+    const user = userEvent.setup();
+    const readConversation = vi.fn(async () => ({
+      conversation: { conversationId: 'conv-1' },
+      intakes: [],
+      messages: [
+        {
+          messageId: 'message-1',
+          conversationId: 'conv-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-03T11:00:00.000Z',
+          rawText: '/start',
+          normalizedText: null,
+          parseConfidence: 'medium',
+        },
+      ],
+    }));
+
+    automationHook.mockReturnValue({
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: 'Dara',
+          customerHandle: '@dara',
+          phone: null,
+          notes: 'Telegram quote',
+          quotedSubtotal: 12,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 12,
+          createdAt: '2026-04-03T10:00:00.000Z',
+          updatedAt: '2026-04-03T11:00:00.000Z',
+          promotedTicketId: null,
+          lines: [
+            {
+              lineId: 'line-1',
+              entityType: 'sku',
+              entityId: 'sku-1',
+              requestedLabel: 'Cotton pads',
+              resolvedLabel: 'Cotton pads',
+              quantity: 2,
+              unitPrice: 6,
+              lineTotal: 12,
+              availabilityStatus: 'available',
+              ambiguityReason: null,
+            },
+          ],
+        },
+      ],
+      isSaving: false,
+      promoteIntake: vi.fn(),
+      readConversation,
+      resolveIntake: vi.fn(),
+    });
+
+    renderRouteWithLocation('/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
+
+    await waitFor(() => {
+      expect(screen.getByText('Dara')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open intake' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { level: 2, name: 'Telegram intake' })).toBeInTheDocument();
+    });
+    expect(readConversation).toHaveBeenCalledWith({ conversationId: 'conv-1' });
+    expect(screen.getByTestId('route-location')).toHaveTextContent(
+      '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+    );
+  });
+
   test('hydrates dashboard SKU details with a small concurrency cap', async () => {
     const resolvers = new Map<string, () => void>();
     let activeLoads = 0;
@@ -811,7 +954,18 @@ describe('DashboardRoute', () => {
     expect(savePreferencesMock).not.toHaveBeenCalled();
   });
 
-  test('writes route-backed receive state when launching a task from the queue', async () => {
+  test('navigates to the SKU detail page when clicking an overview item', async () => {
+    const user = userEvent.setup();
+    renderRouteWithLocation();
+
+    await user.click(screen.getByRole('link', { name: /Razor refill/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/catalog/skus/sku-1');
+    });
+  });
+
+  test('opens task drawers without writing pre-submit popup state to the route', async () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       observations: sampleObservations,
@@ -820,29 +974,29 @@ describe('DashboardRoute', () => {
       isSaving: false,
     });
 
-    renderRouteWithLocation();
+    const { container } = renderRouteWithLocation();
 
     fireEvent.click(screen.getByRole('button', { name: 'Receive' }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('route-location').textContent).toMatch(/task=[^&]+/);
-      expect(screen.getByTestId('route-location')).toHaveTextContent('taskMode=goods_received');
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
   });
 
-  test('ignores legacy grouped batch preferences for overview ticket actions', async () => {
+  test('ignores legacy grouped batch preferences without writing popup state to the route', async () => {
     preferenceState.taskBatchUpdatePreferences = {
       ...preferenceState.taskBatchUpdatePreferences,
       logOrder: 'always_batch',
     };
 
-    renderRouteWithLocation();
+    const { container } = renderRouteWithLocation();
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/?task=sku-1');
-      expect(screen.getByTestId('route-location').textContent).toContain('taskMode=not_ordered');
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
   });
 

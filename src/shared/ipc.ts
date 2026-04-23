@@ -89,9 +89,26 @@ export interface DesktopTaskBatchUpdatePreferences {
   review: DesktopTaskBatchUpdatePreference;
 }
 
-export type DesktopSeenUnlockedNavItemId = 'catalog' | 'operations' | 'performance' | 'financials';
+export type DesktopSeenUnlockedNavItemId =
+  | 'catalog'
+  | 'operations'
+  | 'performance'
+  | 'financials'
+  | 'automations';
 
 export type DesktopSeenUnlockedNavItems = Partial<Record<DesktopSeenUnlockedNavItemId, boolean>>;
+
+export const DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS = [
+  'stock-count',
+  'supplier-order-pending',
+  'customer-order-pending',
+  'customer-order-completed',
+] as const;
+
+export type DesktopWorkbenchTileOrderLaneId =
+  typeof DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS[number];
+
+export type DesktopWorkbenchTileOrderByLane = Partial<Record<DesktopWorkbenchTileOrderLaneId, string[]>>;
 
 export interface DesktopPreferences {
   language: AppLanguage;
@@ -104,6 +121,7 @@ export interface DesktopPreferences {
   showFloatingTitleActions: boolean;
   showRightRailCards: boolean;
   showOverviewTaskTabs: boolean;
+  showAutomationsPage: boolean;
   showAnalysisPage: boolean;
   showPerformanceCompareToggle: boolean;
   showPerformanceTimelineCard: boolean;
@@ -114,6 +132,7 @@ export interface DesktopPreferences {
   customShowFloatingTitleActions: boolean;
   customShowRightRailCards: boolean;
   customShowOverviewTaskTabs: boolean;
+  customShowAutomationsPage: boolean;
   customShowAnalysisPage: boolean;
   customShowPerformanceCompareToggle: boolean;
   customShowPerformanceTimelineCard: boolean;
@@ -123,6 +142,7 @@ export interface DesktopPreferences {
   overviewStaleUpdateReminderSnoozeUntil: string | null;
   onboardingCompletedAt: string | null;
   seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
+  workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
 }
 
 export interface SenaEngineParameters {
@@ -207,6 +227,7 @@ export interface DesktopSystemBridge {
   restoreBackupSnapshot: () => Promise<DesktopBackupRestoreResult | null>;
   clearCurrentData: () => Promise<DesktopClearCurrentDataResult>;
   revealPath: (path: string) => Promise<void>;
+  openExternalUrl: (url: string) => Promise<void>;
   pickAndStoreImage: () => Promise<string | null>;
 }
 
@@ -300,6 +321,7 @@ export const IPC_CHANNELS = {
   systemRestoreBackupSnapshot: 'banji:system:restore-backup-snapshot',
   systemClearCurrentData: 'banji:system:clear-current-data',
   systemRevealPath: 'banji:system:reveal-path',
+  systemOpenExternalUrl: 'banji:system:open-external-url',
   systemPickAndStoreImage: 'banji:system:pick-and-store-image',
   inventoryLoadSnapshot: 'banji:inventory:load-snapshot',
   inventoryListReports: 'banji:inventory:list-reports',
@@ -357,7 +379,10 @@ export const DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS: DesktopSeenUnlockedNavItem
   operations: false,
   performance: false,
   financials: false,
+  automations: false,
 };
+
+export const DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE: DesktopWorkbenchTileOrderByLane = {};
 
 export const DEFAULT_SENA_ENGINE_PARAMETERS: SenaEngineParameters = {
   algorithmVersion: 'sena-analysis-v3',
@@ -416,7 +441,40 @@ export function normalizeDesktopSeenUnlockedNavItems(
     operations: value?.operations ?? fallbackValue,
     performance: value?.performance ?? fallbackValue,
     financials: value?.financials ?? fallbackValue,
+    automations: value?.automations ?? fallbackValue,
   };
+}
+
+export function normalizeDesktopWorkbenchTileOrderByLane(
+  value: DesktopWorkbenchTileOrderByLane | null | undefined,
+): DesktopWorkbenchTileOrderByLane {
+  if (!value || typeof value !== 'object') {
+    return {};
+  }
+
+  const normalized: DesktopWorkbenchTileOrderByLane = {};
+
+  for (const laneId of DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS) {
+    const rawValue = value[laneId];
+    if (!Array.isArray(rawValue)) {
+      continue;
+    }
+
+    const seenTileIds = new Set<string>();
+    const sanitized = rawValue.filter((entry): entry is string => {
+      if (typeof entry !== 'string' || entry.length === 0 || seenTileIds.has(entry)) {
+        return false;
+      }
+      seenTileIds.add(entry);
+      return true;
+    });
+
+    if (sanitized.length > 0) {
+      normalized[laneId] = sanitized;
+    }
+  }
+
+  return normalized;
 }
 
 export function normalizeDesktopPreferenceTimestamp(value: string | null | undefined) {

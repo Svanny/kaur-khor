@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { AppCurrency } from '@shared/inventory';
+import type { AppCurrency, AppLanguage } from '@shared/inventory';
+import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type {
   AutomationAvailabilityStatus,
   AutomationChannelConnection,
@@ -22,6 +23,10 @@ import type {
   AutomationListIntakesPayload,
   AutomationResolveIntakePayload,
 } from '@shared/ipc';
+import {
+  isAutomationEligibleService,
+  isAutomationEligibleSku,
+} from '@shared/automation-sellables';
 import type {
   SenaCatalog,
   SenaCommercialEvent,
@@ -35,9 +40,24 @@ import type {
   SenaTicketLifecycle,
   SenaTicketStage,
 } from '@shared/sena';
+import {
+  formatPhoneForDisplay,
+  normalizePhoneLookupKey,
+  normalizePhoneNumber,
+} from '@shared/phone';
+import type {
+  TelegramBotUser,
+  TelegramChat,
+  TelegramInlineKeyboardMarkup,
+  TelegramMessage,
+  TelegramReplyKeyboardMarkup,
+  TelegramReplyKeyboardRemove,
+  TelegramUpdate,
+} from './telegram-bot-api';
 
 type AutomationConnectionRecord = AutomationChannelConnection & {
   botToken: string | null;
+  commandsConfiguredAt: string | null;
 };
 
 type AutomationExposureRuleRecord = {
@@ -53,12 +73,119 @@ type AutomationExposureRuleRecord = {
 
 type AutomationStoreState = {
   version: 1;
+  telegramUpdateCursor: number | null;
   connection: AutomationConnectionRecord;
   exposureRules: AutomationExposureRuleRecord[];
   conversations: AutomationConversationSummary[];
   messages: AutomationMessageRecord[];
   intakes: AutomationOrderIntake[];
+  customerPreferences: AutomationCustomerPreferencesRecord[];
+  wizardSessions: AutomationWizardSession[];
 };
+
+type AutomationWizardStep =
+  | 'menu'
+  | 'catalog'
+  | 'item'
+  | 'cart'
+  | 'preferences_language'
+  | 'preferences_currency'
+  | 'checkout_identity'
+  | 'checkout_confirm';
+
+type AutomationWizardPendingPromptIntent = 'share_phone' | null;
+
+type AutomationWizardCartLine = {
+  entityType: AutomationExposureEntityType;
+  entityId: string;
+  label: string;
+  quantity: number;
+  unitPrice: number | null;
+  availabilityStatus: AutomationAvailabilityStatus;
+};
+
+type AutomationWizardSession = {
+  conversationId: string;
+  currentStep: AutomationWizardStep;
+  catalogCursor: number;
+  pendingPromptIntent: AutomationWizardPendingPromptIntent;
+  lastWizardMessageId: number | null;
+  lastItemImageMessageId: number | null;
+  selectedEntityType: AutomationExposureEntityType | null;
+  selectedEntityId: string | null;
+  selectedItemImageEntityType: AutomationExposureEntityType | null;
+  selectedItemImageEntityId: string | null;
+  draftLines: AutomationWizardCartLine[];
+  phone: string | null;
+  updatedAt: string;
+};
+
+type AutomationCustomerPreferencesRecord = {
+  conversationId: string;
+  language: AppLanguage;
+  currency: AppCurrency;
+  configuredAt: string;
+  updatedAt: string;
+};
+
+type TelegramCustomerPreferences = {
+  language: AppLanguage;
+  currency: AppCurrency;
+  usdToKhrExchangeRate: number;
+};
+
+type TelegramMessageMarkup = TelegramInlineKeyboardMarkup | TelegramReplyKeyboardMarkup | TelegramReplyKeyboardRemove | undefined;
+
+type TelegramOutboundJob =
+  | {
+    kind: 'send';
+    chatId: string;
+    conversationId: string;
+    text: string;
+    parseMode?: 'HTML';
+    replyMarkup?: TelegramMessageMarkup;
+    storesWizardMessage?: boolean;
+  }
+  | {
+    kind: 'edit';
+    chatId: string;
+    conversationId: string;
+    messageId: number;
+    text: string;
+    parseMode?: 'HTML';
+    replyMarkup?: TelegramInlineKeyboardMarkup;
+  }
+  | {
+    kind: 'edit_reply_markup';
+    chatId: string;
+    conversationId: string;
+    messageId: number;
+    replyMarkup?: TelegramInlineKeyboardMarkup;
+  }
+  | {
+    kind: 'answer_callback';
+    callbackQueryId: string;
+    text?: string;
+    showAlert?: boolean;
+  }
+  | {
+    kind: 'send_photo';
+    chatId: string;
+    conversationId: string;
+    photoPath: string;
+    caption?: string;
+    parseMode?: 'HTML';
+    storesItemImage?: {
+      entityType: AutomationExposureEntityType;
+      entityId: string;
+    };
+  }
+  | {
+    kind: 'delete_message';
+    chatId: string;
+    conversationId: string;
+    messageId: number;
+  };
 
 type ExposureBuildContext = {
   catalog: SenaCatalog | null;
@@ -77,6 +204,7 @@ const DEFAULT_CONNECTION: AutomationConnectionRecord = {
   status: 'disconnected',
   hasBotToken: false,
   botToken: null,
+  commandsConfiguredAt: null,
   botDisplayName: null,
   botUsername: null,
   externalLink: null,
@@ -89,11 +217,14 @@ const DEFAULT_CONNECTION: AutomationConnectionRecord = {
 
 const DEFAULT_STATE: AutomationStoreState = {
   version: 1,
+  telegramUpdateCursor: null,
   connection: DEFAULT_CONNECTION,
   exposureRules: [],
   conversations: [],
   messages: [],
   intakes: [],
+  customerPreferences: [],
+  wizardSessions: [],
 };
 
 let automationWriteQueue: Promise<void> = Promise.resolve();
@@ -116,6 +247,11 @@ function safeLower(value: string | null | undefined) {
   return value?.trim().toLowerCase() ?? '';
 }
 
+function normalizeNullablePhone(value: string | null | undefined) {
+  const normalized = normalizePhoneNumber(value);
+  return normalized || null;
+}
+
 function automationTextIncludes(haystack: Array<string | null | undefined>, query: string) {
   const normalizedQuery = safeLower(query);
   if (!normalizedQuery) {
@@ -132,10 +268,43 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
       ...value?.connection,
       channel: 'telegram',
     },
-    exposureRules: Array.isArray(value?.exposureRules) ? value.exposureRules : [],
-    conversations: Array.isArray(value?.conversations) ? value.conversations : [],
-    messages: Array.isArray(value?.messages) ? value.messages : [],
-    intakes: Array.isArray(value?.intakes) ? value.intakes : [],
+    telegramUpdateCursor: typeof value?.telegramUpdateCursor === 'number' ? value.telegramUpdateCursor : null,
+    exposureRules: Array.isArray(value?.exposureRules) ? [...value.exposureRules] : [],
+    conversations: Array.isArray(value?.conversations)
+      ? value.conversations.map((conversation) => ({
+        ...conversation,
+        phone: normalizeNullablePhone(conversation.phone),
+      }))
+      : [],
+    messages: Array.isArray(value?.messages) ? [...value.messages] : [],
+    intakes: Array.isArray(value?.intakes)
+      ? value.intakes.map((intake) => ({
+        ...intake,
+        phone: normalizeNullablePhone(intake.phone),
+      }))
+      : [],
+    customerPreferences: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.customerPreferences)
+      ? [...(value as Partial<AutomationStoreState>).customerPreferences!]
+      : [],
+    wizardSessions: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.wizardSessions)
+      ? (value as Partial<AutomationStoreState>).wizardSessions!.map((session) => ({
+        ...session,
+        currentStep: session.currentStep ?? 'menu',
+        catalogCursor: typeof session.catalogCursor === 'number' ? session.catalogCursor : 0,
+        pendingPromptIntent: session.pendingPromptIntent ?? null,
+        lastWizardMessageId: typeof session.lastWizardMessageId === 'number' ? session.lastWizardMessageId : null,
+        lastItemImageMessageId: typeof (session as Partial<AutomationWizardSession>).lastItemImageMessageId === 'number'
+          ? (session as Partial<AutomationWizardSession>).lastItemImageMessageId!
+          : null,
+        selectedEntityType: (session as Partial<AutomationWizardSession>).selectedEntityType ?? null,
+        selectedEntityId: (session as Partial<AutomationWizardSession>).selectedEntityId ?? null,
+        selectedItemImageEntityType: (session as Partial<AutomationWizardSession>).selectedItemImageEntityType ?? null,
+        selectedItemImageEntityId: (session as Partial<AutomationWizardSession>).selectedItemImageEntityId ?? null,
+        draftLines: Array.isArray(session.draftLines) ? [...session.draftLines] : [],
+        phone: normalizeNullablePhone(session.phone),
+        updatedAt: session.updatedAt ?? nowIso(),
+      }))
+      : [],
   };
 }
 
@@ -214,7 +383,7 @@ function deriveSkuAvailability(
   sku: SenaCatalog['skus'][number],
   stockBySku: Map<string, number>,
 ): AutomationAvailabilityStatus {
-  if (sku.archived || !sku.soldAsProduct || sku.productPrice == null) {
+  if (!isAutomationEligibleSku(sku)) {
     return 'hidden';
   }
   const units = stockBySku.get(sku.skuId);
@@ -235,7 +404,7 @@ function deriveServiceAvailability(
   catalog: SenaCatalog,
   stockBySku: Map<string, number>,
 ): AutomationAvailabilityStatus {
-  if (service.archived) {
+  if (!isAutomationEligibleService(service)) {
     return 'hidden';
   }
   const linkedSkuIds = linkedSkuIdsForService(catalog, service.serviceId);
@@ -334,6 +503,126 @@ function recalculateConversation(state: AutomationStoreState, conversationId: st
   conversation.latestTicketId = conversationIntakes.find((intake) => intake.promotedTicketId)?.promotedTicketId ?? null;
 }
 
+function wizardSessionForConversation(state: AutomationStoreState, conversationId: string) {
+  return state.wizardSessions.find((entry) => entry.conversationId === conversationId) ?? null;
+}
+
+function upsertWizardSession(state: AutomationStoreState, conversationId: string) {
+  const existing = wizardSessionForConversation(state, conversationId);
+  if (existing) {
+    existing.updatedAt = nowIso();
+    return existing;
+  }
+  const session: AutomationWizardSession = {
+    conversationId,
+    currentStep: 'menu',
+    catalogCursor: 0,
+    pendingPromptIntent: null,
+    lastWizardMessageId: null,
+    lastItemImageMessageId: null,
+    selectedEntityType: null,
+    selectedEntityId: null,
+    selectedItemImageEntityType: null,
+    selectedItemImageEntityId: null,
+    draftLines: [],
+    phone: null,
+    updatedAt: nowIso(),
+  };
+  state.wizardSessions.unshift(session);
+  return session;
+}
+
+function hasWizardDraft(session: AutomationWizardSession | null) {
+  return Boolean(session?.draftLines.length);
+}
+
+function clearWizardItemSelection(session: AutomationWizardSession) {
+  session.selectedEntityType = null;
+  session.selectedEntityId = null;
+}
+
+function clearWizardDraft(session: AutomationWizardSession) {
+  session.currentStep = 'menu';
+  session.catalogCursor = 0;
+  session.pendingPromptIntent = null;
+  clearWizardItemSelection(session);
+  session.draftLines = [];
+  session.phone = null;
+  session.updatedAt = nowIso();
+}
+
+function botDisplayLabel(connection: AutomationConnectionRecord) {
+  if (connection.botDisplayName?.trim()) {
+    return connection.botDisplayName.trim();
+  }
+  if (connection.botUsername?.trim()) {
+    return `@${connection.botUsername.replace(/^@/, '')}`;
+  }
+  return 'banji';
+}
+
+function isKhmerLanguage(language: AppLanguage) {
+  return language === 'km';
+}
+
+function localizedStatusLabel(
+  language: AppLanguage,
+  value: 'available_now' | 'your_cart' | 'checkout' | 'needs_review' | 'quoted_order' | 'order_canceled' | 'order_updated',
+) {
+  if (!isKhmerLanguage(language)) {
+    switch (value) {
+      case 'available_now':
+        return 'Catalog';
+      case 'your_cart':
+        return 'Your cart';
+      case 'checkout':
+        return 'Checkout';
+      case 'needs_review':
+        return 'Needs review';
+      case 'quoted_order':
+        return 'Quoted order';
+      case 'order_canceled':
+        return 'Order canceled';
+      case 'order_updated':
+        return 'Order updated';
+    }
+  }
+  switch (value) {
+    case 'available_now':
+      return 'កាតាឡុក';
+    case 'your_cart':
+      return 'កន្ត្រករបស់អ្នក';
+    case 'checkout':
+      return 'បញ្ជាក់ការបញ្ជាទិញ';
+    case 'needs_review':
+      return 'ត្រូវការការពិនិត្យ';
+    case 'quoted_order':
+      return 'តម្លៃដែលបានដកស្រង់';
+    case 'order_canceled':
+      return 'បោះបង់ការបញ្ជាទិញ';
+    case 'order_updated':
+      return 'បានអាប់ដេតការបញ្ជាទិញ';
+  }
+}
+
+function buildPreferencesLanguagePrompt(language: AppLanguage) {
+  return isKhmerLanguage(language)
+    ? '<b>ជ្រើសរើសភាសា</b>\nសូមជ្រើសរើសភាសាសម្រាប់បង្ហាញសាររបស់ bot។ អ្នកអាចប្តូរវាវិញពេលក្រោយដោយវាយ <code>/preferences</code>។'
+    : '<b>Choose your language</b>\nPick the language for bot messages. You can change it later with <code>/preferences</code>.';
+}
+
+function buildPreferencesCurrencyPrompt(language: AppLanguage) {
+  return isKhmerLanguage(language)
+    ? '<b>ជ្រើសរើសរូបិយប័ណ្ណ</b>\nសូមជ្រើសរើសរូបិយប័ណ្ណសម្រាប់បង្ហាញតម្លៃ។'
+    : '<b>Choose your display currency</b>\nPick the currency you want banji to show in quotes and cart totals.';
+}
+
+function buildPreferencesSavedPrompt(language: AppLanguage) {
+  return isKhmerLanguage(language)
+    ? '<b>បានរក្សាទុកចំណូលចិត្ត</b>\nbanji នឹងប្រើភាសា និងរូបិយប័ណ្ណដែលអ្នកបានជ្រើសរើស។'
+    : '<b>Preferences saved</b>\nbanji will use your selected language and display currency.';
+}
+
 function summarizeRequest(lines: AutomationIntakeLine[]) {
   if (lines.length === 0) {
     return 'No items';
@@ -424,6 +713,1261 @@ function sampleQuantity(index: number) {
   return index === 0 ? 2 : 1;
 }
 
+function normalizeTelegramLabel(value: string | null | undefined) {
+  return safeLower(value).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function escapeTelegramHtml(value: string | null | undefined) {
+  return (value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+function displayMoneyFromUsd(amount: number | null, currency: AppCurrency, usdToKhrExchangeRate: number) {
+  if (amount == null) {
+    return null;
+  }
+  return currency === 'KHR' ? amount * usdToKhrExchangeRate : amount;
+}
+
+function formatTelegramMoney(preferences: TelegramCustomerPreferences, amountUsd: number | null) {
+  const displayAmount = displayMoneyFromUsd(amountUsd, preferences.currency, preferences.usdToKhrExchangeRate);
+  if (amountUsd == null) {
+    return `${preferences.currency} TBD`;
+  }
+  return preferences.currency === 'KHR'
+    ? `${preferences.currency} ${Math.round(displayAmount!).toFixed(0)}`
+    : `${preferences.currency} ${displayAmount!.toFixed(2)}`;
+}
+
+function conversationPreferencesFor(
+  state: AutomationStoreState,
+  conversationId: string,
+  defaults: TelegramCustomerPreferences,
+): TelegramCustomerPreferences {
+  const stored = state.customerPreferences.find((entry) => entry.conversationId === conversationId);
+  return {
+    language: stored?.language ?? defaults.language,
+    currency: stored?.currency ?? defaults.currency,
+    usdToKhrExchangeRate: defaults.usdToKhrExchangeRate,
+  };
+}
+
+function saveConversationPreferences(
+  state: AutomationStoreState,
+  conversationId: string,
+  next: Partial<Pick<TelegramCustomerPreferences, 'language' | 'currency'>>,
+  defaults: TelegramCustomerPreferences,
+) {
+  const current = state.customerPreferences.find((entry) => entry.conversationId === conversationId);
+  const now = nowIso();
+  if (current) {
+    current.language = next.language ?? current.language;
+    current.currency = next.currency ?? current.currency;
+    current.updatedAt = now;
+    return current;
+  }
+  const created: AutomationCustomerPreferencesRecord = {
+    conversationId,
+    language: next.language ?? defaults.language,
+    currency: next.currency ?? defaults.currency,
+    configuredAt: now,
+    updatedAt: now,
+  };
+  state.customerPreferences.push(created);
+  return created;
+}
+
+function hasConfiguredConversationPreferences(state: AutomationStoreState, conversationId: string) {
+  return state.customerPreferences.some((entry) => entry.conversationId === conversationId);
+}
+
+function formatExposureLabel(row: AutomationExposureRow) {
+  const primary = row.alias?.trim() || row.label;
+  return row.alias?.trim() ? `${primary} (${row.label})` : primary;
+}
+
+function catalogPageCount(rows: AutomationExposureRow[]) {
+  return Math.max(1, Math.ceil(rows.length / 5));
+}
+
+function pagedExposedRows(rows: AutomationExposureRow[], pageIndex: number) {
+  const visibleRows = rows.filter((row) => row.exposed);
+  const pageCount = catalogPageCount(visibleRows);
+  const safePage = Math.min(Math.max(pageIndex, 0), pageCount - 1);
+  return {
+    page: safePage,
+    pageCount,
+    rows: visibleRows.slice(safePage * 5, safePage * 5 + 5),
+    total: visibleRows.length,
+  };
+}
+
+function wizardLineKey(entityType: AutomationExposureEntityType, entityId: string) {
+  return `${entityType}:${entityId}`;
+}
+
+function buildCallbackData(
+  action: 'menu' | 'help' | 'available' | 'item' | 'order' | 'cart' | 'cancel' | 'page' | 'add' | 'inc' | 'dec' | 'remove' | 'checkout' | 'confirm' | 'preferences' | 'language' | 'currency',
+  ...parts: Array<string | number>
+) {
+  return ['w', action, ...parts].join(':');
+}
+
+function parseWizardCallbackData(value: string | null | undefined) {
+  if (!value?.startsWith('w:')) {
+    return null;
+  }
+  const [prefix, action, ...parts] = value.split(':');
+  if (prefix !== 'w' || !action) {
+    return null;
+  }
+  return {
+    action,
+    parts,
+  };
+}
+
+function inlineKeyboard(rows: Array<Array<{ text: string; callbackData?: string }>>) {
+  return {
+    inline_keyboard: rows.map((row) => row.map((button) => ({
+      text: button.text,
+      callback_data: button.callbackData,
+    }))),
+  } satisfies TelegramInlineKeyboardMarkup;
+}
+
+function phoneKeyboard() {
+  return {
+    keyboard: [
+      [{ text: 'Share phone', request_contact: true }],
+      ['Skip phone'],
+    ],
+    one_time_keyboard: true,
+    resize_keyboard: true,
+  } satisfies TelegramReplyKeyboardMarkup;
+}
+
+function removeKeyboard() {
+  return {
+    remove_keyboard: true,
+  } satisfies TelegramReplyKeyboardRemove;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function extractTelegramCommand(message: TelegramMessage) {
+  const text = message.text?.trim();
+  if (!text) {
+    return null;
+  }
+
+  const commandEntity = message.entities?.find((entity) => entity.type === 'bot_command' && entity.offset === 0);
+  const rawCommand = commandEntity
+    ? text.slice(0, commandEntity.length)
+    : text.startsWith('/')
+      ? text.split(/\s+/, 1)[0] ?? null
+      : null;
+  if (!rawCommand) {
+    return null;
+  }
+
+  const normalized = rawCommand.toLowerCase();
+  const atIndex = normalized.indexOf('@');
+  return atIndex >= 0 ? normalized.slice(0, atIndex) : normalized;
+}
+
+function extractTelegramQuantity(rawText: string, label: string) {
+  const normalizedLabel = normalizeTelegramLabel(label);
+  if (!normalizedLabel) {
+    return null;
+  }
+  const pattern = normalizedLabel.split(' ').map(escapeRegex).join('\\s+');
+  const match = rawText.match(new RegExp(`(?:^|\\b)(\\d+(?:\\.\\d+)?)\\s*(?:x|×)?\\s*${pattern}(?:\\b|$)`, 'i'));
+  if (!match) {
+    return null;
+  }
+  return Number(match[1]);
+}
+
+function buildTelegramConversationId(chatId: string) {
+  return `conv_telegram_${chatId.replace(/[^\w-]/g, '_')}`;
+}
+
+function telegramCustomerDisplayName(message: TelegramMessage) {
+  const firstName = message.from?.first_name?.trim();
+  const lastName = message.from?.last_name?.trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
+  return fullName || message.chat.title || null;
+}
+
+function telegramCustomerDisplayNameFromActor(
+  actor: {
+    first_name?: string;
+    last_name?: string;
+  },
+  chatTitle?: string | null,
+) {
+  const fullName = [actor.first_name?.trim(), actor.last_name?.trim()].filter(Boolean).join(' ').trim();
+  return fullName || chatTitle || null;
+}
+
+function parseTelegramIntakeLines(rawText: string, exposures: AutomationExposureRow[]) {
+  const normalizedText = normalizeTelegramLabel(rawText);
+  const matchedEntityIds = new Set<string>();
+  const sellableRows = exposures
+    .filter((row) => row.exposed)
+    .sort((left, right) => {
+      const leftLength = Math.max(left.alias?.length ?? 0, left.label.length);
+      const rightLength = Math.max(right.alias?.length ?? 0, right.label.length);
+      return rightLength - leftLength;
+    });
+
+  const lines: AutomationIntakeLine[] = [];
+  for (const row of sellableRows) {
+    const labels = [row.alias, row.label].filter(Boolean) as string[];
+    const matchedLabel = labels.find((label) => normalizedText.includes(normalizeTelegramLabel(label)));
+    if (!matchedLabel || matchedEntityIds.has(row.entityId)) {
+      continue;
+    }
+    const quantity = extractTelegramQuantity(rawText, matchedLabel) ?? 1;
+    const needsReview = row.price == null || row.availabilityStatus === 'unavailable' || row.availabilityStatus === 'hidden' || row.availabilityStatus === 'unknown';
+    lines.push({
+      lineId: `line_${randomUUID()}`,
+      entityType: row.entityType,
+      entityId: row.entityId,
+      requestedLabel: matchedLabel,
+      resolvedLabel: row.label,
+      quantity,
+      unitPrice: row.price,
+      lineTotal: row.price != null ? quantity * row.price : null,
+      availabilityStatus: row.availabilityStatus,
+      ambiguityReason:
+        row.price == null
+          ? 'price_unavailable'
+          : row.availabilityStatus === 'unavailable'
+            ? 'unavailable_entity_requested'
+            : row.availabilityStatus === 'hidden'
+              ? 'hidden_entity_requested'
+              : row.availabilityStatus === 'unknown'
+                ? 'item_not_found'
+                : null,
+    });
+    matchedEntityIds.add(row.entityId);
+  }
+
+  if (lines.length > 0) {
+    return lines;
+  }
+
+  return [{
+    lineId: `line_${randomUUID()}`,
+    entityType: 'sku',
+    entityId: null,
+    requestedLabel: rawText.trim() || 'Telegram request',
+    resolvedLabel: null,
+    quantity: null,
+    unitPrice: null,
+    lineTotal: null,
+    availabilityStatus: 'unknown',
+    ambiguityReason: 'item_not_found',
+  } satisfies AutomationIntakeLine];
+}
+
+function applyFreeTextCartMatch(
+  session: AutomationWizardSession,
+  rawText: string,
+  exposures: AutomationExposureRow[],
+) {
+  const lines = parseTelegramIntakeLines(rawText, exposures).filter((line) => line.entityId != null && line.quantity != null);
+  if (lines.length === 0) {
+    return false;
+  }
+  for (const line of lines) {
+    const entityId = line.entityId!;
+    const existing = session.draftLines.find((entry) => wizardLineKey(entry.entityType, entry.entityId) === wizardLineKey(line.entityType, entityId));
+    if (existing) {
+      existing.quantity += line.quantity!;
+      existing.unitPrice = line.unitPrice;
+      existing.availabilityStatus = line.availabilityStatus;
+    } else {
+      session.draftLines.push({
+        entityType: line.entityType,
+        entityId,
+        label: line.resolvedLabel ?? line.requestedLabel,
+        quantity: line.quantity!,
+        unitPrice: line.unitPrice,
+        availabilityStatus: line.availabilityStatus,
+      });
+    }
+  }
+  session.currentStep = 'cart';
+  session.updatedAt = nowIso();
+  return true;
+}
+
+function wizardDraftSubtotal(session: AutomationWizardSession) {
+  if (session.draftLines.some((line) => line.unitPrice == null || line.quantity <= 0)) {
+    return null;
+  }
+  return session.draftLines.reduce((sum, line) => sum + (line.unitPrice ?? 0) * line.quantity, 0);
+}
+
+function createIntakeFromWizardSession(
+  session: AutomationWizardSession,
+  conversation: AutomationConversationSummary,
+  currency: AppCurrency,
+) {
+  const lines: AutomationIntakeLine[] = session.draftLines.map((line) => ({
+    lineId: `line_${randomUUID()}`,
+    entityType: line.entityType,
+    entityId: line.entityId,
+    requestedLabel: line.label,
+    resolvedLabel: line.label,
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+    lineTotal: line.unitPrice != null ? line.unitPrice * line.quantity : null,
+    availabilityStatus: line.availabilityStatus,
+    ambiguityReason:
+      line.unitPrice == null
+        ? 'price_unavailable'
+        : line.availabilityStatus === 'unavailable'
+          ? 'unavailable_entity_requested'
+          : line.availabilityStatus === 'hidden'
+            ? 'hidden_entity_requested'
+            : line.availabilityStatus === 'unknown'
+              ? 'item_not_found'
+              : null,
+  }));
+
+  const quotedSubtotal = lines.every((line) => line.lineTotal != null)
+    ? lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0)
+    : null;
+  const status: AutomationIntakeStatus = quotedSubtotal != null && lines.every((line) => line.ambiguityReason == null)
+    ? 'quoted'
+    : 'needs_review';
+  const parseConfidence = status === 'quoted' ? 'high' : lines.some((line) => line.entityId != null) ? 'medium' : 'low';
+
+  return {
+    intakeId: `intake_${randomUUID()}`,
+    conversationId: session.conversationId,
+    channel: 'telegram',
+    status,
+    parseConfidence,
+    customerDisplayName: conversation.customerDisplayName,
+    customerHandle: conversation.customerHandle,
+    phone: normalizeNullablePhone(session.phone ?? conversation.phone),
+    notes: `Telegram wizard checkout (${session.draftLines.length} line${session.draftLines.length === 1 ? '' : 's'})`,
+    quotedSubtotal,
+    currencyCode: currencyCodeForAppCurrency(currency),
+    deliveryFee: null,
+    quotedTotal: quotedSubtotal,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    promotedTicketId: null,
+    lines,
+  } satisfies AutomationOrderIntake;
+}
+
+function buildWizardMenuPrompt(
+  connection: AutomationConnectionRecord,
+  session: AutomationWizardSession | null,
+  preferences: TelegramCustomerPreferences,
+) {
+  const label = escapeTelegramHtml(botDisplayLabel(connection));
+  const buttons = [
+    [
+      { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Show available', callbackData: buildCallbackData('available', 0) },
+      { text: hasWizardDraft(session) ? (isKhmerLanguage(preferences.language) ? 'បន្តការបញ្ជាទិញ' : 'Resume order') : (isKhmerLanguage(preferences.language) ? 'ចាប់ផ្តើមបញ្ជាទិញ' : 'Start order'), callbackData: buildCallbackData('order') },
+    ],
+    [
+      { text: isKhmerLanguage(preferences.language) ? 'ជំនួយ' : 'Help', callbackData: buildCallbackData('help') },
+      { text: isKhmerLanguage(preferences.language) ? 'ចំណូលចិត្ត' : 'Preferences', callbackData: buildCallbackData('preferences') },
+    ],
+  ];
+  return {
+    text: isKhmerLanguage(preferences.language)
+      ? `<b>ស្វាគមន៍មកកាន់ ${label}</b>\nមើលទំនិញដែលបានអនុម័ត បង្កើតការបញ្ជាទិញ ហើយឲ្យ banji បញ្ជាក់តម្លៃ និងការបំពេញការងារ។\n\nប្រើប៊ូតុងខាងក្រោម ឬវាយអ្វីដែលអ្នកចង់បានជាអក្សរធម្មតា។`
+      : `<b>Welcome to ${label}</b>\nBrowse approved sellables, build an order, and let banji confirm pricing and fulfillment.\n\nUse the buttons below or type what you need in plain text.`,
+    replyMarkup: inlineKeyboard(buttons),
+  };
+}
+
+function buildWizardHelpPrompt(preferences: TelegramCustomerPreferences) {
+  return {
+    text: isKhmerLanguage(preferences.language)
+      ? '<b>របៀបបញ្ជាទិញ</b>\n1. ចុច <b>មើលទំនិញ</b> ដើម្បីមើលកាតាឡុកដែលបានបើក។\n2. ចុចលើទំនិញណាមួយ ដើម្បីមើលព័ត៌មានលម្អិត ហើយកំណត់បរិមាណ។\n3. បើក <b>មើលកន្ត្រក</b> ដើម្បីពិនិត្យបរិមាណ និង checkout។\n4. អ្នកក៏អាចវាយសារដូចជា <code>2 cotton scarf</code> ហើយ banji នឹងព្យាយាមបកស្រាយផងដែរ។\n\nប្រតិបត្តិករ banji នឹងពិនិត្យមុនពេលបំលែងទៅ ticket។'
+      : '<b>How to order</b>\n1. Tap <b>Show available</b> to browse the exposed catalog.\n2. Tap any item to open its details and set the quantity.\n3. Open <b>View cart</b> to review quantities and checkout.\n4. You can also type messages like <code>2 cotton scarf</code> and banji will still parse them.\n\nbanji operators confirm quoted orders before ticket promotion.',
+    replyMarkup: inlineKeyboard([
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Show available', callbackData: buildCallbackData('available', 0) },
+        { text: isKhmerLanguage(preferences.language) ? 'ចាប់ផ្តើមបញ្ជាទិញ' : 'Start order', callbackData: buildCallbackData('order') },
+      ],
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'មើលកន្ត្រក' : 'View cart', callbackData: buildCallbackData('cart') },
+        { text: isKhmerLanguage(preferences.language) ? 'ចំណូលចិត្ត' : 'Preferences', callbackData: buildCallbackData('preferences') },
+      ],
+    ]),
+  };
+}
+
+function buildWizardCatalogPrompt(
+  exposures: AutomationExposureRow[],
+  session: AutomationWizardSession,
+  preferences: TelegramCustomerPreferences,
+) {
+  const page = pagedExposedRows(exposures, session.catalogCursor);
+  const lines = page.rows.length === 0
+    ? [isKhmerLanguage(preferences.language) ? 'មិនមានទំនិញដែលបានបើកឥឡូវនេះទេ។' : 'No exposed sellables are available right now.']
+    : page.rows.map((row, index) => {
+      const typeLabel = row.entityType === 'service' ? 'Service' : 'SKU';
+      return `${index + 1}. <b>${escapeTelegramHtml(formatExposureLabel(row))}</b>\n${typeLabel} · ${escapeTelegramHtml(formatTelegramMoney(preferences, row.price))}`;
+    });
+
+  const itemButtons = page.rows.map((row) => ([
+    { text: formatExposureLabel(row), callbackData: buildCallbackData('item', row.entityType, row.entityId) },
+  ]));
+
+  return {
+    text: `<b>${localizedStatusLabel(preferences.language, 'available_now')}</b>\n${isKhmerLanguage(preferences.language) ? 'ទំព័រ' : 'Page'} ${page.page + 1} ${isKhmerLanguage(preferences.language) ? 'នៃ' : 'of'} ${page.pageCount}\n\n${lines.join('\n\n')}`,
+    replyMarkup: inlineKeyboard([
+      ...itemButtons,
+      [
+        { text: 'Prev', callbackData: buildCallbackData('page', Math.max(page.page - 1, 0)) },
+        { text: 'Next', callbackData: buildCallbackData('page', Math.min(page.page + 1, page.pageCount - 1)) },
+      ],
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'មើលកន្ត្រក' : 'View cart', callbackData: buildCallbackData('cart') },
+        { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅមឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
+      ],
+    ]),
+  };
+}
+
+function buildWizardItemPrompt(
+  row: AutomationExposureRow,
+  session: AutomationWizardSession,
+  preferences: TelegramCustomerPreferences,
+) {
+  const quantity = selectedDraftQuantity(session, row);
+  const typeLabel = row.entityType === 'service'
+    ? (isKhmerLanguage(preferences.language) ? 'សេវា' : 'Service')
+    : 'SKU';
+  const quantityLabel = isKhmerLanguage(preferences.language) ? 'ក្នុងកន្ត្រក' : 'In cart';
+  const addLabel = isKhmerLanguage(preferences.language) ? 'បន្ថែម 1' : 'Add 1';
+  const backLabel = isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅកាតាឡុក' : 'Back to catalog';
+  const cartLabel = isKhmerLanguage(preferences.language) ? 'មើលកន្ត្រក' : 'View cart';
+  const controls = quantity > 0
+    ? [
+      [
+        { text: '-1', callbackData: buildCallbackData('dec', row.entityType, row.entityId) },
+        { text: '+1', callbackData: buildCallbackData('inc', row.entityType, row.entityId) },
+      ],
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove', callbackData: buildCallbackData('remove', row.entityType, row.entityId) },
+      ],
+    ]
+    : [[{ text: addLabel, callbackData: buildCallbackData('add', row.entityType, row.entityId) }]];
+
+  return {
+    text: `<b>${escapeTelegramHtml(formatExposureLabel(row))}</b>\n${escapeTelegramHtml(typeLabel)}\n${escapeTelegramHtml(formatTelegramMoney(preferences, row.price))}\n${quantityLabel}: ${quantity}`,
+    replyMarkup: inlineKeyboard([
+      ...controls,
+      [
+        { text: cartLabel, callbackData: buildCallbackData('cart') },
+        { text: backLabel, callbackData: buildCallbackData('available', session.catalogCursor) },
+      ],
+    ]),
+  };
+}
+
+function buildWizardCartPrompt(
+  session: AutomationWizardSession,
+  preferences: TelegramCustomerPreferences,
+) {
+  if (session.draftLines.length === 0) {
+    return {
+      text: isKhmerLanguage(preferences.language)
+        ? '<b>កន្ត្រករបស់អ្នកទទេ</b>\nមើលកាតាឡុក ឬវាយអ្វីដែលអ្នកត្រូវការ ដើម្បីចាប់ផ្តើមការបញ្ជាទិញ។'
+        : '<b>Your cart is empty</b>\nBrowse the catalog or type what you need to start an order.',
+      replyMarkup: inlineKeyboard([
+        [
+          { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Browse items', callbackData: buildCallbackData('available', session.catalogCursor) },
+          { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅមឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
+        ],
+      ]),
+    };
+  }
+
+  const lineSummaries = session.draftLines.map((line, index) => (
+    `${index + 1}. <b>${escapeTelegramHtml(line.label)}</b>\n${isKhmerLanguage(preferences.language) ? 'ចំនួន' : 'Qty'} ${line.quantity} · ${escapeTelegramHtml(formatTelegramMoney(preferences, line.unitPrice != null ? line.unitPrice * line.quantity : null))}`
+  ));
+
+  const quantityRows = session.draftLines.flatMap((line) => [[
+    { text: `-1 ${line.label}`, callbackData: buildCallbackData('dec', line.entityType, line.entityId) },
+    { text: `+1 ${line.label}`, callbackData: buildCallbackData('inc', line.entityType, line.entityId) },
+  ], [
+    { text: `Remove ${line.label}`, callbackData: buildCallbackData('remove', line.entityType, line.entityId) },
+  ]]);
+
+  return {
+    text: `<b>${localizedStatusLabel(preferences.language, 'your_cart')}</b>\n\n${lineSummaries.join('\n\n')}\n\n<b>${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'}</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}`,
+    replyMarkup: inlineKeyboard([
+      ...quantityRows,
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'បន្ថែមទៀត' : 'Add more', callbackData: buildCallbackData('available', session.catalogCursor) },
+        { text: isKhmerLanguage(preferences.language) ? 'Checkout' : 'Checkout', callbackData: buildCallbackData('checkout') },
+      ],
+      [{ text: isKhmerLanguage(preferences.language) ? 'បោះបង់ការបញ្ជាទិញ' : 'Cancel order', callbackData: buildCallbackData('cancel') }],
+    ]),
+  };
+}
+
+function buildWizardCheckoutConfirmPrompt(
+  session: AutomationWizardSession,
+  preferences: TelegramCustomerPreferences,
+  contextLabel?: string | null,
+) {
+  const contextLine = contextLabel?.trim() ? `${escapeTelegramHtml(contextLabel)}\n` : '';
+  const phoneLine = session.phone ? `Phone: ${escapeTelegramHtml(formatPhoneForDisplay(session.phone))}\n` : '';
+  return {
+    text: `<b>${isKhmerLanguage(preferences.language) ? 'ត្រៀមបញ្ជាក់' : 'Ready to confirm'}</b>\n${contextLine}${phoneLine}${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\n${isKhmerLanguage(preferences.language) ? 'ចុច confirm ដើម្បីបញ្ជូនការបញ្ជាទិញនេះទៅ banji។' : 'Tap confirm to turn this draft into banji intake.'}`,
+    replyMarkup: inlineKeyboard([
+      [{ text: isKhmerLanguage(preferences.language) ? 'បញ្ជាក់ការបញ្ជាទិញ' : 'Confirm order', callbackData: buildCallbackData('confirm') }],
+      [
+        { text: isKhmerLanguage(preferences.language) ? 'បន្ថែមទៀត' : 'Add more', callbackData: buildCallbackData('available', session.catalogCursor) },
+        { text: isKhmerLanguage(preferences.language) ? 'បោះបង់ការបញ្ជាទិញ' : 'Cancel order', callbackData: buildCallbackData('cancel') },
+      ],
+    ]),
+  };
+}
+
+function buildWizardPreferencesLanguagePrompt() {
+  return {
+    text: `${buildPreferencesLanguagePrompt('en')}\n\n${buildPreferencesLanguagePrompt('km')}`,
+    replyMarkup: inlineKeyboard([
+      [
+        { text: 'English', callbackData: buildCallbackData('language', 'en') },
+        { text: 'ខ្មែរ', callbackData: buildCallbackData('language', 'km') },
+      ],
+    ]),
+  };
+}
+
+function buildWizardPreferencesCurrencyPrompt(preferences: TelegramCustomerPreferences) {
+  return {
+    text: buildPreferencesCurrencyPrompt(preferences.language),
+    replyMarkup: inlineKeyboard([
+      [
+        { text: 'USD ($)', callbackData: buildCallbackData('currency', 'USD') },
+        { text: 'KHR (៛)', callbackData: buildCallbackData('currency', 'KHR') },
+      ],
+    ]),
+  };
+}
+
+function submitWizardCheckout(
+  state: AutomationStoreState,
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  conversation: AutomationConversationSummary,
+  currency: AppCurrency,
+  preferences: TelegramCustomerPreferences,
+) {
+  if (session.draftLines.length === 0) {
+    outboundJobs.push({
+      kind: 'send',
+      chatId: conversation.externalConversationKey,
+      conversationId: conversation.conversationId,
+      text: isKhmerLanguage(preferences.language)
+        ? '<b>មិនមានការបញ្ជាទិញសម្រាប់ផ្ញើ</b>\nសូមបន្ថែមយ៉ាងហោចណាស់មួយមុខមុនពេលផ្ញើទៅ banji។'
+        : '<b>No order to submit</b>\nAdd at least one item before sending your order to banji.',
+      parseMode: 'HTML',
+      replyMarkup: removeKeyboard(),
+    });
+    return null;
+  }
+
+  const intake = createIntakeFromWizardSession(session, conversation, currency);
+  state.intakes.unshift(intake);
+  conversation.phone = intake.phone;
+  conversation.latestIntakeStatus = intake.status;
+  session.pendingPromptIntent = null;
+  clearWizardDraft(session);
+  outboundJobs.push({
+    kind: 'send',
+    chatId: conversation.externalConversationKey,
+    conversationId: conversation.conversationId,
+    text: buildTelegramReply(intake, preferences),
+    parseMode: 'HTML',
+    replyMarkup: removeKeyboard(),
+  });
+  recalculateConversation(state, conversation.conversationId);
+  return intake;
+}
+
+function buildWizardPhoneCapturePrompt(
+  session: AutomationWizardSession,
+  preferences: TelegramCustomerPreferences,
+) {
+  return {
+    text: isKhmerLanguage(preferences.language)
+      ? `<b>${localizedStatusLabel(preferences.language, 'checkout')}</b>\n${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\nចែករំលែកលេខទូរស័ព្ទរបស់អ្នកឥឡូវនេះ ឬចុច Skip phone ដើម្បីបន្តដោយគ្មានវា។`
+      : `<b>${localizedStatusLabel(preferences.language, 'checkout')}</b>\nSubtotal: ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\nShare your phone number now, or tap Skip phone to continue without it.`,
+    replyMarkup: phoneKeyboard(),
+  };
+}
+
+function buildTelegramReply(intake: AutomationOrderIntake, preferences: TelegramCustomerPreferences) {
+  if (intake.status === 'quoted') {
+    const lineSummary = intake.lines
+      .map((line) => `• ${line.quantity} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal ?? 0)}`)
+      .join('\n');
+    return isKhmerLanguage(preferences.language)
+      ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nbanji នឹងរក្សាការទទួលនេះសម្រាប់ការពិនិត្យ និងបំលែងទៅ ticket ដោយប្រតិបត្តិករ។`
+      : `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>Quoted total:</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nbanji will keep this intake ready for operator review and promotion.`;
+  }
+  return isKhmerLanguage(preferences.language)
+    ? `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nbanji បានទទួលសាររបស់អ្នកហើយ ប៉ុន្តែត្រូវការប្រតិបត្តិករពិនិត្យមុនពេលដកស្រង់តម្លៃ។ សូមរង់ចាំខណៈ banji កំពុងពិនិត្យ។`
+    : `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nI received your message, but banji needs an operator to review it before quoting it. Please wait while banji reviews it.`;
+}
+
+function buildWizardItemImageCaption(row: AutomationExposureRow, preferences: TelegramCustomerPreferences) {
+  return `<b>${escapeTelegramHtml(formatExposureLabel(row))}</b>\n${escapeTelegramHtml(formatTelegramMoney(preferences, row.price))}`;
+}
+
+function upsertTelegramConversation(
+  state: AutomationStoreState,
+  message: TelegramMessage,
+) {
+  const externalConversationKey = String(message.chat.id);
+  const existing = state.conversations.find((entry) => entry.externalConversationKey === externalConversationKey);
+  const customerDisplayName = telegramCustomerDisplayName(message);
+  const customerHandle = message.from?.username ? `@${message.from.username}` : message.chat.username ? `@${message.chat.username}` : null;
+  if (existing) {
+    existing.customerDisplayName = customerDisplayName;
+    existing.customerHandle = customerHandle;
+    existing.lastMessageAt = new Date(message.date * 1000).toISOString();
+    return existing;
+  }
+  const conversation: AutomationConversationSummary = {
+    conversationId: buildTelegramConversationId(externalConversationKey),
+    channel: 'telegram',
+    externalConversationKey,
+    customerDisplayName,
+    customerHandle,
+    phone: null,
+    lastMessageAt: new Date(message.date * 1000).toISOString(),
+    messageCount: 0,
+    latestIntakeStatus: null,
+    latestTicketId: null,
+  };
+  state.conversations.unshift(conversation);
+  return conversation;
+}
+
+function upsertTelegramConversationFromCallback(
+  state: AutomationStoreState,
+  chatId: string,
+  chat: TelegramChat,
+  actor: {
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+  },
+  sentAt: string,
+) {
+  const existing = state.conversations.find((entry) => entry.externalConversationKey === chatId);
+  const customerDisplayName = telegramCustomerDisplayNameFromActor(actor, chat.title ?? null);
+  const customerHandle = actor.username ? `@${actor.username}` : chat.username ? `@${chat.username}` : null;
+  if (existing) {
+    existing.customerDisplayName = customerDisplayName;
+    existing.customerHandle = customerHandle;
+    existing.lastMessageAt = sentAt;
+    return existing;
+  }
+  const conversation: AutomationConversationSummary = {
+    conversationId: buildTelegramConversationId(chatId),
+    channel: 'telegram',
+    externalConversationKey: chatId,
+    customerDisplayName,
+    customerHandle,
+    phone: null,
+    lastMessageAt: sentAt,
+    messageCount: 0,
+    latestIntakeStatus: null,
+    latestTicketId: null,
+  };
+  state.conversations.unshift(conversation);
+  return conversation;
+}
+
+function insertTelegramInboundMessage(
+  state: AutomationStoreState,
+  conversationId: string,
+  message: TelegramMessage,
+) {
+  const externalMessageKey = String(message.message_id);
+  const existing = state.messages.find((entry) =>
+    entry.conversationId === conversationId && entry.externalMessageKey === externalMessageKey,
+  );
+  if (existing) {
+    return false;
+  }
+  state.messages.unshift({
+    messageId: `msg_${randomUUID()}`,
+    conversationId,
+    externalMessageKey,
+    direction: 'inbound',
+    sentAt: new Date(message.date * 1000).toISOString(),
+    rawText: message.text ?? '',
+    normalizedText: normalizeTelegramLabel(message.text),
+    parseConfidence: null,
+  });
+  return true;
+}
+
+function upsertTelegramIntake(
+  state: AutomationStoreState,
+  conversation: AutomationConversationSummary,
+  message: TelegramMessage,
+  exposures: AutomationExposureRow[],
+  currency: AppCurrency,
+) {
+  const rawText = message.text?.trim() ?? '';
+  const lines = parseTelegramIntakeLines(rawText, exposures);
+  const quotedSubtotal = lines.every((line) => line.lineTotal != null)
+    ? lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0)
+    : null;
+  const status: AutomationIntakeStatus = quotedSubtotal != null && lines.every((line) => line.ambiguityReason == null)
+    ? 'quoted'
+    : 'needs_review';
+  const parseConfidence = status === 'quoted' ? 'high' : lines.some((line) => line.entityId != null) ? 'medium' : 'low';
+  const intake: AutomationOrderIntake = {
+    intakeId: `intake_${randomUUID()}`,
+    conversationId: conversation.conversationId,
+    channel: 'telegram',
+    status,
+    parseConfidence,
+    customerDisplayName: conversation.customerDisplayName,
+    customerHandle: conversation.customerHandle,
+    phone: normalizeNullablePhone(conversation.phone),
+    notes: rawText || null,
+    quotedSubtotal,
+    currencyCode: currencyCodeForAppCurrency(currency),
+    deliveryFee: null,
+    quotedTotal: quotedSubtotal,
+    createdAt: new Date(message.date * 1000).toISOString(),
+    updatedAt: new Date(message.date * 1000).toISOString(),
+    promotedTicketId: null,
+    lines,
+  };
+  state.intakes.unshift(intake);
+  recalculateConversation(state, conversation.conversationId);
+  return intake;
+}
+
+function renderWizardPromptForSession(
+  state: AutomationStoreState,
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+) {
+  switch (session.currentStep) {
+    case 'preferences_language':
+      return buildWizardPreferencesLanguagePrompt();
+    case 'preferences_currency':
+      return buildWizardPreferencesCurrencyPrompt(preferences);
+    case 'catalog':
+      return buildWizardCatalogPrompt(exposures, session, preferences);
+    case 'item': {
+      const row = selectedExposureRow(session, exposures);
+      if (row) {
+        return buildWizardItemPrompt(row, session, preferences);
+      }
+      session.currentStep = 'catalog';
+      clearWizardItemSelection(session);
+      return buildWizardCatalogPrompt(exposures, session, preferences);
+    }
+    case 'cart':
+      return buildWizardCartPrompt(session, preferences);
+    case 'checkout_confirm':
+      return buildWizardCheckoutConfirmPrompt(session, preferences);
+    case 'menu':
+    case 'checkout_identity':
+    default:
+      return buildWizardMenuPrompt(state.connection, session, preferences);
+  }
+}
+
+function queueWizardItemImageCleanup(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  chatId: string,
+) {
+  if (session.lastItemImageMessageId == null) {
+    return;
+  }
+  outboundJobs.push({
+    kind: 'delete_message',
+    chatId,
+    conversationId: session.conversationId,
+    messageId: session.lastItemImageMessageId,
+  });
+  session.lastItemImageMessageId = null;
+  session.selectedItemImageEntityType = null;
+  session.selectedItemImageEntityId = null;
+}
+
+function syncWizardItemImage(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+  chatId: string,
+) {
+  const row = session.currentStep === 'item' ? selectedExposureRow(session, exposures) : null;
+  const desiredImagePath = row?.imagePath?.trim() ? row.imagePath.trim() : null;
+  const existingImageKey = session.selectedItemImageEntityType && session.selectedItemImageEntityId
+    ? wizardLineKey(session.selectedItemImageEntityType, session.selectedItemImageEntityId)
+    : null;
+  const desiredImageKey = row ? wizardLineKey(row.entityType, row.entityId) : null;
+
+  if (existingImageKey && existingImageKey !== desiredImageKey) {
+    queueWizardItemImageCleanup(outboundJobs, session, chatId);
+  }
+
+  if (!desiredImagePath) {
+    if (session.lastItemImageMessageId != null) {
+      queueWizardItemImageCleanup(outboundJobs, session, chatId);
+    }
+    return;
+  }
+
+  if (session.lastItemImageMessageId != null && existingImageKey === desiredImageKey) {
+    return;
+  }
+
+  outboundJobs.push({
+    kind: 'send_photo',
+    chatId,
+    conversationId: session.conversationId,
+    photoPath: desiredImagePath,
+    caption: buildWizardItemImageCaption(row!, preferences),
+    parseMode: 'HTML',
+    storesItemImage: {
+      entityType: row!.entityType,
+      entityId: row!.entityId,
+    },
+  });
+}
+
+function queueWizardPrompt(
+  outboundJobs: TelegramOutboundJob[],
+  state: AutomationStoreState,
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+  chatId: string,
+) {
+  const prompt = renderWizardPromptForSession(state, session, exposures, preferences);
+  queueFreshWizardPrompt(outboundJobs, session, exposures, preferences, chatId, prompt);
+}
+
+function queueExplicitWizardMessage(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+  chatId: string,
+  prompt: {
+    text: string;
+    replyMarkup: TelegramInlineKeyboardMarkup;
+  },
+) {
+  queueFreshWizardPrompt(outboundJobs, session, exposures, preferences, chatId, prompt);
+}
+
+function retireWizardPrompt(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  chatId: string,
+  _reason: 'checkout_below' | 'latest_below',
+) {
+  if (session.lastWizardMessageId == null) {
+    return;
+  }
+  outboundJobs.push({
+    kind: 'edit_reply_markup',
+    chatId,
+    conversationId: session.conversationId,
+    messageId: session.lastWizardMessageId,
+    replyMarkup: { inline_keyboard: [] },
+  });
+  session.lastWizardMessageId = null;
+  session.updatedAt = nowIso();
+}
+
+function queueFreshWizardPrompt(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+  chatId: string,
+  prompt: {
+    text: string;
+    replyMarkup: TelegramInlineKeyboardMarkup;
+  },
+) {
+  retireWizardPrompt(outboundJobs, session, chatId, 'latest_below');
+  syncWizardItemImage(outboundJobs, session, exposures, preferences, chatId);
+  outboundJobs.push({
+    kind: 'send',
+    chatId,
+    conversationId: session.conversationId,
+    text: prompt.text,
+    parseMode: 'HTML',
+    replyMarkup: prompt.replyMarkup,
+    storesWizardMessage: true,
+  });
+}
+
+function queueFreshTypedCommandPrompt(
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+  preferences: TelegramCustomerPreferences,
+  chatId: string,
+  prompt: {
+    text: string;
+    replyMarkup: TelegramInlineKeyboardMarkup;
+  },
+) {
+  queueFreshWizardPrompt(outboundJobs, session, exposures, preferences, chatId, prompt);
+}
+
+function findExposureRow(
+  exposures: AutomationExposureRow[],
+  entityType: AutomationExposureEntityType,
+  entityId: string,
+) {
+  return exposures.find((entry) => entry.entityType === entityType && entry.entityId === entityId && entry.exposed) ?? null;
+}
+
+function selectedExposureRow(
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+) {
+  if (session.selectedEntityType == null || session.selectedEntityId == null) {
+    return null;
+  }
+  return findExposureRow(exposures, session.selectedEntityType, session.selectedEntityId);
+}
+
+function selectedDraftQuantity(session: AutomationWizardSession, row: AutomationExposureRow) {
+  return session.draftLines.find((entry) =>
+    wizardLineKey(entry.entityType, entry.entityId) === wizardLineKey(row.entityType, row.entityId),
+  )?.quantity ?? 0;
+}
+
+function addExposureToWizardDraft(
+  session: AutomationWizardSession,
+  row: AutomationExposureRow,
+) {
+  const existing = session.draftLines.find((entry) => wizardLineKey(entry.entityType, entry.entityId) === wizardLineKey(row.entityType, row.entityId));
+  if (existing) {
+    existing.quantity += 1;
+    existing.unitPrice = row.price;
+    existing.availabilityStatus = row.availabilityStatus;
+  } else {
+    session.draftLines.push({
+      entityType: row.entityType,
+      entityId: row.entityId,
+      label: row.label,
+      quantity: 1,
+      unitPrice: row.price,
+      availabilityStatus: row.availabilityStatus,
+    });
+  }
+  session.currentStep = 'cart';
+  session.updatedAt = nowIso();
+}
+
+function adjustWizardDraftLine(
+  session: AutomationWizardSession,
+  entityType: AutomationExposureEntityType,
+  entityId: string,
+  delta: -1 | 1,
+) {
+  const line = session.draftLines.find((entry) => wizardLineKey(entry.entityType, entry.entityId) === wizardLineKey(entityType, entityId));
+  if (!line) {
+    return false;
+  }
+  line.quantity += delta;
+  if (line.quantity <= 0) {
+    session.draftLines = session.draftLines.filter((entry) => entry !== line);
+  }
+  session.updatedAt = nowIso();
+  return true;
+}
+
+function removeWizardDraftLine(
+  session: AutomationWizardSession,
+  entityType: AutomationExposureEntityType,
+  entityId: string,
+) {
+  const beforeCount = session.draftLines.length;
+  session.draftLines = session.draftLines.filter((entry) => wizardLineKey(entry.entityType, entry.entityId) !== wizardLineKey(entityType, entityId));
+  session.updatedAt = nowIso();
+  return beforeCount !== session.draftLines.length;
+}
+
+function handleWizardCallback(
+  state: AutomationStoreState,
+  outboundJobs: TelegramOutboundJob[],
+  session: AutomationWizardSession,
+  conversation: AutomationConversationSummary,
+  callbackData: string,
+  callbackQueryId: string,
+  exposures: AutomationExposureRow[],
+  defaults: TelegramCustomerPreferences,
+) {
+  let preferences = conversationPreferencesFor(state, conversation.conversationId, defaults);
+  const parsed = parseWizardCallbackData(callbackData);
+  if (!parsed) {
+    return false;
+  }
+
+  const acknowledge = (text?: string) => {
+    outboundJobs.push({
+      kind: 'answer_callback',
+      callbackQueryId,
+      text,
+    });
+  };
+
+  switch (parsed.action) {
+    case 'menu':
+      session.currentStep = 'menu';
+      session.pendingPromptIntent = null;
+      clearWizardItemSelection(session);
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    case 'help':
+      session.currentStep = 'menu';
+      clearWizardItemSelection(session);
+      queueExplicitWizardMessage(
+        outboundJobs,
+        session,
+        exposures,
+        preferences,
+        conversation.externalConversationKey,
+        buildWizardHelpPrompt(preferences),
+      );
+      acknowledge();
+      return true;
+    case 'preferences':
+      session.currentStep = 'preferences_language';
+      clearWizardItemSelection(session);
+      queueFreshWizardPrompt(
+        outboundJobs,
+        session,
+        exposures,
+        preferences,
+        conversation.externalConversationKey,
+        buildWizardPreferencesLanguagePrompt(),
+      );
+      acknowledge();
+      return true;
+    case 'language':
+      saveConversationPreferences(state, conversation.conversationId, {
+        language: parsed.parts[0] === 'km' ? 'km' : 'en',
+      }, defaults);
+      preferences = conversationPreferencesFor(state, conversation.conversationId, defaults);
+      session.currentStep = 'preferences_currency';
+      clearWizardItemSelection(session);
+      queueFreshWizardPrompt(
+        outboundJobs,
+        session,
+        exposures,
+        preferences,
+        conversation.externalConversationKey,
+        buildWizardPreferencesCurrencyPrompt(preferences),
+      );
+      acknowledge(isKhmerLanguage(preferences.language) ? 'បានរក្សាទុកភាសា។' : 'Language saved.');
+      return true;
+    case 'currency':
+      saveConversationPreferences(state, conversation.conversationId, {
+        currency: parsed.parts[0] === 'KHR' ? 'KHR' : 'USD',
+      }, defaults);
+      preferences = conversationPreferencesFor(state, conversation.conversationId, defaults);
+      session.currentStep = 'menu';
+      clearWizardItemSelection(session);
+      outboundJobs.push({
+        kind: 'send',
+        chatId: conversation.externalConversationKey,
+        conversationId: conversation.conversationId,
+        text: buildPreferencesSavedPrompt(preferences.language),
+        parseMode: 'HTML',
+      });
+      queueFreshWizardPrompt(
+        outboundJobs,
+        session,
+        exposures,
+        preferences,
+        conversation.externalConversationKey,
+        buildWizardMenuPrompt(state.connection, session, preferences),
+      );
+      acknowledge(isKhmerLanguage(preferences.language) ? 'បានរក្សាទុករូបិយប័ណ្ណ។' : 'Currency saved.');
+      return true;
+    case 'available':
+      session.currentStep = 'catalog';
+      clearWizardItemSelection(session);
+      session.catalogCursor = Number(parsed.parts[0] ?? 0) || 0;
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    case 'page':
+      session.currentStep = 'catalog';
+      clearWizardItemSelection(session);
+      session.catalogCursor = Number(parsed.parts[0] ?? 0) || 0;
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    case 'item': {
+      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      const row = findExposureRow(exposures, entityType, entityId);
+      if (!row) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'មុខទំនិញនេះមិនមានទៀតទេ។' : 'That item is no longer available.');
+        return true;
+      }
+      session.currentStep = 'item';
+      session.selectedEntityType = row.entityType;
+      session.selectedEntityId = row.entityId;
+      session.updatedAt = nowIso();
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    }
+    case 'order':
+      session.currentStep = hasWizardDraft(session) ? 'cart' : 'catalog';
+      clearWizardItemSelection(session);
+      queueFreshTypedCommandPrompt(
+        outboundJobs,
+        session,
+        exposures,
+        preferences,
+        conversation.externalConversationKey,
+        renderWizardPromptForSession(state, session, exposures, preferences),
+      );
+      acknowledge(hasWizardDraft(session)
+        ? (isKhmerLanguage(preferences.language) ? 'បានបន្តការបញ្ជាទិញរបស់អ្នក។' : 'Resumed your order.')
+        : (isKhmerLanguage(preferences.language) ? 'បានចាប់ផ្តើមការបញ្ជាទិញថ្មី។' : 'Started a new order.'));
+      return true;
+    case 'cart':
+      session.currentStep = 'cart';
+      clearWizardItemSelection(session);
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    case 'add': {
+      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      const row = findExposureRow(exposures, entityType, entityId);
+      if (!row) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'មុខទំនិញនេះមិនមានទៀតទេ។' : 'That item is no longer available.');
+        return true;
+      }
+      addExposureToWizardDraft(session, row);
+      if (session.selectedEntityType === row.entityType && session.selectedEntityId === row.entityId) {
+        session.currentStep = 'item';
+      }
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge(isKhmerLanguage(preferences.language) ? `បានបន្ថែម ${row.label}។` : `${row.label} added.`);
+      return true;
+    }
+    case 'inc': {
+      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      if (!adjustWizardDraftLine(session, entityType, entityId, 1)) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
+        return true;
+      }
+      session.currentStep = session.selectedEntityType === entityType && session.selectedEntityId === entityId ? 'item' : 'cart';
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    }
+    case 'dec': {
+      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      if (!adjustWizardDraftLine(session, entityType, entityId, -1)) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
+        return true;
+      }
+      session.currentStep = session.selectedEntityType === entityType && session.selectedEntityId === entityId ? 'item' : 'cart';
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge();
+      return true;
+    }
+    case 'remove': {
+      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      removeWizardDraftLine(session, entityType, entityId);
+      session.currentStep = session.selectedEntityType === entityType && session.selectedEntityId === entityId ? 'item' : 'cart';
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge(isKhmerLanguage(preferences.language) ? 'បានលុបចេញពីកន្ត្រក។' : 'Removed from cart.');
+      return true;
+    }
+    case 'checkout':
+      session.currentStep = 'checkout_identity';
+      clearWizardItemSelection(session);
+      session.pendingPromptIntent = 'share_phone';
+      queueWizardItemImageCleanup(outboundJobs, session, conversation.externalConversationKey);
+      retireWizardPrompt(outboundJobs, session, conversation.externalConversationKey, 'checkout_below');
+      const checkoutPrompt = buildWizardPhoneCapturePrompt(session, preferences);
+      outboundJobs.push({
+        kind: 'send',
+        chatId: conversation.externalConversationKey,
+        conversationId: conversation.conversationId,
+        text: checkoutPrompt.text,
+        parseMode: 'HTML',
+        replyMarkup: checkoutPrompt.replyMarkup,
+      });
+      acknowledge();
+      return true;
+    case 'confirm': {
+      if (session.currentStep !== 'checkout_confirm' || session.draftLines.length === 0) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅ banji រួចហើយ។' : 'This order was already sent to banji.');
+        return true;
+      }
+      const intake = submitWizardCheckout(state, outboundJobs, session, conversation, defaults.currency, preferences);
+      acknowledge(intake?.status === 'quoted'
+        ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅ banji។' : 'Sent to banji.')
+        : (isKhmerLanguage(preferences.language) ? 'បានផ្ញើសម្រាប់ការពិនិត្យ។' : 'Sent for review.'));
+      return true;
+    }
+    case 'cancel':
+      clearWizardDraft(session);
+      outboundJobs.push({
+        kind: 'send',
+        chatId: conversation.externalConversationKey,
+        conversationId: conversation.conversationId,
+        text: isKhmerLanguage(preferences.language)
+          ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nការបញ្ជាទិញ draft របស់អ្នកត្រូវបានសម្អាត។'
+          : '<b>Order canceled</b>\nYour draft order was cleared.',
+        parseMode: 'HTML',
+        replyMarkup: removeKeyboard(),
+      });
+      queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      acknowledge(isKhmerLanguage(preferences.language) ? 'បានបោះបង់។' : 'Canceled.');
+      return true;
+    default:
+      return false;
+  }
+}
+
 function buildSampleLine(row: AutomationExposureRow, index: number): AutomationIntakeLine {
   const quantity = sampleQuantity(index);
   const unitPrice = row.price;
@@ -460,6 +2004,15 @@ export async function readAutomationConnection(userDataPath: string): Promise<Au
   return (await loadAutomationState(userDataPath)).connection;
 }
 
+export async function readAutomationTransportState(userDataPath: string) {
+  const state = await loadAutomationState(userDataPath);
+  return {
+    botToken: state.connection.botToken,
+    connection: state.connection,
+    telegramUpdateCursor: state.telegramUpdateCursor,
+  };
+}
+
 export async function saveAutomationConnection(
   userDataPath: string,
   payload: AutomationConnectionPatch,
@@ -472,6 +2025,10 @@ export async function saveAutomationConnection(
       status: payload.status ?? current.status,
       botToken: payload.botToken === undefined ? current.botToken : payload.botToken,
       hasBotToken: payload.botToken === undefined ? current.hasBotToken : Boolean(payload.botToken?.trim()),
+      commandsConfiguredAt:
+        payload.status === 'disconnected'
+          ? null
+          : current.commandsConfiguredAt,
       botDisplayName: payload.botDisplayName === undefined ? current.botDisplayName : payload.botDisplayName,
       botUsername: payload.botUsername === undefined ? current.botUsername : payload.botUsername,
       externalLink: payload.externalLink === undefined ? current.externalLink : payload.externalLink,
@@ -490,13 +2047,149 @@ export async function saveAutomationConnection(
       lastErrorAt: payload.status === 'error' ? now : payload.status === 'connected' || payload.status === 'disconnected' ? null : current.lastErrorAt,
       lastErrorMessage:
         payload.status === 'error'
-          ? 'Telegram transport is not wired in this local phase; use Test message to validate the intake pipeline.'
+          ? 'Telegram transport reported an error. Check the connection details and retry.'
           : payload.status === 'connected' || payload.status === 'disconnected'
             ? null
             : current.lastErrorMessage,
     };
     return state.connection;
   });
+}
+
+export async function applyAutomationTelegramProfile(
+  userDataPath: string,
+  {
+    token,
+    user,
+  }: {
+    token: string;
+    user: TelegramBotUser;
+  },
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    const now = nowIso();
+    state.connection = {
+      ...state.connection,
+      botToken: token,
+      hasBotToken: Boolean(token.trim()),
+      status: 'connected',
+      commandsConfiguredAt: state.connection.commandsConfiguredAt,
+      botDisplayName: user.first_name,
+      botUsername: user.username ?? state.connection.botUsername,
+      externalLink: user.username ? `https://t.me/${user.username}` : state.connection.externalLink,
+      connectedAt: state.connection.connectedAt ?? now,
+      pausedAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+    };
+    return state.connection;
+  });
+}
+
+export async function recordAutomationTelegramError(userDataPath: string, message: string) {
+  return updateAutomationState(userDataPath, (state) => {
+    state.connection.status = 'error';
+    state.connection.lastErrorAt = nowIso();
+    state.connection.lastErrorMessage = message;
+    return state.connection;
+  });
+}
+
+export async function markAutomationTelegramCommandsConfigured(userDataPath: string) {
+  return updateAutomationState(userDataPath, (state) => {
+    state.connection.commandsConfiguredAt = nowIso();
+    return state.connection;
+  });
+}
+
+export async function appendAutomationOutboundTelegramMessage(
+  userDataPath: string,
+  {
+    conversationId,
+    externalMessageKey,
+    sentAt,
+    text,
+  }: {
+    conversationId: string;
+    externalMessageKey: string;
+    sentAt: string;
+    text: string;
+  },
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    const exists = state.messages.find((entry) =>
+      entry.conversationId === conversationId && entry.externalMessageKey === externalMessageKey,
+    );
+    if (!exists) {
+      state.messages.unshift({
+        messageId: `msg_${randomUUID()}`,
+        conversationId,
+        externalMessageKey,
+        direction: 'outbound',
+        sentAt,
+        rawText: text,
+        normalizedText: normalizeTelegramLabel(text),
+        parseConfidence: null,
+      });
+      recalculateConversation(state, conversationId);
+    }
+  });
+}
+
+export async function recordAutomationWizardMessage(
+  userDataPath: string,
+  {
+    conversationId,
+    messageId,
+  }: {
+    conversationId: string;
+    messageId: number;
+  },
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    const session = wizardSessionForConversation(state, conversationId);
+    if (!session) {
+      return null;
+    }
+    session.lastWizardMessageId = messageId;
+    session.updatedAt = nowIso();
+    return session;
+  });
+}
+
+export async function recordAutomationWizardItemImageMessage(
+  userDataPath: string,
+  {
+    conversationId,
+    messageId,
+    entityType,
+    entityId,
+  }: {
+    conversationId: string;
+    messageId: number;
+    entityType: AutomationExposureEntityType;
+    entityId: string;
+  },
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    const session = wizardSessionForConversation(state, conversationId);
+    if (!session) {
+      return null;
+    }
+    session.lastItemImageMessageId = messageId;
+    session.selectedItemImageEntityType = entityType;
+    session.selectedItemImageEntityId = entityId;
+    session.updatedAt = nowIso();
+    return session;
+  });
+}
+
+export async function readAutomationWizardSessionForConversation(
+  userDataPath: string,
+  conversationId: string,
+) {
+  const state = await loadAutomationState(userDataPath);
+  return wizardSessionForConversation(state, conversationId);
 }
 
 export async function listAutomationExposureRows(
@@ -569,6 +2262,56 @@ export async function readAutomationConversation(
       .filter((entry) => entry.conversationId === conversationId)
       .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
   };
+}
+
+export async function readAutomationCustomerPreferences(
+  userDataPath: string,
+  conversationId: string,
+): Promise<Pick<TelegramCustomerPreferences, 'language' | 'currency'> | null> {
+  const state = await loadAutomationState(userDataPath);
+  const record = state.customerPreferences.find((entry) => entry.conversationId === conversationId);
+  if (!record) {
+    return null;
+  }
+  return {
+    language: record.language,
+    currency: record.currency,
+  };
+}
+
+export async function findAutomationConversationForTelegramTicket(
+  userDataPath: string,
+  ticketEvent: SenaTicketEvent,
+): Promise<AutomationConversationSummary | null> {
+  if (ticketEvent.ticketFamily !== 'customer' || ticketEvent.party?.channelKey !== 'telegram') {
+    return null;
+  }
+
+  const state = await loadAutomationState(userDataPath);
+  const intakeMatch = [...state.intakes]
+    .filter((entry) => entry.promotedTicketId === ticketEvent.ticketId)
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+
+  if (intakeMatch) {
+    return state.conversations.find((entry) => entry.conversationId === intakeMatch.conversationId) ?? null;
+  }
+
+  const phoneKey = normalizePhoneLookupKey(ticketEvent.party?.phone);
+  if (phoneKey) {
+    const conversationByPhone = state.conversations.find((entry) => normalizePhoneLookupKey(entry.phone) === phoneKey);
+    if (conversationByPhone) {
+      return conversationByPhone;
+    }
+  }
+
+  const customerNameKey = safeLower(ticketEvent.party?.customerName);
+  if (!customerNameKey) {
+    return null;
+  }
+
+  return state.conversations.find((entry) =>
+    safeLower(entry.customerDisplayName) === customerNameKey || safeLower(entry.customerHandle) === customerNameKey,
+  ) ?? null;
 }
 
 export async function listAutomationIntakes(
@@ -644,7 +2387,7 @@ export async function testAutomationTelegramConnection(
       externalConversationKey: `telegram-chat-${Date.now()}`,
       customerDisplayName: 'Telegram Test Customer',
       customerHandle: '@telegram_test_customer',
-      phone: '+85512000000',
+      phone: '+855 12000000',
       lastMessageAt: now,
       messageCount: 1,
       latestIntakeStatus: 'new',
@@ -668,7 +2411,7 @@ export async function testAutomationTelegramConnection(
       parseConfidence: 'high',
       customerDisplayName: 'Telegram Test Customer',
       customerHandle: '@telegram_test_customer',
-      phone: '+85512000000',
+      phone: '+855 12000000',
       notes: 'Generated from Test message.',
       quotedSubtotal,
       currencyCode: currencyCodeForAppCurrency(context.currency),
@@ -682,6 +2425,229 @@ export async function testAutomationTelegramConnection(
   });
 
   return readAutomationConnection(userDataPath);
+}
+
+export async function ingestAutomationTelegramUpdates(
+  userDataPath: string,
+  {
+    currency,
+    language = 'en',
+    usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
+    updates,
+    context,
+  }: {
+    currency: AppCurrency;
+    language?: AppLanguage;
+    usdToKhrExchangeRate?: number;
+    updates: TelegramUpdate[];
+    context: ExposureBuildContext;
+  },
+) {
+  const exposures = buildExposureRows(await loadAutomationState(userDataPath), context);
+  const defaultPreferences: TelegramCustomerPreferences = {
+    language,
+    currency,
+    usdToKhrExchangeRate,
+  };
+  return updateAutomationState(userDataPath, (state) => {
+    const outboundJobs: TelegramOutboundJob[] = [];
+    for (const update of updates) {
+      state.telegramUpdateCursor = Math.max(state.telegramUpdateCursor ?? 0, update.update_id + 1);
+      const callbackQuery = update.callback_query;
+      if (callbackQuery?.message?.chat.type === 'private' && callbackQuery.message.chat.id != null) {
+        const callbackSentAt = callbackQuery.message.date
+          ? new Date(callbackQuery.message.date * 1000).toISOString()
+          : nowIso();
+        const conversation = upsertTelegramConversationFromCallback(
+          state,
+          String(callbackQuery.message.chat.id),
+          callbackQuery.message.chat,
+          callbackQuery.from,
+          callbackSentAt,
+        );
+        const session = upsertWizardSession(state, conversation.conversationId);
+        const handled = handleWizardCallback(
+          state,
+          outboundJobs,
+          session,
+          conversation,
+          callbackQuery.data ?? '',
+          callbackQuery.id,
+          exposures,
+          defaultPreferences,
+        );
+        if (handled) {
+          state.connection.status = 'connected';
+          state.connection.lastWebhookAt = callbackSentAt;
+          state.connection.lastErrorAt = null;
+          state.connection.lastErrorMessage = null;
+          continue;
+        }
+      }
+
+      const message = update.message ?? update.edited_message;
+      if (message?.chat.type !== 'private') {
+        continue;
+      }
+
+      const conversation = upsertTelegramConversation(state, message);
+      const session = upsertWizardSession(state, conversation.conversationId);
+      const command = extractTelegramCommand(message);
+      const preferences = conversationPreferencesFor(state, conversation.conversationId, defaultPreferences);
+      const requiresPreferenceOnboarding = !hasConfiguredConversationPreferences(state, conversation.conversationId)
+        && conversation.messageCount === 0
+        && command !== '/preferences';
+      const inserted = insertTelegramInboundMessage(state, conversation.conversationId, message);
+      if (!inserted && !message.contact) {
+        continue;
+      }
+
+      const normalizedText = normalizeTelegramLabel(message.text);
+
+      if (requiresPreferenceOnboarding) {
+        session.currentStep = 'preferences_language';
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardPreferencesLanguagePrompt(),
+        );
+      } else if (message.contact && session.pendingPromptIntent === 'share_phone') {
+        const phone = normalizeNullablePhone(message.contact.phone_number);
+        session.phone = phone;
+        conversation.phone = phone;
+        session.pendingPromptIntent = null;
+        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
+      } else if (session.pendingPromptIntent === 'share_phone' && normalizedText === 'skip phone') {
+        session.pendingPromptIntent = null;
+        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
+      } else if (command === '/start') {
+        session.currentStep = 'menu';
+        clearWizardItemSelection(session);
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardMenuPrompt(state.connection, session, preferences),
+        );
+      } else if (command === '/help') {
+        session.currentStep = 'menu';
+        clearWizardItemSelection(session);
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardHelpPrompt(preferences),
+        );
+      } else if (command === '/preferences') {
+        session.currentStep = 'preferences_language';
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardPreferencesLanguagePrompt(),
+        );
+      } else if (command === '/available') {
+        session.currentStep = 'catalog';
+        clearWizardItemSelection(session);
+        session.catalogCursor = 0;
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardCatalogPrompt(exposures, session, preferences),
+        );
+      } else if (command === '/order') {
+        session.currentStep = hasWizardDraft(session) ? 'cart' : 'catalog';
+        clearWizardItemSelection(session);
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          renderWizardPromptForSession(state, session, exposures, preferences),
+        );
+      } else if (command === '/cart') {
+        session.currentStep = 'cart';
+        clearWizardItemSelection(session);
+        queueFreshTypedCommandPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardCartPrompt(session, preferences),
+        );
+      } else if (command === '/cancel') {
+        queueWizardItemImageCleanup(outboundJobs, session, conversation.externalConversationKey);
+        retireWizardPrompt(outboundJobs, session, conversation.externalConversationKey, 'latest_below');
+        clearWizardDraft(session);
+        outboundJobs.push({
+          kind: 'send',
+          chatId: conversation.externalConversationKey,
+          conversationId: conversation.conversationId,
+          text: isKhmerLanguage(preferences.language)
+            ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nការបញ្ជាទិញ draft របស់អ្នកត្រូវបានសម្អាត។'
+            : '<b>Order canceled</b>\nYour draft order was cleared.',
+          parseMode: 'HTML',
+          replyMarkup: removeKeyboard(),
+        });
+        queueFreshWizardPrompt(
+          outboundJobs,
+          session,
+          exposures,
+          preferences,
+          conversation.externalConversationKey,
+          buildWizardMenuPrompt(state.connection, session, preferences),
+        );
+      } else if (
+        (hasWizardDraft(session) || session.currentStep === 'catalog' || session.currentStep === 'item' || session.currentStep === 'cart' || session.currentStep === 'checkout_identity' || session.currentStep === 'checkout_confirm')
+        && applyFreeTextCartMatch(session, message.text?.trim() ?? '', exposures)
+      ) {
+        clearWizardItemSelection(session);
+        queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
+      } else if (message.text?.trim()) {
+        clearWizardItemSelection(session);
+        queueWizardItemImageCleanup(outboundJobs, session, conversation.externalConversationKey);
+        const intake = upsertTelegramIntake(state, conversation, message, exposures, defaultPreferences.currency);
+        outboundJobs.push({
+          kind: 'send',
+          chatId: conversation.externalConversationKey,
+          conversationId: conversation.conversationId,
+          text: buildTelegramReply(intake, preferences),
+          parseMode: 'HTML',
+        });
+      }
+
+      state.connection.status = 'connected';
+      state.connection.lastWebhookAt = new Date(message.date * 1000).toISOString();
+      state.connection.lastErrorAt = null;
+      state.connection.lastErrorMessage = null;
+    }
+    return {
+      connection: state.connection,
+      outboundJobs,
+      replyJobs: outboundJobs
+        .filter((job): job is Extract<TelegramOutboundJob, { kind: 'send' | 'edit' }> => job.kind === 'send' || job.kind === 'edit')
+        .map((job) => ({
+          chatId: job.chatId,
+          conversationId: job.conversationId,
+          text: job.text,
+        })),
+      telegramUpdateCursor: state.telegramUpdateCursor,
+    };
+  });
 }
 
 export async function prepareAutomationPromotion(
@@ -722,6 +2688,7 @@ export async function prepareAutomationPromotion(
     quantityDelta: line.quantity,
     note: line.requestedLabel !== line.resolvedLabel ? `Requested as ${line.requestedLabel}` : line.requestedLabel,
   }));
+  const phone = normalizeNullablePhone(payload.customerIdentityOverride?.phone || intake.phone);
   const ticketEvent: SenaTicketEvent = {
     ticketId,
     ticketFamily: 'customer',
@@ -737,8 +2704,8 @@ export async function prepareAutomationPromotion(
       channelLabel: 'Telegram',
       customerName: payload.customerIdentityOverride?.customerName?.trim() || intake.customerDisplayName || intake.customerHandle || 'Telegram customer',
       customerNameKey: safeLower(payload.customerIdentityOverride?.customerName || intake.customerDisplayName || intake.customerHandle || 'Telegram customer'),
-      phone: payload.customerIdentityOverride?.phone?.trim() || intake.phone || null,
-      phoneKey: safeLower((payload.customerIdentityOverride?.phone || intake.phone || '').replace(/[^\d+]/g, '')),
+      phone,
+      phoneKey: phone ? normalizePhoneLookupKey(phone) : null,
       supplierName: null,
     },
     lines,

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { InventoryContextValue } from '@/state/inventory';
+import { PAGE_STATE_MEMORY_STORAGE_KEY } from './page-state-memory';
 import { buildCommandDescriptors, groupCommandDescriptors, searchCommandDescriptors } from './command-palette';
 
 function createInventory(overrides?: Partial<InventoryContextValue>): InventoryContextValue {
@@ -71,10 +72,12 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: false,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
+          navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -145,6 +148,7 @@ describe('command palette descriptors', () => {
           },
         } as never,
       ],
+      reports: [{ reportId: 'report-1' } as never],
       workspaceSummary: {
         ownerSub: 'desktop-owner',
         runId: 'run-1',
@@ -196,10 +200,12 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
+          navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -213,6 +219,7 @@ describe('command palette descriptors', () => {
     });
 
     expect(commands.some((command) => command.id === 'page:catalog')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:automations')).toBe(true);
     expect(commands.some((command) => command.id === 'page:archive')).toBe(true);
     expect(commands.some((command) => command.id === 'page:help')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:open:sku-1')).toBe(true);
@@ -227,6 +234,9 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU · Supplier: Mekong Looms');
     expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
+    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.action.href).toBe('/catalog/skus/sku-1');
+    expect(commands.find((command) => command.id === 'service:sheet:price:service-1')?.action.href).toBe('/catalog/services/service-1');
+    expect(commands.find((command) => command.id === 'overview:task:sku-1:log_order')?.action.href).toBe('/?filter=to_order');
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
   });
 
@@ -249,10 +259,12 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
+          navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -269,6 +281,69 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'page:operations')).toBe(false);
     expect(commands.some((command) => command.id === 'page:performance')).toBe(false);
     expect(commands.some((command) => command.id === 'page:financials')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:automations')).toBe(false);
+  });
+
+  test('uses remembered page state for page commands and preserves it for explicit tab commands', () => {
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: '?q=scarf&view=skus',
+      performance: '?compare=0&range=7d&scope=skus&supplier=Mekong+Looms',
+    }));
+
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory({
+        catalog: {
+          schemaVersion: 1,
+          bundles: [],
+          services: [],
+          sharingMask: [],
+          skus: [{
+            archived: false,
+            costPerUnit: 4,
+            description: 'Cotton tee',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          }],
+        },
+        observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }] as never,
+        reports: [{ reportId: 'report-1' } as never],
+      }),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key) =>
+        ({
+          navAnalysis: 'Analysis',
+          navAutomations: 'Automations',
+          navArchive: 'Archive',
+          navCatalog: 'Catalog',
+          navOperations: 'Logs',
+          navOverview: 'Overview',
+          navPerformance: 'Performance',
+          navFinancials: 'Financials',
+          navRecordUpdate: 'Record update',
+          navSettings: 'Settings',
+          navHelp: 'Help',
+        }[key] ?? key),
+    });
+
+    expect(commands.find((command) => command.id === 'page:catalog')?.action.href).toBe('/catalog?q=scarf&view=skus');
+    expect(commands.find((command) => command.id === 'page:performance')?.action.href).toBe(
+      '/performance?compare=0&range=7d&scope=skus&supplier=Mekong+Looms',
+    );
+    expect(commands.find((command) => command.id === 'performance:range:90d')?.action.href).toBe(
+      '/performance?compare=0&range=90d&scope=skus&supplier=Mekong+Looms',
+    );
   });
 
   test('does not match raw sku ids in search results', () => {
@@ -301,6 +376,7 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key) => key,
     });
@@ -360,10 +436,12 @@ describe('command palette descriptors', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key) =>
         ({
           navAnalysis: 'Analysis',
+          navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',

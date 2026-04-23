@@ -9,8 +9,10 @@ import {
   type BanjiBenchmarkScenarioId,
   type BanjiBenchmarkTargetEvaluation,
 } from '@shared/benchmark';
-import { ActionOpenFolderIcon, ActionUndoIcon } from '@icons/actions';
+import { ActionCloseIcon, ActionOpenFolderIcon, ActionResumeIcon, ActionUndoIcon } from '@icons/actions';
+import { EntityComparisonIcon } from '@icons/entities';
 import { NavigationPerformanceIcon } from '@icons/navigation';
+import { StatusSpikeIcon } from '@icons/status';
 import { WorkspaceActionRow, WorkspacePanel } from '@/components/system/workspace';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,7 @@ function ResultSortHeader({
       type="button"
       onClick={onClick}
     >
+      <NavigationPerformanceIcon data-icon="inline-start" className="size-4" />
       <span>Result</span>
       <span className="text-[0.7rem] text-foreground">{direction === 'asc' ? '↑' : '↓'}</span>
     </button>
@@ -554,9 +557,11 @@ export function BenchmarkSettingsPage() {
 
           <WorkspaceActionRow>
             <Button disabled={!available || Boolean(activeRunId)} type="button" onClick={() => void startRun()}>
+              <ActionResumeIcon data-icon="inline-start" />
               Run selected
             </Button>
             <Button disabled={!activeRunId} type="button" variant="outline" onClick={() => void cancelRun()}>
+              <ActionCloseIcon data-icon="inline-start" />
               Cancel
             </Button>
             <Button type="button" variant="outline" onClick={() => void refreshRuns()}>
@@ -634,6 +639,7 @@ export function BenchmarkSettingsPage() {
                   variant="outline"
                   onClick={() => void generateFlamegraph()}
                 >
+                  <StatusSpikeIcon data-icon="inline-start" />
                   Generate flame graph
                 </Button>
               </div>
@@ -691,6 +697,7 @@ export function BenchmarkSettingsPage() {
               </SelectContent>
             </Select>
             <Button disabled={!baselineRunId || !candidateRunId} type="button" onClick={() => void compareRuns()}>
+              <EntityComparisonIcon data-icon="inline-start" />
               Compare
             </Button>
           </div>

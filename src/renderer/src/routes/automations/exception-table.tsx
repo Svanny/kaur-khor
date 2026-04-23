@@ -12,7 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { ActionEditIcon } from '@icons/actions';
+import { ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
+import { EntityCustomerIcon } from '@icons/entities';
+
+const automationActionButtonClassName = 'min-w-[152px] justify-center';
 
 const layout = createHeaderedTableLayout({
   breakpoint: 'xl',
@@ -20,7 +23,13 @@ const layout = createHeaderedTableLayout({
   gap: 4,
 });
 
-export function AutomationExceptionTable({ rows }: { rows: AutomationExceptionRow[] }) {
+export function AutomationExceptionTable({
+  rows,
+  onOpenIntake,
+}: {
+  rows: AutomationExceptionRow[];
+  onOpenIntake: (row: AutomationExceptionRow) => void;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -39,10 +48,13 @@ export function AutomationExceptionTable({ rows }: { rows: AutomationExceptionRo
           {rows.map((row) => (
             <HeaderedTableRow key={row.intakeId} className={`${layout.rowClassName} ${rowHoverClassName}`}>
               <div className="min-w-0">
-                <Link className="group min-w-0" to={row.href}>
-                  <p className="font-semibold text-foreground transition-colors group-hover:text-primary">{row.customerLabel}</p>
+                <button className="group min-w-0 text-left" type="button" onClick={() => onOpenIntake(row)}>
+                  <p className="flex items-center gap-2 font-semibold text-foreground transition-colors group-hover:text-primary">
+                    <EntityCustomerIcon data-icon="inline-start" className="size-4 shrink-0" />
+                    <span className="truncate">{row.customerLabel}</span>
+                  </p>
                   <p className="mt-1 text-sm leading-6 text-muted-foreground">{row.conversationId}</p>
-                </Link>
+                </button>
               </div>
               <div>
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Issue</HeaderedTableMobileLabel>
@@ -59,12 +71,19 @@ export function AutomationExceptionTable({ rows }: { rows: AutomationExceptionRo
                 </span>
               </div>
               <div className="flex items-start lg:justify-center">
-                <Button asChild className="w-[132px] justify-center" size="sm" variant="outline">
-                  <Link to={row.href}>
+                {row.ticketHref ? (
+                  <Button asChild className={automationActionButtonClassName} size="sm" variant="outline">
+                    <Link to={row.ticketHref}>
+                      <ActionOpenExternalIcon className="size-4" />
+                      {row.actionLabel}
+                    </Link>
+                  </Button>
+                ) : (
+                  <Button className={automationActionButtonClassName} size="sm" type="button" variant="outline" onClick={() => onOpenIntake(row)}>
                     <ActionEditIcon className="size-4" />
-                    Review
-                  </Link>
-                </Button>
+                    {row.actionLabel}
+                  </Button>
+                )}
               </div>
             </HeaderedTableRow>
           ))}

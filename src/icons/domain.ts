@@ -61,11 +61,10 @@ export const overviewTaskFilterIcons: Record<OverviewTaskFilter, IconComponent> 
 
 export const overviewCustomerFilterIcons: Record<OverviewCustomerFilter, IconComponent> = {
   all: ClipboardList,
+  review: AlertTriangle,
+  quoted: Send,
   open: ShoppingBag,
-  need_stock: AlertTriangle,
-  ready_to_complete: ClipboardCheck,
-  completed_today: BadgeCheck,
-  canceled_today: CircleOff,
+  closed: BadgeCheck,
 };
 
 export const overviewDrawerBandIcons: Record<OverviewDrawerBandId, IconComponent> = {

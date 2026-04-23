@@ -3,13 +3,7 @@ import type { SenaCatalog } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
 import type { InventoryContextValue } from '@/state/inventory';
 import {
-  buildAnalysisHref,
-  buildOperationsArchiveHref,
-  buildCatalogHref,
-  buildFinancialsHref,
   buildOverviewHref,
-  buildOperationsHref,
-  buildPerformanceHref,
   buildServiceDetailHref,
   buildSkuDetailHref,
   type AnalysisScopeValue,
@@ -21,7 +15,6 @@ import {
   type FinancialsScopeValue,
   type OverviewSearchScope,
   type OverviewTaskFilterValue,
-  type OverviewTaskModeValue,
   type OperationsScopeValue,
   type OperationsViewValue,
   type PerformanceRangeValue,
@@ -29,6 +22,17 @@ import {
   type ServiceActionValue,
   type SkuActionValue,
 } from '@/lib/navigation-state';
+import {
+  buildRememberedAnalysisHref,
+  buildRememberedAutomationHref,
+  buildRememberedArchiveHref,
+  buildRememberedCatalogHref,
+  buildRememberedFinancialsHref,
+  buildRememberedOperationsHref,
+  buildRememberedOverviewHref,
+  buildRememberedPerformanceHref,
+  buildRememberedSettingsHref,
+} from '@/lib/page-state-memory';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import {
   activeSenaCatalog,
@@ -63,6 +67,7 @@ export type CommandAction =
         | 'set-show-explanatory-tooltips'
         | 'set-show-floating-title-actions'
         | 'set-show-right-rail-cards'
+        | 'set-show-automations-page'
         | 'set-show-analysis-page'
         | 'set-smoothing-enabled'
         | 'create-backup-snapshot'
@@ -269,24 +274,28 @@ function buildPageCommands(
   t: Translator,
   {
     hasCatalogTab,
+    hasAutomationsTab,
     hasFinancialsTab,
     hasLogsTab,
     hasPerformanceTab,
     hasRecordUpdateTab,
+    showAutomationsPage,
     showAnalysisPage,
   }: {
+    hasAutomationsTab: boolean;
     hasCatalogTab: boolean;
     hasFinancialsTab: boolean;
     hasLogsTab: boolean;
     hasPerformanceTab: boolean;
     hasRecordUpdateTab: boolean;
+    showAutomationsPage: boolean;
     showAnalysisPage: boolean;
   },
 ) {
   return [
     pageCommand({
       aliases: ['home', 'dashboard'],
-      href: buildOverviewHref(),
+      href: buildRememberedOverviewHref(),
       id: 'page:overview',
       keywords: ['queue', 'tasks', 'overview'],
       pageId: 'overview',
@@ -316,7 +325,7 @@ function buildPageCommands(
       ? [
           pageCommand({
             aliases: ['metrics'],
-            href: buildPerformanceHref(),
+            href: buildRememberedPerformanceHref(),
             id: 'page:performance',
             keywords: ['performance', 'range', 'compare'],
             pageId: 'performance',
@@ -332,7 +341,7 @@ function buildPageCommands(
       ? [
           pageCommand({
             aliases: ['money', 'finance', 'financials'],
-            href: buildFinancialsHref(),
+            href: buildRememberedFinancialsHref(),
             id: 'page:financials',
             keywords: ['financials', 'money', 'margin', 'capital', 'commitments'],
             pageId: 'financials',
@@ -344,11 +353,27 @@ function buildPageCommands(
           }),
         ]
       : []),
+    ...(showAutomationsPage && hasAutomationsTab
+      ? [
+          pageCommand({
+            aliases: ['automation', 'automations', 'telegram'],
+            href: buildRememberedAutomationHref(),
+            id: 'page:automations',
+            keywords: ['automations', 'telegram', 'intake', 'sellables'],
+            pageId: 'automations',
+            pageOrder: 4,
+            pagePrefix: '/automations',
+            priority: 14,
+            subtitle: 'Telegram intake, exposure, and automation settings',
+            title: t('navAutomations'),
+          }),
+        ]
+      : []),
     ...(showAnalysisPage
       ? [
           pageCommand({
             aliases: ['workbench', 'analysis'],
-            href: buildAnalysisHref(),
+            href: buildRememberedAnalysisHref(),
             id: 'page:analysis',
             keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
             pageId: 'analysis',
@@ -364,7 +389,7 @@ function buildPageCommands(
       ? [
           pageCommand({
             aliases: ['inventory'],
-            href: buildCatalogHref(),
+            href: buildRememberedCatalogHref(),
             id: 'page:catalog',
             keywords: ['catalog', 'skus', 'services'],
             pageId: 'catalog',
@@ -380,7 +405,7 @@ function buildPageCommands(
       ? [
           pageCommand({
             aliases: ['logs', 'history'],
-            href: buildOperationsHref(),
+            href: buildRememberedOperationsHref(),
             id: 'page:operations',
             keywords: ['operations', 'logs', 'history', 'heatmap'],
             pageId: 'operations',
@@ -394,7 +419,7 @@ function buildPageCommands(
       : []),
     pageCommand({
       aliases: ['archive', 'archived'],
-      href: buildOperationsArchiveHref(),
+      href: buildRememberedArchiveHref(),
       id: 'page:archive',
       keywords: ['archive', 'archived', 'logs'],
       pageId: 'archive',
@@ -406,7 +431,7 @@ function buildPageCommands(
     }),
     pageCommand({
       aliases: ['preferences'],
-      href: '/settings',
+      href: buildRememberedSettingsHref(),
       id: 'page:settings',
       keywords: ['settings', 'preferences'],
       pageId: 'settings',
@@ -450,7 +475,7 @@ function buildOverviewCommands() {
     ...scopeCommands.map((command, index) =>
       tabCommand({
         aliases: ['overview', 'scope'],
-        href: buildOverviewHref({ scope: command.value }),
+        href: buildRememberedOverviewHref({ scope: command.value }),
         id: `overview:scope:${command.value}`,
         keywords: ['overview', 'scope', command.value],
         pageId: 'overview',
@@ -465,7 +490,7 @@ function buildOverviewCommands() {
     ...filterCommands.map((command, index) =>
       tabCommand({
         aliases: ['overview', 'filter'],
-        href: buildOverviewHref({ filter: command.value }),
+        href: buildRememberedOverviewHref({ filter: command.value }),
         id: `overview:filter:${command.value}`,
         keywords: ['overview', 'filter', command.value],
         pageId: 'overview',
@@ -490,7 +515,7 @@ function buildCatalogCommands() {
   return viewCommands.map((command, index) =>
     tabCommand({
       aliases: ['catalog', 'view'],
-      href: buildCatalogHref({ view: command.value }),
+      href: buildRememberedCatalogHref({ view: command.value }),
       id: `catalog:view:${command.value}`,
       keywords: ['catalog', command.value],
       pageId: 'catalog',
@@ -519,7 +544,7 @@ function buildOperationsCommands() {
     ...scopeCommands.map((command, index) =>
       tabCommand({
         aliases: ['logs', 'operations', 'scope'],
-        href: buildOperationsHref({ scope: command.value }),
+        href: buildRememberedOperationsHref({ scope: command.value }),
         id: `operations:scope:${command.value}`,
         keywords: ['operations', 'logs', command.value],
         pageId: 'operations',
@@ -534,7 +559,7 @@ function buildOperationsCommands() {
     ...viewCommands.map((command, index) =>
       tabCommand({
         aliases: ['logs', 'operations', 'view'],
-        href: buildOperationsHref({ view: command.value }),
+        href: buildRememberedOperationsHref({ view: command.value }),
         id: `operations:view:${command.value}`,
         keywords: ['operations', 'logs', 'view', command.value],
         pageId: 'operations',
@@ -559,7 +584,7 @@ function buildArchiveCommands() {
   return viewCommands.map((command, index) =>
     tabCommand({
       aliases: ['archive', 'view'],
-      href: buildOperationsArchiveHref({ view: command.value }),
+      href: buildRememberedArchiveHref({ view: command.value }),
       id: `archive:view:${command.value}`,
       keywords: ['archive', command.value],
       pageId: 'archive',
@@ -589,7 +614,7 @@ function buildPerformanceCommands() {
     ...rangeCommands.map((command, index) =>
       tabCommand({
         aliases: ['performance', 'range'],
-        href: buildPerformanceHref({ range: command.value }),
+        href: buildRememberedPerformanceHref({ range: command.value }),
         id: `performance:range:${command.value}`,
         keywords: ['performance', 'range', command.value],
         pageId: 'performance',
@@ -604,7 +629,7 @@ function buildPerformanceCommands() {
     ...scopeCommands.map((command, index) =>
       tabCommand({
         aliases: ['performance', 'scope'],
-        href: buildPerformanceHref({ scope: command.value }),
+        href: buildRememberedPerformanceHref({ scope: command.value }),
         id: `performance:scope:${command.value}`,
         keywords: ['performance', 'scope', command.value],
         pageId: 'performance',
@@ -618,7 +643,7 @@ function buildPerformanceCommands() {
     ),
     tabCommand({
       aliases: ['performance', 'compare'],
-      href: buildPerformanceHref({ compare: true }),
+      href: buildRememberedPerformanceHref({ compare: true }),
       id: 'performance:compare:on',
       keywords: ['performance', 'compare', 'on'],
       pageId: 'performance',
@@ -631,7 +656,7 @@ function buildPerformanceCommands() {
     }),
     tabCommand({
       aliases: ['performance', 'compare'],
-      href: buildPerformanceHref({ compare: false }),
+      href: buildRememberedPerformanceHref({ compare: false }),
       id: 'performance:compare:off',
       keywords: ['performance', 'compare', 'off'],
       pageId: 'performance',
@@ -662,7 +687,7 @@ function buildFinancialsCommands() {
     ...rangeCommands.map((command, index) =>
       tabCommand({
         aliases: ['financials', 'range'],
-        href: buildFinancialsHref({ range: command.value }),
+        href: buildRememberedFinancialsHref({ range: command.value }),
         id: `financials:range:${command.value}`,
         keywords: ['financials', 'money', 'range', command.value],
         pageId: 'financials',
@@ -677,7 +702,7 @@ function buildFinancialsCommands() {
     ...scopeCommands.map((command, index) =>
       tabCommand({
         aliases: ['financials', 'scope'],
-        href: buildFinancialsHref({ scope: command.value }),
+        href: buildRememberedFinancialsHref({ scope: command.value }),
         id: `financials:scope:${command.value}`,
         keywords: ['financials', 'money', 'scope', command.value],
         pageId: 'financials',
@@ -691,7 +716,7 @@ function buildFinancialsCommands() {
     ),
     tabCommand({
       aliases: ['financials', 'compare'],
-      href: buildFinancialsHref({ compare: true }),
+      href: buildRememberedFinancialsHref({ compare: true }),
       id: 'financials:compare:on',
       keywords: ['financials', 'money', 'compare', 'on'],
       pageId: 'financials',
@@ -704,7 +729,7 @@ function buildFinancialsCommands() {
     }),
     tabCommand({
       aliases: ['financials', 'compare'],
-      href: buildFinancialsHref({ compare: false }),
+      href: buildRememberedFinancialsHref({ compare: false }),
       id: 'financials:compare:off',
       keywords: ['financials', 'money', 'compare', 'off'],
       pageId: 'financials',
@@ -737,7 +762,7 @@ function buildAnalysisCommands() {
     ...scopeCommands.map((command, index) =>
       tabCommand({
         aliases: ['analysis', 'scope'],
-        href: buildAnalysisHref({ scope: command.value }),
+        href: buildRememberedAnalysisHref({ scope: command.value }),
         id: `analysis:scope:${command.value}`,
         keywords: ['analysis', 'scope', command.value],
         pageId: 'analysis',
@@ -752,7 +777,7 @@ function buildAnalysisCommands() {
     ...sectionCommands.map((command, index) =>
       tabCommand({
         aliases: ['analysis', 'section'],
-        href: buildAnalysisHref({ section: command.value }),
+        href: buildRememberedAnalysisHref({ section: command.value }),
         id: `analysis:section:${command.value}`,
         keywords: ['analysis', 'section', command.value],
         pageId: 'analysis',
@@ -767,7 +792,7 @@ function buildAnalysisCommands() {
     ...timeframeCommands.map((command, index) =>
       tabCommand({
         aliases: ['analysis', 'timeframe'],
-        href: buildAnalysisHref({ timeframe: command }),
+        href: buildRememberedAnalysisHref({ timeframe: command }),
         id: `analysis:timeframe:${command}`,
         keywords: ['analysis', 'timeframe', command],
         pageId: 'analysis',
@@ -840,6 +865,7 @@ function buildSettingsCommands({
   senaEngineParameters,
   showExplanatoryTooltips,
   showFloatingTitleActions,
+  showAutomationsPage,
   showAnalysisPage,
   showRightRailCards,
   t,
@@ -850,6 +876,7 @@ function buildSettingsCommands({
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
+  showAutomationsPage: boolean;
   showAnalysisPage: boolean;
   showRightRailCards: boolean;
   t: Translator;
@@ -975,6 +1002,19 @@ function buildSettingsCommands({
       title: `${showRightRailCards ? 'Hide' : 'Show'} right rail cards`,
     }),
     createCommand({
+      action: { effect: 'set-show-automations-page', href: '/settings', type: 'settings', value: !showAutomationsPage },
+      aliases: ['settings automations page'],
+      id: `settings:automations-page:${showAutomationsPage ? 'off' : 'on'}`,
+      keywords: ['settings', 'automations', 'page', showAutomationsPage ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 509,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showAutomationsPage ? 'Hide' : 'Show'} automations page`,
+    }),
+    createCommand({
       action: { effect: 'set-show-analysis-page', href: '/settings', type: 'settings', value: !showAnalysisPage },
       aliases: ['settings analysis page'],
       id: `settings:analysis-page:${showAnalysisPage ? 'off' : 'on'}`,
@@ -983,7 +1023,7 @@ function buildSettingsCommands({
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
-      priority: 509,
+      priority: 510,
       subtitle: 'Settings / Interface visibility',
       title: `${showAnalysisPage ? 'Hide' : 'Show'} analysis page`,
     }),
@@ -996,7 +1036,7 @@ function buildSettingsCommands({
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
-      priority: 510,
+      priority: 511,
       subtitle: `${t('navSettings')} / ${t('settingsSenaParametersPanelTitle')}`,
       title: `${smoothingEnabled ? 'Disable' : 'Enable'} smoothing`,
     }),
@@ -1123,7 +1163,7 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
       ...commands,
       ...sheetCommands.map((command, index) =>
         createCommand({
-          action: { href: buildSkuDetailHref(sku.skuId, command.mode), type: 'sheet' },
+          action: { href: buildSkuDetailHref(sku.skuId), type: 'sheet' },
           aliases: supplierName ? [command.mode, sku.name, supplierName] : [command.mode, sku.name],
           id: `sku:sheet:${command.mode}:${sku.skuId}`,
           keywords: ['sheet', command.mode, ...skuKeywords],
@@ -1198,7 +1238,7 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
       }),
       ...sheetCommands.map((command, index) =>
         createCommand({
-          action: { href: buildServiceDetailHref(service.serviceId, command.mode), type: 'sheet' },
+          action: { href: buildServiceDetailHref(service.serviceId), type: 'sheet' },
           aliases: [service.serviceId, command.mode, service.name],
           id: `service:sheet:${command.mode}:${service.serviceId}`,
           keywords: ['service', 'sheet', command.mode, service.serviceId],
@@ -1302,8 +1342,6 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
         action: {
           href: buildOverviewHref({
             filter: task.state,
-            taskId: task.id,
-            taskMode: task.defaultDrawerMode as OverviewTaskModeValue,
           }),
           type: 'workflow',
         },
@@ -1332,6 +1370,7 @@ export function buildCommandDescriptors({
   senaEngineParameters,
   showExplanatoryTooltips,
   showFloatingTitleActions,
+  showAutomationsPage,
   showAnalysisPage,
   showRightRailCards,
   t,
@@ -1343,13 +1382,18 @@ export function buildCommandDescriptors({
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
+  showAutomationsPage: boolean;
   showAnalysisPage: boolean;
   showRightRailCards: boolean;
   t: Translator;
 }) {
   const availability = deriveNavigationAvailability(inventory);
   const commands = [
-    ...buildPageCommands(t, { ...availability, showAnalysisPage }),
+    ...buildPageCommands(t, {
+      ...availability,
+      showAnalysisPage,
+      showAutomationsPage,
+    }),
     ...buildWorkflowCommands({ hasRecordUpdateTab: availability.hasRecordUpdateTab }),
     ...buildSettingsCommands({
       currency,
@@ -1358,6 +1402,7 @@ export function buildCommandDescriptors({
       senaEngineParameters,
       showExplanatoryTooltips,
       showFloatingTitleActions,
+      showAutomationsPage,
       showAnalysisPage,
       showRightRailCards,
       t,

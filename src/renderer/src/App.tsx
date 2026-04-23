@@ -5,6 +5,7 @@ import { BanjiShell } from '@/components/banji-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
 import { DashboardRoute } from '@/routes/dashboard';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
+import { PageStateMemoryObserver } from '@/lib/page-state-memory';
 import { OnboardingRoute } from '@/routes/onboarding';
 import {
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
@@ -273,6 +274,7 @@ function AppFrame() {
 
   return (
     <NavigationHistoryProvider>
+      <PageStateMemoryObserver />
       <CommandPaletteProvider>
         <BanjiShell>
           <AppRoutes />

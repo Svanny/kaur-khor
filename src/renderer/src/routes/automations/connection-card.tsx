@@ -10,6 +10,7 @@ export function AutomationConnectionCard({
   botToken,
   botUsername,
   externalLink,
+  isSaving,
   onBotDisplayNameChange,
   onBotTokenChange,
   onBotUsernameChange,
@@ -21,6 +22,7 @@ export function AutomationConnectionCard({
   botToken: string;
   botUsername: string;
   externalLink: string;
+  isSaving: boolean;
   onBotDisplayNameChange: (value: string) => void;
   onBotTokenChange: (value: string) => void;
   onBotUsernameChange: (value: string) => void;
@@ -54,11 +56,11 @@ export function AutomationConnectionCard({
         </div>
         <div className="grid gap-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Customer-order contract</p>
-          <p className="text-sm leading-6 text-muted-foreground">Customers can browse approved sellables, request quantities, and receive a quoted total. banj will only create customer tickets after the intake passes review or confirmation rules.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Customers can browse approved sellables, request quantities, and receive a quoted total. banji will only create customer tickets after the intake passes review or confirmation rules.</p>
         </div>
         <div className="grid gap-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Intake rule summary</p>
-          <p className="text-sm leading-6 text-muted-foreground">Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to banj.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to banji.</p>
         </div>
       </div>
 
@@ -68,9 +70,9 @@ export function AutomationConnectionCard({
         <Input placeholder="https://t.me/your_bot" value={externalLink} onChange={(event) => onExternalLinkChange(event.target.value)} />
         <Textarea placeholder="Telegram bot token" value={botToken} onChange={(event) => onBotTokenChange(event.target.value)} />
         <div className="flex justify-end">
-          <Button type="button" onClick={onSave}>
+          <Button disabled={isSaving} type="button" onClick={onSave}>
             <ActionSaveIcon className="size-4" />
-            Save Telegram settings
+            {isSaving ? 'Saving…' : 'Save Telegram settings'}
           </Button>
         </div>
       </div>

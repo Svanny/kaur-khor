@@ -181,6 +181,7 @@ const desktopBridge: DesktopBridge = {
     restoreBackupSnapshot: () => invokeWithBenchmark(IPC_CHANNELS.systemRestoreBackupSnapshot),
     clearCurrentData: () => invokeWithBenchmark(IPC_CHANNELS.systemClearCurrentData),
     revealPath: (path: string) => invokeWithBenchmark(IPC_CHANNELS.systemRevealPath, path),
+    openExternalUrl: (url: string) => invokeWithBenchmark(IPC_CHANNELS.systemOpenExternalUrl, url),
     pickAndStoreImage: (): Promise<string | null> => invokeWithBenchmark(IPC_CHANNELS.systemPickAndStoreImage),
   },
   inventory: {

@@ -1,5 +1,5 @@
 import { useDeferredValue, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import {
   ActionOpenExternalIcon,
@@ -45,13 +45,16 @@ import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { buildOverviewSearchParams, readOverviewRouteState } from '@/lib/navigation-state';
+import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
 import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
+import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
+import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { AutomationIntakeDrawer } from './automations/intake-drawer';
 import { OverviewTaskDrawer } from './overview/task-drawer';
 import {
   buildOverviewModel,
@@ -59,6 +62,7 @@ import {
   shouldShowTask,
   type OverviewSkuTask,
   type OverviewTask,
+  type OverviewTaskDrawerMode,
   type OverviewTaskFilter,
 } from './overview/view-model';
 import {
@@ -169,6 +173,16 @@ function buildTodayFilterRows(language: 'en' | 'km'): Array<{
   ];
 }
 
+function buildCustomerFilterOptions(language: 'en' | 'km'): Array<{ value: OverviewCustomerFilter; label: string }> {
+  return [
+    { value: 'all', label: translateUiLiteral(language, 'All Tasks') },
+    { value: 'review', label: translateUiLiteral(language, 'Review') },
+    { value: 'quoted', label: translateUiLiteral(language, 'Quoted') },
+    { value: 'open', label: translateUiLiteral(language, 'Open') },
+    { value: 'closed', label: translateUiLiteral(language, 'Closed') },
+  ];
+}
+
 function matchesOverviewEntityScope(task: OverviewTask, scope: OverviewSearchScope) {
   if (!isOverviewSkuTask(task)) {
     return scope === 'all';
@@ -235,6 +249,7 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
 
 export function DashboardRoute() {
   const inventory = useInventory();
+  const automation = useAutomation();
   const {
     language,
     overviewStaleUpdateReminderSnoozeUntil,
@@ -243,29 +258,35 @@ export function DashboardRoute() {
     showRightRailCards,
     t,
   } = usePreferences();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
   const [detailBySkuId, setDetailBySkuId] = useState<Record<string, SenaSkuDetail | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
-  const [overviewScope, setOverviewScope] = useState<OverviewWorkflowScope>('supplier');
-  const [customerFilter, setCustomerFilter] = useState<OverviewCustomerFilter>('all');
+  const [selectedTaskRequest, setSelectedTaskRequest] = useState<{
+    mode: OverviewTaskDrawerMode | null;
+    taskId: string;
+  } | null>(null);
+  const [selectedAutomationIntakeId, setSelectedAutomationIntakeId] = useState<string | null>(null);
   const requestedOrderBatchesRef = useRef(false);
   const routeState = readOverviewRouteState(searchParams);
+  const overviewScope = routeState.workflow;
+  const customerFilter = routeState.customerFilter;
   const searchScope = routeState.scope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
-  const selectedTaskId = routeState.taskId;
   const filterOptions = buildFilterOptions(language);
+  const customerFilterOptions = buildCustomerFilterOptions(language);
   const todayFilterRows = buildTodayFilterRows(language);
 
   function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
     setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
   }
 
-  function openSingleTask(task: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>) {
-    updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode });
+  function openSingleTask(task: Pick<OverviewSkuTask, 'id' | 'defaultDrawerMode'>, mode = task.defaultDrawerMode) {
+    setSelectedTaskRequest({ taskId: task.id, mode });
   }
 
   function handleTaskActionClick(task: OverviewSkuTask) {
@@ -362,6 +383,7 @@ export function DashboardRoute() {
     workspaceSummary: inventory.workspaceSummary,
   });
   const customerModel = buildCustomerOverviewModel({
+    automationIntakes: automation.intakes,
     catalog: inventory.catalog,
     language,
     observations: inventory.observations,
@@ -375,15 +397,51 @@ export function DashboardRoute() {
   );
   const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, activeFilter));
   const visibleCustomerTasks = customerModel.tasks.filter((task) => shouldShowCustomerTask(task, customerFilter));
-  const selectedTask = scopedTasks.find(
-    (task): task is OverviewSkuTask => task.id === selectedTaskId && isOverviewSkuTask(task),
-  ) ?? null;
+  const selectedTask = selectedTaskRequest
+    ? scopedTasks.find(
+      (task): task is OverviewSkuTask => task.id === selectedTaskRequest.taskId && isOverviewSkuTask(task),
+    ) ?? null
+    : null;
+  const selectedAutomationIntake = selectedAutomationIntakeId
+    ? automation.intakes.find((intake) => intake.intakeId === selectedAutomationIntakeId) ?? null
+    : null;
 
   useEffect(() => {
-    if (selectedTaskId && !selectedTask) {
+    if (routeState.taskId) {
       updateRouteState({ taskId: null, taskMode: null }, true);
     }
-  }, [selectedTask, selectedTaskId]);
+  }, [routeState.taskId]);
+
+  useEffect(() => {
+    if (overviewScope !== 'customer' || !routeState.customerTaskId) {
+      return;
+    }
+    const target = Array.from(document.querySelectorAll<HTMLElement>('[data-customer-task-id]'))
+      .find((element) => element.dataset.customerTaskId === routeState.customerTaskId);
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [overviewScope, routeState.customerTaskId, visibleCustomerTasks]);
+
+  useEffect(() => {
+    if (selectedTaskRequest && !selectedTask) {
+      setSelectedTaskRequest(null);
+    }
+  }, [selectedTask, selectedTaskRequest]);
+
+  useEffect(() => {
+    if (selectedAutomationIntakeId && !selectedAutomationIntake) {
+      setSelectedAutomationIntakeId(null);
+    }
+  }, [selectedAutomationIntake, selectedAutomationIntakeId]);
+
+  function openCustomerTask(task: (typeof visibleCustomerTasks)[number]) {
+    if (task.source !== 'telegram_intake' || !task.automationIntakeId || task.promotedTicketId) {
+      return;
+    }
+    setSelectedAutomationIntakeId(task.automationIntakeId);
+  }
 
   if (!inventory.catalog) {
     return (
@@ -468,7 +526,13 @@ export function DashboardRoute() {
             value={overviewScope}
             onValueChange={(nextValue) => {
               if (nextValue) {
-                setOverviewScope(nextValue as OverviewWorkflowScope);
+                updateRouteState({
+                  workflow: nextValue as OverviewWorkflowScope,
+                  customerFilter: nextValue === 'customer' ? customerFilter : 'all',
+                  customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
+                  taskId: nextValue === 'supplier' ? routeState.taskId : null,
+                  taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
+                });
               }
             }}
           >
@@ -502,7 +566,10 @@ export function DashboardRoute() {
         value={overviewScope === 'customer' ? customerFilter : activeFilter}
         onValueChange={(nextValue) => {
           if (overviewScope === 'customer') {
-            setCustomerFilter(nextValue as OverviewCustomerFilter);
+            updateRouteState({
+              customerFilter: nextValue as OverviewCustomerFilter,
+              customerTaskId: null,
+            });
             return;
           }
           updateRouteState({ filter: nextValue as OverviewTaskFilter });
@@ -512,14 +579,7 @@ export function DashboardRoute() {
           <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
               {(overviewScope === 'customer'
-                ? [
-                    { value: 'all', label: translateUiLiteral(language, 'All Task') },
-                    { value: 'open', label: translateUiLiteral(language, 'Open') },
-                    { value: 'need_stock', label: translateUiLiteral(language, 'Need stock') },
-                    { value: 'ready_to_complete', label: translateUiLiteral(language, 'Ready to complete') },
-                    { value: 'completed_today', label: translateUiLiteral(language, 'Completed today') },
-                    { value: 'canceled_today', label: translateUiLiteral(language, 'Canceled today') },
-                  ]
+                ? customerFilterOptions
                 : filterOptions).map((option) => {
                 const FilterTabIcon =
                   overviewScope === 'customer'
@@ -576,15 +636,22 @@ export function DashboardRoute() {
                         {visibleCustomerTasks.map((task) => (
                           <HeaderedTableRow
                             key={task.id}
-                            className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName}`}
+                            className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName} ${routeState.customerTaskId === task.id ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-background bg-emerald-50/40' : ''}`}
+                            data-customer-task-id={task.id}
                           >
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-base font-semibold text-foreground">{task.label}</span>
-                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.state === 'need_stock' ? 'warning' : task.state === 'completed_today' ? 'success' : 'info')}`}>
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.sourceBadgeTone)}`}>
+                                  {task.sourceLabel}
+                                </span>
+                                <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(task.stateBadgeTone)}`}>
                                   {task.stateLabel}
                                 </span>
                               </div>
+                              {task.summary ? (
+                                <p className="mt-2 text-sm leading-6 text-muted-foreground">{task.summary}</p>
+                              ) : null}
                             </div>
                             <div className="min-w-0">
                               <HeaderedTableMobileLabel className={overviewQueueTableLayout.mobileLabelClassName}>
@@ -611,9 +678,25 @@ export function DashboardRoute() {
                               </p>
                             </div>
                             <div className="flex items-start lg:justify-center">
-                              <Button asChild className="w-[152px] justify-center" size="sm" variant={task.action === 'mark_completed' ? 'default' : 'outline'}>
-                                <Link to={task.href}>{task.actionLabel}</Link>
-                              </Button>
+                              {task.source === 'telegram_intake' && task.automationIntakeId && !task.promotedTicketId ? (
+                                <Button
+                                  className="w-[168px] justify-center"
+                                  size="sm"
+                                  type="button"
+                                  variant={task.action === 'mark_completed' ? 'default' : 'outline'}
+                                  onClick={() => openCustomerTask(task)}
+                                >
+                                  <ActionOpenExternalIcon data-icon="inline-start" />
+                                  {task.actionLabel}
+                                </Button>
+                              ) : (
+                                <Button asChild className="w-[168px] justify-center" size="sm" variant={task.action === 'mark_completed' ? 'default' : 'outline'}>
+                                  <Link to={task.href}>
+                                    <ActionOpenExternalIcon data-icon="inline-start" />
+                                    {task.actionLabel}
+                                  </Link>
+                                </Button>
+                              )}
                             </div>
                           </HeaderedTableRow>
                         ))}
@@ -645,20 +728,22 @@ export function DashboardRoute() {
                     </div>
                     <div className="divide-y divide-border/50">
                       {[
+                        ['review', translateUiLiteral(language, 'Review')],
+                        ['quoted', translateUiLiteral(language, 'Quoted')],
                         ['open', translateUiLiteral(language, 'Open')],
-                        ['need_stock', translateUiLiteral(language, 'Need stock')],
-                        ['ready_to_complete', translateUiLiteral(language, 'Ready to complete')],
-                        ['completed_today', translateUiLiteral(language, 'Completed today')],
-                        ['canceled_today', translateUiLiteral(language, 'Canceled today')],
+                        ['closed', translateUiLiteral(language, 'Closed')],
                       ].map(([key, label]) => (
                         <button
                           key={key}
                           aria-pressed={customerFilter === key}
                           className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
                           type="button"
-                          onClick={() => setCustomerFilter(key as OverviewCustomerFilter)}
+                          onClick={() => updateRouteState({ customerFilter: key as OverviewCustomerFilter, customerTaskId: null })}
                         >
-                          <span className="text-muted-foreground">{label}</span>
+                          <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                            <NavigationTaskListIcon data-icon="inline-start" className="size-4 shrink-0" />
+                            <span className="truncate">{label}</span>
+                          </span>
                           <span className="font-semibold text-foreground">
                             {customerModel.counts[key as keyof typeof customerModel.counts]}
                           </span>
@@ -735,10 +820,10 @@ export function DashboardRoute() {
                         >
                           <div className="min-w-0">
                             {isOverviewSkuTask(task) ? (
-                              <button
-                                className="group min-w-0 text-left"
-                                type="button"
-                                onClick={() => updateRouteState({ taskId: task.id, taskMode: task.defaultDrawerMode })}
+                              <Link
+                                className="group block min-w-0 text-left"
+                                state={buildBanjiNavigationState(location, '/catalog')}
+                                to={buildSkuDetailHref(task.skuId)}
                               >
                                 <ItemIdentityBlock
                                   align="center"
@@ -764,7 +849,7 @@ export function DashboardRoute() {
                                   }
                                   type="sku"
                                 />
-                              </button>
+                              </Link>
                             ) : (
                               <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -874,7 +959,10 @@ export function DashboardRoute() {
                       type="button"
                       onClick={() => updateRouteState({ filter: row.filter })}
                     >
-                      <span className="text-muted-foreground">{row.label}</span>
+                      <span className="flex min-w-0 items-center gap-2 text-muted-foreground">
+                        <NavigationTaskListIcon data-icon="inline-start" className="size-4 shrink-0" />
+                        <span className="truncate">{row.label}</span>
+                      </span>
                       <span className="font-semibold text-foreground">{model.todayCounts[row.countKey]}</span>
                     </button>
                   );
@@ -897,9 +985,19 @@ export function DashboardRoute() {
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
-                      onClick={() => updateRouteState({ taskId: row.id })}
+                      onClick={() => {
+                        const task = scopedTasks.find(
+                          (candidate): candidate is OverviewSkuTask => candidate.id === row.id && isOverviewSkuTask(candidate),
+                        );
+                        if (task) {
+                          openSingleTask(task);
+                        }
+                      }}
                     >
-                      <span className="min-w-0 pr-3 text-sm font-medium text-foreground">{row.name}</span>
+                      <span className="flex min-w-0 items-center gap-2 pr-3 text-sm font-medium text-foreground">
+                        <EntityTransitIcon data-icon="inline-start" className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate">{row.name}</span>
+                      </span>
                       <span className="shrink-0 text-sm text-muted-foreground">{row.etaLabel}</span>
                     </button>
                   ))
@@ -926,10 +1024,18 @@ export function DashboardRoute() {
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
-                      onClick={() => updateRouteState({ taskId: row.skuId, taskMode: 'goods_received' })}
+                      onClick={() => {
+                        const task = scopedTasks.find(
+                          (candidate): candidate is OverviewSkuTask => candidate.id === row.skuId && isOverviewSkuTask(candidate),
+                        );
+                        if (task) {
+                          openSingleTask(task, 'goods_received');
+                        }
+                      }}
                     >
                       <div className="min-w-0 pr-3">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p className="flex items-center gap-2 truncate text-sm font-medium text-foreground">
+                          <EntityReceiptDocumentIcon data-icon="inline-start" className="size-4 shrink-0 text-muted-foreground" />
                           {row.quantityLabel} {row.name}
                         </p>
                       </div>
@@ -984,22 +1090,34 @@ export function DashboardRoute() {
         </section>
       </ChromeTabs>
 
-      {overviewScope === 'supply' ? (
+      {overviewScope === 'supplier' ? (
         <>
           <OverviewTaskDrawer
-            mode={routeState.taskMode ?? selectedTask?.defaultDrawerMode ?? null}
+            mode={selectedTaskRequest?.mode ?? selectedTask?.defaultDrawerMode ?? null}
             open={selectedTask != null}
             task={selectedTask}
-            onModeChange={(nextMode) => updateRouteState({ taskMode: nextMode }, true)}
+            onModeChange={(nextMode) => {
+              setSelectedTaskRequest((current) => current ? { ...current, mode: nextMode } : current);
+            }}
             onOpenChange={(open) => {
               if (!open) {
-                updateRouteState({ taskId: null, taskMode: null }, true);
+                setSelectedTaskRequest(null);
               }
             }}
           />
 
         </>
       ) : null}
+      <AutomationIntakeDrawer
+        conversationId={selectedAutomationIntake?.conversationId ?? null}
+        intake={selectedAutomationIntake}
+        isSaving={automation.isSaving}
+        open={selectedAutomationIntake != null}
+        onClose={() => setSelectedAutomationIntakeId(null)}
+        onPromote={automation.promoteIntake}
+        onReadConversation={automation.readConversation}
+        onResolve={automation.resolveIntake}
+      />
     </WorkspacePage>
   );
 }

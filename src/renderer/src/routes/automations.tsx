@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import type { AutomationExposureRow, AutomationOrderIntake } from '@shared/automation';
 import {
   ActionClipboardAddIcon,
@@ -50,10 +50,12 @@ import {
   readAutomationRouteState,
   type AutomationIntakeFilterValue,
 } from '@/lib/navigation-state';
+import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { useAutomation } from '@/state/automation';
+import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { AutomationConnectionCard } from './automations/connection-card';
 import { AutomationEmptyState } from './automations/empty-state';
@@ -62,7 +64,13 @@ import { AutomationExposureTable } from './automations/exposure-table';
 import { AutomationIntakeDrawer } from './automations/intake-drawer';
 import { AutomationIntakeTable } from './automations/intake-table';
 import { RecentAutomationActivityRail } from './automations/recent-activity-rail';
-import { deriveAutomationViewModel, type AutomationRailRow, type AutomationRibbonMetric } from './automations/view-model';
+import {
+  deriveAutomationViewModel,
+  type AutomationExceptionRow,
+  type AutomationIntakeTableRow,
+  type AutomationRailRow,
+  type AutomationRibbonMetric,
+} from './automations/view-model';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
 import { SectionLabel } from './sku-detail/section-heading';
 
@@ -118,6 +126,32 @@ function relativeTime(value: string | null) {
     return `${hours}h ago`;
   }
   return `${Math.max(1, Math.round(hours / 24))}d ago`;
+}
+
+function buildTelegramOpenUrl(
+  botUsername: string | null | undefined,
+  externalLink: string | null | undefined,
+) {
+  const normalizedUsername = botUsername?.trim().replace(/^@/, '');
+  if (normalizedUsername) {
+    return `tg://resolve?domain=${encodeURIComponent(normalizedUsername)}`;
+  }
+
+  const normalizedLink = externalLink?.trim();
+  if (!normalizedLink) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(normalizedLink);
+    if ((parsed.hostname === 't.me' || parsed.hostname === 'telegram.me') && parsed.pathname.length > 1) {
+      return `tg://resolve?domain=${encodeURIComponent(parsed.pathname.slice(1).replace(/^@/, ''))}`;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 function connectionLabel(status: string) {
@@ -255,7 +289,7 @@ function AutomationConfigurationTutorial() {
           Copy the bot token that BotFather returns and paste it into <strong className="font-medium text-foreground">Telegram bot token</strong>.
           Treat that token like a password because anyone with it can control the bot.
         </li>
-        <li>Click <strong className="font-medium text-foreground">Save Telegram settings</strong>. banj keeps Automations locked to Configuration until the saved token exists.</li>
+        <li>Click <strong className="font-medium text-foreground">Save Telegram settings</strong>. banji keeps Automations locked to Configuration until the saved token exists.</li>
         <li>After saving, use <strong className="font-medium text-foreground">Test message</strong> to validate the bot, then expose sellables and open intake tabs.</li>
       </ol>
       <p>
@@ -266,6 +300,7 @@ function AutomationConfigurationTutorial() {
 }
 
 export function AutomationsRoute() {
+  const inventory = useInventory();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readAutomationRouteState(searchParams);
   const {
@@ -284,7 +319,7 @@ export function AutomationsRoute() {
     testTelegramConnection,
     metrics,
   } = useAutomation();
-  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, showAutomationsPage, t, usdToKhrExchangeRate } = usePreferences();
   const [exposureTypeFilter, setExposureTypeFilter] = useState<ExposureTypeFilter>('all');
   const [issueFilter, setIssueFilter] = useState<ExceptionIssueFilter>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<ExceptionConfidenceFilter>('all');
@@ -293,12 +328,34 @@ export function AutomationsRoute() {
   const [externalLink, setExternalLink] = useState('');
   const [botToken, setBotToken] = useState('');
   const [disconnectDialogOpen, setDisconnectDialogOpen] = useState(false);
+  const [saveResultDialog, setSaveResultDialog] = useState<{
+    title: string;
+    description: string;
+    tone: 'error' | 'success';
+  } | null>(null);
+  const [selectedIntakeRequest, setSelectedIntakeRequest] = useState<{
+    conversationId: string | null;
+    intakeId: string;
+  } | null>(null);
+  const [hasUnlockedAutomationTabs, setHasUnlockedAutomationTabs] = useState(false);
+  const navigationAvailability = useMemo(
+    () => deriveNavigationAvailability(inventory),
+    [inventory],
+  );
+
+  if (!showAutomationsPage || !navigationAvailability.hasAutomationsTab) {
+    return <Navigate replace to="/" />;
+  }
 
   useEffect(() => {
     setBotDisplayName(connection?.botDisplayName ?? '');
     setBotUsername(connection?.botUsername ?? '');
     setExternalLink(connection?.externalLink ?? '');
   }, [connection]);
+
+  useEffect(() => {
+    setHasUnlockedAutomationTabs(Boolean(connection?.hasBotToken));
+  }, [connection?.hasBotToken]);
 
   const workspace = useMemo(() => (
     connection && metrics
@@ -373,12 +430,28 @@ export function AutomationsRoute() {
   }), [confidenceFilter, issueFilter, intakes, model?.exceptionRows, routeState.q]);
 
   const selectedIntake = useMemo(
-    () => intakes.find((intake) => intake.intakeId === routeState.intakeId) ?? null,
-    [intakes, routeState.intakeId],
+    () => selectedIntakeRequest
+      ? intakes.find((intake) => intake.intakeId === selectedIntakeRequest.intakeId) ?? null
+      : null,
+    [intakes, selectedIntakeRequest],
+  );
+  const unavailableExposedCount = useMemo(
+    () => exposures.filter((row) => row.exposed && row.availabilityStatus === 'unavailable').length,
+    [exposures],
   );
 
   function updateRouteState(nextState: Parameters<typeof buildAutomationSearchParams>[1]) {
     setSearchParams(buildAutomationSearchParams(searchParams, nextState));
+  }
+
+  function openIntakeDrawer(row: AutomationExceptionRow | AutomationIntakeTableRow | AutomationRailRow) {
+    if (!row.intakeId) {
+      return;
+    }
+    setSelectedIntakeRequest({
+      conversationId: row.conversationId ?? null,
+      intakeId: row.intakeId,
+    });
   }
 
   function searchControl(placeholder: string) {
@@ -394,12 +467,20 @@ export function AutomationsRoute() {
     );
   }
 
+  function botTokenPatchValue() {
+    const trimmedToken = botToken.trim();
+    if (trimmedToken) {
+      return trimmedToken;
+    }
+    return connection?.hasBotToken ? undefined : null;
+  }
+
   async function handleSaveConnection(status?: 'connected' | 'paused' | 'disconnected') {
     await saveConnection({
       channel: 'telegram',
       status,
       botDisplayName: botDisplayName.trim() || null,
-      botToken: botToken.trim() || null,
+      botToken: botTokenPatchValue(),
       botUsername: botUsername.trim() || null,
       externalLink: externalLink.trim() || null,
     });
@@ -410,7 +491,59 @@ export function AutomationsRoute() {
     setDisconnectDialogOpen(false);
   }
 
-  const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken);
+  async function handleSubmitTelegramSettings() {
+    if (!botToken.trim() && !connection?.hasBotToken) {
+      setSaveResultDialog({
+        title: 'Telegram settings not saved',
+        description: 'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.',
+        tone: 'error',
+      });
+      return;
+    }
+
+    try {
+      const nextConnection = await saveConnection({
+        channel: 'telegram',
+        botDisplayName: botDisplayName.trim() || null,
+        botToken: botTokenPatchValue(),
+        botUsername: botUsername.trim() || null,
+        externalLink: externalLink.trim() || null,
+      });
+
+      if (!nextConnection.hasBotToken) {
+        setSaveResultDialog({
+          title: 'Telegram settings not saved',
+          description: 'banji could not confirm a saved Telegram bot token. Save the token, then try again.',
+          tone: 'error',
+        });
+        return;
+      }
+
+      setHasUnlockedAutomationTabs(true);
+      updateRouteState({
+        conversationId: null,
+        intakeFilter: 'all',
+        intakeId: null,
+        q: null,
+        section: 'overview',
+        ticketId: null,
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setSaveResultDialog({
+        title: 'Telegram settings saved',
+        description: 'banji stored the Telegram bot configuration and reopened Automations on the Overview tab.',
+        tone: 'success',
+      });
+    } catch (error) {
+      setSaveResultDialog({
+        title: 'Telegram settings not saved',
+        description: error instanceof Error ? error.message : 'banji could not save the Telegram configuration.',
+        tone: 'error',
+      });
+    }
+  }
+
+  const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
   const section = hasSavedTelegramConfiguration ? routeState.section : 'settings';
   const showOverviewSection = section === 'overview';
   const showSettingsSection = section === 'settings';
@@ -419,6 +552,7 @@ export function AutomationsRoute() {
   const showExceptionsSection = section === 'exceptions';
   const connectionStatus = connection?.status ?? 'disconnected';
   const isDisconnected = connectionStatus === 'disconnected';
+  const openBotUrl = buildTelegramOpenUrl(connection?.botUsername ?? botUsername, connection?.externalLink ?? externalLink);
 
   const titleActions = (
     <WorkspaceActionRow>
@@ -461,12 +595,16 @@ export function AutomationsRoute() {
         <StatusSendIcon className="size-4" />
         Test message
       </Button>
-      {externalLink ? (
-        <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
-          <a href={externalLink} rel="noreferrer" target="_blank">
-            <ActionOpenExternalIcon className="size-4" />
-            Open bot
-          </a>
+      {openBotUrl ? (
+        <Button
+          className={compactActionButtonClassName}
+          size="sm"
+          type="button"
+          variant="outline"
+          onClick={() => { void window.banjiDesktop.system.openExternalUrl(openBotUrl); }}
+        >
+          <ActionOpenExternalIcon className="size-4" />
+          Open bot
         </Button>
       ) : (
         <Button className={compactActionButtonClassName} disabled size="sm" type="button" variant="outline">
@@ -483,7 +621,7 @@ export function AutomationsRoute() {
         <WorkspaceTitleCard
           eyebrow={t('navAutomations')}
           title={translateUiLiteral(language, 'Telegram Bot')}
-          descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banj as the source of pricing and fulfillment truth."
+          descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
         />
       </WorkspacePage>
     );
@@ -495,7 +633,7 @@ export function AutomationsRoute() {
         actions={hasSavedTelegramConfiguration ? titleActions : undefined}
         eyebrow={t('navAutomations')}
         title={translateUiLiteral(language, 'Telegram Bot')}
-        descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banj as the source of pricing and fulfillment truth."
+        descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
       >
         <p className="text-sm leading-6 text-muted-foreground">
           {connectionLabel(connection?.status ?? 'disconnected')}
@@ -510,12 +648,24 @@ export function AutomationsRoute() {
 
       <ConfirmActionDialog
         confirmLabel="Disconnect bot"
-        description="Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banj tickets will stay in banj."
+        description="Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banji tickets will stay in banji."
         isSubmitting={isSaving}
         open={disconnectDialogOpen}
         title="Disconnect Telegram bot?"
         onCancel={() => setDisconnectDialogOpen(false)}
         onConfirm={() => { void handleConfirmDisconnect(); }}
+      />
+
+      <ConfirmActionDialog
+        confirmLabel="OK"
+        confirmVariant="default"
+        description={saveResultDialog?.description}
+        hideCancel
+        iconTone={saveResultDialog?.tone === 'success' ? 'success' : 'destructive'}
+        open={saveResultDialog != null}
+        title={saveResultDialog?.title ?? ''}
+        onCancel={() => setSaveResultDialog(null)}
+        onConfirm={() => setSaveResultDialog(null)}
       />
 
       {error ? (
@@ -550,28 +700,47 @@ export function AutomationsRoute() {
           }}
         >
           {showOverviewSection ? (
-            <section className={PERFORMANCE_HEADER_SURFACE_CLASS_NAME}>
-              <div className="grid divide-y divide-border/60 xl:grid-cols-3 xl:divide-x xl:divide-y-0">
-                <OverviewColumn title="Today" tooltip={translateUiLiteral(language, 'Telegram intake counts for today.')}>
-                  <RailRows emptyLabel="Telegram activity has not started today." rows={model?.today ?? []} />
-                </OverviewColumn>
+            <div className="grid gap-4">
+              {unavailableExposedCount > 0 ? (
+                <WorkspaceBanner
+                  tone="warning"
+                  title="Unavailable sellables are still exposed"
+                  description={
+                    unavailableExposedCount === 1
+                      ? '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.'
+                      : `${unavailableExposedCount} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.`
+                  }
+                  action={(
+                    <Button size="sm" type="button" variant="outline" onClick={() => updateRouteState({ section: 'catalog', exposure: 'exposed' })}>
+                      <EntityPreviewIcon className="size-4" />
+                      Review exposed sellables
+                    </Button>
+                  )}
+                />
+              ) : null}
+              <section className={PERFORMANCE_HEADER_SURFACE_CLASS_NAME}>
+                <div className="grid divide-y divide-border/60 xl:grid-cols-3 xl:divide-x xl:divide-y-0">
+                  <OverviewColumn title="Today" tooltip={translateUiLiteral(language, 'Telegram intake counts for today.')}>
+                    <RailRows emptyLabel="Telegram activity has not started today." rows={model?.today ?? []} />
+                  </OverviewColumn>
 
-                <OverviewColumn title="Recent automation activity" tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
-                  <RecentAutomationActivityRail rows={model?.recentActivity ?? []} />
-                </OverviewColumn>
+                  <OverviewColumn title="Recent automation activity" tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
+                    <RecentAutomationActivityRail rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} />
+                  </OverviewColumn>
 
-                <OverviewColumn title="Coverage" tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
-                  <RailRows emptyLabel="Expose at least one sellable to start Telegram coverage." rows={model?.coverage ?? []} />
-                </OverviewColumn>
-              </div>
-            </section>
+                  <OverviewColumn title="Coverage" tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
+                    <RailRows emptyLabel="Expose at least one sellable to start Telegram coverage." rows={model?.coverage ?? []} />
+                  </OverviewColumn>
+                </div>
+              </section>
+            </div>
           ) : null}
 
           {showSettingsSection ? (
             <PerformanceSectionShell
               descriptor={<AutomationConfigurationTutorial />}
               title="Configuration"
-              tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banj as the source of pricing, tickets, and fulfillment truth.')}
+              tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.')}
             >
               <AutomationConnectionCard
                 botDisplayName={botDisplayName}
@@ -579,11 +748,12 @@ export function AutomationsRoute() {
                 botUsername={botUsername}
                 connection={connection}
                 externalLink={externalLink}
+                isSaving={isSaving}
                 onBotDisplayNameChange={setBotDisplayName}
                 onBotTokenChange={setBotToken}
                 onBotUsernameChange={setBotUsername}
                 onExternalLinkChange={setExternalLink}
-                onSave={() => { void handleSaveConnection(); }}
+                onSave={() => { void handleSubmitTelegramSettings(); }}
               />
             </PerformanceSectionShell>
           ) : null}
@@ -676,7 +846,7 @@ export function AutomationsRoute() {
 
           {showIntakeSection ? (
             <PerformanceSectionShell
-              descriptor="Incoming Telegram requests waiting for review, confirmation, or promotion into banj tickets."
+              descriptor="Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets."
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, handles, notes, or intake lines…')}
@@ -725,10 +895,10 @@ export function AutomationsRoute() {
                 </CardControlRow>
               )}
               title="Live intake"
-              tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banj tickets.')}
+              tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
             >
               {visibleIntakeRows.length > 0 ? (
-                <AutomationIntakeTable rows={visibleIntakeRows} />
+                <AutomationIntakeTable rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
                   body="No Telegram intake matches this view."
@@ -740,7 +910,7 @@ export function AutomationsRoute() {
 
           {showExceptionsSection ? (
             <PerformanceSectionShell
-              descriptor="Messages that banj could not safely convert into clean customer order intake."
+              descriptor="Messages that banji could not safely convert into clean customer order intake."
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, issues, notes, or intake lines…')}
@@ -803,10 +973,10 @@ export function AutomationsRoute() {
                 </CardControlRow>
               )}
               title="Needs review"
-              tooltip={translateUiLiteral(language, 'Messages that banj could not safely convert into clean customer order intake.')}
+              tooltip={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
             >
               {visibleExceptionRows.length > 0 ? (
-                <AutomationExceptionTable rows={visibleExceptionRows} />
+                <AutomationExceptionTable rows={visibleExceptionRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
                   body="No review items are waiting right now."
@@ -819,11 +989,11 @@ export function AutomationsRoute() {
       </ChromeTabs>
 
       <AutomationIntakeDrawer
-        conversationId={routeState.conversationId}
+        conversationId={selectedIntakeRequest?.conversationId ?? null}
         intake={selectedIntake}
         isSaving={isSaving}
-        open={Boolean(routeState.intakeId && selectedIntake)}
-        onClose={() => updateRouteState({ conversationId: null, intakeId: null, ticketId: null })}
+        open={selectedIntake != null}
+        onClose={() => setSelectedIntakeRequest(null)}
         onPromote={promoteIntake}
         onReadConversation={readConversation}
         onResolve={resolveIntake}

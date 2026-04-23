@@ -60,4 +60,16 @@ describe('ArchiveRoute', () => {
     expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Archive')).toBeInTheDocument();
   });
+
+  test('renders icons inside archive toggle pills', () => {
+    render(
+      <MemoryRouter initialEntries={['/operations/archive']}>
+        <ArchiveRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'All' }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /SKUs/i }).querySelector('svg')).not.toBeNull();
+    expect(screen.getByRole('radio', { name: /Services/i }).querySelector('svg')).not.toBeNull();
+  });
 });

@@ -71,6 +71,7 @@ describe('CommandPaletteProvider', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key: string) =>
         ({
@@ -274,6 +275,7 @@ describe('CommandPaletteProvider', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       t: (key: string) =>
         ({

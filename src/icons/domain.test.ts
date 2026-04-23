@@ -35,11 +35,10 @@ describe('domain icon mappings', () => {
   test('covers all customer overview filter keys', () => {
     expect(Object.keys(overviewCustomerFilterIcons).sort()).toEqual([
       'all',
-      'canceled_today',
-      'completed_today',
-      'need_stock',
+      'closed',
       'open',
-      'ready_to_complete',
+      'quoted',
+      'review',
     ]);
   });
 
@@ -74,7 +73,12 @@ describe('domain icon mappings', () => {
       .map((Icon) => Icon.displayName ?? Icon.name);
     const duplicateNames = iconNames.filter((name, index) => iconNames.indexOf(name) !== index);
 
-    expect(duplicateNames).toEqual(['ClipboardList', 'ClipboardList', 'ClipboardCheck', 'Package']);
+    expect(duplicateNames).toEqual([
+      'ClipboardList',
+      'ClipboardList',
+      'Send',
+      'Package',
+    ]);
   });
 
   test('uses the shared neutral icon for the normal regime', () => {

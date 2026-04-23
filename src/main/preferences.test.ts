@@ -44,6 +44,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -60,6 +61,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -73,7 +75,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
   });
 
@@ -96,6 +100,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -112,6 +117,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -125,7 +131,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
 
     await expect(
@@ -147,6 +155,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -163,6 +172,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -176,7 +186,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
@@ -190,6 +202,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -206,6 +219,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -219,7 +233,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
 
     const raw = await readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8');
@@ -234,6 +250,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -250,6 +267,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -263,7 +281,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
   });
 
@@ -322,6 +342,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -338,6 +359,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -351,7 +373,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
     await expect(secondSave).resolves.toEqual({
       language: 'km',
@@ -364,6 +388,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -380,6 +405,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -393,7 +419,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
       language: 'km',
@@ -406,6 +434,7 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: true,
       showOverviewTaskTabs: true,
+      showAutomationsPage: true,
       showAnalysisPage: true,
       showPerformanceCompareToggle: true,
       showPerformanceTimelineCard: true,
@@ -422,6 +451,7 @@ describe('desktop preferences store', () => {
       customShowFloatingTitleActions: true,
       customShowRightRailCards: true,
       customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: true,
       customShowPerformanceTimelineCard: true,
@@ -435,7 +465,9 @@ describe('desktop preferences store', () => {
         operations: false,
         performance: false,
         financials: false,
+        automations: false,
       },
+      workbenchTileOrderByLane: {},
     });
   });
 
@@ -460,6 +492,56 @@ describe('desktop preferences store', () => {
     );
   });
 
+  it('round-trips and normalizes workbench tile order by lane', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await expect(
+      saveDesktopPreferences(userDataPath, {
+        workbenchTileOrderByLane: {
+          'stock-count': ['stock:sku-2', 'stock:sku-1'],
+          'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
+          'customer-order-pending': ['retail:sku-1', '', 'retail:sku-1', 'service:service-1'],
+          'customer-order-completed': ['retail:sku-2'],
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        workbenchTileOrderByLane: {
+          'stock-count': ['stock:sku-2', 'stock:sku-1'],
+          'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
+          'customer-order-pending': ['retail:sku-1', 'service:service-1'],
+          'customer-order-completed': ['retail:sku-2'],
+        },
+      }),
+    );
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        language: 'en',
+        currency: 'USD',
+        workbenchTileOrderByLane: {
+          'stock-count': ['stock:sku-3', 'stock:sku-3', null],
+          'supplier-order-pending': ['supplier-order:sku-3', 'supplier-order:sku-3', null],
+          'customer-order-pending': ['retail:sku-2'],
+          invalid: ['bad'],
+        },
+      }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(
+      expect.objectContaining({
+        workbenchTileOrderByLane: {
+          'stock-count': ['stock:sku-3'],
+          'supplier-order-pending': ['supplier-order:sku-3'],
+          'customer-order-pending': ['retail:sku-2'],
+        },
+      }),
+    );
+  });
+
   it('treats existing preference files without onboarding metadata as already onboarded', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
     await writeFile(
@@ -480,6 +562,7 @@ describe('desktop preferences store', () => {
       operations: true,
       performance: true,
       financials: true,
+      automations: true,
     });
   });
 });

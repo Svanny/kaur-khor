@@ -18,6 +18,7 @@ import { overviewTaskActionIcons, overviewTaskFilterIcons, rankingEntryTypeIcons
 import {
   NavigationArchiveIcon,
   NavigationAnalysisIcon,
+  NavigationAutomationIcon,
   NavigationCatalogIcon,
   NavigationDashboardIcon,
   NavigationFinancialsIcon,
@@ -49,6 +50,7 @@ import {
   groupCommandDescriptors,
   searchCommandDescriptors,
 } from '@/lib/command-palette';
+import { usePageStateMemoryVersion } from '@/lib/page-state-memory';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 
@@ -103,6 +105,8 @@ function pageIcon(pageId: string): CommandIconComponent {
       return NavigationPerformanceIcon;
     case 'financials':
       return NavigationFinancialsIcon;
+    case 'automations':
+      return NavigationAutomationIcon;
     case 'catalog':
       return NavigationCatalogIcon;
     case 'analysis':
@@ -128,6 +132,8 @@ function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'sett
       return NavigationWorkspacePanelsIcon;
     case 'set-show-right-rail-cards':
       return NavigationRightPanelIcon;
+    case 'set-show-automations-page':
+      return NavigationAutomationIcon;
     case 'set-show-analysis-page':
       return NavigationAnalysisIcon;
     case 'set-show-explanatory-tooltips':
@@ -267,12 +273,14 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     senaEngineParameters,
     showExplanatoryTooltips,
     showFloatingTitleActions,
+    showAutomationsPage,
     showAnalysisPage,
     showRightRailCards,
     t,
   } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
+  const pageStateMemoryVersion = usePageStateMemoryVersion();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const resultRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [open, setOpen] = useState(false);
@@ -288,6 +296,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         senaEngineParameters,
         showExplanatoryTooltips,
         showFloatingTitleActions,
+        showAutomationsPage,
         showAnalysisPage,
         showRightRailCards,
         t: (key) => t(key as never),
@@ -301,9 +310,13 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       displayViewMode,
       inventory,
       language,
+      location.pathname,
+      location.search,
+      pageStateMemoryVersion,
       senaEngineParameters,
       showExplanatoryTooltips,
       showFloatingTitleActions,
+      showAutomationsPage,
       showAnalysisPage,
       showRightRailCards,
       t,
@@ -415,6 +428,10 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       }
       if (command.action.effect === 'set-show-right-rail-cards') {
         await savePreferences({ showRightRailCards: command.action.value as boolean });
+        return;
+      }
+      if (command.action.effect === 'set-show-automations-page') {
+        await savePreferences({ showAutomationsPage: command.action.value as boolean });
         return;
       }
       if (command.action.effect === 'set-show-analysis-page') {

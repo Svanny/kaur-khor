@@ -1,8 +1,10 @@
 import type { DesktopSeenUnlockedNavItemId, DesktopSeenUnlockedNavItems } from '@shared/ipc';
+import { hasAutomationEligibleSellable } from '@shared/automation-sellables';
 import type { InventoryContextValue } from '@/state/inventory';
 import { activeSenaCatalog } from './sena-catalog';
 
 export type NavigationAvailability = {
+  hasAutomationsTab: boolean;
   hasCatalogTab: boolean;
   hasLogsTab: boolean;
   hasPerformanceTab: boolean;
@@ -11,6 +13,7 @@ export type NavigationAvailability = {
 };
 
 export const GATED_NAV_ITEM_IDS: DesktopSeenUnlockedNavItemId[] = [
+  'automations',
   'catalog',
   'operations',
   'performance',
@@ -28,7 +31,7 @@ function deriveAvailableObservationCount(
 }
 
 export function deriveNavigationAvailability(
-  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'workspaceSummary'>,
+  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'reports' | 'workspaceSummary'>,
 ): NavigationAvailability {
   const visibleCatalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const activeSkuCount = visibleCatalog?.skus.filter((sku) => !sku.archived).length ?? 0;
@@ -36,6 +39,9 @@ export function deriveNavigationAvailability(
   const observationCount = deriveAvailableObservationCount(inventory);
 
   return {
+    hasAutomationsTab:
+      (inventory.reports?.length ?? 0) >= 1 &&
+      hasAutomationEligibleSellable(visibleCatalog),
     hasCatalogTab: activeSkuCount >= 1,
     hasLogsTab: observationCount >= 1,
     hasPerformanceTab: observationCount >= 2,
@@ -57,6 +63,8 @@ export function isUnlockedNavItemVisible(
   availability: NavigationAvailability,
 ) {
   switch (itemId) {
+    case 'automations':
+      return availability.hasAutomationsTab;
     case 'catalog':
       return availability.hasCatalogTab;
     case 'operations':

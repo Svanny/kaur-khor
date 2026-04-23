@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
+import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
@@ -156,6 +156,7 @@ export function ArchiveRoute() {
             }}
           >
             <ToggleGroupItem value="all">
+              <EntityLayersIcon data-icon="inline-start" />
               {translateUiLiteral(language, 'All')}
             </ToggleGroupItem>
             <ToggleGroupItem value="skus">

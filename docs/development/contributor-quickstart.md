@@ -56,8 +56,9 @@ The paths that matter most during normal contributor work:
 
 1. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
 2. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
-3. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-4. [User guide](/Users/svanny/banji/docs/user-guide.md)
+3. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
+4. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
+5. [User guide](/Users/svanny/banji/docs/user-guide.md)
 
 ## Typical Change Paths
 

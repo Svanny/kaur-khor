@@ -3,12 +3,14 @@ import { join } from 'node:path';
 import {
   DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
+  DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
   DEFAULT_SENA_ENGINE_PARAMETERS,
   DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
   normalizeDesktopPreferenceTimestamp,
   normalizeDesktopSeenUnlockedNavItems,
   normalizeDesktopTaskBatchUpdatePreferences,
+  normalizeDesktopWorkbenchTileOrderByLane,
   normalizeSenaEngineParameters,
   type DesktopPreferences,
   type DesktopTaskBatchUpdatePreference,
@@ -25,6 +27,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   showFloatingTitleActions: true,
   showRightRailCards: true,
   showOverviewTaskTabs: true,
+  showAutomationsPage: true,
   showAnalysisPage: true,
   showPerformanceCompareToggle: true,
   showPerformanceTimelineCard: true,
@@ -35,6 +38,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   customShowFloatingTitleActions: true,
   customShowRightRailCards: true,
   customShowOverviewTaskTabs: true,
+  customShowAutomationsPage: true,
   customShowAnalysisPage: true,
   customShowPerformanceCompareToggle: true,
   customShowPerformanceTimelineCard: true,
@@ -44,6 +48,7 @@ const DEFAULT_PREFERENCES: DesktopPreferences = {
   overviewStaleUpdateReminderSnoozeUntil: null,
   onboardingCompletedAt: null,
   seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
+  workbenchTileOrderByLane: DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
 };
 let preferencesWriteQueue: Promise<void> = Promise.resolve();
 
@@ -69,6 +74,7 @@ function normalizePreferences(
   const showFloatingTitleActions = value?.showFloatingTitleActions ?? true;
   const showRightRailCards = value?.showRightRailCards ?? true;
   const showOverviewTaskTabs = value?.showOverviewTaskTabs ?? true;
+  const showAutomationsPage = value?.showAutomationsPage ?? true;
   const showAnalysisPage = value?.showAnalysisPage ?? true;
   const showPerformanceCompareToggle = value?.showPerformanceCompareToggle ?? true;
   const showPerformanceTimelineCard = value?.showPerformanceTimelineCard ?? true;
@@ -78,6 +84,7 @@ function normalizePreferences(
   const customShowFloatingTitleActions = value?.customShowFloatingTitleActions ?? showFloatingTitleActions;
   const customShowRightRailCards = value?.customShowRightRailCards ?? showRightRailCards;
   const customShowOverviewTaskTabs = value?.customShowOverviewTaskTabs ?? showOverviewTaskTabs;
+  const customShowAutomationsPage = value?.customShowAutomationsPage ?? showAutomationsPage;
   const customShowAnalysisPage = value?.customShowAnalysisPage ?? showAnalysisPage;
   const customShowPerformanceCompareToggle =
     value?.customShowPerformanceCompareToggle ?? showPerformanceCompareToggle;
@@ -92,6 +99,7 @@ function normalizePreferences(
           !showFloatingTitleActions &&
           !showRightRailCards &&
           !showOverviewTaskTabs &&
+          !showAutomationsPage &&
           !showAnalysisPage &&
           !showPerformanceCompareToggle &&
           !showPerformanceTimelineCard &&
@@ -126,6 +134,7 @@ function normalizePreferences(
     showFloatingTitleActions,
     showRightRailCards,
     showOverviewTaskTabs,
+    showAutomationsPage,
     showAnalysisPage,
     showPerformanceCompareToggle,
     showPerformanceTimelineCard,
@@ -139,6 +148,7 @@ function normalizePreferences(
     customShowFloatingTitleActions,
     customShowRightRailCards,
     customShowOverviewTaskTabs,
+    customShowAutomationsPage,
     customShowAnalysisPage,
     customShowPerformanceCompareToggle,
     customShowPerformanceTimelineCard,
@@ -150,6 +160,7 @@ function normalizePreferences(
     ),
     onboardingCompletedAt,
     seenUnlockedNavItems,
+    workbenchTileOrderByLane: normalizeDesktopWorkbenchTileOrderByLane(value?.workbenchTileOrderByLane),
   };
 }
 

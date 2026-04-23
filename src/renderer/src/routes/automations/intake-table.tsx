@@ -13,7 +13,9 @@ import { Button } from '@/components/ui/button';
 import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { ActionClipboardAddIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
-import { EntityPreviewIcon } from '@icons/entities';
+import { EntityCustomerIcon } from '@icons/entities';
+
+const automationActionButtonClassName = 'min-w-[152px] justify-center';
 
 const layout = createHeaderedTableLayout({
   breakpoint: 'xl',
@@ -21,7 +23,13 @@ const layout = createHeaderedTableLayout({
   gap: 4,
 });
 
-export function AutomationIntakeTable({ rows }: { rows: AutomationIntakeTableRow[] }) {
+export function AutomationIntakeTable({
+  rows,
+  onOpenIntake,
+}: {
+  rows: AutomationIntakeTableRow[];
+  onOpenIntake: (row: AutomationIntakeTableRow) => void;
+}) {
   if (rows.length === 0) {
     return null;
   }
@@ -41,10 +49,13 @@ export function AutomationIntakeTable({ rows }: { rows: AutomationIntakeTableRow
           {rows.map((row) => (
             <HeaderedTableRow key={row.intakeId} className={`${layout.rowClassName} ${rowHoverClassName}`}>
               <div className="min-w-0">
-                <Link className="group min-w-0" to={row.href}>
-                  <p className="font-semibold text-foreground transition-colors group-hover:text-primary">{row.customerLabel}</p>
+                <button className="group min-w-0 text-left" type="button" onClick={() => onOpenIntake(row)}>
+                  <p className="flex items-center gap-2 font-semibold text-foreground transition-colors group-hover:text-primary">
+                    <EntityCustomerIcon data-icon="inline-start" className="size-4 shrink-0" />
+                    <span className="truncate">{row.customerLabel}</span>
+                  </p>
                   {row.customerMeta ? <p className="mt-1 text-sm leading-6 text-muted-foreground">{row.customerMeta}</p> : null}
-                </Link>
+                </button>
               </div>
               <div className="min-w-0">
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Request</HeaderedTableMobileLabel>
@@ -65,19 +76,17 @@ export function AutomationIntakeTable({ rows }: { rows: AutomationIntakeTableRow
                 <p className="text-sm leading-6 text-muted-foreground">{row.createdLabel}</p>
               </div>
               <div className="flex items-start lg:justify-center">
-                {row.ticketHref && (row.actionLabel === 'Open ticket' || row.actionLabel === 'View') ? (
-                  <Button asChild className="w-[132px] justify-center" size="sm" variant="outline">
+                {row.ticketHref ? (
+                  <Button asChild className={automationActionButtonClassName} size="sm" variant="outline">
                     <Link to={row.ticketHref}>
-                      {row.actionLabel === 'Open ticket' ? <ActionOpenExternalIcon className="size-4" /> : <EntityPreviewIcon className="size-4" />}
+                      <ActionOpenExternalIcon className="size-4" />
                       {row.actionLabel}
                     </Link>
                   </Button>
                 ) : (
-                  <Button asChild className="w-[132px] justify-center" size="sm" variant={row.actionLabel === 'Create ticket' ? 'default' : 'outline'}>
-                    <Link to={row.href}>
-                      {row.actionLabel === 'Create ticket' ? <ActionClipboardAddIcon className="size-4" /> : <ActionEditIcon className="size-4" />}
-                      {row.actionLabel}
-                    </Link>
+                  <Button className={automationActionButtonClassName} size="sm" type="button" variant="outline" onClick={() => onOpenIntake(row)}>
+                    {row.actionLabel === 'Open intake' ? <ActionEditIcon className="size-4" /> : <ActionClipboardAddIcon className="size-4" />}
+                    {row.actionLabel}
                   </Button>
                 )}
               </div>

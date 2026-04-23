@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ActionOpenExternalIcon } from '@icons/actions';
-import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
+import { ActionOpenExternalIcon, ActionSearchOffIcon } from '@icons/actions';
+import { NavigationDashboardIcon, NavigationNextIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -107,6 +107,7 @@ export function HelpRoute() {
                       setQuery('');
                     }}
                   >
+                    <ActionSearchOffIcon data-icon="inline-start" />
                     {t('helpClearSearchAction')}
                   </Button>
                 </WorkspaceActionRow>
@@ -218,7 +219,10 @@ export function HelpRoute() {
                     jumpToSection(section.id);
                   }}
                 >
-                  <span>{section.title}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <NavigationNextIcon data-icon="inline-start" className="size-4 shrink-0" />
+                    <span className="truncate">{section.title}</span>
+                  </span>
                   {bestMatchSectionId === section.id ? (
                     <span className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-primary/80">
                       {t('helpIndexBestBadge')}

@@ -1,8 +1,15 @@
 import { Link } from 'react-router-dom';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import type { AutomationRailRow } from './view-model';
+import { StatusAutomationIcon } from '@icons/status';
 
-export function RecentAutomationActivityRail({ rows }: { rows: AutomationRailRow[] }) {
+export function RecentAutomationActivityRail({
+  rows,
+  onOpenIntake,
+}: {
+  rows: AutomationRailRow[];
+  onOpenIntake: (row: AutomationRailRow) => void;
+}) {
   if (rows.length === 0) {
     return <p className="py-3 text-sm text-muted-foreground">Automation activity will appear here once Telegram intake starts moving.</p>;
   }
@@ -10,19 +17,42 @@ export function RecentAutomationActivityRail({ rows }: { rows: AutomationRailRow
   return (
     <div className="divide-y divide-border/50">
       {rows.map((row) => (
-        <Link
-          key={row.id}
-          className={`flex items-start justify-between gap-3 rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
-          to={row.href}
-        >
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">{row.label}</p>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
-          </div>
-          {row.valueLabel ? (
-            <span className="shrink-0 text-xs font-semibold text-foreground">{row.valueLabel}</span>
-          ) : null}
-        </Link>
+        row.overviewHref ? (
+          <Link
+            key={row.id}
+            className={`flex w-full items-start justify-between gap-3 rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+            to={row.overviewHref}
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              <StatusAutomationIcon data-icon="inline-start" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{row.label}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+              </div>
+            </div>
+            {row.valueLabel ? (
+              <span className="shrink-0 text-xs font-semibold text-foreground">{row.valueLabel}</span>
+            ) : null}
+          </Link>
+        ) : (
+          <button
+            key={row.id}
+            className={`flex w-full items-start justify-between gap-3 rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+            type="button"
+            onClick={() => onOpenIntake(row)}
+          >
+            <div className="flex min-w-0 items-start gap-2">
+              <StatusAutomationIcon data-icon="inline-start" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">{row.label}</p>
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{row.detail}</p>
+              </div>
+            </div>
+            {row.valueLabel ? (
+              <span className="shrink-0 text-xs font-semibold text-foreground">{row.valueLabel}</span>
+            ) : null}
+          </button>
+        )
       ))}
     </div>
   );

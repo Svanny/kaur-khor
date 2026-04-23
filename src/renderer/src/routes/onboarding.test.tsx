@@ -19,6 +19,7 @@ describe('OnboardingRoute', () => {
     showFloatingTitleActions: true,
     showRightRailCards: true,
     showOverviewTaskTabs: true,
+    showAutomationsPage: true,
     showAnalysisPage: true,
     showPerformanceCompareToggle: true,
     showPerformanceTimelineCard: true,
@@ -35,6 +36,7 @@ describe('OnboardingRoute', () => {
     customShowFloatingTitleActions: true,
     customShowRightRailCards: true,
     customShowOverviewTaskTabs: true,
+    customShowAutomationsPage: true,
     customShowAnalysisPage: true,
     customShowPerformanceCompareToggle: true,
     customShowPerformanceTimelineCard: true,
@@ -48,6 +50,7 @@ describe('OnboardingRoute', () => {
       operations: false,
       performance: false,
       financials: false,
+      automations: false,
     },
   };
 
@@ -103,6 +106,7 @@ describe('OnboardingRoute', () => {
         showFloatingTitleActions: true,
         showRightRailCards: false,
         showOverviewTaskTabs: false,
+        showAutomationsPage: false,
         showAnalysisPage: false,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
@@ -114,6 +118,7 @@ describe('OnboardingRoute', () => {
           operations: false,
           performance: false,
           financials: false,
+          automations: false,
         },
       }));
     });
@@ -128,6 +133,7 @@ describe('OnboardingRoute', () => {
         operations: true,
         performance: true,
         financials: true,
+        automations: true,
       },
     });
 

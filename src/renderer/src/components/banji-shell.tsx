@@ -36,6 +36,7 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { buildRememberedPageHref, usePageStateMemoryVersion } from '@/lib/page-state-memory';
 import { SETTINGS_SECTIONS, resolveSettingsSection, type SettingsSectionConfig } from '@/lib/settings-navigation';
 import {
   deriveNavigationAvailability,
@@ -49,6 +50,7 @@ import { useInventory } from '@/state/inventory';
 import { SIDEBAR_NAVIGATION_SOURCE } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
+import { ActionRefreshIcon } from '@icons/actions';
 
 type ShellSectionConfig = {
   destination: string;
@@ -156,6 +158,7 @@ const SECONDARY_SECTIONS: ShellSectionConfig[] = [
   {
     id: 'automations',
     destination: '/automations',
+    gatedNavItemId: 'automations',
     labelKey: 'navAutomations',
     icon: NavigationAutomationIcon,
     matches: (pathname) => matchesSection(pathname, '/automations'),
@@ -251,7 +254,7 @@ function SidebarSectionMenu({
                 aria-label={label}
                 className="group-data-[collapsible=icon]:justify-center"
                 state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                to={section.destination}
+                to={buildRememberedPageHref(section.destination)}
                 onClick={onNavigate}
               >
                 <section.icon className="size-4" />
@@ -327,7 +330,7 @@ function SettingsSidebarMenu({
                 aria-label={label}
                 className="group-data-[collapsible=icon]:justify-center"
                 state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                to={section.path}
+                to={buildRememberedPageHref(section.path)}
                 onClick={onNavigate}
               >
                 <section.icon className="size-4" />
@@ -362,7 +365,7 @@ function SettingsBackToAppMenuItem({
         aria-label={label}
         className="group-data-[collapsible=icon]:justify-center"
         state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-        to="/"
+        to={buildRememberedPageHref('/')}
         onClick={onNavigate}
       >
         <NavigationBackIcon className="size-4" />
@@ -386,11 +389,13 @@ export function BanjiShell({
 
 function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
+  usePageStateMemoryVersion();
   const {
     isHydrated,
     language,
     markUnlockedNavItemSeen,
     seenUnlockedNavItems,
+    showAutomationsPage,
     showAnalysisPage,
     t,
   } = usePreferences();
@@ -399,9 +404,15 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const showGlobalLoadingScreen =
     isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
-  const secondarySections = showAnalysisPage
-    ? SECONDARY_SECTIONS
-    : SECONDARY_SECTIONS.filter((section) => section.id !== 'analysis');
+  const secondarySections = SECONDARY_SECTIONS.filter((section) => {
+    if (section.id === 'automations') {
+      return showAutomationsPage;
+    }
+    if (section.id === 'analysis') {
+      return showAnalysisPage;
+    }
+    return true;
+  });
   const navigationAvailability = deriveNavigationAvailability(inventory);
   const visiblePrimarySections = PRIMARY_SECTIONS.filter((section) =>
     section.availabilityKey
@@ -609,7 +620,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                         aria-label={t(HELP_SECTION.labelKey)}
                         className="group-data-[collapsible=icon]:justify-center"
                         state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                        to={HELP_SECTION.destination}
+                        to={buildRememberedPageHref(HELP_SECTION.destination)}
                         onClick={handleSidebarNavigation}
                       >
                         <HELP_SECTION.icon className="size-4" />
@@ -628,7 +639,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                         aria-label={t(SETTINGS_SECTION.labelKey)}
                         className="group-data-[collapsible=icon]:justify-center"
                         state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                        to={SETTINGS_SECTION.destination}
+                        to={buildRememberedPageHref(SETTINGS_SECTION.destination)}
                         onClick={handleSidebarNavigation}
                       >
                         <SETTINGS_SECTION.icon className="size-4" />
@@ -666,6 +677,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                         void reload();
                       }}
                     >
+                      <ActionRefreshIcon data-icon="inline-start" />
                       {t('retry')}
                     </Button>
                   }

@@ -6,8 +6,9 @@ import type {
   AutomationOrderIntake,
   AutomationWorkspace,
 } from '@shared/automation';
+import { formatPhoneForDisplay } from '@shared/phone';
 import { formatCurrency } from '@/lib/format';
-import { buildAutomationHref } from '@/lib/navigation-state';
+import { buildAutomationHref, buildOverviewHref } from '@/lib/navigation-state';
 import type { StatusPillTone } from '@/lib/state-tones';
 
 export type AutomationRibbonMetric = {
@@ -37,6 +38,7 @@ export type AutomationIntakeTableRow = {
   actionLabel: string;
   href: string;
   ticketHref: string | null;
+  overviewHref: string;
 };
 
 export type AutomationExceptionRow = {
@@ -47,16 +49,22 @@ export type AutomationExceptionRow = {
   messageSnippet: string;
   confidenceLabel: string;
   confidenceTone: StatusPillTone;
+  actionLabel: string;
   href: string;
+  ticketHref: string | null;
+  overviewHref: string;
 };
 
 export type AutomationRailRow = {
   id: string;
+  conversationId?: string | null;
   label: string;
   detail: string;
+  intakeId?: string | null;
   valueLabel?: string | null;
   valueTone?: StatusPillTone | null;
   href: string;
+  overviewHref?: string | null;
 };
 
 function literalTime(value: string) {
@@ -167,25 +175,41 @@ function issueLabel(intake: AutomationOrderIntake) {
 }
 
 function customerLabel(intake: AutomationOrderIntake | AutomationConversationSummary) {
-  return intake.customerDisplayName ?? intake.customerHandle ?? intake.phone ?? 'Telegram customer';
+  return (intake.customerDisplayName ?? intake.customerHandle ?? formatPhoneForDisplay(intake.phone)) || 'Telegram customer';
 }
 
 function customerMeta(intake: AutomationOrderIntake) {
-  return [intake.customerHandle, intake.phone].filter(Boolean).join(' · ') || null;
+  return [intake.customerHandle, formatPhoneForDisplay(intake.phone)].filter(Boolean).join(' · ') || null;
 }
 
 function actionLabel(intake: AutomationOrderIntake) {
-  switch (intake.status) {
+  return intake.promotedTicketId ? 'Open ticket' : 'Open intake';
+}
+
+function overviewCustomerFilterForIntake(status: AutomationOrderIntake['status']) {
+  switch (status) {
+    case 'new':
+    case 'needs_review':
+    case 'failed':
+      return 'review' as const;
     case 'quoted':
-      return 'Create ticket';
+      return 'quoted' as const;
     case 'ticketed':
+      return 'open' as const;
     case 'completed':
-      return 'Open ticket';
     case 'canceled':
-      return 'View';
+      return 'closed' as const;
     default:
-      return 'Review';
+      return 'review' as const;
   }
+}
+
+function buildOverviewTaskHref(intake: AutomationOrderIntake) {
+  return buildOverviewHref({
+    workflow: 'customer',
+    customerFilter: overviewCustomerFilterForIntake(intake.status),
+    customerTaskId: `automation:intake:${intake.intakeId}`,
+  });
 }
 
 function formatMoney(value: number | null, currency: AppCurrency, language: AppLanguage, usdToKhrExchangeRate: number) {
@@ -274,6 +298,7 @@ export function deriveAutomationViewModel({
       intakeId: intake.intakeId,
       ticketId: intake.promotedTicketId,
     }, currentSearchParams),
+    overviewHref: buildOverviewTaskHref(intake),
     ticketHref: intake.promotedTicketId
       ? `/record-update/customer-orders-pending?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
       : null,
@@ -289,15 +314,22 @@ export function deriveAutomationViewModel({
       messageSnippet: intake.notes ?? requestSummary(intake.lines),
       confidenceLabel: intake.parseConfidence.toUpperCase(),
       confidenceTone: confidenceTone(intake.parseConfidence),
+      actionLabel: actionLabel(intake),
       href: buildAutomationHref({
         section: 'exceptions',
         conversationId: intake.conversationId,
         intakeId: intake.intakeId,
       }, currentSearchParams),
+      ticketHref: intake.promotedTicketId
+        ? `/record-update/customer-orders-pending?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
+        : null,
+      overviewHref: buildOverviewTaskHref(intake),
     }));
 
   const recentActivity: AutomationRailRow[] = workspace.intakes.slice(0, 5).map((intake) => ({
     id: intake.intakeId,
+    conversationId: intake.conversationId,
+    intakeId: intake.intakeId,
     label:
       intake.status === 'ticketed'
         ? 'Promoted Telegram intake to customer ticket'
@@ -314,6 +346,7 @@ export function deriveAutomationViewModel({
       conversationId: intake.conversationId,
       intakeId: intake.intakeId,
     }, currentSearchParams),
+    overviewHref: buildOverviewTaskHref(intake),
   }));
 
   const coverage: AutomationRailRow[] = [
@@ -358,7 +391,7 @@ export function deriveAutomationViewModel({
       detail: 'New Telegram intake',
       valueLabel: String(workspace.metrics.ordersToday),
       valueTone: workspace.metrics.ordersToday > 0 ? 'info' : 'neutral',
-      href: buildAutomationHref({ section: 'intake' }, currentSearchParams),
+      href: buildOverviewHref({ workflow: 'customer', customerFilter: 'review' }),
     },
     {
       id: 'today-review',
@@ -366,7 +399,7 @@ export function deriveAutomationViewModel({
       detail: 'Unsafe or ambiguous intake',
       valueLabel: String(workspace.metrics.needsReview),
       valueTone: workspace.metrics.needsReview > 0 ? 'warning' : 'neutral',
-      href: buildAutomationHref({ section: 'exceptions' }, currentSearchParams),
+      href: buildOverviewHref({ workflow: 'customer', customerFilter: 'review' }),
     },
     {
       id: 'today-quoted',
@@ -374,7 +407,7 @@ export function deriveAutomationViewModel({
       detail: 'Ready for operator confirmation',
       valueLabel: String(workspace.metrics.quotedToday),
       valueTone: workspace.metrics.quotedToday > 0 ? 'info' : 'neutral',
-      href: buildAutomationHref({ section: 'intake', intakeFilter: 'quoted' }, currentSearchParams),
+      href: buildOverviewHref({ workflow: 'customer', customerFilter: 'quoted' }),
     },
     {
       id: 'today-completed',
@@ -382,7 +415,7 @@ export function deriveAutomationViewModel({
       detail: 'Closed Telegram-origin customer work',
       valueLabel: String(workspace.metrics.completedToday),
       valueTone: workspace.metrics.completedToday > 0 ? 'success' : 'neutral',
-      href: buildAutomationHref({ section: 'intake', intakeFilter: 'completed' }, currentSearchParams),
+      href: buildOverviewHref({ workflow: 'customer', customerFilter: 'closed' }),
     },
   ];
 

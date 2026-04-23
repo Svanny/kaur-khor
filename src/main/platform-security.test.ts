@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const preloadSource = readFileSync(new URL('../preload/index.ts', import.meta.url), 'utf8');
 const rendererHtml = readFileSync(new URL('../renderer/index.html', import.meta.url), 'utf8');
+const windowActivationSource = readFileSync(new URL('./window-activation.ts', import.meta.url), 'utf8');
 
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
@@ -21,9 +22,23 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('const windowZoomLevels = new WeakMap<BrowserWindow, number>();');
     expect(mainSource).toContain('installPreferredWindowZoomBehavior(mainWindow);');
     expect(mainSource).toContain('show: false,');
-    expect(mainSource).toContain('mainWindow.showInactive();');
     expect(mainSource).toContain('focusable: !benchmarkWindowBackgroundMode,');
     expect(mainSource).toContain('skipTaskbar: benchmarkWindowBackgroundMode,');
+    expect(mainSource).toContain('function installMacDockIcon()');
+    expect(mainSource).toContain('app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));');
+    expect(mainSource).toContain('installMacDockIcon();');
+    expect(mainSource).toContain('prepareInactiveMacDevWindowLaunch({');
+    expect(mainSource).toContain('showWindowWithoutStealingFocus({');
+    expect(mainSource).toContain('restoreRegularActivationPolicy: shouldUseInactiveMacDevWindowLaunch,');
+    expect(windowActivationSource).toContain("app.setActivationPolicy?.('accessory');");
+    expect(windowActivationSource).toContain("app.setActivationPolicy?.('regular');");
+    expect(windowActivationSource).toContain('targetWindow.showInactive();');
+    expect(windowActivationSource).not.toContain("targetWindow.once('focus'");
+    expect(mainSource.indexOf('prepareInactiveMacDevWindowLaunch({')).toBeGreaterThan(-1);
+    expect(mainSource.indexOf('prepareInactiveMacDevWindowLaunch({')).toBeLessThan(mainSource.indexOf('app.whenReady()'));
+    expect(mainSource.indexOf('showWindowWithoutStealingFocus({')).toBeLessThan(
+      mainSource.indexOf("snapshotProcessMemory('main.window.renderer.loaded');"),
+    );
   });
 
   it('remaps actual size to the preferred default zoom level and owns zoom controls itself', () => {
