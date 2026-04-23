@@ -703,6 +703,10 @@ fn merge_order_fields(base: &SenaOrderFieldValues, overrides: &SenaOrderFieldVal
         lead_time_variability: overrides
             .lead_time_variability
             .or(base.lead_time_variability),
+        delivery_fee: overrides
+            .delivery_fee
+            .clone()
+            .or_else(|| base.delivery_fee.clone()),
     }
 }
 
@@ -2126,10 +2130,14 @@ mod tests {
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
         service::SenaRepository, PreprocessedWorkspace, SenaCatalog,
         SenaCreateOrderBatchPayload, SenaLeadTimeHint, SenaObservationInput,
-        SenaObservationPageRequest, SenaObservationRecord, SenaOrderSignal, SenaService,
-        SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
-        SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
-        SenaUpdateOrderChildPayload,
+        SenaObservationPageRequest, SenaObservationRecord, SenaOrderFieldValues,
+        SenaOrderSignal, SenaService, SenaServicePriceObservation,
+        SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload, SenaStockSnapshot,
+        SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+    };
+    use crate::lead_time::SenaLeadTimeVariabilityClass;
+    use crate::types::{
+        SenaDeliveryFeeBucket, SenaDeliveryFeeMetadata, SenaDeliveryFeePayer,
     };
     use futures::executor::block_on;
     use rusqlite::params;
@@ -2229,6 +2237,7 @@ mod tests {
                 adjustment_signals: Vec::new(),
                 commercial_events: Vec::new(),
                 ticket_events: Vec::new(),
+                delivery_fee: None,
                 recipe_usage_hints: Vec::new(),
                 notes: None,
             },
@@ -2847,6 +2856,77 @@ mod tests {
     }
 
     #[test]
+    fn merge_order_fields_prefers_overrides_and_preserves_base_values() {
+        let base = SenaOrderFieldValues {
+            supplier_name: Some("Base Supplier".to_string()),
+            supplier_note: Some("base note".to_string()),
+            ordered_quantity: Some(4.0),
+            received_quantity: Some(1.0),
+            cost_per_unit: Some(2.5),
+            expected_arrival_at: Some("2026-04-20T00:00:00Z".to_string()),
+            placement_timestamp: Some("2026-04-10T00:00:00Z".to_string()),
+            receipt_timestamp: None,
+            lead_time_days_hint: Some(5.0),
+            lead_time_variability: Some(SenaLeadTimeVariabilityClass::Normal),
+            delivery_fee: Some(SenaDeliveryFeeMetadata {
+                fee_usd: Some(1.25),
+                payer: SenaDeliveryFeePayer::Customer,
+                bucket: SenaDeliveryFeeBucket::Supplier,
+                subtotal_usd: Some(10.0),
+                display_delivery_usd: Some(1.25),
+                display_total_usd: Some(11.25),
+                net_settlement_usd: Some(11.25),
+            }),
+        };
+        let overrides = SenaOrderFieldValues {
+            supplier_name: None,
+            supplier_note: Some("override note".to_string()),
+            ordered_quantity: None,
+            received_quantity: Some(3.0),
+            cost_per_unit: None,
+            expected_arrival_at: None,
+            placement_timestamp: Some("2026-04-12T00:00:00Z".to_string()),
+            receipt_timestamp: Some("2026-04-13T00:00:00Z".to_string()),
+            lead_time_days_hint: None,
+            lead_time_variability: Some(SenaLeadTimeVariabilityClass::Wide),
+            delivery_fee: Some(SenaDeliveryFeeMetadata {
+                fee_usd: Some(2.5),
+                payer: SenaDeliveryFeePayer::Merchant,
+                bucket: SenaDeliveryFeeBucket::CustomerOrder,
+                subtotal_usd: Some(10.0),
+                display_delivery_usd: Some(0.0),
+                display_total_usd: Some(10.0),
+                net_settlement_usd: Some(7.5),
+            }),
+        };
+
+        let merged = super::merge_order_fields(&base, &overrides);
+
+        assert_eq!(merged.supplier_name.as_deref(), Some("Base Supplier"));
+        assert_eq!(merged.supplier_note.as_deref(), Some("override note"));
+        assert_eq!(merged.ordered_quantity, Some(4.0));
+        assert_eq!(merged.received_quantity, Some(3.0));
+        assert_eq!(merged.cost_per_unit, Some(2.5));
+        assert_eq!(merged.expected_arrival_at.as_deref(), Some("2026-04-20T00:00:00Z"));
+        assert_eq!(merged.placement_timestamp.as_deref(), Some("2026-04-12T00:00:00Z"));
+        assert_eq!(merged.receipt_timestamp.as_deref(), Some("2026-04-13T00:00:00Z"));
+        assert_eq!(merged.lead_time_days_hint, Some(5.0));
+        assert_eq!(merged.lead_time_variability, Some(SenaLeadTimeVariabilityClass::Wide));
+        assert_eq!(
+            merged.delivery_fee,
+            Some(SenaDeliveryFeeMetadata {
+                fee_usd: Some(2.5),
+                payer: SenaDeliveryFeePayer::Merchant,
+                bucket: SenaDeliveryFeeBucket::CustomerOrder,
+                subtotal_usd: Some(10.0),
+                display_delivery_usd: Some(0.0),
+                display_total_usd: Some(10.0),
+                net_settlement_usd: Some(7.5),
+            }),
+        );
+    }
+
+    #[test]
     fn order_batches_create_path_style_ids_and_child_records() {
         let path = temp_store_path("order-create");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
@@ -2865,6 +2945,7 @@ mod tests {
                     receipt_timestamp: None,
                     lead_time_days_hint: Some(5.0),
                     lead_time_variability: None,
+                    delivery_fee: None,
                 },
                 children: vec![
                     crate::types::SenaOrderBatchCreateChildInput {

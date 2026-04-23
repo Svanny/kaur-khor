@@ -30,7 +30,7 @@ Current fields:
 Current storage files exposed by the main process:
 
 - `desktop-sena-store.sqlite3`: local workspace store
-- `desktop-automation-store.json`: persisted Telegram automation connection, catalog exposure, conversation, and intake state
+- `desktop-automation-store.json`: persisted Telegram automation connection, command/menu registration state, catalog exposure, conversation history, customer wizard draft sessions, and intake state
 - `desktop-preferences.json`: persisted settings and preferences
 - `desktop-sena-read-cache.json`: persisted read cache for compact SENA UI reads; oversized list payloads such as full observations are intentionally excluded
 - `sena-checkpoints/`: compressed SENA checkpoint payload files referenced by SQLite metadata
@@ -77,6 +77,7 @@ Automation state currently lives beside the main workspace files in
 That file persists:
 
 - Telegram connection settings and health metadata
+- Telegram command/menu registration state and per-conversation customer wizard drafts
 - SKU and service exposure rules for customer-facing automation catalogs
 - conversation summaries and message records used by the automation workspace
 - intake rows that can later be resolved or promoted into ticket events

@@ -2534,6 +2534,7 @@ mod tests {
                 adjustment_signals: Vec::new(),
                 commercial_events: Vec::new(),
                 ticket_events: Vec::new(),
+                delivery_fee: None,
                 recipe_usage_hints: Vec::new(),
                 notes: None,
             },

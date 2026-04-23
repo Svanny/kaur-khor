@@ -36,8 +36,9 @@ collapsed into free-form notes, because downstream projections need family,
 lifecycle, stage, party metadata, line items, and revision data.
 
 Structured party metadata belongs in the ticket event even when the UI places it
-inside a notes section. Channel values should be normalized case-insensitively,
-and customer name/phone lookup should use normalized keys.
+inside a notes section. Channel values should be normalized case-insensitively.
+Customer phones should be stored/displayed as `+<countrycode> <number>` and
+lookups should use normalized compact keys.
 
 ## Record Update
 

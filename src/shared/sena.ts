@@ -63,6 +63,7 @@ export interface SenaObservationInput {
   commercialEvents?: SenaCommercialEvent[];
   ticketEvents?: SenaTicketEvent[];
   recipeUsageHints?: SenaRecipeUsageHint[];
+  deliveryFee?: SenaDeliveryFeeMetadata | null;
   notes: string | null;
 }
 
@@ -112,6 +113,19 @@ export interface SenaCommercialEvent {
 
 export type SenaTicketFamily = 'customer' | 'supplier' | 'adjustment';
 export type SenaTicketLifecycle = 'open' | 'resolved' | 'canceled';
+export type SenaDeliveryFeePayer = 'customer' | 'merchant';
+export type SenaDeliveryFeeBucket = 'supplier' | 'customer_order' | 'immediate_sale';
+
+export interface SenaDeliveryFeeMetadata {
+  feeUsd: number | null;
+  payer: SenaDeliveryFeePayer;
+  bucket: SenaDeliveryFeeBucket;
+  subtotalUsd: number | null;
+  displayDeliveryUsd: number | null;
+  displayTotalUsd: number | null;
+  netSettlementUsd: number | null;
+}
+
 export type SenaCustomerTicketStage = 'pending' | 'ready' | 'fulfilled_immediate';
 export type SenaSupplierTicketStage = 'to_order' | 'ordered_waiting' | 'partial_received' | 'received';
 export type SenaAdjustmentTicketStage = 'draft' | 'applied';
@@ -171,6 +185,7 @@ export interface SenaTicketEvent {
   nextTouchAt?: string | null;
   party?: SenaTicketPartyMetadata | null;
   lines: SenaTicketLine[];
+  deliveryFee?: SenaDeliveryFeeMetadata | null;
   note?: string | null;
 }
 
@@ -200,6 +215,7 @@ export interface SenaOrderFieldValues {
   receiptTimestamp: string | null;
   leadTimeDaysHint: number | null;
   leadTimeVariability: SenaLeadTimeVariabilityClass | null;
+  deliveryFee?: SenaDeliveryFeeMetadata | null;
 }
 
 export interface SenaOrderChildRecord {

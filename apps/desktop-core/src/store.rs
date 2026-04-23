@@ -538,7 +538,7 @@ fn sample_catalog() -> SenaCatalog {
             sku_id: profile.sku_id.to_string(),
             name: profile.name.to_string(),
             description: profile.description.to_string(),
-            image_path: None,
+            image_path: seed_sku_image_path(profile.sku_id).map(str::to_string),
             supplier_name: profile.supplier_name.map(str::to_string),
             cost_per_unit: profile.cost_per_unit,
             archived: false,
@@ -555,7 +555,7 @@ fn sample_catalog() -> SenaCatalog {
             service_id: profile.service_id.to_string(),
             name: profile.name.to_string(),
             description: profile.description.to_string(),
-            image_path: None,
+            image_path: seed_service_image_path(profile.service_id).map(str::to_string),
             price: profile.price,
             archived: false,
             bundle: profile.bundle,
@@ -594,6 +594,36 @@ fn sample_catalog() -> SenaCatalog {
         services,
         bundles,
         sharing_mask,
+    }
+}
+
+fn seed_sku_image_path(sku_id: &str) -> Option<&'static str> {
+    match sku_id {
+        "sku-001" => Some("banji-dev-sku-001-krama-cotton-scarf.png"),
+        "sku-002" => Some("banji-dev-sku-002-silk-sampot-skirt.png"),
+        "sku-003" => Some("banji-dev-sku-003-linen-sarong-pants.png"),
+        "sku-004" => Some("banji-dev-sku-004-temple-white-blouse.png"),
+        "sku-005" => Some("banji-dev-sku-005-indigo-farmer-shirt.png"),
+        "sku-006" => Some("banji-dev-sku-006-rattan-market-tote.png"),
+        "sku-007" => Some("banji-dev-sku-007-festival-silk-shawl.png"),
+        "sku-008" => Some("banji-dev-sku-008-childrens-krama-set.png"),
+        "sku-009" => Some("banji-dev-sku-009-handwoven-belt.png"),
+        _ => None,
+    }
+}
+
+fn seed_service_image_path(service_id: &str) -> Option<&'static str> {
+    match service_id {
+        "service-001" => Some("banji-dev-service-001-office-blouse-styling.png"),
+        "service-002" => Some("banji-dev-service-002-tourist-gift-pairing.png"),
+        "service-003" => Some("banji-dev-service-003-weekend-linen-look.png"),
+        "service-004" => Some("banji-dev-service-004-wedding-guest-edit.png"),
+        "service-005" => Some("banji-dev-service-005-market-tote-add-on.png"),
+        "service-006" => Some("banji-dev-service-006-khmer-new-year-capsule.png"),
+        "service-007" => Some("banji-dev-service-007-wedding-premium-bundle.png"),
+        "service-008" => Some("banji-dev-service-008-back-to-school-family-promo.png"),
+        "service-009" => Some("banji-dev-service-009-water-festival-streetwear-promo.png"),
+        _ => None,
     }
 }
 
@@ -1295,6 +1325,7 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
             adjustment_signals,
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
+            delivery_fee: None,
             recipe_usage_hints: service_outcomes
                 .iter()
                 .flat_map(|outcome| outcome.recipe_profiles.iter())
@@ -1543,7 +1574,7 @@ pub fn ensure_dev_seed(owner_sub: &str) -> Result<bool> {
 
 #[cfg(test)]
 mod tests {
-    use super::{generate_dev_seed_observations, SenaObservationRegimeHint};
+    use super::{generate_dev_seed_observations, sample_catalog, SenaObservationRegimeHint};
     use std::collections::BTreeMap;
 
     #[test]
@@ -1599,5 +1630,51 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn sample_catalog_assigns_seed_images_except_placeholder_controls() {
+        let catalog = sample_catalog();
+
+        assert_eq!(
+            catalog.skus.iter().filter(|sku| sku.image_path.is_some()).count(),
+            9
+        );
+        assert_eq!(
+            catalog.services.iter().filter(|service| service.image_path.is_some()).count(),
+            9
+        );
+        assert_eq!(
+            catalog
+                .skus
+                .iter()
+                .find(|sku| sku.sku_id == "sku-001")
+                .and_then(|sku| sku.image_path.as_deref()),
+            Some("banji-dev-sku-001-krama-cotton-scarf.png")
+        );
+        assert_eq!(
+            catalog
+                .services
+                .iter()
+                .find(|service| service.service_id == "service-001")
+                .and_then(|service| service.image_path.as_deref()),
+            Some("banji-dev-service-001-office-blouse-styling.png")
+        );
+        assert_eq!(
+            catalog
+                .skus
+                .iter()
+                .find(|sku| sku.sku_id == "sku-010")
+                .and_then(|sku| sku.image_path.as_deref()),
+            None
+        );
+        assert_eq!(
+            catalog
+                .services
+                .iter()
+                .find(|service| service.service_id == "service-010")
+                .and_then(|service| service.image_path.as_deref()),
+            None
+        );
     }
 }

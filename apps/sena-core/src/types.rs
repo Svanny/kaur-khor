@@ -108,6 +108,8 @@ pub struct SenaObservationInput {
     pub ticket_events: Vec<SenaTicketEvent>,
     #[serde(default)]
     pub recipe_usage_hints: Vec<SenaRecipeUsageHint>,
+    #[serde(default)]
+    pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
     pub notes: Option<String>,
 }
 
@@ -212,6 +214,33 @@ pub enum SenaTicketLifecycle {
     Canceled,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaDeliveryFeePayer {
+    Customer,
+    Merchant,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaDeliveryFeeBucket {
+    Supplier,
+    CustomerOrder,
+    ImmediateSale,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaDeliveryFeeMetadata {
+    pub fee_usd: Option<f64>,
+    pub payer: SenaDeliveryFeePayer,
+    pub bucket: SenaDeliveryFeeBucket,
+    pub subtotal_usd: Option<f64>,
+    pub display_delivery_usd: Option<f64>,
+    pub display_total_usd: Option<f64>,
+    pub net_settlement_usd: Option<f64>,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum SenaTicketStage {
@@ -299,6 +328,8 @@ pub struct SenaTicketEvent {
     pub party: Option<SenaTicketPartyMetadata>,
     pub lines: Vec<SenaTicketLine>,
     #[serde(default)]
+    pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
+    #[serde(default)]
     pub note: Option<String>,
 }
 
@@ -336,6 +367,8 @@ pub struct SenaOrderFieldValues {
     pub receipt_timestamp: Option<String>,
     pub lead_time_days_hint: Option<f64>,
     pub lead_time_variability: Option<SenaLeadTimeVariabilityClass>,
+    #[serde(default)]
+    pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -1015,8 +1048,40 @@ impl SenaObservationInput {
                 return Err(anyhow!("recipeUsageHints[].variability must be >= 0"));
             }
         }
+        if let Some(delivery_fee) = &self.delivery_fee {
+            validate_delivery_fee_metadata(delivery_fee)?;
+        }
         Ok(())
     }
+}
+
+fn validate_delivery_fee_metadata(metadata: &SenaDeliveryFeeMetadata) -> Result<()> {
+    if let Some(value) = metadata.fee_usd {
+        if !value.is_finite() || value < 0.0 {
+            return Err(anyhow!("deliveryFee.feeUsd must be >= 0"));
+        }
+    }
+    for (label, value, allow_negative) in [
+        ("deliveryFee.subtotalUsd", metadata.subtotal_usd, false),
+        (
+            "deliveryFee.displayDeliveryUsd",
+            metadata.display_delivery_usd,
+            false,
+        ),
+        ("deliveryFee.displayTotalUsd", metadata.display_total_usd, false),
+        (
+            "deliveryFee.netSettlementUsd",
+            metadata.net_settlement_usd,
+            true,
+        ),
+    ] {
+        if let Some(value) = value {
+            if !value.is_finite() || (!allow_negative && value < 0.0) {
+                return Err(anyhow!("{label} must be a finite number"));
+            }
+        }
+    }
+    Ok(())
 }
 
 pub fn validate_identifier(label: &str, value: &str) -> Result<()> {
@@ -1132,6 +1197,7 @@ mod tests {
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
+            delivery_fee: None,
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
@@ -1158,6 +1224,7 @@ mod tests {
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
+            delivery_fee: None,
             recipe_usage_hints: Vec::new(),
             notes: Some("operator note only".to_string()),
         };
@@ -1228,6 +1295,7 @@ mod tests {
             adjustment_signals: Vec::new(),
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
+            delivery_fee: None,
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
