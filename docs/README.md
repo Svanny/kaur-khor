@@ -60,7 +60,7 @@ pnpm package:win:native
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
 - [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, automation and financials navigation, read-pool readiness, route-scoped support reads, and navigation benchmark targets
-- [Benchmark guide](/Users/svanny/banji/bench/README.md): benchmark commands, fixture sizes, event files, and startup target names
+- [Benchmark guide](/Users/svanny/banji/bench/README.md): scenario commands, fixture sizes, deterministic seed rules, and tiered target budgets
 
 ### Security
 

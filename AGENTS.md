@@ -166,6 +166,12 @@ Boris Cherny (creator of Claude Code) keeps his team's file around 100 lines. Un
 - Test (Rust SENA engine): `cargo test --manifest-path apps/sena-core/Cargo.toml`
 - Startup benchmark: `pnpm bench:startup`
 - Power User startup benchmark: `BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup`
+- Navigation benchmark: `pnpm bench:navigation`
+- Overview benchmark: `pnpm bench:overview`
+- Automations benchmark: `pnpm bench:automations`
+- Record update benchmark: `pnpm bench:record-update`
+- Detail-pages benchmark: `pnpm bench:detail-pages`
+- Stability benchmark: `pnpm bench:stability`
 - Security gate: `bash tool/security/run_security_checks.sh`
 - Typecheck: `pnpm exec tsc --build tsconfig.json`
 - Lint: no repo lint script is configured; do not invent one.

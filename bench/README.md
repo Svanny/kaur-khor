@@ -14,6 +14,8 @@ Run a focused scenario:
 ```bash
 pnpm bench:startup
 pnpm bench:navigation
+pnpm bench:overview
+pnpm bench:automations
 pnpm bench:record-update
 pnpm bench:detail-pages
 pnpm bench:stability
@@ -75,10 +77,20 @@ Benchmark runs still prepare the workspace first, then launch Banji with dev
 seeding disabled so the measured startup path uses the prepared fixture instead
 of reseeding during startup.
 
-Navigation and record-update scenarios now follow the current UI instead of
-deprecated deep-link aliases. Sidebar benchmarks click the visible shell
-navigation order, and record-update benchmarks open lanes through the hub cards
-and the New or Edit/Update ticket prompts. Supplier receipt coverage is measured
-inside the supplier-order flow rather than through a standalone receipt route.
-Detail-page benchmarks navigate through the app's hash routes and measure SKU
-and service repeat timings against the current detail surfaces.
+Overview and Automations scenarios now measure current operator-critical flows:
+
+- `overview`: supplier drawer open, customer intake drawer open, supplier/customer workflow toggles, supplier filter transitions, and task-tab transitions.
+- `automations`: connection/health shell load, exposure filters, live-intake section load, intake drawer open, and exceptions section load.
+
+Automation and customer benchmark coverage is seeded deterministically during the
+scenario setup. Bench helpers now force a minimum exposed-row and intake-row
+count before timing starts. If required rows are absent, the Playwright scenario
+fails immediately instead of emitting target rows with `missing` status.
+
+Navigation and record-update scenarios follow current UI routes and labels
+instead of deprecated deep-link aliases. Sidebar benchmarks click visible shell
+navigation, and record-update benchmarks open lanes through the hub cards and
+the New or Edit/Update prompts. Supplier receipt coverage is measured inside
+the supplier-order flow rather than through a standalone receipt route.
+Detail-page benchmarks navigate through hash routes and measure SKU/service
+first-load and repeat-load timings against current detail surfaces.
