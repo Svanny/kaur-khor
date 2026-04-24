@@ -6,6 +6,9 @@ import {
   closeVisibleDialog,
   ensureAutomationBenchmarkSeed,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
+  recordBenchmarkPhaseMarker,
   navigateBenchmarkRouteAndMeasureDuration,
   openOverviewCustomerIntakeDrawerAndRecordDuration,
   openOverviewSupplierDrawerAndRecordDuration,
@@ -17,9 +20,18 @@ test('overview measures current supplier and customer workflows', async ({}, tes
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
-    await ensureAutomationBenchmarkSeed(launched, {
+    const seedSummary = await ensureAutomationBenchmarkSeed(launched, {
       minimumExposedRows: 2,
       minimumIntakes: 2,
+    });
+    await recordBenchmarkPhaseMarker(launched.page, 'seed_end', {
+      exposedRows: seedSummary.exposedRows,
+      intakeRows: seedSummary.intakeRows,
+      needsReviewRows: seedSummary.needsReviewRows,
+      targetSupplierFilterLabel: seedSummary.targetSupplierFilterLabel,
+    });
+    await markBenchmarkMeasurementStart(launched, {
+      workflow: 'overview',
     });
 
     await navigateBenchmarkRouteAndMeasureDuration(launched, {
@@ -65,21 +77,30 @@ test('overview measures current supplier and customer workflows', async ({}, tes
     await openOverviewSupplierDrawerAndRecordDuration(launched);
     await closeVisibleDialog(launched.page);
 
+    const supplierTrigger = launched.page.getByRole('combobox', { name: 'Filter by supplier' });
+    await supplierTrigger.click();
+    const targetSupplierOption = launched.page.getByRole('option', {
+      name: seedSummary.targetSupplierFilterLabel,
+      exact: true,
+    });
+    await targetSupplierOption.waitFor({ state: 'visible', timeout: 30_000 });
+
     await clickWaitReadyAndRecordDuration(launched, {
       action: async () => {
-        const supplierTrigger = launched.page.getByRole('combobox', { name: 'Filter by supplier' });
-        await supplierTrigger.click();
-        const options = launched.page.getByRole('option');
-        const optionCount = await assertLocatorCountAtLeast(options, 2, 'supplier filter option(s)');
-        for (let index = 0; index < optionCount; index += 1) {
-          const option = options.nth(index);
-          const label = (await option.textContent())?.trim().toLowerCase() ?? '';
-          if (label && label !== 'all suppliers') {
-            await option.click();
-            return;
-          }
-        }
-        throw new Error('Overview supplier filter has no selectable supplier option besides "All suppliers".');
+        await targetSupplierOption.evaluate((element) => {
+          const benchmarkWindow = window as Window & {
+            __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number;
+          };
+          benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = undefined;
+          element.addEventListener('pointerdown', () => {
+            benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
+          }, { capture: true, once: true });
+        });
+        await targetSupplierOption.click();
+        const startedAt = await launched.page.evaluate(() =>
+          (window as Window & { __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number })
+            .__BANJI_BENCHMARK_ACTION_STARTED_AT__);
+        return { startedAt };
       },
       readyEvent: 'route.dashboard.ready',
       metricName: 'interaction.overview_supplier_filter_ms',
@@ -88,6 +109,11 @@ test('overview measures current supplier and customer workflows', async ({}, tes
     });
   } catch (error) {
     scenarioError = error;
+  } finally {
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'overview',
+      ok: scenarioError == null,
+    });
   }
 
   await closeBanjiBenchmarkAppWithTargetCoverage(
@@ -99,7 +125,7 @@ test('overview measures current supplier and customer workflows', async ({}, tes
       'interaction.open_overview_supplier_drawer_ms',
       'interaction.overview_task_tab_transition_ms',
       'interaction.overview_supplier_filter_ms',
-      'backend.core.queue_wait_p95_ms',
+      'backend.core.interactive_queue_wait_p95_ms',
       'backend.core.read_pool_queue_wait_p95_ms',
     ],
     scenarioError,

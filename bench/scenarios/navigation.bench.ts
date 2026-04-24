@@ -3,6 +3,8 @@ import {
   clickSidebarNavigationAndMeasureDuration,
   closeBanjiBenchmarkApp,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
@@ -28,6 +30,7 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('navigation-sidebar-routes', testInfo);
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
+    await markBenchmarkMeasurementStart(launched, { workflow: 'navigation' });
 
     for (const section of SIDEBAR_SECTIONS) {
       await clickSidebarNavigationAndMeasureDuration(launched, {
@@ -49,6 +52,7 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
       route: '/',
       category: 'navigation',
     });
+    await markBenchmarkMeasurementEnd(launched, { workflow: 'navigation', ok: true });
   } finally {
     await closeBanjiBenchmarkApp(launched, 'navigation');
   }

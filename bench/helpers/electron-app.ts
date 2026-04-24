@@ -24,12 +24,16 @@ export interface LaunchedBanjiBenchmarkApp {
 }
 
 interface LaunchBanjiBenchmarkOptions {
+  backgroundWindow?: boolean;
   dataDirectory?: string;
   fixtureSize?: 'minimal' | 'medium' | 'heavy' | 'power-user';
   outputDirectory?: string;
   prepareWorkspace?: boolean;
   runId?: string;
 }
+
+const BENCHMARK_APP_CLOSE_TIMEOUT_MS = 10_000;
+const BENCHMARK_APP_FORCE_KILL_TIMEOUT_MS = 5_000;
 
 export async function launchBanjiForBenchmark(
   scenarioName: string,
@@ -52,7 +56,7 @@ export async function launchBanjiForBenchmark(
         env: {
           ...process.env,
           BANJI_BENCHMARK: '1',
-          BANJI_BENCHMARK_BACKGROUND: '1',
+          BANJI_BENCHMARK_BACKGROUND: options?.backgroundWindow === false ? '0' : '1',
           BANJI_BENCHMARK_RUN_ID: runId,
           BANJI_BENCHMARK_OUTPUT_DIR: outputDirectory,
           BANJI_BENCHMARK_DATA_DIR: dataDirectory,
@@ -77,7 +81,44 @@ export async function launchBanjiForBenchmark(
 export async function closeBanjiBenchmarkSession(
   launched: Pick<LaunchedBanjiBenchmarkApp, 'app'>,
 ) {
-  await launched.app.close();
+  const process = launched.app.process();
+  const closeResult = await Promise.race([
+    launched.app.close().then(() => 'closed' as const).catch(() => 'failed' as const),
+    new Promise<'timeout'>((resolve) => {
+      setTimeout(() => resolve('timeout'), BENCHMARK_APP_CLOSE_TIMEOUT_MS);
+    }),
+  ]);
+  if (closeResult === 'closed') {
+    return;
+  }
+  if (process && process.exitCode == null) {
+    try {
+      process.kill('SIGKILL');
+    } catch {
+      // Ignore kill errors; we'll still resolve after the force-kill timeout below.
+    }
+  }
+  if (process && process.exitCode != null) {
+    return;
+  }
+  if (process && process.exitCode == null) {
+    await new Promise<void>((resolve) => {
+      const timeoutId = setTimeout(() => {
+        if (process.exitCode == null) {
+          try {
+            process.kill('SIGKILL');
+          } catch {
+            // Ignore kill errors during teardown.
+          }
+        }
+        resolve();
+      }, BENCHMARK_APP_FORCE_KILL_TIMEOUT_MS);
+      process.once('exit', () => {
+        clearTimeout(timeoutId);
+        resolve();
+      });
+    });
+  }
 }
 
 export async function finalizeBanjiBenchmarkScenario({
@@ -119,7 +160,15 @@ export async function persistedBenchmarkEventCount(
   return events.filter((event) => event.name === name).length;
 }
 
-export async function waitForPersistedBenchmarkEventCount(
+export async function persistedCompletedBenchmarkEventCount(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory'>,
+  name: string,
+) {
+  const events = await readBenchmarkEvents(launched.outputDirectory);
+  return events.filter((event) => event.name === name && event.phase === 'end').length;
+}
+
+export async function waitForPersistedCompletedBenchmarkEventCount(
   launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory'>,
   name: string,
   minimumCount = 1,
@@ -128,13 +177,103 @@ export async function waitForPersistedBenchmarkEventCount(
   const startedAt = Date.now();
   const timeoutMs = options?.timeoutMs ?? 60_000;
   while (Date.now() - startedAt < timeoutMs) {
-    const count = await persistedBenchmarkEventCount(launched, name);
+    const count = await persistedCompletedBenchmarkEventCount(launched, name);
     if (count >= minimumCount) {
       return;
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`Timed out waiting for benchmark event "${name}" count >= ${minimumCount}`);
+  throw new Error(`Timed out waiting for completed benchmark event "${name}" count >= ${minimumCount}`);
+}
+
+export async function benchmarkEventCount(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  name: string,
+) {
+  return launched.page.evaluate(async (eventName) => {
+    const benchmarkWindow = window as Window & {
+      __BANJI_BENCHMARK_EVENTS__?: Array<{ name?: string }>;
+      banjiDesktop?: {
+        benchmark?: {
+          getEventCount?: (name: string) => Promise<number>;
+        };
+      };
+    };
+    const preferRendererMemory = eventName.startsWith('route.');
+    if (!preferRendererMemory && benchmarkWindow.banjiDesktop?.benchmark?.getEventCount) {
+      try {
+        return await benchmarkWindow.banjiDesktop.benchmark.getEventCount(eventName);
+      } catch {
+        // Fall back to renderer-memory events when IPC waiters are unavailable.
+      }
+    }
+    return (benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ?? []).filter((event) => event?.name === eventName).length;
+  }, name);
+}
+
+export async function waitForBenchmarkEventCount(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  name: string,
+  minimumCount = 1,
+  options?: { timeoutMs?: number },
+) {
+  return launched.page.evaluate(async ({
+    eventName,
+    nextMinimumCount,
+    timeoutMs,
+  }: {
+    eventName: string;
+    nextMinimumCount: number;
+    timeoutMs: number;
+  }) => {
+    const benchmarkWindow = window as Window & {
+      __BANJI_BENCHMARK_EVENTS__?: Array<{ name?: string; ts?: number }>;
+      banjiDesktop?: {
+        benchmark?: {
+          waitForEventCount?: (payload: {
+            name: string;
+            minimumCount: number;
+            timeoutMs?: number;
+          }) => Promise<{ count: number; ts: number | null }>;
+        };
+        };
+      };
+    const preferRendererMemory = eventName.startsWith('route.');
+    if (!preferRendererMemory && benchmarkWindow.banjiDesktop?.benchmark?.waitForEventCount) {
+      return benchmarkWindow.banjiDesktop.benchmark.waitForEventCount({
+        name: eventName,
+        minimumCount: nextMinimumCount,
+        timeoutMs,
+      });
+    }
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < timeoutMs) {
+      const matchingEvents = (benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ?? [])
+        .filter((event) => event?.name === eventName);
+      const count = matchingEvents.length;
+      if (count >= nextMinimumCount) {
+        return {
+          count,
+          ts: matchingEvents[count - 1]?.ts ?? null,
+        };
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 16));
+    }
+    throw new Error(`Timed out waiting for benchmark event "${eventName}" count >= ${nextMinimumCount}`);
+  }, {
+    eventName: name,
+    nextMinimumCount: minimumCount,
+    timeoutMs: options?.timeoutMs ?? 60_000,
+  });
+}
+
+export async function waitForPersistedBenchmarkEventCount(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  name: string,
+  minimumCount = 1,
+  options?: { timeoutMs?: number },
+) {
+  await waitForBenchmarkEventCount(launched, name, minimumCount, options);
 }
 
 export async function assertLocatorCountAtLeast(
@@ -150,7 +289,7 @@ export async function assertLocatorCountAtLeast(
 }
 
 export async function clickWaitReadyAndRecordDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
   {
     action,
     readyEvent,
@@ -161,7 +300,7 @@ export async function clickWaitReadyAndRecordDuration(
     timeoutMs,
     waitFor,
   }: {
-    action: () => Promise<void>;
+    action: () => Promise<void | { startedAt?: number }>;
     readyEvent?: string;
     metricName?: string;
     route: `/${string}`;
@@ -172,29 +311,40 @@ export async function clickWaitReadyAndRecordDuration(
   },
 ) {
   const previousCount = readyEvent
-    ? await persistedBenchmarkEventCount(launched, readyEvent)
+    ? await benchmarkEventCount(launched, readyEvent)
     : null;
-  const startedAt = Date.now();
-  await action();
+  const fallbackStartedAt = Date.now();
+  const actionResult = await action();
+  const startedAt = actionResult?.startedAt ?? fallbackStartedAt;
+  let readyResult: { count: number; ts: number | null } | null = null;
   if (readyEvent && previousCount != null) {
-    await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1, { timeoutMs });
+    readyResult = await waitForBenchmarkEventCount(launched, readyEvent, previousCount + 1, { timeoutMs });
   }
   await waitFor?.();
-  const durationMs = Date.now() - startedAt;
+  const measuredDurationMs = Date.now() - startedAt;
+  const readyDurationMs = readyResult?.ts != null
+    ? Math.max(0, readyResult.ts - startedAt)
+    : measuredDurationMs;
+  const harnessOverheadMs = Math.max(0, measuredDurationMs - readyDurationMs);
   if (metricName) {
     await recordPlaywrightDuration(launched.page, {
       metricName,
-      durationMs,
+      durationMs: readyDurationMs,
       route,
       category,
-      detail,
+      detail: {
+        ...(detail ?? {}),
+        harnessOverheadMs,
+        measuredDurationMs,
+        readyDurationMs,
+      },
     });
   }
-  return durationMs;
+  return readyDurationMs;
 }
 
 export async function clickSidebarNavigationAndMeasureDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
   {
     category = 'navigation',
     detail,
@@ -228,7 +378,7 @@ export async function clickSidebarNavigationAndMeasureDuration(
 }
 
 export async function navigateBenchmarkRouteAndMeasureDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
   {
     category = 'interaction',
     detail,
@@ -288,6 +438,10 @@ export async function closeVisibleDialog(page: Page) {
     return;
   }
   await page.keyboard.press('Escape');
+  const discardButton = page.getByRole('button', { name: 'Discard changes' });
+  if (await discardButton.isVisible().catch(() => false)) {
+    await discardButton.click();
+  }
   await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
 }
 
@@ -362,160 +516,32 @@ export async function ensureAutomationBenchmarkSeed(
     const benchmarkWindow = window as Window & {
       banjiDesktop?: {
         automation?: {
-          getWorkspace: () => Promise<{
-            exposures: Array<{
-              archived: boolean;
-              availabilityStatus: string;
-              entityId: string;
-              entityType: 'sku' | 'service';
-              exposed: boolean;
-              price: number | null;
-              supplierName?: string | null;
-            }>;
-            intakes: Array<{
-              intakeId: string;
-              status: string;
-            }>;
+          seedBenchmarkWorkspace?: (payload?: {
+            minimumExposedRows?: number;
+            minimumIntakes?: number;
+          }) => Promise<{
+            exposedRows: number;
+            intakeRows: number;
+            needsReviewRows: number;
+            targetSupplierFilterLabel: string;
           }>;
-          patchExposureRow: (payload: {
-            entityType: 'sku' | 'service';
-            entityId: string;
-            exposed: boolean;
-          }) => Promise<unknown>;
-          resolveIntake: (payload: {
-            intakeId: string;
-            status: string;
-            note: string;
-          }) => Promise<unknown>;
-          saveConnection: (payload: {
-            channel: 'telegram';
-            status: 'connected' | 'disconnected' | 'paused' | 'error';
-            botDisplayName: string;
-            botToken: string;
-            botUsername: string;
-            externalLink: string;
-          }) => Promise<unknown>;
-          testTelegramConnection: () => Promise<unknown>;
-        };
-        sena?: {
-          createOrderBatch: (payload: {
-            supplierName?: string | null;
-            shared: {
-              orderedQuantity: number;
-              receivedQuantity: number;
-              placementTimestamp: string;
-              expectedArrivalAt: string;
-              costPerUnit: number;
-            };
-            children: Array<{
-              skuId: string;
-              overrides: {
-                orderedQuantity: number;
-                receivedQuantity: number;
-                costPerUnit: number;
-                placementTimestamp: string;
-                expectedArrivalAt: string;
-              };
-            }>;
-          }) => Promise<unknown>;
         };
       };
     };
     const automation = benchmarkWindow.banjiDesktop?.automation;
-    if (!automation) {
+    if (!automation?.seedBenchmarkWorkspace) {
       throw new Error('Automations bridge is unavailable in benchmark mode.');
     }
-
-    await automation.saveConnection({
-      channel: 'telegram',
-      status: 'disconnected',
-      botDisplayName: 'banji benchmark bot',
-      botToken: 'bench-token:offline',
-      botUsername: 'banji_benchmark_bot',
-      externalLink: 'https://t.me/banji_benchmark_bot',
+    return automation.seedBenchmarkWorkspace({
+      minimumExposedRows: nextMinimumExposedRows,
+      minimumIntakes: nextMinimumIntakes,
     });
-
-    let workspace = await automation.getWorkspace();
-    const eligibleExposureRows = workspace.exposures.filter((row) =>
-      !row.archived && row.availabilityStatus !== 'hidden' && row.price != null);
-    if (eligibleExposureRows.length < nextMinimumExposedRows) {
-      throw new Error(
-        `Benchmark fixture is missing required automations exposure rows (needed ${nextMinimumExposedRows}, found ${eligibleExposureRows.length}).`,
-      );
-    }
-
-    for (const row of eligibleExposureRows.slice(0, nextMinimumExposedRows)) {
-      await automation.patchExposureRow({
-        entityType: row.entityType,
-        entityId: row.entityId,
-        exposed: true,
-      });
-    }
-
-    const supplierSkuRow = eligibleExposureRows.find((row) => row.entityType === 'sku');
-    if (!supplierSkuRow) {
-      throw new Error('Benchmark fixture is missing an eligible SKU row for supplier task seeding.');
-    }
-    const nowIso = new Date().toISOString();
-    const expectedArrivalAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    await benchmarkWindow.banjiDesktop?.sena?.createOrderBatch({
-      supplierName: supplierSkuRow.supplierName ?? null,
-      shared: {
-        orderedQuantity: 6,
-        receivedQuantity: 0,
-        placementTimestamp: nowIso,
-        expectedArrivalAt,
-        costPerUnit: supplierSkuRow.price ?? 1,
-      },
-      children: [{
-        skuId: supplierSkuRow.entityId,
-        overrides: {
-          orderedQuantity: 6,
-          receivedQuantity: 0,
-          costPerUnit: supplierSkuRow.price ?? 1,
-          placementTimestamp: nowIso,
-          expectedArrivalAt,
-        },
-      }],
-    });
-
-    workspace = await automation.getWorkspace();
-    for (let attempt = 0; attempt < nextMinimumIntakes * 3 && workspace.intakes.length < nextMinimumIntakes; attempt += 1) {
-      await automation.testTelegramConnection();
-      workspace = await automation.getWorkspace();
-    }
-
-    if (workspace.intakes.length < nextMinimumIntakes) {
-      throw new Error(
-        `Benchmark fixture is missing required automations intake rows (needed ${nextMinimumIntakes}, found ${workspace.intakes.length}).`,
-      );
-    }
-
-    const hasNeedsReviewIntake = workspace.intakes.some((intake) => intake.status === 'needs_review' || intake.status === 'failed');
-    if (!hasNeedsReviewIntake) {
-      const candidate = workspace.intakes.find((intake) => intake.status !== 'ticketed' && intake.status !== 'completed') ?? workspace.intakes[0] ?? null;
-      if (!candidate) {
-        throw new Error('Benchmark fixture does not have an intake available to seed exceptions.');
-      }
-      await automation.resolveIntake({
-        intakeId: candidate.intakeId,
-        status: 'needs_review',
-        note: 'Seeded for benchmark exceptions coverage.',
-      });
-      workspace = await automation.getWorkspace();
-    }
-
-    return {
-      exposedRows: workspace.exposures.filter((row) => row.exposed).length,
-      intakeRows: workspace.intakes.length,
-      needsReviewRows: workspace.intakes.filter((intake) => intake.status === 'needs_review' || intake.status === 'failed').length,
-    };
   }, {
     minimumExposedRows,
     minimumIntakes,
   });
 
-  const priorWorkspaceReadyEvents = await persistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
+  const priorWorkspaceReadyEvents = await benchmarkEventCount(launched, 'renderer.workspace.ready');
   await launched.page.reload({ waitUntil: 'domcontentloaded' });
   await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready', priorWorkspaceReadyEvents + 1);
   return seedSummary;
@@ -628,6 +654,35 @@ export async function recordPlaywrightDuration(
     phase: 'end',
     route: route ?? null,
   });
+}
+
+export async function recordBenchmarkPhaseMarker(
+  page: Page,
+  marker: 'seed_end' | 'measurement_start' | 'measurement_end',
+  detail?: Record<string, unknown>,
+) {
+  await recordPlaywrightBenchmarkEvent(page, {
+    category: 'startup',
+    command: null,
+    detail: detail ?? {},
+    name: `benchmark.phase.${marker}`,
+    phase: 'instant',
+    route: null,
+  });
+}
+
+export async function markBenchmarkMeasurementStart(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  detail?: Record<string, unknown>,
+) {
+  await recordBenchmarkPhaseMarker(launched.page, 'measurement_start', detail);
+}
+
+export async function markBenchmarkMeasurementEnd(
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  detail?: Record<string, unknown>,
+) {
+  await recordBenchmarkPhaseMarker(launched.page, 'measurement_end', detail);
 }
 
 export async function snapshotRendererBenchmarkMemory(page: Page, name: string) {

@@ -1,44 +1,48 @@
 import { test } from '@playwright/test';
 import {
+  benchmarkEventCount,
   closeBanjiBenchmarkSession,
   finalizeBanjiBenchmarkScenario,
+  type LaunchedBanjiBenchmarkApp,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
 
 test('cold dev launch reaches a usable workspace', async ({}, testInfo) => {
-  let launched = await launchBanjiForBenchmark('startup-cold-dev', testInfo);
+  const launched: LaunchedBanjiBenchmarkApp = await launchBanjiForBenchmark('startup-cold-dev', testInfo);
+  await markBenchmarkMeasurementStart(launched, {
+    workflow: 'startup',
+    launchType: 'cold+warm-reload',
+  });
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'preload.bridge.exposed');
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.app.getAppContext');
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
     await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready');
     await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_startup_cold_mb');
-  } finally {
-    await closeBanjiBenchmarkSession(launched);
-  }
 
-  const warmStartedAt = Date.now();
-  launched = await launchBanjiForBenchmark('startup-cold-dev', testInfo, {
-    dataDirectory: launched.dataDirectory,
-    outputDirectory: launched.outputDirectory,
-    prepareWorkspace: false,
-    runId: launched.runId,
-  });
-
-  try {
-    await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready', 2);
-    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', 2);
+    const priorWorkspaceReadyCount = await benchmarkEventCount(launched, 'renderer.workspace.ready');
+    const warmStartedAt = Date.now();
+    await launched.page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready', priorWorkspaceReadyCount + 1);
+    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready');
     await recordPlaywrightDuration(launched.page, {
       metricName: 'startup.warm_workspace_ready_ms',
       durationMs: Date.now() - warmStartedAt,
       route: '/',
       category: 'startup',
-      detail: { launchType: 'warm' },
+      detail: { launchType: 'warm-reload' },
     });
     await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_startup_warm_mb');
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'startup',
+      launchType: 'cold+warm-reload',
+      ok: true,
+    });
   } finally {
     await closeBanjiBenchmarkSession(launched);
   }

@@ -3,6 +3,8 @@ import {
   clickSidebarNavigation,
   closeBanjiBenchmarkApp,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   persistedBenchmarkEventCount,
   recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
@@ -27,8 +29,10 @@ const CYCLE_SECTIONS: Array<{
 
 test('repeated sidebar navigation stays crash-free and records memory slope inputs', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('stability-sidebar-cycle', testInfo);
+  let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
+    await markBenchmarkMeasurementStart(launched, { workflow: 'stability' });
 
     for (let cycle = 0; cycle < 4; cycle += 1) {
       for (const section of CYCLE_SECTIONS) {
@@ -50,7 +54,16 @@ test('repeated sidebar navigation stays crash-free and records memory slope inpu
     }
 
     await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_stability_mb');
+  } catch (error) {
+    scenarioError = error;
   } finally {
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'stability',
+      ok: scenarioError == null,
+    });
     await closeBanjiBenchmarkApp(launched, 'stability');
+  }
+  if (scenarioError) {
+    throw scenarioError;
   }
 });

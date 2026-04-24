@@ -11,6 +11,29 @@ import {
 export type BenchmarkMetricSummary = BanjiBenchmarkMetricSummary;
 export type BenchmarkScenarioSummary = BanjiBenchmarkScenarioSummary;
 
+const MEASUREMENT_START_MARKER = 'benchmark.phase.measurement_start';
+const MEASUREMENT_END_MARKER = 'benchmark.phase.measurement_end';
+const EVENT_STREAM_READ_RETRY_COUNT = 4;
+const EVENT_STREAM_READ_RETRY_DELAY_MS = 25;
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseBenchmarkEventLines(fileName: string, raw: string) {
+  const events: BanjiBenchmarkEvent[] = [];
+  const errors: string[] = [];
+  for (const line of raw.split('\n').filter(Boolean)) {
+    try {
+      events.push(JSON.parse(line) as BanjiBenchmarkEvent);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      errors.push(`[benchmark] skipped malformed event line in ${fileName}: ${message}`);
+    }
+  }
+  return { errors, events };
+}
+
 export async function readBenchmarkEvents(outputDirectory: string) {
   const entries = await readdir(outputDirectory).catch(() => []);
   const eventFiles = [
@@ -20,19 +43,20 @@ export async function readBenchmarkEvents(outputDirectory: string) {
   const streams = await Promise.all(
     eventFiles.map(async (fileName) => {
       const path = join(outputDirectory, fileName);
-      const raw = await readFile(path, 'utf8').catch(() => '');
-      return raw
-        .split('\n')
-        .filter(Boolean)
-        .flatMap((line) => {
-          try {
-            return [JSON.parse(line) as BanjiBenchmarkEvent];
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.warn(`[benchmark] skipped malformed event line in ${fileName}: ${message}`);
-            return [];
-          }
-        });
+      let lastParsed: ReturnType<typeof parseBenchmarkEventLines> | null = null;
+      for (let attempt = 0; attempt < EVENT_STREAM_READ_RETRY_COUNT; attempt += 1) {
+        const raw = await readFile(path, 'utf8').catch(() => '');
+        const parsed = parseBenchmarkEventLines(fileName, raw);
+        if (parsed.errors.length === 0) {
+          return parsed.events;
+        }
+        lastParsed = parsed;
+        await wait(EVENT_STREAM_READ_RETRY_DELAY_MS * (attempt + 1));
+      }
+      for (const error of lastParsed?.errors ?? []) {
+        console.warn(error);
+      }
+      return lastParsed?.events ?? [];
     }),
   );
   return streams.flat().sort((a, b) => a.ts - b.ts);
@@ -61,6 +85,14 @@ function firstEventTime(events: BanjiBenchmarkEvent[], name: string) {
   return events.find((event) => event.name === name)?.ts ?? null;
 }
 
+function firstEventTimeAfter(
+  events: BanjiBenchmarkEvent[],
+  name: string,
+  afterTs: number,
+) {
+  return events.find((event) => event.name === name && event.ts >= afterTs)?.ts ?? null;
+}
+
 function durationMetric(
   events: BanjiBenchmarkEvent[],
   startName: string,
@@ -72,6 +104,41 @@ function durationMetric(
     return null;
   }
   return end - start;
+}
+
+function measurementWindowBounds(events: BanjiBenchmarkEvent[]) {
+  const measurementStartTs = firstEventTime(events, MEASUREMENT_START_MARKER);
+  if (measurementStartTs == null) {
+    return null;
+  }
+  const measurementEndTs = firstEventTimeAfter(events, MEASUREMENT_END_MARKER, measurementStartTs);
+  return {
+    measurementStartTs,
+    measurementEndTs,
+  };
+}
+
+function eventsInMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+  const window = measurementWindowBounds(events);
+  if (!window) {
+    return events;
+  }
+  const { measurementStartTs, measurementEndTs } = window;
+  return events.filter((event) =>
+    event.ts >= measurementStartTs
+      && (measurementEndTs == null || event.ts <= measurementEndTs));
+}
+
+function eventsBeforeMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+  const window = measurementWindowBounds(events);
+  if (!window) {
+    return [];
+  }
+  return events.filter((event) => event.ts < window.measurementStartTs);
+}
+
+function hasMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+  return measurementWindowBounds(events) != null;
 }
 
 function firstSummaryMetric(metrics: Record<string, BenchmarkMetricSummary>, names: string[]) {
@@ -113,6 +180,26 @@ function p95DetailMetricWhere(
   return summarizeDurations(values).p95;
 }
 
+function hasMeasuredUserAction(events: BanjiBenchmarkEvent[]) {
+  return events.some((event) =>
+    event.phase === 'end'
+      && typeof event.durationMs === 'number'
+      && (event.category === 'interaction' || event.category === 'navigation'));
+}
+
+function queueWaitP95OrZeroWhenMeasured(
+  events: BanjiBenchmarkEvent[],
+  predicate?: (event: BanjiBenchmarkEvent) => boolean,
+) {
+  const value = predicate
+    ? p95DetailMetricWhere(events, 'backend.core.request.resolve', 'queueWaitMs', predicate)
+    : p95DetailMetric(events, 'backend.core.request.resolve', 'queueWaitMs');
+  if (value != null) {
+    return value;
+  }
+  return hasMeasuredUserAction(events) ? 0 : null;
+}
+
 function isReadOnlyBenchmarkCommand(command: string | null | undefined) {
   return command === 'system.ping'
     || command?.startsWith('sena.get') === true
@@ -136,10 +223,13 @@ function memoryValue(event: BanjiBenchmarkEvent | undefined) {
 
 function deriveBenchmarkMetrics(
   events: BanjiBenchmarkEvent[],
+  measurementEvents: BanjiBenchmarkEvent[],
+  setupEvents: BanjiBenchmarkEvent[],
   metrics: Record<string, BenchmarkMetricSummary>,
   scenario: BanjiBenchmarkScenarioId,
 ) {
   const derived: Record<string, number> = {};
+  const hasIsolatedMeasurementWindow = hasMeasurementWindow(events);
   const maybeSet = (name: string, value: number | null) => {
     if (value != null && Number.isFinite(value)) {
       derived[name] = value;
@@ -192,25 +282,77 @@ function deriveBenchmarkMetrics(
 
   maybeSet(
     'backend.core.queue_wait_p95_ms',
-    p95DetailMetric(events, 'backend.core.request.resolve', 'queueWaitMs'),
+    queueWaitP95OrZeroWhenMeasured(measurementEvents),
   );
   maybeSet(
     'backend.core.read_pool_queue_wait_p95_ms',
-    p95DetailMetricWhere(
-      events,
-      'backend.core.request.resolve',
-      'queueWaitMs',
+    queueWaitP95OrZeroWhenMeasured(
+      measurementEvents,
       (event) => isReadOnlyBenchmarkCommand(event.command),
     ),
   );
   maybeSet(
     'backend.core.writer_queue_wait_p95_ms',
     p95DetailMetricWhere(
-      events,
+      measurementEvents,
       'backend.core.request.resolve',
       'queueWaitMs',
       (event) => !isReadOnlyBenchmarkCommand(event.command),
     ),
+  );
+  maybeSet(
+    'backend.core.interactive_queue_wait_p95_ms',
+    queueWaitP95OrZeroWhenMeasured(measurementEvents),
+  );
+  maybeSet(
+    'backend.core.setup_queue_wait_p95_ms',
+    hasIsolatedMeasurementWindow
+      ? p95DetailMetric(setupEvents, 'backend.core.request.resolve', 'queueWaitMs') ?? 0
+      : p95DetailMetric(setupEvents, 'backend.core.request.resolve', 'queueWaitMs'),
+  );
+  maybeSet(
+    'backend.core.setup_read_pool_queue_wait_p95_ms',
+    hasIsolatedMeasurementWindow
+      ? p95DetailMetricWhere(
+        setupEvents,
+        'backend.core.request.resolve',
+        'queueWaitMs',
+        (event) => isReadOnlyBenchmarkCommand(event.command),
+      ) ?? 0
+      : p95DetailMetricWhere(
+        setupEvents,
+        'backend.core.request.resolve',
+        'queueWaitMs',
+        (event) => isReadOnlyBenchmarkCommand(event.command),
+      ),
+  );
+
+  const measuredDurations = measurementEvents
+    .filter((event) => event.phase === 'end' && typeof event.durationMs === 'number')
+    .map((event) => event.durationMs as number);
+  const readyDurations = measurementEvents
+    .filter((event) => event.phase === 'end')
+    .map((event) => event.detail?.readyDurationMs)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  const harnessOverheads = measurementEvents
+    .filter((event) => event.phase === 'end')
+    .map((event) => event.detail?.harnessOverheadMs)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  maybeSet(
+    'harness.measurement_duration_p95_ms',
+    summarizeDurations(measuredDurations).p95,
+  );
+  maybeSet(
+    'harness.ready_latency_p95_ms',
+    summarizeDurations(readyDurations).p95,
+  );
+  maybeSet(
+    'harness.overhead_p95_ms',
+    summarizeDurations(harnessOverheads).p95,
+  );
+  maybeSet(
+    'harness.overhead_median_ms',
+    summarizeDurations(harnessOverheads).median,
   );
   maybeSet(
     'ipc.sena_list_observation_page_ms',
@@ -258,8 +400,10 @@ export function buildScenarioSummary({
   runId: string;
   scenario: BanjiBenchmarkScenarioId;
 }): BenchmarkScenarioSummary {
+  const measurementEvents = eventsInMeasurementWindow(events);
+  const setupEvents = eventsBeforeMeasurementWindow(events);
   const durationsByName = new Map<string, number[]>();
-  for (const event of events) {
+  for (const event of measurementEvents) {
     if (event.phase !== 'end' || typeof event.durationMs !== 'number') {
       continue;
     }
@@ -271,7 +415,7 @@ export function buildScenarioSummary({
   const metrics = Object.fromEntries(
     [...durationsByName.entries()].map(([name, values]) => [name, summarizeDurations(values)]),
   );
-  const derivedMetrics = deriveBenchmarkMetrics(events, metrics, scenario);
+  const derivedMetrics = deriveBenchmarkMetrics(events, measurementEvents, setupEvents, metrics, scenario);
   const targetInputs = {
     ...Object.fromEntries(
       Object.entries(metrics).map(([name, summary]) => [name, summary.median ?? summary.p95 ?? summary.max ?? 0]),

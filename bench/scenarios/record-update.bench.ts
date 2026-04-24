@@ -4,6 +4,8 @@ import {
   closeBanjiBenchmarkApp,
   currentBenchmarkRoute,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   persistedBenchmarkEventCount,
   recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
@@ -190,8 +192,10 @@ async function benchmarkSupplierReceiptSave(
 
 test('record update hub opens current lanes and saves current flows', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('record-update-hub-current-flows', testInfo);
+  let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
+    await markBenchmarkMeasurementStart(launched, { workflow: 'record-update' });
     await returnToRecordUpdateHub(launched);
 
     for (const lane of HUB_LANES) {
@@ -201,7 +205,16 @@ test('record update hub opens current lanes and saves current flows', async ({},
 
     await benchmarkStockCountSave(launched);
     await benchmarkSupplierReceiptSave(launched);
+  } catch (error) {
+    scenarioError = error;
   } finally {
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'record-update',
+      ok: scenarioError == null,
+    });
     await closeBanjiBenchmarkApp(launched, 'record-update');
+  }
+  if (scenarioError) {
+    throw scenarioError;
   }
 });

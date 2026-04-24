@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildScenarioSummary, readBenchmarkEvents } from './bench-metrics';
 import { BENCHMARK_WORKSPACE_HISTORY_SIZES, normalizeBenchmarkWorkspaceSize } from './workspace-seed';
 import type { BanjiBenchmarkEvent } from '../../src/shared/benchmark';
@@ -40,6 +40,32 @@ describe('buildScenarioSummary', () => {
 
     expect(events).toHaveLength(1);
     expect(events[0]?.name).toBe('good-event');
+  });
+
+  it('retries transient partial event writes before warning', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'banji-bench-events-'));
+    const path = join(directory, 'core-events-read-1.jsonl');
+    const firstEvent = benchmarkEvent({ name: 'first-event', ts: 10 });
+    const secondEvent = benchmarkEvent({ name: 'second-event', ts: 20 });
+    await writeFile(
+      path,
+      `${JSON.stringify(firstEvent)}\n{"runId":`,
+      'utf8',
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    setTimeout(() => {
+      void writeFile(
+        path,
+        `${JSON.stringify(firstEvent)}\n${JSON.stringify(secondEvent)}\n`,
+        'utf8',
+      );
+    }, 5);
+
+    const events = await readBenchmarkEvents(directory);
+
+    expect(events.map((event) => event.name)).toEqual(['first-event', 'second-event']);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it('keeps startup summaries scoped to startup targets and captures warm launch metrics', () => {
@@ -189,6 +215,144 @@ describe('buildScenarioSummary', () => {
       value: 42,
       status: 'pass',
     });
+  });
+
+  it('isolates setup queue waits from measurement queue waits using phase markers', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'overview',
+      events: [
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 100,
+          command: 'sena.listObservations',
+          durationMs: 320,
+          detail: { queueWaitMs: 300 },
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.seed_end',
+          ts: 200,
+          phase: 'instant',
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_start',
+          ts: 300,
+          phase: 'instant',
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 350,
+          command: 'sena.listOrderBatches',
+          durationMs: 28,
+          detail: { queueWaitMs: 20 },
+        }),
+        benchmarkEvent({
+          category: 'interaction',
+          name: 'interaction.overview_supplier_filter_ms',
+          phase: 'end',
+          ts: 360,
+          durationMs: 130,
+          detail: {
+            harnessOverheadMs: 40,
+            measuredDurationMs: 130,
+            readyDurationMs: 90,
+          },
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_end',
+          ts: 600,
+          phase: 'instant',
+        }),
+      ],
+    });
+
+    expect(summary.derivedMetrics?.['backend.core.queue_wait_p95_ms']).toBe(20);
+    expect(summary.derivedMetrics?.['backend.core.interactive_queue_wait_p95_ms']).toBe(20);
+    expect(summary.derivedMetrics?.['backend.core.setup_queue_wait_p95_ms']).toBe(300);
+    expect(summary.derivedMetrics?.['backend.core.setup_read_pool_queue_wait_p95_ms']).toBe(300);
+    expect(summary.derivedMetrics?.['harness.ready_latency_p95_ms']).toBe(90);
+    expect(summary.derivedMetrics?.['harness.overhead_p95_ms']).toBe(40);
+  });
+
+  it('reports zero interactive queue wait when measured actions are served from cache', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'overview',
+      events: [
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 100,
+          command: 'sena.listOrderBatches',
+          durationMs: 28,
+          detail: { queueWaitMs: 12 },
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_start',
+          ts: 200,
+          phase: 'instant',
+        }),
+        benchmarkEvent({
+          category: 'ipc',
+          name: 'main.cache.sena-read.hit',
+          ts: 220,
+          phase: 'instant',
+          detail: { key: 'order-batches:{}' },
+        }),
+        benchmarkEvent({
+          category: 'interaction',
+          name: 'interaction.overview_supplier_filter_ms',
+          phase: 'end',
+          ts: 250,
+          durationMs: 80,
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_end',
+          ts: 300,
+          phase: 'instant',
+        }),
+      ],
+    });
+
+    expect(summary.derivedMetrics?.['backend.core.queue_wait_p95_ms']).toBe(0);
+    expect(summary.derivedMetrics?.['backend.core.interactive_queue_wait_p95_ms']).toBe(0);
+    expect(summary.derivedMetrics?.['backend.core.read_pool_queue_wait_p95_ms']).toBe(0);
+    expect(summary.derivedMetrics?.['backend.core.setup_queue_wait_p95_ms']).toBe(12);
+    expect(summary.targets?.find((target) => target.metricName === 'backend.core.interactive_queue_wait_p95_ms')).toMatchObject({
+      value: 0,
+      status: 'pass',
+    });
+  });
+
+  it('falls back to whole-run metrics when measurement markers are missing', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'overview',
+      events: [
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 100,
+          command: 'sena.listOrderBatches',
+          durationMs: 48,
+          detail: { queueWaitMs: 33 },
+        }),
+      ],
+    });
+
+    expect(summary.derivedMetrics?.['backend.core.queue_wait_p95_ms']).toBe(33);
+    expect(summary.derivedMetrics?.['backend.core.setup_queue_wait_p95_ms']).toBeUndefined();
   });
 });
 

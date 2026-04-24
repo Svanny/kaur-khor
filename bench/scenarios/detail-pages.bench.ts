@@ -1,10 +1,15 @@
 import { test } from '@playwright/test';
 import {
+  benchmarkEventCount,
   closeBanjiBenchmarkApp,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   navigateBenchmarkRoute,
+  persistedCompletedBenchmarkEventCount,
   persistedBenchmarkEventCount,
   snapshotRendererBenchmarkMemory,
+  waitForPersistedCompletedBenchmarkEventCount,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
 
@@ -42,8 +47,10 @@ async function recordPlaywrightDuration(
 
 test('SKU and service detail pages expose first and repeat load timings', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('detail-pages', testInfo);
+  let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
+    await markBenchmarkMeasurementStart(launched, { workflow: 'detail-pages' });
     const targets = await launched.page.evaluate(async () => {
       const benchmarkWindow = window as Window & {
         banjiDesktop: {
@@ -63,16 +70,18 @@ test('SKU and service detail pages expose first and repeat load timings', async 
     });
 
     if (targets.skuId) {
-      const firstSkuCount = await persistedBenchmarkEventCount(launched, 'route.sku-detail.ready');
+      const firstSkuCount = await benchmarkEventCount(launched, 'route.sku-detail.ready');
+      const firstSkuDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-sku-detail.handle');
       const skuPath = `/catalog/skus/${targets.skuId}` as const;
       const firstStartedAt = Date.now();
       await navigateBenchmarkRoute(launched.page, skuPath);
       await waitForPersistedBenchmarkEventCount(launched, 'route.sku-detail.ready', firstSkuCount + 1);
+      await waitForPersistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-sku-detail.handle', firstSkuDetailIpcCount + 1);
       await recordPlaywrightDuration(launched, 'detail.sku_first_load_ms', Date.now() - firstStartedAt, skuPath, 'sku', targets.skuId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_sku_detail_first_mb');
 
-      const repeatSkuCount = await persistedBenchmarkEventCount(launched, 'route.sku-detail.ready');
-      const catalogCount = await persistedBenchmarkEventCount(launched, 'route.catalog.ready');
+      const repeatSkuCount = await benchmarkEventCount(launched, 'route.sku-detail.ready');
+      const catalogCount = await benchmarkEventCount(launched, 'route.catalog.ready');
       await navigateBenchmarkRoute(launched.page, '/catalog');
       await waitForPersistedBenchmarkEventCount(launched, 'route.catalog.ready', catalogCount + 1);
       const repeatStartedAt = Date.now();
@@ -83,7 +92,8 @@ test('SKU and service detail pages expose first and repeat load timings', async 
     }
 
     if (targets.serviceId) {
-      const firstServiceCount = await persistedBenchmarkEventCount(launched, 'route.service-detail.ready');
+      const firstServiceCount = await benchmarkEventCount(launched, 'route.service-detail.ready');
+      const firstServiceDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-service-detail.handle');
       const servicePath = `/catalog/services/${targets.serviceId}` as const;
       const firstStartedAt = Date.now();
       await navigateBenchmarkRoute(launched.page, servicePath);
@@ -91,6 +101,11 @@ test('SKU and service detail pages expose first and repeat load timings', async 
         launched,
         'route.service-detail.ready',
         firstServiceCount + 1,
+      );
+      await waitForPersistedCompletedBenchmarkEventCount(
+        launched,
+        'ipc.banji:sena:get-service-detail.handle',
+        firstServiceDetailIpcCount + 1,
       );
       await recordPlaywrightDuration(launched, 'detail.service_first_load_ms', Date.now() - firstStartedAt, servicePath, 'service', targets.serviceId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_service_detail_first_mb');
@@ -101,7 +116,16 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       await recordPlaywrightDuration(launched, 'detail.service_repeat_load_ms', Date.now() - repeatStartedAt, servicePath, 'service', targets.serviceId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_service_detail_repeat_mb');
     }
+  } catch (error) {
+    scenarioError = error;
   } finally {
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'detail-pages',
+      ok: scenarioError == null,
+    });
     await closeBanjiBenchmarkApp(launched, 'detail-pages');
+  }
+  if (scenarioError) {
+    throw scenarioError;
   }
 });

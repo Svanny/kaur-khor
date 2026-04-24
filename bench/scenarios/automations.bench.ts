@@ -7,7 +7,10 @@ import {
   closeVisibleDialog,
   ensureAutomationBenchmarkSeed,
   launchBanjiForBenchmark,
+  markBenchmarkMeasurementEnd,
+  markBenchmarkMeasurementStart,
   openAutomationIntakeDrawerAndRecordDuration,
+  recordBenchmarkPhaseMarker,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
 
@@ -16,9 +19,17 @@ test('automations measures current connection, intake, and exceptions flows', as
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
-    await ensureAutomationBenchmarkSeed(launched, {
+    const seedSummary = await ensureAutomationBenchmarkSeed(launched, {
       minimumExposedRows: 2,
       minimumIntakes: 2,
+    });
+    await recordBenchmarkPhaseMarker(launched.page, 'seed_end', {
+      exposedRows: seedSummary.exposedRows,
+      intakeRows: seedSummary.intakeRows,
+      needsReviewRows: seedSummary.needsReviewRows,
+    });
+    await markBenchmarkMeasurementStart(launched, {
+      workflow: 'automations',
     });
 
     await clickSidebarNavigationAndMeasureDuration(launched, {
@@ -101,6 +112,11 @@ test('automations measures current connection, intake, and exceptions flows', as
     });
   } catch (error) {
     scenarioError = error;
+  } finally {
+    await markBenchmarkMeasurementEnd(launched, {
+      workflow: 'automations',
+      ok: scenarioError == null,
+    });
   }
 
   await closeBanjiBenchmarkAppWithTargetCoverage(
@@ -112,7 +128,7 @@ test('automations measures current connection, intake, and exceptions flows', as
       'interaction.automations_live_intake_table_ms',
       'interaction.open_automation_intake_drawer_ms',
       'interaction.automations_exceptions_section_ms',
-      'backend.core.queue_wait_p95_ms',
+      'backend.core.interactive_queue_wait_p95_ms',
       'backend.core.read_pool_queue_wait_p95_ms',
     ],
     scenarioError,
