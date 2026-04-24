@@ -1,8 +1,14 @@
-import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
+import type { SenaCatalog, SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
+
+type AutomationReadPriority = 'critical' | 'deferred' | 'background';
 
 export interface AutomationReadContextDeps {
   loadCachedSenaRead: <T>(key: string, loader: () => Promise<T>) => Promise<T>;
-  invoke: <T>(command: string, payload: undefined, options: { timeoutMs: number }) => Promise<T>;
+  invoke: <T>(
+    command: string,
+    payload: undefined,
+    options: { timeoutMs: number; readPriority?: AutomationReadPriority },
+  ) => Promise<T>;
   timeoutMs: number;
 }
 
@@ -14,6 +20,7 @@ export async function loadAutomationCatalog({
   return loadCachedSenaRead('catalog', () =>
     invoke<SenaCatalog | null>('sena.getCatalog', undefined, {
       timeoutMs,
+      readPriority: 'critical',
     }),
   );
 }
@@ -26,14 +33,28 @@ export async function loadAutomationObservations({
   return loadCachedSenaRead('observations', () =>
     invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
       timeoutMs,
+      readPriority: 'background',
+    }),
+  );
+}
+
+export async function loadAutomationRecordUpdateContext({
+  loadCachedSenaRead,
+  invoke,
+  timeoutMs,
+}: AutomationReadContextDeps) {
+  return loadCachedSenaRead('record-update-context', () =>
+    invoke<SenaRecordUpdateContext>('sena.getRecordUpdateContext', undefined, {
+      timeoutMs,
+      readPriority: 'critical',
     }),
   );
 }
 
 export async function loadAutomationWorkspaceContext(deps: AutomationReadContextDeps) {
-  const [catalog, observations] = await Promise.all([
+  const [catalog, recordUpdateContext] = await Promise.all([
     loadAutomationCatalog(deps),
-    loadAutomationObservations(deps),
+    loadAutomationRecordUpdateContext(deps),
   ]);
-  return { catalog, observations };
+  return { catalog, recordUpdateContext };
 }

@@ -76,6 +76,7 @@ describe('benchmark targets', () => {
       mean: 300,
       median: 300,
       min: 100,
+      p95: 500,
       q1: 200,
       q3: 400,
     });
@@ -91,14 +92,33 @@ describe('benchmark targets', () => {
     );
 
     expect(evaluations.find((target) => target.metricName === 'startup.app_to_workspace_ready_ms')).toMatchObject({
-      status: 'pass',
+      status: 'fail',
       value: 2300,
+      p95: 8000,
+      jitterBudget: 2500,
       distribution: expect.objectContaining({
         count: 3,
         max: 8000,
         median: 2300,
         min: 2000,
       }),
+    });
+  });
+
+  it('keeps repeat metrics in pass when p95 stays within jitter budget', () => {
+    const evaluations = evaluateBenchmarkTargets(
+      {},
+      'startup',
+      {
+        'startup.app_to_workspace_ready_ms': summarizeBenchmarkDistribution([2100, 2400, 4700]),
+      },
+    );
+
+    expect(evaluations.find((target) => target.metricName === 'startup.app_to_workspace_ready_ms')).toMatchObject({
+      status: 'pass',
+      value: 2400,
+      p95: 4700,
+      jitterBudget: 2500,
     });
   });
 

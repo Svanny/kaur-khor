@@ -1,4 +1,5 @@
 use crate::{
+    benchmark,
     service::{now_rfc3339, SenaRepository},
     types::{
         SenaAnalysisResult, SenaAnalysisRunRecord, SenaCatalog, SenaCreateOrderBatchPayload,
@@ -16,10 +17,12 @@ use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Serialize;
+use serde_json::json;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Instant;
 use time::{format_description::parse as parse_time_format, OffsetDateTime};
 use uuid::Uuid;
 
@@ -2080,19 +2083,68 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         service_id: &str,
     ) -> Result<Option<SenaServiceDetail>> {
-        let connection = self
-            .connection
-            .lock()
-            .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        let value = connection
-            .query_row(
-                "SELECT payload_json FROM sena_service_detail WHERE owner_sub = ?1 AND service_id = ?2",
-                params![owner_sub, service_id],
-                |row| row.get::<_, String>(0),
-            )
-            .optional()?;
+        let lock_started_at = Instant::now();
+        let (value, lock_duration, query_duration) = {
+            let connection = self
+                .connection
+                .lock()
+                .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+            let lock_duration = lock_started_at.elapsed();
+            let query_started_at = Instant::now();
+            let value = connection
+                .query_row(
+                    "SELECT payload_json FROM sena_service_detail WHERE owner_sub = ?1 AND service_id = ?2",
+                    params![owner_sub, service_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?;
+            (value, lock_duration, query_started_at.elapsed())
+        };
+        benchmark::record_duration(
+            "core.service-detail.sqlite.lock",
+            Some("sena.getServiceDetail"),
+            lock_duration,
+            json!({
+                "ownerSub": owner_sub,
+                "serviceId": service_id,
+            }),
+        );
+        benchmark::record_duration(
+            "core.service-detail.sqlite.query",
+            Some("sena.getServiceDetail"),
+            query_duration,
+            json!({
+                "hit": value.is_some(),
+                "ownerSub": owner_sub,
+                "serviceId": service_id,
+            }),
+        );
+        benchmark::record_instant(
+            "core.service-detail.sqlite.row",
+            Some("sena.getServiceDetail"),
+            json!({
+                "hit": value.is_some(),
+                "ownerSub": owner_sub,
+                "payloadBytes": value.as_ref().map(|raw| raw.len()).unwrap_or(0),
+                "serviceId": service_id,
+            }),
+        );
         value
-            .map(|raw| serde_json::from_str(&raw).map_err(anyhow::Error::new))
+            .map(|raw| {
+                let deserialize_started_at = Instant::now();
+                let parsed = serde_json::from_str(&raw).map_err(anyhow::Error::new);
+                benchmark::record_duration(
+                    "core.service-detail.sqlite.deserialize",
+                    Some("sena.getServiceDetail"),
+                    deserialize_started_at.elapsed(),
+                    json!({
+                        "ok": parsed.is_ok(),
+                        "payloadBytes": raw.len(),
+                        "serviceId": service_id,
+                    }),
+                );
+                parsed
+            })
             .transpose()
     }
 

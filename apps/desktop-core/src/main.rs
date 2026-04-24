@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use banji_desktop_core::store;
+use banji_desktop_core::{benchmark, store};
 use banji_sena_core::{
     SenaCatalog, SenaCreateOrderBatchPayload, SenaEngineParameters, SenaObservationInput,
     SenaObservationPageRequest, SenaObservationRecord, SenaOrderLookupPayload,
@@ -9,8 +9,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
-
-mod benchmark;
 
 #[derive(Debug, Deserialize)]
 struct CommandEnvelope {

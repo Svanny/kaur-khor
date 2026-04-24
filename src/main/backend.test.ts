@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import {
   isReadOnlyCoreCommand,
+  predictWorkerFinishMs,
   resolveCoreLaunchCommand,
   resolveCoreLaunchCommands,
   resolveCoreWorkingDirectory,
@@ -205,6 +206,11 @@ describe('desktop core host helpers', () => {
       readPriority: 'deferred',
     })).toBe(true);
     expect(shouldWaitForReadWorker({
+      commandName: 'sena.listObservations',
+      hasReadyReadWorker: false,
+      readPriority: 'background',
+    })).toBe(true);
+    expect(shouldWaitForReadWorker({
       commandName: 'sena.getStartupWorkspace',
       hasReadyReadWorker: false,
       readPriority: 'critical',
@@ -219,5 +225,33 @@ describe('desktop core host helpers', () => {
       hasReadyReadWorker: false,
       readPriority: 'deferred',
     })).toBe(false);
+  });
+
+  it('predicts queued read work from active command costs instead of worker-wide averages', () => {
+    const commandAverageActiveMs = new Map<string, number>([
+      ['sena.getServiceDetail', 480],
+      ['sena.getDiagnostics', 35],
+    ]);
+
+    const congestedWorker = predictWorkerFinishMs({
+      averageActiveMs: 10,
+      activeCommands: [
+        { commandName: 'sena.getServiceDetail', lane: 'interactive' },
+        { commandName: 'sena.getServiceDetail', lane: 'interactive' },
+      ],
+      commandAverageActiveMs,
+      commandName: 'sena.getServiceDetail',
+      lane: 'interactive',
+    });
+    const mostlyIdleWorker = predictWorkerFinishMs({
+      averageActiveMs: 80,
+      activeCommands: [],
+      commandAverageActiveMs,
+      commandName: 'sena.getServiceDetail',
+      lane: 'interactive',
+    });
+
+    expect(congestedWorker.laneBacklogMs).toBe(960);
+    expect(congestedWorker.predictedFinishMs).toBeGreaterThan(mostlyIdleWorker.predictedFinishMs);
   });
 });

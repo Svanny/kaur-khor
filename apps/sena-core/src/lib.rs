@@ -1,3 +1,4 @@
+pub mod benchmark;
 pub mod inference;
 pub mod lead_time;
 pub mod service;

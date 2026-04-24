@@ -40,8 +40,10 @@ interface QueuedRequest {
 
 const DEFAULT_CORE_TIMEOUT_MS = 15_000;
 const DEFERRED_READ_WORKER_READY_TIMEOUT_MS = 1_000;
+const DEFAULT_COMMAND_ACTIVE_MS = 80;
+const READ_WORKER_EWMA_ALPHA = 0.3;
 
-export type CoreReadPriority = 'critical' | 'deferred';
+export type CoreReadPriority = 'critical' | 'deferred' | 'background';
 
 export interface CoreInvokeOptions {
   timeoutMs?: number;
@@ -71,9 +73,56 @@ interface CoreLaunchCommand {
 }
 
 type CoreWorkerRole = 'writer' | 'read';
+type CoreReadLane = 'interactive' | 'bulk';
+
+export interface ActiveCoreCommand {
+  commandName: string;
+  lane: CoreReadLane | null;
+}
+
+export function predictWorkerFinishMs({
+  averageActiveMs,
+  activeCommands,
+  commandAverageActiveMs,
+  commandName,
+  lane,
+}: {
+  averageActiveMs: number;
+  activeCommands: ActiveCoreCommand[];
+  commandAverageActiveMs: Map<string, number>;
+  commandName: string;
+  lane: CoreReadLane;
+}) {
+  const fallbackActiveMs = Number.isFinite(averageActiveMs) && averageActiveMs > 0
+    ? averageActiveMs
+    : DEFAULT_COMMAND_ACTIVE_MS;
+  const estimateCommandMs = (name: string) => commandAverageActiveMs.get(name) ?? fallbackActiveMs;
+  const queuedWorkMs = activeCommands.reduce(
+    (total, entry) => total + estimateCommandMs(entry.commandName),
+    0,
+  );
+  const laneBacklogMs = activeCommands.reduce(
+    (total, entry) => total + (entry.lane === lane ? estimateCommandMs(entry.commandName) : 0),
+    0,
+  );
+  const crossLanePenaltyMs = activeCommands.reduce(
+    (total, entry) => total + (entry.lane != null && entry.lane !== lane ? estimateCommandMs(entry.commandName) : 0),
+    0,
+  );
+  const predictedCommandMs = commandAverageActiveMs.get(commandName) ?? DEFAULT_COMMAND_ACTIVE_MS;
+  return {
+    crossLanePenaltyMs,
+    laneBacklogMs,
+    predictedFinishMs: queuedWorkMs + predictedCommandMs + crossLanePenaltyMs,
+  };
+}
 
 interface CorePoolWorker {
   activeCount: number;
+  activeCommands: ActiveCoreCommand[];
+  activeBulkCount: number;
+  activeInteractiveCount: number;
+  averageActiveMs: number;
   index: number;
   process: ManagedCoreProcess;
   role: CoreWorkerRole;
@@ -159,6 +208,29 @@ export function shouldWaitForReadWorker({
   return isReadOnlyCoreCommand(commandName)
     && readPriority !== 'critical'
     && !hasReadyReadWorker;
+}
+
+function isBulkReadCoreCommand(commandName: string) {
+  return commandName === 'sena.listObservations'
+    || commandName === 'sena.listObservationPage'
+    || commandName === 'sena.getDiagnostics';
+}
+
+function resolveReadLane(commandName: string, readPriority?: CoreReadPriority): 'interactive' | 'bulk' {
+  if (readPriority === 'background' || isBulkReadCoreCommand(commandName)) {
+    return 'bulk';
+  }
+  return 'interactive';
+}
+
+function updateEwmaAverage(previous: number, sample: number, alpha = READ_WORKER_EWMA_ALPHA) {
+  if (!Number.isFinite(sample) || sample <= 0) {
+    return previous;
+  }
+  if (!Number.isFinite(previous) || previous <= 0) {
+    return sample;
+  }
+  return alpha * sample + (1 - alpha) * previous;
 }
 
 function coreReadCoalesceKey(commandName: string, payload: unknown, timeoutMs: number) {
@@ -294,6 +366,7 @@ export async function startManagedCore(
   const writer = await startManagedCoreWithFallback(options, env, launchCommands, 'writer', 0);
   const readWorkers: CorePoolWorker[] = [];
   const coalescedReadRequests = new Map<string, Promise<unknown>>();
+  const commandAverageActiveMs = new Map<string, number>();
   const readPoolSize = resolveReadPoolSize();
   const readWorkerReadyWaiters = new Set<() => void>();
   let stopped = false;
@@ -346,6 +419,10 @@ export async function startManagedCore(
       .then((process) => {
         const worker: CorePoolWorker = {
           activeCount: 0,
+          activeCommands: [],
+          activeBulkCount: 0,
+          activeInteractiveCount: 0,
+          averageActiveMs: DEFAULT_COMMAND_ACTIVE_MS,
           index: index + 1,
           process,
           role: 'read',
@@ -384,17 +461,55 @@ export async function startManagedCore(
 
   const writerWorker: CorePoolWorker = {
     activeCount: 0,
+    activeCommands: [],
+    activeBulkCount: 0,
+    activeInteractiveCount: 0,
+    averageActiveMs: DEFAULT_COMMAND_ACTIVE_MS,
     index: 0,
     process: writer,
     role: 'writer',
   };
 
-  const selectReadWorker = () => {
+  const predictedWorkerFinishMs = (
+    worker: CorePoolWorker,
+    commandName: string,
+    lane: CoreReadLane,
+  ) =>
+    predictWorkerFinishMs({
+      averageActiveMs: worker.averageActiveMs,
+      activeCommands: worker.activeCommands,
+      commandAverageActiveMs,
+      commandName,
+      lane,
+    });
+
+  const selectReadWorker = (commandName: string, readPriority?: CoreReadPriority) => {
     const available = readWorkers.filter((worker) => !worker.process.isStopped());
     if (available.length === 0) {
-      return writerWorker;
+      return {
+        lane: null,
+        predictedFinishMs: null,
+        worker: writerWorker,
+      } as const;
     }
-    return available.sort((left, right) => left.activeCount - right.activeCount || left.index - right.index)[0] ?? writerWorker;
+    const lane = resolveReadLane(commandName, readPriority);
+    const laneScopedWorkers = lane === 'interactive'
+      ? available.filter((worker) => worker.activeBulkCount === 0)
+      : available.filter((worker) => worker.activeInteractiveCount === 0);
+    const candidates = laneScopedWorkers.length > 0 ? laneScopedWorkers : available;
+    const rankedWorkers = candidates
+      .map((worker) => ({ worker, ...predictedWorkerFinishMs(worker, commandName, lane) }))
+      .sort((left, right) =>
+        left.predictedFinishMs - right.predictedFinishMs
+        || left.laneBacklogMs - right.laneBacklogMs
+        || left.crossLanePenaltyMs - right.crossLanePenaltyMs
+        || left.worker.index - right.worker.index);
+    const selected = rankedWorkers[0];
+    return {
+      lane,
+      predictedFinishMs: selected?.predictedFinishMs ?? null,
+      worker: selected?.worker ?? writerWorker,
+    } as const;
   };
 
   const invokeOnWorker = async <T>(
@@ -402,8 +517,22 @@ export async function startManagedCore(
     commandName: string,
     payload?: unknown,
     invokeOptions?: CoreInvokeOptions,
+    readLane?: CoreReadLane | null,
+    predictedFinishMs?: number | null,
   ) => {
+    const isReadWorker = worker.role === 'read';
+    const lane = isReadWorker ? readLane ?? 'interactive' : null;
     worker.activeCount += 1;
+    worker.activeCommands.push({
+      commandName,
+      lane,
+    });
+    if (isReadWorker && lane === 'interactive') {
+      worker.activeInteractiveCount += 1;
+    }
+    if (isReadWorker && lane === 'bulk') {
+      worker.activeBulkCount += 1;
+    }
     recordBenchmarkEvent({
       layer: 'main',
       category: 'core-command',
@@ -414,12 +543,36 @@ export async function startManagedCore(
         role: worker.role,
         workerIndex: worker.index,
         activeCount: worker.activeCount,
+        activeBulkCount: worker.activeBulkCount,
+        activeInteractiveCount: worker.activeInteractiveCount,
+        activeCommands: worker.activeCommands.map((entry) => `${entry.commandName}:${entry.lane ?? 'writer'}`),
+        averageActiveMs: worker.averageActiveMs,
+        readLane: lane,
+        predictedFinishMs: predictedFinishMs ?? null,
       },
     });
+    const startedAt = Date.now();
     try {
       return await worker.process.invoke<T>(commandName, payload, invokeOptions);
     } finally {
       worker.activeCount = Math.max(0, worker.activeCount - 1);
+      const activeCommandIndex = worker.activeCommands.findIndex((entry) =>
+        entry.commandName === commandName && entry.lane === lane);
+      if (activeCommandIndex >= 0) {
+        worker.activeCommands.splice(activeCommandIndex, 1);
+      }
+      if (isReadWorker && lane === 'interactive') {
+        worker.activeInteractiveCount = Math.max(0, worker.activeInteractiveCount - 1);
+      }
+      if (isReadWorker && lane === 'bulk') {
+        worker.activeBulkCount = Math.max(0, worker.activeBulkCount - 1);
+      }
+      const activeMs = Date.now() - startedAt;
+      worker.averageActiveMs = updateEwmaAverage(worker.averageActiveMs, activeMs);
+      commandAverageActiveMs.set(
+        commandName,
+        updateEwmaAverage(commandAverageActiveMs.get(commandName) ?? DEFAULT_COMMAND_ACTIVE_MS, activeMs),
+      );
     }
   };
 
@@ -461,8 +614,15 @@ export async function startManagedCore(
         })) {
           await waitForReadWorker(DEFERRED_READ_WORKER_READY_TIMEOUT_MS);
         }
-        const worker = selectReadWorker();
-        const result = await invokeOnWorker<T>(worker, commandName, payload, invokeOptions);
+        const selectedWorker = selectReadWorker(commandName, invokeOptions?.readPriority);
+        const result = await invokeOnWorker<T>(
+          selectedWorker.worker,
+          commandName,
+          payload,
+          invokeOptions,
+          selectedWorker.lane,
+          selectedWorker.predictedFinishMs,
+        );
         if (generationAtDispatch !== readGeneration) {
           recordBenchmarkEvent({
             layer: 'main',

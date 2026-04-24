@@ -1,10 +1,9 @@
-use anyhow::Result;
 use serde_json::{json, Value};
 use std::env;
 use std::fs::{create_dir_all, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 fn truthy_env(name: &str) -> bool {
     env::var(name)
@@ -37,23 +36,6 @@ fn now_ms() -> u128 {
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_millis())
         .unwrap_or_default()
-}
-
-pub fn summarize_value(value: &Value) -> String {
-    match value {
-        Value::Null => "null".to_string(),
-        Value::Bool(value) => format!("boolean({value})"),
-        Value::Number(value) => format!("number({value})"),
-        Value::String(value) => format!("string(len={})", value.len()),
-        Value::Array(values) => format!("array(len={})", values.len()),
-        Value::Object(values) => {
-            let mut keys = values.keys().take(8).cloned().collect::<Vec<_>>();
-            if values.len() > 8 {
-                keys.push("...".to_string());
-            }
-            format!("object(keys={})", keys.join(","))
-        }
-    }
 }
 
 fn append_event(event: Value) {
@@ -109,83 +91,6 @@ pub fn record_duration(name: &str, command: Option<&str>, duration: Duration, de
     }));
 }
 
-pub fn time_block<T, F>(name: &str, command: Option<&str>, detail: Value, operation: F) -> T
-where
-    F: FnOnce() -> T,
-{
-    if !enabled() {
-        return operation();
-    }
-
-    let started_at = Instant::now();
-    let result = operation();
-    record_duration(name, command, started_at.elapsed(), detail);
-    result
-}
-
-pub fn time_command<F>(command: &str, payload_summary: String, operation: F) -> Result<Option<Value>>
-where
-    F: FnOnce() -> Result<Option<Value>>,
-{
-    if !enabled() {
-        return operation();
-    }
-
-    append_event(json!({
-        "runId": run_id(),
-        "ts": now_ms(),
-        "layer": "core",
-        "category": "core-command",
-        "name": "core.command",
-        "phase": "start",
-        "command": command,
-        "durationMs": null,
-        "detail": {
-            "payload": payload_summary,
-        },
-    }));
-
-    let started_at = Instant::now();
-    let result = operation();
-    let duration_ms = started_at.elapsed().as_secs_f64() * 1000.0;
-
-    match &result {
-        Ok(payload) => append_event(json!({
-            "runId": run_id(),
-            "ts": now_ms(),
-            "layer": "core",
-            "category": "core-command",
-            "name": "core.command",
-            "phase": "end",
-            "command": command,
-            "durationMs": duration_ms,
-            "detail": {
-                "ok": true,
-                "result": payload
-                    .as_ref()
-                    .map(summarize_value)
-                    .unwrap_or_else(|| "undefined".to_string()),
-            },
-        })),
-        Err(error) => append_event(json!({
-            "runId": run_id(),
-            "ts": now_ms(),
-            "layer": "core",
-            "category": "core-command",
-            "name": "core.command",
-            "phase": "end",
-            "command": command,
-            "durationMs": duration_ms,
-            "detail": {
-                "ok": false,
-                "error": error.to_string(),
-            },
-        })),
-    }
-
-    result
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -196,7 +101,7 @@ mod tests {
 
     fn temp_output_dir(name: &str) -> PathBuf {
         env::temp_dir().join(format!(
-            "banji-desktop-core-benchmark-{name}-{}",
+            "banji-sena-core-benchmark-{name}-{}",
             std::process::id()
         ))
     }
@@ -219,12 +124,12 @@ mod tests {
         env::set_var("BANJI_BENCHMARK_RUN_ID", "test-run");
         env::set_var("BANJI_BENCHMARK_OUTPUT_DIR", &output);
         env::set_var("BANJI_CORE_WORKER_ROLE", "read");
-        env::set_var("BANJI_CORE_WORKER_INDEX", "2");
+        env::set_var("BANJI_CORE_WORKER_INDEX", "3");
 
         record_duration(
             "core.test.duration",
-            Some("system.test"),
-            Duration::from_millis(7),
+            Some("sena.test"),
+            Duration::from_millis(11),
             json!({ "ok": true }),
         );
 
@@ -234,13 +139,13 @@ mod tests {
             .expect("event files should be readable");
         assert_eq!(entries.len(), 1);
         let file_name = entries[0].file_name().to_string_lossy().to_string();
-        assert!(file_name.starts_with("core-events-read-2-"));
+        assert!(file_name.starts_with("core-events-read-3-"));
         let raw = fs::read_to_string(entries[0].path()).expect("event stream should read");
         let event: Value = serde_json::from_str(raw.trim()).expect("event should be json");
         assert_eq!(event["runId"], "test-run");
         assert_eq!(event["name"], "core.test.duration");
-        assert_eq!(event["command"], "system.test");
-        assert_eq!(event["durationMs"], 7.0);
+        assert_eq!(event["command"], "sena.test");
+        assert_eq!(event["durationMs"], 11.0);
         assert_eq!(event["detail"]["ok"], true);
 
         reset_benchmark_env();

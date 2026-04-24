@@ -24,6 +24,14 @@ fn temp_store_path(label: &str) -> PathBuf {
     env::temp_dir().join(format!("banji-sena-{label}-{nonce}.sqlite3"))
 }
 
+fn reset_benchmark_env() {
+    env::remove_var("BANJI_BENCHMARK");
+    env::remove_var("BANJI_BENCHMARK_RUN_ID");
+    env::remove_var("BANJI_BENCHMARK_OUTPUT_DIR");
+    env::remove_var("BANJI_CORE_WORKER_ROLE");
+    env::remove_var("BANJI_CORE_WORKER_INDEX");
+}
+
 fn sample_catalog() -> SenaCatalog {
     serde_json::from_value(json!({
         "schemaVersion": 1,
@@ -176,6 +184,66 @@ fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
         run_status.primary_artifact_key.as_deref(),
         Some("sena-analysis/desktop-owner/sena-analysis-v3/posterior-draws")
     );
+}
+
+#[test]
+fn desktop_core_records_service_detail_benchmark_events() {
+    let _guard = env_lock().lock().expect("env lock should acquire");
+    let store_path = temp_store_path("service-detail-benchmark");
+    let output_path = temp_store_path("service-detail-events");
+    let _ = std::fs::remove_dir_all(&output_path);
+    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    reset_benchmark_env();
+    env::set_var("BANJI_BENCHMARK", "1");
+    env::set_var("BANJI_BENCHMARK_RUN_ID", "service-detail-test");
+    env::set_var("BANJI_BENCHMARK_OUTPUT_DIR", &output_path);
+    env::set_var("BANJI_CORE_WORKER_ROLE", "writer");
+    env::set_var("BANJI_CORE_WORKER_INDEX", "0");
+
+    store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-01T00:00:00Z", 30.0, 22.0),
+    )
+    .expect("first observation should save");
+    store::ingest_observation(
+        store::default_owner(),
+        &observation("2026-04-10T00:00:00Z", 9.0, 7.0),
+    )
+    .expect("second observation should save");
+    store::trigger_run(store::default_owner(), "sena-analysis-v3")
+        .expect("run should complete");
+
+    let detail = store::get_service_detail(store::default_owner(), "service-001", None, 20)
+        .expect("service detail should load")
+        .expect("service detail should exist");
+    assert!(!detail.detail.contributors.is_empty());
+
+    let events = std::fs::read_dir(&output_path)
+        .expect("event output directory should exist")
+        .collect::<Result<Vec<_>, _>>()
+        .expect("event files should be readable")
+        .into_iter()
+        .flat_map(|entry| {
+            std::fs::read_to_string(entry.path())
+                .expect("event stream should read")
+                .lines()
+                .map(str::to_owned)
+                .collect::<Vec<_>>()
+        })
+        .map(|line| serde_json::from_str::<serde_json::Value>(&line).expect("event should parse"))
+        .collect::<Vec<_>>();
+    let event_names = events
+        .iter()
+        .filter_map(|event| event.get("name").and_then(|name| name.as_str()))
+        .collect::<Vec<_>>();
+    assert!(event_names.contains(&"core.service-detail.store.load"));
+    assert!(event_names.contains(&"core.service-detail.store.page"));
+    assert!(event_names.contains(&"core.service-detail.sqlite.query"));
+    assert!(event_names.contains(&"core.service-detail.sqlite.deserialize"));
+
+    reset_benchmark_env();
+    let _ = std::fs::remove_dir_all(&output_path);
 }
 
 #[test]

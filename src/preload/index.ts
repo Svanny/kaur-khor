@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { IpcRendererEvent } from 'electron';
 import {
   IPC_CHANNELS,
+  type AutomationBenchmarkSeedPayload,
+  type AutomationBenchmarkSeedResult,
   type AutomationConnectionPatch,
   type AutomationExposurePatch,
   type AutomationListIntakesPayload,
@@ -118,6 +120,8 @@ async function invokeWithBenchmark<T>(channel: string, payload?: unknown): Promi
 const desktopBridge: DesktopBridge = {
   automation: {
     getWorkspace: () => invokeWithBenchmark(IPC_CHANNELS.automationGetWorkspace),
+    seedBenchmarkWorkspace: (payload?: AutomationBenchmarkSeedPayload): Promise<AutomationBenchmarkSeedResult> =>
+      invokeWithBenchmark(IPC_CHANNELS.automationSeedBenchmarkWorkspace, payload),
     getConnection: () => invokeWithBenchmark(IPC_CHANNELS.automationGetConnection),
     saveConnection: (payload: AutomationConnectionPatch) =>
       invokeWithBenchmark(IPC_CHANNELS.automationSaveConnection, payload),
@@ -145,6 +149,14 @@ const desktopBridge: DesktopBridge = {
         ipcRenderer.send(IPC_CHANNELS.benchmarkRecordEvent, event);
       }
     },
+    getEventCount: (name: string): Promise<number> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkGetEventCount, name),
+    waitForEventCount: (payload: {
+      name: string;
+      minimumCount: number;
+      timeoutMs?: number;
+    }): Promise<{ count: number; ts: number | null }> =>
+      invokeWithBenchmark(IPC_CHANNELS.benchmarkWaitForEventCount, payload),
   },
   benchmarkRunner: {
     getAvailability: (): Promise<BanjiBenchmarkRunnerAvailability> =>

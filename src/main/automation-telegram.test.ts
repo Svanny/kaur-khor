@@ -42,14 +42,36 @@ const context = {
       },
     ],
   },
-  observations: [
-    {
-      input: {
+  recordUpdateContext: {
+    observationFingerprint: {
+      count: 1,
+      latestObservationId: 'obs-1',
+      latestObservedAt: '2026-04-21T00:00:00.000Z',
+    },
+    latestObservedAt: '2026-04-21T00:00:00.000Z',
+    latestStockBySku: {
+      'sku-1': {
+        observationId: 'obs-1',
         observedAt: '2026-04-21T00:00:00.000Z',
-        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 8 }],
+        value: {
+          skuId: 'sku-1',
+          unitsInStock: 8,
+        },
       },
     },
-  ] as unknown[],
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+  },
+  observations: [
+    {
+      observationId: 'obs-1',
+      input: {
+        ticketEvents: [],
+      },
+    },
+  ],
 };
 
 async function completePreferencesOnboarding(

@@ -38,6 +38,8 @@ import {
 import { loadAutomationCatalog, loadAutomationObservations, loadAutomationWorkspaceContext } from './automation-read-context';
 import {
   IPC_CHANNELS,
+  type AutomationBenchmarkSeedPayload,
+  type AutomationBenchmarkSeedResult,
   type AutomationConnectionPatch,
   type AutomationExposurePatch,
   type AutomationListIntakesPayload,
@@ -88,10 +90,12 @@ import type {
 } from '@shared/sena';
 import { summarizeBenchmarkPayload, type BanjiBenchmarkCategory } from '@shared/benchmark';
 import {
+  benchmarkEventCount,
   recordBenchmarkEvent,
   recordExternalBenchmarkEvent,
   snapshotProcessMemory,
   startBenchmarkSpan,
+  waitForBenchmarkEventCount,
 } from './benchmark';
 import { registerBenchmarkRunnerIpc } from './benchmark-runner';
 import {
@@ -234,7 +238,6 @@ function benchmarkCacheEvent(
 
 async function snapshotBeforeWorkspaceMutation(reason: string) {
   try {
-    await managedCore.stop();
     await createAutomaticDesktopBackupSnapshot({
       reason,
       userDataPath: desktopDataPath,
@@ -242,6 +245,111 @@ async function snapshotBeforeWorkspaceMutation(reason: string) {
   } catch (error) {
     console.warn(`[desktop-data] automatic backup snapshot skipped for ${reason}`, error);
   }
+}
+
+async function seedAutomationBenchmarkWorkspace(
+  payload?: AutomationBenchmarkSeedPayload,
+): Promise<AutomationBenchmarkSeedResult> {
+  const minimumExposedRows = Math.max(1, payload?.minimumExposedRows ?? 2);
+  const minimumIntakes = Math.max(1, payload?.minimumIntakes ?? 2);
+
+  await validateAndSaveTelegramAutomationConnection(desktopDataPath, {
+    channel: 'telegram',
+    status: 'disconnected',
+    botDisplayName: 'banji benchmark bot',
+    botToken: 'bench-token:offline',
+    botUsername: 'banji_benchmark_bot',
+    externalLink: 'https://t.me/banji_benchmark_bot',
+  });
+
+  const context = await loadAutomationWorkspaceContext({
+    loadCachedSenaRead,
+    invoke: managedCore.invoke.bind(managedCore),
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+  });
+  let workspace = await readAutomationWorkspace(desktopDataPath, context);
+  const eligibleExposureRows = workspace.exposures.filter((row) =>
+    !row.archived && row.availabilityStatus !== 'hidden' && row.price != null);
+  if (eligibleExposureRows.length < minimumExposedRows) {
+    throw new Error(
+      `Benchmark fixture is missing required automations exposure rows (needed ${minimumExposedRows}, found ${eligibleExposureRows.length}).`,
+    );
+  }
+
+  for (const row of eligibleExposureRows.slice(0, minimumExposedRows)) {
+    await patchAutomationExposureRow(desktopDataPath, context, {
+      entityType: row.entityType,
+      entityId: row.entityId,
+      exposed: true,
+    });
+  }
+
+  const supplierSkuRow = eligibleExposureRows.find((row) => row.entityType === 'sku');
+  if (!supplierSkuRow) {
+    throw new Error('Benchmark fixture is missing an eligible SKU row for supplier task seeding.');
+  }
+  const nowIso = new Date().toISOString();
+  const expectedArrivalAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  await managedCore.invoke<SenaOrderBatchRecord>('sena.createOrderBatch', {
+    supplierName: supplierSkuRow.supplierName ?? null,
+    shared: {
+      orderedQuantity: 6,
+      receivedQuantity: 0,
+      placementTimestamp: nowIso,
+      expectedArrivalAt,
+      costPerUnit: supplierSkuRow.price ?? 1,
+    },
+    children: [{
+      skuId: supplierSkuRow.entityId,
+      overrides: {
+        orderedQuantity: 6,
+        receivedQuantity: 0,
+        costPerUnit: supplierSkuRow.price ?? 1,
+        placementTimestamp: nowIso,
+        expectedArrivalAt,
+      },
+    }],
+  } satisfies SenaCreateOrderBatchPayload, {
+    timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
+  });
+  await invalidateSenaReadCache();
+
+  const preferences = await loadDesktopPreferences(desktopDataPath);
+  workspace = await readAutomationWorkspace(desktopDataPath, context);
+  for (let attempt = 0; attempt < minimumIntakes * 3 && workspace.intakes.length < minimumIntakes; attempt += 1) {
+    await testAutomationTelegramConnection(desktopDataPath, {
+      ...context,
+      currency: preferences.currency,
+    });
+    workspace = await readAutomationWorkspace(desktopDataPath, context);
+  }
+  if (workspace.intakes.length < minimumIntakes) {
+    throw new Error(
+      `Benchmark fixture is missing required automations intake rows (needed ${minimumIntakes}, found ${workspace.intakes.length}).`,
+    );
+  }
+
+  const hasNeedsReviewIntake = workspace.intakes.some((intake) => intake.status === 'needs_review' || intake.status === 'failed');
+  if (!hasNeedsReviewIntake) {
+    const candidate = workspace.intakes.find((intake) => intake.status !== 'ticketed' && intake.status !== 'completed') ?? workspace.intakes[0] ?? null;
+    if (!candidate) {
+      throw new Error('Benchmark fixture does not have an intake available to seed exceptions.');
+    }
+    await resolveAutomationIntake(desktopDataPath, {
+      intakeId: candidate.intakeId,
+      status: 'needs_review',
+      note: 'Seeded for benchmark exceptions coverage.',
+    });
+    workspace = await readAutomationWorkspace(desktopDataPath, context);
+  }
+
+  const targetSupplierFilterLabel = supplierSkuRow.supplierName?.trim() || 'No supplier';
+  return {
+    exposedRows: workspace.exposures.filter((row) => row.exposed).length,
+    intakeRows: workspace.intakes.length,
+    needsReviewRows: workspace.intakes.filter((intake) => intake.status === 'needs_review' || intake.status === 'failed').length,
+    targetSupplierFilterLabel,
+  };
 }
 
 function senaReadCachePath() {
@@ -967,6 +1075,40 @@ async function boot() {
 ipcMain.on(IPC_CHANNELS.benchmarkRecordEvent, (_event, event) => {
   recordExternalBenchmarkEvent(event);
 });
+ipcMain.handle(IPC_CHANNELS.benchmarkGetEventCount, benchmarkIpcHandle(IPC_CHANNELS.benchmarkGetEventCount, async (_event, name: string) => {
+  if (typeof name !== 'string' || name.trim().length === 0) {
+    throw new Error('Benchmark event name is required.');
+  }
+  return benchmarkEventCount(name.trim());
+}));
+ipcMain.handle(
+  IPC_CHANNELS.benchmarkWaitForEventCount,
+  benchmarkIpcHandle(
+    IPC_CHANNELS.benchmarkWaitForEventCount,
+    async (
+      _event,
+      payload: {
+        name: string;
+        minimumCount: number;
+        timeoutMs?: number;
+      },
+    ) => {
+      const name = payload?.name?.trim();
+      const minimumCount = Number.isFinite(payload?.minimumCount) ? payload.minimumCount : 1;
+      if (!name) {
+        throw new Error('Benchmark event name is required.');
+      }
+      if (minimumCount < 1) {
+        throw new Error('Benchmark minimumCount must be at least 1.');
+      }
+      return waitForBenchmarkEventCount({
+        name,
+        minimumCount,
+        timeoutMs: payload?.timeoutMs,
+      });
+    },
+  ),
+);
 
 ipcMain.handle(IPC_CHANNELS.systemGetAppContext, benchmarkIpcHandle(IPC_CHANNELS.systemGetAppContext, async () => {
   recordBenchmarkEvent({
@@ -1104,6 +1246,13 @@ ipcMain.handle(IPC_CHANNELS.automationGetWorkspace, benchmarkIpcHandle(IPC_CHANN
   });
   return readAutomationWorkspace(desktopDataPath, context);
 }));
+ipcMain.handle(
+  IPC_CHANNELS.automationSeedBenchmarkWorkspace,
+  benchmarkIpcHandle(
+    IPC_CHANNELS.automationSeedBenchmarkWorkspace,
+    async (_event, payload?: AutomationBenchmarkSeedPayload) => seedAutomationBenchmarkWorkspace(payload),
+  ),
+);
 ipcMain.handle(IPC_CHANNELS.automationGetConnection, benchmarkIpcHandle(IPC_CHANNELS.automationGetConnection, async () =>
   readAutomationConnection(desktopDataPath),
 ));
@@ -1214,6 +1363,7 @@ ipcMain.handle(IPC_CHANNELS.senaGetRecordUpdateContext, benchmarkIpcHandle(IPC_C
   loadCachedSenaRead('record-update-context', () =>
     managedCore.invoke<SenaRecordUpdateContext>('sena.getRecordUpdateContext', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'critical',
     }),
   ),
 ));
@@ -1228,6 +1378,7 @@ ipcMain.handle(IPC_CHANNELS.senaListObservations, benchmarkIpcHandle(IPC_CHANNEL
   loadCachedSenaRead('observations', () =>
     managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'background',
     }),
   ),
 ));
@@ -1235,6 +1386,7 @@ ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, benchmarkIpcHandle(IPC_CHANNEL
   loadCachedSenaRead(`order-batches:${JSON.stringify(payload ?? {})}`, () =>
     managedCore.invoke<SenaOrderBatchRecord[]>('sena.listOrderBatches', payload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'critical',
     }),
   ),
 ));
@@ -1331,6 +1483,7 @@ ipcMain.handle(IPC_CHANNELS.senaGetWorkspaceSummary, benchmarkIpcHandle(IPC_CHAN
   loadCachedSenaRead('workspace-summary', () =>
     managedCore.invoke<SenaWorkspaceSummary | null>('sena.getWorkspaceSummary', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'critical',
     }),
   ),
 ));
@@ -1349,22 +1502,46 @@ ipcMain.handle(IPC_CHANNELS.senaGetDiagnostics, benchmarkIpcHandle(IPC_CHANNELS.
   loadCachedSenaRead('diagnostics', () =>
     managedCore.invoke<SenaDiagnostics | null>('sena.getDiagnostics', undefined, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
+      readPriority: 'background',
     }),
   ),
 ));
 ipcMain.handle(
   IPC_CHANNELS.senaGetServiceDetail,
-  benchmarkIpcHandle(IPC_CHANNELS.senaGetServiceDetail, async (_event, payload: SenaServiceLookupPayload) =>
-    loadCachedSenaRead(`service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`, () =>
-      managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
-        serviceId: payload.serviceId,
-        beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
-        limit: payload.limit ?? 20,
-      }, {
-        timeoutMs: SENA_READ_TIMEOUT_MS,
-      }),
-    ),
-  ),
+  benchmarkIpcHandle(IPC_CHANNELS.senaGetServiceDetail, async (_event, payload: SenaServiceLookupPayload) => {
+    const cacheKey = `service-detail:${payload.serviceId}:before:${payload.beforeIntervalIndex ?? 'latest'}:limit:${payload.limit ?? 20}`;
+    return loadCachedSenaRead(cacheKey, async () => {
+      const endCoreRoundTrip = startBenchmarkSpan({
+        category: 'ipc',
+        name: 'main.service-detail.core-round-trip',
+        detail: {
+          beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
+          limit: payload.limit ?? 20,
+          serviceId: payload.serviceId,
+        },
+      });
+      try {
+        const result = await managedCore.invoke<SenaServiceDetailPage | null>('sena.getServiceDetail', {
+          serviceId: payload.serviceId,
+          beforeIntervalIndex: payload.beforeIntervalIndex ?? null,
+          limit: payload.limit ?? 20,
+        }, {
+          timeoutMs: SENA_READ_TIMEOUT_MS,
+        });
+        endCoreRoundTrip({
+          ok: true,
+          result: summarizeBenchmarkPayload(result),
+        });
+        return result;
+      } catch (error) {
+        endCoreRoundTrip({
+          error: error instanceof Error ? error.message : String(error),
+          ok: false,
+        });
+        throw error;
+      }
+    });
+  }),
 );
 ipcMain.handle(
   IPC_CHANNELS.senaClearDetailCache,

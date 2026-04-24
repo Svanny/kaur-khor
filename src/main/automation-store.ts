@@ -34,7 +34,9 @@ import type {
   SenaCommercialStage,
   SenaObservationInput,
   SenaObservationRecord,
+  SenaRecordUpdateContext,
   SenaService,
+  SenaStockSnapshot,
   SenaTicketEvent,
   SenaTicketEventType,
   SenaTicketLifecycle,
@@ -189,7 +191,7 @@ type TelegramOutboundJob =
 
 type ExposureBuildContext = {
   catalog: SenaCatalog | null;
-  observations: SenaObservationRecord[];
+  recordUpdateContext: SenaRecordUpdateContext;
 };
 
 type PromotionPreparation = {
@@ -343,16 +345,14 @@ async function updateAutomationState<T>(
   return writeOperation;
 }
 
-function latestStockBySku(observations: SenaObservationRecord[]) {
+function latestStockBySku(
+  latestStockBySkuAnchors: SenaRecordUpdateContext['latestStockBySku'],
+) {
   const latest = new Map<string, number>();
-  const ordered = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
-  for (const observation of ordered) {
-    for (const snapshot of observation.input.stockSnapshot) {
-      if (!latest.has(snapshot.skuId)) {
-        latest.set(snapshot.skuId, snapshot.unitsInStock);
-      }
+  for (const [skuId, anchor] of Object.entries(latestStockBySkuAnchors ?? {})) {
+    const snapshot = anchor?.value as SenaStockSnapshot | undefined;
+    if (snapshot && Number.isFinite(snapshot.unitsInStock)) {
+      latest.set(skuId, snapshot.unitsInStock);
     }
   }
   return latest;
@@ -429,13 +429,13 @@ function deriveServiceAvailability(
 
 function buildExposureRows(
   state: AutomationStoreState,
-  { catalog, observations }: ExposureBuildContext,
+  { catalog, recordUpdateContext }: ExposureBuildContext,
 ): AutomationExposureRow[] {
   if (!catalog) {
     return [];
   }
 
-  const stockBySku = latestStockBySku(observations);
+  const stockBySku = latestStockBySku(recordUpdateContext.latestStockBySku);
   const rulesByKey = new Map(
     state.exposureRules.map((rule) => [`${rule.entityType}:${rule.entityId}`, rule] as const),
   );

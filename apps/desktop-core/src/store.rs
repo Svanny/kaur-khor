@@ -1,3 +1,4 @@
+use crate::benchmark;
 use anyhow::Result;
 use banji_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
@@ -14,7 +15,9 @@ use banji_sena_core::{
 use futures::executor::block_on;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::Serialize;
+use serde_json::json;
 use std::{env, fs, path::PathBuf};
+use std::time::Instant;
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
@@ -1479,10 +1482,37 @@ pub fn get_service_detail(
     before_interval_index: Option<usize>,
     limit: usize,
 ) -> Result<Option<SenaServiceDetailPage>> {
-    Ok(
-        block_on(repository()?.load_service_detail(owner_sub, service_id))?
-            .map(|detail| page_service_detail(detail, before_interval_index, limit)),
-    )
+    let load_started_at = Instant::now();
+    let detail = block_on(repository()?.load_service_detail(owner_sub, service_id))?;
+    benchmark::record_duration(
+        "core.service-detail.store.load",
+        Some("sena.getServiceDetail"),
+        load_started_at.elapsed(),
+        json!({
+            "hit": detail.is_some(),
+            "serviceId": service_id,
+        }),
+    );
+    let Some(detail) = detail else {
+        return Ok(None);
+    };
+
+    let page_started_at = Instant::now();
+    let page = page_service_detail(detail, before_interval_index, limit);
+    benchmark::record_duration(
+        "core.service-detail.store.page",
+        Some("sena.getServiceDetail"),
+        page_started_at.elapsed(),
+        json!({
+            "beforeIntervalIndex": before_interval_index,
+            "hasOlder": page.has_older,
+            "intervalCount": page.detail.regime_timeline.len(),
+            "limit": limit,
+            "nextBeforeIntervalIndex": page.next_before_interval_index,
+            "serviceId": service_id,
+        }),
+    );
+    Ok(Some(page))
 }
 
 pub fn get_diagnostics(owner_sub: &str) -> Result<Option<SenaDiagnostics>> {

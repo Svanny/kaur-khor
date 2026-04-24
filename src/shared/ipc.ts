@@ -224,6 +224,12 @@ export interface DesktopSystemBridge {
 
 export interface DesktopBenchmarkBridge extends BanjiBenchmarkMetadata {
   recordEvent: (event: BanjiBenchmarkEvent) => void;
+  getEventCount?: (name: string) => Promise<number>;
+  waitForEventCount?: (payload: {
+    name: string;
+    minimumCount: number;
+    timeoutMs?: number;
+  }) => Promise<{ count: number; ts: number | null }>;
 }
 
 export interface AutomationExposurePatch {
@@ -264,8 +270,21 @@ export interface AutomationResolveIntakePayload {
   note?: string | null;
 }
 
+export interface AutomationBenchmarkSeedPayload {
+  minimumExposedRows?: number;
+  minimumIntakes?: number;
+}
+
+export interface AutomationBenchmarkSeedResult {
+  exposedRows: number;
+  intakeRows: number;
+  needsReviewRows: number;
+  targetSupplierFilterLabel: string;
+}
+
 export interface DesktopAutomationBridge {
   getWorkspace: () => Promise<AutomationWorkspace>;
+  seedBenchmarkWorkspace?: (payload?: AutomationBenchmarkSeedPayload) => Promise<AutomationBenchmarkSeedResult>;
   getConnection: () => Promise<AutomationChannelConnection>;
   saveConnection: (payload: AutomationConnectionPatch) => Promise<AutomationChannelConnection>;
   listExposureRows: () => Promise<AutomationExposureRow[]>;
@@ -294,6 +313,7 @@ export interface DesktopBridge {
 
 export const IPC_CHANNELS = {
   automationGetWorkspace: 'banji:automation:get-workspace',
+  automationSeedBenchmarkWorkspace: 'banji:automation:seed-benchmark-workspace',
   automationGetConnection: 'banji:automation:get-connection',
   automationSaveConnection: 'banji:automation:save-connection',
   automationListExposureRows: 'banji:automation:list-exposure-rows',
@@ -339,6 +359,8 @@ export const IPC_CHANNELS = {
   preferencesGet: 'banji:preferences:get',
   preferencesSave: 'banji:preferences:save',
   benchmarkRecordEvent: 'banji:benchmark:record-event',
+  benchmarkGetEventCount: 'banji:benchmark:get-event-count',
+  benchmarkWaitForEventCount: 'banji:benchmark:wait-for-event-count',
   benchmarkRunnerGetAvailability: 'banji:benchmark-runner:get-availability',
   benchmarkRunnerListRuns: 'banji:benchmark-runner:list-runs',
   benchmarkRunnerReadRun: 'banji:benchmark-runner:read-run',

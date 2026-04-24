@@ -66,6 +66,7 @@ export interface BanjiBenchmarkDistributionSummary {
   mean: number | null;
   median: number | null;
   min: number | null;
+  p95: number | null;
   q1: number | null;
   q3: number | null;
 }
@@ -88,6 +89,8 @@ export interface BanjiBenchmarkTargetEvaluation {
   label: string;
   value: number | null;
   distribution?: BanjiBenchmarkDistributionSummary;
+  p95?: number | null;
+  jitterBudget?: number | null;
   unit: BanjiBenchmarkTarget['unit'];
   status: BanjiBenchmarkTargetStatus;
   nonNegotiable: number;
@@ -523,15 +526,15 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     rationale: 'Service detail IPC may do dependency work but should stay bounded.',
   },
   {
-    metricName: 'backend.core.queue_wait_p95_ms',
-    label: 'Core queue wait p95',
+    metricName: 'backend.core.interactive_queue_wait_p95_ms',
+    label: 'Interactive core queue wait p95',
     category: 'core-command',
     scenarios: ['startup', 'navigation', 'overview', 'automations', 'record-update', 'detail-pages', 'stability'],
     unit: 'ms',
     nonNegotiable: 50,
     acceptable: 100,
     source: 'Electron performance guidance, web.dev INP',
-    rationale: 'Serialized backend queueing should not become hidden latency.',
+    rationale: 'Interactive backend queueing should stay low during the measured user-action window.',
   },
   {
     metricName: 'backend.core.read_pool_queue_wait_p95_ms',
@@ -542,7 +545,18 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     nonNegotiable: 50,
     acceptable: 100,
     source: 'Electron performance guidance, web.dev INP',
-    rationale: 'Read-only fanout should not wait behind writer-only work.',
+    rationale: 'Read-only fanout in the measurement window should not wait behind writer-only work.',
+  },
+  {
+    metricName: 'backend.core.setup_queue_wait_p95_ms',
+    label: 'Setup queue wait p95',
+    category: 'core-command',
+    scenarios: ['startup', 'navigation', 'overview', 'automations', 'record-update', 'detail-pages', 'stability'],
+    unit: 'ms',
+    nonNegotiable: 200,
+    acceptable: 500,
+    source: 'Benchmark phase isolation guidance',
+    rationale: 'Setup/background queueing is tracked separately from user-interaction latency budgets.',
   },
   {
     metricName: 'backend.core.writer_queue_wait_p95_ms',
@@ -653,9 +667,60 @@ export function summarizeBenchmarkDistribution(values: number[]): BanjiBenchmark
       : finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length,
     median: percentileValue(finiteValues, 50),
     min: finiteValues[0] ?? null,
+    p95: percentileValue(finiteValues, 95),
     q1,
     q3,
   };
+}
+
+function classifyBenchmarkDistributionTarget(
+  value: number | null | undefined,
+  target: BanjiBenchmarkTarget,
+  distribution?: BanjiBenchmarkDistributionSummary,
+) {
+  if (!distribution || target.unit === 'boolean') {
+    return {
+      jitterBudget: null,
+      p95: null,
+      status: classifyBenchmarkTarget(value, target),
+    } as const;
+  }
+  const p95 = distribution.p95;
+  const baselineStatus = classifyBenchmarkTarget(value, target);
+  if (p95 == null || !Number.isFinite(p95)) {
+    return {
+      jitterBudget: null,
+      p95: null,
+      status: baselineStatus,
+    } as const;
+  }
+
+  const jitterBudget = Math.max(
+    target.acceptable - target.nonNegotiable,
+    target.nonNegotiable * 0.15,
+  );
+  const nonNegotiableWithJitter = target.nonNegotiable + jitterBudget;
+  const acceptableWithJitter = target.acceptable + jitterBudget;
+
+  if ((value ?? Number.POSITIVE_INFINITY) <= target.nonNegotiable && p95 <= nonNegotiableWithJitter) {
+    return {
+      jitterBudget,
+      p95,
+      status: 'pass' as const,
+    };
+  }
+  if ((value ?? Number.POSITIVE_INFINITY) <= target.acceptable && p95 <= acceptableWithJitter) {
+    return {
+      jitterBudget,
+      p95,
+      status: 'watch' as const,
+    };
+  }
+  return {
+    jitterBudget,
+    p95,
+    status: baselineStatus === 'missing' ? 'missing' : 'fail',
+  } as const;
 }
 
 export function benchmarkTargetsForScenario(scenario: BanjiBenchmarkScenarioId) {
@@ -670,13 +735,16 @@ export function evaluateBenchmarkTargets(
   return benchmarkTargetsForScenario(scenario).map((target) => {
     const distribution = distributions?.[target.metricName];
     const value = distribution?.median ?? metrics[target.metricName] ?? null;
+    const classified = classifyBenchmarkDistributionTarget(value, target, distribution);
     return {
       metricName: target.metricName,
       label: target.label,
       value,
       ...(distribution ? { distribution } : {}),
+      ...(classified.p95 == null ? {} : { p95: classified.p95 }),
+      ...(classified.jitterBudget == null ? {} : { jitterBudget: classified.jitterBudget }),
       unit: target.unit,
-      status: classifyBenchmarkTarget(value, target),
+      status: classified.status,
       nonNegotiable: target.nonNegotiable,
       acceptable: target.acceptable,
       source: target.source,
