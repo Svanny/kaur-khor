@@ -336,10 +336,10 @@ describe('command palette descriptors', () => {
 
     expect(commands.find((command) => command.id === 'page:catalog')?.action.href).toBe('/catalog?q=scarf&view=skus');
     expect(commands.find((command) => command.id === 'page:performance')?.action.href).toBe(
-      '/performance?compare=0&range=7d&scope=skus&supplier=Mekong+Looms',
+      '/performance?range=7d&scope=skus&supplier=Mekong+Looms',
     );
     expect(commands.find((command) => command.id === 'performance:range:90d')?.action.href).toBe(
-      '/performance?compare=0&range=90d&scope=skus&supplier=Mekong+Looms',
+      '/performance?range=90d&scope=skus&supplier=Mekong+Looms',
     );
   });
 

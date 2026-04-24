@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -121,9 +121,29 @@ export function AnalysisRoute() {
   const timeframe = routeState.timeframe as AnalysisTimeframe;
   const isLedgerExpanded = routeState.chart === 'expanded';
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
-  const visibleCatalog = filterCatalogBySupplier(activeSenaCatalog(inventory.catalog), supplierFilter);
-  const targetSkuIds = scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? [];
-  const targetServiceIds = scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? [];
+  const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const visibleCatalog = useMemo(
+    () => filterCatalogBySupplier(baseCatalog, supplierFilter),
+    [baseCatalog, supplierFilter],
+  );
+  const targetSkuIds = useMemo(
+    () => (scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? []),
+    [scope, visibleCatalog?.skus],
+  );
+  const targetServiceIds = useMemo(
+    () => (scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? []),
+    [scope, visibleCatalog?.services],
+  );
+  const priorityServiceIds = useMemo(
+    () => targetServiceIds.slice(0, 8),
+    [targetServiceIds],
+  );
+  const prioritySkuIds = useMemo(
+    () => targetSkuIds
+      .filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId))
+      .slice(0, 8),
+    [inventory.workspaceSummary?.highRiskSkuIds, targetSkuIds],
+  );
   const chartController = useTradingChartController({
     initialTimeframe: timeframe,
     onTimeframeChange: (nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe }),
@@ -141,8 +161,8 @@ export function AnalysisRoute() {
     skuDetailsById,
     timeframeHydrationProgress,
   } = useSenaDetailHydration(chartController.timeframe as AnalysisTimeframe, {
-    priorityServiceIds: targetServiceIds.slice(0, 8),
-    prioritySkuIds: targetSkuIds.filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId)).slice(0, 8),
+    priorityServiceIds,
+    prioritySkuIds,
     serviceIds: targetServiceIds,
     skuIds: targetSkuIds,
     timeframeBoundaryOverride: chartController.timeframeBoundaryOverride,

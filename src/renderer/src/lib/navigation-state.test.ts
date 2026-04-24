@@ -83,8 +83,8 @@ describe('navigation-state', () => {
       supplier: null,
     });
 
-    expect(buildPerformanceHref({ compare: true, range: '30d', scope: 'all' })).toBe('/performance');
-    expect(buildPerformanceHref({ compare: false, range: '7d' })).toBe('/performance?compare=0&range=7d');
+    expect(buildPerformanceHref({ compare: false, range: '30d', scope: 'all' })).toBe('/performance');
+    expect(buildPerformanceHref({ compare: true, range: '7d' })).toBe('/performance?compare=1&range=7d');
   });
 
   test('reads financials route state safely and omits default financials params', () => {
@@ -96,15 +96,15 @@ describe('navigation-state', () => {
     });
 
     expect(readFinancialsRouteState(new URLSearchParams('compare=maybe&range=bad&scope=nope'))).toEqual({
-      compare: true,
+      compare: false,
       range: '1d',
       scope: 'all',
       supplier: null,
     });
 
-    expect(buildFinancialsHref({ compare: true, range: '1d', scope: 'all' })).toBe('/financials');
-    expect(buildFinancialsHref({ compare: false, range: '7d', scope: 'skus' })).toBe(
-      '/financials?compare=0&range=7d&scope=skus',
+    expect(buildFinancialsHref({ compare: false, range: '1d', scope: 'all' })).toBe('/financials');
+    expect(buildFinancialsHref({ compare: true, range: '7d', scope: 'skus' })).toBe(
+      '/financials?compare=1&range=7d&scope=skus',
     );
   });
 

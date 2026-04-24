@@ -382,11 +382,28 @@ export function PerformanceRoute() {
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
     [baseCatalog, supplierFilter],
   );
-  const targetSkuIds = scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? [];
-  const targetServiceIds = scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? [];
+  const targetSkuIds = useMemo(
+    () => (scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? []),
+    [scope, visibleCatalog?.skus],
+  );
+  const targetServiceIds = useMemo(
+    () => (scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? []),
+    [scope, visibleCatalog?.services],
+  );
+  const priorityServiceIds = useMemo(
+    () => targetServiceIds.slice(0, 8),
+    [targetServiceIds],
+  );
+  const prioritySkuIds = useMemo(
+    () => targetSkuIds
+      .filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId))
+      .slice(0, 8),
+    [inventory.workspaceSummary?.highRiskSkuIds, targetSkuIds],
+  );
   const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent', {
-    priorityServiceIds: targetServiceIds.slice(0, 8),
-    prioritySkuIds: targetSkuIds.filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId)).slice(0, 8),
+    deferInitialHydrationMs: 250,
+    priorityServiceIds,
+    prioritySkuIds,
     serviceIds: targetServiceIds,
     skuIds: targetSkuIds,
   });

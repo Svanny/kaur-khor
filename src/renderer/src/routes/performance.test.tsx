@@ -24,6 +24,8 @@ const preferenceState = {
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
+  useInventoryActions: () => inventoryHook(),
+  useInventoryState: () => inventoryHook(),
 }));
 
 vi.mock('@/state/preferences', () => ({
@@ -567,6 +569,32 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
   }, 10_000);
 
+  test('does not restart analysis detail hydration on an unchanged route rerender', async () => {
+    const state = createInventoryState();
+    inventoryHook.mockReturnValue(state);
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/analysis']}>
+        <AnalysisRoute />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    const serviceLoadCount = state.loadSenaServiceDetail.mock.calls.length;
+    const skuLoadCount = state.loadSenaSkuDetail.mock.calls.length;
+
+    rerender(
+      <MemoryRouter initialEntries={['/analysis']}>
+        <AnalysisRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(state.loadSenaServiceDetail).toHaveBeenCalledTimes(serviceLoadCount);
+      expect(state.loadSenaSkuDetail).toHaveBeenCalledTimes(skuLoadCount);
+    });
+  });
+
   test('scrolls the analysis route back to the top on entry', async () => {
     window.scrollTo = vi.fn();
 
@@ -824,7 +852,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('updates the business window when the time-range toggle changes', async () => {
-    renderRoute();
+    renderRoute('/performance?compare=1');
 
     expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 30d/i)).toBeInTheDocument();
@@ -839,7 +867,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('turns the board into a comparison surface when compare is enabled', async () => {
-    const { container } = renderRoute();
+    const { container } = renderRoute('/performance?compare=1');
 
     expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
     expect(
@@ -864,7 +892,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('renders sparklines for demand in normal mode only', async () => {
-    const { container } = renderRoute();
+    const { container } = renderRoute('/performance?compare=1');
 
     await screen.findByText('Showing last 30d posture vs prior 30d');
     fireEvent.click(screen.getByRole('button', { name: /compare/i }));
@@ -875,7 +903,7 @@ describe('PerformanceRoute', () => {
   });
 
   test('suppresses hover styling after deactivation until the compare button is left', async () => {
-    renderRoute();
+    renderRoute('/performance?compare=1');
 
     const compareButton = await screen.findByRole('button', { name: /compare/i });
     fireEvent.mouseEnter(compareButton);

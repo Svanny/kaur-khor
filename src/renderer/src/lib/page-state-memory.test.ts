@@ -17,8 +17,8 @@ describe('page-state-memory', () => {
   test('remembers canonical page state across reload-safe local storage', () => {
     rememberPageState('/performance', '?range=7d&scope=skus&compare=0&extra=drop');
 
-    expect(buildRememberedPerformanceHref()).toBe('/performance?compare=0&range=7d&scope=skus');
-    expect(buildRememberedPerformanceHref({ range: '90d' })).toBe('/performance?compare=0&range=90d&scope=skus');
+    expect(buildRememberedPerformanceHref()).toBe('/performance?range=7d&scope=skus');
+    expect(buildRememberedPerformanceHref({ range: '90d' })).toBe('/performance?range=90d&scope=skus');
   });
 
   test('ignores malformed storage and invalid route params', () => {

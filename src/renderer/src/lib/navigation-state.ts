@@ -310,7 +310,7 @@ export function buildAnalysisHref(nextState?: Partial<AnalysisRouteState>, curre
 
 export function readPerformanceRouteState(searchParams: URLSearchParams): PerformanceRouteState {
   return {
-    compare: readBooleanValue(searchParams, 'compare', true),
+    compare: readBooleanValue(searchParams, 'compare', false),
     range: readEnumValue(searchParams, 'range', performanceRangeValues, '30d'),
     scope: readEnumValue(searchParams, 'scope', performanceScopeValues, 'all'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
@@ -325,7 +325,7 @@ export function buildPerformanceSearchParams(
   const searchParams = cloneSearchParams(currentSearchParams);
   const resolvedState = { ...currentState, ...nextState };
 
-  writeBooleanValue(searchParams, 'compare', resolvedState.compare, true);
+  writeBooleanValue(searchParams, 'compare', resolvedState.compare, false);
   writeEnumValue(searchParams, 'range', resolvedState.range, '30d');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
@@ -341,7 +341,7 @@ export function buildPerformanceHref(
 
 export function readFinancialsRouteState(searchParams: URLSearchParams): FinancialsRouteState {
   return {
-    compare: readBooleanValue(searchParams, 'compare', true),
+    compare: readBooleanValue(searchParams, 'compare', false),
     range: readEnumValue(searchParams, 'range', financialsRangeValues, '1d'),
     scope: readEnumValue(searchParams, 'scope', financialsScopeValues, 'all'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
@@ -356,7 +356,7 @@ export function buildFinancialsSearchParams(
   const searchParams = cloneSearchParams(currentSearchParams);
   const resolvedState = { ...currentState, ...nextState };
 
-  writeBooleanValue(searchParams, 'compare', resolvedState.compare, true);
+  writeBooleanValue(searchParams, 'compare', resolvedState.compare, false);
   writeEnumValue(searchParams, 'range', resolvedState.range, '1d');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);

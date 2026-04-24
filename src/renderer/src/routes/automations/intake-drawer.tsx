@@ -127,7 +127,7 @@ export function AutomationIntakeDrawer({
   const [messages, setMessages] = useState<AutomationMessageRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
-  const [showDetailBody, setShowDetailBody] = useState(true);
+  const [showDetailBody, setShowDetailBody] = useState(false);
 
   useEffect(() => {
     if (!open || !intake) {
@@ -175,7 +175,7 @@ export function AutomationIntakeDrawer({
             setIsLoadingConversation(false);
           }
         });
-    }, 0);
+    }, 150);
     return () => {
       active = false;
       window.clearTimeout(timeoutId);
@@ -260,6 +260,7 @@ export function AutomationIntakeDrawer({
           </div>
         </SheetHeader>
 
+        {showDetailBody ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-8 py-6 pb-44">
             <section className={drawerCanvasClassName()}>
@@ -287,8 +288,6 @@ export function AutomationIntakeDrawer({
                   </div>
                 </div>
 
-                {showDetailBody ? (
-                  <>
                     <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
                       <p className={sectionTitleClassName()}>Raw incoming text</p>
                       <p className="mt-2 text-sm leading-6 text-foreground">
@@ -322,8 +321,6 @@ export function AutomationIntakeDrawer({
                         </div>
                       ))}
                     </div>
-                  </>
-                ) : null}
 
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
@@ -347,8 +344,6 @@ export function AutomationIntakeDrawer({
             )}
               </DrawerBand>
 
-              {showDetailBody ? (
-                <>
               <DrawerBand title="What do you want to do?">
             <div className="grid gap-3 sm:grid-cols-2">
               {drawerActionOptions.map((option) => {
@@ -424,12 +419,12 @@ export function AutomationIntakeDrawer({
                   {error}
                 </p>
               ) : null}
-                </>
-              ) : null}
             </section>
           </div>
         </div>
+        ) : null}
 
+        {showDetailBody ? (
         <SheetFooter className="sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 px-8 py-5 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm">
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 sm:max-w-[20rem]">
@@ -462,6 +457,7 @@ export function AutomationIntakeDrawer({
             </div>
           </div>
         </SheetFooter>
+        ) : null}
       </SheetContent>
     </Sheet>
   );

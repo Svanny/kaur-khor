@@ -134,7 +134,7 @@ describe('AutomationsRoute', () => {
         }],
       },
       latestRun: null,
-      observations: [],
+      observations: [{ observationId: 'obs-1' }],
       reports: [{ reportId: 'report-1' }],
       workspaceSummary: null,
     });

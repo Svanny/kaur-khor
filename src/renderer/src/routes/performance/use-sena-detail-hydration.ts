@@ -18,6 +18,7 @@ interface SenaHydrationPages {
 }
 
 interface SenaDetailHydrationOptions {
+  deferInitialHydrationMs?: number;
   priorityServiceIds?: string[];
   prioritySkuIds?: string[];
   serviceIds?: string[];
@@ -83,6 +84,7 @@ export function useSenaDetailHydration(
   {
     priorityServiceIds,
     prioritySkuIds,
+    deferInitialHydrationMs = 0,
     serviceIds,
     skuIds,
     timeframeBoundaryOverride,
@@ -441,39 +443,55 @@ export function useSenaDetailHydration(
     let active = true;
     setIsHydratingDetails(true);
 
-    void loadInitialPages({
-      onPagesChange: (pages) => {
-        if (!active) {
-          return;
-        }
-        publishPages(activeCacheKey, pages);
-      },
-      targetBoundaryOverride: timeframeBoundaryOverride,
-      targetCacheKey: activeCacheKey,
-      targetTimeframe: timeframe,
-    })
-      .then((pages) => {
-        if (!active) {
-          return;
-        }
-        publishPages(activeCacheKey, pages);
-        setResolvedTimeframeCacheKey(activeCacheKey);
-        setIsHydratingDetails(false);
+    const startHydration = () => {
+      if (!active) {
+        return;
+      }
+      void loadInitialPages({
+        onPagesChange: (pages) => {
+          if (!active) {
+            return;
+          }
+          publishPages(activeCacheKey, pages);
+        },
+        targetBoundaryOverride: timeframeBoundaryOverride,
+        targetCacheKey: activeCacheKey,
+        targetTimeframe: timeframe,
       })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-        setIsHydratingDetails(false);
-        setTimeframeHydrationProgress(null);
-      });
+        .then((pages) => {
+          if (!active) {
+            return;
+          }
+          publishPages(activeCacheKey, pages);
+          setResolvedTimeframeCacheKey(activeCacheKey);
+          setIsHydratingDetails(false);
+        })
+        .catch(() => {
+          if (!active) {
+            return;
+          }
+          setIsHydratingDetails(false);
+          setTimeframeHydrationProgress(null);
+        });
+    };
+
+    const timeoutId = deferInitialHydrationMs > 0
+      ? window.setTimeout(startHydration, deferInitialHydrationMs)
+      : null;
+    if (timeoutId == null) {
+      startHydration();
+    }
 
     return () => {
       active = false;
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+      }
     };
   }, [
     activeCacheKey,
     catalog,
+    deferInitialHydrationMs,
     loadInitialPages,
     pagesSatisfyTimeframe,
     publishPages,

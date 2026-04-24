@@ -225,10 +225,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
-    expect(screen.getByRole('link', { name: 'Performance' })).toHaveAttribute(
-      'href',
-      '/performance?compare=0&range=7d&scope=skus',
-    );
+    expect(screen.getByRole('link', { name: 'Performance' })).toHaveAttribute('href', '/performance?range=7d&scope=skus');
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings/interface');
   });
 

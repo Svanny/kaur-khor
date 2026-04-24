@@ -268,7 +268,7 @@ describe('OverviewTaskDrawer', () => {
 
     render(<ControlledDrawerHarness />);
 
-    fireEvent.change(screen.getByLabelText('Received quantity'), { target: { value: '24' } });
+    fireEvent.change(await screen.findByLabelText('Received quantity'), { target: { value: '24' } });
     fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
 
     await waitFor(() => {
@@ -291,7 +291,7 @@ describe('OverviewTaskDrawer', () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText('Uncertainty ± days'), { target: { value: '3' } });
+    fireEvent.change(await screen.findByLabelText('Uncertainty ± days'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
 
@@ -317,7 +317,7 @@ describe('OverviewTaskDrawer', () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole('option', { name: 'Wide' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Wide' }));
     fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
 

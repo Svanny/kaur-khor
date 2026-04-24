@@ -390,7 +390,7 @@ export function OverviewTaskDrawer({
   const [error, setError] = useState<string | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
   const [dismissedAfterSave, setDismissedAfterSave] = useState(false);
-  const [showDetailBody, setShowDetailBody] = useState(true);
+  const [showDetailBody, setShowDetailBody] = useState(false);
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
   const [hasUserEditedDraft, setHasUserEditedDraft] = useState(false);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });

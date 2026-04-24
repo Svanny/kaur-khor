@@ -337,7 +337,7 @@ describe('FinancialsRoute', () => {
   });
 
   test('applies shared semantic tones to money deltas and quality bands', () => {
-    renderRoute();
+    renderRoute('/financials?compare=1');
 
     expect(screen.getAllByText(/\+\$/)[0]).toHaveClass('bg-emerald-50');
     expect(screen.getByRole('heading', { name: 'Earners' }).closest('div')).toHaveClass('bg-emerald-50/70');
