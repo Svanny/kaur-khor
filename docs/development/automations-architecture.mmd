@@ -1,0 +1,57 @@
+%% Banji automations benchmark architecture.
+sequenceDiagram
+  autonumber
+  participant Bench as Automations benchmark<br/>bench/scenarios/automations.bench.ts
+  participant Seed as Automation seed helper
+  participant Route as Automations route
+  participant Provider as AutomationProvider
+  participant Dialog as AutomationIntakeDrawer
+  participant Preload as Preload automation bridge
+  participant Main as Electron main IPC
+  participant Core as Managed desktop-core pool
+  participant Store as SQLite automation<br/>and catalog rows
+  participant Metrics as Benchmark summary
+
+  Bench->>Metrics: wait for renderer.workspace.ready
+  Bench->>Seed: ensure exposed catalog rows and intakes
+  Seed->>Preload: automation seed writes
+  Preload->>Main: IPC automation commands
+  Main->>Core: mutation commands route to writer
+  Core->>Store: write connection, exposure, intake state
+  Store-->>Core: seed summary
+  Core-->>Bench: exposed/intake row counts
+  Bench->>Metrics: record benchmark.phase.seed_end
+  Bench->>Metrics: record benchmark.phase.measurement_start
+
+  Bench->>Route: navigate to /automations
+  Route->>Provider: load workspace, connection, catalog exposure, intakes
+  Provider->>Preload: automation.getWorkspace and related reads
+  Preload->>Metrics: record preload.invoke.* spans
+  Preload->>Main: IPC read commands
+  Main->>Core: coalesced read-only commands
+  Core->>Store: read automation and catalog rows
+  Store-->>Core: route data
+  Core-->>Provider: route data
+  Provider-->>Route: hydrated automation workspace
+  Route->>Metrics: record route.automations.ready
+
+  Bench->>Route: switch Catalog tab and exposure filters
+  Route->>Metrics: record interaction.automations_exposure_filter_ms
+  Bench->>Route: switch Live intake tab
+  Route->>Metrics: record interaction.automations_live_intake_table_ms
+  Bench->>Dialog: open intake drawer
+  Dialog->>Provider: read selected intake and conversation
+  Provider->>Preload: automation.readConversation
+  Preload->>Main: IPC read conversation
+  Main->>Core: read-only route command
+  Core->>Store: intake detail rows
+  Store-->>Dialog: conversation detail
+  Dialog->>Metrics: record interaction.open_automation_intake_drawer_ms
+
+  Bench->>Route: switch Needs review tab
+  Route->>Metrics: record interaction.automations_exceptions_section_ms
+  Bench->>Metrics: record benchmark.phase.measurement_end
+  Bench->>Metrics: evaluate automations target coverage
+
+  Note over Route,Provider: The route is tab-driven and measures connection, catalog exposure, live intake, drawer, and exceptions surfaces
+  Note over Main,Core: Automation writes use the writer while route reads may use read workers

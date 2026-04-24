@@ -1,0 +1,66 @@
+%% Banji detail pages benchmark architecture.
+sequenceDiagram
+  autonumber
+  participant Bench as Detail pages benchmark<br/>bench/scenarios/detail-pages.bench.ts
+  participant Catalog as Catalog route
+  participant Sku as SKU detail route
+  participant Service as Service detail route
+  participant Cache as Detail page cache<br/>localStorage + renderer state
+  participant Preload as Preload SENA bridge
+  participant Main as Electron main IPC
+  participant Core as Managed desktop-core pool
+  participant Store as SQLite catalog<br/>SKU and service detail rows
+  participant Metrics as Benchmark summary
+
+  Bench->>Metrics: wait for renderer.workspace.ready
+  Bench->>Metrics: record benchmark.phase.measurement_start
+  Bench->>Preload: sena.getCatalog
+  Preload->>Main: IPC catalog read
+  Main->>Core: coalesced read-only command
+  Core->>Store: read active SKU and service ids
+  Store-->>Bench: first non-archived SKU and service targets
+
+  alt SKU target exists
+    Bench->>Sku: navigate /catalog/skus/:skuId
+    Sku->>Cache: check freshness fingerprint and cached detail
+    alt cache miss
+      Sku->>Preload: sena.getSkuDetail
+      Preload->>Metrics: record preload.invoke.* span
+      Preload->>Main: IPC detail read
+      Main->>Core: read worker detail command
+      Core->>Store: read sena_sku_detail and supporting rows
+      Store-->>Sku: SKU detail model
+      Sku->>Cache: persist fresh detail page cache
+    else cache hit
+      Cache-->>Sku: cached SKU detail model
+    end
+    Sku->>Metrics: route.sku-detail.ready
+    Bench->>Metrics: record detail.sku_first_load_ms
+    Bench->>Catalog: navigate /catalog
+    Catalog->>Metrics: route.catalog.ready
+    Bench->>Sku: navigate same SKU again
+    Cache-->>Sku: repeat detail path
+    Sku->>Metrics: route.sku-detail.ready
+    Bench->>Metrics: record detail.sku_repeat_load_ms
+  end
+
+  alt service target exists
+    Bench->>Service: navigate /catalog/services/:serviceId
+    Service->>Cache: check cached service detail
+    Service->>Preload: sena.getServiceDetail when cache is stale
+    Preload->>Main: IPC detail read
+    Main->>Core: read worker detail command
+    Core->>Store: read sena_service_detail and supporting rows
+    Store-->>Service: service detail model
+    Service->>Metrics: route.service-detail.ready
+    Bench->>Metrics: record detail.service_first_load_ms
+    Bench->>Service: navigate repeat URL with benchmarkRepeat=1
+    Service->>Cache: reuse or refresh detail model
+    Bench->>Metrics: record detail.service_repeat_load_ms
+  end
+
+  Bench->>Metrics: snapshot renderer memory after first and repeat loads
+  Bench->>Metrics: record benchmark.phase.measurement_end
+  Bench->>Metrics: close app and persist detail-pages summary
+
+  Note over Cache,Store: First-load metrics include cache population while repeat metrics exercise renderer and persisted detail cache behavior

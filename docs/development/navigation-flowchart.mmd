@@ -79,13 +79,13 @@ flowchart LR
 
   subgraph CorePool["Managed desktop-core pool"]
     Writer["Writer core<br/>mutations and fallback reads"]:::mutation
-    ReadWorkers["Read-worker pool<br/>least-busy ready worker"]:::ipc
+    ReadWorkers["Read-worker pool<br/>interactive and bulk lanes"]:::ipc
     Coalesce["Global core read coalescing<br/>same command + payload + timeout"]:::cache
     SelectRead{"Read-only command?"}:::decision
     PoolReady{"Any read worker ready?"}:::decision
     ReadPriority{"Critical startup read?"}:::decision
     WriterFallback["Fallback read to writer<br/>only after deferred wait or for critical reads"]:::hotspot
-    Queue["Per-worker command queue<br/>backend.core.queue_wait"]:::hotspot
+    Queue["Per-worker command queue<br/>interactive, read-pool, and setup waits"]:::hotspot
     StaleCheck{"Mutation generation changed?"}:::decision
     ReplayWriter["Replay stale read on writer"]:::hotspot
     Resolve["backend.core.response.received"]:::metric
@@ -103,7 +103,7 @@ flowchart LR
 
   subgraph Metrics["Navigation target evaluation"]
     RouteTargets["Route targets<br/>nav.dashboard_to_* and interaction.open_task_drawer_ms"]:::metric
-    QueueTargets["Backend queue targets<br/>core queue wait p95 + read pool queue wait p95"]:::hotspot
+    QueueTargets["Backend queue targets<br/>interactive, read-pool, and setup queue p95"]:::hotspot
     FlameArtifact["Flamegraph artifact<br/>scope navigation, worst repeat when repeated"]:::metric
     Summary["navigation.summary.json<br/>pass, watch, fail, missing"]:::metric
   end

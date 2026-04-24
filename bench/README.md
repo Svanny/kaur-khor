@@ -62,8 +62,9 @@ Each run writes:
 Startup summaries track the compact startup architecture. The old startup target
 for `ipc.sena_get_workspace_summary_ms` has been replaced by
 `ipc.sena_get_startup_workspace_ms`. Queue metrics include the legacy aggregate
-`backend.core.queue_wait_p95_ms` and read-pool-specific
-`backend.core.read_pool_queue_wait_p95_ms`.
+`backend.core.interactive_queue_wait_p95_ms`, read-pool-specific
+`backend.core.read_pool_queue_wait_p95_ms`, and setup-only
+`backend.core.setup_queue_wait_p95_ms`.
 
 Compare two result directories:
 
@@ -75,7 +76,10 @@ The benchmark data directory is isolated per run. The benchmark seed helper and
 the development boot path now share the same generated-history seeding script.
 Benchmark runs still prepare the workspace first, then launch Banji with dev
 seeding disabled so the measured startup path uses the prepared fixture instead
-of reseeding during startup.
+of reseeding during startup. Scenario summaries now isolate setup from measured
+interaction windows using `benchmark.phase.seed_end`,
+`benchmark.phase.measurement_start`, and `benchmark.phase.measurement_end`
+markers.
 
 Overview and Automations scenarios now measure current operator-critical flows:
 
@@ -86,6 +90,11 @@ Automation and customer benchmark coverage is seeded deterministically during th
 scenario setup. Bench helpers now force a minimum exposed-row and intake-row
 count before timing starts. If required rows are absent, the Playwright scenario
 fails immediately instead of emitting target rows with `missing` status.
+
+Interaction timers now wait on in-process benchmark events instead of persisted
+JSONL polling. Scenario summaries include harness truth metrics:
+`harness.ready_latency_p95_ms`, `harness.measurement_duration_p95_ms`, and
+`harness.overhead_p95_ms`.
 
 Navigation and record-update scenarios follow current UI routes and labels
 instead of deprecated deep-link aliases. Sidebar benchmarks click visible shell

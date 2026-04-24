@@ -1,0 +1,93 @@
+%% Banji automations benchmark flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Automations benchmark starts"]):::entry
+
+  subgraph Bench["Benchmark scenario"]
+    Launch["Launch automations-current-flows"]:::process
+    WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
+    Seed["ensureAutomationBenchmarkSeed<br/>exposed rows and intakes"]:::process
+    SeedEnd["benchmark.phase.seed_end"]:::metric
+    MeasureStart["benchmark.phase.measurement_start"]:::metric
+    Nav["Click Automations sidebar"]:::process
+    CatalogTab["Open Catalog tab"]:::process
+    ExposureToggle["Toggle All and Exposed filters"]:::process
+    IntakeTab["Open Live intake tab"]:::process
+    OpenDrawer["Open intake drawer"]:::process
+    ExceptionsTab["Open Needs review tab"]:::process
+    MeasureEnd["benchmark.phase.measurement_end"]:::metric
+  end
+
+  subgraph Route["Automations route"]
+    Ready["route.automations.ready"]:::metric
+    Connection["Current connection card<br/>Last webhook"]:::route
+    Catalog["Sellables exposed to Telegram"]:::route
+    Intake["Live intake table"]:::route
+    Exceptions["Needs review exceptions"]:::route
+    Drawer["AutomationIntakeDrawer"]:::route
+  end
+
+  subgraph Data["Automation data path"]
+    Provider["AutomationProvider"]:::process
+    Workspace["automation workspace reads"]:::ipc
+    Conversation["selected intake conversation read"]:::ipc
+    RendererCache["renderer route state"]:::cache
+  end
+
+  subgraph Bridge["Bridge, main, and core"]
+    Preload["automation bridge<br/>invokeWithBenchmark"]:::bridge
+    Main["ipcMain automation handlers"]:::ipc
+    Writer["writer for seed mutations"]:::mutation
+    ReadWorkers["read workers for route reads"]:::ipc
+    Store["automation connection, exposure, intake, catalog rows"]:::store
+  end
+
+  subgraph Metrics["Target coverage"]
+    NavMetric["nav.to_automations_ms"]:::metric
+    ExposureMetric["interaction.automations_exposure_filter_ms"]:::metric
+    IntakeMetric["interaction.automations_live_intake_table_ms"]:::metric
+    DrawerMetric["interaction.open_automation_intake_drawer_ms"]:::metric
+    ExceptionsMetric["interaction.automations_exceptions_section_ms"]:::metric
+    QueueTargets["backend.core queue wait p95 metrics"]:::hotspot
+    Summary["automations.summary.json"]:::metric
+  end
+
+  Start --> Launch --> WaitWorkspace --> Seed --> Writer --> Store
+  Seed --> SeedEnd --> MeasureStart --> Nav --> Ready
+  Nav --> Connection --> NavMetric
+  Nav --> CatalogTab --> Catalog --> ExposureMetric
+  CatalogTab --> ExposureToggle --> Catalog --> ExposureMetric
+  Nav --> IntakeTab --> Intake --> IntakeMetric
+  IntakeTab --> OpenDrawer --> Drawer --> DrawerMetric
+  Nav --> ExceptionsTab --> Exceptions --> ExceptionsMetric
+  ExceptionsTab --> MeasureEnd --> Summary
+
+  Ready --> Provider
+  Catalog --> Provider
+  Intake --> Provider
+  Exceptions --> Provider
+  Drawer --> Conversation
+  Provider --> RendererCache
+  Provider --> Workspace --> Preload
+  Conversation --> Preload
+  Preload --> Main
+  Main --> ReadWorkers --> Store --> Provider
+  Main --> QueueTargets
+
+  NavMetric --> Summary
+  ExposureMetric --> Summary
+  IntakeMetric --> Summary
+  DrawerMetric --> Summary
+  ExceptionsMetric --> Summary
+  QueueTargets --> Summary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef hotspot fill:#fee2e2,stroke:#dc2626,stroke-width:1.8px,color:#111827;
+  classDef mutation fill:#ffedd5,stroke:#ea580c,stroke-width:1.6px,color:#111827;

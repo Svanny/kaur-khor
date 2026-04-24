@@ -12,7 +12,18 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd)
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd)
+- [Navigation architecture](/Users/svanny/banji/docs/development/navigation-architecture.mmd)
 - [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd)
+- [Overview architecture](/Users/svanny/banji/docs/development/overview-architecture.mmd)
+- [Overview flowchart](/Users/svanny/banji/docs/development/overview-flowchart.mmd)
+- [Automations architecture](/Users/svanny/banji/docs/development/automations-architecture.mmd)
+- [Automations flowchart](/Users/svanny/banji/docs/development/automations-flowchart.mmd)
+- [Record update architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd)
+- [Record update flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd)
+- [Detail pages architecture](/Users/svanny/banji/docs/development/detail-pages-architecture.mmd)
+- [Detail pages flowchart](/Users/svanny/banji/docs/development/detail-pages-flowchart.mmd)
+- [Stability architecture](/Users/svanny/banji/docs/development/stability-architecture.mmd)
+- [Stability flowchart](/Users/svanny/banji/docs/development/stability-flowchart.mmd)
 - [Benchmark guide](/Users/svanny/banji/bench/README.md)
 
 ## Repo Map
@@ -59,7 +70,18 @@ pnpm package:win:native
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
+- [Navigation architecture](/Users/svanny/banji/docs/development/navigation-architecture.mmd): benchmark route-click sequence, route readiness, IPC/cache behavior, and navigation summary generation
 - [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, automation and financials navigation, read-pool readiness, route-scoped support reads, and navigation benchmark targets
+- [Overview architecture](/Users/svanny/banji/docs/development/overview-architecture.mmd): dashboard overview route architecture for supplier and customer queues, drawer flows, detail hydration, order-batch reads, and overview benchmark targets
+- [Overview flowchart](/Users/svanny/banji/docs/development/overview-flowchart.mmd): overview benchmark control/data flow for workflow toggles, drawers, model builders, and summary targets
+- [Automations architecture](/Users/svanny/banji/docs/development/automations-architecture.mmd): automation seed, connection, catalog exposure, live intake, drawer, exceptions, and target metrics
+- [Automations flowchart](/Users/svanny/banji/docs/development/automations-flowchart.mmd): automations benchmark control/data flow across tabs, intake drawer reads, and queue metrics
+- [Record update architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, stock count save, supplier receipt save, and ticket mutations
+- [Record update flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd): record-update benchmark control/data flow for lane opens, saves, dashboard readiness, and memory snapshots
+- [Detail pages architecture](/Users/svanny/banji/docs/development/detail-pages-architecture.mmd): catalog target selection, SKU/service first and repeat detail loads, cache behavior, and memory metrics
+- [Detail pages flowchart](/Users/svanny/banji/docs/development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for catalog, SKU, service, repeat loads, and cache reads
+- [Stability architecture](/Users/svanny/banji/docs/development/stability-architecture.mmd): repeated sidebar cycle, ready-event coverage, shared route reads, and memory-slope inputs
+- [Stability flowchart](/Users/svanny/banji/docs/development/stability-flowchart.mmd): stability benchmark control/data flow across four route cycles and memory snapshots
 - [Benchmark guide](/Users/svanny/banji/bench/README.md): scenario commands, fixture sizes, deterministic seed rules, and tiered target budgets
 
 ### Security

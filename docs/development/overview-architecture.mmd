@@ -1,0 +1,185 @@
+%% Banji desktop overview architecture flow (supplier + customer queues).
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Overview route starts"]):::entry
+
+  subgraph Bench["Benchmark overview scenario"]
+    BenchLaunch["Launch benchmark Electron app<br/>overview-current-workflows"]:::process
+    WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
+    SeedAutomation["Ensure automation seed<br/>minimum exposure rows + intakes"]:::process
+    SeedEnd["benchmark.phase.seed_end"]:::metric
+    MeasurementStart["benchmark.phase.measurement_start"]:::metric
+    ToggleCustomer["Navigate to /?workflow=customer&customerFilter=review"]:::process
+    ToggleSupplier["Navigate to /?workflow=supplier and task filters"]:::process
+    OpenCustomerDrawer["Open customer intake drawer"]:::process
+    OpenSupplierDrawer["Open supplier task drawer"]:::process
+    ChangeSupplierFilter["Apply supplier combobox filter"]:::process
+    MeasurementEnd["benchmark.phase.measurement_end"]:::metric
+    CloseBench["Close app and persist coverage"]:::metric
+  end
+
+  subgraph Router["Dashboard route shell"]
+    Location["Hash route and URL search params"]:::bridge
+    RouteState["readOverviewRouteState<br/>workflow, filter, supplier, scope"]:::process
+    UpdateRoute["buildOverviewSearchParams<br/>and setSearchParams"]:::process
+    OverviewScope{"workflow = customer or supplier?"}:::decision
+    ReadyMetric["route.dashboard.ready"]:::metric
+  end
+
+  subgraph Providers["Renderer providers and hot caches"]
+    InventoryProvider["InventoryProvider state<br/>catalog, workspaceSummary, orderBatches, on-demand diagnostics"]:::process
+    AutomationProvider["AutomationProvider state<br/>intakes + connection"]:::process
+    ReadCache["Renderer in-memory read cache<br/>sena:* keys"]:::cache
+    DetailCache["Persisted detail-page cache<br/>localStorage by freshness fingerprint"]:::cache
+    LoadOrderBatches["loadSenaOrderBatches<br/>deferred background task"]:::ipc
+    LoadSkuDetail["loadSenaSkuDetail<br/>bounded concurrency hydration"]:::ipc
+    OrderedSkuIds["orderedDashboardSkuDetailIds<br/>high-risk + summary SKU ids"]:::process
+    DetailState["detailBySkuId + isHydratingDetails"]:::cache
+  end
+
+  subgraph ViewModels["Overview model builders"]
+    SupplierModel["buildOverviewModel<br/>supplier queue, in-transit, receipts, signals"]:::important
+    CustomerModel["buildCustomerOverviewModel<br/>customer queue and customer signals"]:::important
+    SupplierFilter["shouldShowTask + supplier/search scope matching"]:::process
+    CustomerFilter["shouldShowCustomerTask"]:::process
+  end
+
+  subgraph UiSurface["Overview UI surfaces in DashboardRoute"]
+    SupplierQueue["Supplier task queue table<br/>state badge, why-now, ETA, action"]:::route
+    CustomerQueue["Customer queue table<br/>state badge, open/today, action"]:::route
+    TodayRail["Right rail cards<br/>Today, In transit, Received today, Signals"]:::route
+    CustomerRail["Customer rail cards<br/>Today + customer signals"]:::route
+    SupplierDrawer["OverviewTaskDrawer<br/>log order, update ETA, receive, follow-up"]:::route
+    IntakeDrawer["AutomationIntakeDrawer<br/>Telegram intake review"]:::route
+  end
+
+  subgraph Preload["Preload bridge"]
+    DesktopBridge["window.banjiDesktop"]:::bridge
+    InvokeBenchmark["invokeWithBenchmark<br/>preload.invoke.* spans"]:::metric
+    SenaBridge["sena bridge<br/>listOrderBatches, getSkuDetail"]:::bridge
+    AutomationBridge["automation bridge<br/>listIntakes and intake actions"]:::bridge
+  end
+
+  subgraph Main["Electron main IPC and cache"]
+    IpcHandlers["ipcMain handlers<br/>benchmarkIpcHandle spans"]:::ipc
+    MainReadCache["main SENA read cache<br/>hit, miss, inflight-hit"]:::cache
+    CacheFreshness{"Fresh fingerprint?"}:::decision
+    Fingerprint["sena.getObservationFingerprint"]:::ipc
+    CacheMiss["main.cache.sena-read.miss"]:::hotspot
+  end
+
+  subgraph CorePool["Managed desktop-core pool"]
+    Coalesce["Global read coalescing<br/>same command + payload"]:::cache
+    SelectRead{"Read-only command?"}:::decision
+    ReadWorkers["Read-worker pool<br/>predicted-finish routing + EWMA command cost"]:::ipc
+    ReadLanes["Read lanes<br/>interactive vs bulk/background"]:::ipc
+    Queue["backend.core.request.resolve queueWaitMs"]:::hotspot
+    WriterFallback["Writer fallback<br/>when workers unavailable"]:::hotspot
+    Resolve["backend.core.response.received"]:::metric
+  end
+
+  subgraph Store["SQLite + checkpoint storage"]
+    CatalogStore["sena_catalog"]:::store
+    SummaryHot["sena_workspace_summary_hot<br/>and sku summary hot rows"]:::store
+    OrderBatchStore["sena_order_batch + child rows"]:::store
+    DetailStore["sena_sku_detail"]:::store
+    AnchorHot["sena_record_update_anchor_hot"]:::store
+    Checkpoints["sena-checkpoints/*.json.zst"]:::store
+  end
+
+  subgraph Metrics["Overview benchmark targets"]
+    WorkflowToggle["interaction.overview_workflow_toggle_ms"]:::metric
+    SupplierDrawerMetric["interaction.open_overview_supplier_drawer_ms"]:::metric
+    CustomerDrawerMetric["interaction.open_overview_customer_intake_drawer_ms"]:::metric
+    FilterMetric["interaction.overview_supplier_filter_ms"]:::metric
+    TabMetric["interaction.overview_task_tab_transition_ms"]:::metric
+    QueueTargets["backend.core.interactive_queue_wait_p95_ms<br/>backend.core.read_pool_queue_wait_p95_ms<br/>backend.core.setup_queue_wait_p95_ms"]:::hotspot
+    HarnessTruth["harness.ready_latency_p95_ms<br/>harness.overhead_p95_ms"]:::metric
+    OverviewSummary["overview.summary.json"]:::metric
+  end
+
+  Start --> BenchLaunch --> WaitWorkspace --> SeedAutomation --> SeedEnd --> MeasurementStart --> ToggleCustomer --> Location
+  ToggleCustomer --> OpenCustomerDrawer
+  ToggleCustomer --> ToggleSupplier --> Location
+  ToggleSupplier --> OpenSupplierDrawer
+  ToggleSupplier --> ChangeSupplierFilter --> Location
+  OpenCustomerDrawer --> CustomerDrawerMetric
+  OpenSupplierDrawer --> SupplierDrawerMetric
+  ChangeSupplierFilter --> FilterMetric
+  ToggleCustomer --> WorkflowToggle
+  ToggleSupplier --> TabMetric
+  MeasurementEnd --> CloseBench --> OverviewSummary
+
+  Location --> RouteState --> OverviewScope
+  RouteState --> UpdateRoute --> Location
+  OverviewScope -- "supplier" --> SupplierModel
+  OverviewScope -- "customer" --> CustomerModel
+  SupplierModel --> SupplierFilter --> SupplierQueue
+  CustomerModel --> CustomerFilter --> CustomerQueue
+  SupplierQueue --> SupplierDrawer
+  CustomerQueue --> IntakeDrawer
+  SupplierModel --> TodayRail
+  CustomerModel --> CustomerRail
+  SupplierQueue --> ReadyMetric
+  CustomerQueue --> ReadyMetric
+
+  InventoryProvider --> OrderedSkuIds --> LoadSkuDetail
+  InventoryProvider --> LoadOrderBatches
+  InventoryProvider --> SupplierModel
+  InventoryProvider --> CustomerModel
+  AutomationProvider --> CustomerModel
+  LoadSkuDetail --> DetailState --> SupplierModel
+  LoadSkuDetail --> DetailCache
+  ReadCache --> LoadOrderBatches
+  ReadCache --> LoadSkuDetail
+
+  LoadOrderBatches --> DesktopBridge
+  LoadSkuDetail --> DesktopBridge
+  AutomationProvider --> DesktopBridge
+  DesktopBridge --> InvokeBenchmark --> SenaBridge --> IpcHandlers
+  DesktopBridge --> InvokeBenchmark --> AutomationBridge --> IpcHandlers
+
+  IpcHandlers --> MainReadCache --> CacheFreshness
+  CacheFreshness -- "unknown or stale" --> Fingerprint --> MainReadCache
+  MainReadCache -- "hit" --> Resolve
+  MainReadCache -- "miss" --> CacheMiss --> Coalesce
+  MainReadCache -- "inflight-hit" --> Coalesce
+
+  Coalesce --> SelectRead
+  SelectRead -- "yes" --> ReadWorkers --> ReadLanes --> Queue --> Resolve
+  SelectRead -- "no or fallback" --> WriterFallback --> Queue
+  Resolve --> QueueTargets
+  Resolve --> HarnessTruth
+
+  Queue --> CatalogStore
+  Queue --> SummaryHot
+  Queue --> OrderBatchStore
+  Queue --> DetailStore
+  Queue --> AnchorHot
+  Queue --> Checkpoints
+
+  OrderBatchStore --> LoadOrderBatches
+  DetailStore --> LoadSkuDetail
+  SummaryHot --> OrderedSkuIds
+  CatalogStore --> SupplierModel
+  AnchorHot --> SupplierModel
+
+  WorkflowToggle --> OverviewSummary
+  SupplierDrawerMetric --> OverviewSummary
+  CustomerDrawerMetric --> OverviewSummary
+  FilterMetric --> OverviewSummary
+  TabMetric --> OverviewSummary
+  QueueTargets --> OverviewSummary
+  HarnessTruth --> OverviewSummary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef decision fill:#fff7ed,stroke:#ea580c,stroke-width:1.4px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef important fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#111827;
+  classDef hotspot fill:#fee2e2,stroke:#dc2626,stroke-width:1.8px,color:#111827;

@@ -1,0 +1,107 @@
+%% Banji desktop overview benchmark flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Overview benchmark starts"]):::entry
+
+  subgraph Bench["Benchmark scenario"]
+    Launch["Launch overview-current-workflows"]:::process
+    WaitReady["Wait for renderer.workspace.ready"]:::metric
+    Seed["Ensure automation exposure and intake seed"]:::process
+    SeedEnd["benchmark.phase.seed_end"]:::metric
+    MeasureStart["benchmark.phase.measurement_start"]:::metric
+    CustomerRoute["Navigate customer workflow<br/>customerFilter=review"]:::process
+    SupplierRoute["Navigate supplier workflow<br/>supplier filters and task tabs"]:::process
+    CustomerDrawer["Open customer intake drawer"]:::process
+    SupplierDrawer["Open supplier task drawer"]:::process
+    MeasureEnd["benchmark.phase.measurement_end"]:::metric
+  end
+
+  subgraph Route["Dashboard route"]
+    SearchParams["URL search params"]:::bridge
+    RouteState["readOverviewRouteState"]:::process
+    Scope{"Customer or supplier?"}:::decision
+    SupplierModel["buildOverviewModel"]:::important
+    CustomerModel["buildCustomerOverviewModel"]:::important
+    Ready["route.dashboard.ready"]:::metric
+  end
+
+  subgraph Data["Renderer data"]
+    Inventory["InventoryProvider hot state"]:::cache
+    Automations["AutomationProvider intakes"]:::cache
+    OrderBatches["loadSenaOrderBatches"]:::ipc
+    SkuDetails["bounded SKU detail hydration"]:::ipc
+    RendererCache["renderer read cache"]:::cache
+  end
+
+  subgraph Bridge["Desktop bridge and core"]
+    Preload["invokeWithBenchmark"]:::metric
+    MainCache["main SENA read cache"]:::cache
+    CoreRead["read-worker pool or writer fallback"]:::ipc
+    Store["catalog, summary, order batch, detail, anchor rows"]:::store
+  end
+
+  subgraph Ui["UI surfaces"]
+    SupplierQueue["Supplier queue table and right rail"]:::route
+    CustomerQueue["Customer queue table and customer rail"]:::route
+    TaskDrawer["OverviewTaskDrawer"]:::route
+    IntakeDrawer["AutomationIntakeDrawer"]:::route
+  end
+
+  subgraph Metrics["Summary targets"]
+    WorkflowToggle["interaction.overview_workflow_toggle_ms"]:::metric
+    SupplierDrawerMetric["interaction.open_overview_supplier_drawer_ms"]:::metric
+    CustomerDrawerMetric["interaction.open_overview_customer_intake_drawer_ms"]:::metric
+    FilterMetric["interaction.overview_supplier_filter_ms"]:::metric
+    QueueTargets["backend queue wait p95 metrics"]:::hotspot
+    Summary["overview.summary.json"]:::metric
+  end
+
+  Start --> Launch --> WaitReady --> Seed --> SeedEnd --> MeasureStart
+  MeasureStart --> CustomerRoute --> SearchParams
+  CustomerRoute --> CustomerDrawer
+  CustomerRoute --> SupplierRoute --> SearchParams
+  SupplierRoute --> SupplierDrawer
+  SupplierRoute --> FilterMetric
+  CustomerDrawer --> CustomerDrawerMetric
+  SupplierDrawer --> SupplierDrawerMetric
+  MeasureEnd --> Summary
+
+  SearchParams --> RouteState --> Scope
+  Scope -- "supplier" --> SupplierModel --> SupplierQueue --> TaskDrawer
+  Scope -- "customer" --> CustomerModel --> CustomerQueue --> IntakeDrawer
+  SupplierQueue --> Ready
+  CustomerQueue --> Ready
+
+  Inventory --> SupplierModel
+  Inventory --> CustomerModel
+  Inventory --> OrderBatches
+  Inventory --> SkuDetails
+  Automations --> CustomerModel
+  RendererCache --> OrderBatches
+  RendererCache --> SkuDetails
+
+  OrderBatches --> Preload
+  SkuDetails --> Preload
+  Automations --> Preload
+  Preload --> MainCache
+  MainCache -- "hit" --> Ready
+  MainCache -- "miss or stale" --> CoreRead --> Store --> MainCache
+  CoreRead --> QueueTargets
+
+  Ready --> WorkflowToggle --> Summary
+  SupplierDrawerMetric --> Summary
+  CustomerDrawerMetric --> Summary
+  FilterMetric --> Summary
+  QueueTargets --> Summary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef decision fill:#fff7ed,stroke:#ea580c,stroke-width:1.4px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef important fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#111827;
+  classDef hotspot fill:#fee2e2,stroke:#dc2626,stroke-width:1.8px,color:#111827;

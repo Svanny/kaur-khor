@@ -32,7 +32,7 @@ flowchart LR
     ReadPool["Read-worker pool<br/>BANJI_READ_CORE_POOL_SIZE, clamped 1..8"]:::ipc
     Coalesce["Coalesce identical read-only requests globally"]:::cache
     Generation["Mutation generation bump<br/>discard stale read results"]:::cache
-    RouteRead["Route read to least-busy ready worker<br/>deferred reads wait up to 1s before writer fallback"]:::ipc
+    RouteRead["Route read by interactive or bulk lane<br/>deferred reads wait up to 1s before writer fallback"]:::ipc
     RouteWrite["Route mutation to writer only"]:::mutation
   end
 
@@ -60,7 +60,7 @@ flowchart LR
     Events["Persist events.jsonl and core-events-*.jsonl"]:::metric
     WorkspaceReady["renderer.workspace.ready"]:::metric
     StartupIpc["ipc.sena_get_startup_workspace_ms"]:::metric
-    QueueMetrics["backend.core.queue_wait_p95_ms<br/>backend.core.read_pool_queue_wait_p95_ms"]:::metric
+    QueueMetrics["backend.core.interactive_queue_wait_p95_ms<br/>backend.core.read_pool_queue_wait_p95_ms<br/>backend.core.setup_queue_wait_p95_ms"]:::metric
     Evaluate["Evaluate pass, watch, fail bands"]:::metric
   end
 

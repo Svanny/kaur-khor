@@ -49,7 +49,7 @@ sequenceDiagram
     Preload->>Main: IPC sena.getStartupWorkspace
     Main->>Main: loadCachedSenaRead("startup-workspace")
     Main->>Backend: invoke sena.getObservationFingerprint for freshness when needed
-    Backend->>Readers: route read to least-busy ready worker
+    Backend->>Readers: route read by interactive or bulk lane
     Readers->>Store: count + latest observed row metadata
     Readers-->>Backend: observation fingerprint
     Backend-->>Main: fingerprint
@@ -86,5 +86,5 @@ sequenceDiagram
   Metrics->>Metrics: derive startup.app_to_context_ms
   Metrics->>Metrics: derive startup.app_to_workspace_ready_ms
   Metrics->>Metrics: derive ipc.sena_get_startup_workspace_ms
-  Metrics->>Metrics: derive backend.core.read_pool_queue_wait_p95_ms
+  Metrics->>Metrics: derive interactive, read-pool, and setup queue p95 metrics
   Metrics->>Metrics: compare against startup target budgets

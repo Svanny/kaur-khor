@@ -1,0 +1,63 @@
+%% Banji record update benchmark architecture.
+sequenceDiagram
+  autonumber
+  participant Bench as Record update benchmark<br/>bench/scenarios/record-update.bench.ts
+  participant Hub as Record Update hub
+  participant Wizard as Lane wizard<br/>stock, supplier, sale, customer
+  participant Workbench as Workbench tile dialogs
+  participant Review as Review and save dialogs
+  participant Provider as InventoryProvider
+  participant Preload as Preload SENA bridge
+  participant Main as Electron main IPC
+  participant Core as Managed desktop-core pool
+  participant Store as SQLite tickets<br/>anchors and summaries
+  participant Metrics as Benchmark summary
+
+  Bench->>Provider: wait for renderer.workspace.ready
+  Bench->>Metrics: record benchmark.phase.measurement_start
+  Bench->>Hub: open /record-update
+  Hub->>Metrics: wait route.record-update.ready
+
+  loop each hub lane
+    Bench->>Hub: open lane card
+    alt ticket-backed lane
+      Hub->>Wizard: choose New or Edit/Update
+    else stock count lane
+      Hub->>Wizard: open lane directly
+    end
+    Wizard->>Provider: get record update context and catalog state
+    Provider->>Preload: sena.getRecordUpdateContext and supporting reads
+    Preload->>Main: IPC read command
+    Main->>Core: coalesced read-only command
+    Core->>Store: read anchor hot rows, catalog, tickets, summaries
+    Store-->>Wizard: lane context
+    Wizard->>Metrics: record route.record-update.ready and lane nav duration
+    Bench->>Hub: return to hub
+  end
+
+  Bench->>Wizard: open stock count lane
+  Wizard->>Workbench: open first workbench tile
+  Workbench->>Workbench: edit units in stock
+  Workbench->>Review: open Review update dialog
+  Review->>Preload: save stock count mutation
+  Preload->>Main: IPC mutation
+  Main->>Core: route mutation to writer
+  Core->>Store: write ticket event and updated hot summaries
+  Store-->>Review: save complete
+  Review->>Metrics: wait route.dashboard.ready and record save_stock_count_ms
+
+  Bench->>Wizard: open supplier order update
+  Wizard->>Workbench: add receipt line
+  Workbench->>Review: open Confirm receipt dialog
+  Review->>Preload: save supplier receipt mutation
+  Preload->>Main: IPC mutation
+  Main->>Core: route mutation to writer
+  Core->>Store: write supplier ticket receipt event and anchors
+  Store-->>Review: save complete
+  Review->>Metrics: wait route.dashboard.ready and record save_supplier_order_receipt_ms
+
+  Bench->>Metrics: record benchmark.phase.measurement_end
+  Bench->>Metrics: close app and persist record-update summary
+
+  Note over Hub,Wizard: Customer and supplier order lanes ask New versus Edit/Update before continuing.
+  Note over Core,Store: Mutations write ticket events and bump read generation so subsequent reads refresh.
