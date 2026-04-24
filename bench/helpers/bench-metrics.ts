@@ -118,6 +118,45 @@ function measurementWindowBounds(events: BanjiBenchmarkEvent[]) {
   };
 }
 
+function detailNumber(event: BanjiBenchmarkEvent, key: string) {
+  const value = event.detail?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function measurementPerformanceWindowBounds(events: BanjiBenchmarkEvent[]) {
+  const measurementStart = events.find((event) => event.name === MEASUREMENT_START_MARKER);
+  const measurementStartNow = measurementStart ? detailNumber(measurementStart, 'performanceNow') : null;
+  if (measurementStart == null || measurementStartNow == null) {
+    return null;
+  }
+  const measurementEnd = events.find(
+    (event) => event.name === MEASUREMENT_END_MARKER && event.ts >= measurementStart.ts,
+  );
+  const measurementEndNow = measurementEnd ? detailNumber(measurementEnd, 'performanceNow') : null;
+  return {
+    measurementStartNow,
+    measurementEndNow,
+  };
+}
+
+function rendererEventsInMeasurementWindow(
+  events: BanjiBenchmarkEvent[],
+  measurementEvents: BanjiBenchmarkEvent[],
+) {
+  const window = measurementPerformanceWindowBounds(events);
+  if (!window) {
+    return measurementEvents;
+  }
+  return measurementEvents.filter((event) => {
+    const startTime = detailNumber(event, 'startTime');
+    if (startTime == null) {
+      return true;
+    }
+    return startTime >= window.measurementStartNow
+      && (window.measurementEndNow == null || startTime <= window.measurementEndNow);
+  });
+}
+
 function eventsInMeasurementWindow(events: BanjiBenchmarkEvent[]) {
   const window = measurementWindowBounds(events);
   if (!window) {
@@ -360,8 +399,9 @@ function deriveBenchmarkMetrics(
   );
 
   if (scenario === 'stability') {
-    maybeSet('renderer.long_task_max_ms', maxDetailMetric(events, 'renderer.long-task', 'durationMs') ?? 0);
-    maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(events, 'renderer.long-animation-frame', 'blockingDuration') ?? 0);
+    const rendererMeasurementEvents = rendererEventsInMeasurementWindow(events, measurementEvents);
+    maybeSet('renderer.long_task_max_ms', maxDetailMetric(rendererMeasurementEvents, 'renderer.long-task', 'durationMs') ?? 0);
+    maybeSet('renderer.loaf_blocking_max_ms', maxDetailMetric(rendererMeasurementEvents, 'renderer.long-animation-frame', 'blockingDuration') ?? 0);
 
     const firstRendererMemory = events.find((event) => event.name === 'memory.renderer_stability_cycle_1_mb');
     const lastRendererMemory = [...events].reverse().find((event) => event.name === 'memory.renderer_after_stability_mb');

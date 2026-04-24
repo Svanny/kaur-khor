@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { closeBanjiBenchmarkSession } from './electron-app';
+import { benchmarkChildEnv, clickWithBrowserStartTime, closeBanjiBenchmarkSession } from './electron-app';
 
 interface MockChildProcess extends EventEmitter {
   exitCode: number | null;
@@ -20,6 +20,7 @@ function createMockChildProcess(
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -79,5 +80,94 @@ describe('closeBanjiBenchmarkSession', () => {
 
     expect(app.close).toHaveBeenCalledTimes(1);
     expect(process.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('stops Electron context tracing before closing when trace capture is enabled', async () => {
+    const process = createMockChildProcess();
+    const tracing = {
+      stop: vi.fn(async () => undefined),
+    };
+    const app = {
+      context: () => ({ tracing }),
+      process: () => process,
+      close: vi.fn(async () => undefined),
+    };
+
+    await closeBanjiBenchmarkSession({ app, tracePath: '/tmp/banji-trace.zip' } as never);
+
+    expect(tracing.stop).toHaveBeenCalledWith({ path: '/tmp/banji-trace.zip' });
+    expect(app.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('benchmarkChildEnv', () => {
+  it('removes NO_COLOR from benchmark child processes', () => {
+    const previousNoColor = process.env.NO_COLOR;
+    process.env.NO_COLOR = '1';
+
+    try {
+      const env = benchmarkChildEnv({ BANJI_BENCHMARK: '1' });
+
+      expect(env.NO_COLOR).toBeUndefined();
+      expect(env.BANJI_BENCHMARK).toBe('1');
+    } finally {
+      if (previousNoColor == null) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+    }
+  });
+
+  it('does not inherit unrelated shell environment into the launched app', () => {
+    const previousValue = process.env.BANJI_BENCHMARK_FIXTURE_SIZE;
+    process.env.BANJI_BENCHMARK_FIXTURE_SIZE = 'power-user';
+
+    try {
+      const env = benchmarkChildEnv({ BANJI_BENCHMARK: '1' });
+
+      expect(env.BANJI_BENCHMARK_FIXTURE_SIZE).toBeUndefined();
+      expect(env.BANJI_BENCHMARK).toBe('1');
+    } finally {
+      if (previousValue == null) {
+        delete process.env.BANJI_BENCHMARK_FIXTURE_SIZE;
+      } else {
+        process.env.BANJI_BENCHMARK_FIXTURE_SIZE = previousValue;
+      }
+    }
+  });
+});
+
+describe('clickWithBrowserStartTime', () => {
+  it('uses the browser pointer timestamp when the click listener records one', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(200);
+    const page = {
+      evaluate: vi.fn(async () => 125),
+    };
+    const locator = {
+      evaluate: vi.fn(async () => undefined),
+      click: vi.fn(async () => undefined),
+      page: vi.fn(() => page),
+    };
+
+    await expect(clickWithBrowserStartTime(locator as never)).resolves.toBe(125);
+
+    expect(locator.evaluate).toHaveBeenCalledTimes(1);
+    expect(locator.click).toHaveBeenCalledTimes(1);
+    expect(page.evaluate).toHaveBeenCalledWith(expect.any(Function), 200);
+  });
+
+  it('falls back to the harness timestamp when no browser timestamp is recorded', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(300);
+    const page = {
+      evaluate: vi.fn(async (_callback: unknown, fallback: number) => fallback),
+    };
+    const locator = {
+      evaluate: vi.fn(async () => undefined),
+      click: vi.fn(async () => undefined),
+      page: vi.fn(() => page),
+    };
+
+    await expect(clickWithBrowserStartTime(locator as never)).resolves.toBe(300);
   });
 });

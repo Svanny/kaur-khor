@@ -5,6 +5,8 @@ import { BrowserWindow, Notification, ipcMain, shell } from 'electron';
 import {
   BANJI_BENCHMARK_SCENARIOS,
   aggregateBenchmarkScenarioSummaries,
+  benchmarkRunStatusForTargets,
+  benchmarkTargetStatusCounts,
   type BanjiBenchmarkComparison,
   type BanjiBenchmarkComparisonMetric,
   type BanjiBenchmarkEvent,
@@ -214,7 +216,7 @@ function buildScenarioFlamegraphData(bundle: ScenarioEventBundle, label: string)
       const node = metricNode(`${target.status.toUpperCase()} target: ${target.metricName}`, target.value);
       return node ? [node] : [];
     });
-  const groups = [
+  const maybeGroups: Array<FlamegraphNode | null> = [
     derivedMetricNodes.length > 0
       ? {
           name: 'Derived target metrics',
@@ -234,7 +236,13 @@ function buildScenarioFlamegraphData(bundle: ScenarioEventBundle, label: string)
     groupDurationNodes(events, 'Core command spans', (event) => event.category === 'core-command'),
     groupDurationNodes(events, 'Renderer and interaction spans', (event) => event.layer === 'renderer' || event.category === 'interaction'),
     groupDurationNodes(events, 'Memory snapshots', (event) => event.category === 'memory'),
-  ].filter((node): node is FlamegraphNode => Boolean(node));
+  ];
+  const groups: FlamegraphNode[] = [];
+  for (const node of maybeGroups) {
+    if (node) {
+      groups.push(node);
+    }
+  }
   const value = groups.reduce((sum, node) => sum + node.value, 0) || observedWindowMs;
   return {
     name: `${summary.scenario} ${label} - observed ${formatMs(observedWindowMs)}`,
@@ -347,6 +355,11 @@ export function registerBenchmarkRunnerIpc({
   projectRoot: string;
 }) {
   const resultsDirectory = resolve(projectRoot, 'bench-results');
+  const desktopCoreBinary = join(
+    projectRoot,
+    'apps/desktop-core/target/debug',
+    process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core',
+  );
   const runRecordsDirectory = join(resultsDirectory, RUN_RECORD_DIRECTORY);
   let activeRun: ActiveBenchmarkRun | null = null;
   const notifiedRunIds = new Set<string>();
@@ -398,7 +411,7 @@ export function registerBenchmarkRunnerIpc({
       ...run.record,
       ...extra,
       status,
-      completedAt: ['passed', 'failed', 'cancelled'].includes(status) ? new Date().toISOString() : run.record.completedAt,
+      completedAt: ['passed', 'warning', 'failed', 'cancelled'].includes(status) ? new Date().toISOString() : run.record.completedAt,
     };
     await persistRecord(run.record);
     emitRunEvent({ runId: run.record.runId, status, message, record: run.record });
@@ -647,6 +660,7 @@ export function registerBenchmarkRunnerIpc({
     const run = activeRun;
     const env = {
       ...process.env,
+      BANJI_DESKTOP_CORE_BINARY: process.env.BANJI_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
       BANJI_BENCHMARK_TRACE: record.traceEnabled ? '1' : '0',
       BANJI_BENCHMARK_FIXTURE_SIZE: record.fixtureSize,
     };
@@ -654,6 +668,7 @@ export function registerBenchmarkRunnerIpc({
     try {
       if (record.buildBeforeRun) {
         await spawnStep(run, 'pnpm', ['build'], env);
+        await spawnStep(run, 'cargo', ['build', '--manifest-path', resolve(projectRoot, 'apps/desktop-core/Cargo.toml')], env);
       }
       for (const scenario of record.scenarios) {
         await setRunStatus(
@@ -674,10 +689,24 @@ export function registerBenchmarkRunnerIpc({
         }
       }
       const summaries = await collectSummaries(record);
-      await setRunStatus(run, 'passed', 'Benchmark run completed.', {
-        summaries,
-        exitCode: 0,
-      });
+      const targetStatus = benchmarkRunStatusForTargets(summaries);
+      const counts = benchmarkTargetStatusCounts(summaries);
+      await setRunStatus(
+        run,
+        targetStatus,
+        targetStatus === 'warning'
+          ? `Benchmark run completed with ${counts.watch} watch target${counts.watch === 1 ? '' : 's'}.`
+          : targetStatus === 'failed'
+            ? `Benchmark run completed with ${counts.fail} failed and ${counts.missing} missing target${counts.fail + counts.missing === 1 ? '' : 's'}.`
+            : 'Benchmark run completed with all targets passing.',
+        {
+          summaries,
+          exitCode: targetStatus === 'failed' ? 1 : 0,
+          error: targetStatus === 'failed'
+            ? `Benchmark targets failed or were missing: ${counts.fail} failed, ${counts.missing} missing.`
+            : null,
+        },
+      );
     } catch (error) {
       const cancelled = run.cancelled || (error instanceof Error && error.message === 'cancelled');
       const summaries = await collectSummaries(record);

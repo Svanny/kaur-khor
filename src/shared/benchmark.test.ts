@@ -3,6 +3,8 @@ import {
   BANJI_BENCHMARK_SCENARIOS,
   BANJI_BENCHMARK_TARGETS,
   aggregateBenchmarkScenarioSummaries,
+  benchmarkRunStatusForTargets,
+  benchmarkTargetStatusCounts,
   benchmarkTargetsForScenario,
   classifyBenchmarkTarget,
   evaluateBenchmarkTargets,
@@ -162,5 +164,34 @@ describe('benchmark targets', () => {
       }),
     });
     expect(aggregated?.slowestIpc.map((entry) => entry.name)).toEqual(['ipc-7000', 'ipc-2600', 'ipc-2400']);
+  });
+
+  it('derives run warning status from watch targets without treating them as passed', () => {
+    const summaries: BanjiBenchmarkScenarioSummary[] = [
+      {
+        scenario: 'startup',
+        runId: 'run-1',
+        generatedAt: '2026-04-18T16:32:10.000Z',
+        metrics: {},
+        slowestCore: [],
+        slowestIpc: [],
+        targets: evaluateBenchmarkTargets({
+          'startup.app_to_workspace_ready_ms': 3000,
+          'startup.warm_workspace_ready_ms': 1200,
+          'ipc.system_get_app_context_ms': 35,
+          'ipc.sena_get_startup_workspace_ms': 40,
+          'backend.core.interactive_queue_wait_p95_ms': 0,
+          'backend.core.read_pool_queue_wait_p95_ms': 0,
+          'backend.core.setup_queue_wait_p95_ms': 0,
+        }, 'startup'),
+      },
+    ];
+
+    expect(benchmarkTargetStatusCounts(summaries)).toMatchObject({
+      watch: 1,
+      fail: 0,
+      missing: 0,
+    });
+    expect(benchmarkRunStatusForTargets(summaries)).toBe('warning');
   });
 });

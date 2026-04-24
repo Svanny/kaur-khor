@@ -1,11 +1,11 @@
-import type { BanjiBenchmarkRunRecord, BanjiBenchmarkRunStatus } from '@shared/benchmark';
+import { benchmarkTargetStatusCounts, type BanjiBenchmarkRunRecord, type BanjiBenchmarkRunStatus } from '@shared/benchmark';
 
 export function isBenchmarkRunInFlight(status: BanjiBenchmarkRunStatus) {
   return status === 'queued' || status === 'running';
 }
 
 export function isBenchmarkRunTerminal(status: BanjiBenchmarkRunStatus) {
-  return status === 'passed' || status === 'failed' || status === 'cancelled';
+  return status === 'passed' || status === 'warning' || status === 'failed' || status === 'cancelled';
 }
 
 export function benchmarkRunCompletionNotification(record: BanjiBenchmarkRunRecord) {
@@ -17,7 +17,14 @@ export function benchmarkRunCompletionNotification(record: BanjiBenchmarkRunReco
   if (record.status === 'passed') {
     return {
       title: 'Benchmark run passed',
-      body: `${scenarioLabel} completed. Open Benchmarks to inspect target status.`,
+      body: `${scenarioLabel} completed with all targets passing.`,
+    };
+  }
+  if (record.status === 'warning') {
+    const counts = benchmarkTargetStatusCounts(record.summaries);
+    return {
+      title: 'Benchmark run needs attention',
+      body: `${scenarioLabel} completed with ${counts.watch} watch target${counts.watch === 1 ? '' : 's'}.`,
     };
   }
   if (record.status === 'cancelled') {

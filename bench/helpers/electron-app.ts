@@ -1,6 +1,7 @@
 import { _electron as electron, type ElectronApplication, type Locator, type Page } from 'playwright';
 import electronPath from 'electron';
 import type { TestInfo } from '@playwright/test';
+import { join } from 'node:path';
 import { benchmarkDataDirectory, benchmarkOutputDirectory, benchmarkRunId } from './artifact-paths';
 import {
   buildScenarioSummary,
@@ -15,12 +16,15 @@ import type {
   BanjiBenchmarkScenarioId,
 } from '../../src/shared/benchmark';
 
+delete process.env.NO_COLOR;
+
 export interface LaunchedBanjiBenchmarkApp {
   app: ElectronApplication;
   dataDirectory: string;
   outputDirectory: string;
   page: Page;
   runId: string;
+  tracePath: string | null;
 }
 
 interface LaunchBanjiBenchmarkOptions {
@@ -34,6 +38,35 @@ interface LaunchBanjiBenchmarkOptions {
 
 const BENCHMARK_APP_CLOSE_TIMEOUT_MS = 10_000;
 const BENCHMARK_APP_FORCE_KILL_TIMEOUT_MS = 5_000;
+const BENCHMARK_APP_LAUNCH_TIMEOUT_MS = 120_000;
+
+export function benchmarkChildEnv(extraEnv: NodeJS.ProcessEnv) {
+  const baseEnvKeys = [
+    'HOME',
+    'LANG',
+    'LC_ALL',
+    'LOGNAME',
+    'PATH',
+    'SHELL',
+    'TMPDIR',
+    'USER',
+    'XPC_FLAGS',
+    'XPC_SERVICE_NAME',
+    'BANJI_DESKTOP_CORE_BINARY',
+  ];
+  const env = {
+    ...Object.fromEntries(
+      baseEnvKeys
+        .map((key) => [key, process.env[key]])
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    ),
+    ...extraEnv,
+  };
+  if (env.NO_COLOR) {
+    delete env.NO_COLOR;
+  }
+  return env;
+}
 
 export async function launchBanjiForBenchmark(
   scenarioName: string,
@@ -43,6 +76,9 @@ export async function launchBanjiForBenchmark(
   const runId = options?.runId ?? benchmarkRunId(`${scenarioName}-${testInfo.retry}`);
   const outputDirectory = options?.outputDirectory ?? await benchmarkOutputDirectory(runId);
   const dataDirectory = options?.dataDirectory ?? await benchmarkDataDirectory(runId);
+  const tracePath = process.env.BANJI_BENCHMARK_TRACE === '1'
+    ? join(outputDirectory, 'playwright-trace.zip')
+    : null;
   if (options?.prepareWorkspace !== false) {
     await prepareBenchmarkWorkspace({ dataDirectory, size: options?.fixtureSize ?? 'medium' });
   }
@@ -53,17 +89,25 @@ export async function launchBanjiForBenchmark(
       app = await electron.launch({
         executablePath: electronPath as string,
         args: ['.'],
-        env: {
-          ...process.env,
+        timeout: BENCHMARK_APP_LAUNCH_TIMEOUT_MS,
+        env: benchmarkChildEnv({
           BANJI_BENCHMARK: '1',
+          BANJI_BENCHMARK_TRACE: '0',
           BANJI_BENCHMARK_BACKGROUND: options?.backgroundWindow === false ? '0' : '1',
           BANJI_BENCHMARK_RUN_ID: runId,
           BANJI_BENCHMARK_OUTPUT_DIR: outputDirectory,
           BANJI_BENCHMARK_DATA_DIR: dataDirectory,
           BANJI_BENCHMARK_DISABLE_DEV_SEED: '1',
           BANJI_DESKTOP_TRACE_IPC: '1',
-        },
+        }),
       });
+      if (tracePath) {
+        await app.context().tracing.start({
+          screenshots: true,
+          snapshots: true,
+          sources: true,
+        });
+      }
       break;
     } catch (error) {
       lastError = error;
@@ -75,12 +119,15 @@ export async function launchBanjiForBenchmark(
   }
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
-  return { app, dataDirectory, outputDirectory, page, runId };
+  return { app, dataDirectory, outputDirectory, page, runId, tracePath };
 }
 
 export async function closeBanjiBenchmarkSession(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'app'>,
+  launched: Pick<LaunchedBanjiBenchmarkApp, 'app'> & Partial<Pick<LaunchedBanjiBenchmarkApp, 'tracePath'>>,
 ) {
+  if (launched.tracePath) {
+    await launched.app.context().tracing.stop({ path: launched.tracePath }).catch(() => undefined);
+  }
   const process = launched.app.process();
   const closeResult = await Promise.race([
     launched.app.close().then(() => 'closed' as const).catch(() => 'failed' as const),
@@ -432,6 +479,72 @@ export async function currentBenchmarkRoute(page: Page) {
   });
 }
 
+export async function clickWithBrowserStartTime(locator: Locator) {
+  await locator.evaluate((element) => {
+    const benchmarkWindow = window as Window & {
+      __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number;
+    };
+    benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = undefined;
+    element.addEventListener('pointerdown', () => {
+      benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
+    }, { capture: true, once: true });
+  });
+  const fallbackStartedAt = Date.now();
+  await locator.click();
+  return await locator.page().evaluate((fallback) =>
+    (window as Window & { __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number })
+      .__BANJI_BENCHMARK_ACTION_STARTED_AT__ ?? fallback, fallbackStartedAt);
+}
+
+async function armDialogOpenedTimestamp(page: Page) {
+  await page.evaluate(() => {
+    const benchmarkWindow = window as Window & {
+      __BANJI_BENCHMARK_DIALOG_OPENED_AT__?: number;
+      __BANJI_BENCHMARK_DIALOG_OBSERVER__?: MutationObserver;
+    };
+    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ = undefined;
+    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
+
+    const markIfDialogExists = () => {
+      if (benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ != null) {
+        return true;
+      }
+      const dialog = document.querySelector('[role="dialog"]');
+      if (!(dialog instanceof HTMLElement)) {
+        return false;
+      }
+      const style = window.getComputedStyle(dialog);
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        return false;
+      }
+      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ = Date.now();
+      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
+      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__ = undefined;
+      return true;
+    };
+
+    if (markIfDialogExists()) {
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      markIfDialogExists();
+    });
+    observer.observe(document.body, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__ = observer;
+  });
+}
+
+async function dialogOpenedTimestamp(page: Page) {
+  return await page.evaluate(() =>
+    (window as Window & { __BANJI_BENCHMARK_DIALOG_OPENED_AT__?: number })
+      .__BANJI_BENCHMARK_DIALOG_OPENED_AT__);
+}
+
 export async function closeVisibleDialog(page: Page) {
   const dialog = page.getByRole('dialog').last();
   if (!(await dialog.isVisible().catch(() => false))) {
@@ -451,10 +564,10 @@ export async function openOverviewSupplierDrawerAndRecordDuration(
 ) {
   const actionButtons = launched.page.locator('[data-slot="overview-task-row"] button[type="button"]');
   await assertLocatorCountAtLeast(actionButtons, 1, 'overview supplier drawer action button(s)');
-  const startedAt = Date.now();
-  await actionButtons.first().click();
+  await armDialogOpenedTimestamp(launched.page);
+  const startedAt = await clickWithBrowserStartTime(actionButtons.first());
   await launched.page.getByRole('dialog').waitFor({ state: 'visible', timeout: 30_000 });
-  const durationMs = Date.now() - startedAt;
+  const durationMs = (await dialogOpenedTimestamp(launched.page) ?? Date.now()) - startedAt;
   await recordPlaywrightDuration(launched.page, {
     metricName,
     durationMs,
@@ -470,10 +583,10 @@ export async function openOverviewCustomerIntakeDrawerAndRecordDuration(
 ) {
   const intakeButtons = launched.page.locator('[data-customer-task-id] button');
   await assertLocatorCountAtLeast(intakeButtons, 1, 'overview customer intake action button(s)');
-  const startedAt = Date.now();
-  await intakeButtons.first().click();
+  await armDialogOpenedTimestamp(launched.page);
+  const startedAt = await clickWithBrowserStartTime(intakeButtons.first());
   await launched.page.getByRole('dialog').filter({ hasText: 'Telegram intake' }).waitFor({ state: 'visible', timeout: 30_000 });
-  const durationMs = Date.now() - startedAt;
+  const durationMs = (await dialogOpenedTimestamp(launched.page) ?? Date.now()) - startedAt;
   await recordPlaywrightDuration(launched.page, {
     metricName,
     durationMs,
@@ -489,8 +602,7 @@ export async function openAutomationIntakeDrawerAndRecordDuration(
 ) {
   const intakeButtons = launched.page.getByRole('button', { name: /Open intake/i });
   await assertLocatorCountAtLeast(intakeButtons, 1, 'automation intake action button(s)');
-  const startedAt = Date.now();
-  await intakeButtons.first().click();
+  const startedAt = await clickWithBrowserStartTime(intakeButtons.first());
   await launched.page.getByRole('dialog').filter({ hasText: 'Telegram intake' }).waitFor({ state: 'visible', timeout: 30_000 });
   const durationMs = Date.now() - startedAt;
   await recordPlaywrightDuration(launched.page, {
@@ -617,6 +729,12 @@ export async function recordPlaywrightBenchmarkEvent(
       runId: input.runId ?? benchmarkWindow.banjiDesktop.benchmark?.runId ?? 'playwright',
       ts: input.ts ?? Date.now(),
     };
+    if (typeof normalized.name === 'string' && normalized.name.startsWith('benchmark.phase.')) {
+      normalized.detail = {
+        ...normalized.detail,
+        performanceNow: performance.now(),
+      };
+    }
     benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ??= [];
     benchmarkWindow.__BANJI_BENCHMARK_EVENTS__.push(normalized);
     benchmarkWindow.banjiDesktop.benchmark?.recordEvent(normalized);

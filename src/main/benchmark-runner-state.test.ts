@@ -36,6 +36,7 @@ describe('benchmark runner state helpers', () => {
     expect(isBenchmarkRunInFlight('queued')).toBe(true);
     expect(isBenchmarkRunInFlight('running')).toBe(true);
     expect(isBenchmarkRunInFlight('passed')).toBe(false);
+    expect(isBenchmarkRunInFlight('warning')).toBe(false);
     expect(isBenchmarkRunInFlight('failed')).toBe(false);
     expect(isBenchmarkRunInFlight('cancelled')).toBe(false);
   });
@@ -44,6 +45,7 @@ describe('benchmark runner state helpers', () => {
     expect(isBenchmarkRunTerminal('queued')).toBe(false);
     expect(isBenchmarkRunTerminal('running')).toBe(false);
     expect(isBenchmarkRunTerminal('passed')).toBe(true);
+    expect(isBenchmarkRunTerminal('warning')).toBe(true);
     expect(isBenchmarkRunTerminal('failed')).toBe(true);
     expect(isBenchmarkRunTerminal('cancelled')).toBe(true);
   });
@@ -51,7 +53,36 @@ describe('benchmark runner state helpers', () => {
   it('formats completion notifications for terminal benchmark runs', () => {
     expect(benchmarkRunCompletionNotification(benchmarkRunRecord({ status: 'passed' }))).toEqual({
       title: 'Benchmark run passed',
-      body: '1 scenario completed. Open Benchmarks to inspect target status.',
+      body: '1 scenario completed with all targets passing.',
+    });
+    expect(benchmarkRunCompletionNotification(benchmarkRunRecord({
+      status: 'warning',
+      summaries: [
+        {
+          scenario: 'startup',
+          runId: 'gui-1',
+          generatedAt: '2026-04-19T04:46:00.000Z',
+          metrics: {},
+          slowestCore: [],
+          slowestIpc: [],
+          targets: [
+            {
+              acceptable: 5000,
+              label: 'App to usable workspace',
+              metricName: 'startup.app_to_workspace_ready_ms',
+              nonNegotiable: 2500,
+              rationale: 'Startup ends when the workspace can be used.',
+              source: 'RAIL',
+              status: 'watch',
+              unit: 'ms',
+              value: 3000,
+            },
+          ],
+        },
+      ],
+    }))).toEqual({
+      title: 'Benchmark run needs attention',
+      body: '1 scenario completed with 1 watch target.',
     });
     expect(benchmarkRunCompletionNotification(benchmarkRunRecord({ status: 'failed', error: 'boom' }))).toEqual({
       title: 'Benchmark run failed',
@@ -95,7 +126,7 @@ describe('benchmark runner state helpers', () => {
   });
 
   it('leaves completed runs unchanged during cancellation', () => {
-    const record = benchmarkRunRecord({ status: 'passed', completedAt: '2026-04-19T04:46:00.000Z', exitCode: 0 });
+    const record = benchmarkRunRecord({ status: 'warning', completedAt: '2026-04-19T04:46:00.000Z', exitCode: 0 });
 
     expect(cancelBenchmarkRunRecord(record)).toBe(record);
   });

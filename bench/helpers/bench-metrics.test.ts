@@ -130,20 +130,45 @@ describe('buildScenarioSummary', () => {
       events: [
         benchmarkEvent({ layer: 'main', name: 'main.boot.ready', category: 'memory', detail: { heapUsedMb: 10 } }),
         benchmarkEvent({
-          category: 'navigation',
-          name: 'nav.dashboard_to_performance_ms',
-          phase: 'end',
-          durationMs: 320,
-        }),
-        benchmarkEvent({
           category: 'interaction',
           name: 'renderer.long-task',
-          detail: { durationMs: 60 },
+          detail: { durationMs: 70, startTime: 8 },
+          ts: 12,
         }),
         benchmarkEvent({
           category: 'interaction',
           name: 'renderer.long-animation-frame',
-          detail: { blockingDuration: 45 },
+          detail: { blockingDuration: 60, startTime: 8 },
+          ts: 13,
+        }),
+        benchmarkEvent({
+          name: 'benchmark.phase.measurement_start',
+          detail: { performanceNow: 10 },
+          ts: 10,
+        }),
+        benchmarkEvent({
+          category: 'navigation',
+          name: 'nav.dashboard_to_performance_ms',
+          phase: 'end',
+          durationMs: 320,
+          ts: 20,
+        }),
+        benchmarkEvent({
+          category: 'interaction',
+          name: 'renderer.long-task',
+          detail: { durationMs: 40, startTime: 30 },
+          ts: 30,
+        }),
+        benchmarkEvent({
+          category: 'interaction',
+          name: 'renderer.long-animation-frame',
+          detail: { blockingDuration: 45, startTime: 40 },
+          ts: 40,
+        }),
+        benchmarkEvent({
+          name: 'benchmark.phase.measurement_end',
+          detail: { performanceNow: 50 },
+          ts: 50,
         }),
         benchmarkEvent({
           category: 'memory',
@@ -160,6 +185,14 @@ describe('buildScenarioSummary', () => {
 
     expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_performance_ms')).toMatchObject({
       value: 320,
+    });
+    expect(summary.targets?.find((target) => target.metricName === 'renderer.long_task_max_ms')).toMatchObject({
+      value: 40,
+      status: 'pass',
+    });
+    expect(summary.targets?.find((target) => target.metricName === 'renderer.loaf_blocking_max_ms')).toMatchObject({
+      value: 45,
+      status: 'pass',
     });
     expect(summary.targets?.find((target) => target.metricName === 'stability.crash_free')).toMatchObject({
       value: 1,

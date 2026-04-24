@@ -1,5 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
+if (process.env.NO_COLOR) {
+  delete process.env.NO_COLOR;
+}
+
 export default defineConfig({
   testDir: './bench/scenarios',
   testMatch: '**/*.bench.ts',
@@ -15,7 +19,7 @@ export default defineConfig({
   ],
   outputDir: process.env.BANJI_BENCHMARK_PLAYWRIGHT_ARTIFACTS_DIR ?? 'bench-results/playwright-artifacts',
   use: {
-    trace: process.env.BANJI_BENCHMARK_TRACE === '1' ? 'on' : 'retain-on-failure',
+    trace: 'off',
     screenshot: 'only-on-failure',
     video: 'off',
   },

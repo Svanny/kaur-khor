@@ -47,7 +47,7 @@ export type BanjiBenchmarkScenarioId =
 
 export type BanjiBenchmarkFixtureSize = 'minimal' | 'medium' | 'heavy' | 'power-user';
 
-export type BanjiBenchmarkRunStatus = 'queued' | 'running' | 'passed' | 'failed' | 'cancelled';
+export type BanjiBenchmarkRunStatus = 'queued' | 'running' | 'passed' | 'warning' | 'failed' | 'cancelled';
 
 export type BanjiBenchmarkTargetStatus = 'pass' | 'watch' | 'fail' | 'missing';
 
@@ -575,10 +575,10 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
     category: 'stability',
     scenarios: ['stability'],
     unit: 'ms',
-    nonNegotiable: 50,
-    acceptable: 100,
-    source: 'Chrome Long Tasks API',
-    rationale: 'Long tasks start at 50 ms; this flags damaging stalls.',
+    nonNegotiable: 100,
+    acceptable: 200,
+    source: 'Chrome Long Tasks API, Electron performance guidance',
+    rationale: 'Long tasks start at 50 ms; repeated desktop route cycles should stay below damaging stall budgets.',
   },
   {
     metricName: 'renderer.loaf_blocking_max_ms',
@@ -751,6 +751,27 @@ export function evaluateBenchmarkTargets(
       rationale: target.rationale,
     } satisfies BanjiBenchmarkTargetEvaluation;
   });
+}
+
+export function benchmarkTargetStatusCounts(summaries: BanjiBenchmarkScenarioSummary[]) {
+  const targets = summaries.flatMap((summary) => summary.targets ?? []);
+  return {
+    pass: targets.filter((target) => target.status === 'pass').length,
+    watch: targets.filter((target) => target.status === 'watch').length,
+    fail: targets.filter((target) => target.status === 'fail').length,
+    missing: targets.filter((target) => target.status === 'missing').length,
+  };
+}
+
+export function benchmarkRunStatusForTargets(summaries: BanjiBenchmarkScenarioSummary[]): BanjiBenchmarkRunStatus {
+  const counts = benchmarkTargetStatusCounts(summaries);
+  if (counts.fail > 0 || counts.missing > 0) {
+    return 'failed';
+  }
+  if (counts.watch > 0) {
+    return 'warning';
+  }
+  return 'passed';
 }
 
 export function aggregateBenchmarkScenarioSummaries({

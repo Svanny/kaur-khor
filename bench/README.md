@@ -48,8 +48,15 @@ BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup
 Run every scenario against the Power User fixture and retain Playwright traces:
 
 ```bash
-BANJI_BENCHMARK_FIXTURE_SIZE=power-user BANJI_BENCHMARK_TRACE=1 pnpm bench
+BANJI_BENCHMARK_FIXTURE_SIZE=power-user BANJI_BENCHMARK_TRACE=1 pnpm bench --repeat-each=1
 ```
+
+The terminal runner and the in-app benchmark runner share the same harness:
+both build first when requested, run `playwright.bench.config.ts`, seed the
+selected fixture before launch, and write scenario summaries from the same
+persisted event stream. Keep new benchmark options wired through both
+`scripts/run-benchmarks.mjs` and `src/main/benchmark-runner.ts` before changing
+scenario behavior.
 
 Each run writes:
 
@@ -57,7 +64,7 @@ Each run writes:
 - `core-events-<role>-<index>-<pid>.jsonl`: Rust core events from the writer and read workers, kept in per-worker files to avoid concurrent append interleaving
 - `<scenario>.summary.json`: duration summaries and slowest IPC/core entries
 - Playwright artifacts under `bench-results/playwright-artifacts`; trace-enabled runs
-  include a `trace.zip` beside each scenario's screenshots and error context
+  also write `playwright-trace.zip` inside each scenario output directory
 
 Startup summaries track the compact startup architecture. The old startup target
 for `ipc.sena_get_workspace_summary_ms` has been replaced by

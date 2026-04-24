@@ -151,6 +151,10 @@ function formatRunLabel(run: BanjiBenchmarkRunRecord) {
   return `${date.toLocaleString()} - ${run.status}`;
 }
 
+function isCompletedBenchmarkRun(run: BanjiBenchmarkRunRecord) {
+  return run.status === 'passed' || run.status === 'warning' || run.status === 'failed';
+}
+
 function formatScenarioLabel(scenario: string) {
   return BANJI_BENCHMARK_SCENARIOS.find((entry) => entry.id === scenario)?.label ?? scenario;
 }
@@ -330,7 +334,7 @@ export function BenchmarkSettingsPage() {
     ?? null;
   const selectedTruthSummary = selectedSummaryScenario === SUMMARY_FILTER_ALL ? null : selectedSummary;
   const targetCounts = runTargetCounts(selectedRun);
-  const completedRuns = runs.filter((run) => run.status === 'passed' || run.status === 'failed');
+  const completedRuns = runs.filter(isCompletedBenchmarkRun);
   const selectedTargets = useMemo(() => {
     const targets = selectedSummaryScenario === SUMMARY_FILTER_ALL
       ? selectedRun?.summaries.flatMap((summary) => summary.targets ?? []) ?? []
