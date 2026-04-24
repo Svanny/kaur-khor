@@ -1,29 +1,43 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SenaServiceDetail, SenaServiceDetailPage, SenaSkuDetail, SenaSkuDetailPage } from '@shared/sena';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
-import { useInventory } from '@/state/inventory';
-import { type AnalysisTimeframe, deriveAnalysisTimeframeBoundary, deriveEstimatedTimeframeBatchCount, isAnalysisTimeframeSatisfied, shouldPruneTimeframeTransition } from './analysis-timeframe';
+import { useInventoryActions, useInventoryState } from '@/state/inventory';
+import {
+  type AnalysisTimeframe,
+  deriveAnalysisTimeframeBoundary,
+  deriveEstimatedTimeframeBatchCount,
+  isAnalysisTimeframeSatisfied,
+  shouldPruneTimeframeTransition,
+} from './analysis-timeframe';
 
 interface SenaHydrationPages {
   servicePages: Record<string, SenaServiceDetailPage | null>;
   skuPages: Record<string, SenaSkuDetailPage | null>;
 }
 
-const DETAIL_HYDRATION_CONCURRENCY = 2;
+interface SenaDetailHydrationOptions {
+  priorityServiceIds?: string[];
+  prioritySkuIds?: string[];
+  serviceIds?: string[];
+  skuIds?: string[];
+  timeframeBoundaryOverride?: Date | null;
+  timeframeCacheKey?: string;
+}
 
-async function runWithConcurrency(tasks: Array<() => Promise<void>>, concurrency: number) {
-  let nextIndex = 0;
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
-      while (nextIndex < tasks.length) {
-        const task = tasks[nextIndex];
-        nextIndex += 1;
-        await task?.();
-      }
-    }),
-  );
+const DETAIL_HYDRATION_CONCURRENCY = 2;
+const EMPTY_IDS: string[] = [];
+
+async function runTaskBatches(tasks: Array<() => Promise<void>>, concurrency: number, onBatchComplete?: () => void) {
+  if (tasks.length === 0) {
+    return;
+  }
+  for (let index = 0; index < tasks.length; index += concurrency) {
+    const batch = tasks.slice(index, index + concurrency);
+    await Promise.all(batch.map((task) => task()));
+    onBatchComplete?.();
+  }
 }
 
 function mergeSkuDetails(older: SenaSkuDetail, newer: SenaSkuDetail): SenaSkuDetail {
@@ -51,8 +65,32 @@ function oldestServiceIntervalAt(page: SenaServiceDetailPage | null) {
   return page?.detail.regimeTimeline[0]?.startAt ?? page?.detail.regimeTimeline[0]?.endAt ?? null;
 }
 
-export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBoundaryOverride?: Date | null, timeframeCacheKey?: string) {
-  const inventory = useInventory();
+function dedupeIds(ids: string[]) {
+  return Array.from(new Set(ids.filter(Boolean)));
+}
+
+function prioritizeIds(ids: string[], priorityIds: string[]) {
+  if (ids.length === 0) {
+    return [];
+  }
+  const targetIds = new Set(ids);
+  const orderedPriorityIds = dedupeIds(priorityIds).filter((id) => targetIds.has(id));
+  return [...orderedPriorityIds, ...ids.filter((id) => !orderedPriorityIds.includes(id))];
+}
+
+export function useSenaDetailHydration(
+  timeframe: AnalysisTimeframe,
+  {
+    priorityServiceIds,
+    prioritySkuIds,
+    serviceIds,
+    skuIds,
+    timeframeBoundaryOverride,
+    timeframeCacheKey,
+  }: SenaDetailHydrationOptions = {},
+) {
+  const { catalog, workspaceSummary } = useInventoryState();
+  const { loadSenaServiceDetail, loadSenaSkuDetail } = useInventoryActions();
   const [skuPagesById, setSkuPagesById] = useState<Record<string, SenaSkuDetailPage | null>>({});
   const [servicePagesById, setServicePagesById] = useState<Record<string, SenaServiceDetailPage | null>>({});
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
@@ -66,6 +104,23 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
   const previousTimeframeRef = useRef<AnalysisTimeframe | null>(null);
   const activeCacheKey = timeframeCacheKey ?? timeframe;
 
+  const targetSkuIds = useMemo(
+    () => dedupeIds(skuIds ?? catalog?.skus.map((sku) => sku.skuId) ?? []),
+    [catalog?.skus, skuIds],
+  );
+  const targetServiceIds = useMemo(
+    () => dedupeIds(serviceIds ?? catalog?.services.map((service) => service.serviceId) ?? []),
+    [catalog?.services, serviceIds],
+  );
+  const orderedSkuIds = useMemo(
+    () => prioritizeIds(targetSkuIds, prioritySkuIds ?? workspaceSummary?.highRiskSkuIds ?? EMPTY_IDS),
+    [prioritySkuIds, targetSkuIds, workspaceSummary?.highRiskSkuIds],
+  );
+  const orderedServiceIds = useMemo(
+    () => prioritizeIds(targetServiceIds, priorityServiceIds ?? EMPTY_IDS),
+    [priorityServiceIds, targetServiceIds],
+  );
+
   useEffect(() => {
     skuPagesByIdRef.current = skuPagesById;
   }, [skuPagesById]);
@@ -78,7 +133,15 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     isLoadingOlderIntervalsRef.current = isLoadingOlderIntervals;
   }, [isLoadingOlderIntervals]);
 
-  const loadOlderPageBatch = async ({
+  const publishPages = useCallback((cacheKey: string, pages: SenaHydrationPages) => {
+    timeframeCacheRef.current[cacheKey] = pages;
+    skuPagesByIdRef.current = pages.skuPages;
+    servicePagesByIdRef.current = pages.servicePages;
+    setSkuPagesById(pages.skuPages);
+    setServicePagesById(pages.servicePages);
+  }, []);
+
+  const loadOlderPageBatch = useCallback(async ({
     currentServicePagesById,
     currentSkuPagesById,
     limit,
@@ -88,22 +151,22 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     limit: number;
   }) => {
     let maxPrependedCount = 0;
-    const skuPagesById = { ...currentSkuPagesById };
-    const servicePagesById = { ...currentServicePagesById };
+    const nextSkuPagesById = { ...currentSkuPagesById };
+    const nextServicePagesById = { ...currentServicePagesById };
     const tasks: Array<() => Promise<void>> = [
-      ...(inventory.catalog?.skus ?? []).map((sku) => async () => {
-        const current = currentSkuPagesById[sku.skuId];
+      ...orderedSkuIds.map((skuId) => async () => {
+        const current = currentSkuPagesById[skuId];
         if (!current?.hasOlder || current.nextBeforeIntervalIndex == null) {
-          skuPagesById[sku.skuId] = current ?? null;
+          nextSkuPagesById[skuId] = current ?? null;
           return;
         }
-        const older = normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(sku.skuId, {
+        const older = normalizeSkuDetailPage(await loadSenaSkuDetail(skuId, {
           beforeIntervalIndex: current.nextBeforeIntervalIndex,
           limit,
           strategy: 'network-only',
         }));
         maxPrependedCount = Math.max(maxPrependedCount, older?.detail.demandPosterior.length ?? 0);
-        skuPagesById[sku.skuId] = older && current
+        nextSkuPagesById[skuId] = older && current
           ? {
               ...older,
               latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
@@ -111,19 +174,19 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
             }
           : current ?? older ?? null;
       }),
-      ...(inventory.catalog?.services ?? []).map((service) => async () => {
-        const current = currentServicePagesById[service.serviceId];
+      ...orderedServiceIds.map((serviceId) => async () => {
+        const current = currentServicePagesById[serviceId];
         if (!current?.hasOlder || current.nextBeforeIntervalIndex == null) {
-          servicePagesById[service.serviceId] = current ?? null;
+          nextServicePagesById[serviceId] = current ?? null;
           return;
         }
-        const older = normalizeServiceDetailPage(await inventory.loadSenaServiceDetail(service.serviceId, {
+        const older = normalizeServiceDetailPage(await loadSenaServiceDetail(serviceId, {
           beforeIntervalIndex: current.nextBeforeIntervalIndex,
           limit,
           strategy: 'network-only',
         }));
         maxPrependedCount = Math.max(maxPrependedCount, older?.detail.regimeTimeline.length ?? 0);
-        servicePagesById[service.serviceId] = older && current
+        nextServicePagesById[serviceId] = older && current
           ? {
               ...older,
               latestIntervalIndex: current.latestIntervalIndex ?? older.latestIntervalIndex,
@@ -132,16 +195,16 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
           : current ?? older ?? null;
       }),
     ];
-    await runWithConcurrency(tasks, DETAIL_HYDRATION_CONCURRENCY);
+    await runTaskBatches(tasks, DETAIL_HYDRATION_CONCURRENCY);
 
     return {
       maxPrependedCount,
-      servicePagesById,
-      skuPagesById,
+      servicePagesById: nextServicePagesById,
+      skuPagesById: nextSkuPagesById,
     };
-  };
+  }, [loadSenaServiceDetail, loadSenaSkuDetail, orderedServiceIds, orderedSkuIds]);
 
-  const pagesSatisfyTimeframe = ({
+  const pagesSatisfyTimeframe = useCallback(({
     boundary,
     respectRecentBoundary = false,
     servicePages,
@@ -154,30 +217,30 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     skuPages: Record<string, SenaSkuDetailPage | null>;
     targetTimeframe: AnalysisTimeframe;
   }) => {
-    const skuSatisfied = Object.values(skuPages).every((page) =>
+    const skuSatisfied = orderedSkuIds.every((skuId) =>
       isAnalysisTimeframeSatisfied({
         boundary,
-        hasOlder: page?.hasOlder ?? false,
-        loadedIntervalCount: page?.detail.demandPosterior.length ?? 0,
-        oldestIntervalAt: oldestSkuIntervalAt(page),
+        hasOlder: skuPages[skuId]?.hasOlder ?? false,
+        loadedIntervalCount: skuPages[skuId]?.detail.demandPosterior.length ?? 0,
+        oldestIntervalAt: oldestSkuIntervalAt(skuPages[skuId] ?? null),
         respectRecentBoundary,
         timeframe: targetTimeframe,
       }),
     );
-    const serviceSatisfied = Object.values(servicePages).every((page) =>
+    const serviceSatisfied = orderedServiceIds.every((serviceId) =>
       isAnalysisTimeframeSatisfied({
         boundary,
-        hasOlder: page?.hasOlder ?? false,
-        loadedIntervalCount: page?.detail.regimeTimeline.length ?? 0,
-        oldestIntervalAt: oldestServiceIntervalAt(page),
+        hasOlder: servicePages[serviceId]?.hasOlder ?? false,
+        loadedIntervalCount: servicePages[serviceId]?.detail.regimeTimeline.length ?? 0,
+        oldestIntervalAt: oldestServiceIntervalAt(servicePages[serviceId] ?? null),
         respectRecentBoundary,
         timeframe: targetTimeframe,
       }),
     );
     return skuSatisfied && serviceSatisfied;
-  };
+  }, [orderedServiceIds, orderedSkuIds]);
 
-  const loadInitialPages = async ({
+  const loadInitialPages = useCallback(async ({
     onPagesChange,
     targetBoundaryOverride,
     targetCacheKey,
@@ -188,96 +251,93 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     targetCacheKey: string;
     targetTimeframe: AnalysisTimeframe;
   }) => {
-    const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(inventory.workspaceSummary);
+    const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary);
     const cachedSkuPages = Object.fromEntries(
-      (inventory.catalog?.skus ?? []).map((sku) => [
-        sku.skuId,
+      targetSkuIds.map((skuId) => [
+        skuId,
         typeof window === 'undefined'
           ? null
           : readPersistedSenaDetailPage({
-            beforeIntervalIndex: null,
-            entityId: sku.skuId,
-            entityType: 'sku',
-            freshnessFingerprint,
-            limit: INTERVAL_PAGE_SIZE,
-            storage: window.localStorage,
-          }),
+              beforeIntervalIndex: null,
+              entityId: skuId,
+              entityType: 'sku',
+              freshnessFingerprint,
+              limit: INTERVAL_PAGE_SIZE,
+              storage: window.localStorage,
+            }),
       ]),
     ) as Record<string, SenaSkuDetailPage | null>;
     const cachedServicePages = Object.fromEntries(
-      (inventory.catalog?.services ?? []).map((service) => [
-        service.serviceId,
+      targetServiceIds.map((serviceId) => [
+        serviceId,
         typeof window === 'undefined'
           ? null
           : readPersistedSenaDetailPage({
-            beforeIntervalIndex: null,
-            entityId: service.serviceId,
-            entityType: 'service',
-            freshnessFingerprint,
-            limit: INTERVAL_PAGE_SIZE,
-            storage: window.localStorage,
-          }),
+              beforeIntervalIndex: null,
+              entityId: serviceId,
+              entityType: 'service',
+              freshnessFingerprint,
+              limit: INTERVAL_PAGE_SIZE,
+              storage: window.localStorage,
+            }),
       ]),
     ) as Record<string, SenaServiceDetailPage | null>;
-    if (Object.values(cachedSkuPages).some(Boolean) || Object.values(cachedServicePages).some(Boolean)) {
-      onPagesChange?.({
-        servicePages: cachedServicePages,
-        skuPages: cachedSkuPages,
-      });
-    }
     let skuPages = { ...cachedSkuPages };
     let servicePages = { ...cachedServicePages };
-    const highRiskSkuIds = new Set(inventory.workspaceSummary?.highRiskSkuIds ?? []);
-    const orderedSkus = [...(inventory.catalog?.skus ?? [])].sort((left, right) => {
-      const leftPriority = highRiskSkuIds.has(left.skuId) ? 0 : 1;
-      const rightPriority = highRiskSkuIds.has(right.skuId) ? 0 : 1;
-      return leftPriority - rightPriority;
-    });
+    if (Object.values(cachedSkuPages).some(Boolean) || Object.values(cachedServicePages).some(Boolean)) {
+      onPagesChange?.({ servicePages, skuPages });
+    }
+
     const hydrationTasks: Array<() => Promise<void>> = [
-      ...orderedSkus.map((sku) => async () => {
+      ...orderedSkuIds.map((skuId) => async () => {
         try {
           skuPages = {
             ...skuPages,
-            [sku.skuId]: normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(sku.skuId, { limit: INTERVAL_PAGE_SIZE })),
+            [skuId]: normalizeSkuDetailPage(await loadSenaSkuDetail(skuId, { limit: INTERVAL_PAGE_SIZE })),
           };
         } catch {
-          skuPages = { ...skuPages, [sku.skuId]: null };
+          skuPages = { ...skuPages, [skuId]: null };
         }
-        onPagesChange?.({ servicePages, skuPages });
       }),
-      ...(inventory.catalog?.services ?? []).map((service) => async () => {
+      ...orderedServiceIds.map((serviceId) => async () => {
         try {
           servicePages = {
             ...servicePages,
-            [service.serviceId]: normalizeServiceDetailPage(await inventory.loadSenaServiceDetail(service.serviceId, { limit: INTERVAL_PAGE_SIZE })),
+            [serviceId]: normalizeServiceDetailPage(await loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE })),
           };
         } catch {
-          servicePages = { ...servicePages, [service.serviceId]: null };
+          servicePages = { ...servicePages, [serviceId]: null };
         }
-        onPagesChange?.({ servicePages, skuPages });
       }),
     ];
-    await runWithConcurrency(hydrationTasks, DETAIL_HYDRATION_CONCURRENCY);
+    await runTaskBatches(hydrationTasks, DETAIL_HYDRATION_CONCURRENCY, () => {
+      onPagesChange?.({ servicePages, skuPages });
+    });
     onPagesChange?.({ servicePages, skuPages });
-    const boundary = deriveAnalysisTimeframeBoundary(inventory.workspaceSummary?.latestObservedAt, targetTimeframe);
+
+    const boundary = deriveAnalysisTimeframeBoundary(workspaceSummary?.latestObservedAt, targetTimeframe);
     const effectiveBoundary =
       targetTimeframe === 'Recent' && targetBoundaryOverride != null
         ? targetBoundaryOverride
         : (targetBoundaryOverride ?? boundary);
     const initiallyLoadedIntervalCount = Math.max(
-      ...Object.values(skuPages).map((page) => page?.detail.demandPosterior.length ?? 0),
-      ...Object.values(servicePages).map((page) => page?.detail.regimeTimeline.length ?? 0),
+      ...orderedSkuIds.map((skuId) => skuPages[skuId]?.detail.demandPosterior.length ?? 0),
+      ...orderedServiceIds.map((serviceId) => servicePages[serviceId]?.detail.regimeTimeline.length ?? 0),
       0,
     );
     const oldestLoadedAt =
-      Object.values(skuPages).find((page) => (page?.detail.demandPosterior.length ?? 0) > 0)?.detail.demandPosterior[0]?.startAt ??
-      Object.values(servicePages).find((page) => (page?.detail.regimeTimeline.length ?? 0) > 0)?.detail.regimeTimeline[0]?.startAt ??
-      null;
+      orderedSkuIds
+        .map((skuId) => oldestSkuIntervalAt(skuPages[skuId] ?? null))
+        .find((value) => value != null)
+      ?? orderedServiceIds
+        .map((serviceId) => oldestServiceIntervalAt(servicePages[serviceId] ?? null))
+        .find((value) => value != null)
+      ?? null;
     const estimatedBatchCount = deriveEstimatedTimeframeBatchCount({
       batchSize: 10,
       boundary: effectiveBoundary,
-      intervalCount: inventory.workspaceSummary?.intervalCount ?? initiallyLoadedIntervalCount,
-      latestObservedAt: inventory.workspaceSummary?.latestObservedAt,
+      intervalCount: workspaceSummary?.intervalCount ?? initiallyLoadedIntervalCount,
+      latestObservedAt: workspaceSummary?.latestObservedAt,
       loadedIntervalCount: initiallyLoadedIntervalCount,
       oldestLoadedAt,
       timeframe: targetTimeframe,
@@ -314,10 +374,20 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
       servicePages,
       skuPages,
     };
-  };
+  }, [
+    loadOlderPageBatch,
+    loadSenaServiceDetail,
+    loadSenaSkuDetail,
+    orderedServiceIds,
+    orderedSkuIds,
+    pagesSatisfyTimeframe,
+    targetServiceIds,
+    targetSkuIds,
+    workspaceSummary,
+  ]);
 
   useEffect(() => {
-    if (!inventory.catalog || !inventory.workspaceSummary) {
+    if (!catalog || !workspaceSummary) {
       timeframeCacheRef.current = {};
       setResolvedTimeframeCacheKey(null);
       skuPagesByIdRef.current = {};
@@ -330,7 +400,7 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     }
 
     if (shouldPruneTimeframeTransition({
-      latestObservedAt: inventory.workspaceSummary.latestObservedAt,
+      latestObservedAt: workspaceSummary.latestObservedAt,
       nextTimeframe: timeframe,
       previousTimeframe: previousTimeframeRef.current,
     }) && !timeframeBoundaryOverride) {
@@ -346,7 +416,7 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     previousTimeframeRef.current = timeframe;
 
     const cachedPages = timeframeCacheRef.current[activeCacheKey];
-    const boundary = deriveAnalysisTimeframeBoundary(inventory.workspaceSummary.latestObservedAt, timeframe);
+    const boundary = deriveAnalysisTimeframeBoundary(workspaceSummary.latestObservedAt, timeframe);
     const effectiveBoundary =
       timeframe === 'Recent' && timeframeBoundaryOverride != null
         ? timeframeBoundaryOverride
@@ -361,10 +431,7 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
         targetTimeframe: timeframe,
       })
     ) {
-      skuPagesByIdRef.current = cachedPages.skuPages;
-      servicePagesByIdRef.current = cachedPages.servicePages;
-      setSkuPagesById(cachedPages.skuPages);
-      setServicePagesById(cachedPages.servicePages);
+      publishPages(activeCacheKey, cachedPages);
       setIsHydratingDetails(false);
       setTimeframeHydrationProgress(null);
       setResolvedTimeframeCacheKey(activeCacheKey);
@@ -375,30 +442,22 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     setIsHydratingDetails(true);
 
     void loadInitialPages({
-      onPagesChange: ({ servicePages, skuPages }) => {
+      onPagesChange: (pages) => {
         if (!active) {
           return;
         }
-        timeframeCacheRef.current[activeCacheKey] = { servicePages, skuPages };
-        skuPagesByIdRef.current = skuPages;
-        servicePagesByIdRef.current = servicePages;
-        setSkuPagesById(skuPages);
-        setServicePagesById(servicePages);
+        publishPages(activeCacheKey, pages);
       },
       targetBoundaryOverride: timeframeBoundaryOverride,
       targetCacheKey: activeCacheKey,
       targetTimeframe: timeframe,
     })
-      .then(({ servicePages, skuPages }) => {
+      .then((pages) => {
         if (!active) {
           return;
         }
-        timeframeCacheRef.current[activeCacheKey] = { servicePages, skuPages };
+        publishPages(activeCacheKey, pages);
         setResolvedTimeframeCacheKey(activeCacheKey);
-        skuPagesByIdRef.current = skuPages;
-        servicePagesByIdRef.current = servicePages;
-        setSkuPagesById(skuPages);
-        setServicePagesById(servicePages);
         setIsHydratingDetails(false);
       })
       .catch(() => {
@@ -412,10 +471,19 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     return () => {
       active = false;
     };
-  }, [activeCacheKey, inventory, inventory.catalog, inventory.workspaceSummary, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
+  }, [
+    activeCacheKey,
+    catalog,
+    loadInitialPages,
+    pagesSatisfyTimeframe,
+    publishPages,
+    timeframe,
+    timeframeBoundaryOverride,
+    workspaceSummary,
+  ]);
 
-  const resetHydratedDetails = async () => {
-    if (!inventory.catalog || !inventory.workspaceSummary) {
+  const resetHydratedDetails = useCallback(async () => {
+    if (!catalog || !workspaceSummary) {
       skuPagesByIdRef.current = {};
       servicePagesByIdRef.current = {};
       setSkuPagesById({});
@@ -424,35 +492,22 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
     }
     setIsHydratingDetails(true);
     try {
-      const { servicePages, skuPages } = await loadInitialPages({
-        onPagesChange: ({ servicePages: nextServicePages, skuPages: nextSkuPages }) => {
-          timeframeCacheRef.current[activeCacheKey] = {
-            servicePages: nextServicePages,
-            skuPages: nextSkuPages,
-          };
-          skuPagesByIdRef.current = nextSkuPages;
-          servicePagesByIdRef.current = nextServicePages;
-          setSkuPagesById(nextSkuPages);
-          setServicePagesById(nextServicePages);
-        },
+      const pages = await loadInitialPages({
+        onPagesChange: (nextPages) => publishPages(activeCacheKey, nextPages),
         targetBoundaryOverride: timeframeBoundaryOverride,
         targetCacheKey: activeCacheKey,
         targetTimeframe: timeframe,
       });
-      timeframeCacheRef.current[activeCacheKey] = { servicePages, skuPages };
+      publishPages(activeCacheKey, pages);
       setResolvedTimeframeCacheKey(activeCacheKey);
-      skuPagesByIdRef.current = skuPages;
-      servicePagesByIdRef.current = servicePages;
-      setSkuPagesById(skuPages);
-      setServicePagesById(servicePages);
     } finally {
       setIsHydratingDetails(false);
       setTimeframeHydrationProgress(null);
     }
-  };
+  }, [activeCacheKey, catalog, loadInitialPages, publishPages, timeframe, timeframeBoundaryOverride, workspaceSummary]);
 
-  const loadOlderIntervals = async (limit = INTERVAL_PAGE_SIZE) => {
-    if (!inventory.catalog || isLoadingOlderIntervalsRef.current) {
+  const loadOlderIntervals = useCallback(async (limit = INTERVAL_PAGE_SIZE) => {
+    if (!catalog || isLoadingOlderIntervalsRef.current) {
       return 0;
     }
     isLoadingOlderIntervalsRef.current = true;
@@ -463,31 +518,36 @@ export function useSenaDetailHydration(timeframe: AnalysisTimeframe, timeframeBo
         currentSkuPagesById: skuPagesByIdRef.current,
         limit,
       });
-      skuPagesByIdRef.current = nextBatch.skuPagesById;
-      servicePagesByIdRef.current = nextBatch.servicePagesById;
-      timeframeCacheRef.current[activeCacheKey] = {
+      publishPages(activeCacheKey, {
         servicePages: nextBatch.servicePagesById,
         skuPages: nextBatch.skuPagesById,
-      };
+      });
       setResolvedTimeframeCacheKey(activeCacheKey);
-      setSkuPagesById(nextBatch.skuPagesById);
-      setServicePagesById(nextBatch.servicePagesById);
       return nextBatch.maxPrependedCount;
     } finally {
       isLoadingOlderIntervalsRef.current = false;
       setIsLoadingOlderIntervals(false);
     }
-  };
+  }, [activeCacheKey, catalog, loadOlderPageBatch, publishPages]);
 
-  const skuDetailsById = Object.fromEntries(
-    Object.entries(skuPagesById).map(([key, value]) => [key, value?.detail ?? null]),
-  ) as Record<string, SenaSkuDetail | null>;
-  const serviceDetailsById = Object.fromEntries(
-    Object.entries(servicePagesById).map(([key, value]) => [key, value?.detail ?? null]),
-  ) as Record<string, SenaServiceDetail | null>;
-  const hasOlderIntervals =
-    Object.values(skuPagesById).some((page) => page?.hasOlder) ||
-    Object.values(servicePagesById).some((page) => page?.hasOlder);
+  const skuDetailsById = useMemo(
+    () => Object.fromEntries(
+      Object.entries(skuPagesById).map(([key, value]) => [key, value?.detail ?? null]),
+    ) as Record<string, SenaSkuDetail | null>,
+    [skuPagesById],
+  );
+  const serviceDetailsById = useMemo(
+    () => Object.fromEntries(
+      Object.entries(servicePagesById).map(([key, value]) => [key, value?.detail ?? null]),
+    ) as Record<string, SenaServiceDetail | null>,
+    [servicePagesById],
+  );
+  const hasOlderIntervals = useMemo(
+    () =>
+      orderedSkuIds.some((skuId) => skuPagesById[skuId]?.hasOlder) ||
+      orderedServiceIds.some((serviceId) => servicePagesById[serviceId]?.hasOlder),
+    [orderedServiceIds, orderedSkuIds, servicePagesById, skuPagesById],
+  );
 
   return {
     hasOlderIntervals,

@@ -13,6 +13,7 @@ export function AnchoredMenu({
   triggerClassName,
   triggerSize = 'icon-sm',
   align = 'right',
+  onOpenChange,
 }: {
   children: (closeMenu: () => void) => ReactNode;
   className?: string;
@@ -21,11 +22,16 @@ export function AnchoredMenu({
   triggerClassName?: string;
   triggerSize?: React.ComponentProps<typeof Button>['size'];
   align?: HorizontalAlign;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    onOpenChange?.(open);
+  }, [onOpenChange, open]);
 
   useEffect(() => {
     if (!open) {

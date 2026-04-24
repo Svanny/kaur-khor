@@ -50,6 +50,7 @@ import {
   readAutomationRouteState,
   type AutomationIntakeFilterValue,
 } from '@/lib/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
@@ -435,6 +436,11 @@ export function AutomationsRoute() {
       : null,
     [intakes, selectedIntakeRequest],
   );
+
+  useBenchmarkRouteReady('automations', !isLoading, {
+    hasWorkspace: workspace != null,
+    section: routeState.section,
+  });
   const unavailableExposedCount = useMemo(
     () => exposures.filter((row) => row.exposed && row.availabilityStatus === 'unavailable').length,
     [exposures],

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
 import {
@@ -36,6 +36,7 @@ import {
   buildPerformanceSearchParams,
   readPerformanceRouteState,
 } from '@/lib/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
@@ -375,13 +376,20 @@ export function PerformanceRoute() {
   const scope = routeState.scope as PerformanceScope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
-  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
     [baseCatalog, supplierFilter],
   );
+  const targetSkuIds = scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? [];
+  const targetServiceIds = scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? [];
+  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent', {
+    priorityServiceIds: targetServiceIds.slice(0, 8),
+    prioritySkuIds: targetSkuIds.filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId)).slice(0, 8),
+    serviceIds: targetServiceIds,
+    skuIds: targetSkuIds,
+  });
 
   function updateRouteState(nextState: Parameters<typeof buildPerformanceSearchParams>[1], replace = false) {
     setSearchParams(buildPerformanceSearchParams(searchParams, nextState), { replace });
@@ -423,6 +431,24 @@ export function PerformanceRoute() {
   const visibleBoardRows = model?.boardRows ?? [];
   const latestUpdateAt = latestObservationAt(inventory.observations);
   const latestUpdateAgeDays = intervalDaysBetween(latestUpdateAt, new Date().toISOString());
+
+  useEffect(() => {
+    if (inventory.diagnostics != null) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      void inventory.loadSenaDiagnostics().catch((error) => {
+        console.warn('[performance] diagnostics load failed', error);
+      });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [inventory.diagnostics, inventory.loadSenaDiagnostics]);
+
+  useBenchmarkRouteReady('performance', !inventory.isLoading && (!visibleCatalog || model != null), {
+    compareMode,
+    hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
+    scope,
+  });
 
   if (!visibleCatalog || (visibleCatalog.skus.length === 0 && visibleCatalog.services.length === 0)) {
     return (

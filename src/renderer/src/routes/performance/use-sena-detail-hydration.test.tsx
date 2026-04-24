@@ -25,7 +25,8 @@ function createStorageMock(): Storage {
 }
 
 vi.mock('@/state/inventory', () => ({
-  useInventory: () => inventoryHook(),
+  useInventoryActions: () => inventoryHook(),
+  useInventoryState: () => inventoryHook(),
 }));
 
 function makeDemandPosterior(start: number, count: number) {
@@ -141,7 +142,10 @@ function AnalysisCacheHarness({
   boundary?: Date | null;
   cacheKey?: string;
 }) {
-  const { isHydratingDetails, resolvedTimeframeCacheKey, skuDetailsById } = useSenaDetailHydration('Recent', boundary, cacheKey);
+  const { isHydratingDetails, resolvedTimeframeCacheKey, skuDetailsById } = useSenaDetailHydration('Recent', {
+    timeframeBoundaryOverride: boundary,
+    timeframeCacheKey: cacheKey,
+  });
   const length = skuDetailsById['sku-1']?.demandPosterior.length ?? 0;
 
   return (

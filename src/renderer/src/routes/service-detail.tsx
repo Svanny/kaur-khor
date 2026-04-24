@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
 import type { SenaServiceDetail, SenaServiceDetailPage } from '@shared/sena';
@@ -17,8 +17,9 @@ import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { usePreferences } from '@/state/preferences';
-import { useInventory } from '@/state/inventory';
+import { useInventoryActions, useInventoryState } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from './loading-wireframes';
 import { ServiceDependencyImpact } from './service-detail/dependency-impact';
 import { ServiceEvidenceTimeline } from './service-detail/evidence';
@@ -93,15 +94,17 @@ export function ServiceDetailRoute() {
   const { currency, language, showRightRailCards, t, usdToKhrExchangeRate } = usePreferences();
   const {
     catalog,
-    listStockReports,
-    loadInventorySnapshot,
-    clearSenaServiceDetailCache,
-    loadSenaServiceDetail,
     observations,
     reports,
     snapshot,
     workspaceSummary,
-  } = useInventory();
+  } = useInventoryState();
+  const {
+    listStockReports,
+    loadInventorySnapshot,
+    clearSenaServiceDetailCache,
+    loadSenaServiceDetail,
+  } = useInventoryActions();
   const { serviceId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [actionMode, setActionMode] = useState<Parameters<typeof ServiceDetailActions>[0]['mode']>(null);
@@ -111,6 +114,7 @@ export function ServiceDetailRoute() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selection, setSelection] = useState<ServiceInspectorSelection>({ type: 'overview' });
+  const initialDetailRequestRef = useRef<Promise<SenaServiceDetailPage | null> | null>(null);
   const chartController = useTradingChartController({
     subjectId: serviceId,
     subtype: 'service',
@@ -172,8 +176,10 @@ export function ServiceDetailRoute() {
       : null);
 
   const fetchPageData = useCallback(async () => {
+    const detailRequest = loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null);
+    initialDetailRequestRef.current = detailRequest;
     const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
-      loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE, strategy: 'network-only' }).catch(() => null),
+      detailRequest,
       snapshot ? Promise.resolve(snapshot) : projectedSnapshot ? Promise.resolve(projectedSnapshot) : loadInventorySnapshot(),
       reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
     ]);
@@ -202,6 +208,7 @@ export function ServiceDetailRoute() {
     setIsLoading(true);
     setError(null);
     setDetailPage(cachedRecentDetailPage);
+    initialDetailRequestRef.current = cachedRecentDetailPage ? Promise.resolve(cachedRecentDetailPage) : null;
 
     fetchPageData()
       .then(({ nextDetail, nextReports, nextSnapshot }) => {
@@ -225,6 +232,7 @@ export function ServiceDetailRoute() {
 
     return () => {
       cancelled = true;
+      initialDetailRequestRef.current = null;
     };
   }, [cachedRecentDetailPage, fetchPageData, serviceId]);
 
@@ -241,8 +249,9 @@ export function ServiceDetailRoute() {
   } = useTimeframedIntervalHistory({
     fetchInitialPage: async (limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
-        (await loadSenaServiceDetail(serviceId, { limit, strategy: 'network-only' }).catch(() => null)) ?? null,
+        (await loadSenaServiceDetail(serviceId, { limit }).catch(() => null)) ?? null,
       ),
+    seedInitialPage: async () => initialDetailRequestRef.current ? normalizeServiceDetailPage(await initialDetailRequestRef.current) : undefined,
     fetchOlderPage: async (beforeIntervalIndex, limit = INTERVAL_PAGE_SIZE) =>
       normalizeServiceDetailPage(
         (await loadSenaServiceDetail(serviceId, { beforeIntervalIndex, limit, strategy: 'network-only' }).catch(() => null)) ?? null,
@@ -298,6 +307,18 @@ export function ServiceDetailRoute() {
       workspaceSummary,
     });
   }, [activeReports, activeSnapshot, currency, detail, language, observations, service, workspaceSummary, usdToKhrExchangeRate]);
+
+  useBenchmarkRouteReady(
+    'service-detail',
+    !isLoading && (!serviceId || Boolean(model) || Boolean(error) || (!catalogService && !service)),
+    useMemo(
+      () => ({
+        hasWorkspaceSummary: Boolean(workspaceSummary),
+        serviceId,
+      }),
+      [catalogService, error, model, service, serviceId, workspaceSummary],
+    ),
+  );
 
   useEffect(() => {
     if (!model) {

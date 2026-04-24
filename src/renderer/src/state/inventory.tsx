@@ -74,7 +74,6 @@ type ReadCacheValue =
   | null;
 
 const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
-const DEFERRED_DIAGNOSTICS_DELAY_MS = 2_000;
 
 type SenaDetailLoadStrategy = 'cache-first' | 'network-only';
 type SenaDetailLoadOptions = {
@@ -152,7 +151,29 @@ export interface InventoryContextValue {
   updateSenaMeta: (next: Partial<SenaMetaCache>) => void;
 }
 
-const InventoryContext = createContext<InventoryContextValue | null>(null);
+type InventoryStateValue = Pick<
+  InventoryContextValue,
+  | 'catalog'
+  | 'diagnostics'
+  | 'error'
+  | 'isLoading'
+  | 'isPreparingWorkspace'
+  | 'isSaving'
+  | 'latestRun'
+  | 'observationFingerprint'
+  | 'observations'
+  | 'orderBatches'
+  | 'recordUpdateContext'
+  | 'reports'
+  | 'senaMeta'
+  | 'snapshot'
+  | 'workspaceSummary'
+>;
+
+type InventoryActionsValue = Omit<InventoryContextValue, keyof InventoryStateValue>;
+
+const InventoryStateContext = createContext<InventoryStateValue | null>(null);
+const InventoryActionsContext = createContext<InventoryActionsValue | null>(null);
 
 function emptyState() {
   return {
@@ -322,18 +343,21 @@ function deriveProjectedReports(observations: SenaObservationRecord[]) {
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
+  const stateRef = useRef(state);
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
   const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
-  const deferredDiagnosticsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reloadSequenceRef = useRef(0);
   const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
     catalogHash: null,
     lastBootstrapSkuId: null,
     lastCompletedRunId: null,
   });
-  const [, bumpMetaVersion] = useState(0);
+  const [metaVersion, bumpMetaVersion] = useState(0);
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const updateSenaMeta = useCallback((next: Partial<SenaMetaCache>) => {
     senaMetaRef.current = { ...senaMetaRef.current, ...next };
@@ -497,42 +521,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return recordUpdateContext;
   }, [setStatePartial]);
 
-  const cancelDeferredDiagnostics = useCallback(() => {
-    if (deferredDiagnosticsTimerRef.current) {
-      clearTimeout(deferredDiagnosticsTimerRef.current);
-      deferredDiagnosticsTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleDeferredDiagnostics = useCallback((reloadId: number) => {
-    cancelDeferredDiagnostics();
-    deferredDiagnosticsTimerRef.current = setTimeout(() => {
-      deferredDiagnosticsTimerRef.current = null;
-      if (reloadSequenceRef.current !== reloadId) {
-        return;
-      }
-      void window.banjiDesktop.sena.getDiagnostics()
-        .then((diagnostics) => {
-          if (reloadSequenceRef.current !== reloadId) {
-            return;
-          }
-          readCacheRef.current.set('sena:diagnostics', diagnostics);
-          setStatePartial({ diagnostics });
-        })
-        .catch((error) => {
-          console.warn('[inventory] deferred diagnostics load failed', error);
-        });
-    }, DEFERRED_DIAGNOSTICS_DELAY_MS);
-  }, [cancelDeferredDiagnostics, setStatePartial]);
-
   useEffect(() => {
     syncPersistentSenaDetailCache(state.workspaceSummary);
   }, [state.workspaceSummary, syncPersistentSenaDetailCache]);
 
   const reload = useCallback(async () => {
-    const reloadId = reloadSequenceRef.current + 1;
-    reloadSequenceRef.current = reloadId;
-    cancelDeferredDiagnostics();
     setState((current) => ({ ...current, error: null, isLoading: true }));
     try {
       readCacheRef.current.clear();
@@ -569,7 +562,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         recordUpdateContext: null,
         workspaceSummary,
       });
-      scheduleDeferredDiagnostics(reloadId);
     } catch (error) {
       setState((current) => ({
         ...current,
@@ -577,13 +569,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         isLoading: false,
       }));
     }
-  }, [cancelDeferredDiagnostics, scheduleDeferredDiagnostics, updateSenaMeta]);
+  }, [updateSenaMeta]);
 
   useEffect(() => {
     void reload();
   }, [reload]);
-
-  useEffect(() => cancelDeferredDiagnostics, [cancelDeferredDiagnostics]);
 
   const withSaving = useCallback(async <T,>(task: () => Promise<T>) => {
     setState((current) => ({ ...current, error: null, isSaving: true }));
@@ -628,13 +618,15 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const value = useMemo<InventoryContextValue>(
+  const actions = useMemo<InventoryActionsValue>(
     () => ({
-      ...state,
-      senaMeta: senaMetaRef.current,
       reload,
       loadInventorySnapshot: async () => {
-        const snapshot = deriveProjectedSnapshot(state.catalog, state.observations, state.workspaceSummary);
+        const snapshot = deriveProjectedSnapshot(
+          stateRef.current.catalog,
+          stateRef.current.observations,
+          stateRef.current.workspaceSummary,
+        );
         if (!snapshot) {
           throw new Error('Snapshot is unavailable until the catalog is loaded.');
         }
@@ -643,7 +635,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return snapshot;
       },
       listStockReports: async () => {
-        const reports = deriveProjectedReports(state.observations);
+        const reports = deriveProjectedReports(stateRef.current.observations);
         readCacheRef.current.set('projection:reports', reports);
         setStatePartial({ reports });
         return reports;
@@ -663,7 +655,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       renameCatalogEntity: async (payload) =>
         withSaving(async () => {
-          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          const currentCatalog = normalizeSenaCatalog(stateRef.current.catalog);
           if (!currentCatalog) {
             throw new Error('Catalog is not loaded.');
           }
@@ -710,7 +702,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           const run =
             payload.previousId !== nextId
               ? await window.banjiDesktop.sena.triggerRun({
-                  algorithmVersion: state.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+                  algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
                 })
               : null;
           const [workspaceSummary, diagnostics] = await Promise.all([
@@ -739,7 +731,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           setStatePartial({
             catalog,
             diagnostics,
-            latestRun: run ?? state.latestRun,
+            latestRun: run ?? stateRef.current.latestRun,
             observations,
             orderBatches,
             reports,
@@ -750,7 +742,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       archiveCatalogEntity: async ({ entityId, entityType }) =>
         withSaving(async () => {
-          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          const currentCatalog = normalizeSenaCatalog(stateRef.current.catalog);
           if (!currentCatalog) {
             throw new Error('Catalog is not loaded.');
           }
@@ -770,7 +762,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       unarchiveCatalogEntity: async ({ entityId, entityType }) =>
         withSaving(async () => {
-          const currentCatalog = normalizeSenaCatalog(state.catalog);
+          const currentCatalog = normalizeSenaCatalog(stateRef.current.catalog);
           if (!currentCatalog) {
             throw new Error('Catalog is not loaded.');
           }
@@ -855,7 +847,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               observationFingerprint: recordUpdateContext.observationFingerprint,
               recordUpdateContext,
               reports: [],
-              snapshot: deriveProjectedSnapshot(state.catalog, [], null),
+              snapshot: deriveProjectedSnapshot(stateRef.current.catalog, [], null),
               workspaceSummary: null,
             });
             return;
@@ -877,13 +869,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const page = await loadWithCache(key, () => window.banjiDesktop.sena.listObservationPage(payload));
         if (!payload?.beforeObservedAt && !payload?.beforeObservationId) {
           const reports = deriveProjectedReports(page.observations);
-          const snapshot = deriveProjectedSnapshot(state.catalog, page.observations, state.workspaceSummary);
+          const snapshot = deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            page.observations,
+            stateRef.current.workspaceSummary,
+          );
           setStatePartial({
             observations: page.observations,
             observationFingerprint: {
               count: page.totalCount,
               latestObservedAt: page.latestObservedAt,
-              latestObservationId: page.observations[0]?.observationId ?? state.observationFingerprint?.latestObservationId ?? null,
+              latestObservationId:
+                page.observations[0]?.observationId ?? stateRef.current.observationFingerprint?.latestObservationId ?? null,
             },
             reports,
             snapshot,
@@ -906,7 +903,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         setStatePartial({
           observations,
           reports: deriveProjectedReports(observations),
-          snapshot: deriveProjectedSnapshot(state.catalog, observations, state.workspaceSummary),
+          snapshot: deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            observations,
+            stateRef.current.workspaceSummary,
+          ),
         });
         return observations;
       },
@@ -915,7 +916,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         setStatePartial({
           observations,
           reports: deriveProjectedReports(observations),
-          snapshot: deriveProjectedSnapshot(state.catalog, observations, state.workspaceSummary),
+          snapshot: deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            observations,
+            stateRef.current.workspaceSummary,
+          ),
         });
         return observations;
       },
@@ -988,7 +993,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           readCacheRef.current.set('sena:diagnostics', diagnostics);
           readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
           readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
-          const snapshot = deriveProjectedSnapshot(state.catalog, state.observations, workspaceSummary);
+          const snapshot = deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            stateRef.current.observations,
+            workspaceSummary,
+          );
           setStatePartial({
             diagnostics,
             latestRun: run,
@@ -1016,7 +1025,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           readCacheRef.current.set('sena:diagnostics', diagnostics);
           readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
           readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
-          const snapshot = deriveProjectedSnapshot(state.catalog, state.observations, workspaceSummary);
+          const snapshot = deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            stateRef.current.observations,
+            workspaceSummary,
+          );
           setStatePartial({
             diagnostics,
             latestRun: run,
@@ -1034,7 +1047,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
         setStatePartial({
           latestRun,
-          snapshot: deriveProjectedSnapshot(state.catalog, state.observations, workspaceSummary),
+          snapshot: deriveProjectedSnapshot(
+            stateRef.current.catalog,
+            stateRef.current.observations,
+            workspaceSummary,
+          ),
           workspaceSummary,
         });
         return workspaceSummary;
@@ -1044,7 +1061,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
         const strategy = options?.strategy ?? 'cache-first';
         const key = `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
-        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(state.workspaceSummary);
+        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
           const page = normalizeSkuDetailPage(await window.banjiDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
           if (typeof window !== 'undefined') {
@@ -1084,7 +1101,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const limit = options?.limit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
         const strategy = options?.strategy ?? 'cache-first';
         const key = `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
-        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(state.workspaceSummary);
+        const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
           const page = normalizeServiceDetailPage(await window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
           if (typeof window !== 'undefined') {
@@ -1131,22 +1148,48 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (run?.status === 'succeeded') {
           updateSenaMeta({ lastCompletedRunId: run.runId });
         }
-        if (state.latestRun?.runId === runId || !state.latestRun) {
+        if (stateRef.current.latestRun?.runId === runId || !stateRef.current.latestRun) {
           setStatePartial({ latestRun: run });
         }
         return run;
       },
     }),
-    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runWorkspacePreparation, setStatePartial, state, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runWorkspacePreparation, setStatePartial, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
   );
 
-  return <InventoryContext.Provider value={value}>{children}</InventoryContext.Provider>;
+  const stateValue = useMemo<InventoryStateValue>(
+    () => ({
+      ...state,
+      senaMeta: senaMetaRef.current,
+    }),
+    [metaVersion, state],
+  );
+
+  return (
+    <InventoryStateContext.Provider value={stateValue}>
+      <InventoryActionsContext.Provider value={actions}>{children}</InventoryActionsContext.Provider>
+    </InventoryStateContext.Provider>
+  );
+}
+
+export function useInventoryState() {
+  const context = useContext(InventoryStateContext);
+  if (!context) {
+    throw new Error('InventoryProvider state is missing');
+  }
+  return context;
+}
+
+export function useInventoryActions() {
+  const context = useContext(InventoryActionsContext);
+  if (!context) {
+    throw new Error('InventoryProvider actions are missing');
+  }
+  return context;
 }
 
 export function useInventory() {
-  const context = useContext(InventoryContext);
-  if (!context) {
-    throw new Error('InventoryProvider is missing');
-  }
-  return context;
+  const state = useInventoryState();
+  const actions = useInventoryActions();
+  return useMemo(() => ({ ...state, ...actions }), [actions, state]);
 }

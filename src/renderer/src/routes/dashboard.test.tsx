@@ -177,6 +177,11 @@ const preferenceState = {
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
+  useInventoryActions: () => ({
+    loadSenaOrderBatches: inventoryHook().loadSenaOrderBatches,
+    loadSenaSkuDetail: inventoryHook().loadSenaSkuDetail,
+  }),
+  useInventoryState: () => inventoryHook(),
 }));
 
 vi.mock('../state/automation', () => ({

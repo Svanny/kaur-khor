@@ -19,8 +19,14 @@ export function MeasuredTileGrid<T>({
   const [columnCount, setColumnCount] = useState(minColumns);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const measureRef = useRef<HTMLDivElement | null>(null);
+  const hasFixedColumnCount = maxColumns != null && maxColumns === minColumns;
 
   useEffect(() => {
+    if (hasFixedColumnCount) {
+      setColumnCount(minColumns);
+      return;
+    }
+
     const gridNode = gridRef.current;
     const measureNode = measureRef.current;
     if (!gridNode || !measureNode) {
@@ -56,7 +62,11 @@ export function MeasuredTileGrid<T>({
     observer.observe(gridNode);
     updateColumns();
     return () => observer.disconnect();
-  }, [gap, items, maxColumns, minColumns]);
+  }, [gap, hasFixedColumnCount, items, maxColumns, minColumns]);
+
+  if (hasFixedColumnCount) {
+    return renderGrid({ columnCount: minColumns, gridRef });
+  }
 
   return (
     <>

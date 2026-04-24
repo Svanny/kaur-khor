@@ -19,6 +19,8 @@ const preferenceState = {
 
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
+  useInventoryActions: () => inventoryHook(),
+  useInventoryState: () => inventoryHook(),
 }));
 
 vi.mock('../state/preferences', () => ({
@@ -268,7 +270,7 @@ describe('SENA routes', () => {
   test('renders the catalog route', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
     await waitFor(() => {
-      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+      expect(screen.getByText('Offered Selections')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Offered Selections')).toBeInTheDocument();
@@ -304,7 +306,7 @@ describe('SENA routes', () => {
   test('renders inline catalog actions for SKU and service rows', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
     await waitFor(() => {
-      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+      expect(screen.getByRole('link', { name: 'SKU 1' })).toBeInTheDocument();
     });
 
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
@@ -316,13 +318,12 @@ describe('SENA routes', () => {
     expect(screen.getByRole('button', { name: 'Log receipt' })).toBeInTheDocument();
   });
 
-  test('preloads visible service actions without repeatedly rehydrating the same service detail', async () => {
+  test('does not preload service detail while rendering the catalog route', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
-
     await waitFor(() => {
-      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('link', { name: 'Service 1' })).toBeInTheDocument();
     });
-    expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
+    expect(inventoryHook().loadSenaServiceDetail).not.toHaveBeenCalled();
   });
 
   test('opens the SKU action flow in catalog without showing the inline detail rail', async () => {
@@ -496,7 +497,7 @@ describe('SENA routes', () => {
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
     await waitFor(() => {
-      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalled();
+      expect(screen.getByRole('link', { name: 'SKU 2' })).toBeInTheDocument();
     });
 
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
@@ -559,11 +560,31 @@ describe('SENA routes', () => {
       expect(screen.getByRole('button', { name: 'Record stock' })).toBeDisabled();
     });
 
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
+    });
+
     const disabledLogReceiptButton = screen.getByRole('button', { name: 'Log receipt' });
     fireEvent.click(disabledLogReceiptButton.parentElement as HTMLElement);
 
     await waitFor(() => {
       expect(screen.getByRole('tooltip', { name: 'No linked SKU is limiting this service right now.' })).toBeInTheDocument();
+    });
+  });
+
+  test('loads service detail actions lazily when the catalog menu opens', async () => {
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Service 1' })).toBeInTheDocument();
+    });
+    expect(inventoryHook().loadSenaServiceDetail).not.toHaveBeenCalled();
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
+
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     });
   });
 

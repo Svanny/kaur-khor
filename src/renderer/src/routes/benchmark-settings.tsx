@@ -6,6 +6,7 @@ import {
   type BanjiBenchmarkDistributionSummary,
   type BanjiBenchmarkFixtureSize,
   type BanjiBenchmarkRunRecord,
+  type BanjiBenchmarkScenarioSummary,
   type BanjiBenchmarkScenarioId,
   type BanjiBenchmarkTargetEvaluation,
 } from '@shared/benchmark';
@@ -77,7 +78,7 @@ function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boole
 
 function formatDistributionValue(
   distribution: BanjiBenchmarkDistributionSummary | undefined,
-  key: keyof Pick<BanjiBenchmarkDistributionSummary, 'mean' | 'median' | 'iqr' | 'min' | 'max'>,
+  key: keyof Pick<BanjiBenchmarkDistributionSummary, 'mean' | 'median' | 'iqr' | 'min' | 'max' | 'p95'>,
   unit: 'ms' | 'percent' | 'boolean',
 ) {
   if (!distribution || distribution.count <= 1) {
@@ -95,9 +96,52 @@ function TargetDistributionDetails({ target }: { target: BanjiBenchmarkTargetEva
   return (
     <div className="mt-1 grid gap-1 text-xs text-muted-foreground">
       <div>Median {formatDistributionValue(distribution, 'median', target.unit)}</div>
+      <div>P95 {formatDistributionValue(distribution, 'p95', target.unit)}</div>
       <div>Mean {formatDistributionValue(distribution, 'mean', target.unit)}</div>
       <div>IQR {formatDistributionValue(distribution, 'iqr', target.unit)}</div>
       <div>Min {formatDistributionValue(distribution, 'min', target.unit)} · Max {formatDistributionValue(distribution, 'max', target.unit)}</div>
+      {target.jitterBudget != null ? (
+        <div>Jitter budget {formatMetricValue(target.jitterBudget, target.unit)}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function BenchmarkTruthPanel({ summary }: { summary: BanjiBenchmarkScenarioSummary | null }) {
+  const derived = summary?.derivedMetrics ?? {};
+  const interactiveP95 = derived['backend.core.interactive_queue_wait_p95_ms'];
+  const setupP95 = derived['backend.core.setup_queue_wait_p95_ms'];
+  const readyP95 = derived['harness.ready_latency_p95_ms'];
+  const overheadP95 = derived['harness.overhead_p95_ms'];
+  const measuredP95 = derived['harness.measurement_duration_p95_ms'];
+
+  if (!summary || (readyP95 == null && overheadP95 == null && measuredP95 == null && interactiveP95 == null && setupP95 == null)) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Truth panel is available once the selected scenario emits harness-overhead metrics.
+      </p>
+    );
+  }
+
+  const rows = [
+    { label: 'User-visible ready p95', value: readyP95 },
+    { label: 'Harness overhead p95', value: overheadP95 },
+    { label: 'Measured duration p95', value: measuredP95 },
+    { label: 'Interactive queue wait p95', value: interactiveP95 },
+    { label: 'Setup queue wait p95', value: setupP95 },
+  ];
+
+  return (
+    <div className="grid gap-2 rounded-lg border border-border/60 bg-muted/40 p-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Truth panel</p>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {rows.map((row) => (
+          <div key={row.label} className="rounded-md border border-border/60 bg-background px-3 py-2">
+            <p className="text-xs text-muted-foreground">{row.label}</p>
+            <p className="mt-1 text-sm font-semibold text-foreground">{formatMetricValue(row.value ?? null, 'ms')}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -284,6 +328,7 @@ export function BenchmarkSettingsPage() {
   const activeRun = activeRunId ? runs.find((run) => run.runId === activeRunId) ?? null : null;
   const selectedSummary = selectedRun?.summaries.find((summary) => summary.scenario === selectedSummaryScenario)
     ?? null;
+  const selectedTruthSummary = selectedSummaryScenario === SUMMARY_FILTER_ALL ? null : selectedSummary;
   const targetCounts = runTargetCounts(selectedRun);
   const completedRuns = runs.filter((run) => run.status === 'passed' || run.status === 'failed');
   const selectedTargets = useMemo(() => {
@@ -791,6 +836,7 @@ export function BenchmarkSettingsPage() {
               </AnchoredMenu>
             </div>
           </div>
+          <BenchmarkTruthPanel summary={selectedTruthSummary} />
           <TargetTable
             resultSortDirection={targetResultSortDirection}
             targets={selectedTargets}

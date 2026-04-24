@@ -127,17 +127,23 @@ export function AutomationIntakeDrawer({
   const [messages, setMessages] = useState<AutomationMessageRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+  const [showDetailBody, setShowDetailBody] = useState(true);
 
   useEffect(() => {
     if (!open || !intake) {
+      setShowDetailBody(false);
       return;
     }
+    const frameId = window.requestAnimationFrame(() => {
+      setShowDetailBody(true);
+    });
     setAction(intake.status === 'quoted' ? 'create_ticket' : intake.status === 'canceled' ? 'canceled' : 'needs_review');
     setAppendTicketId(intake.promotedTicketId ?? '');
     setCustomerNameOverride(intake.customerDisplayName ?? '');
     setPhoneOverride(formatPhoneForDisplay(intake.phone));
     setOperatorNote(intake.notes ?? '');
     setError(null);
+    return () => window.cancelAnimationFrame(frameId);
   }, [intake, open]);
 
   useEffect(() => {
@@ -146,27 +152,33 @@ export function AutomationIntakeDrawer({
       return;
     }
     let active = true;
-    setIsLoadingConversation(true);
-    void onReadConversation({ conversationId })
-      .then((result) => {
-        if (!active) {
-          return;
-        }
-        setMessages(result.messages);
-      })
-      .catch((nextError) => {
-        if (!active) {
-          return;
-        }
-        setError(nextError instanceof Error ? nextError.message : String(nextError));
-      })
-      .finally(() => {
-        if (active) {
-          setIsLoadingConversation(false);
-        }
-      });
+    const timeoutId = window.setTimeout(() => {
+      if (!active) {
+        return;
+      }
+      setIsLoadingConversation(true);
+      void onReadConversation({ conversationId })
+        .then((result) => {
+          if (!active) {
+            return;
+          }
+          setMessages(result.messages);
+        })
+        .catch((nextError) => {
+          if (!active) {
+            return;
+          }
+          setError(nextError instanceof Error ? nextError.message : String(nextError));
+        })
+        .finally(() => {
+          if (active) {
+            setIsLoadingConversation(false);
+          }
+        });
+    }, 0);
     return () => {
       active = false;
+      window.clearTimeout(timeoutId);
     };
   }, [conversationId, onReadConversation, open]);
 
@@ -275,39 +287,43 @@ export function AutomationIntakeDrawer({
                   </div>
                 </div>
 
-                <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                  <p className={sectionTitleClassName()}>Raw incoming text</p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
-                    {inboundMessage?.rawText ?? (isLoadingConversation ? 'Loading latest Telegram message…' : 'No Telegram message captured yet.')}
-                  </p>
-                </div>
-
-                <div className="space-y-3">
-                  {intake.lines.map((line) => (
-                    <div key={line.lineId} className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-foreground">{line.resolvedLabel ?? line.requestedLabel}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            Requested: {line.requestedLabel}
-                            {line.quantity != null ? ` · Qty ${line.quantity}` : ' · Quantity unresolved'}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-medium text-foreground">
-                            {line.lineTotal == null ? 'Pending line total' : `$${line.lineTotal.toFixed(2)}`}
-                          </p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {line.unitPrice == null ? 'No unit price' : `$${line.unitPrice.toFixed(2)} each`}
-                          </p>
-                        </div>
-                      </div>
-                      {line.ambiguityReason ? (
-                        <p className="mt-3 text-sm text-amber-700">Issue: {line.ambiguityReason.replaceAll('_', ' ')}</p>
-                      ) : null}
+                {showDetailBody ? (
+                  <>
+                    <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                      <p className={sectionTitleClassName()}>Raw incoming text</p>
+                      <p className="mt-2 text-sm leading-6 text-foreground">
+                        {inboundMessage?.rawText ?? (isLoadingConversation ? 'Loading latest Telegram message…' : 'No Telegram message captured yet.')}
+                      </p>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="space-y-3">
+                      {intake.lines.map((line) => (
+                        <div key={line.lineId} className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-foreground">{line.resolvedLabel ?? line.requestedLabel}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                Requested: {line.requestedLabel}
+                                {line.quantity != null ? ` · Qty ${line.quantity}` : ' · Quantity unresolved'}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-medium text-foreground">
+                                {line.lineTotal == null ? 'Pending line total' : `$${line.lineTotal.toFixed(2)}`}
+                              </p>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {line.unitPrice == null ? 'No unit price' : `$${line.unitPrice.toFixed(2)} each`}
+                              </p>
+                            </div>
+                          </div>
+                          {line.ambiguityReason ? (
+                            <p className="mt-3 text-sm text-amber-700">Issue: {line.ambiguityReason.replaceAll('_', ' ')}</p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
 
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
@@ -331,6 +347,8 @@ export function AutomationIntakeDrawer({
             )}
               </DrawerBand>
 
+              {showDetailBody ? (
+                <>
               <DrawerBand title="What do you want to do?">
             <div className="grid gap-3 sm:grid-cols-2">
               {drawerActionOptions.map((option) => {
@@ -405,6 +423,8 @@ export function AutomationIntakeDrawer({
                 <p className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {error}
                 </p>
+              ) : null}
+                </>
               ) : null}
             </section>
           </div>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ActionCreatePackageIcon,
   ActionEditPencilIcon,
@@ -110,13 +110,16 @@ function skuMetaLine(
 function CatalogActionMenu({
   children,
   label = 'More actions',
+  onOpenChange,
 }: {
   children: (closeMenu: () => void) => ReactNode;
   label?: string;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <AnchoredMenu
       label={label}
+      onOpenChange={onOpenChange}
       triggerIcon={<EntityOverflowMenuIcon className="size-4" />}
     >
       {children}
@@ -172,15 +175,36 @@ function CatalogSkuRowActions({
 }
 
 function CatalogServiceRowActions({
-  actions,
+  fallbackActions,
   label,
+  loadActions,
   name,
 }: {
-  actions: ServiceDetailViewModel['actions'];
+  fallbackActions: ServiceDetailViewModel['actions'];
   label: string;
+  loadActions?: () => Promise<ServiceDetailViewModel['actions'] | null>;
   name: string;
 }) {
   const [mode, setMode] = useState<ServiceActionMode | null>(null);
+  const [resolvedActions, setResolvedActions] = useState<ServiceDetailViewModel['actions'] | null>(null);
+  const [isLoadingActions, setIsLoadingActions] = useState(false);
+  const actions = resolvedActions ?? fallbackActions;
+
+  function handleOpenChange(open: boolean) {
+    if (!open || resolvedActions || isLoadingActions || !loadActions) {
+      return;
+    }
+    setIsLoadingActions(true);
+    void loadActions()
+      .then((nextActions) => {
+        if (nextActions) {
+          setResolvedActions(nextActions);
+        }
+      })
+      .finally(() => {
+        setIsLoadingActions(false);
+      });
+  }
 
   return (
     <>
@@ -195,7 +219,7 @@ function CatalogServiceRowActions({
         showEditButton={false}
         showPrimarySkuButton={false}
       />
-      <CatalogActionMenu label={label}>
+      <CatalogActionMenu label={label} onOpenChange={handleOpenChange}>
         {(closeMenu) => (
           <ServiceMutationActions
             actions={actions}
@@ -302,7 +326,6 @@ export function InventoryRoute() {
   const location = useLocation();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [serviceActionModels, setServiceActionModels] = useState<Record<string, ServiceDetailViewModel>>({});
   const [pendingArchive, setPendingArchive] = useState<{
     entityId: string;
     entityName: string;
@@ -334,75 +357,35 @@ export function InventoryRoute() {
       ) ?? [],
     [query, supplierFilter, visibleCatalog],
   );
-  const filteredServiceIdsKey = useMemo(
-    () => filteredServices.map((service) => service.serviceId).join('|'),
-    [filteredServices],
-  );
   const showSkus = view !== 'services';
   const showServices = view !== 'skus';
   const hasResults =
     (showSkus && filteredSkus.length > 0) ||
     (showServices && filteredServices.length > 0);
 
-  useEffect(() => {
-    if (!activeSnapshot || filteredServices.length === 0) {
-      return;
+  async function loadCatalogServiceActions(serviceId: string) {
+    if (!activeSnapshot) {
+      return null;
     }
-
-    let active = true;
-
-    void Promise.all(
-      filteredServices.map(async (service) => {
-        const snapshotService =
-          activeSnapshot.services.find((entry) => entry.serviceId === service.serviceId) ?? null;
-        if (!snapshotService) {
-          return [service.serviceId, null] as const;
-        }
-
-        const detailPage = normalizeServiceDetailPage(
-          await inventory.loadSenaServiceDetail(service.serviceId).catch(() => null),
-        );
-        return [
-          service.serviceId,
-          deriveServiceDetailViewModel({
-            currency,
-            detail: detailPage?.detail ?? null,
-            language,
-            observations,
-            reports,
-            service: snapshotService,
-            snapshot: activeSnapshot,
-            workspaceSummary,
-          }),
-        ] as const;
-      }),
-    ).then((entries) => {
-      if (!active) {
-        return;
-      }
-
-      const nextEntries = Object.fromEntries(
-        entries.filter((entry): entry is readonly [string, ServiceDetailViewModel] => entry[1] != null),
-      );
-      setServiceActionModels((current) => {
-        let changed = false;
-        const next = { ...current };
-
-        for (const [serviceId, model] of Object.entries(nextEntries)) {
-          if (next[serviceId] !== model) {
-            next[serviceId] = model;
-            changed = true;
-          }
-        }
-
-        return changed ? next : current;
-      });
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [activeSnapshot, currency, filteredServiceIdsKey, filteredServices, inventory, language, observations, reports, workspaceSummary]);
+    const snapshotService =
+      activeSnapshot.services.find((entry) => entry.serviceId === serviceId) ?? null;
+    if (!snapshotService) {
+      return null;
+    }
+    const detailPage = normalizeServiceDetailPage(
+      await inventory.loadSenaServiceDetail(serviceId).catch(() => null),
+    );
+    return deriveServiceDetailViewModel({
+      currency,
+      detail: detailPage?.detail ?? null,
+      language,
+      observations,
+      reports,
+      service: snapshotService,
+      snapshot: activeSnapshot,
+      workspaceSummary,
+    }).actions;
+  }
 
   if (inventory.isLoading && !catalog) {
     return <CatalogLoadingState />;
@@ -671,9 +654,8 @@ export function InventoryRoute() {
               <div className="grid">
                 {filteredServices.map((service) => {
                   const linkedSkus = linkedSkuIdsForService(catalog, service.serviceId);
-                  const serviceModel = serviceActionModels[service.serviceId] ?? null;
                   const fallbackServiceActions = {
-                    primarySkuHref: '/catalog',
+                    primarySkuHref: linkedSkus[0] ? `/catalog/skus/${linkedSkus[0]}` : '/catalog',
                     editServiceHref: `/catalog/services/${service.serviceId}/edit`,
                     latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
                     noBottleneckHint: translateUiLiteral(language, 'No limiting contributor is active right now.'),
@@ -745,8 +727,9 @@ export function InventoryRoute() {
                             {translateUiLiteral(language, 'Archive')}
                           </Button>
                           <CatalogServiceRowActions
-                            actions={serviceModel?.actions ?? fallbackServiceActions}
+                            fallbackActions={fallbackServiceActions}
                             label={translateUiLiteral(language, 'More actions for {name}', { name: service.name })}
+                            loadActions={() => loadCatalogServiceActions(service.serviceId)}
                             name={service.name}
                           />
                         </WorkspaceActionRow>

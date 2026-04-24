@@ -12,16 +12,14 @@ import {
   RECORD_UPDATE_LANES,
 } from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
-import { InventoryProvider } from '@/state/inventory';
+import { InventoryProvider, useInventoryState } from '@/state/inventory';
 import { AutomationProvider } from '@/state/automation';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
-import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import {
   installLongTaskObserver,
   markBenchmarkEnd,
   markBenchmarkStart,
-  markRouteReady,
   recordBenchmarkInstant,
   snapshotRendererMemory,
 } from '@/lib/benchmark';
@@ -42,6 +40,15 @@ const SkuDetailLedgerRoute = lazy(() => import('@/routes/sku-detail').then((modu
 const SkuFormRoute = lazy(() => import('@/routes/sku-form').then((module) => ({ default: module.SkuFormRoute })));
 const StockUpdateRoute = lazy(() => import('@/routes/stock-update').then((module) => ({ default: module.StockUpdateRoute })));
 const StockUpdateSessionRoute = lazy(() => import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
+
+const ROUTE_LOCAL_READY_NAMES = new Set([
+  'analysis',
+  'automations',
+  'dashboard',
+  'financials',
+  'performance',
+  'service-detail',
+]);
 
 export function routeBenchmarkName(pathname: string) {
   if (pathname === '/') {
@@ -79,7 +86,7 @@ export function routeBenchmarkName(pathname: string) {
 
 function BenchmarkRouteObserver() {
   const location = useLocation();
-  const inventory = useInventory();
+  const inventory = useInventoryState();
   const { isHydrated } = usePreferences();
   const pendingRouteRef = useRef<string | null>(null);
   const workspaceReadyRecordedRef = useRef(false);
@@ -103,16 +110,19 @@ function BenchmarkRouteObserver() {
     }
 
     const routeName = routeBenchmarkName(location.pathname);
-    markRouteReady(routeName, {
-      route,
-      routeName,
-      hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
-    });
-    snapshotRendererMemory(`renderer.route.${routeName}.ready`, {
-      route,
-      routeName,
-    });
-    pendingRouteRef.current = null;
+    if (!ROUTE_LOCAL_READY_NAMES.has(routeName)) {
+      recordBenchmarkInstant(`route.${routeName}.ready`, 'navigation', {
+        route,
+        routeName,
+        hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
+      });
+      snapshotRendererMemory(`renderer.route.${routeName}.ready`, {
+        route,
+        routeName,
+        hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
+      });
+      pendingRouteRef.current = null;
+    }
 
     if (!workspaceReadyRecordedRef.current) {
       workspaceReadyRecordedRef.current = true;
@@ -135,7 +145,7 @@ function BenchmarkRouteObserver() {
 }
 
 export function AppRoutes() {
-  const inventory = useInventory();
+  const inventory = useInventoryState();
   const availability = deriveNavigationAvailability(inventory);
   const canRedirectFromLockedPage = !inventory.isLoading;
   const recordUpdateGuardedElement = availability.hasRecordUpdateTab

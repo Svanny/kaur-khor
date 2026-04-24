@@ -43,6 +43,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildFinancialsSearchParams, readFinancialsRouteState } from '@/lib/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { statusPillClassName, tintedSurfaceClassName, type StatusPillTone } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
@@ -479,13 +480,20 @@ export function FinancialsRoute() {
   const scope = routeState.scope as FinancialsScope;
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
-  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
   const requestedOrderBatchesRef = useRef(false);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
     [baseCatalog, supplierFilter],
   );
+  const targetSkuIds = scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? [];
+  const targetServiceIds = scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? [];
+  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent', {
+    priorityServiceIds: targetServiceIds.slice(0, 8),
+    prioritySkuIds: targetSkuIds.filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId)).slice(0, 8),
+    serviceIds: targetServiceIds,
+    skuIds: targetSkuIds,
+  });
 
   function updateRouteState(nextState: Parameters<typeof buildFinancialsSearchParams>[1], replace = false) {
     setSearchParams(buildFinancialsSearchParams(searchParams, nextState), { replace });
@@ -508,6 +516,18 @@ export function FinancialsRoute() {
     }, 0);
     return () => window.clearTimeout(id);
   }, [inventory, inventory.orderBatches?.length]);
+
+  useEffect(() => {
+    if (inventory.diagnostics != null) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      void inventory.loadSenaDiagnostics().catch((error) => {
+        console.warn('[financials] diagnostics load failed', error);
+      });
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [inventory.diagnostics, inventory.loadSenaDiagnostics]);
 
   const model = useMemo(() => {
     if (!visibleCatalog || !inventory.workspaceSummary) {
@@ -566,6 +586,13 @@ export function FinancialsRoute() {
       ticketedCount: intakesInRange.filter((intake) => intake.status === 'ticketed' || intake.status === 'completed').length,
     };
   }, [automation.intakes, currency, language, range, usdToKhrExchangeRate]);
+
+  useBenchmarkRouteReady('financials', !inventory.isLoading && (!visibleCatalog || model != null), {
+    compareMode,
+    hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
+    range,
+    scope,
+  });
 
   if (inventory.isLoading && !visibleCatalog) {
     return <FinancialsLoadingState />;

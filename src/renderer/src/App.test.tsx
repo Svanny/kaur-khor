@@ -8,6 +8,7 @@ const inventoryHook = vi.fn();
 vi.mock('@/state/inventory', () => ({
   InventoryProvider: ({ children }: { children: ReactNode }) => children,
   useInventory: () => inventoryHook(),
+  useInventoryState: () => inventoryHook(),
 }));
 
 vi.mock('@/state/preferences', () => ({

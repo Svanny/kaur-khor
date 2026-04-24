@@ -390,12 +390,25 @@ export function OverviewTaskDrawer({
   const [error, setError] = useState<string | null>(null);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
   const [dismissedAfterSave, setDismissedAfterSave] = useState(false);
+  const [showDetailBody, setShowDetailBody] = useState(true);
+  const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
+  const [hasUserEditedDraft, setHasUserEditedDraft] = useState(false);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
+  const modeInteractionRef = useRef(false);
+  const markDraftEdited = useCallback(() => setHasUserEditedDraft(true), []);
 
   useEffect(() => {
     if (!task) {
+      setShowDetailBody(false);
+      setInitializedTaskId(null);
+      setHasUserEditedDraft(false);
       return;
     }
+    setInitializedTaskId(null);
+    setHasUserEditedDraft(false);
+    const frameId = window.requestAnimationFrame(() => {
+      setShowDetailBody(true);
+    });
     setMode(task.defaultDrawerMode);
     setObservedAt(initialObservedAt(task.defaultDrawerMode === 'goods_received' ? null : task.latestObservationAt));
     setNotes('');
@@ -408,6 +421,8 @@ export function OverviewTaskDrawer({
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
     setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
+    setInitializedTaskId(task.id);
+    return () => window.cancelAnimationFrame(frameId);
   }, [currency, task?.id, usdToKhrExchangeRate]);
 
   useEffect(() => {
@@ -471,41 +486,73 @@ export function OverviewTaskDrawer({
   }, [expectedArrivalDate, leadTimeDraftMode, observedAt, uncertaintyDays, useLeadTimeEstimate, variabilityClass]);
 
   function drawerDraftSnapshot() {
-    return {
+    const baseSnapshot = {
       mode,
       observedAt,
       notes,
-      orderedQuantity,
-      expectedArrivalDate,
-      uncertaintyDays,
-      variabilityClass,
-      useLeadTimeEstimate,
-      receivedQuantity,
-      receivedCost,
     };
+
+    if (mode === 'ordered_waiting' || mode === 'eta_changed') {
+      return {
+        ...baseSnapshot,
+        orderedQuantity,
+        expectedArrivalDate,
+        uncertaintyDays,
+        variabilityClass,
+        useLeadTimeEstimate,
+      };
+    }
+
+    if (mode === 'goods_received') {
+      return {
+        ...baseSnapshot,
+        receivedQuantity,
+        receivedCost,
+      };
+    }
+
+    return baseSnapshot;
   }
 
   function drawerBaselineSnapshot(nextTask: OverviewSkuTask) {
     const nextMode = nextTask.defaultDrawerMode;
-    return {
+    const baseSnapshot = {
       mode: nextMode,
       observedAt: initialObservedAt(nextMode === 'goods_received' ? null : nextTask.latestObservationAt),
       notes: '',
-      orderedQuantity:
-        nextTask.recentOrderQuantity != null
-          ? String(Math.round(nextTask.recentOrderQuantity))
-          : String(nextTask.suggestedOrderQuantity || ''),
-      expectedArrivalDate: initialExpectedArrivalDate(nextTask.expectedArrivalDate),
-      uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
-      variabilityClass: nextTask.variabilityClass ?? '',
-      useLeadTimeEstimate: true,
-      receivedQuantity: nextTask.recentReceiptQuantity != null ? String(Math.round(nextTask.recentReceiptQuantity)) : '',
-      receivedCost: nextTask.costPerUnit ? formatEditableMoneyFromUsd(nextTask.costPerUnit, currency, usdToKhrExchangeRate) : '',
     };
+
+    if (nextMode === 'ordered_waiting' || nextMode === 'eta_changed') {
+      return {
+        ...baseSnapshot,
+        orderedQuantity:
+          nextTask.recentOrderQuantity != null
+            ? String(Math.round(nextTask.recentOrderQuantity))
+            : String(nextTask.suggestedOrderQuantity || ''),
+        expectedArrivalDate: initialExpectedArrivalDate(nextTask.expectedArrivalDate),
+        uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
+        variabilityClass: nextTask.variabilityClass ?? '',
+        useLeadTimeEstimate: true,
+      };
+    }
+
+    if (nextMode === 'goods_received') {
+      return {
+        ...baseSnapshot,
+        receivedQuantity: nextTask.recentReceiptQuantity != null ? String(Math.round(nextTask.recentReceiptQuantity)) : '',
+        receivedCost: nextTask.costPerUnit ? formatEditableMoneyFromUsd(nextTask.costPerUnit, currency, usdToKhrExchangeRate) : '',
+      };
+    }
+
+    return baseSnapshot;
   }
 
   const hasUnsavedDrawerChanges =
-    open && task != null && JSON.stringify(drawerDraftSnapshot()) !== JSON.stringify(drawerBaselineSnapshot(task));
+    open
+    && task != null
+    && initializedTaskId === task.id
+    && hasUserEditedDraft
+    && JSON.stringify(drawerDraftSnapshot()) !== JSON.stringify(drawerBaselineSnapshot(task));
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedDrawerChanges,
     description: t('taskDrawerUnsavedLeavePrompt'),
@@ -725,6 +772,8 @@ export function OverviewTaskDrawer({
                 </h2>
               </div>
 
+              {showDetailBody ? (
+                <>
               <div className="mt-5">
                 <MeasuredTileGrid
                   items={drawerModeOptions(t)}
@@ -740,8 +789,18 @@ export function OverviewTaskDrawer({
                         }}
                         type="single"
                         value={mode}
+                        onKeyDownCapture={() => {
+                          modeInteractionRef.current = true;
+                        }}
+                        onPointerDownCapture={() => {
+                          modeInteractionRef.current = true;
+                        }}
                         onValueChange={(nextValue) => {
                           if (nextValue) {
+                            if (modeInteractionRef.current && nextValue !== mode) {
+                              markDraftEdited();
+                            }
+                            modeInteractionRef.current = false;
                             setMode(nextValue as OverviewTaskDrawerMode);
                           }
                         }}
@@ -794,7 +853,10 @@ export function OverviewTaskDrawer({
                       required
                       type="datetime-local"
                       value={observedAt}
-                      onChange={(event) => setObservedAt(event.target.value)}
+                      onChange={(event) => {
+                        markDraftEdited();
+                        setObservedAt(event.target.value);
+                      }}
                     />
                   </ActionSheetField>
 
@@ -808,7 +870,10 @@ export function OverviewTaskDrawer({
                         className={actionSheetInputClassName}
                         type="date"
                         value={expectedArrivalDate}
-                        onChange={(event) => setExpectedArrivalDate(event.target.value)}
+                        onChange={(event) => {
+                          markDraftEdited();
+                          setExpectedArrivalDate(event.target.value);
+                        }}
                       />
                     </ActionSheetField>
                   ) : null}
@@ -836,7 +901,10 @@ export function OverviewTaskDrawer({
                           step="1"
                           type="number"
                           value={orderedQuantity}
-                          onChange={(event) => setOrderedQuantity(event.target.value)}
+                          onChange={(event) => {
+                            markDraftEdited();
+                            setOrderedQuantity(event.target.value);
+                          }}
                         />
                       </ActionSheetField>
                       <ActionSheetField
@@ -851,6 +919,7 @@ export function OverviewTaskDrawer({
                           type="number"
                           value={uncertaintyDays}
                           onChange={(event) => {
+                            markDraftEdited();
                             setLeadTimeDraftMode('std');
                             setUncertaintyDays(event.target.value);
                           }}
@@ -864,6 +933,7 @@ export function OverviewTaskDrawer({
                           value={variabilityClass || leadTimeVariabilityPlaceholderValue}
                           onValueChange={(value) =>
                             {
+                              markDraftEdited();
                               const nextVariabilityClass =
                                 value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass);
                               setLeadTimeDraftMode('class');
@@ -902,7 +972,10 @@ export function OverviewTaskDrawer({
                       <Checkbox
                         checked={useLeadTimeEstimate}
                         className="mt-0.5"
-                        onCheckedChange={(checked) => setUseLeadTimeEstimate(checked === true)}
+                        onCheckedChange={(checked) => {
+                          markDraftEdited();
+                          setUseLeadTimeEstimate(checked === true);
+                        }}
                       />
                       <span>{t('overviewDrawerOptionalLearningDescription')}</span>
                     </label>
@@ -925,7 +998,10 @@ export function OverviewTaskDrawer({
                           step="1"
                           type="number"
                           value={receivedQuantity}
-                          onChange={(event) => setReceivedQuantity(event.target.value)}
+                          onChange={(event) => {
+                            markDraftEdited();
+                            setReceivedQuantity(event.target.value);
+                          }}
                         />
                       </ActionSheetField>
                       <ActionSheetField
@@ -939,7 +1015,10 @@ export function OverviewTaskDrawer({
                           step={moneyInputStep(currency)}
                           type="number"
                           value={receivedCost}
-                          onChange={(event) => setReceivedCost(event.target.value)}
+                          onChange={(event) => {
+                            markDraftEdited();
+                            setReceivedCost(event.target.value);
+                          }}
                         />
                       </ActionSheetField>
                     </div>
@@ -977,7 +1056,10 @@ export function OverviewTaskDrawer({
                       mode === 'goods_received' ? 'min-h-28' : '',
                     )}
                     value={notes}
-                    onChange={(event) => setNotes(event.target.value)}
+                    onChange={(event) => {
+                      markDraftEdited();
+                      setNotes(event.target.value);
+                    }}
                   />
                 </DrawerBandField>
               </DrawerBand>
@@ -999,6 +1081,8 @@ export function OverviewTaskDrawer({
                 <p className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
                   {error}
                 </p>
+              ) : null}
+                </>
               ) : null}
             </section>
           </div>

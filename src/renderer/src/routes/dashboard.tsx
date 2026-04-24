@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import {
@@ -46,12 +46,13 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { useAutomation } from '@/state/automation';
-import { useInventory } from '@/state/inventory';
+import { useInventoryActions, useInventoryState } from '@/state/inventory';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { AutomationIntakeDrawer } from './automations/intake-drawer';
@@ -78,8 +79,13 @@ const overviewQueueTableLayout = createHeaderedTableLayout({
 });
 
 type OverviewSearchScope = 'all' | 'skus' | 'services';
-const DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT = 8;
+const DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT = 0;
 const DASHBOARD_DETAIL_HYDRATION_CONCURRENCY = 2;
+const DASHBOARD_DETAIL_HYDRATION_DELAY_MS = 750;
+const OVERVIEW_QUEUE_VIRTUALIZATION_THRESHOLD = 60;
+const OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT = 168;
+const OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN = 6;
+const OVERVIEW_QUEUE_VIRTUALIZATION_FALLBACK_ROWS = 8;
 
 export function orderedDashboardSkuDetailIds(workspaceSummary: SenaWorkspaceSummary | null) {
   if (!workspaceSummary) {
@@ -99,26 +105,45 @@ async function hydrateSkuDetailsWithLimit<T>(
   skuIds: string[],
   limit: number,
   load: (skuId: string) => Promise<T>,
-  onLoaded: (skuId: string, value: T) => void,
+  onLoaded: (batch: Record<string, T>) => void,
   isActive: () => boolean,
 ) {
   let nextIndex = 0;
-  const workerCount = Math.min(limit, skuIds.length);
+  let completedInBatch = 0;
+  let bufferedResults: Record<string, T> = {};
+
+  const flushBufferedResults = () => {
+    if (!isActive() || Object.keys(bufferedResults).length === 0) {
+      return;
+    }
+    const batch = bufferedResults;
+    bufferedResults = {};
+    completedInBatch = 0;
+    onLoaded(batch);
+  };
+
   await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (isActive()) {
+    Array.from({ length: Math.min(limit, skuIds.length) }, async () => {
+      while (isActive() && nextIndex < skuIds.length) {
         const skuId = skuIds[nextIndex];
         nextIndex += 1;
-        if (!skuId) {
+        const detail = await load(skuId);
+        if (!isActive()) {
           return;
         }
-        const value = await load(skuId);
-        if (isActive()) {
-          onLoaded(skuId, value);
+        bufferedResults = {
+          ...bufferedResults,
+          [skuId]: detail,
+        };
+        completedInBatch += 1;
+        if (completedInBatch >= limit) {
+          flushBufferedResults();
         }
       }
     }),
   );
+
+  flushBufferedResults();
 }
 
 function scheduleBackgroundTask(task: () => void) {
@@ -129,6 +154,105 @@ function scheduleBackgroundTask(task: () => void) {
   const id = window.setTimeout(task, 0);
   return () => window.clearTimeout(id);
 }
+
+function scheduleDeferredBackgroundTask(task: () => void, delayMs = DASHBOARD_DETAIL_HYDRATION_DELAY_MS) {
+  let cancelBackgroundTask: (() => void) | null = null;
+  const timeoutId = window.setTimeout(() => {
+    cancelBackgroundTask = scheduleBackgroundTask(task);
+  }, delayMs);
+  return () => {
+    window.clearTimeout(timeoutId);
+    cancelBackgroundTask?.();
+  };
+}
+
+function useVirtualizedQueueRows<T>(
+  rows: T[],
+  focusedIndex: number | null,
+) {
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const [range, setRange] = useState<{ start: number; end: number }>({
+    start: 0,
+    end: rows.length,
+  });
+  const isVirtualized = rows.length > OVERVIEW_QUEUE_VIRTUALIZATION_THRESHOLD;
+
+  const updateRange = useCallback(() => {
+    if (!isVirtualized) {
+      setRange({ start: 0, end: rows.length });
+      return;
+    }
+    const container = bodyRef.current;
+    const viewportHeight = container?.clientHeight
+      ?? OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT * OVERVIEW_QUEUE_VIRTUALIZATION_FALLBACK_ROWS;
+    const visibleCount = Math.max(
+      OVERVIEW_QUEUE_VIRTUALIZATION_FALLBACK_ROWS,
+      Math.ceil(viewportHeight / OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT),
+    );
+    const rawStart = Math.max(
+      0,
+      Math.floor((container?.scrollTop ?? 0) / OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT),
+    );
+    let start = Math.max(0, rawStart - OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN);
+    let end = Math.min(rows.length, rawStart + visibleCount + OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN);
+    if (focusedIndex != null && focusedIndex >= 0) {
+      start = Math.min(start, Math.max(0, focusedIndex - OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN));
+      end = Math.max(end, Math.min(rows.length, focusedIndex + OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN + 1));
+    }
+    setRange((current) =>
+      current.start === start && current.end === end
+        ? current
+        : { start, end });
+  }, [focusedIndex, isVirtualized, rows.length]);
+
+  useEffect(() => {
+    if (!isVirtualized) {
+      setRange({ start: 0, end: rows.length });
+      return;
+    }
+    const container = bodyRef.current;
+    const initialEnd = Math.min(
+      rows.length,
+      OVERVIEW_QUEUE_VIRTUALIZATION_FALLBACK_ROWS + OVERVIEW_QUEUE_VIRTUALIZATION_OVERSCAN,
+    );
+    setRange({ start: 0, end: initialEnd });
+    if (!container) {
+      return;
+    }
+    const handleViewportChange = () => updateRange();
+    handleViewportChange();
+    container.addEventListener('scroll', handleViewportChange, { passive: true });
+    window.addEventListener('resize', handleViewportChange);
+    return () => {
+      container.removeEventListener('scroll', handleViewportChange);
+      window.removeEventListener('resize', handleViewportChange);
+    };
+  }, [isVirtualized, rows.length, updateRange]);
+
+  useEffect(() => {
+    if (!isVirtualized || focusedIndex == null || focusedIndex < 0) {
+      return;
+    }
+    updateRange();
+  }, [focusedIndex, isVirtualized, updateRange]);
+
+  const startIndex = isVirtualized ? range.start : 0;
+  const endIndex = isVirtualized ? range.end : rows.length;
+  const renderedRows = rows.slice(startIndex, endIndex);
+  const topSpacerHeight = isVirtualized ? startIndex * OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT : 0;
+  const bottomSpacerHeight = isVirtualized
+    ? Math.max(0, (rows.length - endIndex) * OVERVIEW_QUEUE_VIRTUALIZATION_ROW_HEIGHT)
+    : 0;
+
+  return {
+    bodyRef,
+    bottomSpacerHeight,
+    isVirtualized,
+    renderedRows,
+    topSpacerHeight,
+  };
+}
+
 type OverviewWorkflowScope = 'customer' | 'supplier';
 
 function boardClassName() {
@@ -248,7 +372,8 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
 }
 
 export function DashboardRoute() {
-  const inventory = useInventory();
+  const inventory = useInventoryState();
+  const { loadSenaOrderBatches, loadSenaSkuDetail } = useInventoryActions();
   const automation = useAutomation();
   const {
     language,
@@ -277,9 +402,9 @@ export function DashboardRoute() {
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
-  const filterOptions = buildFilterOptions(language);
-  const customerFilterOptions = buildCustomerFilterOptions(language);
-  const todayFilterRows = buildTodayFilterRows(language);
+  const filterOptions = useMemo(() => buildFilterOptions(language), [language]);
+  const customerFilterOptions = useMemo(() => buildCustomerFilterOptions(language), [language]);
+  const todayFilterRows = useMemo(() => buildTodayFilterRows(language), [language]);
 
   function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
     setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
@@ -295,21 +420,22 @@ export function DashboardRoute() {
 
   useEffect(() => {
     if (
-      typeof inventory.loadSenaOrderBatches !== 'function'
-      || requestedOrderBatchesRef.current
+      typeof loadSenaOrderBatches !== 'function'
+      ||
+      requestedOrderBatchesRef.current
       || (inventory.orderBatches?.length ?? 0) > 0
     ) {
       return undefined;
     }
     requestedOrderBatchesRef.current = true;
-    const cancel = scheduleBackgroundTask(() => {
-      void inventory.loadSenaOrderBatches().catch((error) => {
+    const cancel = scheduleDeferredBackgroundTask(() => {
+      void loadSenaOrderBatches().catch((error) => {
         requestedOrderBatchesRef.current = false;
         console.warn('[dashboard] order batches load failed', error);
       });
     });
     return cancel;
-  }, [inventory, inventory.orderBatches?.length]);
+  }, [inventory.orderBatches?.length, loadSenaOrderBatches]);
 
   useEffect(() => {
     const skuIds = orderedDashboardSkuDetailIds(inventory.workspaceSummary);
@@ -327,13 +453,13 @@ export function DashboardRoute() {
     const backgroundSkuIds = skuIds.slice(DASHBOARD_INITIAL_DETAIL_HYDRATION_LIMIT);
     const loadDetail = async (skuId: string) => {
       try {
-        return normalizeSkuDetailPage(await inventory.loadSenaSkuDetail(skuId))?.detail ?? null;
+        return normalizeSkuDetailPage(await loadSenaSkuDetail(skuId))?.detail ?? null;
       } catch {
         return null;
       }
     };
-    const applyDetail = (skuId: string, detail: SenaSkuDetail | null) => {
-      setDetailBySkuId((current) => ({ ...current, [skuId]: detail }));
+    const applyDetailBatch = (batch: Record<string, SenaSkuDetail | null>) => {
+      setDetailBySkuId((current) => ({ ...current, ...batch }));
     };
     const isActive = () => active;
 
@@ -341,7 +467,7 @@ export function DashboardRoute() {
       initialSkuIds,
       DASHBOARD_DETAIL_HYDRATION_CONCURRENCY,
       loadDetail,
-      applyDetail,
+      applyDetailBatch,
       isActive,
     ).then(() => {
       if (!active) {
@@ -351,12 +477,12 @@ export function DashboardRoute() {
         setIsHydratingDetails(false);
         return;
       }
-      cancelBackgroundTask = scheduleBackgroundTask(() => {
+      cancelBackgroundTask = scheduleDeferredBackgroundTask(() => {
         void hydrateSkuDetailsWithLimit(
           backgroundSkuIds,
           DASHBOARD_DETAIL_HYDRATION_CONCURRENCY,
           loadDetail,
-          applyDetail,
+          applyDetailBatch,
           isActive,
         ).finally(() => {
           if (active) {
@@ -370,9 +496,9 @@ export function DashboardRoute() {
       active = false;
       cancelBackgroundTask?.();
     };
-  }, [inventory, inventory.workspaceSummary]);
+  }, [inventory.workspaceSummary, loadSenaSkuDetail]);
 
-  const model = buildOverviewModel({
+  const model = useMemo(() => buildOverviewModel({
     catalog: inventory.catalog,
     detailBySkuId,
     forceStaleUpdateReminder: import.meta.env.MODE === 'development',
@@ -381,30 +507,70 @@ export function DashboardRoute() {
     orderBatches: inventory.orderBatches ?? [],
     staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
-  });
-  const customerModel = buildCustomerOverviewModel({
+  }), [
+    detailBySkuId,
+    inventory.catalog,
+    inventory.observations,
+    inventory.orderBatches,
+    inventory.workspaceSummary,
+    language,
+    overviewStaleUpdateReminderSnoozeUntil,
+  ]);
+  const customerModel = useMemo(() => buildCustomerOverviewModel({
     automationIntakes: automation.intakes,
     catalog: inventory.catalog,
     language,
     observations: inventory.observations,
-  });
+  }), [
+    automation.intakes,
+    inventory.catalog,
+    inventory.observations,
+    language,
+  ]);
 
-  const scopedTasks = model.tasks.filter(
+  const scopedTasks = useMemo(() => model.tasks.filter(
     (task) =>
       isOverviewSkuTask(task)
         ? matchesOverviewEntityScope(task, searchScope) && matchesOverviewQuery(task, deferredQuery, searchScope) && matchesOverviewSupplier(task, supplierFilter)
         : searchScope === 'all' && matchesOverviewQuery(task, deferredQuery, searchScope),
+  ), [deferredQuery, model.tasks, searchScope, supplierFilter]);
+  const visibleTasks = useMemo(
+    () => scopedTasks.filter((task) => shouldShowTask(task, activeFilter)),
+    [activeFilter, scopedTasks],
   );
-  const visibleTasks = scopedTasks.filter((task) => shouldShowTask(task, activeFilter));
-  const visibleCustomerTasks = customerModel.tasks.filter((task) => shouldShowCustomerTask(task, customerFilter));
-  const selectedTask = selectedTaskRequest
-    ? scopedTasks.find(
-      (task): task is OverviewSkuTask => task.id === selectedTaskRequest.taskId && isOverviewSkuTask(task),
-    ) ?? null
-    : null;
-  const selectedAutomationIntake = selectedAutomationIntakeId
-    ? automation.intakes.find((intake) => intake.intakeId === selectedAutomationIntakeId) ?? null
-    : null;
+  const visibleCustomerTasks = useMemo(
+    () => customerModel.tasks.filter((task) => shouldShowCustomerTask(task, customerFilter)),
+    [customerFilter, customerModel.tasks],
+  );
+  const selectedTask = useMemo(
+    () => selectedTaskRequest
+      ? scopedTasks.find(
+        (task): task is OverviewSkuTask => task.id === selectedTaskRequest.taskId && isOverviewSkuTask(task),
+      ) ?? null
+      : null,
+    [scopedTasks, selectedTaskRequest],
+  );
+  const selectedAutomationIntake = useMemo(
+    () => selectedAutomationIntakeId
+      ? automation.intakes.find((intake) => intake.intakeId === selectedAutomationIntakeId) ?? null
+      : null,
+    [automation.intakes, selectedAutomationIntakeId],
+  );
+  useBenchmarkRouteReady('dashboard', !inventory.isLoading && model != null, {
+    hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
+    workflow: overviewScope,
+  });
+  const focusedCustomerTaskIndex = useMemo(
+    () => routeState.customerTaskId
+      ? visibleCustomerTasks.findIndex((task) => task.id === routeState.customerTaskId)
+      : -1,
+    [routeState.customerTaskId, visibleCustomerTasks],
+  );
+  const supplierQueue = useVirtualizedQueueRows(visibleTasks, null);
+  const customerQueue = useVirtualizedQueueRows(
+    visibleCustomerTasks,
+    focusedCustomerTaskIndex >= 0 ? focusedCustomerTaskIndex : null,
+  );
 
   useEffect(() => {
     if (routeState.taskId) {
@@ -422,7 +588,7 @@ export function DashboardRoute() {
       return;
     }
     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }, [overviewScope, routeState.customerTaskId, visibleCustomerTasks]);
+  }, [customerQueue.renderedRows, overviewScope, routeState.customerTaskId, visibleCustomerTasks]);
 
   useEffect(() => {
     if (selectedTaskRequest && !selectedTask) {
@@ -632,8 +798,14 @@ export function DashboardRoute() {
                         <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Open / today')}</HeaderedTableHeaderCell>
                         <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                       </HeaderedTableHeader>
-                      <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
-                        {visibleCustomerTasks.map((task) => (
+                      <HeaderedTableBody
+                        className={`${overviewQueueTableLayout.bodyClassName}${customerQueue.isVirtualized ? ' max-h-[68vh] overflow-y-auto' : ''}`}
+                        ref={customerQueue.bodyRef}
+                      >
+                        {customerQueue.topSpacerHeight > 0 ? (
+                          <div aria-hidden style={{ height: customerQueue.topSpacerHeight }} />
+                        ) : null}
+                        {customerQueue.renderedRows.map((task) => (
                           <HeaderedTableRow
                             key={task.id}
                             className={`${rowHoverClassName} ${overviewQueueTableLayout.rowClassName} ${routeState.customerTaskId === task.id ? 'ring-2 ring-emerald-300 ring-offset-2 ring-offset-background bg-emerald-50/40' : ''}`}
@@ -700,6 +872,9 @@ export function DashboardRoute() {
                             </div>
                           </HeaderedTableRow>
                         ))}
+                        {customerQueue.bottomSpacerHeight > 0 ? (
+                          <div aria-hidden style={{ height: customerQueue.bottomSpacerHeight }} />
+                        ) : null}
                       </HeaderedTableBody>
                     </div>
                   </HeaderedTable>
@@ -808,8 +983,14 @@ export function DashboardRoute() {
                     <HeaderedTableHeaderCell>{translateUiLiteral(language, 'ETA / window')}</HeaderedTableHeaderCell>
                     <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
-                  <HeaderedTableBody className={overviewQueueTableLayout.bodyClassName}>
-                    {visibleTasks.map((task) => {
+                  <HeaderedTableBody
+                    className={`${overviewQueueTableLayout.bodyClassName}${supplierQueue.isVirtualized ? ' max-h-[68vh] overflow-y-auto' : ''}`}
+                    ref={supplierQueue.bodyRef}
+                  >
+                    {supplierQueue.topSpacerHeight > 0 ? (
+                      <div aria-hidden style={{ height: supplierQueue.topSpacerHeight }} />
+                    ) : null}
+                    {supplierQueue.renderedRows.map((task) => {
                       const TaskActionIcon = overviewTaskActionIcons[task.action];
 
                       return (
@@ -918,6 +1099,9 @@ export function DashboardRoute() {
                         </HeaderedTableRow>
                       );
                     })}
+                    {supplierQueue.bottomSpacerHeight > 0 ? (
+                      <div aria-hidden style={{ height: supplierQueue.bottomSpacerHeight }} />
+                    ) : null}
                   </HeaderedTableBody>
                 </div>
               </HeaderedTable>

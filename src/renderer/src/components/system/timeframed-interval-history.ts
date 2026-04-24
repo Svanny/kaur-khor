@@ -20,6 +20,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   latestObservedAt,
   mergeDetails,
   onPruneTransition,
+  seedInitialPage,
   hydrateTimeframeSequentially = false,
   timeframe,
   timeframeBoundaryOverride,
@@ -34,6 +35,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   latestObservedAt: string | null | undefined;
   mergeDetails: (older: TDetail, newer: TDetail) => TDetail;
   onPruneTransition?: () => Promise<void> | void;
+  seedInitialPage?: (limit?: number) => Promise<TPage | null | undefined> | TPage | null | undefined;
   hydrateTimeframeSequentially?: boolean;
   timeframe: ChartTimeframe;
   timeframeBoundaryOverride?: Date | null;
@@ -62,6 +64,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   const getOldestIntervalAtRef = useRef(getOldestIntervalAt);
   const mergeDetailsRef = useRef(mergeDetails);
   const onPruneTransitionRef = useRef(onPruneTransition);
+  const seedInitialPageRef = useRef(seedInitialPage);
 
   useEffect(() => {
     fetchInitialPageRef.current = fetchInitialPage;
@@ -70,7 +73,8 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     getOldestIntervalAtRef.current = getOldestIntervalAt;
     mergeDetailsRef.current = mergeDetails;
     onPruneTransitionRef.current = onPruneTransition;
-  }, [fetchInitialPage, fetchOlderPage, getLoadedIntervalCount, getOldestIntervalAt, mergeDetails, onPruneTransition]);
+    seedInitialPageRef.current = seedInitialPage;
+  }, [fetchInitialPage, fetchOlderPage, getLoadedIntervalCount, getOldestIntervalAt, mergeDetails, onPruneTransition, seedInitialPage]);
 
   useEffect(() => {
     pageRef.current = page;
@@ -127,8 +131,16 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     targetBoundaryOverride?: Date | null,
   ) => {
     const isCurrentRequest = () => hydrationRequestIdRef.current === requestId;
+    const recentLimit = RECENT_TIMEFRAME_MIN_REPORTS;
+    const initialLimit = targetCacheKey === 'Recent' ? recentLimit : INTERVAL_PAGE_SIZE;
+    const seededPage =
+      targetCacheKey === 'Recent'
+        ? await seedInitialPageRef.current?.(initialLimit)
+        : undefined;
     let nextPage = targetCacheKey === 'Recent'
-      ? timeframeCacheRef.current.Recent ?? initialPage ?? await fetchInitialPageRef.current(RECENT_TIMEFRAME_MIN_REPORTS)
+      ? timeframeCacheRef.current.Recent
+        ?? initialPage
+        ?? (seededPage !== undefined ? seededPage : await fetchInitialPageRef.current(recentLimit))
       : await fetchInitialPageRef.current(INTERVAL_PAGE_SIZE);
     if (!isCurrentRequest()) {
       return null;

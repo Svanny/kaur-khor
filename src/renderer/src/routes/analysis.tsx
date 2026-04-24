@@ -14,6 +14,7 @@ import {
   buildAnalysisSearchParams,
   readAnalysisRouteState,
 } from '@/lib/navigation-state';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { activeSenaCatalog, filterCatalogBySupplier } from '@/lib/sena-catalog';
 import { supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
@@ -120,6 +121,9 @@ export function AnalysisRoute() {
   const timeframe = routeState.timeframe as AnalysisTimeframe;
   const isLedgerExpanded = routeState.chart === 'expanded';
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
+  const visibleCatalog = filterCatalogBySupplier(activeSenaCatalog(inventory.catalog), supplierFilter);
+  const targetSkuIds = scope === 'services' ? [] : visibleCatalog?.skus.map((sku) => sku.skuId) ?? [];
+  const targetServiceIds = scope === 'skus' ? [] : visibleCatalog?.services.map((service) => service.serviceId) ?? [];
   const chartController = useTradingChartController({
     initialTimeframe: timeframe,
     onTimeframeChange: (nextTimeframe) => updateRouteState({ timeframe: nextTimeframe as typeof timeframe }),
@@ -136,12 +140,14 @@ export function AnalysisRoute() {
     serviceDetailsById,
     skuDetailsById,
     timeframeHydrationProgress,
-  } = useSenaDetailHydration(
-    chartController.timeframe as AnalysisTimeframe,
-    chartController.timeframeBoundaryOverride,
-    chartController.timeframeCacheKey,
-  );
-  const visibleCatalog = filterCatalogBySupplier(activeSenaCatalog(inventory.catalog), supplierFilter);
+  } = useSenaDetailHydration(chartController.timeframe as AnalysisTimeframe, {
+    priorityServiceIds: targetServiceIds.slice(0, 8),
+    prioritySkuIds: targetSkuIds.filter((skuId) => inventory.workspaceSummary?.highRiskSkuIds.includes(skuId)).slice(0, 8),
+    serviceIds: targetServiceIds,
+    skuIds: targetSkuIds,
+    timeframeBoundaryOverride: chartController.timeframeBoundaryOverride,
+    timeframeCacheKey: chartController.timeframeCacheKey,
+  });
   const hasCatalog = Boolean(visibleCatalog && (visibleCatalog.skus.length > 0 || visibleCatalog.services.length > 0));
   const hasWorkspaceSummary = Boolean(inventory.workspaceSummary);
   const expectedHydratedEntityCount =
@@ -171,6 +177,13 @@ export function AnalysisRoute() {
       void loadAnalysisContentModule();
     }
   }, [hasCatalog, hasWorkspaceSummary]);
+
+  useBenchmarkRouteReady('analysis', !inventory.isLoading && !isPreparingInitialAnalysis, {
+    hasCatalog,
+    hasWorkspaceSummary,
+    scope,
+    section,
+  });
 
   if (!showAnalysisPage) {
     return <Navigate replace to="/" />;

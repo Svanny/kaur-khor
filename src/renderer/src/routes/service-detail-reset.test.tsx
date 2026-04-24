@@ -9,7 +9,8 @@ const ledgerPropsSpy = vi.fn();
 const resetHydratedDetailsMock = vi.fn(async () => {});
 
 vi.mock('@/state/inventory', () => ({
-  useInventory: () => inventoryHook(),
+  useInventoryActions: () => inventoryHook(),
+  useInventoryState: () => inventoryHook(),
 }));
 
 vi.mock('@/state/preferences', () => ({
