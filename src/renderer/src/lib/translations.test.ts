@@ -16,6 +16,10 @@ function stripAllowedLatin(text: string): string {
     .replace(/\b\d+(?:m|H|D|W|M|Y)\b/g, '');
 }
 
+function stripTemplateVariables(text: string): string {
+  return text.replace(/\{[A-Za-z0-9_]+\}/g, '');
+}
+
 async function collectSourceFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });
   const nested = await Promise.all(
@@ -64,6 +68,15 @@ describe('getTranslation', () => {
     }
   });
 
+  test('rejects Latin letters across the full Khmer translation map', () => {
+    const offenders = Object.entries(kmUiCopy).flatMap(([key, value]) => {
+      const visibleText = stripTemplateVariables(value);
+      return /[A-Za-z]/.test(visibleText) ? [`${key}: ${value}`] : [];
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
   test('interpolates translated templates', () => {
     expect(
       getTranslation('en', 'overviewTaskNextArrivalWindow' as never, { window: 'Apr 10-Apr 12' }),
@@ -72,10 +85,10 @@ describe('getTranslation', () => {
 
   test('returns Khmer for representative v2-only and formerly missing surfaces', () => {
     expect(getTranslation('km', 'catalogSkuEditorNameHelper' as never)).toBe(
-      'ដាក់ឈ្មោះ SKU តាមរបៀបដែលបុគ្គលិកនឹងស្វែងរកវា។',
+      'ដាក់ឈ្មោះ អេសខេយូ តាមរបៀបដែលបុគ្គលិកនឹងស្វែងរកវា។',
     );
     expect(getTranslation('km', 'catalogServiceEditorLinkedSkusDescriptor' as never)).toBe(
-      'ភ្ជាប់ SKU ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យបញ្ជីអាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
+      'ភ្ជាប់ អេសខេយូ ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យបញ្ជីអាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
     );
     expect(getTranslation('km', 'analysisWorkbenchLaneInventorySubtitle' as never)).toBe(
       'ការប៉ាន់ស្មានស្តុកត្រូវបានបង្ហាញបន្តគ្នា ខណៈតម្រូវការសេវាកម្ម តម្រូវការលក់រាយ ការទទួលទំនិញ និងការកែសម្រួល នៅតែភ្ជាប់នឹងចន្លោះពេលនីមួយៗ។',
@@ -84,7 +97,7 @@ describe('getTranslation', () => {
       'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
     );
     expect(getTranslation('km', 'stockUpdateGuidanceFirstUpdateNeedsCount' as never)).toBe(
-      'ការអាប់ដេតលើកដំបូង ត្រូវមាន SKU ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យបញ្ជីចាប់យកស្តុកបាន។',
+      'ការអាប់ដេតលើកដំបូង ត្រូវមាន អេសខេយូ ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យបញ្ជីចាប់យកស្តុកបាន។',
     );
   });
 
@@ -145,7 +158,7 @@ describe('getTranslation', () => {
       'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
     );
     expect(getTranslation('km', 'analysisRouteScopeAll' as never)).toBe('ទាំងអស់');
-    expect(getTranslation('km', 'analysisRouteScopeSkus' as never)).toBe('SKU');
+    expect(getTranslation('km', 'analysisRouteScopeSkus' as never)).toBe('អេសខេយូ');
     expect(getTranslation('km', 'analysisRouteScopeServices' as never)).toBe('សេវាកម្ម');
   });
 

@@ -11,3 +11,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Buttons that open popups, drawers, modals, or sheets must not navigate before the user submits the popup action; keep popup state local or route-neutral until submit.
 - Sheets and dialogs containing helper tooltip triggers must control initial focus so opening the surface never auto-focuses a tooltip trigger.
 - Interface view preset cards must keep fixed square card tracks with even outer gutters, and their wireframes must fill the preview/title space with proportional internal density rather than leaving blank frame area.
+- Khmer UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.

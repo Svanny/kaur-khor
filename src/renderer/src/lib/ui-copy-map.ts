@@ -1643,7 +1643,7 @@ export const enUiCopyV1 = {
   analysisRouteNeedRunTitle: 'Explain needs the first SENA run',
   analysisRouteNeedRunHint:
     'Capture a live observation so SENA can explain how sparse signals became the current system story.',
-  analysisRouteScopeAria: 'Select analysis scope',
+  analysisRouteScopeAria: 'Select Explain scope',
   analysisRouteScopeAll: 'All',
   analysisRouteScopeServices: 'Services',
   analysisRouteScopeSkus: 'SKUs',
@@ -1657,10 +1657,10 @@ export const enUiCopyV1 = {
   analysisWorkbenchNavFragility: 'Fragility',
   analysisWorkbenchNavSettings: 'Parameters',
   analysisWorkbenchSettingsRunIdLabel: 'Run ID',
-  analysisWorkbenchSettingsRunIdTooltip: 'Unique identifier for the current analysis run.',
+  analysisWorkbenchSettingsRunIdTooltip: 'Unique identifier for the current Explain run.',
   analysisWorkbenchSettingsLatestObservedLabel: 'Latest observed',
   analysisWorkbenchSettingsLatestObservedTooltip:
-    'Most recent observation included in this analysis window.',
+    'Most recent observation included in this Explain window.',
   analysisWorkbenchSettingsObservationsUsedLabel: 'Observations used',
   analysisWorkbenchSettingsObservationsUsedTooltip:
     'Number of saved observations included after filtering.',
@@ -1682,10 +1682,10 @@ export const enUiCopyV1 = {
   analysisWorkbenchSettingsScopeTooltip: 'Entity slice included in this run.',
   analysisWorkbenchQuiet: 'Quiet',
   analysisWorkbenchNoSignal: 'No signal',
-  analysisWorkbenchSelectSurface: 'Select analysis surface',
+  analysisWorkbenchSelectSurface: 'Select Explain view',
   analysisWorkbenchLedgerTitle: 'SENA system ledger',
   analysisWorkbenchLedgerTooltip:
-    'Interval-by-interval analysis across regime, inventory, pipeline, and lead time.',
+    'Interval-by-interval Explain view across regime, inventory, pipeline, and lead time.',
   analysisWorkbenchLedgerDescriptor:
     'Inspect how observations turned into the current system reading.',
   analysisWorkbenchLaneRegimeTitle: 'Regime + price lane',
@@ -1835,7 +1835,7 @@ export const enUiCopyV1 = {
     'Evidence channels contributing most to the current system read.',
   analysisWorkbenchSettingsTitle: 'Explain settings',
   analysisWorkbenchSettingsTooltip:
-    'Read-only model and evidence metadata for the current analysis window.',
+    'Read-only model and evidence metadata for the current Explain window.',
   analysisWorkbenchSettingsDescriptor:
     'Check the run settings and evidence coverage behind this analysis.',
   stockUpdateViewPriority: 'Priority',
@@ -3017,7 +3017,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       settingsRecommendationOutsideRange:
         'Order suggestion level must stay between the range start and range end.',
       analysisWorkbenchNavWorkbench: 'Main view',
-      analysisWorkbenchSelectSurface: 'Select analysis view',
+      analysisWorkbenchSelectSurface: 'Select Explain view',
       analysisWorkbenchSettingsSampleSizeTooltip:
         'How much distinct evidence banji is effectively using.',
       analysisWorkbenchLedgerDescriptor:

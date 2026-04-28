@@ -1506,7 +1506,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     settingsRecommendationOutsideRange:
       'កម្រិតសំណើបញ្ជាទិញ ត្រូវស្ថិតនៅចន្លោះចំណុចចាប់ផ្តើម និងចំណុចបញ្ចប់នៃជួរណែនាំ។',
     analysisWorkbenchNavWorkbench: 'ទិដ្ឋភាពមេ',
-    analysisWorkbenchSelectSurface: 'ជ្រើសទិដ្ឋភាពវិភាគ',
+    analysisWorkbenchSelectSurface: 'ជ្រើសទិដ្ឋភាព Explain',
     analysisWorkbenchSettingsSampleSizeTooltip:
       'បង្ហាញថា បញ្ជី កំពុងប្រើភស្តុតាងខុសៗគ្នាប៉ុន្មាន។',
     analysisWorkbenchLedgerDescriptor:
@@ -1624,8 +1624,8 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       analysisRouteNeedCatalogTitle: 'ការវិភាគត្រូវការកាតាឡុកជាមុន',
       analysisRouteNeedRunTitle: 'ការវិភាគត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
       analysisRouteOpenWork: 'បើកប្រអប់ការងារ',
-      analysisWorkbenchSettingsRunIdTooltip: 'លេខសម្គាល់តែមួយគត់ សម្រាប់ការវិភាគបច្ចុប្បន្ន។',
-      analysisWorkbenchSettingsLatestObservedTooltip: 'ការសង្កេតថ្មីបំផុត ដែលត្រូវបានបញ្ចូលក្នុងរយៈពេលវិភាគនេះ។',
+      analysisWorkbenchSettingsRunIdTooltip: 'លេខសម្គាល់តែមួយគត់ សម្រាប់ Explain បច្ចុប្បន្ន។',
+      analysisWorkbenchSettingsLatestObservedTooltip: 'ការសង្កេតថ្មីបំផុត ដែលត្រូវបានបញ្ចូលក្នុងរយៈពេល Explain នេះ។',
       analysisWorkbenchSettingsObservationsUsedTooltip: 'ចំនួនការសង្កេតដែលបានរក្សាទុក និងត្រូវបានបញ្ចូល បន្ទាប់ពីតម្រង។',
       analysisWorkbenchSettingsPredictiveErrorTooltip:
         'គម្លាតមធ្យម រវាងអ្វីដែលបញ្ជីរំពឹង និងអ្វីដែលត្រូវបានសង្កេតឃើញពេលក្រោយ។',
@@ -1658,7 +1658,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
         'តម្រូវការសេវាកម្ម {service} តម្រូវការលក់រាយ {retail} ការទទួលទំនិញ {receipts} និងការកែសម្រួល {adjustments}',
       analysisWorkbenchPipelineMarkerAria: 'សញ្ញា {kind} បរិមាណ {quantity} ឯកតា',
       analysisWorkbenchLeadTimePointAria: 'ពេលវេលាមកដល់ {days} ថ្ងៃ',
-      analysisWorkbenchSettingsTooltip: 'ព័ត៌មានអំពីការវិភាគ និងភស្តុតាង សម្រាប់រយៈពេលបច្ចុប្បន្ន ដែលអាចអានបានតែប៉ុណ្ណោះ។',
+      analysisWorkbenchSettingsTooltip: 'ព័ត៌មានអំពី Explain និងភស្តុតាង សម្រាប់រយៈពេលបច្ចុប្បន្ន ដែលអាចអានបានតែប៉ុណ្ណោះ។',
       stockUpdateStockViewTooltip:
         'អាទិភាព បង្ហាញ SKU ដែលបានណែនាំ បានរាប់ បង្ហាញជួរដែលបានផ្លាស់ប្តូរ ឬមានសញ្ញា ហើយ SKU ទាំងអស់ បង្ហាញកាតាឡុកទាំងមូល។',
       stockUpdateStockStepTooltipLabel: 'ព័ត៌មានលម្អិតអំពីការរាប់ស្តុក',
@@ -1781,6 +1781,7 @@ const exactValueTranslations: Record<string, string> = {
   Merchandising: 'ការរៀបចំលក់',
   'Search and segment': 'ស្វែងរក និងបែងចែក',
   'Search name, description, or id…': 'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
+  '{count} row{suffix} changed': 'ជួរ {count} {suffix} បានផ្លាស់ប្តូរ',
   Expand: 'ពង្រីក',
   Collapse: 'បង្រួម',
   'Back to catalog': 'ត្រឡប់ទៅកាតាឡុក',
@@ -1920,6 +1921,7 @@ const exactValueTranslations: Record<string, string> = {
   'No chart intervals are available yet.': 'មិនទាន់មានចន្លោះក្រាហ្វដែលអាចប្រើបានទេ។',
   'Custom duration': 'រយៈពេលផ្ទាល់ខ្លួន',
   'Choose a start and end date for the chart range.': 'ជ្រើសកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់សម្រាប់ជួរក្រាហ្វ។',
+  'Choose a start and end date for this window.': 'ជ្រើសកាលបរិច្ឆេទចាប់ផ្តើម និងបញ្ចប់សម្រាប់ចន្លោះនេះ។',
   'Start date': 'កាលបរិច្ឆេទចាប់ផ្តើម',
   'Custom timeframe start date': 'កាលបរិច្ឆេទចាប់ផ្តើមរយៈពេលផ្ទាល់ខ្លួន',
   'End date': 'កាលបរិច្ឆេទបញ្ចប់',
@@ -2266,7 +2268,7 @@ const exactValueTranslations: Record<string, string> = {
   Scope: 'វិសាលភាព',
   Quiet: 'ស្ងប់ស្ងាត់',
   'No signal': 'មិនមានសញ្ញា',
-  'Select analysis surface': 'ជ្រើសផ្ទាំងវិភាគ',
+  'Select analysis surface': 'ជ្រើសផ្ទាំង Explain',
   'System timeline': 'បន្ទាត់ពេលវេលាប្រព័ន្ធ',
   'Price cue count': 'ចំនួនសញ្ញាតម្លៃ',
   'Stockout cue count': 'ចំនួនសញ្ញាអស់ស្តុក',
@@ -2617,7 +2619,7 @@ const exactValueTranslations: Record<string, string> = {
     'Saved updates': 'ការអាប់ដេតដែលបានរក្សាទុក',
     'Saved update': 'ការអាប់ដេតដែលបានរក្សាទុក',
     'Signals recorded': 'សញ្ញាដែលបានកត់ត្រា',
-    'Select analysis view': 'ជ្រើសទិដ្ឋភាពវិភាគ',
+    'Select analysis view': 'ជ្រើសទិដ្ឋភាព Explain',
     'Order guidance': 'ការណែនាំបញ្ជាទិញ',
     'Need chance': 'ឱកាសត្រូវបញ្ជាទិញ',
     'Why this guidance': 'មូលហេតុនៃការណែនាំនេះ',
@@ -2784,6 +2786,7 @@ const exactValueTranslations: Record<string, string> = {
   'Retail ranking': 'លំដាប់លក់រាយ',
   'Command palette': 'ផ្ទាំងពាក្យបញ្ជា',
   'Open command palette with {shortcut}': 'បើកផ្ទាំងពាក្យបញ្ជាដោយ {shortcut}',
+  'Command home and daily entry point': 'ទំព័រដើមពាក្យបញ្ជា និងចំណុចចូលប្រចាំថ្ងៃ',
   'Best Matches': 'លទ្ធផលសមបំផុត',
   Pages: 'ទំព័រ',
   Tabs: 'ផ្ទាំង',
@@ -2800,8 +2803,8 @@ const exactValueTranslations: Record<string, string> = {
   'Work queue and follow-up work': 'ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន',
   'Capture the next live update': 'កត់ត្រាការអាប់ដេតពិតបន្ទាប់',
   'Demand, capacity, and cash movement': 'តម្រូវការ សមត្ថភាព និងលំហូរសាច់ប្រាក់',
-  'Deep analysis workbench': 'ឧបករណ៍វិភាគលម្អិត',
-  'Detailed analysis tools': 'ឧបករណ៍វិភាគលម្អិត',
+  'Deep analysis workbench': 'ឧបករណ៍ Explain លម្អិត',
+  'Detailed analysis tools': 'ឧបករណ៍ Explain លម្អិត',
   'Browse SKUs and services': 'រកមើល SKU និងសេវាកម្ម',
   'Observation history and logs': 'ប្រវត្តិការសង្កេត និងកំណត់ហេតុ',
   'All work items': 'ធាតុទិដ្ឋភាពទូទៅទាំងអស់',
@@ -3216,15 +3219,262 @@ function normalizeSpacing(text: string): string {
 }
 
 function localizeKhmerProductWords(text: string): string {
-  return text
+  const { text: protectedText, placeholders } = protectPlaceholders(text);
+  const localized = protectedText
     .replace(/\bbanj\b/gi, 'បញ្ជី')
     .replace(/\bbanji\b/gi, 'បញ្ជី')
+    .replace(/\bSKUs\b/g, 'អេសខេយូ')
+    .replace(/\bSKU\b/g, 'អេសខេយូ')
+    .replace(/\bSENA\b/g, 'ស៊ីណា')
+    .replace(/\bSIST\b/g, 'ប្រព័ន្ធផែនការ')
+    .replace(/\bAPI\b/g, 'ច្រកភ្ជាប់កម្មវិធី')
+    .replace(/\bJSON\b/g, 'ទម្រង់ទិន្នន័យ')
+    .replace(/\bCSV\b/g, 'តារាងនាំចេញ')
+    .replace(/\bSQLite\b/g, 'មូលដ្ឋានទិន្នន័យក្នុងម៉ាស៊ីន')
+    .replace(/\bUSD\b/g, 'ដុល្លារ')
+    .replace(/\bKHR\b/g, 'រៀល')
+    .replace(/\bETA\b/g, 'ពេលមកដល់')
+    .replace(/\bESS\b/g, 'កម្លាំងភស្តុតាង')
+    .replace(/\bPOS\b/g, 'ចំណុចលក់')
+    .replace(/\bID\b/g, 'លេខសម្គាល់')
+    .replace(/\bIDs\b/g, 'លេខសម្គាល់')
+    .replace(/\bHome\b/g, 'ទំព័រដើម')
+    .replace(/\bWork\b/g, 'ទិដ្ឋភាពទូទៅ')
+    .replace(/\bCapture\b/g, 'កត់ត្រា')
+    .replace(/\bSettings\b/g, 'ការកំណត់')
+    .replace(/\bHistory\b/g, 'កំណត់ហេតុ')
+    .replace(/\bPressure\b/g, 'សុខភាពអាជីវកម្ម')
+    .replace(/\bExplain\b/g, 'ការវិភាគ')
+    .replace(/\bOptional\b/g, 'ស្រេចចិត្ត')
+    .replace(/\bPriority\b/g, 'អាទិភាព')
+    .replace(/\bCounted\b/g, 'បានរាប់')
+    .replace(/\bAll\b/g, 'ទាំងអស់')
+    .replace(/\bYes\b/g, 'បាទ/ចាស')
+    .replace(/\bNo\b/g, 'ទេ')
+    .replace(/\bSkipped\b/g, 'បានរំលង')
+    .replace(/\bTime confirmed\b/g, 'បានបញ្ជាក់ពេលវេលា')
+    .replace(/\bChoose observed time\b/g, 'ជ្រើសពេលដែលបានសង្កេត')
+    .replace(/\bNotes added\b/g, 'បានបន្ថែមកំណត់ចំណាំ')
+    .replace(/\bOptional notes\b/g, 'កំណត់ចំណាំស្រេចចិត្ត')
+    .replace(/\bReport notes\b/g, 'កំណត់ចំណាំរបាយការណ៍')
+    .replace(/\bSupplier\b/g, 'អ្នកផ្គត់ផ្គង់')
+    .replace(/\bFilter tabs\b/gi, 'ផ្ទាំងតម្រង')
+    .replace(/\bIntake\b/g, 'ការទទួលសំណើ')
+    .replace(/\bTelegram\b/g, 'តេលេក្រាម')
+    .replace(/\bCompare view\b/g, 'ទិដ្ឋភាពប្រៀបធៀប')
+    .replace(/\bSingle view\b/g, 'ទិដ្ឋភាពតែមួយ')
+    .replace(/\bAll Tasks\b/g, 'ការងារទាំងអស់')
+    .replace(/\bDELETE CURRENT DATA\b/g, 'លុបទិន្នន័យបច្ចុប្បន្ន')
+    .replace(/\bMonysovann Ly\b/g, 'ម៉ូនីសុវណ្ណ លី')
+    .replace(/\bMonysovann\b/g, 'ម៉ូនីសុវណ្ណ')
+    .replace(/\bcloud\b/gi, 'ពពក')
     .replace(/\bdesktop\b/gi, 'កុំព្យូទ័រ')
-    .replace(/\bDesktop\b/g, 'កុំព្យូទ័រ')
     .replace(/([ក-៿])\s+បញ្ជី/g, '$1បញ្ជី')
     .replace(/បញ្ជី\s+([ក-៿])/g, 'បញ្ជី$1')
     .replace(/([ក-៿])\s+កុំព្យូទ័រ/g, '$1កុំព្យូទ័រ')
-    .replace(/កុំព្យូទ័រ\s+([ក-៿])/g, 'កុំព្យូទ័រ$1');
+    .replace(/កុំព្យូទ័រ\s+([ក-៿])/g, 'កុំព្យូទ័រ$1')
+    .replace(/\b(\d+)m\b/g, '$1 នាទី')
+    .replace(/\b(\d+)H\b/g, '$1 ម៉ោង')
+    .replace(/\b(\d+)D\b/g, '$1 ថ្ងៃ')
+    .replace(/\b(\d+)W\b/g, '$1 សប្ដាហ៍')
+    .replace(/\b(\d+)M\b/g, '$1 ខែ')
+    .replace(/\b(\d+)Y\b/g, '$1 ឆ្នាំ')
+    .replace(/\bYTD\b/g, 'ចាប់ពីដើមឆ្នាំ')
+    .replace(/\bMAX\b/g, 'ទាំងអស់')
+    .replace(/\b([A-Za-z]+)\b/g, (word) => {
+      const fallback: Record<string, string> = {
+        and: 'និង',
+        are: 'កំពុង',
+        a: 'មួយ',
+        as: 'ជា',
+        at: 'នៅ',
+        Automations: 'អូតូម៉ាស្យុង',
+        availability: 'ភាពអាចប្រើបាន',
+        above: 'ខាងលើ',
+        actions: 'សកម្មភាព',
+        add: 'បន្ថែម',
+        after: 'បន្ទាប់ពី',
+        anywhere: 'គ្រប់កន្លែង',
+        area: 'តំបន់',
+        before: 'មុន',
+        being: 'កំពុង',
+        below: 'ខាងក្រោម',
+        blocked: 'ត្រូវរារាំង',
+        bot: 'បូត',
+        box: 'ប្រអប់',
+        business: 'អាជីវកម្ម',
+        but: 'ប៉ុន្តែ',
+        buy: 'ទិញ',
+        chain: 'ខ្សែ',
+        changed: 'បានផ្លាស់ប្តូរ',
+        changes: 'ការផ្លាស់ប្តូរ',
+        chooses: 'ជ្រើស',
+        Choose: 'ជ្រើស',
+        click: 'ចុច',
+        clear: 'ច្បាស់',
+        comparing: 'ប្រៀបធៀប',
+        constrain: 'អាចកំណត់',
+        constrained: 'ត្រូវបានកំណត់',
+        context: 'បរិបទ',
+        continuing: 'បន្ត',
+        cost: 'ថ្លៃដើម',
+        costs: 'ថ្លៃដើម',
+        count: 'ការរាប់',
+        counts: 'ការរាប់',
+        could: 'អាច',
+        Current: 'បច្ចុប្បន្ន',
+        current: 'បច្ចុប្បន្ន',
+        customer: 'អតិថិជន',
+        delivery: 'ការដឹកមកដល់',
+        deliveries: 'ការដឹកមកដល់',
+        demand: 'តម្រូវការ',
+        Demand: 'តម្រូវការ',
+        delayed: 'បានយឺត',
+        display: 'ការបង្ហាញ',
+        Do: 'តើ',
+        drag: 'អូស',
+        editing: 'ការកែប្រែ',
+        empty: 'ទទេ',
+        entrance: 'ច្រកចូល',
+        enter: 'បញ្ចូល',
+        existing: 'ដែលមានស្រាប់',
+        evidence: 'ភស្តុតាង',
+        event: 'ព្រឹត្តិការណ៍',
+        events: 'ព្រឹត្តិការណ៍',
+        Example: 'ឧទាហរណ៍',
+        filter: 'តម្រង',
+        Floating: 'អណ្តែត',
+        follow: 'តាមដាន',
+        first: 'ដំបូង',
+        flags: 'សញ្ញា',
+        for: 'សម្រាប់',
+        from: 'ពី',
+        future: 'ពេលក្រោយ',
+        guidance: 'ការណែនាំ',
+        heartbeat: 'សញ្ញាជីពចរ',
+        hidden: 'ត្រូវបានលាក់',
+        hover: 'ដាក់កណ្តុរលើ',
+        human: 'មនុស្ស',
+        in: 'ក្នុង',
+        incoming: 'កំពុងមកដល់',
+        input: 'ការបញ្ចូល',
+        intake: 'ការទទួលសំណើ',
+        is: 'គឺ',
+        issue: 'បញ្ហា',
+        it: 'វា',
+        keep: 'រក្សា',
+        latest: 'ចុងក្រោយ',
+        Leave: 'ទុក',
+        leaves: 'ទុក',
+        leave: 'ទុក',
+        least: 'យ៉ាងហោចណាស់',
+        lets: 'អនុញ្ញាតឲ្យ',
+        line: 'បន្ទាត់',
+        linked: 'ដែលភ្ជាប់',
+        Local: 'ក្នុងម៉ាស៊ីន',
+        local: 'ក្នុងម៉ាស៊ីន',
+        Log: 'កត់ត្រា',
+        lunchtime: 'ពេលថ្ងៃត្រង់',
+        method: 'វិធីសាស្ត្រ',
+        means: 'មានន័យថា',
+        moved: 'បានផ្លាស់ទី',
+        main: 'សំខាន់',
+        name: 'ឈ្មោះ',
+        near: 'ក្បែរ',
+        need: 'ត្រូវការ',
+        next: 'បន្ទាប់',
+        no: 'គ្មាន',
+        notes: 'កំណត់ចំណាំ',
+        Notes: 'កំណត់ចំណាំ',
+        Nothing: 'គ្មានអ្វី',
+        nothing: 'គ្មានអ្វី',
+        off: 'បិទ',
+        on: 'បើក',
+        one: 'មួយ',
+        only: 'តែប៉ុណ្ណោះ',
+        open: 'បើក',
+        operating: 'ប្រតិបត្តិការ',
+        Optional: 'ស្រេចចិត្ត',
+        optional: 'ស្រេចចិត្ត',
+        or: 'ឬ',
+        order: 'ការបញ្ជាទិញ',
+        of: 'នៃ',
+        out: 'ចេញ',
+        outside: 'ខាងក្រៅ',
+        page: 'ទំព័រ',
+        panels: 'ផ្ទាំង',
+        paused: 'បានផ្អាក',
+        period: 'រយៈពេល',
+        picture: 'រូបភាព',
+        preferred: 'ដែលចូលចិត្ត',
+        prices: 'តម្លៃ',
+        product: 'ផលិតផល',
+        quiet: 'ស្ងប់ស្ងាត់',
+        ran: 'បានអស់',
+        receive: 'ទទួល',
+        record: 'កត់ត្រា',
+        results: 'លទ្ធផល',
+        restore: 'ស្តារ',
+        retail: 'លក់រាយ',
+        Right: 'ខាងស្តាំ',
+        routine: 'ធម្មតា',
+        row: 'ជួរ',
+        selected: 'បានជ្រើស',
+        single: 'តែមួយ',
+        sell: 'លក់',
+        sellability: 'ភាពអាចលក់បាន',
+        selling: 'ការលក់',
+        Sell: 'លក់',
+        side: 'ខាង',
+        skip: 'រំលង',
+        shows: 'បង្ហាញ',
+        Shows: 'បង្ហាញ',
+        specific: 'ជាក់លាក់',
+        staff: 'បុគ្គលិក',
+        status: 'ស្ថានភាព',
+        step: 'ជំហាន',
+        still: 'នៅតែ',
+        system: 'ប្រព័ន្ធ',
+        supplier: 'អ្នកផ្គត់ផ្គង់',
+        task: 'ការងារ',
+        The: 'នេះ',
+        the: 'នេះ',
+        Tasks: 'ការងារ',
+        Protect: 'ការពារ',
+        this: 'នេះ',
+        This: 'នេះ',
+        time: 'ពេលវេលា',
+        Timing: 'ពេលវេលា',
+        Tip: 'គន្លឹះ',
+        To: 'ដើម្បី',
+        to: 'ទៅ',
+        tomorrow: 'ថ្ងៃស្អែក',
+        unless: 'លុះត្រាតែ',
+        unchanged: 'មិនផ្លាស់ប្តូរ',
+        unusually: 'មិនធម្មតា',
+        Unblock: 'ដោះចំណុចរារាំង',
+        unusual: 'មិនធម្មតា',
+        update: 'ការអាប់ដេត',
+        up: 'បន្ត',
+        uses: 'ប្រើ',
+        used: 'ត្រូវបានប្រើ',
+        view: 'ទិដ្ឋភាព',
+        visible: 'អាចមើលឃើញ',
+        was: 'បាន',
+        When: 'នៅពេល',
+        when: 'នៅពេល',
+        which: 'ណា',
+        will: 'នឹង',
+        window: 'រយៈពេល',
+        with: 'ជាមួយ',
+        worked: 'ត្រូវបានរៀបចំ',
+        you: 'អ្នក',
+        your: 'របស់អ្នក',
+        Yes: 'បាទ/ចាស',
+      };
+      return fallback[word] ?? word;
+    });
+  return restorePlaceholders(localized, placeholders);
 }
 
 function applyPhraseTranslations(text: string): string {
