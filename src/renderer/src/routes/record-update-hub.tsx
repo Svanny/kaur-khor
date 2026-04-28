@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatPhoneForDisplay } from '@shared/phone';
@@ -16,7 +15,10 @@ import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
+import { LiquidGridCardLayer, liquidGridCardBaseClassName } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import {
   BASE_RECORD_UPDATE_LANES,
   RECORD_UPDATE_CUSTOM_PATH,
@@ -30,7 +32,7 @@ import {
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
 import { latestTicketEvents, ticketLabel } from '@/lib/ticketing';
-import { tintedSurfaceClassName, type TintedSurfaceTone } from '@/lib/state-tones';
+import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -42,7 +44,7 @@ interface RecordUpdateHubCard {
   href?: string;
   icon: IconComponent;
   laneId: RecordUpdateLaneId;
-  tone: TintedSurfaceTone;
+  tone: GridCardColorKey;
   rainbow?: boolean;
 }
 
@@ -74,14 +76,14 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     href: RECORD_UPDATE_STOCK_COUNT_PATH,
     icon: EntitySkuIcon,
     laneId: 'stock-count',
-    tone: 'info',
+    tone: 'stock-count',
   },
   {
     title: 'Customer Order',
     description: 'Create a ticket-backed customer commitment or update an existing customer ticket.',
     icon: EntityRevenueIcon,
     laneId: 'customer-order-pending',
-    tone: 'success',
+    tone: 'customer-order',
   },
   {
     title: 'Immediate Sale',
@@ -89,14 +91,14 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     href: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
     icon: EntityServiceIcon,
     laneId: 'customer-order-completed',
-    tone: 'danger',
+    tone: 'immediate-sale',
   },
   {
     title: 'Supplier Order',
     description: 'Create a supplier ticket or update an existing supplier ticket, including receipts.',
     icon: ActionCreatePackageIcon,
     laneId: 'supplier-order-pending',
-    tone: 'warning',
+    tone: 'supplier-order',
   },
   {
     title: 'Custom',
@@ -104,7 +106,7 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     href: RECORD_UPDATE_CUSTOM_PATH,
     icon: ActionLayoutGridIcon,
     laneId: 'custom',
-    tone: 'info',
+    tone: 'capture-update',
     rainbow: true,
   },
 ];
@@ -153,31 +155,31 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
   const title = translateUiLiteral(language, card.title);
   const description = translateUiLiteral(language, card.description);
   const className = cn(
-    'group flex aspect-square w-[var(--hub-tile-size)] min-h-0 flex-col rounded-[2rem] border px-8 py-6 shadow-[0_22px_50px_rgba(48,31,20,0.10)] transition duration-200 hover:-translate-y-1 hover:border-foreground/30 hover:shadow-[0_28px_60px_rgba(48,31,20,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
+    liquidGridCardBaseClassName,
     card.rainbow
       ? 'border-fuchsia-200/80 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.62),rgba(255,255,255,0.18)_34%,rgba(255,255,255,0.02)_100%),linear-gradient(135deg,rgba(239,68,68,0.16),rgba(245,158,11,0.15)_18%,rgba(234,179,8,0.15)_34%,rgba(34,197,94,0.14)_50%,rgba(14,165,233,0.15)_66%,rgba(99,102,241,0.15)_82%,rgba(217,70,239,0.16))]'
-      : tintedSurfaceClassName(card.tone),
-    !card.rainbow
-      ? 'bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.55),rgba(255,255,255,0.16)_36%,rgba(255,255,255,0.02)_100%)]'
-      : null,
+      : gridCardSurfaceClassName(card.tone),
   );
   const contents = (
-    <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
-      <CardIcon className="size-20 shrink-0" />
-      <div className="space-y-3">
-        <h2 className="text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h2>
-        <p className="min-h-[4.5rem] max-w-[18rem] text-sm leading-6 text-muted-foreground">{description}</p>
-        <p
-          aria-hidden={!hasDraftSaved}
-          className={cn(
-            'mx-auto inline-flex min-h-[1.625rem] min-w-[6.75rem] items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary',
-            hasDraftSaved ? null : 'invisible',
-          )}
-        >
-          {hasDraftSaved ? translateUiLiteral(language, 'Draft saved') : null}
-        </p>
+    <>
+      <LiquidGridCardLayer />
+      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 px-4 py-5 text-center sm:px-6 md:gap-6 md:px-8 md:py-6">
+        <CardIcon className="size-12 shrink-0 sm:size-16 md:size-20" />
+        <div className="space-y-2 md:space-y-3">
+          <h2 className="text-lg font-semibold text-foreground sm:text-xl md:text-2xl">{title}</h2>
+          <p className="min-h-[3.75rem] max-w-[18rem] text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6 md:min-h-[4.5rem]">{description}</p>
+          <p
+            aria-hidden={!hasDraftSaved}
+            className={cn(
+              'mx-auto inline-flex min-h-[1.625rem] min-w-[6.75rem] items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary',
+              hasDraftSaved ? null : 'invisible',
+            )}
+          >
+            {hasDraftSaved ? translateUiLiteral(language, 'Draft saved') : null}
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   );
 
   if (onClick) {
@@ -312,7 +314,7 @@ function TicketEntryPromptDialog({
   );
 }
 
-export function RecordUpdateHubRoute() {
+export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const { language } = usePreferences();
   const { observations, orderBatches } = useInventory();
   const navigate = useNavigate();
@@ -452,7 +454,7 @@ export function RecordUpdateHubRoute() {
   }
 
   return (
-    <WorkspacePage className="gap-5">
+    <WorkspacePage fitViewport className={embedded ? 'gap-4 p-0' : 'gap-5'}>
       {ticketEntryPrompt && !confirmNewDiscardDraftOpen ? (
         <TicketEntryPromptDialog
           canEdit={ticketEntryPrompt.canEdit}
@@ -568,36 +570,33 @@ export function RecordUpdateHubRoute() {
           </div>
         </div>
       ) : null}
-      <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Record update')}
-        title={translateUiLiteral(language, 'Choose an update lane')}
-        descriptor={translateUiLiteral(
-          language,
-          'banj removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
-        )}
-      />
-      <div className="flex min-h-[calc(100svh-20rem)] items-center justify-center">
-        <div
-          className="grid w-full max-w-[46rem] grid-cols-1 justify-items-center gap-4 md:grid-cols-2"
-          style={
-            {
-              '--hub-tile-size': 'min(22rem, calc((100vw - 9rem) / 2), calc((100svh - 19rem) / 2))',
-            } as CSSProperties
+      {!embedded ? (
+        <WorkspaceTitleCard
+          title={
+            <span className="flex min-w-0 items-center gap-3">
+              <RouteBackButton className="shrink-0" />
+              <span className="truncate">{translateUiLiteral(language, 'Capture')}</span>
+            </span>
           }
-        >
-          {VISIBLE_HUB_CARDS.map((card) => (
-            <HubCard
-              key={card.title}
-              card={card}
-              onClick={
-                card.laneId === 'customer-order-pending' || card.laneId === 'customer-order-completed' || card.laneId === 'supplier-order-pending'
-                  ? () => handleHubCardClick(card)
-                  : undefined
-              }
-            />
-          ))}
-        </div>
-      </div>
+          descriptor={translateUiLiteral(
+            language,
+            'Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
+          )}
+        />
+      ) : null}
+      <CenteredTileGrid>
+        {VISIBLE_HUB_CARDS.map((card) => (
+          <HubCard
+            key={card.title}
+            card={card}
+            onClick={
+              card.laneId === 'customer-order-pending' || card.laneId === 'customer-order-completed' || card.laneId === 'supplier-order-pending'
+                ? () => handleHubCardClick(card)
+                : undefined
+            }
+          />
+        ))}
+      </CenteredTileGrid>
     </WorkspacePage>
   );
 }

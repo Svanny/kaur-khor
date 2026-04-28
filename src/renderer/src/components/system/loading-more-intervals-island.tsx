@@ -43,7 +43,7 @@ export function LoadingMoreIntervalsIsland({
   return (
     <div
       className={cn(
-        'pointer-events-none fixed bottom-4 left-4 z-40 max-w-[calc(100vw-2rem)] md:bottom-6 md:left-[calc(var(--sidebar-width)+1.5rem)] md:group-data-[collapsible=icon]:left-[calc(var(--sidebar-width-icon)+1.5rem)]',
+        'pointer-events-none fixed bottom-4 left-4 z-40 max-w-[calc(100vw-2rem)] md:bottom-6 md:left-[calc(var(--sidebar-width)+1.5rem)] md:group-data-[state=collapsed]:left-[calc(var(--sidebar-width-icon)+1.5rem)]',
         className,
       )}
       data-slot="loading-more-intervals"

@@ -55,7 +55,7 @@ function HubRouteTestShell() {
     <>
       <LocationPreview />
       <Routes>
-        <Route element={<RecordUpdateHubRoute />} path="/record-update" />
+        <Route element={<RecordUpdateHubRoute />} path="/work/capture" />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />
@@ -81,7 +81,7 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Choose an update lane')).toBeInTheDocument();
+    expect(screen.getByText('Capture')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', RECORD_UPDATE_STOCK_COUNT_PATH);
     expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.queryByRole('button', { name: 'Point of Sale View' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Form View' })).not.toBeInTheDocument();
     expect(window.localStorage.getItem(recordUpdateSessionViewStorageKey())).toBe('pos');
-    expect(screen.getByText(/banj removes the legacy batch update system/i)).toBeInTheDocument();
+    expect(screen.getByText(/Choose the physical, customer, or supplier ticket flow/i)).toBeInTheDocument();
     expect(screen.queryByText('Coming soon')).not.toBeInTheDocument();
     expect(screen.queryByText('Available now')).not.toBeInTheDocument();
   });
@@ -103,12 +103,12 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('button', { name: 'Immediate Sale' })).toHaveClass('border-rose-200/80', 'bg-rose-50/70');
+    expect(screen.getByRole('button', { name: 'Immediate Sale' })).toHaveClass('border-[#0D9488]/35', 'bg-[#0D9488]/12');
   });
 
   it('opens the immediate sale prompt without an edit-update action', () => {
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -120,7 +120,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
     expect(within(dialog).queryByRole('button', { name: 'Edit/Update' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
   });
 
   it('resumes a saved immediate sale draft from the hub prompt', () => {
@@ -128,7 +128,7 @@ describe('RecordUpdateHubRoute', () => {
     window.localStorage.setItem(completedLane.draftStorageKey, '{"version":1}');
 
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -141,7 +141,7 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume draft' }));
 
-    expect(screen.getAllByText('/record-update/customer-orders-completed')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/immediate-sale')[0]).toBeInTheDocument();
   });
 
   it('opens the customer order chooser on the hub and navigates with explicit new ticket mode', () => {
@@ -182,12 +182,12 @@ describe('RecordUpdateHubRoute', () => {
       }),
     );
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
 
@@ -197,11 +197,11 @@ describe('RecordUpdateHubRoute', () => {
     expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'New' }));
 
-    expect(screen.getAllByText('/record-update/customer-orders-pending?ticketMode=new')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
   it('warns before starting a new ticket when that lane has a saved draft', () => {
@@ -209,7 +209,7 @@ describe('RecordUpdateHubRoute', () => {
     window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1}');
 
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -221,14 +221,14 @@ describe('RecordUpdateHubRoute', () => {
 
     expect(screen.getByText('Delete saved draft?')).toBeInTheDocument();
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
     expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBe('{"version":1}');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
 
     expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBeNull();
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
-    expect(screen.getAllByText('/record-update/customer-orders-pending?ticketMode=new')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
   it('resumes a saved customer order draft from the hub prompt without forcing ticket mode navigation', () => {
@@ -236,7 +236,7 @@ describe('RecordUpdateHubRoute', () => {
     window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1}');
 
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -245,11 +245,11 @@ describe('RecordUpdateHubRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeEnabled();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume draft' }));
 
-    expect(screen.getAllByText('/record-update/customer-orders-pending')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/customer-order')[0]).toBeInTheDocument();
   });
 
   it('keeps supplier edit on the hub until a specific ticket is chosen', () => {
@@ -273,7 +273,7 @@ describe('RecordUpdateHubRoute', () => {
       }),
     );
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -283,21 +283,21 @@ describe('RecordUpdateHubRoute', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('What do you want to do?');
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button', { name: 'Edit/Update' }));
 
     const picker = screen.getByRole('dialog');
     expect(picker).toHaveTextContent('Edit / update existing supplier order');
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
 
     fireEvent.click(within(picker).getByRole('button', { name: /Mekong Looms/i }));
 
-    expect(screen.getAllByText('/record-update/supplier-orders-pending?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
   });
 
   it('disables edit-update in the hub prompt when no editable supplier receipts or orders exist', () => {
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
       </MemoryRouter>,
     );
@@ -306,7 +306,7 @@ describe('RecordUpdateHubRoute', () => {
 
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' })).toBeDisabled();
-    expect(screen.getAllByText('/record-update')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
   });
 
   it('shows Draft saved only on cards with a saved draft for that update lane', () => {

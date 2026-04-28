@@ -144,6 +144,8 @@
     color-scheme: light;
     background: var(--background);
     font-variant-numeric: tabular-nums;
+    height: 100%;
+    overflow: hidden;
   }
 
   body {
@@ -155,7 +157,15 @@
       radial-gradient(circle at bottom, color-mix(in oklch, var(--secondary) 40%, transparent), transparent 40%),
       var(--noise-paper);
     background-size: auto, auto, auto, auto, 10px 10px;
+    height: 100%;
     min-height: 100vh;
+    overflow: hidden;
+  }
+
+  #root {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   button,
@@ -223,6 +233,22 @@
       radial-gradient(circle at 12% 18%, rgba(189, 124, 81, 0.18), transparent 24%),
       radial-gradient(circle at 84% 8%, rgba(158, 205, 106, 0.15), transparent 28%),
       linear-gradient(135deg, rgba(255, 255, 255, 0.84), rgba(251, 245, 241, 0.68));
+  }
+
+  .liquid-grid-card-glass > .glass,
+  .liquid-grid-card-glass > .glass > div {
+    width: 100%;
+    height: 100%;
+  }
+
+  .liquid-grid-card-glass > .glass {
+    -webkit-backdrop-filter: blur(14px) saturate(145%);
+    backdrop-filter: blur(14px) saturate(145%);
+  }
+
+  .liquid-grid-card-frame > span[style*="mix-blend-mode"],
+  .liquid-grid-card-frame > div[style*="mix-blend-mode"] {
+    display: none !important;
   }
 }
 

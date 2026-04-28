@@ -178,7 +178,7 @@ export function SupplierFilter({
       <SelectTrigger
         aria-label={label}
         className={cn(
-          'min-w-[12rem] justify-between border border-border/70 bg-background/80 text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+          'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
           className,
         )}
       >

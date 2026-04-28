@@ -27,6 +27,7 @@ export function CheckboxRow({
   variant?: 'default' | 'flat';
 }) {
   const checkboxId = useId();
+  const labelId = useId();
 
   return (
     <div
@@ -43,6 +44,7 @@ export function CheckboxRow({
     >
       <Checkbox
         checked={checked}
+        aria-labelledby={labelId}
         className="size-5 rounded-[6px]"
         disabled={disabled}
         id={checkboxId}
@@ -60,7 +62,7 @@ export function CheckboxRow({
         </div>
       ) : null}
       <div className="grid gap-1">
-        <Label className="flex min-h-5 items-center font-medium leading-5 text-foreground" htmlFor={checkboxId}>
+        <Label className="flex min-h-5 items-center font-medium leading-5 text-foreground" htmlFor={checkboxId} id={labelId}>
           {label}
         </Label>
         {helper ? <div className="text-muted-foreground">{helper}</div> : null}

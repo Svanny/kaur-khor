@@ -178,4 +178,19 @@ describe('WorkspacePanel', () => {
       expect(screen.getByText('Page body').parentElement?.className).toContain('pb-32');
     });
   });
+
+  test('constrains height to viewport when fitViewport is enabled', async () => {
+    render(
+      <PreferencesProvider>
+        <WorkspacePage fitViewport>
+          <div>Page body</div>
+        </WorkspacePage>
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Page body').parentElement?.className).toContain('min-h-0');
+    });
+    expect(screen.getByText('Page body').parentElement?.className).toContain('flex-1');
+  });
 });

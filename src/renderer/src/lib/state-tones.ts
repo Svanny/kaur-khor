@@ -135,7 +135,7 @@ const TINTED_SURFACE_TONE_CLASS_NAMES: Record<TintedSurfaceTone, string> = {
   warning: 'border-amber-200/80 bg-amber-50/70',
   success: 'border-emerald-200/80 bg-emerald-50/70',
   info: 'border-sky-200/80 bg-sky-50/70',
-  neutral: 'border-stone-200/80 bg-stone-50/80',
+  neutral: 'border-stone-200/80 bg-white',
   'price-up': 'border-violet-200/80 bg-violet-50/70',
   'price-down': 'border-fuchsia-200/80 bg-fuchsia-50/70',
 };

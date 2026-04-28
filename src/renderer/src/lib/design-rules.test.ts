@@ -466,6 +466,32 @@ function isTimeframeTogglePill(node: ts.JsxElement | ts.JsxSelfClosingElement): 
   );
 }
 
+const chartTimeframeContainerPattern = /^(Chart duration|Chart timeframe)$/;
+
+function isChartTimeframeButton(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  let current: ts.Node | undefined = node.parent;
+
+  while (current) {
+    if (ts.isJsxElement(current)) {
+      const tagName = jsxTagName(current.openingElement.tagName);
+      if (tagName === 'div' || tagName === 'span') {
+        const attributes = current.openingElement.attributes.properties;
+        for (const attribute of attributes) {
+          if (jsxAttributeName(attribute) === 'aria-label') {
+            const text = attributeExpressionText(attribute);
+            if (chartTimeframeContainerPattern.test(text)) {
+              return true;
+            }
+          }
+        }
+      }
+    }
+    current = current.parent;
+  }
+
+  return false;
+}
+
 function hasDestructiveTreatment(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
   const tagName = isButtonElement(node) ? (ts.isJsxElement(node) ? jsxTagName(node.openingElement.tagName) : jsxTagName(node.tagName)) : null;
   if (!tagName) {
@@ -525,6 +551,7 @@ describe('global design rules', () => {
           (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) &&
           isButtonElement(node) &&
           hasVisibleButtonLabel(node) &&
+          !isChartTimeframeButton(node) &&
           !hasIconDescendant(node)
         ) {
           const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));

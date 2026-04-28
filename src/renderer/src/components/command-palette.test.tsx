@@ -282,6 +282,12 @@ describe('CommandPaletteProvider', () => {
           navAnalysis: 'ការវិភាគ',
           navArchive: 'បណ្ណសារ',
           navCatalog: 'កាតាឡុក',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'ការងារ',
+          navCapture: 'Capture',
+          navInsights: 'Insights',
+          navHistory: 'History',
           navOperations: 'កំណត់ហេតុ',
           navOverview: 'ទិដ្ឋភាពទូទៅ',
           navPerformance: 'សុខភាពអាជីវកម្ម',
@@ -311,9 +317,7 @@ describe('CommandPaletteProvider', () => {
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
 
     expect(screen.getByRole('searchbox', { name: 'ស្វែងរកពាក្យបញ្ជា' })).toBeInTheDocument();
-    expect(screen.getByText('ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន')).toBeInTheDocument();
-    expect(screen.getByText('កត់ត្រាការអាប់ដេតពិតបន្ទាប់')).toBeInTheDocument();
-    expect(screen.getByText('តម្រូវការ សមត្ថភាព និងលំហូរសាច់ប្រាក់')).toBeInTheDocument();
+    expect(screen.getByText('Command home and daily entry point')).toBeInTheDocument();
     expect(screen.getAllByText('ទំព័រ').length).toBeGreaterThan(0);
     expect(screen.getByText('រុករក')).toBeInTheDocument();
     expect(screen.getByText('បើក')).toBeInTheDocument();

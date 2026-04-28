@@ -29,15 +29,17 @@ import { usePreferences } from '@/state/preferences';
 
 export function WorkspacePage({
   className,
+  fitViewport,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: React.HTMLAttributes<HTMLDivElement> & { fitViewport?: boolean }) {
   const { showFloatingTitleActions } = usePreferences();
 
   return (
     <div
       className={cn(
         'flex flex-col gap-6',
-        showFloatingTitleActions && 'pb-32 md:pb-36',
+        showFloatingTitleActions && !fitViewport && 'pb-32 md:pb-36',
+        fitViewport && 'min-h-0 flex-1',
         className,
       )}
       {...props}
@@ -98,7 +100,7 @@ export function WorkspaceTitleCard({
               </p>
             ) : null}
             <div className="flex min-w-0 max-w-none flex-col gap-3">
-              <CardTitle className="text-3xl tracking-[-0.04em] sm:text-4xl">
+              <CardTitle className="text-3xl leading-tight tracking-[-0.04em] sm:text-4xl">
                 {title}
               </CardTitle>
               {showDescription ? (
@@ -171,62 +173,6 @@ export function MetricCard({
         </CardFooter>
       ) : null}
     </Card>
-  );
-}
-
-export function MetricStrip({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        'grid gap-0 overflow-hidden rounded-[1.5rem] border border-border/50 bg-background/35 sm:grid-cols-2 xl:grid-cols-4',
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-export function MetricStripItem({
-  label,
-  value,
-  detail,
-  className,
-  valueClassName,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-  className?: string;
-  valueClassName?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        'flex min-w-0 flex-col gap-2 px-5 py-4 sm:px-6 sm:py-5',
-        'border-t border-border/50 first:border-t-0 sm:odd:border-t-0 xl:border-t-0 xl:border-l xl:first:border-l-0',
-        className,
-      )}
-    >
-      <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">
-        {label}
-      </p>
-      <p
-        className={cn(
-          'min-w-0 max-w-full text-3xl font-semibold leading-none tracking-[-0.04em] text-foreground [font-variant-numeric:tabular-nums]',
-          valueClassName,
-        )}
-      >
-        {value}
-      </p>
-      {detail ? (
-        <p className="min-w-0 text-sm leading-5 text-muted-foreground">
-          {detail}
-        </p>
-      ) : null}
-    </div>
   );
 }
 

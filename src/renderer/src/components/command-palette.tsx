@@ -1,5 +1,6 @@
 import { type ComponentType, type ReactNode, type SVGProps, forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
+import type { InterfaceViewMode } from '@shared/interface-view';
 import {
   ActionAddBadgeIcon,
   ActionClipboardAddIcon,
@@ -134,8 +135,6 @@ function settingsIcon(effect: Extract<CommandDescriptor['action'], { type: 'sett
       return NavigationRightPanelIcon;
     case 'set-show-automations-page':
       return NavigationAutomationIcon;
-    case 'set-show-analysis-page':
-      return NavigationAnalysisIcon;
     case 'set-show-explanatory-tooltips':
       return ActionSearchIcon;
     case 'set-smoothing-enabled':
@@ -274,7 +273,6 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     showExplanatoryTooltips,
     showFloatingTitleActions,
     showAutomationsPage,
-    showAnalysisPage,
     showRightRailCards,
     t,
   } = usePreferences();
@@ -297,7 +295,6 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         showExplanatoryTooltips,
         showFloatingTitleActions,
         showAutomationsPage,
-        showAnalysisPage,
         showRightRailCards,
         t: (key) => t(key as never),
       }).map((command) => ({
@@ -317,7 +314,6 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showAutomationsPage,
-      showAnalysisPage,
       showRightRailCards,
       t,
     ],
@@ -415,7 +411,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (command.action.effect === 'set-display-mode') {
-        await applyDisplayViewMode(command.action.value as 'compact' | 'custom');
+        await applyDisplayViewMode(command.action.value as InterfaceViewMode);
         return;
       }
       if (command.action.effect === 'set-show-explanatory-tooltips') {
@@ -432,10 +428,6 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       }
       if (command.action.effect === 'set-show-automations-page') {
         await savePreferences({ showAutomationsPage: command.action.value as boolean });
-        return;
-      }
-      if (command.action.effect === 'set-show-analysis-page') {
-        await savePreferences({ showAnalysisPage: command.action.value as boolean });
         return;
       }
       if (command.action.effect === 'set-smoothing-enabled') {
