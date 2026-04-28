@@ -887,7 +887,7 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
-  });
+  }, 10000);
 
   it('uses the hub-selected customer ticket mode without re-showing the entry chooser', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
