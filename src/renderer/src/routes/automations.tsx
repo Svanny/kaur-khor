@@ -211,7 +211,7 @@ function OverviewColumn({
   return (
     <section className="min-w-0 px-4 py-4 xl:px-5">
       <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+        <SectionLabel helpHref="/settings/help#automation-overview" tooltip={tooltip}>{title}</SectionLabel>
       </h3>
       <div className="mt-4">{children}</div>
     </section>
@@ -768,6 +768,7 @@ export function AutomationsRoute({
           {showSettingsSection ? (
             <PerformanceSectionShell
               descriptor={<AutomationConfigurationTutorial />}
+              helpHref="/settings/help#automation-configuration"
               title="Configuration"
               tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.')}
             >
@@ -790,6 +791,7 @@ export function AutomationsRoute({
           {showCatalogSection ? (
             <PerformanceSectionShell
               descriptor="Choose exactly which customer-facing SKUs and services the bot may offer."
+              helpHref="/settings/help#automation-sellables-exposed"
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search sellables, aliases, or suppliers…')}
@@ -876,6 +878,7 @@ export function AutomationsRoute({
           {showIntakeSection ? (
             <PerformanceSectionShell
               descriptor="Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets."
+              helpHref="/settings/help#automation-live-intake"
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, handles, notes, or intake lines…')}
@@ -940,6 +943,7 @@ export function AutomationsRoute({
           {showExceptionsSection ? (
             <PerformanceSectionShell
               descriptor="Messages that banji could not safely convert into clean customer order intake."
+              helpHref="/settings/help#automation-needs-review"
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, issues, notes, or intake lines…')}

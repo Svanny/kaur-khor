@@ -7,6 +7,7 @@ export function SkuDetailEvidence({ evidence }: { evidence: SenaSkuDetailViewMod
 
   return (
     <PagedEvidenceTimelinePanel
+      helpHref="/settings/help#catalog-sku-evidence-timeline"
       items={evidence}
       title={t('catalogSenaSkuEvidenceTimeline')}
       tooltip={t('catalogSenaSkuEvidenceTimelineTooltip')}

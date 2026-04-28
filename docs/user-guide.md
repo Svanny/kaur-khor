@@ -9,10 +9,19 @@ banji is a local-first desktop inventory workspace. It helps an operator keep a 
 - [Navigation](#navigation)
 - [Home](#home)
 - [Work](#work)
+- [Queue](#queue)
+- [Capture](#capture)
+- [Intake](#intake)
 - [Catalog](#catalog)
 - [Insights](#insights)
+- [Pressure](#pressure)
+- [Money](#money)
+- [Explain](#explain)
+- [Automations](#automations)
 - [History](#history)
-- [Settings And Help](#settings-and-help)
+- [Settings](#settings)
+- [First Useful Workflow](#first-useful-workflow)
+- [Glossary](#glossary)
 - [FAQ](#faq)
 
 ## What banji Is For
@@ -73,45 +82,115 @@ Use Home when you are not sure where to begin. It points you toward the next pra
 
 ## Work
 
-Work is banji's "what needs attention now?" workspace.
+Work is the daily operating workspace. It groups three subpages: Queue for deciding what needs attention, Capture for saving real-world updates, and Intake for reviewing automation/customer requests. Use Work when the question is operational: what should be checked, recorded, or promoted into a ticket now?
 
-Use Work to:
+## Queue
 
-- review the supplier queue, which remains the default daily queue
-- switch to customer work when customer commitments need attention
-- open task drawers and jump to the matching detail or Capture lane
-- review Telegram/customer intake in the Intake section
-- capture real-world changes through the lane hub
+Queue is the decision surface for supplier and customer work. It is where operators scan task status, open drawers, filter by supplier or task state, and jump to the item or capture lane that resolves the issue. Queue does not save new evidence by itself; it helps choose the next action from existing catalog, ticket, stock, and timing signals.
 
-Important controls:
+## Capture
 
-- **Queue / Capture / Intake** switches between decision work, update authoring, and automation intake.
-- **Supplier / Customer** switches the queue family.
-- **Task filters** narrow the current queue.
-- **Search** and **Supplier filter** narrow visible work without changing saved data.
+Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Catalog detail, Pressure, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
 
-Work Queue helps choose work. Work Capture saves new operational evidence.
+### Record Update Delivery Fee
 
-Use Capture when:
+Delivery fee records the charge and payer for a customer order or receipt summary when delivery handling is enabled. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual customer agreement.
 
-- stock counts changed
-- new customer orders came in
-- immediate sales happened
-- supplier orders were placed or changed
-- supplier receipts arrived against an existing supplier ticket
-- one real-world event needs a custom combined capture flow
+### Record Update Notes
 
-Canonical lanes:
+Notes capture operator context that structured fields cannot express. They are useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual because they appear later in History, detail pages, and analysis evidence.
 
-- `/work/capture/stock-count`
-- `/work/capture/customer-order`
-- `/work/capture/immediate-sale`
-- `/work/capture/supplier-order`
-- `/work/capture/custom`
+### Record Update Observed At
 
-Customer Order and Supplier Order ask whether you are creating a new ticket or updating an existing ticket before the wizard continues. Supplier receipt stays inside Supplier Order when updating an existing supplier ticket.
+Observed at is the timestamp for when the real-world event happened. It can differ from the time you enter it. Use the actual event time when backfilling counts, receipts, or orders so timelines and analysis intervals stay accurate.
 
-Drafts, resume/delete behavior, save semantics, and ticket-backed authoring remain the same.
+### Record Update Ranking Details
+
+Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. Use it only when the ranking reflects what happened, not as a general preference list.
+
+### Record Update Rankings
+
+Rankings let you record which services or products were most relevant in the update. They help banji learn demand patterns when exact quantities are incomplete. Use them for directional evidence, then rely on counts and tickets for precise units.
+
+### Record Update Regime Context
+
+Regime context lets the operator label the broader demand environment, such as spike, lull, promo, correction, or stockout-constrained. It helps Explain interpret unusual intervals. Use it when the event happened under conditions that normal numbers do not capture.
+
+### Record Update Retail Price
+
+Retail price records a changed customer-facing product price for SKUs sold directly. It affects future sale entry, automation quotes, Money, and margin analysis. Use it when the sell price changed; leave it unchanged when only stock count changed.
+
+### Record Update Review
+
+Review is the final confirmation panel before saving a Record Update. It summarizes what will be written to local history and what downstream surfaces may read. Use it to catch wrong quantities, timestamps, flags, prices, notes, or ticket targets.
+
+### Record Update Service Flags
+
+Service flags record service-level price changes or blocked/stockout events. They are evidence for availability, service detail, automation exposure, and analysis. Use them when a service condition changed even if no SKU count changed.
+
+### Record Update Service Step
+
+The service step captures service-level signals during an update. It lets you add service price changes, blocked states, or stockout flags tied to service delivery. Use it when customer-facing service availability changed.
+
+### Record Update SKU Flags
+
+SKU flags record events such as blocked availability or stockout-constrained behavior for stock items. They explain why demand may not convert into sales even when customers wanted the item. Use flags sparingly and only for real conditions.
+
+### Record Update Stock Cost
+
+Stock cost records a changed supplier/unit cost for SKUs. It affects margin, capital, and Money calculations. Use it when replacement cost or known purchase cost changed; do not use it as a sale price field.
+
+### Record Update Stock Count
+
+Stock count is the current on-hand quantity for each SKU at the observed time. It is one of the strongest pieces of evidence in banji because pressure, availability, service capacity, and Money all depend on it. Count carefully and filter by supplier when needed.
+
+## Intake
+
+Intake is the customer-request review surface for automation-assisted work. It shows parsed customer messages, quoted totals, confidence, exceptions, and review state before the request becomes normal queue or ticket work. Use Intake to confirm customer intent, fix missing catalog data, and promote only clean requests.
+
+### Automation Intake Customer
+
+The Customer column shows the person or account banji inferred from the intake conversation. Treat it as a review target when the name, phone, channel, or conversation identity looks incomplete. Customer metadata should eventually become structured ticket party data, not only free-text notes.
+
+### Automation Intake Request
+
+The Request column summarizes what the customer appears to be asking for before the intake becomes a customer ticket. It may include matched catalog items, quantities, availability questions, or free-text requests that still need operator interpretation.
+
+### Automation Intake Quoted Total
+
+Quoted total is the estimated customer-facing amount available from matched catalog data. It stays pending when banji cannot confidently match the request to priced SKUs or services.
+
+### Automation Intake State
+
+State explains where the intake sits in the operator workflow. Review states usually mean banji has enough context to show the request but not enough certainty to create or update a ticket without human confirmation.
+
+### Automation Intake Created Updated
+
+Created / updated shows when the intake first appeared and when it last changed. Use it to separate fresh customer messages from older requests that are waiting for follow-up.
+
+### Automation Exception Customer Conversation
+
+Customer / conversation identifies which customer thread produced the exception. Use it to open the right context before deciding whether the issue is a missing catalog item, unclear request, or duplicate ticket.
+
+### Automation Exception Issue
+
+Issue describes why banji stopped the intake flow for operator review. Common reasons include unclear item matches, missing prices, ambiguous quantities, or messages that do not map cleanly to a supported workflow.
+
+### Automation Exception Last Message
+
+Last message shows the most recent customer text that contributed to the exception. It is intentionally short so the table stays scannable; open the intake for the full conversation context.
+
+### Automation Exception Confidence
+
+Confidence is banji's certainty about the inferred request or match. Low confidence should be treated as a prompt to review the source message, catalog aliases, and ticket target before committing work.
+
+### Automation Live Intake
+
+Live intake is the table of customer requests captured from automation before they become normal Work tickets. It shows who asked, what was parsed, quoted totals, state, and timestamps. Use it to review and promote requests that are ready, or investigate ones that are still ambiguous.
+
+### Automation Needs Review
+
+Needs review lists automation messages banji could not safely convert into clean work. The issue and confidence columns explain why the request stopped. Use this section to fix catalog aliases, missing prices, unclear quantities, or customer identity before creating tickets.
 
 ## Catalog
 
@@ -128,23 +207,469 @@ Use Catalog to:
 
 Archive is not delete. Archived items are hidden from active work but remain available historically and can be restored.
 
+### Catalog Detail Act Now
+
+Act now is the detail-page action summary for a SKU. It condenses current demand, stock, supplier pipeline, and timing into a suggested next move. Use it as a starting point, then check the rail rationale and evidence before committing to an order or catalog change.
+
+### Catalog Detail Customer Demand
+
+Customer demand summarizes open commitments and realized customer flow linked to the SKU. It helps explain why an item is under pressure even when the current stock count looks acceptable. Use it before deciding whether to reserve stock, reorder, or change exposure.
+
+### Catalog Detail Next Touch
+
+Next touch is the recommended date or reason to revisit the SKU. It is based on current stock, pipeline, timing, and latest observation age. Use it to schedule follow-up when immediate action is not required but the item should not be ignored.
+
+### Catalog Detail Open Pipeline
+
+Open pipeline lists supplier orders and receipts that may affect the SKU. It shows whether relief is already expected or whether the item has no meaningful inbound support. Use it before placing duplicate supplier orders.
+
+### Catalog Detail Selected Interval
+
+Selected interval explains the period chosen in the SKU chart or timeline. It shows demand, receipts, adjustments, regime, and notes for that slice. Use it to understand why one chart segment changed instead of reading the current headline alone.
+
+### Catalog Detail Supplier
+
+Supplier identifies the vendor attached to the SKU. It matters because supplier filters, work queues, lead-time evidence, and open pipeline all use this assignment. Fix it in the editor when supplier work appears under the wrong vendor.
+
+### Catalog Service Availability
+
+Service availability describes whether the service can be offered from current linked-SKU capacity and catalog setup. It is not just the service price; a service can be blocked by missing or constrained components. Use it before exposing the service to customers.
+
+### Catalog Service Dependency Impact
+
+Dependency impact shows which linked SKUs are limiting or supporting a service. It explains whether a service shortage comes from one binding SKU, several weak SKUs, or no clear blocker. Use it when the service headline looks wrong or too broad.
+
+### Catalog Service Editor Details
+
+Service details define the stable identity of a service: ID, name, description, and image. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
+
+### Catalog Service Editor Linked SKUs
+
+Linked SKUs define what stock a service consumes or depends on. This is the core setup for service capacity, bottleneck analysis, and automation availability. Use this section when a service appears available or blocked for the wrong reason.
+
+### Catalog Service Editor Pricing
+
+Service pricing is the customer-facing price for one service delivery. It feeds Money, automation quotes, service detail, and customer tickets. Update it when the sell price changes; use Record Update for observed price-change evidence if you need history.
+
+### Catalog Service Evidence Timeline
+
+The service evidence timeline lists saved updates that explain the service's current signal. It may include price changes, linked demand, notes, and stock-linked dependency events. Use it to audit why the service detail page changed.
+
+### Catalog Service Operational Ribbon
+
+The service operational ribbon is the compact row of key service metrics. It summarizes availability, dependency pressure, confidence, and other status values so users can scan before reading detail panels. Use it to choose which panel needs attention first.
+
+### Catalog SKU Dependency Impact
+
+SKU dependency impact shows which services rely on this SKU and how severely they are affected. It helps explain why a simple stock item can create service pressure. Use it before hiding, archiving, or delaying replenishment for a shared component.
+
+### Catalog SKU Editor Details
+
+SKU details define the stock item's identity: name, supplier, description, and image. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here when the wrong item appears in work or customer-facing surfaces.
+
+### Catalog SKU Editor Planning
+
+SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior when available; guesses should be conservative and revisited after receipts arrive.
+
+### Catalog SKU Editor Pricing
+
+SKU pricing includes unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current when supplier cost or sell price changes.
+
+### Catalog SKU Editor Sell As Product
+
+Sell as product controls whether a SKU can be sold directly to customers, not only used as a service dependency. Enable it only when the SKU has a valid product price and should appear in retail/customer-facing flows.
+
+### Catalog SKU Evidence Timeline
+
+The SKU evidence timeline lists saved updates that shaped the current SKU signal. It can include counts, costs, retail price changes, orders, receipts, flags, and notes. Use it to audit the detail page before correcting the catalog or history.
+
+### Catalog SKU Hero Signal
+
+The SKU hero signal is the large top-line operational statement on the detail page. It translates current stock, demand, pipeline, and timing into a human-readable status. Use it for quick orientation, then inspect the ribbon and rail for causes.
+
+### Catalog SKU Operational Ribbon
+
+The SKU operational ribbon is the compact metric strip below the hero. It surfaces key quantities such as cover, pipeline, demand, next receipt, or confidence depending on available data. Use it to scan the item before opening deeper panels.
+
+### Trading Chart Ledger
+
+The trading chart ledger is the detail chart surface for SKU, service, or analysis signals. It combines timeline controls, indicators, selected interval behavior, and saved evidence overlays. Use it when you need to inspect how a headline changed over time.
+
 ## Insights
 
-Insights is one workspace for reading operating signals.
+Insights is the entry point for operating signals. Its subpages are Pressure, Money, and Explain. Use this section to choose which lens fits the question: operational urgency, financial quality, or evidence-level explanation.
 
-Modes:
+## Pressure
 
-- **Pressure**: demand, capacity, timing, price pressure, comparison, and prioritization.
-- **Money**: sales, gross profit signals, capital tied up, margin pressure, and leakage.
-- **Explain**: explanation surfaces for why banji is producing a signal.
+Pressure is the operational urgency subpage. It compares demand, available capacity, supplier pipeline, timing, confidence, and price/margin context so operators can decide what needs attention now. Use Pressure for prioritization before editing records or placing supplier work.
 
-Mode-specific state is preserved:
+### Pressure Band Blocked Profit
 
-- Pressure keeps range, scope, supplier, and compare state.
-- Money keeps range, scope, supplier, and compare state.
-- Explain keeps section, timeframe, supplier, and expanded chart state.
+Blocked profit contains items with demand or earning potential that cannot convert because stock, timing, or capacity is in the way. Use this band to find money you may recover by unblocking supply, fixing service dependencies, or correcting availability.
 
-Insights is for reading and deciding. It is not a data-entry workflow.
+### Pressure Band Cash Traps
+
+Cash traps are items where stock or capital is present but operational movement is weak. They can look safe because they are not stockouts, yet still waste working capital. Use this band to review pricing, exposure, ordering habits, or archive candidates.
+
+### Pressure Band Winners
+
+Winners are items with useful demand or performance that should be protected. They may need replenishment, exposure, or attention because losing them would hurt service or sales. Use this band to avoid focusing only on emergencies.
+
+### Pressure Board Demand Trend
+
+Demand trend shows whether recent demand is rising, falling, stable, or too sparse to trust. It helps distinguish a temporary spike from a persistent pattern. Use it with support and pipeline columns before changing reorder behavior.
+
+### Pressure Board Item
+
+Item identifies the SKU or service in the demand/capacity board. Use it to open the detail page when a row needs action. For services, remember the visible pressure may come from linked SKUs rather than the service record itself.
+
+### Pressure Board Pipeline Support
+
+Pipeline support shows whether open supplier orders or expected receipts can cover the risk. Strong support means relief may already be in motion; weak support means demand may outrun supply. Use it before creating or chasing supplier work.
+
+### Pressure Board Price Margin
+
+Price / margin shows whether pricing or profitability is part of the pressure story. It can point to underpriced items, margin changes, or revenue opportunity. Use it when demand is present but the recommended move is not simply reorder stock.
+
+### Pressure Board Status
+
+Status is the row's operational classification in the demand/capacity board. It summarizes the pattern after considering demand, capacity, support, pipeline, and price/margin. Use it for scanning, then read the neighboring columns for cause.
+
+### Pressure Board Support
+
+Support describes available capacity or linked inventory that helps satisfy demand. For SKUs, this is usually stock coverage; for services, it may be the weakest linked SKU. Use it to see whether the item is supported enough to keep selling.
+
+### Pressure Cash Signal Bands
+
+Cash signal bands group pressure items by money-related action type. They show where demand, profit, and capital pressure overlap. Use them when operational urgency and cash decisions need to be considered together.
+
+### Pressure Confidence
+
+Confidence tells how much trust banji has in the pressure signal. It reflects evidence freshness, coverage, and model stability. Low confidence means capture better data or inspect history before making a high-cost decision.
+
+### Pressure Demand Capacity Board
+
+The demand/capacity board is the main Pressure table for comparing what customers may need against what the operation can supply. It combines demand trend, support, pipeline, price/margin, and status. Use it to decide which items need immediate work.
+
+### Pressure Move Action
+
+Action is the practical next step for a Move Now row. It may suggest ordering, reviewing, repricing, hiding, exposing, or inspecting an item. Use it as an operator prompt, not an automatic command.
+
+### Pressure Move Column
+
+Move is the named recommendation in the Move Now table. It condenses the row's evidence into an action category so the queue is scannable. Use it to prioritize, then read Why now and Expected effect before acting.
+
+### Pressure Move Expected Effect
+
+Expected effect explains what should improve if the move is correct. It may reduce stockout risk, free capital, restore service capacity, or improve margin. Use it to decide whether the action is worth the effort now.
+
+### Pressure Move Now
+
+Move Now is the priority action panel in Pressure. It shows the few moves banji thinks matter most for the selected range and scope. Use it at the start of a review session, then open rows for evidence before changing real operations.
+
+### Pressure Move Why Now
+
+Why now explains the evidence that made a Move Now item urgent. It should mention the demand, stock, timing, price, confidence, or pipeline reason behind the recommendation. Use it to reject or accept a move quickly.
+
+### Pressure Operational Drag
+
+Operational drag summarizes items slowing the operation even if they are not the highest direct stockout risk. It can include weak support, stale follow-up, or capacity problems. Use it to find friction that keeps recurring.
+
+### Pressure Price Watch
+
+Price watch highlights items where price, margin, or recent pricing evidence may require attention. Use it when the pressure is financial or customer-facing rather than purely stock availability.
+
+### Pressure Recovery Pipeline
+
+Recovery pipeline lists items where incoming supply or known receipts may resolve pressure. It helps avoid duplicate ordering and shows where follow-up should focus on timing. Use it when deciding whether to wait, chase, or order again.
+
+### Pressure Timeline
+
+The pressure timeline shows how the operating signal changed over the selected period. It helps identify whether urgency is new, worsening, recovering, or stable. Use it before treating one current score as the whole story.
+
+## Money
+
+Money is the financial quality subpage. It explains sales, gross profit, tied-up capital, margin movement, commitments, and contributor quality from stock-linked evidence. Use Money when the question is whether inventory is earning, leaking margin, or trapping cash.
+
+### Money Band Capital Traps
+
+Capital traps are items holding money in stock without enough useful sales movement. They may not be urgent stockouts, but they tie up cash. Use this band to find inventory that should be discounted, paused, rebalanced, or reviewed with the supplier.
+
+### Money Band Earners
+
+Earners are items producing healthy sales or gross profit in the selected window. Use this band to protect reliable revenue drivers, confirm enough stock remains, and avoid starving items that are converting inventory into cash cleanly.
+
+### Money Band Margin Leaks
+
+Margin leaks are items where sales exist but profit quality is weak or deteriorating. Causes can include stale costs, underpriced retail, delivery handling, discounts, or high capital drag. Use this band to decide whether price, cost, or exposure needs correction.
+
+### Money Commitments Due
+
+Commitments due summarizes customer or supplier money obligations that are coming up. It helps show near-term cash pressure, not just historical sales. Use it when deciding whether capital is available for replenishment.
+
+### Money Contributors Capital Tied Up
+
+Capital tied up is the current stock-linked money attached to a contributor. It estimates how much cash is sitting in inventory for that SKU or service path. Use it to compare profit against working capital rather than sales alone.
+
+### Money Contributors Entity
+
+Entity identifies the SKU or service contributing to the Money view. It lets you move from financial summary back to the operational record. Open it when the money signal needs a catalog, stock, or pricing correction.
+
+### Money Contributors Gross Profit
+
+Gross profit is sales after known or inferred stock-linked cost. It depends on accurate costs and retail prices, so stale catalog pricing can distort it. Use this column to separate high sales from actually useful sales.
+
+### Money Contributors Net Sales
+
+Net sales is realized stock-linked revenue in the selected window. It is based on saved sale/order evidence that banji can connect to catalog entities. Use it as the top-line activity measure, then compare it to gross profit and capital tied up.
+
+### Money Contributors Status
+
+Status classifies the contributor's financial pattern, such as earning, trapped, leaking, or neutral. It is a label for scanning, not a final decision. Use the numeric columns beside it to understand why the label appeared.
+
+### Money Contributors Turn Quality
+
+Turn quality describes whether inventory is converting into money cleanly. It weighs movement, capital, and profit quality together. Use it to spot items that sell too slowly, sell at weak margin, or deserve more stock.
+
+### Money Coverage
+
+Coverage in Money explains how complete the financial view is for the selected scope. Missing costs, prices, or linked sale evidence can reduce coverage. Use it before trusting totals, especially after catalog changes or partial data imports.
+
+### Money Economic Contributors
+
+Economic contributors is the table that explains which entities drive the Money summary. It breaks total money signals into SKU/service rows with sales, profit, capital, turn quality, and status. Use it to choose where financial action should happen.
+
+### Money Financial Statement
+
+The financial statement is the top Money summary for the selected range and scope. It aggregates sales, gross profit, capital, margin, and related signals from stock-linked evidence. Use it for orientation, then inspect contributors for the reason behind a total.
+
+### Money Largest Capital Positions
+
+Largest capital positions list where inventory money is concentrated. These are not automatically bad; they are where cash exposure is largest. Use them to check whether high-value stock is supported by demand, pipeline, and margin.
+
+### Money Quality Bands
+
+Money quality bands group contributors by financial pattern. They separate earners, capital traps, and margin leaks so the user can scan action types instead of reading every row. Use them as a triage board for cash decisions.
+
+### Money Recent Margin Shifts
+
+Recent margin shifts show items whose profit behavior changed in the selected window. They can reveal cost updates, price changes, discounts, or bad data. Use this rail before assuming a margin issue is caused by demand.
+
+### Money Telegram Attribution
+
+Telegram attribution shows money linked to automation-driven customer intake when that path is available. It helps separate manual sales from automation-assisted work. Use it to judge whether customer automation is producing useful revenue or just noise.
+
+## Explain
+
+Explain is the evidence and model-inspection subpage. It shows the timeline, observation ledger, pressure table, fragility map, and run settings that explain why banji produced a signal. Use Explain when a recommendation needs to be audited before action.
+
+### Explain Fragility Map
+
+Shows where services are constrained by the SKUs they depend on. Each cell compares service demand against the contributing SKU supply path, so use it to find whether a service problem is really caused by one stock item, several weak dependencies, or no named dependency yet. Open the rail when you need the saved evidence behind a blocker instead of acting only on the color.
+
+### Explain Ledger
+
+The main Explain timeline. It aligns regimes, stock movement, supplier pipeline, and lead-time behavior across the same intervals so you can see what changed before a signal appeared. Use it when you need to trace a recommendation back to observed events rather than reading a single summary score.
+
+### Explain Ledger Inventory Lane
+
+The inventory lane plots expected stock level and observed stock movement over time. It combines counts, sales, service demand, receipts, and adjustments into one lane so sudden drops or recoveries are visible. Use it to check whether a pressure signal is demand-driven, count-driven, or simply stale because no recent stock count exists.
+
+### Explain Ledger Lead Time Lane
+
+The lead-time lane shows the supplier timing model for each interval. The line is the expected lead time and the band is uncertainty, so wider bands mean banji has less stable timing evidence. Use it before trusting reorder timing or delivery promises.
+
+### Explain Ledger Pipeline Lane
+
+The pipeline lane shows supplier order and receipt cues over the timeline. It helps answer whether incoming stock is already on the way, whether receipts arrived late, and whether a current shortage may resolve without a new order. Use it with the lead-time lane before creating extra supplier work.
+
+### Explain Ledger Regime Lane
+
+The regime lane labels each interval with the demand pattern banji inferred, such as normal, spike, lull, promo, correction, or stockout-constrained. Price and stockout cue badges show why that interval was classified. Use it to distinguish a real trend from a one-off event.
+
+### Explain Observation Affected Entities
+
+This column lists the SKUs or services that an observation touched. It is useful when one saved update influences several downstream surfaces. If the list is empty, the observation still exists, but it was not attached to a named catalog entity strongly enough to drive entity-level scoring.
+
+### Explain Observation Channels
+
+This column shows which evidence channels were present in a saved observation: stock, service ranking, retail ranking, stockout, order, receipt, price, lead-time hint, or note. Use it to understand why an observation matters before opening the rail. Blank-looking channels usually mean the update was narrow, not that it failed.
+
+### Explain Observation Observed
+
+The observed column identifies the saved event and its timestamp. It is the audit trail behind the Explain workbench. Use it to find the exact update that changed a signal, then open History or the source record if the observation looks wrong.
+
+### Explain Observations Ledger
+
+The observations ledger is the compact table of saved updates used by the Explain run. It shows what banji actually saw, not only what the model inferred. Use this table when a score looks surprising and you need to confirm whether the source evidence is recent, complete, and attached to the right item.
+
+### Explain Pressure Item
+
+The item column names the SKU or service in the Explain pressure table. It includes enough identity context to separate stock-carrying SKUs from services that depend on linked SKUs. Open the row when you need to inspect why that entity is being scored.
+
+### Explain Pressure Lead Time Risk
+
+Lead-time risk estimates how much supplier timing uncertainty contributes to pressure. High risk means the item may fail even when today's stock looks acceptable, because replenishment timing is unstable or poorly evidenced. Review supplier orders, receipts, and lead-time hints before dismissing it.
+
+### Explain Pressure Pipeline Risk
+
+Pipeline risk estimates whether incoming supply is weak, late, missing, or not enough for expected demand. It is not just the count of open orders; it also considers timing and support. Use it to decide whether to chase a supplier ticket or create a new order.
+
+### Explain Pressure Price Sensitivity
+
+Price sensitivity shows whether recent price or margin behavior may be affecting demand or risk. It helps separate a stock problem from a pricing problem. Use it when pressure rises after price changes, promotions, or margin shifts.
+
+### Explain Pressure Score
+
+Pressure score is the combined urgency score for an entity in Explain. It blends demand, stock, supplier pipeline, timing, and confidence into a 0-100 signal. Treat it as a prioritization aid, then use the rail and observation ledger to confirm the evidence before acting.
+
+### Explain Pressure Table
+
+The pressure table ranks entities by operational risk inside the Explain workbench. It is built for investigation: scan scores first, then compare pipeline, lead-time, and price columns to see the main driver. Use it when you need to know which item deserves attention and why.
+
+### Explain Rail Affected Entities
+
+This rail block lists the catalog entities attached to the selected observation. It answers: “What did this saved update touch?” Use it when a note or customer message seems broad and you need to know which SKU or service banji connected it to.
+
+### Explain Rail Affected Entities Summary
+
+This overview rail block summarizes the entities most affected by the current Explain run. It is a quick map of where the model found evidence, not a task list. Use it to choose which item to inspect next.
+
+### Explain Rail Channels
+
+This rail block expands the evidence channels for a selected observation. It shows whether the row came from counts, orders, receipts, ranking signals, prices, lead-time hints, or notes. Use it to judge whether the observation is strong enough to explain the downstream signal.
+
+### Explain Rail Contributor Stack
+
+Contributor stack shows the pieces that feed the selected entity's pressure signal. For services, this often includes linked SKUs; for SKUs, it may include demand, pipeline, and timing contributors. Use it to identify the upstream cause before editing the catalog or placing orders.
+
+### Explain Rail Interval Explanation
+
+This rail block explains the selected interval in the ledger. It summarizes the dominant regime, driver, and price or stockout cues for that period. Use it when the timeline mark is visible but the reason for the classification is not obvious.
+
+### Explain Rail Observation
+
+This rail block shows the selected saved observation in detail. It includes the title, observed time, and plain-language detail so you can verify the source event. Use it to decide whether the explanation is grounded in a real update or a weak note.
+
+### Explain Rail Observed Signals
+
+Observed signals are the specific cues found in the selected interval. They can include demand, receipt, adjustment, price, stockout, or note evidence. Use them to understand why the interval changed instead of assuming the line chart moved by itself.
+
+### Explain Rail Orders Transit Lead Time
+
+This rail block focuses on supplier order probability, quantities, receipts, transit age, and lead-time class for the selected interval. Use it when the question is whether supply is already coming, late, or too uncertain to rely on.
+
+### Explain Rail Overview
+
+The overview rail summarizes the current Explain run before anything is selected. It shows dominant regime, change-point probability, and coverage context. Use it to understand the run's overall state before drilling into a row or interval.
+
+### Explain Rail Posterior State
+
+Posterior state is the model's current estimate for the selected entity after reading the evidence. It includes units, demand per day, reorder trigger, in-transit exposure, and lead-time estimates. Use it to see the hidden state behind a pressure score.
+
+### Explain Rail Reorder Policy
+
+Reorder policy shows the model's recommended supplier action for a selected SKU. It includes need probability, recommended order, likely range, protection horizon, and policy basis. Use it as planning guidance, then check real supplier constraints before ordering.
+
+### Explain Rail Settings
+
+This rail block identifies the selected SKU or service and gives the short pressure explanation. It is the entity inspector header, not the global Settings page. Use it to confirm you are inspecting the right item before opening its Catalog detail.
+
+### Explain Rail Strongest Channels
+
+Strongest channels summarize which evidence types most influenced the current Explain run. They help answer whether the run is being driven by stock counts, orders, receipts, pricing, notes, or lead-time evidence. Use them to spot missing data channels.
+
+### Explain Rail What Happened
+
+This rail block breaks the selected interval into service demand, retail demand, receipts, and adjustments. Use it to separate customer demand from stock movement. It is especially useful when a net stock change hides several opposite events.
+
+### Explain Settings Coverage Estimate
+
+Coverage estimate states how much of the relevant catalog had enough evidence for the run. Low coverage means the run may be blind to parts of the operation. Add counts, linked SKUs, prices, or observations before relying on fine-grained comparisons.
+
+### Explain Settings Effective Sample Size
+
+Effective sample size is the amount of usable evidence after weighting, smoothing, and recency effects. It can be lower than the raw observation count. Use it to judge whether the model has enough signal or is stretching sparse data.
+
+### Explain Settings Intervals
+
+Intervals tells how many timeline windows the Explain run evaluated. More intervals can reveal trend and timing behavior; fewer intervals make the run easier to read but less historical. Use it to understand the time depth behind the visible charts.
+
+### Explain Settings Latest Observed
+
+Latest observed is the newest saved event included in the Explain run. If this timestamp is old, the output may be stale even if the screen loaded correctly. Capture a fresh update before acting on time-sensitive pressure.
+
+### Explain Settings Observations Used
+
+Observations used is the count of saved events included after filtering and scope selection. It tells you whether the run had enough real data to work with. If it is low, inspect scope, supplier filter, date range, and recent capture activity.
+
+### Explain Settings Panel
+
+The settings panel explains the run configuration behind Explain. It lists run ID, latest observation, interval count, smoothing, sample size, error, coverage, and scope. Use it when two users see different results or a run needs to be audited.
+
+### Explain Settings Predictive Error
+
+Predictive error estimates how far the model has recently been from observed outcomes. Higher error means the explanation should be treated as directional, not precise. Improve it by adding fresher counts, receipts, and outcome observations.
+
+### Explain Settings Run ID
+
+Run ID is the internal identifier for the Explain run currently displayed. It helps connect screenshots, logs, and support reports to one explanation pass. Use it when comparing runs or debugging why an explanation changed.
+
+### Explain Settings Scope
+
+Scope describes which catalog entities, supplier filters, and time window were included. Use it before comparing numbers across screens: two runs with different scope are not directly comparable.
+
+### Explain Settings Smoothing
+
+Smoothing controls how strongly the run softens noisy observations. More smoothing reduces jumps from one-off events; less smoothing reacts faster to new evidence. Use it to understand why a fresh update may not fully dominate the chart.
+
+## Automations
+
+Automations covers configuration and customer-facing exposure for automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing catalog data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.
+
+### Automation Overview
+
+Automation tables use these concepts:
+
+- **Exposure** means a SKU or service is visible to the customer-facing bot.
+- **Intake** means a customer request captured from Telegram or another automated source.
+- **Exception** means banji could not confidently turn a message into normal work without operator review.
+- **Alias** means a customer-facing name that can differ from the internal catalog name.
+- **Confidence** means how sure the parser or matcher is about the inferred customer request.
+
+Exposure, intake, and exception headers explain whether a value is measured from saved catalog data, inferred from customer text, or waiting for an operator decision.
+
+### Automation Exposure Entity
+
+Entity is the internal SKU or service record that automation can mention to customers. Open the entity when the customer-facing answer looks wrong, because the source problem is usually catalog naming, price, archive state, or linked-SKU setup.
+
+### Automation Exposure Type
+
+Type distinguishes stock-carrying SKUs from services. SKUs usually depend on direct stock and retail sellability. Services usually depend on linked SKUs and service availability.
+
+### Automation Exposure Price
+
+Price is the customer-facing amount automation can quote. Missing prices should be fixed in Catalog before the item is exposed to customer messages.
+
+### Automation Exposure Availability
+
+Availability explains whether the entity can be offered from current catalog and stock data. Hidden, limited, unavailable, and available states should be reviewed before toggling exposure.
+
+### Automation Exposure Exposed
+
+Exposed controls whether the entity is visible to customer-facing automation. Keep uncertain catalog items unexposed until names, prices, aliases, and availability are ready for customers.
+
+### Automation Exposure Alias
+
+Alias is the customer-facing name automation uses instead of the internal catalog name. Use aliases for common customer wording, alternate spellings, Khmer/English names, and short names that customers actually type.
+
+### Automation Configuration
+
+Configuration is the Telegram connection panel. It holds bot identity, token, username, and external link settings that let banji receive or route customer intake. Use it only after catalog prices, exposure, and operator review expectations are ready.
+
+### Automation Sellables Exposed
+
+Sellables exposed to Telegram is the customer-facing catalog control. It decides which SKUs and services automation can mention, quote, or offer. Use it to hide incomplete items and expose only records with clear names, prices, aliases, and availability.
 
 ## History
 
@@ -160,7 +685,7 @@ Use History to:
 
 History explains what was saved. Work explains what deserves attention now.
 
-## Settings And Help
+## Settings
 
 Settings contains:
 
@@ -175,6 +700,42 @@ Settings contains:
 - credits
 
 Help mirrors this user guide and can be searched inside the app.
+
+### Settings Parameter Guidance
+
+Parameter guidance explains SENA planning inputs such as particle count, service level, quantiles, and intervals. These settings change how conservative or responsive analysis becomes. Adjust them only when you understand the tradeoff between stability, speed, and risk.
+
+### Settings Smoothing
+
+Smoothing controls whether banji softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. Use it for steadier operations; disable it only when immediate responsiveness matters more than noise control.
+
+## First Useful Workflow
+
+For a new workspace, the shortest useful path is:
+
+1. Open Catalog and create the SKUs or services the team actually sells.
+2. Add supplier, cost, price, lead-time, and linked-SKU details when those fields affect decisions.
+3. Open Work / Capture and save the first stock count or real order.
+4. Return to Work to see whether supplier or customer tasks need attention.
+5. Open Insights / Pressure to understand demand, available capacity, pipeline support, confidence, and next action.
+6. Open Insights / Money when you need sales, gross profit, tied-up capital, or leakage context.
+
+Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis.
+
+## Glossary
+
+### Glossary Terms
+
+- **Pressure**: the operational signal that demand, stock, timing, price, or supplier flow may need action.
+- **Coverage**: how much expected demand current stock or sellable capacity can cover.
+- **Pipeline support**: open supplier orders or receipts that may restore stock before demand causes a problem.
+- **Available capacity**: the units or service deliveries that can be sold from current stock and linked dependencies.
+- **Sellable**: a SKU or service that is active and can be offered to customers.
+- **Stock-limited pattern**: a service or SKU pattern where current stock constrains delivery or sales.
+- **Confidence**: how much trust banji has in a signal based on saved evidence and inferred model stability.
+- **SENA-derived columns**: values inferred by banji's local analysis engine rather than typed directly by an operator.
+
+Search keywords: risk, urgency, reorder, stockout, can sell, available, demand, capacity, pipeline, support, inference, model, money, margin.
 
 ## FAQ
 

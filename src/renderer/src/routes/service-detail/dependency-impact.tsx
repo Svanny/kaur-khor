@@ -15,6 +15,7 @@ export function ServiceDependencyImpact({
 
   return (
     <MeasuredPagedDetailPanel
+      helpHref="/settings/help#catalog-service-dependency-impact"
       items={rows}
       title={t('catalogServiceDependencyImpactTitle')}
       tooltip={t('catalogServiceDependencyImpactTooltip')}

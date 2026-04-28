@@ -40,7 +40,7 @@ export function ServiceDetailHero({
         <div className="mt-7 grid gap-6">
           <div className="grid gap-3 text-center">
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              <SectionLabel tooltip={t('catalogServiceHeroAvailabilityTooltip')}>
+              <SectionLabel helpHref="/settings/help#catalog-service-availability" tooltip={t('catalogServiceHeroAvailabilityTooltip')}>
                 {t('catalogServiceHeroAvailabilityTitle')}
               </SectionLabel>
             </p>
@@ -54,7 +54,7 @@ export function ServiceDetailHero({
 
           <MetricRibbon
             title={
-              <SectionLabel tooltip={t('catalogServiceHeroRibbonTooltip')}>
+              <SectionLabel helpHref="/settings/help#catalog-service-operational-ribbon" tooltip={t('catalogServiceHeroRibbonTooltip')}>
                 {t('catalogServiceHeroRibbonTitle')}
               </SectionLabel>
             }

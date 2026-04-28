@@ -261,6 +261,7 @@ export function SkuFormRoute() {
             descriptor={t('catalogSkuEditorDetailsDescriptor')}
             title={
               <SectionTitle
+                helpHref="/settings/help#catalog-sku-editor-details"
                 title={t('editorDetailsTitle')}
                 tooltip={t('catalogSkuEditorDetailsTooltip')}
               />
@@ -307,7 +308,7 @@ export function SkuFormRoute() {
           <WorkspacePanel
             className={editorPanelClassName}
             descriptor={t('catalogSkuEditorPricingDescriptor')}
-            title={<SectionTitle title={t('editorPricingTitle')} tooltip={t('catalogSkuEditorPricingTooltip')} />}
+            title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-pricing" title={t('editorPricingTitle')} tooltip={t('catalogSkuEditorPricingTooltip')} />}
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
               <EditorField error={costPerUnitError ?? undefined} helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
@@ -341,6 +342,7 @@ export function SkuFormRoute() {
                     : t('catalogSkuEditorRetailPriceEnableHint')
                 }
                 label={t('fieldProductPrice')}
+                helpHref="/settings/help#catalog-sku-editor-pricing"
                 tooltip={t('catalogSkuEditorRetailPriceTooltip')}
               >
                 <input
@@ -392,7 +394,7 @@ export function SkuFormRoute() {
               }
               helper={t('catalogSkuEditorSellAsProductHelper')}
               label={
-                <SectionLabel tooltip={t('catalogSkuEditorSellAsProductTooltip')}>
+                <SectionLabel helpHref="/settings/help#catalog-sku-editor-sell-as-product" tooltip={t('catalogSkuEditorSellAsProductTooltip')}>
                   {t('fieldSoldAsProduct')}
                 </SectionLabel>
               }
@@ -411,10 +413,11 @@ export function SkuFormRoute() {
         <WorkspacePanel
           className={editorPanelClassName}
           descriptor={t('catalogSkuEditorPlanningDescriptor')}
-          title={<SectionTitle title={t('catalogSkuPlanningInputsTitle')} tooltip={t('catalogSkuEditorPlanningTooltip')} />}
+          title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-planning" title={t('catalogSkuPlanningInputsTitle')} tooltip={t('catalogSkuEditorPlanningTooltip')} />}
         >
           <EditorField
             helper={t('catalogSkuEditorLeadTimeMeanHelper')}
+            helpHref="/settings/help#catalog-sku-editor-planning"
             label={t('fieldLeadTimeMeanDays')}
             tooltip={t('catalogSkuEditorLeadTimeMeanTooltip')}
           >
@@ -452,6 +455,7 @@ export function SkuFormRoute() {
 
           <EditorField
             helper={t('catalogSkuEditorLeadTimeVariabilityHelper')}
+            helpHref="/settings/help#catalog-sku-editor-planning"
             hint={t('catalogSkuEditorLeadTimeVariabilityHint')}
             label={t('fieldLeadTimeVariability')}
             tooltip={t('catalogSkuEditorLeadTimeVariabilityTooltip')}

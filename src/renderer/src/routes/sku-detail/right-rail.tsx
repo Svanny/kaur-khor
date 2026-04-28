@@ -13,10 +13,12 @@ import type { SenaSkuDetailViewModel } from './view-model';
 
 function RailBlock({
   children,
+  helpHref,
   title,
   tooltip,
 }: {
   children: ReactNode;
+  helpHref: string;
   title: string;
   tooltip: string;
 }) {
@@ -24,7 +26,7 @@ function RailBlock({
     <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[1.4rem]`}>
       <div className="border-b border-border/60 px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </h3>
       </div>
       <div className="px-4 py-3">{children}</div>
@@ -39,11 +41,11 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
-      <RailBlock title={translateUiLiteral(language, 'Supplier')} tooltip={translateUiLiteral(language, 'Supplier assigned to this SKU.')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-supplier" title={translateUiLiteral(language, 'Supplier')} tooltip={translateUiLiteral(language, 'Supplier assigned to this SKU.')}>
         <SupplierBadge showEmpty supplierName={model.identity.supplierName} />
       </RailBlock>
 
-      <RailBlock title={translateUiLiteral(language, 'Customer demand')} tooltip={translateUiLiteral(language, 'Open customer commitments and realized customer flow linked to this SKU.')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-customer-demand" title={translateUiLiteral(language, 'Customer demand')} tooltip={translateUiLiteral(language, 'Open customer commitments and realized customer flow linked to this SKU.')}>
         <div className="grid gap-1">
           {(model.rail.customerDemand?.summary ?? []).map((line) => (
             <p key={line} className="text-sm text-muted-foreground">{line}</p>
@@ -51,7 +53,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-act-now" title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
         <p className="mt-2 text-lg font-medium text-foreground">{model.rail.actNow.quantityBand}</p>
         <div className="mt-4 space-y-2">
@@ -63,7 +65,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-selected-interval" title={t('catalogSenaSkuSelectedInterval')} tooltip={t('catalogSenaSkuSelectedIntervalTooltip')}>
         <SelectedIntervalBrief
           headline={model.rail.selectedIntervalSummary.headline}
           meta={[
@@ -83,7 +85,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         />
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-open-pipeline" title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>
         <div className="grid gap-1">
           {model.rail.openPipeline.summary.map((line) => (
             <p key={line} className="text-sm text-muted-foreground">{line}</p>
@@ -103,7 +105,7 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         </div>
       </RailBlock>
 
-      <RailBlock title={t('catalogSenaSkuNextTouch')} tooltip={t('catalogSenaSkuNextTouchTooltip')}>
+      <RailBlock helpHref="/settings/help#catalog-detail-next-touch" title={t('catalogSenaSkuNextTouch')} tooltip={t('catalogSenaSkuNextTouchTooltip')}>
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">{model.rail.nextTouch.reason}</p>
         <p className="mt-3 rounded-[1rem] border border-border/70 bg-background/70 px-3 py-2 text-sm text-muted-foreground">

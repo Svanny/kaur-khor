@@ -15,7 +15,7 @@ import { overviewTaskActionIcons } from '@icons/domain';
 import { EntityBackupIcon, EntityComparisonIcon, EntityFavoriteIcon, EntitySignalIcon } from '@icons/entities';
 import {
   NavigationAutomationIcon,
-  NavigationListIcon,
+  NavigationHistoryIcon,
   NavigationPerformanceIcon,
   NavigationRightPanelIcon,
   NavigationTaskListIcon,
@@ -34,6 +34,7 @@ import {
   type SenaEngineParameters,
 } from '@shared/ipc';
 import type { InterfaceViewMode } from '@shared/interface-view';
+import { AttentionFlash } from '@/components/system/attention-flash';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
@@ -74,6 +75,7 @@ const exportSelectTriggerClassName =
 const exportActionButtonClassName =
   'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
 const CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN = 'DELETE CURRENT DATA';
+const settingsInterfaceHighlightDelayMs = 500;
 
 const EXPORT_FORMAT_OPTIONS: Array<{ value: SettingsExportFormat; label: string }> = [
   { value: 'excel', label: 'Excel' },
@@ -234,7 +236,7 @@ function ParameterLabel({
     <div className={parameterLabelClassName}>
       <span className="inline-flex items-center gap-2 align-middle">
         <label htmlFor={inputId}>{label}</label>
-        <HelpTooltip content={tooltip} label="Parameter guidance" />
+        <HelpTooltip content={tooltip} helpHref="/settings/help#settings-parameter-guidance" label="Parameter guidance" />
       </span>
     </div>
   );
@@ -702,15 +704,45 @@ function InterfaceVisibilityPage({
 }) {
   const location = useLocation();
   const highlightAutomations = new URLSearchParams(location.search).get('highlight') === 'automations';
+  const [showAutomationsHighlight, setShowAutomationsHighlight] = useState(false);
 
   useEffect(() => {
     if (!highlightAutomations) {
+      setShowAutomationsHighlight(false);
       return;
     }
-    document.querySelector('[data-settings-interface-row="automations"]')?.scrollIntoView({
+    const target = document.querySelector('[data-settings-interface-row="automations"]');
+    if (!target) {
+      return;
+    }
+
+    setShowAutomationsHighlight(false);
+    target.scrollIntoView({
       block: 'center',
       behavior: 'smooth',
     });
+
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setShowAutomationsHighlight(true);
+          observer.disconnect();
+        }
+      }, { threshold: 0.2 });
+
+      observer.observe(target);
+      return () => {
+        observer.disconnect();
+      };
+    }
+
+    const delayId = window.setTimeout(() => {
+      setShowAutomationsHighlight(true);
+    }, settingsInterfaceHighlightDelayMs);
+
+    return () => {
+      window.clearTimeout(delayId);
+    };
   }, [highlightAutomations]);
 
   return (
@@ -778,10 +810,12 @@ function InterfaceVisibilityPage({
           />
         </div>
         <div className="border-b border-border/60" />
-        <div
-          className={highlightAutomations ? 'rounded-2xl bg-primary/10 px-2 ring-2 ring-primary/40' : undefined}
+        <AttentionFlash
+          active={showAutomationsHighlight}
           data-settings-interface-row="automations"
-          data-highlighted={highlightAutomations ? 'true' : undefined}
+          data-highlighted={showAutomationsHighlight ? 'true' : undefined}
+          overlayClassName="inset-0"
+          overlayTestId="settings-automations-highlight"
         >
           <CheckboxRow
             checked={showAutomationsPage}
@@ -791,7 +825,7 @@ function InterfaceVisibilityPage({
             onCheckedChange={setShowAutomationsPage}
             variant="flat"
           />
-        </div>
+        </AttentionFlash>
         <div className="border-b border-border/60" />
         <div>
           <CheckboxRow
@@ -819,7 +853,7 @@ function InterfaceVisibilityPage({
           <CheckboxRow
             checked={showLogsViewToggle}
             hint="Shows the Heatmap / All view selector in Settings / History. When off, History stays in All view."
-            icon={<NavigationListIcon className="size-4" />}
+            icon={<NavigationHistoryIcon className="size-4" />}
             label="History view selector"
             onCheckedChange={setShowLogsViewToggle}
             variant="flat"
@@ -947,7 +981,7 @@ function PlanningSettingsPage({
           checked={senaEngineParameters.smoothingEnabled}
           helper={t('settingsEnableSmoothingHelp')}
           label={
-            <SectionLabel tooltip={t('settingsEnableSmoothingTooltip')}>
+            <SectionLabel helpHref="/settings/help#settings-smoothing" tooltip={t('settingsEnableSmoothingTooltip')}>
               {t('settingsEnableSmoothingLabel')}
             </SectionLabel>
           }
@@ -1395,7 +1429,7 @@ export function SettingsRoute() {
       />
 
       <div className="grid min-w-0 gap-4">
-        {currentSection.id !== 'automation' && (
+        {currentSection.id !== 'automation' && currentSection.id !== 'help' && (
           <WorkspaceTitleCard
             actions={
               showSaveAction ? (

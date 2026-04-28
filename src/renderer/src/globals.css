@@ -46,6 +46,16 @@
   }
 }
 
+@keyframes banji-attention-flash {
+  0%, 45%, 100% {
+    opacity: 0;
+  }
+
+  18%, 68% {
+    opacity: 1;
+  }
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Noto Sans Oriya", "Helvetica Neue", "Noto Sans Khmer", "Segoe UI", sans-serif;

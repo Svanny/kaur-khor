@@ -9,10 +9,19 @@
 - [ការរុករក](#ការរុករក)
 - [Home](#home)
 - [Work](#work)
+- [Queue](#queue)
+- [Capture](#capture)
+- [Intake](#intake)
 - [Catalog](#catalog)
 - [Insights](#insights)
+- [Pressure](#pressure)
+- [Money](#money)
+- [Explain](#explain)
+- [Automations](#automations)
 - [History](#history)
-- [Settings និង Help](#settings-និង-help)
+- [Settings](#settings)
+- [First Useful Workflow](#first-useful-workflow)
+- [Glossary](#glossary)
 - [សំណួរញឹកញាប់](#សំណួរញឹកញាប់)
 
 ## បញ្ជី សម្រាប់អ្វី
@@ -73,44 +82,115 @@ Home គឺជាផ្ទៃចាប់ផ្តើម។ វាមានស�
 
 ## Work
 
-Work គឺជាកន្លែង “តើអ្វីត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ?”។
+Work គឺជា workspace ប្រចាំថ្ងៃសម្រាប់ប្រតិបត្តិការ។ វាបែងចែកជា Queue សម្រាប់សម្រេចថាអ្វីត្រូវយកចិត្តទុកដាក់, Capture សម្រាប់រក្សាទុកការផ្លាស់ប្តូរពិត, និង Intake សម្រាប់ពិនិត្យ request ពី automation/customer។ ប្រើ Work នៅពេលសំណួរគឺត្រូវពិនិត្យ កត់ត្រា ឬ promote អ្វីឥឡូវនេះ។
 
-ប្រើ Work ដើម្បី៖
+## Queue
 
-- ពិនិត្យ supplier queue ដែលជាលំនាំដើម
-- ប្ដូរទៅ customer work
-- បើក task drawer ហើយទៅ detail ឬ Capture lane ដែលត្រូវគ្នា
-- ពិនិត្យ Telegram/customer intake ក្នុង Intake section
-- កត់ត្រាការផ្លាស់ប្តូរពិតតាម Capture hub
+Queue គឺជា decision surface សម្រាប់ supplier និង customer work។ Operator ប្រើវាដើម្បី scan task status, បើក drawer, filter តាម supplier ឬ task state, ហើយទៅ item ឬ capture lane ដែលត្រូវ។ Queue មិន save evidence ថ្មីដោយខ្លួនឯងទេ; វាជួយជ្រើស next action ពី catalog, ticket, stock, និង timing signals ដែលមានស្រាប់។
 
-ការគ្រប់គ្រងសំខាន់៖
+## Capture
 
-- **Queue / Capture / Intake** ប្ដូររវាងការសម្រេចចិត្ត, update authoring, និង automation intake។
-- **Supplier / Customer** ប្ដូរ queue family។
-- **Task filters**, **Search**, និង **Supplier filter** បង្រួមអ្វីដែលមើលឃើញ។
+Capture គឺជា update-authoring workflow នៅក្នុង Work។ វាបម្លែងព្រឹត្តិការណ៍ពិតទៅជា local evidence ដែល queue, Catalog detail, Pressure, Money, Explain, និង History អាចអានពេលក្រោយ។ ប្រើ Capture នៅពេល stock, orders, receipts, prices, flags, rankings, notes, ឬ delivery details ផ្លាស់ប្តូរ។
 
-Work Queue ជួយអ្នកជ្រើសការងារ។ Work Capture កត់ត្រាភស្តុតាងថ្មី។
+### Record Update Delivery Fee
 
-ប្រើ Capture នៅពេល៖
+Delivery fee records the charge and payer for a customer order or receipt summary នៅពេល delivery handling គឺជា enabled. វា affects the customer-facing total and can matter for margin review. Check it មុនពេល saving so totals match the actual customer agreement.
 
-- stock count ផ្លាស់ប្តូរ
-- មាន customer order ថ្មី
-- មាន immediate sale
-- supplier order ត្រូវបានបង្កើត ឬកែ
-- receipt មកដល់លើ supplier ticket ដែលមានស្រាប់
-- ព្រឹត្តិការណ៍មួយត្រូវការ custom combined flow
+### Record Update Notes
 
-Canonical lanes៖
+Notes capture operator context that structured fields cannot express. They គឺជា useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual ព្រោះ they appear later in History, detail pages, and analysis evidence.
 
-- `/work/capture/stock-count`
-- `/work/capture/customer-order`
-- `/work/capture/immediate-sale`
-- `/work/capture/supplier-order`
-- `/work/capture/custom`
+### Record Update Observed At
 
-Customer Order និង Supplier Order នឹងសួរថា អ្នកកំពុងបង្កើត ticket ថ្មី ឬ update ticket ដែលមានស្រាប់។ Supplier receipt នៅក្នុង Supplier Order ពេល update supplier ticket។
+Observed at គឺជា the timestamp for នៅពេល the real-world event happened. វា can differ from the time you enter it. Use the actual event time នៅពេល backfilling counts, receipts, or orders so timelines and analysis intervals stay accurate.
 
-Draft, resume/delete, save semantics, និង ticket-backed authoring នៅដដែល។
+### Record Update Ranking Details
+
+Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. ប្រើវា only នៅពេល the ranking reflects what happened, not as a general preference list.
+
+### Record Update Rankings
+
+Rankings let you record which services or products were most relevant in the update. They help បញ្ជី learn demand patterns នៅពេល exact quantities គឺជា incomplete. Use them for directional evidence, then rely on counts and tickets for precise units.
+
+### Record Update Regime Context
+
+Regime context lets the operator label the broader demand environment, such as spike, lull, promo, correction, or stockout-constrained. វា helps Explain interpret unusual intervals. ប្រើវា នៅពេល the event happened under conditions that normal numbers do not capture.
+
+### Record Update Retail Price
+
+Retail price records a changed customer-facing product price for SKUs sold directly. វា affects future sale entry, automation quotes, Money, and margin analysis. ប្រើវា នៅពេល the sell price changed; leave it unchanged នៅពេល only stock count changed.
+
+### Record Update Review
+
+Review គឺជា the final confirmation panel មុនពេល saving a Record Update. វា summarizes what will be written to local history and what downstream surfaces may read. ប្រើវា to catch wrong quantities, timestamps, flags, prices, notes, or ticket targets.
+
+### Record Update Service Flags
+
+Service flags record service-level price changes or blocked/stockout events. They គឺជា evidence for availability, service detail, automation exposure, and analysis. Use them នៅពេល a service condition changed even if no SKU count changed.
+
+### Record Update Service Step
+
+The service step captures service-level signals during an update. វា lets you add service price changes, blocked states, or stockout flags tied to service delivery. ប្រើវា នៅពេល customer-facing service availability changed.
+
+### Record Update SKU Flags
+
+SKU flags record events such as blocked availability or stockout-constrained behavior for stock items. They explain why demand may not convert into sales even នៅពេល customers wanted the item. Use flags sparingly and only for real conditions.
+
+### Record Update Stock Cost
+
+Stock cost records a changed supplier/unit cost for SKUs. វា affects margin, capital, and Money calculations. ប្រើវា នៅពេល replacement cost or known purchase cost changed; do not use it as a sale price field.
+
+### Record Update Stock Count
+
+Stock count គឺជា the current on-hand quantity for each SKU at the observed time. វា គឺជា one of the strongest pieces of evidence in បញ្ជី ព្រោះ pressure, availability, service capacity, and Money all depend on it. Count carefully and filter by supplier នៅពេល needed.
+
+## Intake
+
+Intake គឺជា customer-request review surface សម្រាប់ automation-assisted work។ វាបង្ហាញ parsed customer messages, quoted totals, confidence, exceptions, និង review state មុន request ក្លាយជា queue ឬ ticket work ធម្មតា។ ប្រើ Intake ដើម្បី confirm customer intent, កែ catalog data ខ្វះ, ហើយ promote តែ request ស្អាត។
+
+### Automation Intake Customer
+
+Customer column បង្ហាញ person ឬ account ដែល បញ្ជី inferred ពី intake conversation។ ពិនិត្យវា នៅពេល name, phone, channel, ឬ conversation identity មិនពេញលេញ។ Customer metadata គួរត្រូវបានរក្សាទុកជា structured ticket party data មិនមែនតែ notes ទេ។
+
+### Automation Intake Request
+
+Request column សង្ខេបអ្វីដែល customer កំពុងស្នើ មុនពេល intake ក្លាយជា customer ticket។ វាអាចមាន matched catalog items, quantities, availability questions, ឬ free-text request ដែល operator ត្រូវបកស្រាយបន្ថែម។
+
+### Automation Intake Quoted Total
+
+Quoted total គឺជា estimated customer-facing amount ពី matched catalog data។ វានៅ pending នៅពេល បញ្ជី មិនអាច match request ទៅ priced SKUs ឬ services ដោយជឿជាក់។
+
+### Automation Intake State
+
+State ពន្យល់ថា intake ស្ថិតនៅជំហានណានៃ operator workflow។ Review state ជាទូទៅមានន័យថា បញ្ជី មាន context គ្រប់គ្រាន់សម្រាប់បង្ហាញ request ប៉ុន្តែមិនទាន់មាន certainty គ្រប់គ្រាន់សម្រាប់ create ឬ update ticket ដោយគ្មានមនុស្សពិនិត្យ។
+
+### Automation Intake Created Updated
+
+Created / updated បង្ហាញពេល intake កើតឡើងដំបូង និងពេលវាផ្លាស់ប្តូរចុងក្រោយ។ ប្រើវាដើម្បីបំបែក fresh customer messages ពី older requests ដែលកំពុងរង់ចាំ follow-up។
+
+### Automation Exception Customer Conversation
+
+Customer / conversation កំណត់ថា customer thread មួយណាបង្កើត exception។ ប្រើវាដើម្បីបើក context មុនសម្រេចថា issue គឺ missing catalog item, unclear request, ឬ duplicate ticket។
+
+### Automation Exception Issue
+
+Issue ពន្យល់ថាហេតុអ្វី បញ្ជី បញ្ឈប់ intake flow ដើម្បីឱ្យ operator review។ ហេតុផលធម្មតា រួមមាន unclear item matches, missing prices, ambiguous quantities, ឬ messages ដែលមិន map ទៅ workflow ដែលគាំទ្រ។
+
+### Automation Exception Last Message
+
+Last message បង្ហាញ customer text ចុងក្រោយដែលបង្កើត exception។ វាខ្លីដើម្បីឱ្យ table ងាយ scan; បើក intake សម្រាប់ conversation context ពេញលេញ។
+
+### Automation Exception Confidence
+
+Confidence គឺជា certainty របស់ បញ្ជី លើ inferred request ឬ match។ Low confidence គួរឱ្យ operator ពិនិត្យ source message, catalog aliases, និង ticket target មុន commit work។
+
+### Automation Live Intake
+
+Live intake គឺជា the table of customer requests captured from automation មុនពេល they become normal Work tickets. វា បង្ហាញ who asked, what was parsed, quoted totals, state, and timestamps. ប្រើវា to review and promote requests that គឺជា ready, or investigate ones that គឺជា still ambiguous.
+
+### Automation Needs Review
+
+Needs review lists automation messages បញ្ជី could not safely convert into clean work. The issue and confidence columns explain why the request stopped. ប្រើផ្នែកនេះ section to fix catalog aliases, missing prices, unclear quantities, or customer identity មុនពេល creating tickets.
 
 ## Catalog
 
@@ -127,17 +207,469 @@ Catalog គឺជា source of truth សម្រាប់ SKU និង service
 
 Archive មិនមែន delete ទេ។ Archived items លាក់ពី active work ប៉ុន្តែនៅរក្សាទុកសម្រាប់ប្រវត្តិ ហើយអាច restore បាន។
 
+### Catalog Detail Act Now
+
+Act now គឺជា the detail-page action summary for a SKU. វា condenses current demand, stock, supplier pipeline, and timing into a suggested next move. ប្រើវា as a starting point, then check the rail rationale and evidence មុនពេល committing to an order or catalog change.
+
+### Catalog Detail Customer Demand
+
+Customer demand summarizes open commitments and realized customer flow linked to the SKU. វា helps explain why an item គឺជា under pressure even នៅពេល the current stock count looks acceptable. ប្រើវា មុនពេល deciding whether to reserve stock, reorder, or change exposure.
+
+### Catalog Detail Next Touch
+
+Next touch គឺជា the recommended date or reason to revisit the SKU. វា គឺជា based on current stock, pipeline, timing, and latest observation age. ប្រើវា to schedule follow-up នៅពេល immediate action គឺជា not required but the item គួរ not be ignored.
+
+### Catalog Detail Open Pipeline
+
+Open pipeline lists supplier orders and receipts that may affect the SKU. វា បង្ហាញ whether relief គឺជា already expected or whether the item has no meaningful inbound support. ប្រើវា មុនពេល placing duplicate supplier orders.
+
+### Catalog Detail Selected Interval
+
+Selected interval explains the period chosen in the SKU chart or timeline. វា បង្ហាញ demand, receipts, adjustments, regime, and notes for that slice. ប្រើវា to understand why one chart segment changed instead of reading the current headline alone.
+
+### Catalog Detail Supplier
+
+Supplier identifies the vendor attached to the SKU. វា matters ព្រោះ supplier filters, work queues, lead-time evidence, and open pipeline all use this assignment. Fix it in the editor នៅពេល supplier work appears under the wrong vendor.
+
+### Catalog Service Availability
+
+Service availability describes whether the service can be offered from current linked-SKU capacity and catalog setup. វា គឺជា not just the service price; a service can be blocked by missing or constrained components. ប្រើវា មុនពេល exposing the service to customers.
+
+### Catalog Service Dependency Impact
+
+Dependency impact បង្ហាញ which linked SKUs គឺជា limiting or supporting a service. វា explains whether a service shortage comes from one binding SKU, several weak SKUs, or no clear blocker. ប្រើវា នៅពេល the service headline looks wrong or too broad.
+
+### Catalog Service Editor Details
+
+Service details define the stable identity of a service: ID, name, description, and image. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear មុនពេល linking SKUs or exposing the service.
+
+### Catalog Service Editor Linked SKUs
+
+Linked SKUs define what stock a service consumes or depends on. ផ្នែកនេះ គឺជា the core setup for service capacity, bottleneck analysis, and automation availability. ប្រើផ្នែកនេះ section នៅពេល a service appears available or blocked for the wrong reason.
+
+### Catalog Service Editor Pricing
+
+Service pricing គឺជា the customer-facing price for one service delivery. វា feeds Money, automation quotes, service detail, and customer tickets. Update it នៅពេល the sell price changes; use Record Update for observed price-change evidence if you need history.
+
+### Catalog Service Evidence Timeline
+
+The service evidence timeline lists saved updates that explain the service's current signal. វា may include price changes, linked demand, notes, and stock-linked dependency events. ប្រើវា to audit why the service detail page changed.
+
+### Catalog Service Operational Ribbon
+
+The service operational ribbon គឺជា the compact row of key service metrics. វា summarizes availability, dependency pressure, confidence, and other status values so users can scan មុនពេល reading detail panels. ប្រើវា to choose which panel needs attention first.
+
+### Catalog SKU Dependency Impact
+
+SKU dependency impact បង្ហាញ which services rely on this SKU and how severely they គឺជា affected. វា helps explain why a simple stock item can create service pressure. ប្រើវា មុនពេល hiding, archiving, or delaying replenishment for a shared component.
+
+### Catalog SKU Editor Details
+
+SKU details define the stock item's identity: name, supplier, description, and image. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here នៅពេល the wrong item appears in work or customer-facing surfaces.
+
+### Catalog SKU Editor Planning
+
+SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior នៅពេល available; guesses គួរ be conservative and revisited បន្ទាប់ពី receipts arrive.
+
+### Catalog SKU Editor Pricing
+
+SKU pricing includes unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current នៅពេល supplier cost or sell price changes.
+
+### Catalog SKU Editor Sell As Product
+
+Sell as product controls whether a SKU can be sold directly to customers, not only used as a service dependency. Enable it only នៅពេល the SKU has a valid product price and គួរ appear in retail/customer-facing flows.
+
+### Catalog SKU Evidence Timeline
+
+The SKU evidence timeline lists saved updates that shaped the current SKU signal. វា can include counts, costs, retail price changes, orders, receipts, flags, and notes. ប្រើវា to audit the detail page មុនពេល correcting the catalog or history.
+
+### Catalog SKU Hero Signal
+
+The SKU hero signal គឺជា the large top-line operational statement on the detail page. វា translates current stock, demand, pipeline, and timing into a human-readable status. ប្រើវា for quick orientation, then inspect the ribbon and rail for causes.
+
+### Catalog SKU Operational Ribbon
+
+The SKU operational ribbon គឺជា the compact metric strip below the hero. វា surfaces key quantities such as cover, pipeline, demand, next receipt, or confidence depending on available data. ប្រើវា to scan the item មុនពេល opening deeper panels.
+
+### Trading Chart Ledger
+
+The trading chart ledger គឺជា the detail chart surface for SKU, service, or analysis signals. វា combines timeline controls, indicators, selected interval behavior, and saved evidence overlays. ប្រើវា នៅពេល you need to inspect how a headline changed over time.
+
 ## Insights
 
-Insights គឺជា workspace តែមួយសម្រាប់អានសញ្ញាអាជីវកម្ម។
+Insights គឺជា entry point សម្រាប់ operating signals។ Subpages របស់វាគឺ Pressure, Money, និង Explain។ ប្រើ section នេះដើម្បីជ្រើស lens ដែលត្រូវនឹងសំណួរ៖ operational urgency, financial quality, ឬ evidence-level explanation។
 
-Modes៖
+## Pressure
 
-- **Pressure**៖ demand, capacity, timing, price pressure, comparison, និង prioritization
-- **Money**៖ sales, gross profit signals, capital tied up, margin pressure, និង leakage
-- **Explain**៖ ពន្យល់ថា ហេតុអ្វី បញ្ជី បង្ហាញ signal មួយ
+Pressure គឺជា operational urgency subpage។ វាប្រៀបធៀប demand, available capacity, supplier pipeline, timing, confidence, និង price/margin context ដើម្បីជួយ operator សម្រេចថាអ្វីត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ។ ប្រើ Pressure សម្រាប់ prioritization មុន edit records ឬ place supplier work។
 
-Insights សម្រាប់អាន និងសម្រេចចិត្ត។ វាមិនមែនជា data-entry workflow ទេ។
+### Pressure Band Blocked Profit
+
+Blocked profit contains items with demand or earning potential that cannot convert ព្រោះ stock, timing, or capacity គឺជា in the way. ប្រើផ្នែកនេះ band to find money you may recover by unblocking supply, fixing service dependencies, or correcting availability.
+
+### Pressure Band Cash Traps
+
+Cash traps គឺជា items where stock or capital គឺជា present but operational movement គឺជា weak. They can look safe ព្រោះ they គឺជា not stockouts, yet still waste working capital. ប្រើផ្នែកនេះ band to review pricing, exposure, ordering habits, or archive candidates.
+
+### Pressure Band Winners
+
+Winners គឺជា items with useful demand or performance that គួរ be protected. They may need replenishment, exposure, or attention ព្រោះ losing them would hurt service or sales. ប្រើផ្នែកនេះ band to avoid focusing only on emergencies.
+
+### Pressure Board Demand Trend
+
+Demand trend បង្ហាញ whether recent demand គឺជា rising, falling, stable, or too sparse to trust. វា helps distinguish a temporary spike from a persistent pattern. ប្រើវា with support and pipeline columns មុនពេល changing reorder behavior.
+
+### Pressure Board Item
+
+Item identifies the SKU or service in the demand/capacity board. ប្រើវា to open the detail page នៅពេល a row needs action. For services, remember the visible pressure may come from linked SKUs rather than the service record itself.
+
+### Pressure Board Pipeline Support
+
+Pipeline support បង្ហាញ whether open supplier orders or expected receipts can cover the risk. Strong support មានន័យថា relief may already be in motion; weak support មានន័យថា demand may outrun supply. ប្រើវា មុនពេល creating or chasing supplier work.
+
+### Pressure Board Price Margin
+
+Price / margin បង្ហាញ whether pricing or profitability គឺជា part of the pressure story. វា can point to underpriced items, margin changes, or revenue opportunity. ប្រើវា នៅពេល demand គឺជា present but the recommended move គឺជា not simply reorder stock.
+
+### Pressure Board Status
+
+Status គឺជា the row's operational classification in the demand/capacity board. វា summarizes the pattern បន្ទាប់ពី considering demand, capacity, support, pipeline, and price/margin. ប្រើវា for scanning, then read the neighboring columns for cause.
+
+### Pressure Board Support
+
+Support describes available capacity or linked inventory that helps satisfy demand. For SKUs, this គឺជា usually stock coverage; for services, it may be the weakest linked SKU. ប្រើវា to see whether the item គឺជា supported enough to keep selling.
+
+### Pressure Cash Signal Bands
+
+Cash signal bands group pressure items by money-related action type. They show where demand, profit, and capital pressure overlap. Use them នៅពេល operational urgency and cash decisions need to be considered together.
+
+### Pressure Confidence
+
+Confidence tells how much trust បញ្ជី has in the pressure signal. វា reflects evidence freshness, coverage, and model stability. Low confidence មានន័យថា capture better data or inspect history មុនពេល making a high-cost decision.
+
+### Pressure Demand Capacity Board
+
+The demand/capacity board គឺជា the main Pressure table for comparing what customers may need against what the operation can supply. វា combines demand trend, support, pipeline, price/margin, and status. ប្រើវា to decide which items need immediate work.
+
+### Pressure Move Action
+
+Action គឺជា the practical next step for a Move Now row. វា may suggest ordering, reviewing, repricing, hiding, exposing, or inspecting an item. ប្រើវា as an operator prompt, not an automatic command.
+
+### Pressure Move Column
+
+Move គឺជា the named recommendation in the Move Now table. វា condenses the row's evidence into an action category so the queue គឺជា scannable. ប្រើវា to prioritize, then read Why now and Expected effect មុនពេល acting.
+
+### Pressure Move Expected Effect
+
+Expected effect explains what គួរ improve if the move គឺជា correct. វា may reduce stockout risk, free capital, restore service capacity, or improve margin. ប្រើវា to decide whether the action គឺជា worth the effort now.
+
+### Pressure Move Now
+
+Move Now គឺជា the priority action panel in Pressure. វា បង្ហាញ the few moves បញ្ជី thinks matter most for the selected range and scope. ប្រើវា at the start of a review session, then open rows for evidence មុនពេល changing real operations.
+
+### Pressure Move Why Now
+
+Why now explains the evidence that made a Move Now item urgent. វា គួរ mention the demand, stock, timing, price, confidence, or pipeline reason behind the recommendation. ប្រើវា to reject or accept a move quickly.
+
+### Pressure Operational Drag
+
+Operational drag summarizes items slowing the operation even if they គឺជា not the highest direct stockout risk. វា can include weak support, stale follow-up, or capacity problems. ប្រើវា to find friction that keeps recurring.
+
+### Pressure Price Watch
+
+Price watch highlights items where price, margin, or recent pricing evidence may require attention. ប្រើវា នៅពេល the pressure គឺជា financial or customer-facing rather than purely stock availability.
+
+### Pressure Recovery Pipeline
+
+Recovery pipeline lists items where incoming supply or known receipts may resolve pressure. វា helps avoid duplicate ordering and បង្ហាញ where follow-up គួរ focus on timing. ប្រើវា នៅពេល deciding whether to wait, chase, or order again.
+
+### Pressure Timeline
+
+The pressure timeline បង្ហាញ how the operating signal changed over the selected period. វា helps identify whether urgency គឺជា new, worsening, recovering, or stable. ប្រើវា មុនពេល treating one current score as the whole story.
+
+## Money
+
+Money គឺជា financial quality subpage។ វាពន្យល់ sales, gross profit, tied-up capital, margin movement, commitments, និង contributor quality ពី stock-linked evidence។ ប្រើ Money នៅពេលសំណួរគឺ inventory កំពុង earn, leak margin, ឬ trap cash។
+
+### Money Band Capital Traps
+
+Capital traps គឺជា items holding money in stock without enough useful sales movement. They may not be urgent stockouts, but they tie up cash. ប្រើផ្នែកនេះ band to find inventory that គួរ be discounted, paused, rebalanced, or reviewed with the supplier.
+
+### Money Band Earners
+
+Earners គឺជា items producing healthy sales or gross profit in the selected window. ប្រើផ្នែកនេះ band to protect reliable revenue drivers, confirm enough stock remains, and avoid starving items that គឺជា converting inventory into cash cleanly.
+
+### Money Band Margin Leaks
+
+Margin leaks គឺជា items where sales exist but profit quality គឺជា weak or deteriorating. Causes can include stale costs, underpriced retail, delivery handling, discounts, or high capital drag. ប្រើផ្នែកនេះ band to decide whether price, cost, or exposure needs correction.
+
+### Money Commitments Due
+
+Commitments due summarizes customer or supplier money obligations that គឺជា coming up. វា helps show near-term cash pressure, not just historical sales. ប្រើវា នៅពេល deciding whether capital គឺជា available for replenishment.
+
+### Money Contributors Capital Tied Up
+
+Capital tied up គឺជា the current stock-linked money attached to a contributor. វា estimates how much cash គឺជា sitting in inventory for that SKU or service path. ប្រើវា to compare profit against working capital rather than sales alone.
+
+### Money Contributors Entity
+
+Entity identifies the SKU or service contributing to the Money view. វា lets you move from financial summary back to the operational record. Open it នៅពេល the money signal needs a catalog, stock, or pricing correction.
+
+### Money Contributors Gross Profit
+
+Gross profit គឺជា sales បន្ទាប់ពី known or inferred stock-linked cost. វា depends on accurate costs and retail prices, so stale catalog pricing can distort it. ប្រើផ្នែកនេះ column to separate high sales from actually useful sales.
+
+### Money Contributors Net Sales
+
+Net sales គឺជា realized stock-linked revenue in the selected window. វា គឺជា based on saved sale/order evidence that បញ្ជី can connect to catalog entities. ប្រើវា as the top-line activity measure, then compare it to gross profit and capital tied up.
+
+### Money Contributors Status
+
+Status classifies the contributor's financial pattern, such as earning, trapped, leaking, or neutral. វា គឺជា a label for scanning, not a final decision. Use the numeric columns beside it to understand why the label appeared.
+
+### Money Contributors Turn Quality
+
+Turn quality describes whether inventory គឺជា converting into money cleanly. វា weighs movement, capital, and profit quality together. ប្រើវា to spot items that sell too slowly, sell at weak margin, or deserve more stock.
+
+### Money Coverage
+
+Coverage in Money explains how complete the financial view គឺជា for the selected scope. Missing costs, prices, or linked sale evidence can reduce coverage. ប្រើវា មុនពេល trusting totals, especially បន្ទាប់ពី catalog changes or partial data imports.
+
+### Money Economic Contributors
+
+Economic contributors គឺជា the table that explains which entities drive the Money summary. វា breaks total money signals into SKU/service rows with sales, profit, capital, turn quality, and status. ប្រើវា to choose where financial action គួរ happen.
+
+### Money Financial Statement
+
+The financial statement គឺជា the top Money summary for the selected range and scope. វា aggregates sales, gross profit, capital, margin, and related signals from stock-linked evidence. ប្រើវា for orientation, then inspect contributors for the reason behind a total.
+
+### Money Largest Capital Positions
+
+Largest capital positions list where inventory money គឺជា concentrated. These គឺជា not automatically bad; they គឺជា where cash exposure គឺជា largest. Use them to check whether high-value stock គឺជា supported by demand, pipeline, and margin.
+
+### Money Quality Bands
+
+Money quality bands group contributors by financial pattern. They separate earners, capital traps, and margin leaks so the user can scan action types instead of reading every row. Use them as a triage board for cash decisions.
+
+### Money Recent Margin Shifts
+
+Recent margin shifts show items whose profit behavior changed in the selected window. They can reveal cost updates, price changes, discounts, or bad data. ប្រើផ្នែកនេះ rail មុនពេល assuming a margin issue គឺជា caused by demand.
+
+### Money Telegram Attribution
+
+Telegram attribution បង្ហាញ money linked to automation-driven customer intake នៅពេល that path គឺជា available. វា helps separate manual sales from automation-assisted work. ប្រើវា to judge whether customer automation គឺជា producing useful revenue or just noise.
+
+## Explain
+
+Explain គឺជា evidence និង model-inspection subpage។ វាបង្ហាញ timeline, observation ledger, pressure table, fragility map, និង run settings ដែលពន្យល់ថាហេតុអ្វី បញ្ជី បង្ហាញ signal មួយ។ ប្រើ Explain នៅពេល recommendation ត្រូវ audit មុនធ្វើ action។
+
+### Explain Fragility Map
+
+Shows where services គឺជា constrained by the SKUs they depend on. Each cell compares service demand against the contributing SKU supply path, so use it to find whether a service problem គឺជា really caused by one stock item, several weak dependencies, or no named dependency yet. Open the rail នៅពេល you need the saved evidence behind a blocker instead of acting only on the color.
+
+### Explain Ledger
+
+The main Explain timeline. វា aligns regimes, stock movement, supplier pipeline, and lead-time behavior across the same intervals so you can see what changed មុនពេល a signal appeared. ប្រើវា នៅពេល you need to trace a recommendation back to observed events rather than reading a single summary score.
+
+### Explain Ledger Inventory Lane
+
+The inventory lane plots expected stock level and observed stock movement over time. វា combines counts, sales, service demand, receipts, and adjustments into one lane so sudden drops or recoveries គឺជា visible. ប្រើវា to check whether a pressure signal គឺជា demand-driven, count-driven, or simply stale ព្រោះ no recent stock count exists.
+
+### Explain Ledger Lead Time Lane
+
+The lead-time lane បង្ហាញ the supplier timing model for each interval. The line គឺជា the expected lead time and the band គឺជា uncertainty, so wider bands mean បញ្ជី has less stable timing evidence. ប្រើវា មុនពេល trusting reorder timing or delivery promises.
+
+### Explain Ledger Pipeline Lane
+
+The pipeline lane បង្ហាញ supplier order and receipt cues over the timeline. វា helps answer whether incoming stock គឺជា already on the way, whether receipts arrived late, and whether a current shortage may resolve without a new order. ប្រើវា with the lead-time lane មុនពេល creating extra supplier work.
+
+### Explain Ledger Regime Lane
+
+The regime lane labels each interval with the demand pattern បញ្ជី inferred, such as normal, spike, lull, promo, correction, or stockout-constrained. Price and stockout cue badges show why that interval was classified. ប្រើវា to distinguish a real trend from a one-off event.
+
+### Explain Observation Affected Entities
+
+ផ្នែកនេះ column lists the SKUs or services that an observation touched. វា គឺជា useful នៅពេល one saved update influences several downstream surfaces. If the list គឺជា empty, the observation still exists, but it was not attached to a named catalog entity strongly enough to drive entity-level scoring.
+
+### Explain Observation Channels
+
+ផ្នែកនេះ column បង្ហាញ which evidence channels were present in a saved observation: stock, service ranking, retail ranking, stockout, order, receipt, price, lead-time hint, or note. ប្រើវា to understand why an observation matters មុនពេល opening the rail. Blank-looking channels usually mean the update was narrow, not that it failed.
+
+### Explain Observation Observed
+
+The observed column identifies the saved event and its timestamp. វា គឺជា the audit trail behind the Explain workbench. ប្រើវា to find the exact update that changed a signal, then open History or the source record if the observation looks wrong.
+
+### Explain Observations Ledger
+
+The observations ledger គឺជា the compact table of saved updates used by the Explain run. វា បង្ហាញ what បញ្ជី actually saw, not only what the model inferred. ប្រើផ្នែកនេះ table នៅពេល a score looks surprising and you need to confirm whether the source evidence គឺជា recent, complete, and attached to the right item.
+
+### Explain Pressure Item
+
+The item column names the SKU or service in the Explain pressure table. វា includes enough identity context to separate stock-carrying SKUs from services that depend on linked SKUs. Open the row នៅពេល you need to inspect why that entity គឺជា being scored.
+
+### Explain Pressure Lead Time Risk
+
+Lead-time risk estimates how much supplier timing uncertainty contributes to pressure. High risk មានន័យថា the item may fail even នៅពេល today's stock looks acceptable, ព្រោះ replenishment timing គឺជា unstable or poorly evidenced. Review supplier orders, receipts, and lead-time hints មុនពេល dismissing it.
+
+### Explain Pressure Pipeline Risk
+
+Pipeline risk estimates whether incoming supply គឺជា weak, late, missing, or not enough for expected demand. វា គឺជា not just the count of open orders; it also considers timing and support. ប្រើវា to decide whether to chase a supplier ticket or create a new order.
+
+### Explain Pressure Price Sensitivity
+
+Price sensitivity បង្ហាញ whether recent price or margin behavior may be affecting demand or risk. វា helps separate a stock problem from a pricing problem. ប្រើវា នៅពេល pressure rises បន្ទាប់ពី price changes, promotions, or margin shifts.
+
+### Explain Pressure Score
+
+Pressure score គឺជា the combined urgency score for an entity in Explain. វា blends demand, stock, supplier pipeline, timing, and confidence into a 0-100 signal. Treat it as a prioritization aid, then use the rail and observation ledger to confirm the evidence មុនពេល acting.
+
+### Explain Pressure Table
+
+The pressure table ranks entities by operational risk inside the Explain workbench. វា គឺជា built for investigation: scan scores first, then compare pipeline, lead-time, and price columns to see the main driver. ប្រើវា នៅពេល you need to know which item deserves attention and why.
+
+### Explain Rail Affected Entities
+
+ផ្នែកនេះ rail block lists the catalog entities attached to the selected observation. វា answers: “What did this saved update touch?” ប្រើវា នៅពេល a note or customer message seems broad and you need to know which SKU or service បញ្ជី connected it to.
+
+### Explain Rail Affected Entities Summary
+
+ផ្នែកនេះ overview rail block summarizes the entities most affected by the current Explain run. វា គឺជា a quick map of where the model found evidence, not a task list. ប្រើវា to choose which item to inspect next.
+
+### Explain Rail Channels
+
+ផ្នែកនេះ rail block expands the evidence channels for a selected observation. វា បង្ហាញ whether the row came from counts, orders, receipts, ranking signals, prices, lead-time hints, or notes. ប្រើវា to judge whether the observation គឺជា strong enough to explain the downstream signal.
+
+### Explain Rail Contributor Stack
+
+Contributor stack បង្ហាញ the pieces that feed the selected entity's pressure signal. For services, this often includes linked SKUs; for SKUs, it may include demand, pipeline, and timing contributors. ប្រើវា to identify the upstream cause មុនពេល editing the catalog or placing orders.
+
+### Explain Rail Interval Explanation
+
+ផ្នែកនេះ rail block explains the selected interval in the ledger. វា summarizes the dominant regime, driver, and price or stockout cues for that period. ប្រើវា នៅពេល the timeline mark គឺជា visible but the reason for the classification គឺជា not obvious.
+
+### Explain Rail Observation
+
+ផ្នែកនេះ rail block បង្ហាញ the selected saved observation in detail. វា includes the title, observed time, and plain-language detail so you can verify the source event. ប្រើវា to decide whether the explanation គឺជា grounded in a real update or a weak note.
+
+### Explain Rail Observed Signals
+
+Observed signals គឺជា the specific cues found in the selected interval. They can include demand, receipt, adjustment, price, stockout, or note evidence. Use them to understand why the interval changed instead of assuming the line chart moved by itself.
+
+### Explain Rail Orders Transit Lead Time
+
+ផ្នែកនេះ rail block focuses on supplier order probability, quantities, receipts, transit age, and lead-time class for the selected interval. ប្រើវា នៅពេល the question គឺជា whether supply គឺជា already coming, late, or too uncertain to rely on.
+
+### Explain Rail Overview
+
+The overview rail summarizes the current Explain run មុនពេល anything គឺជា selected. វា បង្ហាញ dominant regime, change-point probability, and coverage context. ប្រើវា to understand the run's overall state មុនពេល drilling into a row or interval.
+
+### Explain Rail Posterior State
+
+Posterior state គឺជា the model's current estimate for the selected entity បន្ទាប់ពី reading the evidence. វា includes units, demand per day, reorder trigger, in-transit exposure, and lead-time estimates. ប្រើវា to see the hidden state behind a pressure score.
+
+### Explain Rail Reorder Policy
+
+Reorder policy បង្ហាញ the model's recommended supplier action for a selected SKU. វា includes need probability, recommended order, likely range, protection horizon, and policy basis. ប្រើវា as planning guidance, then check real supplier constraints មុនពេល ordering.
+
+### Explain Rail Settings
+
+ផ្នែកនេះ rail block identifies the selected SKU or service and gives the short pressure explanation. វា គឺជា the entity inspector header, not the global Settings page. ប្រើវា to confirm you គឺជា inspecting the right item មុនពេល opening its Catalog detail.
+
+### Explain Rail Strongest Channels
+
+Strongest channels summarize which evidence types most influenced the current Explain run. They help answer whether the run គឺជា being driven by stock counts, orders, receipts, pricing, notes, or lead-time evidence. Use them to spot missing data channels.
+
+### Explain Rail What Happened
+
+ផ្នែកនេះ rail block breaks the selected interval into service demand, retail demand, receipts, and adjustments. ប្រើវា to separate customer demand from stock movement. វា គឺជា especially useful នៅពេល a net stock change hides several opposite events.
+
+### Explain Settings Coverage Estimate
+
+Coverage estimate states how much of the relevant catalog had enough evidence for the run. Low coverage មានន័យថា the run may be blind to parts of the operation. Add counts, linked SKUs, prices, or observations មុនពេល relying on fine-grained comparisons.
+
+### Explain Settings Effective Sample Size
+
+Effective sample size គឺជា the amount of usable evidence បន្ទាប់ពី weighting, smoothing, and recency effects. វា can be lower than the raw observation count. ប្រើវា to judge whether the model has enough signal or គឺជា stretching sparse data.
+
+### Explain Settings Intervals
+
+Intervals tells how many timeline windows the Explain run evaluated. More intervals can reveal trend and timing behavior; fewer intervals make the run easier to read but less historical. ប្រើវា to understand the time depth behind the visible charts.
+
+### Explain Settings Latest Observed
+
+Latest observed គឺជា the newest saved event included in the Explain run. If this timestamp គឺជា old, the output may be stale even if the screen loaded correctly. Capture a fresh update មុនពេល acting on time-sensitive pressure.
+
+### Explain Settings Observations Used
+
+Observations used គឺជា the count of saved events included បន្ទាប់ពី filtering and scope selection. វា tells you whether the run had enough real data to work with. If it គឺជា low, inspect scope, supplier filter, date range, and recent capture activity.
+
+### Explain Settings Panel
+
+The settings panel explains the run configuration behind Explain. វា lists run ID, latest observation, interval count, smoothing, sample size, error, coverage, and scope. ប្រើវា នៅពេល two users see different results or a run needs to be audited.
+
+### Explain Settings Predictive Error
+
+Predictive error estimates how far the model has recently been from observed outcomes. Higher error មានន័យថា the explanation គួរ be treated as directional, not precise. Improve it by adding fresher counts, receipts, and outcome observations.
+
+### Explain Settings Run ID
+
+Run ID គឺជា the internal identifier for the Explain run currently displayed. វា helps connect screenshots, logs, and support reports to one explanation pass. ប្រើវា នៅពេល comparing runs or debugging why an explanation changed.
+
+### Explain Settings Scope
+
+Scope describes which catalog entities, supplier filters, and time window were included. ប្រើវា មុនពេល comparing numbers across screens: two runs with different scope គឺជា not directly comparable.
+
+### Explain Settings Smoothing
+
+Smoothing controls how strongly the run softens noisy observations. More smoothing reduces jumps from one-off events; less smoothing reacts faster to new evidence. ប្រើវា to understand why a fresh update may not fully dominate the chart.
+
+## Automations
+
+Automations គ្រប់គ្រង configuration និង customer-facing exposure សម្រាប់ automation។ ប្រើវាដើម្បីគ្រប់គ្រង Telegram connection, សម្រេចថា sellables ណាដែល bot អាច offer, និងរក្សា customer-facing catalog data ឱ្យរួចរាល់។ Intake review មាន Help section ដាច់ដោយឡែក ព្រោះវាជា Work subpage មិនមែនត្រឹម configuration panel ទេ។
+
+### Automation Overview
+
+Automation tables ប្រើពាក្យទាំងនេះ៖
+
+- **Exposure** មានន័យថា SKU ឬ service បង្ហាញទៅ customer-facing bot។
+- **Intake** មានន័យថា customer request ដែលបានចាប់យកពី Telegram ឬ automated source ផ្សេង។
+- **Exception** មានន័យថា បញ្ជី មិនអាចបម្លែង message ទៅ normal work ដោយជឿជាក់បាន ហើយត្រូវការ operator review។
+- **Alias** គឺជា customer-facing name ដែលអាចខុសពី internal catalog name។
+- **Confidence** បង្ហាញថា parser ឬ matcher ជឿជាក់ប៉ុន្មានលើ inferred customer request។
+
+Exposure, intake, និង exception headers ពន្យល់ថា value មួយត្រូវបានវាស់ពី catalog data, inferred ពី customer text, ឬរង់ចាំ operator decision។
+
+### Automation Exposure Entity
+
+Entity គឺជា internal SKU ឬ service record ដែល automation អាច mention ទៅ customers។ បើ customer-facing answer មើលទៅខុស សូមបើក entity ព្រោះបញ្ហាធម្មតា គឺ catalog naming, price, archive state, ឬ linked-SKU setup។
+
+### Automation Exposure Type
+
+Type បំបែក stock-carrying SKUs ពី services។ SKUs ពឹងលើ direct stock និង retail sellability។ Services ពឹងលើ linked SKUs និង service availability។
+
+### Automation Exposure Price
+
+Price គឺជា customer-facing amount ដែល automation អាច quote។ Missing prices គួរត្រូវបានកែក្នុង Catalog មុនពេល expose item ទៅ customer messages។
+
+### Automation Exposure Availability
+
+Availability ពន្យល់ថា entity អាចផ្តល់ជូនពី current catalog និង stock data បានឬអត់។ Hidden, limited, unavailable, និង available states គួរត្រូវបានពិនិត្យមុន toggle exposure។
+
+### Automation Exposure Exposed
+
+Exposed គ្រប់គ្រងថា entity អាចមើលឃើញដោយ customer-facing automation ឬអត់។ រក្សា catalog items ដែលមិនច្បាស់ឱ្យ unexposed រហូតដល់ names, prices, aliases, និង availability រួចរាល់សម្រាប់ customers។
+
+### Automation Exposure Alias
+
+Alias គឺជា customer-facing name ដែល automation ប្រើជំនួស internal catalog name។ ប្រើ aliases សម្រាប់ពាក្យដែល customer ប្រើញឹកញាប់, alternate spellings, Khmer/English names, និង short names។
+
+### Automation Configuration
+
+Configuration គឺជា the Telegram connection panel. វា holds bot identity, token, username, and external link settings that let បញ្ជី receive or route customer intake. ប្រើវា only បន្ទាប់ពី catalog prices, exposure, and operator review expectations គឺជា ready.
+
+### Automation Sellables Exposed
+
+Sellables exposed to Telegram គឺជា the customer-facing catalog control. វា decides which SKUs and services automation can mention, quote, or offer. ប្រើវា to hide incomplete items and expose only records with clear names, prices, aliases, and availability.
 
 ## History
 
@@ -153,7 +685,7 @@ History គឺជាប្រវត្តិ saved update។ វាជា mainte
 
 History ពន្យល់អ្វីដែលបានរក្សាទុក។ Work ពន្យល់អ្វីដែលត្រូវធ្វើឥឡូវនេះ។
 
-## Settings និង Help
+## Settings
 
 Settings រួមមាន៖
 
@@ -168,6 +700,42 @@ Settings រួមមាន៖
 - credits
 
 Help mirror មគ្គុទ្ទេសក៍នេះ ហើយអាចស្វែងរកក្នុង app បាន។
+
+### Settings Parameter Guidance
+
+Parameter guidance explains SENA planning inputs such as particle count, service level, quantiles, and intervals. These settings change how conservative or responsive analysis becomes. Adjust them only នៅពេល you understand the tradeoff between stability, speed, and risk.
+
+### Settings Smoothing
+
+Smoothing controls whether បញ្ជី softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. ប្រើវា for steadier operations; disable it only នៅពេល immediate responsiveness matters more than noise control.
+
+## First Useful Workflow
+
+សម្រាប់ workspace ថ្មី លំហូរខ្លីដែលមានប្រយោជន៍គឺ៖
+
+1. បើក Catalog ហើយបង្កើត SKUs ឬ services ដែលក្រុមលក់ពិត។
+2. បន្ថែម supplier, cost, price, lead-time, និង linked-SKU details នៅពេល fields ទាំងនោះប៉ះពាល់ការសម្រេចចិត្ត។
+3. បើក Work / Capture ហើយ save stock count ឬ order ពិតដំបូង។
+4. ត្រឡប់ទៅ Work ដើម្បីមើល supplier ឬ customer tasks ដែលត្រូវយកចិត្តទុកដាក់។
+5. បើក Insights / Pressure ដើម្បីយល់ demand, available capacity, pipeline support, confidence, និង next action។
+6. បើក Insights / Money នៅពេលត្រូវការ sales, gross profit, tied-up capital, ឬ leakage context។
+
+Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis។
+
+## Glossary
+
+### Glossary Terms
+
+- **Pressure**៖ signal អាជីវកម្មថា demand, stock, timing, price, ឬ supplier flow អាចត្រូវការសកម្មភាព។
+- **Coverage**៖ current stock ឬ sellable capacity អាចគ្រប់គ្រាន់សម្រាប់ expected demand បានប៉ុន្មាន។
+- **Pipeline support**៖ open supplier orders ឬ receipts ដែលអាចស្ដារស្តុកមុន demand បង្កបញ្ហា។
+- **Available capacity**៖ units ឬ service deliveries ដែលអាចលក់បានពី current stock និង linked dependencies។
+- **Sellable**៖ SKU ឬ service ដែល active ហើយអាចផ្តល់ទៅ customers។
+- **Stock-limited pattern**៖ pattern ដែល current stock កំណត់ delivery ឬ sales។
+- **Confidence**៖ កម្រិតជំនឿលើ signal ផ្អែកលើ saved evidence និង model stability។
+- **SENA-derived columns**៖ values ដែល inferred ដោយ local analysis engine មិនមែន typed directly ដោយ operator។
+
+Search keywords: risk, urgency, reorder, stockout, can sell, available, demand, capacity, pipeline, support, inference, model, money, margin។
 
 ## សំណួរញឹកញាប់
 

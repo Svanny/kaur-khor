@@ -4,7 +4,7 @@ export type HelpBlock =
   | { type: 'paragraph'; text: string }
   | { type: 'unordered-list'; items: string[] }
   | { type: 'ordered-list'; items: string[] }
-  | { type: 'heading'; depth: 3 | 4; text: string };
+  | { type: 'heading'; depth: 3 | 4; id: string; text: string };
 
 export type HelpSection = {
   id: string;
@@ -119,13 +119,15 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
     }
 
     if (line.startsWith('### ')) {
-      currentSection.blocks.push({ depth: 3, text: normalizeInlineMarkdown(line.slice(4)), type: 'heading' });
+      const text = normalizeInlineMarkdown(line.slice(4));
+      currentSection.blocks.push({ depth: 3, id: slugify(text), text, type: 'heading' });
       index += 1;
       continue;
     }
 
     if (line.startsWith('#### ')) {
-      currentSection.blocks.push({ depth: 4, text: normalizeInlineMarkdown(line.slice(5)), type: 'heading' });
+      const text = normalizeInlineMarkdown(line.slice(5));
+      currentSection.blocks.push({ depth: 4, id: slugify(text), text, type: 'heading' });
       index += 1;
       continue;
     }

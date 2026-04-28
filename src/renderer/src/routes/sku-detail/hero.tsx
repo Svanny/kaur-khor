@@ -45,7 +45,7 @@ export function SkuDetailHero({
       {showHeartbeatRibbons ? (
         <div className="mt-7 text-center">
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-            <SectionLabel tooltip={t('catalogSenaSkuHeroTooltip')}>
+            <SectionLabel helpHref="/settings/help#catalog-sku-hero-signal" tooltip={t('catalogSenaSkuHeroTooltip')}>
               {t('catalogSenaSkuHeroTitle')}
             </SectionLabel>
           </p>
@@ -62,7 +62,7 @@ export function SkuDetailHero({
         <div className="mt-6">
           <MetricRibbon
             title={
-              <SectionLabel tooltip={t('catalogSenaSkuRibbonTooltip')}>
+              <SectionLabel helpHref="/settings/help#catalog-sku-operational-ribbon" tooltip={t('catalogSenaSkuRibbonTooltip')}>
                 {t('catalogSenaSkuOperationalRibbon')}
               </SectionLabel>
             }

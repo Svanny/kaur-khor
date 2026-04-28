@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
@@ -20,6 +20,43 @@ async function checkboxInRow(label: string) {
   const row = labelElement.closest('[data-slot="checkbox-row"]');
   expect(row).not.toBeNull();
   return within(row as HTMLElement).getByRole('checkbox') as HTMLButtonElement;
+}
+
+function mockIntersectionObserver() {
+  let trigger: IntersectionObserverCallback | null = null;
+  const observe = vi.fn();
+  const disconnect = vi.fn();
+  const OriginalIntersectionObserver = window.IntersectionObserver;
+
+  Object.defineProperty(window, 'IntersectionObserver', {
+    configurable: true,
+    value: vi.fn(function MockIntersectionObserver(callback: IntersectionObserverCallback) {
+      trigger = callback;
+      return {
+        disconnect,
+        observe,
+        takeRecords: () => [],
+        unobserve: vi.fn(),
+      };
+    }),
+  });
+
+  return {
+    disconnect,
+    observe,
+    restore: () => {
+      Object.defineProperty(window, 'IntersectionObserver', {
+        configurable: true,
+        value: OriginalIntersectionObserver,
+      });
+    },
+    triggerVisible: () => {
+      if (!trigger) {
+        throw new Error('IntersectionObserver was not created');
+      }
+      trigger([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    },
+  };
 }
 
 function renderSettingsRoute(initialEntry = '/settings/workspace') {
@@ -106,6 +143,7 @@ describe('SettingsRoute', () => {
   const reloadLocation = vi.fn();
 
   beforeEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
     getPreferences.mockReset();
     savePreferences.mockReset();
@@ -978,6 +1016,7 @@ describe('SettingsRoute', () => {
   });
 
   it('redirects disabled automation settings to the highlighted interface row', async () => {
+    const intersectionObserver = mockIntersectionObserver();
     getPreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
@@ -1027,7 +1066,23 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/automation');
 
     await checkboxInRow('Automations and intake');
-    expect(document.querySelector('[data-settings-interface-row="automations"]')).toHaveAttribute('data-highlighted', 'true');
+    const highlightedRow = document.querySelector('[data-settings-interface-row="automations"]');
+    expect(highlightedRow).not.toHaveAttribute('data-highlighted', 'true');
+    expect(screen.queryByTestId('settings-automations-highlight')).not.toBeInTheDocument();
+    expect(intersectionObserver.observe).toHaveBeenCalled();
+
+    act(() => {
+      intersectionObserver.triggerVisible();
+    });
+
+    expect(highlightedRow).toHaveAttribute('data-highlighted', 'true');
+    expect(highlightedRow).not.toHaveClass('px-2');
+    expect(highlightedRow).not.toHaveClass('bg-primary/10');
+    const highlight = screen.getByTestId('settings-automations-highlight');
+    expect(highlight).toHaveClass('inset-0');
+    expect(highlight).toHaveClass('motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1]');
+    expect(intersectionObserver.disconnect).toHaveBeenCalled();
+    intersectionObserver.restore();
   });
 
   it('renders and saves the performance compare toggle preference', async () => {
@@ -1285,7 +1340,7 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/planning');
 
     expect(await screen.findAllByText('Planning settings')).not.toHaveLength(0);
-    expect(screen.queryByLabelText(/analysis profile/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/planning profile/i)).not.toBeInTheDocument();
     const resetDefaultsButton = screen.getAllByRole('button', { name: /reset to defaults/i })[0];
     const savePreferencesButton = firstSavePreferencesButton();
     const planningButtons = screen.getAllByRole('button');

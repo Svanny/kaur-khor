@@ -70,6 +70,7 @@ interface WorkspaceTitleCardProps {
   floatingActions?: ReactNode;
   children?: ReactNode;
   className?: string;
+  helperExemptReason?: string;
 }
 
 export function WorkspaceTitleCard({
@@ -81,6 +82,7 @@ export function WorkspaceTitleCard({
   floatingActions,
   children,
   className,
+  helperExemptReason,
 }: WorkspaceTitleCardProps) {
   const descriptionVisible = useDescriptionTextVisible();
   const resolvedDescriptor = descriptor ?? description;
@@ -91,7 +93,10 @@ export function WorkspaceTitleCard({
 
   return (
     <div ref={anchorRef}>
-      <Card className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}>
+      <Card
+        className={cn('hero-mesh relative overflow-hidden border-white/70', !showDescription && 'gap-4', className)}
+        data-helper-exempt={helperExemptReason ?? undefined}
+      >
         <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
           <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
             {eyebrow ? (
@@ -187,6 +192,7 @@ export function WorkspacePanel({
   contentClassName,
   footer,
   forceDescription = false,
+  helperExemptReason,
   style,
 }: {
   title?: ReactNode;
@@ -199,6 +205,7 @@ export function WorkspacePanel({
   contentClassName?: string;
   footer?: ReactNode;
   forceDescription?: boolean;
+  helperExemptReason?: string;
   style?: CSSProperties;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
@@ -211,7 +218,11 @@ export function WorkspacePanel({
   const hasContent = children != null;
 
   return (
-    <Card className={cn('border-white/70', !showDescription && hasHeader && 'gap-4', className)} style={style}>
+    <Card
+      className={cn('border-white/70', !showDescription && hasHeader && 'gap-4', className)}
+      data-helper-exempt={helperExemptReason ?? undefined}
+      style={style}
+    >
       {hasHeader ? (
         <CardHeader className={cn(!showDescription && 'gap-0')}>
           {title ? <CardTitle>{title}</CardTitle> : null}

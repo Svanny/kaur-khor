@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import type { AutomationIntakeTableRow } from './view-model';
 import {
   createHeaderedTableLayout,
@@ -14,6 +15,7 @@ import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { ActionClipboardAddIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { EntityCustomerIcon } from '@icons/entities';
+import { SectionLabel } from '@/routes/sku-detail/section-heading';
 
 const automationActionButtonClassName = 'min-w-[152px] justify-center';
 
@@ -22,6 +24,18 @@ const layout = createHeaderedTableLayout({
   columns: 'minmax(14rem,0.95fr) minmax(14rem,1.15fr) minmax(8rem,0.5fr) minmax(8rem,0.52fr) minmax(12rem,0.9fr) minmax(8rem,0.5fr)',
   gap: 4,
 });
+
+function HeaderTooltipLabel({
+  children,
+  helpHref,
+  tooltip,
+}: {
+  children: ReactNode;
+  helpHref: string;
+  tooltip: string;
+}) {
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
+}
 
 export function AutomationIntakeTable({
   rows,
@@ -38,11 +52,21 @@ export function AutomationIntakeTable({
     <HeaderedTable>
       <div className={layout.containerClassName} style={layout.style}>
         <HeaderedTableHeader className={layout.headerClassName}>
-          <HeaderedTableHeaderCell>Customer</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Request</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Quoted total</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>State</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Created / updated</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-customer" tooltip="Customer identity inferred from the intake conversation.">Customer</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-request" tooltip="The parsed customer request before it is attached to a ticket.">Request</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip="Estimated customer-facing total when banji has enough matched catalog data.">Quoted total</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-state" tooltip="Current intake state, including whether operator review is still needed.">State</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-created-updated" tooltip="When the intake was created and most recently changed.">Created / updated</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">Action</HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={layout.bodyClassName}>

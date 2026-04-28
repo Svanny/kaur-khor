@@ -10,6 +10,7 @@ export const PERFORMANCE_RAIL_BLOCK_CLASS_NAME = `${cardFrameClassName} ${cardSu
 export function PerformanceSectionShell({
   title,
   tooltip,
+  helpHref,
   descriptor,
   description,
   headerActions,
@@ -20,6 +21,7 @@ export function PerformanceSectionShell({
 }: {
   title: string;
   tooltip: string;
+  helpHref: string;
   descriptor?: ReactNode;
   description?: ReactNode;
   headerActions?: ReactNode;
@@ -38,7 +40,7 @@ export function PerformanceSectionShell({
       <div className="border-b border-border/60 px-6 py-4">
         <div className="flex items-start justify-between gap-4">
           <div className={cn('flex flex-col gap-2', !showDescription && 'gap-0')}>
-            <SectionTitle title={title} tooltip={tooltip} />
+            <SectionTitle helpHref={helpHref} title={title} tooltip={tooltip} />
             {showDescription ? (
               <DescriptionText as={descriptorElement} className="max-w-3xl text-sm leading-6 text-muted-foreground">
                 {resolvedDescriptor}
@@ -57,17 +59,19 @@ export function PerformanceSectionShell({
 export function PerformanceRightRailBlock({
   title,
   tooltip,
+  helpHref,
   children,
 }: {
   title: string;
   tooltip: string;
+  helpHref: string;
   children: ReactNode;
 }) {
   return (
     <section className={PERFORMANCE_RAIL_BLOCK_CLASS_NAME}>
       <div className="border-b border-border/60 px-4 py-3">
         <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </h3>
       </div>
       <div className="px-4 py-4">{children}</div>

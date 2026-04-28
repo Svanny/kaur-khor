@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import type { AutomationExposureRow } from '@shared/automation';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import {
@@ -14,12 +15,25 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { SectionLabel } from '@/routes/sku-detail/section-heading';
 
 const layout = createHeaderedTableLayout({
   breakpoint: 'xl',
   columns: 'minmax(16rem,1.2fr) minmax(7rem,0.5fr) minmax(8rem,0.55fr) minmax(9rem,0.6fr) minmax(6rem,0.45fr) minmax(12rem,0.8fr)',
   gap: 4,
 });
+
+function HeaderTooltipLabel({
+  children,
+  helpHref,
+  tooltip,
+}: {
+  children: ReactNode;
+  helpHref: string;
+  tooltip: string;
+}) {
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
+}
 
 function availabilityTone(status: AutomationExposureRow['availabilityStatus']) {
   switch (status) {
@@ -59,12 +73,24 @@ export function AutomationExposureTable({
     <HeaderedTable>
       <div className={layout.containerClassName} style={layout.style}>
         <HeaderedTableHeader className={layout.headerClassName}>
-          <HeaderedTableHeaderCell>Entity</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Type</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Price</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Availability</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell align="center">Exposed</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Alias</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-entity" tooltip="The internal SKU or service record that can be shown to customers.">Entity</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-type" tooltip="Whether the exposed catalog record is a stock-carrying SKU or a linked service.">Type</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-price" tooltip="Customer-facing price currently available for automation replies.">Price</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-availability" tooltip="Whether the item can be offered from current catalog and availability data.">Availability</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-exposed" tooltip="Controls whether this catalog record is visible to customer-facing automation.">Exposed</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-alias" tooltip="Optional customer-facing name used by the automation instead of the internal catalog name.">Alias</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={layout.bodyClassName}>
           {rows.map((row) => (

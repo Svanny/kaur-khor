@@ -1,5 +1,5 @@
 import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { HelpRoute } from './help';
@@ -67,8 +67,46 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
+function mockIntersectionObserver() {
+  let trigger: IntersectionObserverCallback | null = null;
+  const observe = vi.fn();
+  const disconnect = vi.fn();
+  const OriginalIntersectionObserver = window.IntersectionObserver;
+
+  Object.defineProperty(window, 'IntersectionObserver', {
+    configurable: true,
+    value: vi.fn(function MockIntersectionObserver(callback: IntersectionObserverCallback) {
+      trigger = callback;
+      return {
+        disconnect,
+        observe,
+        takeRecords: () => [],
+        unobserve: vi.fn(),
+      };
+    }),
+  });
+
+  return {
+    disconnect,
+    observe,
+    restore: () => {
+      Object.defineProperty(window, 'IntersectionObserver', {
+        configurable: true,
+        value: OriginalIntersectionObserver,
+      });
+    },
+    triggerVisible: () => {
+      if (!trigger) {
+        throw new Error('IntersectionObserver was not created');
+      }
+      trigger([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    },
+  };
+}
+
 describe('HelpRoute', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     mockPreferences();
     window.history.replaceState(null, '', '/');
   });
@@ -87,7 +125,7 @@ describe('HelpRoute', () => {
       target: { value: 'local data' },
     });
 
-    expect(screen.getAllByText('Settings And Help').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
     expect(screen.queryAllByText('Work')).toHaveLength(0);
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
@@ -134,7 +172,7 @@ describe('HelpRoute', () => {
       target: { value: 'Settings' },
     });
 
-    expect(screen.getAllByText('Settings និង Help').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
 
@@ -207,9 +245,78 @@ describe('HelpRoute', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Settings And Help' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
-    expect(window.location.href).toContain('/#settings-and-help');
+    expect(window.location.href).toContain('/#settings');
+  });
+
+  test('scrolls directly to a subsection before starting the More-link flash', () => {
+    const intersectionObserver = mockIntersectionObserver();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/help#automation-intake-request']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(intersectionObserver.observe).toHaveBeenCalled();
+    const target = document.getElementById('automation-intake-request');
+    expect(target).toHaveTextContent('Automation Intake Request');
+    const highlightedGroup = target?.closest('[data-active-help-subsection="true"]');
+    expect(highlightedGroup).toBeNull();
+
+    act(() => {
+      intersectionObserver.triggerVisible();
+    });
+
+    const delayedHighlightedGroup = target?.closest('[data-active-help-subsection="true"]');
+    expect(delayedHighlightedGroup).not.toBeNull();
+    expect(delayedHighlightedGroup).not.toHaveClass('px-4');
+    expect(delayedHighlightedGroup).not.toHaveClass('py-3');
+    expect(delayedHighlightedGroup).not.toHaveClass('text-primary');
+    expect(screen.getByTestId('help-subsection-highlight')).toHaveClass('motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1]');
+    expect(delayedHighlightedGroup).toHaveTextContent('The Request column summarizes what the customer appears to be asking for');
+    expect(intersectionObserver.disconnect).toHaveBeenCalled();
+    intersectionObserver.restore();
+  });
+
+  test('clears the More-link subsection highlight after a short reading window', async () => {
+    vi.useFakeTimers();
+    const intersectionObserver = mockIntersectionObserver();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/help#automation-intake-request']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    const target = document.getElementById('automation-intake-request');
+    expect(target?.closest('[data-active-help-subsection="true"]')).toBeNull();
+
+    act(() => {
+      intersectionObserver.triggerVisible();
+    });
+
+    expect(target?.closest('[data-active-help-subsection="true"]')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(1900);
+    });
+
+    expect(target?.closest('[data-active-help-subsection="true"]')).toBeNull();
+    vi.useRealTimers();
+    intersectionObserver.restore();
   });
 });

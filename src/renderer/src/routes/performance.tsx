@@ -103,12 +103,14 @@ function SteeringPill({
 
 function HeaderTooltipLabel({
   children,
+  helpHref,
   tooltip,
 }: {
   children: ReactNode;
+  helpHref: string;
   tooltip: string;
 }) {
-  return <SectionLabel tooltip={tooltip}>{children}</SectionLabel>;
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
 }
 
 function TrendSignalInline({
@@ -182,12 +184,14 @@ function ItemTypeIcon({ type }: { type: string }) {
 
 function CashBandColumn({
   band,
+  helpHref,
   title,
   tooltip,
   emptyMessage,
   rows,
 }: {
   band: 'winners' | 'blockedProfit' | 'cashTraps';
+  helpHref: string;
   title: string;
   tooltip: string;
   emptyMessage: string;
@@ -201,7 +205,7 @@ function CashBandColumn({
       <div className="border-b border-border/60 pb-3">
         <h3 className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-foreground">
           <HeaderIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </h3>
       </div>
       <div className="mt-4 space-y-3">
@@ -283,11 +287,15 @@ function MoveNowTable({
     action: string;
     actionTooltip: string;
     expectedEffect: string;
+    expectedEffectHelpHref: string;
     expectedEffectTooltip: string;
     move: string;
+    moveHelpHref: string;
     moveTooltip: string;
     whyNow: string;
+    whyNowHelpHref: string;
     whyNowTooltip: string;
+    actionHelpHref: string;
   };
   rows: PerformanceMoveRow[];
 }) {
@@ -296,22 +304,22 @@ function MoveNowTable({
       <div className={moveNowTableLayout.containerClassName} style={moveNowTableLayout.style}>
         <HeaderedTableHeader className={moveNowTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={headers.moveTooltip}>
+            <HeaderTooltipLabel helpHref={headers.moveHelpHref} tooltip={headers.moveTooltip}>
               {headers.move}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={headers.whyNowTooltip}>
+            <HeaderTooltipLabel helpHref={headers.whyNowHelpHref} tooltip={headers.whyNowTooltip}>
               {headers.whyNow}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={headers.expectedEffectTooltip}>
+            <HeaderTooltipLabel helpHref={headers.expectedEffectHelpHref} tooltip={headers.expectedEffectTooltip}>
               {headers.expectedEffect}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={headers.actionTooltip}>
+            <HeaderTooltipLabel helpHref={headers.actionHelpHref} tooltip={headers.actionTooltip}>
               {headers.action}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -686,6 +694,7 @@ export function PerformanceRoute() {
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
           <PerformanceSectionShell
+            helpHref="/settings/help#pressure-move-now"
             title={t('performanceRouteMoveNowTitle')}
             tooltip={t('performanceRouteMoveNowTooltip')}
             descriptor={t('performanceRouteMoveNowDescriptor')}
@@ -694,12 +703,16 @@ export function PerformanceRoute() {
             <MoveNowTable
               headers={{
                 action: t('performanceRouteActionHeader'),
+                actionHelpHref: '/settings/help#pressure-move-action',
                 actionTooltip: t('performanceRouteActionHeaderTooltip'),
                 expectedEffect: t('performanceRouteExpectedEffectHeader'),
+                expectedEffectHelpHref: '/settings/help#pressure-move-expected-effect',
                 expectedEffectTooltip: t('performanceRouteExpectedEffectHeaderTooltip'),
                 move: t('performanceRouteMoveHeader'),
+                moveHelpHref: '/settings/help#pressure-move-column',
                 moveTooltip: t('performanceRouteMoveHeaderTooltip'),
                 whyNow: t('performanceRouteWhyNowHeader'),
+                whyNowHelpHref: '/settings/help#pressure-move-why-now',
                 whyNowTooltip: t('performanceRouteWhyNowHeaderTooltip'),
               }}
               rows={model.moves}
@@ -707,6 +720,7 @@ export function PerformanceRoute() {
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
+            helpHref="/settings/help#pressure-demand-capacity-board"
             title={t('performanceRouteBoardTitle')}
             tooltip={t('performanceRouteBoardTooltip')}
             descriptor={t('performanceRouteBoardDescriptor')}
@@ -716,32 +730,32 @@ export function PerformanceRoute() {
               <div className={demandCapacityBoardLayout.containerClassName} style={demandCapacityBoardLayout.style}>
                 <HeaderedTableHeader className={demandCapacityBoardLayout.headerClassName}>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip={t('performanceRouteItemHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-item" tooltip={t('performanceRouteItemHeaderTooltip')}>
                       {t('performanceRouteItemHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell className="px-2">
-                    <HeaderTooltipLabel tooltip={t('performanceRouteDemandTrendHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-demand-trend" tooltip={t('performanceRouteDemandTrendHeaderTooltip')}>
                       {t('performanceRouteDemandTrendHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip={t('performanceRouteSupportHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-support" tooltip={t('performanceRouteSupportHeaderTooltip')}>
                       {t('performanceRouteSupportHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip={t('performanceRoutePipelineSupportHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-pipeline-support" tooltip={t('performanceRoutePipelineSupportHeaderTooltip')}>
                       {t('performanceRoutePipelineSupportHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell>
-                    <HeaderTooltipLabel tooltip={t('performanceRoutePriceMarginHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-price-margin" tooltip={t('performanceRoutePriceMarginHeaderTooltip')}>
                       {t('performanceRoutePriceMarginHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
                   <HeaderedTableHeaderCell align="center" className="px-2">
-                    <HeaderTooltipLabel tooltip={t('performanceRouteStatusHeaderTooltip')}>
+                    <HeaderTooltipLabel helpHref="/settings/help#pressure-board-status" tooltip={t('performanceRouteStatusHeaderTooltip')}>
                       {t('performanceRouteStatusHeader')}
                     </HeaderTooltipLabel>
                   </HeaderedTableHeaderCell>
@@ -862,6 +876,7 @@ export function PerformanceRoute() {
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
+            helpHref="/settings/help#pressure-cash-signal-bands"
             title={t('performanceRouteCashTitle')}
             tooltip={t('performanceRouteCashTooltip')}
             descriptor={t('performanceRouteCashDescriptor')}
@@ -870,6 +885,7 @@ export function PerformanceRoute() {
               <CashBandColumn
                 band="winners"
                 emptyMessage={t('performanceRouteBandEmpty')}
+                helpHref="/settings/help#pressure-band-winners"
                 rows={model.winners}
                 title={t('performanceRouteBandWinners')}
                 tooltip={t('performanceRouteBandWinnersTooltip')}
@@ -877,6 +893,7 @@ export function PerformanceRoute() {
               <CashBandColumn
                 band="blockedProfit"
                 emptyMessage={t('performanceRouteBandEmpty')}
+                helpHref="/settings/help#pressure-band-blocked-profit"
                 rows={model.blockedProfit}
                 title={t('performanceRouteBandBlockedProfit')}
                 tooltip={t('performanceRouteBandBlockedProfitTooltip')}
@@ -884,6 +901,7 @@ export function PerformanceRoute() {
               <CashBandColumn
                 band="cashTraps"
                 emptyMessage={t('performanceRouteBandEmpty')}
+                helpHref="/settings/help#pressure-band-cash-traps"
                 rows={model.cashTraps}
                 title={t('performanceRouteBandCashTraps')}
                 tooltip={t('performanceRouteBandCashTrapsTooltip')}
@@ -895,6 +913,7 @@ export function PerformanceRoute() {
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
           <PerformanceRightRailBlock
+            helpHref="/settings/help#pressure-operational-drag"
             title={t('performanceRouteOperationalDragTitle')}
             tooltip={t('performanceRouteOperationalDragTooltip')}
           >
@@ -908,6 +927,7 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
+            helpHref="/settings/help#pressure-recovery-pipeline"
             title={t('performanceRouteRecoveryPipelineTitle')}
             tooltip={t('performanceRouteRecoveryPipelineTooltip')}
           >
@@ -922,6 +942,7 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
+            helpHref="/settings/help#pressure-price-watch"
             title={t('performanceRoutePriceWatchTitle')}
             tooltip={t('performanceRoutePriceWatchTooltip')}
           >
@@ -936,6 +957,7 @@ export function PerformanceRoute() {
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
+            helpHref="/settings/help#pressure-confidence"
             title={t('performanceRouteConfidenceTitle')}
             tooltip={t('performanceRouteConfidenceTooltip')}
           >
@@ -971,6 +993,7 @@ export function PerformanceRoute() {
 
       {showPerformanceTimelineCard ? (
         <PerformanceSectionShell
+          helpHref="/settings/help#pressure-timeline"
           title={t('performanceRouteTimelineTitle')}
           tooltip={t('performanceRouteTimelineTooltip')}
           descriptor={t('performanceRouteTimelineDescriptor')}

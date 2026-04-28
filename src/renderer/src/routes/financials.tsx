@@ -92,12 +92,14 @@ const statementRowIconClassName =
 
 function HeaderTooltipLabel({
   children,
+  helpHref,
   tooltip,
 }: {
   children: ReactNode;
+  helpHref: string;
   tooltip: string;
 }) {
-  return <SectionLabel tooltip={tooltip}>{children}</SectionLabel>;
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
 }
 
 function statementBlockIcon(blockId: FinancialStatementBlock['id']) {
@@ -226,32 +228,32 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
       <div className={contributorsTableLayout.containerClassName} style={contributorsTableLayout.style}>
         <HeaderedTableHeader className={contributorsTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'The SKU or service explaining part of the current money view.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-entity" tooltip={translateUiLiteral(language, 'The SKU or service explaining part of the current money view.')}>
               {translateUiLiteral(language, 'Entity')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'Realized stock-linked sales in the selected window.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-net-sales" tooltip={translateUiLiteral(language, 'Realized stock-linked sales in the selected window.')}>
               {translateUiLiteral(language, 'Net sales')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'Sales after known or inferred stock-linked cost.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-gross-profit" tooltip={translateUiLiteral(language, 'Sales after known or inferred stock-linked cost.')}>
               {translateUiLiteral(language, 'Gross profit')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'Current stock-linked capital attached to this entity.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-capital-tied-up" tooltip={translateUiLiteral(language, 'Current stock-linked capital attached to this entity.')}>
               {translateUiLiteral(language, 'Capital tied up')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'Whether inventory is converting into money cleanly.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-turn-quality" tooltip={translateUiLiteral(language, 'Whether inventory is converting into money cleanly.')}>
               {translateUiLiteral(language, 'Turn quality')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={translateUiLiteral(language, 'Financial classification for this row.')}>
+            <HeaderTooltipLabel helpHref="/settings/help#money-contributors-status" tooltip={translateUiLiteral(language, 'Financial classification for this row.')}>
               {translateUiLiteral(language, 'Status')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -327,6 +329,7 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
 
 function MoneyBandColumn({
   emptyMessage,
+  helpHref,
   icon,
   rows,
   tone,
@@ -334,6 +337,7 @@ function MoneyBandColumn({
   tooltip,
 }: {
   emptyMessage: string;
+  helpHref: string;
   icon: ReactNode;
   rows: FinancialBandEntry[];
   tone: StatusPillTone;
@@ -345,7 +349,7 @@ function MoneyBandColumn({
       <div className={`rounded-[0.9rem] border px-3 py-2.5 ${tintedSurfaceClassName(tone)}`}>
         <h3 className="flex items-center gap-2 text-lg font-semibold tracking-[-0.02em] text-foreground">
           {icon}
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </h3>
       </div>
       <div className="mt-4 space-y-3">
@@ -829,6 +833,7 @@ export function FinancialsRoute() {
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
           <PerformanceSectionShell
+            helpHref="/settings/help#money-financial-statement"
             title={translateUiLiteral(language, 'Financial statement')}
             tooltip={translateUiLiteral(language, 'The money shape of the business in money in, money tied up, and money leaking layers.')}
             descriptor={translateUiLiteral(language, 'Read the stock-linked money view as a statement, not an action queue.')}
@@ -840,6 +845,7 @@ export function FinancialsRoute() {
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
+            helpHref="/settings/help#money-economic-contributors"
             title={translateUiLiteral(language, 'Economic contributors')}
             tooltip={translateUiLiteral(language, 'The SKUs and services explaining most of the current economic picture.')}
             descriptor={translateUiLiteral(language, 'Ranked by gross profit contribution, then sales contribution.')}
@@ -849,6 +855,7 @@ export function FinancialsRoute() {
           </PerformanceSectionShell>
 
           <PerformanceSectionShell
+            helpHref="/settings/help#money-quality-bands"
             title={translateUiLiteral(language, 'Money quality bands')}
             tooltip={translateUiLiteral(language, 'Financial groupings by earning quality, trapped capital, and margin leakage.')}
             descriptor={translateUiLiteral(language, 'Scan where money is working, sitting, or leaking.')}
@@ -856,6 +863,7 @@ export function FinancialsRoute() {
             <div className="grid gap-6 xl:grid-cols-3">
               <MoneyBandColumn
                 emptyMessage={translateUiLiteral(language, 'No efficient earners are standing out in this window.')}
+                helpHref="/settings/help#money-band-earners"
                 icon={<StatusAchievementIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
                 rows={model.earners}
                 tone="success"
@@ -864,6 +872,7 @@ export function FinancialsRoute() {
               />
               <MoneyBandColumn
                 emptyMessage={translateUiLiteral(language, 'No capital traps are stacking up in this window.')}
+                helpHref="/settings/help#money-band-capital-traps"
                 icon={<StatusSavingsIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
                 rows={model.capitalTraps}
                 tone="warning"
@@ -872,6 +881,7 @@ export function FinancialsRoute() {
               />
               <MoneyBandColumn
                 emptyMessage={translateUiLiteral(language, 'No margin leaks are standing out in this window.')}
+                helpHref="/settings/help#money-band-margin-leaks"
                 icon={<StatusWarningIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
                 rows={model.marginLeaks}
                 tone="danger"
@@ -885,6 +895,7 @@ export function FinancialsRoute() {
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
             <PerformanceRightRailBlock
+              helpHref="/settings/help#money-commitments-due"
               title={translateUiLiteral(language, 'Commitments due')}
               tooltip={translateUiLiteral(language, 'Supplier-side value likely to leave the business soon.')}
             >
@@ -895,6 +906,7 @@ export function FinancialsRoute() {
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              helpHref="/settings/help#money-largest-capital-positions"
               title={translateUiLiteral(language, 'Largest capital positions')}
               tooltip={translateUiLiteral(language, 'The biggest current stock-value concentrations.')}
             >
@@ -905,6 +917,7 @@ export function FinancialsRoute() {
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              helpHref="/settings/help#money-recent-margin-shifts"
               title={translateUiLiteral(language, 'Recent margin shifts')}
               tooltip={translateUiLiteral(language, 'Recent price, cost, receipt, or correction changes with financial impact.')}
             >
@@ -915,6 +928,7 @@ export function FinancialsRoute() {
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              helpHref="/settings/help#money-coverage"
               title={translateUiLiteral(language, 'Coverage')}
               tooltip={translateUiLiteral(language, 'Price, cost, and freshness coverage behind this money view.')}
             >
@@ -934,6 +948,7 @@ export function FinancialsRoute() {
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              helpHref="/settings/help#money-telegram-attribution"
               title={translateUiLiteral(language, 'Telegram attribution')}
               tooltip={translateUiLiteral(language, 'Quoted, realized, and canceled value attributed to Telegram-origin customer intake.')}
             >

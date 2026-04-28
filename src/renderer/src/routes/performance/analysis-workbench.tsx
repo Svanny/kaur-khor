@@ -198,12 +198,14 @@ function regimeInitials(regime: string) {
 
 function HeaderTooltipLabel({
   children,
+  helpHref,
   tooltip,
 }: {
   children: ReactNode;
+  helpHref: string;
   tooltip: string;
 }) {
-  return <SectionLabel tooltip={tooltip}>{children}</SectionLabel>;
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
 }
 
 const LANE_LABEL_COLUMN = '14rem';
@@ -230,10 +232,12 @@ const MAX_PIPELINE_PILL_HEIGHT = 28;
 const MAX_PIPELINE_MARKER_SIZE = 16;
 const MAX_PIPELINE_TOP_PADDING = 28;
 function LaneLabel({
+  helpHref,
   title,
   subtitle,
   tooltip,
 }: {
+  helpHref: string;
   title: string;
   subtitle: string;
   tooltip: string;
@@ -242,7 +246,7 @@ function LaneLabel({
     <div className="sticky left-0 z-[1] flex h-full min-h-[8.75rem] flex-col justify-between rounded-[1.2rem] border border-border/60 bg-white/95 px-4 py-3 backdrop-blur">
       <div className="grid gap-2">
         <p className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </p>
         <p className="text-sm leading-6 text-muted-foreground">{subtitle}</p>
       </div>
@@ -323,12 +327,14 @@ function SignalsWrap({ values }: { values: string[] }) {
 
 function AnalysisRailSection({
   title,
+  helpHref,
   tooltip,
   icon,
   children,
   flash,
 }: {
   title: string;
+  helpHref: string;
   tooltip: string;
   icon: ReactNode;
   children: ReactNode;
@@ -345,7 +351,7 @@ function AnalysisRailSection({
       <div className="mb-4 flex items-center gap-2">
         <span className="text-primary">{icon}</span>
         <h2 className="text-lg font-semibold tracking-[-0.02em] text-foreground">
-          <SectionLabel tooltip={tooltip}>{title}</SectionLabel>
+          <SectionLabel helpHref={helpHref} tooltip={tooltip}>{title}</SectionLabel>
         </h2>
       </div>
       {children}
@@ -858,6 +864,7 @@ function SystemLedger({
       <PerformanceSectionShell
         title={t('analysisWorkbenchLedgerTitle')}
         tooltip={t('analysisWorkbenchLedgerTooltip')}
+        helpHref="/settings/help#explain-ledger"
         descriptor={t('analysisWorkbenchLedgerDescriptor')}
         headerActions={chartHeaderActions}
         className={cn(showRightRailCards && 'lg:rounded-r-none', 'h-full')}
@@ -896,6 +903,7 @@ function SystemLedger({
         >
           {visibleLaneOrder.includes('regime') ? <div className="grid h-full gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
+              helpHref="/settings/help#explain-ledger-regime-lane"
               subtitle={t('analysisWorkbenchLaneRegimeSubtitle')}
               title={t('analysisWorkbenchLaneRegimeTitle')}
               tooltip={t('analysisWorkbenchLaneRegimeTooltip')}
@@ -997,6 +1005,7 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('inventory') ? <div className="grid h-full gap-3" data-lane="inventory" style={laneGridStyle}>
             <LaneLabel
+              helpHref="/settings/help#explain-ledger-inventory-lane"
               subtitle={t('analysisWorkbenchLaneInventorySubtitle')}
               title={t('analysisWorkbenchLaneInventoryTitle')}
               tooltip={t('analysisWorkbenchLaneInventoryTooltip')}
@@ -1207,6 +1216,7 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('pipeline') ? <div className="grid h-full gap-3" data-lane="pipeline" style={laneGridStyle}>
             <LaneLabel
+              helpHref="/settings/help#explain-ledger-pipeline-lane"
               subtitle={t('analysisWorkbenchLanePipelineSubtitle')}
               title={t('analysisWorkbenchLanePipelineTitle')}
               tooltip={t('analysisWorkbenchLanePipelineTooltip')}
@@ -1346,6 +1356,7 @@ function SystemLedger({
 
           {visibleLaneOrder.includes('lead-time') ? <div className="grid h-full gap-3" data-lane="lead-time" style={laneGridStyle}>
             <LaneLabel
+              helpHref="/settings/help#explain-ledger-lead-time-lane"
               subtitle={t('analysisWorkbenchLaneLeadTimeSubtitle')}
               title={t('analysisWorkbenchLaneLeadTimeTitle')}
               tooltip={t('analysisWorkbenchLaneLeadTimeTooltip')}
@@ -1533,27 +1544,27 @@ function EntityPressureTable({
       <div className={pressureTableLayout.containerClassName} style={pressureTableLayout.style}>
         <HeaderedTableHeader className={pressureTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel tooltip={t('performanceRouteItemHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-pressure-item" tooltip={t('performanceRouteItemHeaderTooltip')}>
               {t('performanceRouteItemHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPressureScoreHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-pressure-score" tooltip={t('analysisWorkbenchPressureScoreHeaderTooltip')}>
               {t('analysisWorkbenchPressureScoreHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPipelineRiskHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-pressure-pipeline-risk" tooltip={t('analysisWorkbenchPipelineRiskHeaderTooltip')}>
               {t('analysisWorkbenchPipelineRiskHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchLeadTimeRiskHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-pressure-lead-time-risk" tooltip={t('analysisWorkbenchLeadTimeRiskHeaderTooltip')}>
               {t('analysisWorkbenchLeadTimeRiskHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchPriceSensitivityHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-pressure-price-sensitivity" tooltip={t('analysisWorkbenchPriceSensitivityHeaderTooltip')}>
               {t('analysisWorkbenchPriceSensitivityHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -1642,17 +1653,17 @@ function ObservationLedgerCompact({
       <HeaderedTable>
         <HeaderedTableHeader className={observationLedgerGridClassName}>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchObservedHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-observation-observed" tooltip={t('analysisWorkbenchObservedHeaderTooltip')}>
               {t('analysisWorkbenchObservedHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchObservationChannelsHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-observation-channels" tooltip={t('analysisWorkbenchObservationChannelsHeaderTooltip')}>
               {t('analysisWorkbenchObservationChannelsHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell className="justify-self-start">
-            <HeaderTooltipLabel tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
+            <HeaderTooltipLabel helpHref="/settings/help#explain-observation-affected-entities" tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
               {t('analysisWorkbenchAffectedEntitiesHeader')}
             </HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
@@ -1832,6 +1843,7 @@ function SupplyFragilityMap({
     <PerformanceSectionShell
       title={t('analysisWorkbenchFragilityTitle')}
       tooltip={t('analysisWorkbenchFragilityTooltip')}
+      helpHref="/settings/help#explain-fragility-map"
       descriptor={t('analysisWorkbenchFragilityDescriptor')}
       className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       contentClassName="px-0 py-0"
@@ -1944,17 +1956,17 @@ function SelectedObservationRail({ row }: { row: AnalysisObservationLedgerRow })
   const { t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<EntityEvidenceIcon className="size-4" />} title={t('analysisWorkbenchObservationRailTitle')} tooltip={t('analysisWorkbenchObservationRailTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-observation" icon={<EntityEvidenceIcon className="size-4" />} title={t('analysisWorkbenchObservationRailTitle')} tooltip={t('analysisWorkbenchObservationRailTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{row.title}</p>
         <p className="text-sm text-muted-foreground">{row.observedAt}</p>
         <p className="text-sm leading-6 text-muted-foreground">{row.detail}</p>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<EntitySignalIcon className="size-4" />} title={t('analysisWorkbenchChannelsRailTitle')} tooltip={t('analysisWorkbenchChannelsRailTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-channels" icon={<EntitySignalIcon className="size-4" />} title={t('analysisWorkbenchChannelsRailTitle')} tooltip={t('analysisWorkbenchChannelsRailTooltip')}>
         <ObservationChannels row={row} />
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesRailTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-affected-entities" icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesRailTooltip')}>
         <AnalysisRailList>
           {row.affectedEntityLabels.length > 0 ? row.affectedEntityLabels.map((label) => (
             <AnalysisRailRow key={`${row.id}:${label}`} primary={<span className="text-muted-foreground">{label}</span>} />
@@ -1975,7 +1987,7 @@ function IntervalRail({
   const { language, t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchIntervalExplanationTitle')} tooltip={t('analysisWorkbenchIntervalExplanationTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-interval-explanation" icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchIntervalExplanationTitle')} tooltip={t('analysisWorkbenchIntervalExplanationTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{interval.dateLabel}</p>
         <div className="grid gap-1 text-sm text-muted-foreground">
           <p>{t('analysisWorkbenchSalesPatternLine', { value: translateRegimeLabel(language, interval.dominantRegime) })}</p>
@@ -1986,6 +1998,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'observed-signals'}
+        helpHref="/settings/help#explain-rail-observed-signals"
         icon={<EntitySignalIcon className="size-4" />}
         title={t('analysisWorkbenchObservedSignalsTitle')}
         tooltip={t('analysisWorkbenchObservedSignalsTooltip')}
@@ -2000,6 +2013,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'what-happened'}
+        helpHref="/settings/help#explain-rail-what-happened"
         icon={<StatusWaveformIcon className="size-4" />}
         title={t('analysisWorkbenchWhatHappenedTitle')}
         tooltip={t('analysisWorkbenchWhatHappenedTooltip')}
@@ -2014,6 +2028,7 @@ function IntervalRail({
 
       <AnalysisRailSection
         flash={flashedSection === 'orders-transit-lead-time'}
+        helpHref="/settings/help#explain-rail-orders-transit-lead-time"
         icon={<EntityWaypointsIcon className="size-4" />}
         title={t('analysisWorkbenchOrdersTransitLeadTimeTitle')}
         tooltip={t('analysisWorkbenchOrdersTransitLeadTimeTooltip')}
@@ -2039,6 +2054,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
   return (
     <>
       <AnalysisRailSection
+        helpHref="/settings/help#explain-rail-settings"
         icon={row.entityType === 'sku' ? <EntityPackageSearchIcon className="size-4" /> : <EntityServiceIcon className="size-4" />}
         title={row.entityType === 'sku' ? t('analysisWorkbenchSelectedSkuTitle') : t('analysisWorkbenchSelectedServiceTitle')}
         tooltip={t('analysisWorkbenchSelectedEntityTooltip')}
@@ -2057,7 +2073,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         </Button>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchPosteriorStateTitle')} tooltip={t('analysisWorkbenchPosteriorStateTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-posterior-state" icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchPosteriorStateTitle')} tooltip={t('analysisWorkbenchPosteriorStateTooltip')}>
         <AnalysisRailList>
           <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchPosteriorUnits')}</span>} secondary={row.posteriorUnitsLabel} />
           <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchDemandPerDay')}</span>} secondary={row.demandPerDayLabel} />
@@ -2069,7 +2085,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
       </AnalysisRailSection>
 
       {row.entityType === 'sku' && row.reorderPolicyLabels ? (
-        <AnalysisRailSection icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchReorderPolicyTitle')} tooltip={t('analysisWorkbenchReorderPolicyTooltip')}>
+        <AnalysisRailSection helpHref="/settings/help#explain-rail-reorder-policy" icon={<StatusGaugeIcon className="size-4" />} title={t('analysisWorkbenchReorderPolicyTitle')} tooltip={t('analysisWorkbenchReorderPolicyTooltip')}>
           <AnalysisRailList>
             <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchNeedProbability')}</span>} secondary={row.reorderPolicyLabels.needProbability} />
             <AnalysisRailRow primary={<span className="text-muted-foreground">{t('analysisWorkbenchRecommendedOrder')}</span>} secondary={row.reorderPolicyLabels.recommendedOrder} />
@@ -2080,7 +2096,7 @@ function EntityRail({ row }: { row: AnalysisEntityPressureRow }) {
         </AnalysisRailSection>
       ) : null}
 
-      <AnalysisRailSection icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchContributorStackTitle')} tooltip={t('analysisWorkbenchContributorStackTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-contributor-stack" icon={<NavigationHierarchyIcon className="size-4" />} title={t('analysisWorkbenchContributorStackTitle')} tooltip={t('analysisWorkbenchContributorStackTooltip')}>
         <AnalysisRailList>
           {row.contributorStack.length > 0 ? row.contributorStack.map((entry) => (
             <AnalysisRailRow key={`${row.id}:${entry}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2095,7 +2111,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
   const { language, t } = usePreferences();
   return (
     <>
-      <AnalysisRailSection icon={<StatusRadarIcon className="size-4" />} title={t('analysisWorkbenchOverviewTitle')} tooltip={t('analysisWorkbenchOverviewTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-overview" icon={<StatusRadarIcon className="size-4" />} title={t('analysisWorkbenchOverviewTitle')} tooltip={t('analysisWorkbenchOverviewTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">
           {translateRegimeLabel(language, model.inspectorOverview.dominantRegime)}
         </p>
@@ -2105,7 +2121,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </div>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<StatusTrendChartIcon className="size-4" />} title={t('analysisWorkbenchStrongestChannelsTitle')} tooltip={t('analysisWorkbenchStrongestChannelsTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-strongest-channels" icon={<StatusTrendChartIcon className="size-4" />} title={t('analysisWorkbenchStrongestChannelsTitle')} tooltip={t('analysisWorkbenchStrongestChannelsTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.strongestChannels.map((entry, index) => (
             <AnalysisRailRow
@@ -2116,7 +2132,7 @@ function OverviewRail({ model }: { model: AnalysisWorkbenchViewModel }) {
         </AnalysisRailList>
       </AnalysisRailSection>
 
-      <AnalysisRailSection icon={<NavigationCatalogIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
+      <AnalysisRailSection helpHref="/settings/help#explain-rail-affected-entities-summary" icon={<NavigationCatalogIcon className="size-4" />} title={t('analysisWorkbenchAffectedEntitiesHeader')} tooltip={t('analysisWorkbenchAffectedEntitiesHeaderTooltip')}>
         <AnalysisRailList>
           {model.inspectorOverview.affectedEntities.map((entry, index) => (
             <AnalysisRailRow key={`${entry}:${index}`} primary={<span className="text-muted-foreground">{entry}</span>} />
@@ -2318,6 +2334,7 @@ function PressureSurface({
       <PerformanceSectionShell
         title={t('analysisWorkbenchPressureTitle')}
         tooltip={t('analysisWorkbenchPressureTooltip')}
+        helpHref="/settings/help#explain-pressure-table"
         descriptor={t('analysisWorkbenchPressureDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
@@ -2343,6 +2360,7 @@ function ObservationsSurface({
       <PerformanceSectionShell
         title={t('analysisWorkbenchObservationsTitle')}
         tooltip={t('analysisWorkbenchObservationsTooltip')}
+        helpHref="/settings/help#explain-observations-ledger"
         descriptor={t('analysisWorkbenchObservationsDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
         contentClassName="px-0 py-0"
@@ -2378,21 +2396,22 @@ function SettingsSurface({
 }) {
   const { t } = usePreferences();
   const analysisSettingsFields = [
-    { key: 'run-id', label: t('analysisWorkbenchSettingsRunIdLabel'), tooltip: t('analysisWorkbenchSettingsRunIdTooltip'), valueKey: 'runId' },
-    { key: 'latest-observed', label: t('analysisWorkbenchSettingsLatestObservedLabel'), tooltip: t('analysisWorkbenchSettingsLatestObservedTooltip'), valueKey: 'latestObservedAt' },
-    { key: 'observations-used', label: t('analysisWorkbenchSettingsObservationsUsedLabel'), tooltip: t('analysisWorkbenchSettingsObservationsUsedTooltip'), valueKey: 'observationsUsed' },
-    { key: 'intervals-in-view', label: t('analysisWorkbenchSettingsIntervalsLabel'), tooltip: t('analysisWorkbenchSettingsIntervalsTooltip'), valueKey: 'intervalCount' },
-    { key: 'smoothing', label: t('analysisWorkbenchSettingsSmoothingLabel'), tooltip: t('analysisWorkbenchSettingsSmoothingTooltip'), valueKey: 'smoothingLabel' },
-    { key: 'effective-sample-size', label: t('analysisWorkbenchSettingsSampleSizeLabel'), tooltip: t('analysisWorkbenchSettingsSampleSizeTooltip'), valueKey: 'effectiveSampleSize' },
-    { key: 'predictive-error', label: t('analysisWorkbenchSettingsPredictiveErrorLabel'), tooltip: t('analysisWorkbenchSettingsPredictiveErrorTooltip'), valueKey: 'predictiveError' },
-    { key: 'coverage-estimate', label: t('analysisWorkbenchSettingsCoverageLabel'), tooltip: t('analysisWorkbenchSettingsCoverageTooltip'), valueKey: 'coverageEstimate' },
-    { key: 'scope', label: t('analysisWorkbenchSettingsScopeLabel'), tooltip: t('analysisWorkbenchSettingsScopeTooltip'), valueKey: 'scopeSummary' },
+    { key: 'run-id', label: t('analysisWorkbenchSettingsRunIdLabel'), tooltip: t('analysisWorkbenchSettingsRunIdTooltip'), helpHref: '/settings/help#explain-settings-run-id', valueKey: 'runId' },
+    { key: 'latest-observed', label: t('analysisWorkbenchSettingsLatestObservedLabel'), tooltip: t('analysisWorkbenchSettingsLatestObservedTooltip'), helpHref: '/settings/help#explain-settings-latest-observed', valueKey: 'latestObservedAt' },
+    { key: 'observations-used', label: t('analysisWorkbenchSettingsObservationsUsedLabel'), tooltip: t('analysisWorkbenchSettingsObservationsUsedTooltip'), helpHref: '/settings/help#explain-settings-observations-used', valueKey: 'observationsUsed' },
+    { key: 'intervals-in-view', label: t('analysisWorkbenchSettingsIntervalsLabel'), tooltip: t('analysisWorkbenchSettingsIntervalsTooltip'), helpHref: '/settings/help#explain-settings-intervals', valueKey: 'intervalCount' },
+    { key: 'smoothing', label: t('analysisWorkbenchSettingsSmoothingLabel'), tooltip: t('analysisWorkbenchSettingsSmoothingTooltip'), helpHref: '/settings/help#explain-settings-smoothing', valueKey: 'smoothingLabel' },
+    { key: 'effective-sample-size', label: t('analysisWorkbenchSettingsSampleSizeLabel'), tooltip: t('analysisWorkbenchSettingsSampleSizeTooltip'), helpHref: '/settings/help#explain-settings-effective-sample-size', valueKey: 'effectiveSampleSize' },
+    { key: 'predictive-error', label: t('analysisWorkbenchSettingsPredictiveErrorLabel'), tooltip: t('analysisWorkbenchSettingsPredictiveErrorTooltip'), helpHref: '/settings/help#explain-settings-predictive-error', valueKey: 'predictiveError' },
+    { key: 'coverage-estimate', label: t('analysisWorkbenchSettingsCoverageLabel'), tooltip: t('analysisWorkbenchSettingsCoverageTooltip'), helpHref: '/settings/help#explain-settings-coverage-estimate', valueKey: 'coverageEstimate' },
+    { key: 'scope', label: t('analysisWorkbenchSettingsScopeLabel'), tooltip: t('analysisWorkbenchSettingsScopeTooltip'), helpHref: '/settings/help#explain-settings-scope', valueKey: 'scopeSummary' },
   ] as const;
   return (
     <div className="grid gap-6">
       <PerformanceSectionShell
         title={t('analysisWorkbenchSettingsTitle')}
         tooltip={t('analysisWorkbenchSettingsTooltip')}
+        helpHref="/settings/help#explain-settings-panel"
         descriptor={t('analysisWorkbenchSettingsDescriptor')}
         className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
       >
@@ -2403,7 +2422,7 @@ function SettingsSurface({
             return (
               <div key={field.key} className="rounded-[1.25rem] border border-border/60 bg-white px-4 py-4">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                  <SectionLabel tooltip={field.tooltip}>{field.label}</SectionLabel>
+                  <SectionLabel helpHref={field.helpHref} tooltip={field.tooltip}>{field.label}</SectionLabel>
                 </p>
                 <p className="mt-2 text-base font-medium text-foreground">{value}</p>
               </div>

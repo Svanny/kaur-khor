@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import type { AutomationExceptionRow } from './view-model';
 import {
   createHeaderedTableLayout,
@@ -14,6 +15,7 @@ import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { EntityCustomerIcon } from '@icons/entities';
+import { SectionLabel } from '@/routes/sku-detail/section-heading';
 
 const automationActionButtonClassName = 'min-w-[152px] justify-center';
 
@@ -22,6 +24,18 @@ const layout = createHeaderedTableLayout({
   columns: 'minmax(14rem,0.95fr) minmax(10rem,0.75fr) minmax(16rem,1.1fr) minmax(8rem,0.5fr) minmax(8rem,0.45fr)',
   gap: 4,
 });
+
+function HeaderTooltipLabel({
+  children,
+  helpHref,
+  tooltip,
+}: {
+  children: ReactNode;
+  helpHref: string;
+  tooltip: string;
+}) {
+  return <SectionLabel helpHref={helpHref} tooltip={tooltip}>{children}</SectionLabel>;
+}
 
 export function AutomationExceptionTable({
   rows,
@@ -38,10 +52,18 @@ export function AutomationExceptionTable({
     <HeaderedTable>
       <div className={layout.containerClassName} style={layout.style}>
         <HeaderedTableHeader className={layout.headerClassName}>
-          <HeaderedTableHeaderCell>Customer / conversation</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Issue</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Last message</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>Confidence</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-customer-conversation" tooltip="Customer label and conversation identity tied to this exception.">Customer / conversation</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-issue" tooltip="Why the intake needs operator review before becoming normal work.">Issue</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-last-message" tooltip="Most recent customer message that contributed to the exception.">Last message</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-confidence" tooltip="How sure banji is about the inferred customer request or match.">Confidence</HeaderTooltipLabel>
+          </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">Action</HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={layout.bodyClassName}>

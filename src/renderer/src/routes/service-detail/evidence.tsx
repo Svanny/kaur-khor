@@ -19,6 +19,7 @@ export function ServiceEvidenceTimeline({
 
   return (
     <PagedEvidenceTimelinePanel
+      helpHref="/settings/help#catalog-service-evidence-timeline"
       items={evidence}
       title={t('catalogServiceEvidenceTimelineTitle')}
       tooltip={t('catalogServiceEvidenceTimelineTooltip')}

@@ -20,6 +20,7 @@ export function SkuDetailExposure({ rows }: { rows: SenaSkuDetailViewModel['depe
 
   return (
     <MeasuredPagedDetailPanel
+      helpHref="/settings/help#catalog-sku-dependency-impact"
       items={rows}
       listTestId="dependency-impact-list"
       title={t('catalogSenaSkuDependencyImpact')}

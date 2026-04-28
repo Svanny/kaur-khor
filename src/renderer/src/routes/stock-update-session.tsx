@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
   closestCenter,
@@ -58,7 +58,7 @@ import {
   EntityWalkInChannelIcon,
   EntityWhatsAppChannelIcon,
 } from '@icons/entities';
-import { NavigationBackIcon, NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
+import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
   StatusGaugeIcon,
   StatusReadyIcon,
@@ -98,6 +98,7 @@ import { HelpTooltip } from '@/components/system/help-tooltip';
 import { AutoFitContainer } from '@/components/system/auto-fit-text';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { SearchInput } from '@/components/system/search-input';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import {
@@ -2570,7 +2571,7 @@ function RankingSignalEditor({
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">
-            <SectionLabel tooltip={rankingTooltip} tooltipLabel={`${label} details`}>{label}</SectionLabel>
+            <SectionLabel helpHref="/settings/help#record-update-ranking-details" tooltip={rankingTooltip} tooltipLabel={`${label} details`}>{label}</SectionLabel>
           </p>
           <p className="mt-1 text-sm text-muted-foreground">{t('stockUpdateRankingOptional')}</p>
           {eligibleItemCount === 0 ? (
@@ -3144,6 +3145,7 @@ function DeliveryFeeFields({
               <span>{amountLabel}</span>
               <HelpTooltip
                 content={deliveryFeeHelpText(language)}
+                helpHref="/settings/help#record-update-delivery-fee"
                 label={translateUiLiteral(language, 'Delivery fee')}
               />
             </span>
@@ -3478,6 +3480,7 @@ function StockCountStep({
       style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-stock-count"
           tooltip={t('stockUpdateStockStepTooltip')}
           tooltipLabel={t('stockUpdateStockStepTooltipLabel')}
         >
@@ -3581,7 +3584,7 @@ function StockCostStep(props: {
       className={recordUpdateWhiteCardClassName}
       descriptor={t('stockUpdateCostStepDescription')}
       style={recordUpdateWhiteCardStyle}
-      title={<SectionLabel tooltip={t('stockUpdateCostStepTooltip')} tooltipLabel={t('stockUpdateCostIfChanged')}>{t('stockUpdateCostIfChanged')}</SectionLabel>}
+      title={<SectionLabel helpHref="/settings/help#record-update-stock-cost" tooltip={t('stockUpdateCostStepTooltip')} tooltipLabel={t('stockUpdateCostIfChanged')}>{t('stockUpdateCostIfChanged')}</SectionLabel>}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
@@ -3678,7 +3681,7 @@ function StockRetailPriceStep(props: {
       className={recordUpdateWhiteCardClassName}
       descriptor={t('stockUpdateRetailPriceStepDescription')}
       style={recordUpdateWhiteCardStyle}
-      title={<SectionLabel tooltip={t('stockUpdateRetailPriceStepTooltip')} tooltipLabel={t('stockUpdateRetailPriceIfChanged')}>{t('stockUpdateRetailPriceIfChanged')}</SectionLabel>}
+      title={<SectionLabel helpHref="/settings/help#record-update-retail-price" tooltip={t('stockUpdateRetailPriceStepTooltip')} tooltipLabel={t('stockUpdateRetailPriceIfChanged')}>{t('stockUpdateRetailPriceIfChanged')}</SectionLabel>}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
@@ -3795,7 +3798,7 @@ function StockFlagsStep(props: {
       className={recordUpdateWhiteCardClassName}
       descriptor={t('stockUpdateFlagsStepDescription')}
       style={recordUpdateWhiteCardStyle}
-      title={<SectionLabel tooltip={t('stockUpdateSkuFlagsTooltip')} tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}>{t('stockUpdateAddFlags')}</SectionLabel>}
+      title={<SectionLabel helpHref="/settings/help#record-update-sku-flags" tooltip={t('stockUpdateSkuFlagsTooltip')} tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}>{t('stockUpdateAddFlags')}</SectionLabel>}
     >
       <div className="grid gap-3">
         {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
@@ -5082,6 +5085,7 @@ function ServiceSignalsStep({
       style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-service-step"
           tooltip={t('stockUpdateServiceStepTooltip')}
           tooltipLabel={t('stockUpdateServiceStepTooltipLabel')}
         >
@@ -5102,6 +5106,7 @@ function ServiceSignalsStep({
               {
                 header: (
                   <SectionLabel
+                    helpHref="/settings/help#record-update-service-flags"
                     tooltip={t('stockUpdateServiceFlagsTooltip')}
                     tooltipLabel={t('stockUpdateServiceFlagsTooltipLabel')}
                   >
@@ -5365,6 +5370,7 @@ function ReviewStep({
       style={recordUpdateWhiteCardStyle}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-review"
           tooltip={t('stockUpdateReviewTooltip')}
           tooltipLabel={t('stockUpdateReviewTooltipLabel')}
         >
@@ -9394,6 +9400,7 @@ export function StockUpdateSessionRoute() {
       }
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-observed-at"
           tooltip={t('stockUpdateObservedAtTooltip')}
           tooltipLabel={t('stockUpdateObservedAt')}
         >
@@ -9420,6 +9427,7 @@ export function StockUpdateSessionRoute() {
       footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-notes"
           tooltip={t('stockUpdateNotesTooltip')}
           tooltipLabel={t('stockReportNotes')}
         >
@@ -9454,6 +9462,7 @@ export function StockUpdateSessionRoute() {
       footer={<p className="text-sm text-muted-foreground">{t('stockUpdateNotesHelp')}</p>}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-notes"
           tooltip={t('stockUpdateNotesTooltip')}
           tooltipLabel={t('stockReportNotes')}
         >
@@ -9511,6 +9520,7 @@ export function StockUpdateSessionRoute() {
       footer={<p className="text-sm text-muted-foreground">{t('stockUpdateContextFooterEmpty')}</p>}
       title={
         <SectionLabel
+          helpHref="/settings/help#record-update-regime-context"
           tooltip={t('stockUpdateRegimeHelp')}
           tooltipLabel={t('stockUpdateOverallRegime')}
         >
@@ -9881,6 +9891,7 @@ export function StockUpdateSessionRoute() {
         style={recordUpdateWhiteCardStyle}
         title={
           <SectionLabel
+            helpHref="/settings/help#record-update-rankings"
             tooltip={t('stockUpdateRankingsTooltip')}
             tooltipLabel={t('stockUpdateRankingsTooltipLabel')}
           >
@@ -10035,13 +10046,7 @@ export function StockUpdateSessionRoute() {
         }
         title={
           <span className="flex min-w-0 items-center gap-4">
-            <Link
-              aria-label={t('stockSessionBack')}
-              className="inline-flex size-10 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70"
-              to={RECORD_UPDATE_HUB_PATH}
-            >
-              <NavigationBackIcon className="size-5" />
-            </Link>
+            <RouteBackButton className="shrink-0" />
             <span className="min-w-0">{translateUiLiteral(language, lane.title)}</span>
           </span>
         }
@@ -10798,6 +10803,7 @@ export function StockUpdateSessionRoute() {
                             />
                             <HelpTooltip
                               content={deliveryFeeHelpText(language)}
+                              helpHref="/settings/help#record-update-delivery-fee"
                               label={translateUiLiteral(language, 'Delivery fee')}
                             />
                           </div>

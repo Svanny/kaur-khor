@@ -15,17 +15,19 @@ function minHeightStyle(value: number) {
 
 function PanelFrame({
   children,
+  helpHref,
   title,
   tooltip,
 }: {
   children: ReactNode;
+  helpHref: string;
   title: string;
   tooltip: string;
 }) {
   return (
     <section className={`${cardFrameClassName} ${cardSurfaceClassName} rounded-[2rem]`}>
       <div className="border-b border-border/60 px-6 py-4">
-        <SectionTitle title={title} tooltip={tooltip} />
+        <SectionTitle helpHref={helpHref} title={title} tooltip={tooltip} />
       </div>
       {children}
     </section>
@@ -119,6 +121,7 @@ export function MeasuredPagedDetailPanel<T>({
   listTestId,
   maxBodyHeight = DEFAULT_MEASURED_PANEL_MAX_BODY_HEIGHT,
   renderItem,
+  helpHref,
   title,
   tooltip,
 }: {
@@ -127,6 +130,7 @@ export function MeasuredPagedDetailPanel<T>({
   listTestId?: string;
   maxBodyHeight?: number;
   renderItem: (item: T) => ReactNode;
+  helpHref: string;
   title: string;
   tooltip: string;
 }) {
@@ -212,7 +216,7 @@ export function MeasuredPagedDetailPanel<T>({
   }, [pagedItems, stableBodyHeight]);
 
   return (
-    <PanelFrame title={title} tooltip={tooltip}>
+    <PanelFrame helpHref={helpHref} title={title} tooltip={tooltip}>
       <div
         ref={listRef}
         className="divide-y divide-border/60 px-6 py-2"
@@ -233,6 +237,7 @@ export function PagedEvidenceTimelinePanel<T>({
   items,
   pageSize = 5,
   renderItem,
+  helpHref,
   title,
   tooltip,
 }: {
@@ -240,6 +245,7 @@ export function PagedEvidenceTimelinePanel<T>({
   items: T[];
   pageSize?: number;
   renderItem: (item: T) => ReactNode;
+  helpHref: string;
   title: string;
   tooltip: string;
 }) {
@@ -268,7 +274,7 @@ export function PagedEvidenceTimelinePanel<T>({
   }, [pagedItems, stableBodyHeight]);
 
   return (
-    <PanelFrame title={title} tooltip={tooltip}>
+    <PanelFrame helpHref={helpHref} title={title} tooltip={tooltip}>
       <div ref={bodyRef} className="divide-y divide-border/60 px-6 py-2" style={minHeightStyle(stableBodyHeight)}>
         {items.length > 0 ? pagedItems.map((item, index) => <div key={index}>{renderItem(item)}</div>) : emptyState}
       </div>
