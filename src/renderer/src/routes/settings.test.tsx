@@ -1455,7 +1455,7 @@ describe('SettingsRoute', () => {
     const particleInput = await screen.findByLabelText(/evidence detail level/i);
     fireEvent.change(particleInput, { target: { value: '5000' } });
 
-    expect(particleInput).toHaveDisplayValue('5000');
+    await waitFor(() => expect(particleInput).toHaveDisplayValue('5000'));
     expect(await screen.findByText('Valid range: 32 to 2048.')).toBeInTheDocument();
     expect(firstSavePreferencesButton()).toBeDisabled();
 
