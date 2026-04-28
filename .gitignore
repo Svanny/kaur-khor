@@ -61,3 +61,14 @@ app.*.symbols
 app.*.map.json
 # Added by code-review-graph
 .code-review-graph/
+
+# Screenshots and local debug artifacts
+*.png
+!docs/readme/*.png
+!docs/development/*.png
+
+# Compiled output from TypeScript sources (build artifacts)
+electron.vite.config.js
+src/**/*.js
+src/**/*.d.ts
+!src/renderer/src/global.d.ts

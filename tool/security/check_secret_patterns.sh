@@ -27,6 +27,7 @@ report() {
 
 check_env_template_placeholders() {
   local file line lineno key value
+  [[ -d config/env ]] || return 0
   while IFS= read -r file; do
     [[ -f "$file" ]] || continue
     lineno=0
