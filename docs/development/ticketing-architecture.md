@@ -40,9 +40,9 @@ inside a notes section. Channel values should be normalized case-insensitively.
 Customer phones should be stored/displayed as `+<countrycode> <number>` and
 lookups should use normalized compact keys.
 
-## Record Update
+## Capture
 
-Record Update remains the canonical authoring surface. The primary wizards are:
+Capture remains the canonical authoring surface. The primary wizards are:
 
 - Stock count
 - Customer order
@@ -59,7 +59,7 @@ Customer order and Supplier order must ask for mode before the wizard continues:
 - new ticket
 - edit or update existing ticket
 
-Customer channel, customer name, and phone live in the Record Update notes block
+Customer channel, customer name, and phone live in the Capture notes block
 for customer-facing flows. That is a UI placement decision only; the backend
 still stores those values as structured ticket party metadata.
 
@@ -67,7 +67,7 @@ Immediate sale is its own same-session sale flow. It records a customer-family
 demand event that is resolved immediately, but it should not be framed as
 "completed customer fulfillment" inside Customer order.
 
-Record Update now also keeps more route-local state around the ticket-driven
+Capture now also keeps more route-local state around the ticket-driven
 workbench:
 
 - saved lane drafts can be resumed or explicitly discarded from the hub
@@ -78,9 +78,9 @@ workbench:
 - delivery fee, payer, and phone metadata are structured fields, even when the
   surface groups them under notes or receipt review UI
 
-## Overview
+## Inbox
 
-Overview is the operational queue. Its top-level family switch is:
+Inbox is the operational queue. Its top-level family switch is:
 
 - Customer
 - Supplier
@@ -88,9 +88,9 @@ Overview is the operational queue. Its top-level family switch is:
 Customer mode shows customer-family ticket work, including the customer-only
 status filters needed to separate open work from stock blockers and ready
 completions. Supplier mode shows supplier-family ticket work and is the default
-queue when Overview opens.
+queue when Inbox opens.
 
-Do not reintroduce the legacy batch-action prompt. Overview task actions should
+Do not reintroduce the legacy batch-action prompt. Inbox task actions should
 open or update one ticket-backed work item at a time.
 
 ## Downstream Projections
@@ -103,16 +103,17 @@ placed, ETA changed, partial receipt, full receipt, correction, and cancellation
 Service detail should show customer commitments directly and supplier-side state
 through bottleneck recovery paths. A service is not replenished directly.
 
-Performance may use ticket state for interventions such as overdue customer
-follow-ups, blocked bottleneck restocks, repeated supplier delay, and
+Insights Performance mode may use ticket state for interventions such as overdue
+customer follow-ups, blocked bottleneck restocks, repeated supplier delay, and
 cancellation clusters. It should not become a ticket board.
 
-Analysis may use ticket events as evidence classes. It should not allow inline
-ticket editing.
+Insights Analysis mode may use ticket events as evidence classes. It should not
+allow inline ticket editing.
 
-Financials must not count open customer tickets as realized revenue. Supplier
-ticket creation affects commitments and in-transit expectations; receipt events
-move value into inventory capital; immediate sales count as realized sales.
+Insights Financials mode must not count open customer tickets as realized
+revenue. Supplier ticket creation affects commitments and in-transit
+expectations; receipt events move value into inventory capital; immediate sales
+count as realized sales.
 
 Automation intake promotion is another downstream writer. Promoted Telegram
 orders should create customer-family ticket history instead of a separate
@@ -124,9 +125,9 @@ When changing ticket authoring or projection behavior, prefer focused tests near
 the touched surface:
 
 - route mapping: `src/renderer/src/lib/record-update-routes.test.ts`
-- Record Update hub: `src/renderer/src/routes/record-update-hub.test.tsx`
-- Record Update wizard: `src/renderer/src/routes/stock-update-session.test.tsx`
-- Overview queue: `src/renderer/src/routes/dashboard.test.tsx`
+- Capture hub: `src/renderer/src/routes/record-update-hub.test.tsx`
+- Capture wizard: `src/renderer/src/routes/stock-update-session.test.tsx`
+- Inbox queue: `src/renderer/src/routes/dashboard.test.tsx`
 - SKU evidence: `src/renderer/src/routes/sku-detail-sena.test.tsx`
 - SENA Rust types: `cargo test --manifest-path apps/sena-core/Cargo.toml`
 

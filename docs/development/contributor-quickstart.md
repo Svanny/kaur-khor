@@ -20,6 +20,7 @@ Main commands:
 pnpm install
 pnpm dev
 pnpm test
+pnpm build
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 cargo test --manifest-path apps/sena-core/Cargo.toml
 ```
@@ -88,6 +89,7 @@ For SENA analysis changes:
 Primary contributor checks:
 
 - `pnpm test`
+- `pnpm build`
 - `cargo test --manifest-path apps/desktop-core/Cargo.toml`
 - `cargo test --manifest-path apps/sena-core/Cargo.toml`
 
@@ -105,3 +107,10 @@ Update `docs/` when you change:
 - automation transport, staging, exposure, or promotion behavior
 - SENA export shapes or settings flows
 - security gate expectations or user-visible product behavior
+
+## Generated Output Boundary
+
+TypeScript source files are the reviewed surface. Do not commit compiled
+`.js` or `.d.ts` siblings emitted beside `src/` files; those are build
+artifacts and are ignored. The node and web TypeScript configs keep `noEmit`
+enabled so type-check style commands do not recreate source-adjacent outputs.

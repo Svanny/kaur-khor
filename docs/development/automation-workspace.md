@@ -16,6 +16,11 @@ The automation workspace is not the source of truth for inventory facts.
 Promotion writes back into the main SENA workspace through ticket and
 commercial events.
 
+Automation visibility is controlled by Settings / Interface. When
+`showAutomationsPage` is off, Work / Intake is hidden, Telegram polling is
+paused, and main-process automation mutating IPC handlers reject operator
+actions. Turning the switch back on resumes the poll loop.
+
 ## Main Pieces
 
 Runtime and storage:
@@ -35,7 +40,8 @@ Runtime and storage:
 Renderer and shared contracts:
 
 - [`src/renderer/src/routes/automations.tsx`](/Users/svanny/banji/src/renderer/src/routes/automations.tsx):
-  route shell and section switching
+  shared automation section implementation used by Inbox intake, Catalog
+  exposure, and Settings connection surfaces
 - [`src/renderer/src/routes/automations/view-model.ts`](/Users/svanny/banji/src/renderer/src/routes/automations/view-model.ts):
   derived overview, intake, and exception rows
 - [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts):
@@ -43,18 +49,20 @@ Renderer and shared contracts:
 - [`src/shared/automation-sellables.ts`](/Users/svanny/banji/src/shared/automation-sellables.ts):
   sellable eligibility rules for exposure rows
 
-## Route Sections
+## Canonical UI Placement
 
-The Automations route is organized into five sections:
+Automation is no longer a persistent top-level page. Its sections are mounted
+under the intent-first destinations:
 
-- `Overview`: connection health, queue counts, recent activity, and key metrics
-- `Catalog`: exposure controls for SKU and service sellables
-- `Live intake`: customer requests that are still being processed or quoted
-- `Needs review`: ambiguous or unresolved requests that need an operator
-- `Settings`: Telegram connection details and transport actions
+- `/work/intake?section=intake`: live intake and needs-review work
+- `/catalog?section=automation`: exposure controls for SKU and service sellables
+- `/settings/automation`: Telegram connection details and transport actions
 
-These sections are route state, not separate pages. Preserve the current
-navigation state behavior when adding filters or deep links.
+The legacy `/automations` URL redirects into those canonical surfaces. Preserve
+section route state when adding filters or deep links.
+
+If automation is hidden by the interface preset or switch, route users back to
+the remembered Work queue state rather than exposing a dead Intake tab.
 
 ## Telegram Contract
 
@@ -74,7 +82,8 @@ The transport layer is responsible for:
 
 - validating and saving bot credentials
 - registering Telegram commands and menu buttons
-- polling updates and advancing the update cursor
+- polling updates and advancing the update cursor only while automations are
+  enabled
 - storing conversation and wizard message references
 - sending customer notifications after ticket promotion or ticket-status changes
 

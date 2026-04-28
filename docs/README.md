@@ -8,18 +8,21 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
 - [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
+- [Intent-first UI overhaul](/Users/svanny/banji/docs/development/intent-first-ui-overhaul.md)
 - [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd)
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd)
 - [Navigation architecture](/Users/svanny/banji/docs/development/navigation-architecture.mmd)
 - [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd)
+- [User decision tree markmap source](/Users/svanny/banji/docs/development/user-decision-tree.markmap.md)
+- [User decision tree interactive markmap](/Users/svanny/banji/docs/development/user-decision-tree.markmap.html)
 - [Overview architecture](/Users/svanny/banji/docs/development/overview-architecture.mmd)
 - [Overview flowchart](/Users/svanny/banji/docs/development/overview-flowchart.mmd)
 - [Automations architecture](/Users/svanny/banji/docs/development/automations-architecture.mmd)
 - [Automations flowchart](/Users/svanny/banji/docs/development/automations-flowchart.mmd)
-- [Record update architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd)
-- [Record update flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd)
+- [Capture architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd)
+- [Capture flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd)
 - [Detail pages architecture](/Users/svanny/banji/docs/development/detail-pages-architecture.mmd)
 - [Detail pages flowchart](/Users/svanny/banji/docs/development/detail-pages-flowchart.mmd)
 - [Stability architecture](/Users/svanny/banji/docs/development/stability-architecture.mmd)
@@ -47,6 +50,7 @@ Core commands:
 pnpm install
 pnpm dev
 pnpm test
+pnpm build
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
 
@@ -65,19 +69,22 @@ pnpm package:win:native
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, automation storage, backup snapshots, restore, and clear-data behavior
 - [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md): Telegram transport, automation staging store, route sections, promotion flow, and focused verification commands
-- [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Record Update authoring contract, Overview queue behavior, and downstream projections
+- [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Work capture authoring contract, Work queue behavior, and downstream projections
+- [Intent-first UI overhaul](/Users/svanny/banji/docs/development/intent-first-ui-overhaul.md): canonical Home, Work, Catalog, Insights, Settings IA and legacy redirect boundaries
 - [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md): brand rules for renderer UI controls, including strict button icon requirements
 - [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](/Users/svanny/banji/docs/development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
 - [Startup flowchart](/Users/svanny/banji/docs/development/startup-flowchart.mmd): control/data-flow map for startup, cache validation, route-scoped deferred reads, and benchmark summaries
 - [Navigation architecture](/Users/svanny/banji/docs/development/navigation-architecture.mmd): benchmark route-click sequence, route readiness, IPC/cache behavior, and navigation summary generation
 - [Navigation flowchart](/Users/svanny/banji/docs/development/navigation-flowchart.mmd): post-startup route flow, automation and financials navigation, read-pool readiness, route-scoped support reads, and navigation benchmark targets
+- [User decision tree markmap source](/Users/svanny/banji/docs/development/user-decision-tree.markmap.md): editable Markmap Markdown hierarchy for user intent ranking, workflows, and the simplified app IA target
+- [User decision tree interactive markmap](/Users/svanny/banji/docs/development/user-decision-tree.markmap.html): offline interactive Markmap render generated with `pnpm run markmap:user-decision-tree`
 - [Overview architecture](/Users/svanny/banji/docs/development/overview-architecture.mmd): dashboard overview route architecture for supplier and customer queues, drawer flows, detail hydration, order-batch reads, and overview benchmark targets
 - [Overview flowchart](/Users/svanny/banji/docs/development/overview-flowchart.mmd): overview benchmark control/data flow for workflow toggles, drawers, model builders, and summary targets
 - [Automations architecture](/Users/svanny/banji/docs/development/automations-architecture.mmd): automation seed, connection, catalog exposure, live intake, drawer, exceptions, and target metrics
 - [Automations flowchart](/Users/svanny/banji/docs/development/automations-flowchart.mmd): automations benchmark control/data flow across tabs, intake drawer reads, and queue metrics
-- [Record update architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, stock count save, supplier receipt save, and ticket mutations
-- [Record update flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd): record-update benchmark control/data flow for lane opens, saves, dashboard readiness, and memory snapshots
+- [Capture architecture](/Users/svanny/banji/docs/development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, stock count save, supplier receipt save, and ticket mutations
+- [Capture flowchart](/Users/svanny/banji/docs/development/record-update-flowchart.mmd): capture benchmark control/data flow for lane opens, saves, Work readiness, and memory snapshots
 - [Detail pages architecture](/Users/svanny/banji/docs/development/detail-pages-architecture.mmd): catalog target selection, SKU/service first and repeat detail loads, cache behavior, and memory metrics
 - [Detail pages flowchart](/Users/svanny/banji/docs/development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for catalog, SKU, service, repeat loads, and cache reads
 - [Stability architecture](/Users/svanny/banji/docs/development/stability-architecture.mmd): repeated sidebar cycle, ready-event coverage, shared route reads, and memory-slope inputs
