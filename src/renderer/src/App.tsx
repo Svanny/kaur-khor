@@ -3,8 +3,9 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { BanjiShell } from '@/components/banji-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
-import { DashboardRoute } from '@/routes/dashboard';
+import { CommandHomeRoute } from '@/routes/command-home';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
+import { readCatalogRouteState } from '@/lib/navigation-state';
 import { PageStateMemoryObserver } from '@/lib/page-state-memory';
 import { OnboardingRoute } from '@/routes/onboarding';
 import {
@@ -24,14 +25,10 @@ import {
   snapshotRendererMemory,
 } from '@/lib/benchmark';
 
-const AnalysisRoute = lazy(() => import('@/routes/analysis').then((module) => ({ default: module.AnalysisRoute })));
-const ArchiveRoute = lazy(() => import('@/routes/archive').then((module) => ({ default: module.ArchiveRoute })));
-const FinancialsRoute = lazy(() => import('@/routes/financials').then((module) => ({ default: module.FinancialsRoute })));
-const HelpRoute = lazy(() => import('@/routes/help').then((module) => ({ default: module.HelpRoute })));
 const InventoryRoute = lazy(() => import('@/routes/inventory').then((module) => ({ default: module.InventoryRoute })));
-const AutomationsRoute = lazy(() => import('@/routes/automations').then((module) => ({ default: module.AutomationsRoute })));
-const PerformanceRoute = lazy(() => import('@/routes/performance').then((module) => ({ default: module.PerformanceRoute })));
+const InsightsRoute = lazy(() => import('@/routes/insights').then((module) => ({ default: module.InsightsRoute })));
 const RecordUpdateHubRoute = lazy(() => import('@/routes/record-update-hub').then((module) => ({ default: module.RecordUpdateHubRoute })));
+const WorkRoute = lazy(() => import('@/routes/work').then((module) => ({ default: module.WorkRoute })));
 const ServiceDetailRoute = lazy(() => import('@/routes/service-detail').then((module) => ({ default: module.ServiceDetailRoute })));
 const ServiceFormRoute = lazy(() => import('@/routes/service-form').then((module) => ({ default: module.ServiceFormRoute })));
 const SettingsRoute = lazy(() => import('@/routes/settings').then((module) => ({ default: module.SettingsRoute })));
@@ -42,32 +39,39 @@ const StockUpdateRoute = lazy(() => import('@/routes/stock-update').then((module
 const StockUpdateSessionRoute = lazy(() => import('@/routes/stock-update-session').then((module) => ({ default: module.StockUpdateSessionRoute })));
 
 const ROUTE_LOCAL_READY_NAMES = new Set([
-  'analysis',
-  'automations',
-  'dashboard',
-  'financials',
-  'performance',
+  'insights.explain',
+  'insights.money',
+  'insights.pressure',
   'service-detail',
+  'work',
+  'work.intake',
+  'work.queue',
 ]);
 
 export function routeBenchmarkName(pathname: string) {
   if (pathname === '/') {
-    return 'dashboard';
+    return 'home';
   }
-  if (pathname.startsWith('/record-update')) {
-    return 'record-update';
+  if (pathname === '/work' || pathname === '/work/queue') {
+    return 'work.queue';
   }
-  if (pathname === '/performance') {
-    return 'performance';
+  if (pathname.startsWith('/work/capture')) {
+    return 'work.capture';
   }
-  if (pathname === '/financials') {
-    return 'financials';
+  if (pathname.startsWith('/work/intake')) {
+    return 'work.intake';
   }
-  if (pathname === '/automations') {
-    return 'automations';
+  if (pathname === '/insights') {
+    return 'insights';
   }
-  if (pathname === '/analysis') {
-    return 'analysis';
+  if (pathname === '/insights/pressure') {
+    return 'insights.pressure';
+  }
+  if (pathname === '/insights/money') {
+    return 'insights.money';
+  }
+  if (pathname === '/insights/explain') {
+    return 'insights.explain';
   }
   if (pathname.startsWith('/catalog/skus/')) {
     return 'sku-detail';
@@ -75,13 +79,28 @@ export function routeBenchmarkName(pathname: string) {
   if (pathname.startsWith('/catalog/services/')) {
     return 'service-detail';
   }
-  if (pathname === '/operations') {
-    return 'operations';
+  if (pathname === '/settings/history') {
+    return 'history';
   }
   if (pathname === '/catalog') {
     return 'catalog';
   }
-  return pathname.replace(/^\/+/, '').replace(/\//g, '-') || 'dashboard';
+  return pathname.replace(/^\/+/, '').replace(/\//g, '-') || 'home';
+}
+
+function CatalogGuardedRoute({
+  canRedirectFromLockedPage,
+  hasCatalogTab,
+}: {
+  canRedirectFromLockedPage: boolean;
+  hasCatalogTab: boolean;
+}) {
+  const location = useLocation();
+  const routeState = readCatalogRouteState(new URLSearchParams(location.search));
+  if (canRedirectFromLockedPage && !hasCatalogTab && routeState.status !== 'archived') {
+    return <Navigate replace to="/catalog/skus/new" />;
+  }
+  return <InventoryRoute />;
 }
 
 function BenchmarkRouteObserver() {
@@ -148,42 +167,27 @@ export function AppRoutes() {
   const inventory = useInventoryState();
   const availability = deriveNavigationAvailability(inventory);
   const canRedirectFromLockedPage = !inventory.isLoading;
-  const recordUpdateGuardedElement = availability.hasRecordUpdateTab
+  const recordUpdateGuardedElement = availability.hasWorkCapture
     ? <RecordUpdateHubRoute />
     : <Navigate replace to="/" />;
-  const stockUpdateSessionGuardedElement = availability.hasRecordUpdateTab
+  const stockUpdateSessionGuardedElement = availability.hasWorkCapture
     ? <StockUpdateSessionRoute />
     : <Navigate replace to="/" />;
 
   return (
     <Suspense fallback={null}>
       <Routes>
-      <Route element={<DashboardRoute />} path="/" />
-      <Route element={<AnalysisRoute />} path="/analysis" />
+      <Route element={<CommandHomeRoute />} path="/" />
+      <Route element={<WorkRoute />} path="/work/*" />
+      <Route element={<InsightsRoute />} path="/insights/*" />
       <Route element={canRedirectFromLockedPage ? recordUpdateGuardedElement : <RecordUpdateHubRoute />} path={RECORD_UPDATE_HUB_PATH} />
       {RECORD_UPDATE_LANES.map((lane) => (
         <Route key={lane.id} element={canRedirectFromLockedPage ? stockUpdateSessionGuardedElement : <StockUpdateSessionRoute />} path={lane.path} />
       ))}
       <Route
-        element={
-          canRedirectFromLockedPage && !availability.hasPerformanceTab ? <Navigate replace to="/" /> : <PerformanceRoute />
-        }
-        path="/performance"
-      />
-      <Route
-        element={
-          canRedirectFromLockedPage && !availability.hasFinancialsTab ? <Navigate replace to="/" /> : <FinancialsRoute />
-        }
-        path="/financials"
-      />
-      <Route element={<AutomationsRoute />} path="/automations" />
-      <Route
-        element={
-          canRedirectFromLockedPage && !availability.hasCatalogTab ? <Navigate replace to="/catalog/skus/new" /> : <InventoryRoute />
-        }
+        element={<CatalogGuardedRoute canRedirectFromLockedPage={canRedirectFromLockedPage} hasCatalogTab={availability.hasCatalogTab} />}
         path="/catalog"
       />
-      <Route element={<HelpRoute />} path="/help" />
       <Route element={<SkuFormRoute />} path="/catalog/skus/new" />
       <Route element={<SkuDetailRoute />} path="/catalog/skus/:skuId" />
       <Route element={<SkuDetailLedgerRoute />} path="/catalog/skus/:skuId/ledger" />
@@ -193,13 +197,12 @@ export function AppRoutes() {
       <Route element={<ServiceFormRoute />} path="/catalog/services/:serviceId/edit" />
       <Route
         element={
-          canRedirectFromLockedPage && !availability.hasLogsTab
-            ? <Navigate replace to={availability.hasRecordUpdateTab ? '/record-update' : '/'} />
+          canRedirectFromLockedPage && !availability.hasHistory
+            ? <Navigate replace to={availability.hasWorkCapture ? '/work/capture' : '/'} />
             : <StockUpdateRoute />
         }
-        path="/operations"
+        path="/settings/history"
       />
-      <Route element={<ArchiveRoute />} path="/operations/archive" />
       <Route element={<SettingsRoute />} path="/settings/*" />
       <Route element={<Navigate replace to="/" />} path="*" />
       </Routes>

@@ -300,7 +300,7 @@ export function deriveAutomationViewModel({
     }, currentSearchParams),
     overviewHref: buildOverviewTaskHref(intake),
     ticketHref: intake.promotedTicketId
-      ? `/record-update/customer-orders-pending?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
+      ? `/work/capture/customer-order?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
       : null,
   }));
 
@@ -321,7 +321,7 @@ export function deriveAutomationViewModel({
         intakeId: intake.intakeId,
       }, currentSearchParams),
       ticketHref: intake.promotedTicketId
-        ? `/record-update/customer-orders-pending?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
+        ? `/work/capture/customer-order?ticketMode=edit&ticketId=${encodeURIComponent(intake.promotedTicketId)}`
         : null,
       overviewHref: buildOverviewTaskHref(intake),
     }));

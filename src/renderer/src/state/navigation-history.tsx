@@ -38,6 +38,10 @@ function currentLocationTarget(location: Pick<ReturnType<typeof useLocation>, 'h
   return `${location.pathname}${location.search}${location.hash}`;
 }
 
+function samePathname(a: string, b: string) {
+  return a.split('?')[0] === b.split('?')[0];
+}
+
 function readBanjiNavigationState(state: unknown): BanjiNavigationState {
   if (!state || typeof state !== 'object') {
     return {};
@@ -138,6 +142,19 @@ function nextEntriesForLocation({
   if (navigationType === 'PUSH') {
     if (currentEntries[currentEntries.length - 1]?.to === currentEntry.to) {
       return currentEntries;
+    }
+
+    if (currentEntries.length > 0 && samePathname(currentEntries[currentEntries.length - 1].to, currentEntry.to)) {
+      const nextEntries = [...currentEntries];
+      const lastEntry = currentEntries[currentEntries.length - 1];
+      nextEntries[nextEntries.length - 1] = {
+        ...currentEntry,
+        origin: lastEntry.origin && currentEntry.origin === lastEntry.to
+          ? lastEntry.origin
+          : (currentEntry.origin ?? lastEntry.origin),
+        fallbackTo: lastEntry.fallbackTo ?? currentEntry.fallbackTo,
+      };
+      return nextEntries;
     }
 
     return [...currentEntries, currentEntry];

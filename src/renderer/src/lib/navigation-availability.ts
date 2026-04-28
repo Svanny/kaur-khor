@@ -4,20 +4,18 @@ import type { InventoryContextValue } from '@/state/inventory';
 import { activeSenaCatalog } from './sena-catalog';
 
 export type NavigationAvailability = {
-  hasAutomationsTab: boolean;
   hasCatalogTab: boolean;
-  hasLogsTab: boolean;
-  hasPerformanceTab: boolean;
-  hasFinancialsTab: boolean;
-  hasRecordUpdateTab: boolean;
+  hasHistory: boolean;
+  hasInsights: boolean;
+  hasWork: boolean;
+  hasWorkCapture: boolean;
+  hasWorkIntake: boolean;
 };
 
 export const GATED_NAV_ITEM_IDS: DesktopSeenUnlockedNavItemId[] = [
-  'automations',
   'catalog',
-  'operations',
-  'performance',
-  'financials',
+  'insights',
+  'work',
 ];
 
 function deriveAvailableObservationCount(
@@ -39,14 +37,14 @@ export function deriveNavigationAvailability(
   const observationCount = deriveAvailableObservationCount(inventory);
 
   return {
-    hasAutomationsTab:
+    hasCatalogTab: activeSkuCount >= 1,
+    hasHistory: observationCount >= 1,
+    hasInsights: observationCount >= 2,
+    hasWork: activeSkuCount + activeServiceCount >= 1,
+    hasWorkCapture: activeSkuCount + activeServiceCount >= 1,
+    hasWorkIntake:
       observationCount >= 1 &&
       hasAutomationEligibleSellable(visibleCatalog),
-    hasCatalogTab: activeSkuCount >= 1,
-    hasLogsTab: observationCount >= 1,
-    hasPerformanceTab: observationCount >= 2,
-    hasFinancialsTab: observationCount >= 2,
-    hasRecordUpdateTab: activeSkuCount + activeServiceCount >= 1,
   };
 }
 
@@ -63,16 +61,12 @@ export function isUnlockedNavItemVisible(
   availability: NavigationAvailability,
 ) {
   switch (itemId) {
-    case 'automations':
-      return availability.hasAutomationsTab;
     case 'catalog':
       return availability.hasCatalogTab;
-    case 'operations':
-      return availability.hasLogsTab;
-    case 'performance':
-      return availability.hasPerformanceTab;
-    case 'financials':
-      return availability.hasFinancialsTab;
+    case 'insights':
+      return availability.hasInsights;
+    case 'work':
+      return availability.hasWork;
     default:
       return false;
   }

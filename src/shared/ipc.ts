@@ -2,6 +2,7 @@ import type {
   AppCurrency,
   AppLanguage,
 } from './inventory';
+import type { InterfaceViewMode } from './interface-view';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -88,10 +89,8 @@ export interface DesktopTaskBatchUpdatePreferences {
 
 export type DesktopSeenUnlockedNavItemId =
   | 'catalog'
-  | 'operations'
-  | 'performance'
-  | 'financials'
-  | 'automations';
+  | 'insights'
+  | 'work';
 
 export type DesktopSeenUnlockedNavItems = Partial<Record<DesktopSeenUnlockedNavItemId, boolean>>;
 
@@ -111,7 +110,7 @@ export interface DesktopPreferences {
   language: AppLanguage;
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
-  displayViewMode: 'compact' | 'custom';
+  displayViewMode: InterfaceViewMode;
   itemImageMode: DesktopItemImageMode;
   dimChartsWhileLoading: boolean;
   showExplanatoryTooltips: boolean;
@@ -385,10 +384,8 @@ export const DEFAULT_TASK_BATCH_UPDATE_PREFERENCES: DesktopTaskBatchUpdatePrefer
 
 export const DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS: DesktopSeenUnlockedNavItems = {
   catalog: false,
-  operations: false,
-  performance: false,
-  financials: false,
-  automations: false,
+  insights: false,
+  work: false,
 };
 
 export const DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE: DesktopWorkbenchTileOrderByLane = {};
@@ -445,12 +442,16 @@ export function normalizeDesktopSeenUnlockedNavItems(
   value: DesktopSeenUnlockedNavItems | null | undefined,
   fallbackValue: boolean = false,
 ): DesktopSeenUnlockedNavItems {
+  const legacyValue = value as (DesktopSeenUnlockedNavItems & {
+    automations?: boolean;
+    financials?: boolean;
+    operations?: boolean;
+    performance?: boolean;
+  }) | null | undefined;
   return {
     catalog: value?.catalog ?? fallbackValue,
-    operations: value?.operations ?? fallbackValue,
-    performance: value?.performance ?? fallbackValue,
-    financials: value?.financials ?? fallbackValue,
-    automations: value?.automations ?? fallbackValue,
+    insights: value?.insights ?? legacyValue?.performance ?? legacyValue?.financials ?? fallbackValue,
+    work: value?.work ?? legacyValue?.operations ?? legacyValue?.automations ?? fallbackValue,
   };
 }
 

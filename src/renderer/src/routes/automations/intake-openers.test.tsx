@@ -69,9 +69,9 @@ describe('automation popup openers', () => {
 
     expect(screen.queryByRole('link', { name: /Ada/i })).not.toBeInTheDocument();
     const intakeButton = screen.getByRole('button', { name: /Open intake/i });
-    const intakeButtonClassTokens = intakeButton.className.split(/\s+/);
-    expect(intakeButtonClassTokens).toContain('min-w-[152px]');
-    expect(intakeButtonClassTokens).not.toContain('w-[152px]');
+    const intakeButtonClassParts = intakeButton.className.split(/\s+/);
+    expect(intakeButtonClassParts).toContain('min-w-[152px]');
+    expect(intakeButtonClassParts).not.toContain('w-[152px]');
 
     await user.click(screen.getByRole('button', { name: /Ada/i }));
     expect(onOpenIntake).toHaveBeenCalledWith(intakeRow);
@@ -84,9 +84,9 @@ describe('automation popup openers', () => {
     render(<AutomationExceptionTable rows={[exceptionRow]} onOpenIntake={onOpenIntake} />);
 
     const actionButton = screen.getByRole('button', { name: 'Open intake' });
-    const buttonClassTokens = actionButton.className.split(/\s+/);
-    expect(buttonClassTokens).toContain('min-w-[152px]');
-    expect(buttonClassTokens).not.toContain('w-[152px]');
+    const buttonClassParts = actionButton.className.split(/\s+/);
+    expect(buttonClassParts).toContain('min-w-[152px]');
+    expect(buttonClassParts).not.toContain('w-[152px]');
 
     await user.click(actionButton);
     expect(onOpenIntake).toHaveBeenCalledWith(exceptionRow);

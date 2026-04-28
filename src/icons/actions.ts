@@ -10,13 +10,15 @@ export {
   ExplosionIcon as ActionExplosionIcon,
 } from './custom';
 export {
+  Archive as ActionArchiveIcon,
   ArchiveRestore as ActionArchiveRestoreIcon,
   ArrowRight as ActionContinueIcon,
   ArrowUpRight as ActionOpenExternalIcon,
   BadgePlus as ActionAddBadgeIcon,
   Boxes as ActionBoxesIcon,
-  Check as ActionConfirmIcon,
-  CheckIcon as ActionSelectCheckIcon,
+   Check as ActionConfirmIcon,
+   CheckIcon as ActionSelectCheckIcon,
+   Eye as ActionEyeIcon,
   ClipboardPlus as ActionClipboardAddIcon,
   CornerDownLeft as ActionSubmitIcon,
   FileDown as ActionExportIcon,

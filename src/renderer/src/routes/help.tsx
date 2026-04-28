@@ -43,7 +43,7 @@ export function HelpRoute() {
     }
 
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#/help#${sectionId}`);
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${sectionId}`);
   }
 
   return (
@@ -61,7 +61,7 @@ export function HelpRoute() {
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link to="/record-update">
+              <Link to="/work/capture">
                 <NavigationTaskListIcon data-icon="inline-start" />
                 {t('helpStartUpdateAction')}
               </Link>

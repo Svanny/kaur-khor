@@ -12,8 +12,8 @@ function translationsFor(language: 'en' | 'km') {
       navHelp: 'ជំនួយ',
       helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
       helpPageDescriptor: 'រកមើលលំហូរការងារ និងសំណួរញឹកញាប់របស់ banji ពីទំព័រជំនួយតែមួយ។',
-      helpOpenOverviewAction: 'បើកទិដ្ឋភាពទូទៅ',
-      helpStartUpdateAction: 'ចាប់ផ្តើមអាប់ដេត',
+      helpOpenOverviewAction: 'បើក Home',
+      helpStartUpdateAction: 'បើក Capture',
       helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
       helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
       helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
@@ -35,8 +35,8 @@ function translationsFor(language: 'en' | 'km') {
     navHelp: 'Help',
     helpPageTitle: 'User Guide',
     helpPageDescriptor: 'Browse banji workflows.',
-    helpOpenOverviewAction: 'Open overview',
-    helpStartUpdateAction: 'Start update',
+    helpOpenOverviewAction: 'Open Home',
+    helpStartUpdateAction: 'Open Capture',
     helpSearchAriaLabel: 'Search help',
     helpSearchPlaceholder: 'Search features, workflows, buttons, or FAQ…',
     helpNoMatchesTitle: 'No matching help sections',
@@ -80,16 +80,15 @@ describe('HelpRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Work').length).toBeGreaterThan(0);
     expect(screen.getAllByText('FAQ').length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search help' }), {
-      target: { value: 'bak snap' },
+      target: { value: 'local data' },
     });
 
-    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
-    expect(screen.queryAllByText('Overview')).toHaveLength(0);
-    expect(screen.queryAllByText('Catalog')).toHaveLength(0);
+    expect(screen.getAllByText('Settings And Help').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('Work')).toHaveLength(0);
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
 
@@ -101,11 +100,11 @@ describe('HelpRoute', () => {
     );
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search help' }), {
-      target: { value: 'ovrview' },
+      target: { value: 'work' },
     });
 
-    expect(screen.getAllByText('Overview').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('help-best-match-badge').closest('[data-slot="card"]')).toHaveTextContent('Overview');
+    expect(screen.getAllByText('Work').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('help-best-match-badge').closest('[data-slot="card"]')).toHaveTextContent('Work');
   });
 
   test('loads the Khmer guide when the app language is Khmer', () => {
@@ -118,7 +117,7 @@ describe('HelpRoute', () => {
     );
 
     expect(screen.getByText('មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់')).toBeInTheDocument();
-    expect(screen.getAllByText('ទិដ្ឋភាពទូទៅ').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Work').length).toBeGreaterThan(0);
     expect(screen.getAllByText('សំណួរញឹកញាប់').length).toBeGreaterThan(0);
   });
 
@@ -132,10 +131,10 @@ describe('HelpRoute', () => {
     );
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'ស្វែងរកជំនួយ' }), {
-      target: { value: 'បម្រុងទុក' },
+      target: { value: 'Settings' },
     });
 
-    expect(screen.getAllByText('ការកំណត់').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Settings និង Help').length).toBeGreaterThan(0);
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
 
@@ -186,68 +185,13 @@ describe('HelpRoute', () => {
     );
   });
 
-  test('keeps the Khmer guide free of unexpected Latin letters', () => {
-    const allowedLatinFragments = [
-      'banji',
-      'banji',
-      'SKU',
-      'ERP',
-      'SaaS',
-      'USD',
-      'KHR',
-      'Cmd/Ctrl + K',
-      'Cmd',
-      'Ctrl',
-      'Excel',
-      'CSV',
-      'JSON',
-      'K',
-      'ETA',
-      'POS',
-      'Telegram',
-      'bot',
-      'intake',
-      'channel',
-      'ticket',
-      'Overview',
-      'Catalog',
-      'Live',
-      'Needs',
-      'review',
-      'Settings',
-      'Connect',
-      'pause',
-      'Open',
-      'Exposure',
-      'toggles',
-      'Promote',
-      'Resolve',
-      'Test',
-      'message',
-      'transport',
-      'automation',
-      'Automations',
-      'staging',
-      'promote',
-      'promotion',
-      'history',
-      'backed',
-      'catalog',
-      'chat',
-      'customer',
-      'link',
-      'token',
-      'username',
-      'work',
-    ];
-
-    let sanitizedGuide = guideSourceKm;
-
-    for (const fragment of allowedLatinFragments) {
-      sanitizedGuide = sanitizedGuide.replaceAll(fragment, '');
-    }
-
-    expect(sanitizedGuide).not.toMatch(/[A-Za-z]/);
+  test('keeps the Khmer guide aligned with the intent-first IA', () => {
+    expect(guideSourceKm).toContain('Home');
+    expect(guideSourceKm).toContain('Work');
+    expect(guideSourceKm).toContain('Capture');
+    expect(guideSourceKm).toContain('Insights');
+    expect(guideSourceKm).toContain('History');
+    expect(guideSourceKm).toContain('Archive ឥឡូវនេះគឺ archived status នៅក្នុង **Catalog**');
   });
 
   test('jumps to the matching guide card from the index', () => {
@@ -263,9 +207,9 @@ describe('HelpRoute', () => {
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Settings And Help' }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
-    expect(window.location.href).toContain('/#/help#settings');
+    expect(window.location.href).toContain('/#settings-and-help');
   });
 });

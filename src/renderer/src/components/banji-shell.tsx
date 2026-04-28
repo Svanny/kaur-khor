@@ -2,20 +2,16 @@ import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import type { DesktopSeenUnlockedNavItemId } from '@shared/ipc';
 import {
-  NavigationAnalysisIcon,
-  NavigationAutomationIcon,
   NavigationBackIcon,
   NavigationCatalogIcon,
   NavigationCommandPaletteIcon,
   NavigationDashboardIcon,
-  NavigationFinancialsIcon,
-  NavigationLogsIcon,
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
   NavigationPerformanceIcon,
 } from '@icons/navigation';
-import { StatusHelpBadgeIcon, StatusLoadingIcon } from '@icons/status';
+import { StatusLoadingIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,28 +54,16 @@ type ShellSectionConfig = {
   gatedNavItemId?: DesktopSeenUnlockedNavItemId;
   icon: IconComponent;
   id:
-    | 'overview'
-    | 'recordUpdate'
-    | 'performance'
-    | 'financials'
-    | 'automations'
-    | 'analysis'
     | 'catalog'
-    | 'operations'
-    | 'archive'
-    | 'help'
+    | 'home'
+    | 'insights'
+    | 'work'
     | 'settings';
   labelKey:
-    | 'navOverview'
-    | 'navRecordUpdate'
-    | 'navPerformance'
-    | 'navFinancials'
-    | 'navAutomations'
-    | 'navAnalysis'
+    | 'navHome'
+    | 'navWork'
+    | 'navInsights'
     | 'navCatalog'
-    | 'navOperations'
-    | 'navArchive'
-    | 'navHelp'
     | 'navSettings';
   matches: (pathname: string) => boolean;
 };
@@ -109,32 +93,24 @@ function matchesSection(pathname: string, sectionRoot: string) {
 }
 
 function routeSupportsLocalLoadingState(pathname: string) {
-  return matchesSection(pathname, '/catalog') || matchesSection(pathname, '/analysis') || matchesSection(pathname, '/financials');
+  return matchesSection(pathname, '/catalog') || matchesSection(pathname, '/insights') || matchesSection(pathname, '/work');
 }
 
-const PRIMARY_SECTIONS: ShellSectionConfig[] = [
+const APP_SECTIONS: ShellSectionConfig[] = [
   {
-    id: 'overview',
+    id: 'home',
     destination: '/',
-    labelKey: 'navOverview',
+    labelKey: 'navHome',
     icon: NavigationDashboardIcon,
     matches: (pathname) => pathname === '/',
   },
   {
-    id: 'recordUpdate',
-    destination: '/record-update',
-    availabilityKey: 'hasRecordUpdateTab',
-    labelKey: 'navRecordUpdate',
+    id: 'work',
+    destination: '/work',
+    gatedNavItemId: 'work',
+    labelKey: 'navWork',
     icon: NavigationTaskListIcon,
-    matches: (pathname) => matchesSection(pathname, '/record-update') || matchesSection(pathname, '/operations/session'),
-  },
-  {
-    id: 'performance',
-    destination: '/performance',
-    gatedNavItemId: 'performance',
-    labelKey: 'navPerformance',
-    icon: NavigationPerformanceIcon,
-    matches: (pathname) => matchesSection(pathname, '/performance'),
+    matches: (pathname) => matchesSection(pathname, '/work'),
   },
   {
     id: 'catalog',
@@ -144,39 +120,13 @@ const PRIMARY_SECTIONS: ShellSectionConfig[] = [
     icon: NavigationCatalogIcon,
     matches: (pathname) => matchesSection(pathname, '/catalog'),
   },
-];
-
-const SECONDARY_SECTIONS: ShellSectionConfig[] = [
   {
-    id: 'financials',
-    destination: '/financials',
-    gatedNavItemId: 'financials',
-    labelKey: 'navFinancials',
-    icon: NavigationFinancialsIcon,
-    matches: (pathname) => matchesSection(pathname, '/financials'),
-  },
-  {
-    id: 'automations',
-    destination: '/automations',
-    gatedNavItemId: 'automations',
-    labelKey: 'navAutomations',
-    icon: NavigationAutomationIcon,
-    matches: (pathname) => matchesSection(pathname, '/automations'),
-  },
-  {
-    id: 'analysis',
-    destination: '/analysis',
-    labelKey: 'navAnalysis',
-    icon: NavigationAnalysisIcon,
-    matches: (pathname) => matchesSection(pathname, '/analysis'),
-  },
-  {
-    id: 'operations',
-    destination: '/operations',
-    gatedNavItemId: 'operations',
-    labelKey: 'navOperations',
-    icon: NavigationLogsIcon,
-    matches: (pathname) => pathname === '/operations',
+    id: 'insights',
+    destination: '/insights',
+    gatedNavItemId: 'insights',
+    labelKey: 'navInsights',
+    icon: NavigationPerformanceIcon,
+    matches: (pathname) => matchesSection(pathname, '/insights'),
   },
 ];
 
@@ -188,17 +138,9 @@ const SETTINGS_SECTION: ShellSectionConfig = {
   matches: (pathname) => matchesSection(pathname, '/settings'),
 };
 
-const HELP_SECTION: ShellSectionConfig = {
-  id: 'help',
-  destination: '/help',
-  labelKey: 'navHelp',
-  icon: StatusHelpBadgeIcon,
-  matches: (pathname) => matchesSection(pathname, '/help'),
-};
-
-const SETTINGS_MAIN_SECTIONS = SETTINGS_SECTIONS.filter((section) => section.id !== 'credits');
 const SETTINGS_CREDITS_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'credits');
-const SETTINGS_SECTION_LOOKUP = new Map(SETTINGS_MAIN_SECTIONS.map((section) => [section.id, section]));
+const SETTINGS_HELP_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'help');
+const SETTINGS_SECTION_LOOKUP = new Map(SETTINGS_SECTIONS.filter((section) => section.id !== 'credits').map((section) => [section.id, section]));
 const orderedSettingsSections = (ids: Array<SettingsSectionConfig['id']>) =>
   ids
     .map((id) => SETTINGS_SECTION_LOOKUP.get(id))
@@ -206,11 +148,11 @@ const orderedSettingsSections = (ids: Array<SettingsSectionConfig['id']>) =>
 const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
   {
     labelKey: 'sidebarSectionMain',
-    sections: orderedSettingsSections(['workspace', 'interface', 'local-data', 'planning']),
+    sections: orderedSettingsSections(['workspace', 'interface', 'automation', 'history']),
   },
   {
     labelKey: 'sidebarSectionOther',
-    sections: orderedSettingsSections(['archive', 'benchmarks', 'danger-zone']),
+    sections: orderedSettingsSections(['local-data', 'planning', 'benchmarks', 'danger-zone']),
   },
 ];
 
@@ -395,8 +337,6 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
     language,
     markUnlockedNavItemSeen,
     seenUnlockedNavItems,
-    showAutomationsPage,
-    showAnalysisPage,
     t,
   } = usePreferences();
   const inventory = useInventory();
@@ -404,39 +344,22 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const showGlobalLoadingScreen =
     isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
-  const secondarySections = SECONDARY_SECTIONS.filter((section) => {
-    if (section.id === 'automations') {
-      return showAutomationsPage;
-    }
-    if (section.id === 'analysis') {
-      return showAnalysisPage;
-    }
-    return true;
-  });
   const navigationAvailability = deriveNavigationAvailability(inventory);
-  const visiblePrimarySections = PRIMARY_SECTIONS.filter((section) =>
+  const visibleAppSections = APP_SECTIONS.filter((section) =>
     section.availabilityKey
       ? navigationAvailability[section.availabilityKey]
       : section.gatedNavItemId
         ? isUnlockedNavItemVisible(section.gatedNavItemId, navigationAvailability)
         : true,
   );
-  const visibleSecondarySections = secondarySections.filter((section) =>
-    section.availabilityKey
-      ? navigationAvailability[section.availabilityKey]
-      : section.gatedNavItemId
-        ? isUnlockedNavItemVisible(section.gatedNavItemId, navigationAvailability)
-        : true,
-  );
-  const isSettingsRoute =
-    matchesSection(location.pathname, '/settings') || matchesSection(location.pathname, '/operations/archive');
+  const isSettingsRoute = matchesSection(location.pathname, '/settings');
 
   useEffect(() => {
     if (!isHydrated) {
       return;
     }
 
-    const matchedGatedSection = [...PRIMARY_SECTIONS, ...SECONDARY_SECTIONS].find((section) =>
+    const matchedGatedSection = APP_SECTIONS.find((section) =>
       section.gatedNavItemId && section.matches(location.pathname),
     );
     if (!matchedGatedSection?.gatedNavItemId) {
@@ -554,30 +477,13 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
             </div>
           ) : (
             <div className="flex flex-1 flex-col gap-3">
-              {visiblePrimarySections.length > 0 ? (
+              {visibleAppSections.length > 0 ? (
                 <SidebarGroup className={sidebarSectionGroupClassName}>
                   <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <SidebarSectionMenu
                       pathname={location.pathname}
-                      sections={visiblePrimarySections}
-                      language={language}
-                      showSidebarText={showSidebarText}
-                      isSectionNew={isSectionNew}
-                      t={t}
-                      onNavigate={handleSidebarNavigation}
-                    />
-                  </SidebarGroupContent>
-                </SidebarGroup>
-              ) : null}
-
-              {visibleSecondarySections.length > 0 ? (
-                <SidebarGroup className={sidebarSectionGroupClassName}>
-                  <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionOther')}</SidebarGroupLabel>
-                  <SidebarGroupContent>
-                    <SidebarSectionMenu
-                      pathname={location.pathname}
-                      sections={visibleSecondarySections}
+                      sections={visibleAppSections}
                       language={language}
                       showSidebarText={showSidebarText}
                       isSectionNew={isSectionNew}
@@ -597,37 +503,25 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
                 </div>
               ) : null}
-              {isSettingsRoute ? (
-                SETTINGS_CREDITS_SECTION ? (
-                  <SettingsSidebarMenu
-                    pathname={location.pathname}
-                    sections={[SETTINGS_CREDITS_SECTION]}
-                    showSidebarText={showSidebarText}
-                    t={t}
-                    onNavigate={handleSidebarNavigation}
-                  />
-                ) : null
+              {isSettingsRoute && SETTINGS_HELP_SECTION ? (
+                <SettingsSidebarMenu
+                  pathname={location.pathname}
+                  sections={[SETTINGS_HELP_SECTION]}
+                  showSidebarText={showSidebarText}
+                  t={t}
+                  onNavigate={handleSidebarNavigation}
+                />
+              ) : null}
+              {isSettingsRoute && SETTINGS_CREDITS_SECTION ? (
+                <SettingsSidebarMenu
+                  pathname={location.pathname}
+                  sections={[SETTINGS_CREDITS_SECTION]}
+                  showSidebarText={showSidebarText}
+                  t={t}
+                  onNavigate={handleSidebarNavigation}
+                />
               ) : (
                 <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      asChild
-                      className="justify-start group-data-[collapsible=icon]:justify-center"
-                      isActive={HELP_SECTION.matches(location.pathname)}
-                      tooltip={t(HELP_SECTION.labelKey)}
-                    >
-                      <NavLink
-                        aria-label={t(HELP_SECTION.labelKey)}
-                        className="group-data-[collapsible=icon]:justify-center"
-                        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-                        to={buildRememberedPageHref(HELP_SECTION.destination)}
-                        onClick={handleSidebarNavigation}
-                      >
-                        <HELP_SECTION.icon className="size-4" />
-                        {showSidebarText ? <span>{t(HELP_SECTION.labelKey)}</span> : null}
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                   <SidebarMenuItem>
                     <SidebarMenuButton
                       asChild
@@ -654,11 +548,11 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
         </SidebarContent>
       </Sidebar>
 
-      <SidebarInset>
-        <div className="flex min-h-svh flex-col">
-          <main id="main-content" className="flex-1 py-5" style={{ paddingInline: mainContentInset }}>
+      <SidebarInset className="min-h-0 overflow-hidden">
+        <div className="flex h-svh min-h-0 flex-col overflow-hidden">
+          <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-auto py-5" style={{ paddingInline: mainContentInset }}>
             <div
-              className="flex w-full max-w-none flex-col gap-4"
+              className="flex min-h-0 flex-1 w-full max-w-none flex-col gap-4"
               data-testid="shell-main-frame"
             >
               <div className="flex items-center justify-between md:hidden">

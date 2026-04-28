@@ -38,6 +38,7 @@ import {
 } from '@icons/status';
 import { compactActionButtonClassName } from '@/components/system/compact-controls';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,8 @@ import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
-import { translateUiLiteral } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
+import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -70,7 +72,6 @@ import {
   type AutomationExceptionRow,
   type AutomationIntakeTableRow,
   type AutomationRailRow,
-  type AutomationRibbonMetric,
 } from './automations/view-model';
 import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
 import { SectionLabel } from './sku-detail/section-heading';
@@ -168,26 +169,6 @@ function connectionLabel(status: string) {
   return 'Disconnected';
 }
 
-function RibbonStrip({ metrics }: { metrics: AutomationRibbonMetric[] }) {
-  return (
-    <section className={PERFORMANCE_HEADER_SURFACE_CLASS_NAME}>
-      <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-5">
-        {metrics.map((metric, index) => (
-          <Link
-            key={metric.key}
-            className={`flex min-w-0 flex-col gap-2 px-5 py-4 transition-colors hover:bg-background/50 xl:border-l xl:first:border-l-0 ${index > 0 ? 'border-t border-border/60 md:border-t-0 md:border-l' : ''} ${tintedSurfaceClassName(metric.tone)}`}
-            to={metric.href}
-          >
-            <span className="text-[0.72rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{metric.label}</span>
-            <span className="text-3xl font-semibold tracking-[-0.04em] text-foreground">{metric.value}</span>
-            <span className="text-sm leading-6 text-muted-foreground">{metric.detail}</span>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function RailRows({
   emptyLabel,
   rows,
@@ -259,6 +240,21 @@ function AutomationTabs() {
   );
 }
 
+function IntakeViewTabs() {
+  return (
+    <div className="relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6">
+      <ChromeTabsList aria-label="Select intake view" className="min-w-max">
+        <ChromeTabsTrigger leading={<StatusSendIcon className="size-4" />} value="intake">
+          Live intake
+        </ChromeTabsTrigger>
+        <ChromeTabsTrigger leading={<EntityPreviewIcon className="size-4" />} value="exposed">
+          Exposed sellables
+        </ChromeTabsTrigger>
+      </ChromeTabsList>
+    </div>
+  );
+}
+
 function CardControlRow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-start lg:gap-4">
@@ -300,7 +296,13 @@ function AutomationConfigurationTutorial() {
   );
 }
 
-export function AutomationsRoute() {
+export function AutomationsRoute({
+  allowConfigurationWithoutEligibility = false,
+  forcedSection,
+}: {
+  allowConfigurationWithoutEligibility?: boolean;
+  forcedSection?: typeof automationSectionValues[number];
+} = {}) {
   const inventory = useInventory();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readAutomationRouteState(searchParams);
@@ -320,7 +322,7 @@ export function AutomationsRoute() {
     testTelegramConnection,
     metrics,
   } = useAutomation();
-  const { currency, language, showAutomationsPage, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, showAutomationsPage, usdToKhrExchangeRate } = usePreferences();
   const [exposureTypeFilter, setExposureTypeFilter] = useState<ExposureTypeFilter>('all');
   const [issueFilter, setIssueFilter] = useState<ExceptionIssueFilter>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<ExceptionConfidenceFilter>('all');
@@ -339,12 +341,17 @@ export function AutomationsRoute() {
     intakeId: string;
   } | null>(null);
   const [hasUnlockedAutomationTabs, setHasUnlockedAutomationTabs] = useState(false);
+  const [intakeTab, setIntakeTab] = useState<'intake' | 'exposed'>('intake');
   const navigationAvailability = useMemo(
     () => deriveNavigationAvailability(inventory),
     [inventory],
   );
 
-  if (!showAutomationsPage || !navigationAvailability.hasAutomationsTab) {
+  if (!showAutomationsPage && !forcedSection && !allowConfigurationWithoutEligibility) {
+    return <Navigate replace to="/" />;
+  }
+
+  if (!navigationAvailability.hasWorkIntake && !forcedSection && !allowConfigurationWithoutEligibility) {
     return <Navigate replace to="/" />;
   }
 
@@ -437,7 +444,7 @@ export function AutomationsRoute() {
     [intakes, selectedIntakeRequest],
   );
 
-  useBenchmarkRouteReady('automations', !isLoading, {
+  useBenchmarkRouteReady(forcedSection === 'intake' ? 'work.intake' : 'automations', !isLoading, {
     hasWorkspace: workspace != null,
     section: routeState.section,
   });
@@ -550,11 +557,11 @@ export function AutomationsRoute() {
   }
 
   const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
-  const section = hasSavedTelegramConfiguration ? routeState.section : 'settings';
+  const section = forcedSection ?? (hasSavedTelegramConfiguration ? routeState.section : 'settings');
   const showOverviewSection = section === 'overview';
   const showSettingsSection = section === 'settings';
-  const showCatalogSection = section === 'catalog';
-  const showIntakeSection = section === 'intake';
+  const showCatalogSection = section === 'catalog' || (forcedSection === 'intake' && intakeTab === 'exposed');
+  const showIntakeSection = section === 'intake' && (forcedSection !== 'intake' || intakeTab === 'intake');
   const showExceptionsSection = section === 'exceptions';
   const connectionStatus = connection?.status ?? 'disconnected';
   const isDisconnected = connectionStatus === 'disconnected';
@@ -625,8 +632,12 @@ export function AutomationsRoute() {
     return (
       <WorkspacePage>
         <WorkspaceTitleCard
-          eyebrow={t('navAutomations')}
-          title={translateUiLiteral(language, 'Telegram Bot')}
+          title={
+            <span className="flex min-w-0 items-center gap-3">
+              <RouteBackButton className="shrink-0" />
+              <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
+            </span>
+          }
           descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
         />
       </WorkspacePage>
@@ -637,19 +648,27 @@ export function AutomationsRoute() {
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
         actions={hasSavedTelegramConfiguration ? titleActions : undefined}
-        eyebrow={t('navAutomations')}
-        title={translateUiLiteral(language, 'Telegram Bot')}
+        eyebrow={forcedSection === 'settings' ? getTranslation(language, 'settingsTitle') : undefined}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
+          </span>
+        }
         descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
       >
-        <p className="text-sm leading-6 text-muted-foreground">
-          {connectionLabel(connection?.status ?? 'disconnected')}
-          {' · '}
-          Last webhook {relativeTime(connection?.lastWebhookAt ?? null)}
-          {' · '}
-          {metrics?.ordersToday ?? 0} orders today
-          {' · '}
-          {metrics?.needsReview ?? 0} need review
-        </p>
+        {hasSavedTelegramConfiguration && model ? (
+          <MetricRibbon
+            columns={5}
+            items={model.ribbon.map((metric) => ({
+              key: metric.key,
+              label: metric.label,
+              value: metric.value,
+              detail: metric.detail,
+              className: tintedSurfaceClassName(metric.tone),
+            }))}
+          />
+        ) : null}
       </WorkspaceTitleCard>
 
       <ConfirmActionDialog
@@ -688,14 +707,18 @@ export function AutomationsRoute() {
         />
       ) : null}
 
-      {hasSavedTelegramConfiguration && model ? <RibbonStrip metrics={model.ribbon} /> : null}
-
       <ChromeTabs
         className="relative gap-0"
-        value={section}
-        onValueChange={(value) => updateRouteState({ section: value as typeof automationSectionValues[number] })}
+        value={forcedSection === 'intake' && hasSavedTelegramConfiguration ? intakeTab : section}
+        onValueChange={(value) => {
+          if (forcedSection === 'intake' && hasSavedTelegramConfiguration) {
+            setIntakeTab(value as 'intake' | 'exposed');
+          } else {
+            updateRouteState({ section: value as typeof automationSectionValues[number] });
+          }
+        }}
       >
-        {hasSavedTelegramConfiguration ? <AutomationTabs /> : null}
+        {hasSavedTelegramConfiguration && forcedSection === 'intake' ? <IntakeViewTabs /> : hasSavedTelegramConfiguration && !forcedSection ? <AutomationTabs /> : null}
 
         <div
           className="grid min-w-0 gap-6"

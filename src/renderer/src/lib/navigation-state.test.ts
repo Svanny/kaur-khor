@@ -2,22 +2,25 @@ import { describe, expect, test } from 'vitest';
 import {
   buildAnalysisHref,
   buildAutomationHref,
+  buildCaptureHref,
   buildFinancialsHref,
-  buildOverviewHref,
+  buildWorkHref,
   buildPerformanceHref,
   buildSkuDetailHref,
+  readCatalogRouteState,
   readAnalysisRouteState,
   readAutomationRouteState,
   readFinancialsRouteState,
-  readOverviewRouteState,
+  readInsightsRouteState,
+  readWorkRouteState,
   readPerformanceRouteState,
   readServiceAction,
   readSkuAction,
 } from './navigation-state';
 
 describe('navigation-state', () => {
-  test('falls back to defaults for invalid overview params', () => {
-    const state = readOverviewRouteState(
+  test('falls back to defaults for invalid work params', () => {
+    const state = readWorkRouteState(
       new URLSearchParams('scope=invalid&filter=nope&task=sku-1&taskMode=bad'),
     );
 
@@ -30,12 +33,13 @@ describe('navigation-state', () => {
       workflow: 'supplier',
       customerFilter: 'all',
       customerTaskId: null,
+      section: 'queue',
     });
   });
 
-  test('builds canonical deep links for overview and analysis state', () => {
+  test('builds canonical deep links for work and analysis state', () => {
     expect(
-      buildOverviewHref({
+      buildWorkHref({
         filter: 'ready_to_receive',
         scope: 'services',
         taskId: 'sku-1',
@@ -44,11 +48,35 @@ describe('navigation-state', () => {
         customerFilter: 'quoted',
         customerTaskId: 'automation:intake:intake-1',
       }),
-    ).toBe('/?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received&workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
+    ).toBe('/work/queue?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received&workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
 
     expect(buildAnalysisHref({ section: 'pressure', timeframe: '1Y', supplier: 'Mekong Looms' })).toBe(
-      '/analysis?section=pressure&supplier=Mekong+Looms&timeframe=1Y',
+      '/insights/explain?section=pressure&supplier=Mekong+Looms&timeframe=1Y',
     );
+  });
+
+  test('builds canonical capture lane hrefs', () => {
+    expect(buildCaptureHref()).toBe('/work/capture');
+    expect(buildCaptureHref({ lane: 'stock-count' })).toBe('/work/capture/stock-count');
+    expect(buildCaptureHref({ lane: 'customer-order' }, new URLSearchParams('ticketMode=edit'))).toBe('/work/capture/customer-order?ticketMode=edit');
+  });
+
+  test('reads canonical catalog and insights state safely', () => {
+    expect(readCatalogRouteState(new URLSearchParams('status=archived&section=automation'))).toEqual({
+      q: null,
+      section: 'automation',
+      status: 'archived',
+      supplier: null,
+      view: 'all',
+    });
+    expect(readInsightsRouteState(new URLSearchParams('mode=financials&compare=1&range=90d&scope=services'))).toMatchObject({
+      mode: 'financials',
+      financials: {
+        compare: true,
+        range: '90d',
+        scope: 'services',
+      },
+    });
   });
 
   test('reads analysis supplier filter safely', () => {
@@ -71,7 +99,7 @@ describe('navigation-state', () => {
     });
 
     expect(buildAnalysisHref({ chart: 'expanded', section: 'workbench', timeframe: 'Recent' })).toBe(
-      '/analysis?chart=expanded',
+      '/insights/explain?chart=expanded',
     );
   });
 
@@ -81,10 +109,29 @@ describe('navigation-state', () => {
       range: '7d',
       scope: 'skus',
       supplier: null,
+      customRangeStart: null,
+      customRangeEnd: null,
     });
 
-    expect(buildPerformanceHref({ compare: false, range: '30d', scope: 'all' })).toBe('/performance');
-    expect(buildPerformanceHref({ compare: true, range: '7d' })).toBe('/performance?compare=1&range=7d');
+    expect(buildPerformanceHref({ compare: false, range: '30d', scope: 'all' })).toBe('/insights/pressure');
+    expect(buildPerformanceHref({ compare: true, range: '7d' })).toBe('/insights/pressure?compare=1&range=7d');
+  });
+
+  test('round-trips performance custom range params safely', () => {
+    expect(readPerformanceRouteState(new URLSearchParams('range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z'))).toEqual({
+      compare: false,
+      range: 'custom',
+      scope: 'all',
+      supplier: null,
+      customRangeStart: '2026-01-01T00:00:00.000Z',
+      customRangeEnd: '2026-01-15T23:59:59.999Z',
+    });
+
+    expect(buildPerformanceHref({
+      range: 'custom',
+      customRangeStart: '2026-01-01T00:00:00.000Z',
+      customRangeEnd: '2026-01-15T23:59:59.999Z',
+    })).toBe('/insights/pressure?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
   });
 
   test('reads financials route state safely and omits default financials params', () => {
@@ -93,6 +140,8 @@ describe('navigation-state', () => {
       range: '90d',
       scope: 'services',
       supplier: 'Salon Tools',
+      customRangeStart: null,
+      customRangeEnd: null,
     });
 
     expect(readFinancialsRouteState(new URLSearchParams('compare=maybe&range=bad&scope=nope'))).toEqual({
@@ -100,12 +149,31 @@ describe('navigation-state', () => {
       range: '1d',
       scope: 'all',
       supplier: null,
+      customRangeStart: null,
+      customRangeEnd: null,
     });
 
-    expect(buildFinancialsHref({ compare: false, range: '1d', scope: 'all' })).toBe('/financials');
+    expect(buildFinancialsHref({ compare: false, range: '1d', scope: 'all' })).toBe('/insights/money');
     expect(buildFinancialsHref({ compare: true, range: '7d', scope: 'skus' })).toBe(
-      '/financials?compare=1&range=7d&scope=skus',
+      '/insights/money?compare=1&range=7d&scope=skus',
     );
+  });
+
+  test('round-trips financials custom range params safely', () => {
+    expect(readFinancialsRouteState(new URLSearchParams('range=custom&customStart=2026-02-01T00%3A00%3A00.000Z&customEnd=2026-02-10T23%3A59%3A59.999Z'))).toEqual({
+      compare: false,
+      range: 'custom',
+      scope: 'all',
+      supplier: null,
+      customRangeStart: '2026-02-01T00:00:00.000Z',
+      customRangeEnd: '2026-02-10T23:59:59.999Z',
+    });
+
+    expect(buildFinancialsHref({
+      range: 'custom',
+      customRangeStart: '2026-02-01T00:00:00.000Z',
+      customRangeEnd: '2026-02-10T23:59:59.999Z',
+    })).toBe('/insights/money?range=custom&customStart=2026-02-01T00%3A00%3A00.000Z&customEnd=2026-02-10T23%3A59%3A59.999Z');
   });
 
   test('reads automation route state safely and omits default params', () => {
@@ -133,9 +201,9 @@ describe('navigation-state', () => {
       ticketId: null,
     });
 
-    expect(buildAutomationHref({ section: 'catalog', exposure: 'hidden' })).toBe('/automations?section=catalog&exposure=hidden');
+    expect(buildAutomationHref({ section: 'catalog', exposure: 'hidden' })).toBe('/catalog?section=automation&exposure=hidden');
     expect(buildAutomationHref({ section: 'intake', intakeFilter: 'needs_review', conversationId: 'conv_1', intakeId: 'intake_1' })).toBe(
-      '/automations?section=intake&filter=needs_review&conversation=conv_1&intake=intake_1',
+      '/work/intake?section=intake&filter=needs_review&conversation=conv_1&intake=intake_1',
     );
   });
 
@@ -147,8 +215,8 @@ describe('navigation-state', () => {
     expect(buildSkuDetailHref('sku-1')).toBe('/catalog/skus/sku-1');
   });
 
-  test('round-trips overview customer workflow params safely', () => {
-    expect(readOverviewRouteState(new URLSearchParams('workflow=customer&customerFilter=review&customerTask=automation:intake:intake-7'))).toEqual({
+  test('round-trips work customer workflow params safely', () => {
+    expect(readWorkRouteState(new URLSearchParams('workflow=customer&customerFilter=review&customerTask=automation:intake:intake-7'))).toEqual({
       filter: 'all',
       scope: 'all',
       supplier: null,
@@ -157,12 +225,13 @@ describe('navigation-state', () => {
       workflow: 'customer',
       customerFilter: 'review',
       customerTaskId: 'automation:intake:intake-7',
+      section: 'queue',
     });
 
-    expect(buildOverviewHref({
+    expect(buildWorkHref({
       workflow: 'customer',
       customerFilter: 'open',
       customerTaskId: 'automation:intake:intake-9',
-    })).toBe('/?workflow=customer&customerFilter=open&customerTask=automation%3Aintake%3Aintake-9');
+    })).toBe('/work/queue?workflow=customer&customerFilter=open&customerTask=automation%3Aintake%3Aintake-9');
   });
 });

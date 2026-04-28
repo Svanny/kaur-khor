@@ -38,6 +38,8 @@
     "bench:stability": "node ./scripts/run-benchmarks.mjs bench/scenarios/stability.bench.ts",
     "bench:compare": "node ./scripts/compare-benchmarks.mjs",
     "bench:run": "node ./scripts/run-benchmarks.mjs",
+    "markmap:user-decision-tree": "markmap docs/development/user-decision-tree.markmap.md --offline --no-open -o docs/development/user-decision-tree.markmap.html",
+    "markmap:user-decision-tree:watch": "markmap docs/development/user-decision-tree.markmap.md --offline -o docs/development/user-decision-tree.markmap.html --watch",
     "refresh:tree": "bash ./scripts/refresh-tree.sh",
     "refresh:tree:zsh": "zsh ./scripts/refresh-tree.zsh",
     "test": "vitest run --reporter=dot"
@@ -82,6 +84,7 @@
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
     "jsdom": "^27.2.0",
+    "markmap-cli": "^0.18.12",
     "playwright": "^1.59.1",
     "shadcn": "^3.5.0",
     "tailwindcss": "^4.1.12",

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import { deriveAutomationViewModel } from './view-model';
 
 describe('deriveAutomationViewModel', () => {
-  test('builds Overview deep links for automation task surfaces', () => {
+  test('builds Work deep links for automation task surfaces', () => {
     const model = deriveAutomationViewModel({
       currentSearchParams: new URLSearchParams('section=intake'),
       currency: 'USD',
@@ -102,19 +102,19 @@ describe('deriveAutomationViewModel', () => {
     });
 
     expect(model.intakeRows[0]?.overviewHref).toBe(
-      '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.exceptionRows[0]?.overviewHref).toBe(
-      '/?workflow=customer&customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
+      '/work/queue?workflow=customer&customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
     );
     expect(model.recentActivity[0]?.overviewHref).toBe(
-      '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.today.map((row) => row.href)).toEqual([
-      '/?workflow=customer&customerFilter=review',
-      '/?workflow=customer&customerFilter=review',
-      '/?workflow=customer&customerFilter=quoted',
-      '/?workflow=customer&customerFilter=closed',
+      '/work/queue?workflow=customer&customerFilter=review',
+      '/work/queue?workflow=customer&customerFilter=review',
+      '/work/queue?workflow=customer&customerFilter=quoted',
+      '/work/queue?workflow=customer&customerFilter=closed',
     ]);
   });
 });

@@ -57,7 +57,6 @@ describe('ArchiveRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Settings')).toBeInTheDocument();
     expect(screen.getByText('Archive')).toBeInTheDocument();
   });
 

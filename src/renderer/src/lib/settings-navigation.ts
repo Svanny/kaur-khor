@@ -1,12 +1,14 @@
 import { ActionExplosionIcon, ActionOpenFolderIcon } from '@icons/actions';
 import { EntityFavoriteIcon } from '@icons/entities';
 import {
-  NavigationArchiveIcon,
+  NavigationAutomationIcon,
   NavigationBrainCircuitIcon,
+  NavigationListIcon,
   NavigationPerformanceIcon,
   NavigationSplitViewIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
+import { StatusHelpBadgeIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import type { TranslationKey } from '@/lib/translations';
 
@@ -15,8 +17,10 @@ export type SettingsSectionId =
   | 'interface'
   | 'planning'
   | 'local-data'
+  | 'automation'
+  | 'history'
   | 'benchmarks'
-  | 'archive'
+  | 'help'
   | 'credits'
   | 'danger-zone';
 
@@ -58,6 +62,20 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     icon: NavigationBrainCircuitIcon,
   },
   {
+    id: 'automation',
+    path: '/settings/automation',
+    titleKey: 'navAutomations',
+    descriptionKey: 'navAutomations',
+    icon: NavigationAutomationIcon,
+  },
+  {
+    id: 'history',
+    path: '/settings/history',
+    titleKey: 'navHistory',
+    descriptionKey: 'navHistory',
+    icon: NavigationListIcon,
+  },
+  {
     id: 'benchmarks',
     path: '/settings/benchmarks',
     titleKey: 'settingsBenchmarksTitle',
@@ -65,18 +83,11 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     icon: NavigationPerformanceIcon,
   },
   {
-    id: 'archive',
-    path: '/operations/archive',
-    titleKey: 'navArchive',
-    descriptionKey: 'navArchive',
-    icon: NavigationArchiveIcon,
-  },
-  {
-    id: 'danger-zone',
-    path: '/settings/danger-zone',
-    titleKey: 'settingsDangerZoneTitle',
-    descriptionKey: 'settingsDangerZoneDescription',
-    icon: ActionExplosionIcon,
+    id: 'help',
+    path: '/settings/help',
+    titleKey: 'navHelp',
+    descriptionKey: 'navHelp',
+    icon: StatusHelpBadgeIcon,
   },
   {
     id: 'credits',
@@ -84,6 +95,13 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     titleKey: 'settingsCreditsTitle',
     descriptionKey: 'settingsCreditsDescription',
     icon: EntityFavoriteIcon,
+  },
+  {
+    id: 'danger-zone',
+    path: '/settings/danger-zone',
+    titleKey: 'settingsDangerZoneTitle',
+    descriptionKey: 'settingsDangerZoneDescription',
+    icon: ActionExplosionIcon,
   },
 ];
 

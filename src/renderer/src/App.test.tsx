@@ -36,7 +36,16 @@ vi.mock('@/state/navigation-history', () => ({
 }));
 
 vi.mock('@/routes/dashboard', () => ({
-  DashboardRoute: () => <div>Overview screen</div>,
+  DashboardRoute: () => <div>Inbox screen</div>,
+}));
+vi.mock('@/routes/work', () => ({
+  WorkRoute: () => <div>Work screen</div>,
+}));
+vi.mock('@/routes/command-home', () => ({
+  CommandHomeRoute: () => <div>Home screen</div>,
+}));
+vi.mock('@/routes/insights', () => ({
+  InsightsRoute: () => <div>Insights screen</div>,
 }));
 vi.mock('@/routes/analysis', () => ({
   AnalysisRoute: () => <div>Analysis screen</div>,
@@ -101,7 +110,7 @@ describe('AppRoutes', () => {
         skus: [],
       },
       isLoading: false,
-      observations: [],
+      observations: [{ observationId: 'obs-1' }],
     });
   });
 
@@ -125,13 +134,13 @@ describe('AppRoutes', () => {
     expect(screen.getByText('SKU form screen')).toBeInTheDocument();
   });
 
-  it('redirects locked logs to overview when record update is still locked', () => {
+  it('sends removed operations routes to home', () => {
     renderRoutes('/operations');
 
-    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 
-  it('redirects locked logs to record update after the catalog has a SKU or service', async () => {
+  it('opens history from settings after the catalog has a SKU or service', async () => {
     inventoryHook.mockReturnValue({
       catalog: {
         schemaVersion: 1,
@@ -141,38 +150,38 @@ describe('AppRoutes', () => {
         skus: [],
       },
       isLoading: false,
-      observations: [],
+      observations: [{ observationId: 'obs-1' }],
     });
 
-    renderRoutes('/operations');
+    renderRoutes('/settings/history');
 
-    expect(await screen.findByText('Record update screen')).toBeInTheDocument();
+    expect(await screen.findByText('Logs screen')).toBeInTheDocument();
   });
 
-  it('redirects record update to overview before the catalog has a SKU or service', () => {
+  it('sends removed record update routes to home', () => {
     renderRoutes('/record-update');
 
-    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 
-  it('redirects locked performance pages to overview', () => {
+  it('sends removed performance pages to home', () => {
     renderRoutes('/performance');
-    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 
-  it('redirects locked financials pages to overview', () => {
+  it('sends removed financials pages to home', () => {
     renderRoutes('/financials');
-    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 
-  it('keeps automations pages reachable from the app shell', async () => {
+  it('sends removed automations pages to home', async () => {
     renderRoutes('/automations');
-    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
+    expect(await screen.findByText('Home screen')).toBeInTheDocument();
   });
 
-  it('keeps automations query-state routes reachable from the app shell', async () => {
+  it('sends removed automations query-state routes to home', async () => {
     renderRoutes('/automations?section=intake&filter=needs_review');
-    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
+    expect(await screen.findByText('Home screen')).toBeInTheDocument();
   });
 
   it.each([
@@ -186,21 +195,23 @@ describe('AppRoutes', () => {
   ])('does not preserve deprecated route alias %s', (pathname) => {
     renderRoutes(pathname);
 
-    expect(screen.getByText('Overview screen')).toBeInTheDocument();
+    expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 });
 
 describe('routeBenchmarkName', () => {
   it.each([
-    ['/', 'dashboard'],
-    ['/record-update', 'record-update'],
-    ['/performance', 'performance'],
-    ['/financials', 'financials'],
-    ['/automations', 'automations'],
-    ['/analysis', 'analysis'],
+    ['/', 'home'],
+    ['/work/queue', 'work.queue'],
+    ['/work/capture', 'work.capture'],
+    ['/work/intake', 'work.intake'],
+    ['/insights', 'insights'],
+    ['/insights/pressure', 'insights.pressure'],
+    ['/insights/money', 'insights.money'],
+    ['/insights/explain', 'insights.explain'],
     ['/catalog/skus/sku-1', 'sku-detail'],
     ['/catalog/services/service-1', 'service-detail'],
-    ['/operations', 'operations'],
+    ['/settings/history', 'history'],
     ['/catalog', 'catalog'],
     ['/settings/local-data', 'settings-local-data'],
   ])('maps %s to %s', (pathname, expected) => {
@@ -209,13 +220,13 @@ describe('routeBenchmarkName', () => {
 });
 
 describe('LoadedApp', () => {
-  it('renders the automations route through the provider stack', async () => {
+  it('renders the work route through the provider stack', async () => {
     render(
-      <MemoryRouter initialEntries={['/automations']}>
+      <MemoryRouter initialEntries={['/work/queue']}>
         <LoadedApp />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Automations screen')).toBeInTheDocument();
+    expect(await screen.findByText('Work screen')).toBeInTheDocument();
   });
 });

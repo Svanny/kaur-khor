@@ -1,537 +1,203 @@
 # banji User Guide
 
-This guide explains how banji works as a day-to-day desktop inventory workspace. It is written for people using the app, not for contributors working on the codebase.
-
-banji is local-first and desktop-first. It helps you keep a catalog, capture real-world changes, review what needs action now, and inspect planning, analysis, and cash signals without leaving the same workspace.
+banji is a local-first desktop inventory workspace. It helps an operator keep a catalog, capture real-world changes, review what needs action, and inspect operational signals without leaving the app.
 
 ## Table of Contents
 
 - [What banji Is For](#what-banji-is-for)
-- [How The Main Workflow Fits Together](#how-the-main-workflow-fits-together)
-- [Navigation And Global Controls](#navigation-and-global-controls)
-- [Overview](#overview)
-- [Record Update](#record-update)
-- [Automations](#automations)
-- [Performance](#performance)
-- [Financials](#financials)
+- [Daily Workflow](#daily-workflow)
+- [Navigation](#navigation)
+- [Home](#home)
+- [Work](#work)
 - [Catalog](#catalog)
-- [Analysis](#analysis)
-- [Operations](#operations)
-- [Archive](#archive)
-- [Settings](#settings)
-- [Help](#help)
-- [Glossary](#glossary)
+- [Insights](#insights)
+- [History](#history)
+- [Settings And Help](#settings-and-help)
 - [FAQ](#faq)
 
 ## What banji Is For
 
-banji is for teams that want a practical inventory workspace on one machine without depending on a hosted back office. It is meant for:
+banji is for teams that want a practical inventory command app on one machine. It is meant for:
 
-- keeping a working catalog of SKUs and services
-- capturing stock, customer, supplier, and price changes as they happen
-- seeing what needs action next
-- reviewing demand, capacity, and cash signals on the same device
+- keeping active and archived SKU/service records
+- capturing stock counts, customer orders, sales, supplier orders, receipts, and custom updates
+- reviewing supplier and customer work that needs attention
+- understanding demand, capacity, money, and explanation signals from saved local data
+- preserving update history without sending the workspace to a hosted back office
 
-banji is not trying to be:
+banji is not a full ERP, accounting system, or blank workflow builder.
 
-- a full ERP
-- a hosted multi-user SaaS suite
-- a blank workflow builder for every inventory model
+## Daily Workflow
 
-The product is opinionated. banji works best when you use the built-in catalog, update logging, overview queue, and analysis surfaces together.
+Most operators should use banji in this order:
 
-## How The Main Workflow Fits Together
+1. Start on **Home**.
+2. Open **Work** to review queue, capture, and intake work.
+3. Use **Work / Capture** when something real changed.
+4. Open **Catalog** when item definitions, archive state, or automation exposure need attention.
+5. Open **Insights** when you need pressure, money, or explanation views.
+6. Use **History** from the command palette or Settings when you need saved reports, edits, or deletions.
+7. Use **Settings** for preferences, local data, planning, automation connection, help, benchmarks, and destructive maintenance.
 
-Most teams will use banji in this order:
+## Navigation
 
-1. Build the catalog in **Catalog** by creating SKUs and services.
-2. Capture a real-world event in **Record update** by choosing the lane that matches what changed.
-3. Review immediate follow-up work in **Overview**.
-4. Compare demand, capacity, and operating pressure in **Performance**.
-5. Inspect money-in, money-tied-up, and money-leaking signals in **Financials**.
-6. Open **Analysis** when you need the deeper explanation behind a signal.
-7. Use **Operations** to inspect saved update history, edit reports, or delete a mistaken report.
-8. Adjust preferences, backups, archive access, and local planning controls in **Settings**.
+The persistent sidebar is intentionally small:
 
-If you are just starting:
+- **Home**: command home and daily entry point
+- **Work**: queue, capture, and intake
+- **Catalog**: active items, archived items, details, edits, and automation exposure
+- **Insights**: Pressure, Money, and Explain modes
+- **Settings**: system, support, local data, automation connection, and maintenance
 
-1. Create the first SKU.
-2. Add any services that depend on those SKUs.
-3. Record one stock or order update.
-4. Go back to Overview to see what banji can now infer from the saved data.
+Moved destinations remain reachable:
 
-## Navigation And Global Controls
+- **History** is available from command palette, Settings, and report contexts.
+- **Archived catalog** is available in Catalog with archived status.
+- **Help** lives in Settings at `/settings/help`.
+- **Automation intake** lives in Work; automation exposure lives in Catalog; Telegram connection lives in Settings.
 
-banji's left navigation is the main way to move through the product. The top-level destinations are:
+Old top-level URLs are no longer supported.
 
-- **Overview**: the current queue, the next move, and recent activity
-- **Record update**: lane-based entry point for new operational updates
-- **Performance**: demand, capacity, price, and timing comparison surfaces
-- **Financials**: cash, profit, inventory capital, and leakage views
-- **Catalog**: SKU and service records
-- **Analysis**: deeper explanation surfaces for SKUs and services
-- **Operations**: saved update history, heatmap, report inspection, editing, and deletion
-- **Settings**: preferences, local data, planning controls, archive access, and maintenance actions
-- **Help**: searchable in-app guide that mirrors the repository copy
+## Home
 
-Other global behaviors worth knowing:
+Home is the first screen. It is a quiet command surface with four primary actions:
 
-- **Collapsed navigation** hides section text but keeps destinations available.
-- **Command palette (`Cmd/Ctrl + K`)** is the fastest way to jump to a page, item, or action.
-- **Search and filter controls** usually narrow what you see without changing saved data.
-- **Helper copy and right-rail cards** can be reduced in Settings if you want a quieter interface.
-- **Loading states** usually mean banji is opening the local workspace, refreshing saved data, or recomputing local analysis.
+- **Continue Work**
+- **Capture Update**
+- **Open Catalog**
+- **Open Insights**
 
-## Overview
+The four actions sit in a centered 2x2 command grid, matching the Capture hub layout.
 
-### Purpose
+Use Home when you are not sure where to begin. It points you toward the next practical operator action without exposing backend or analysis jargon.
 
-Overview is banji's "what should I do next?" workspace. It is the best starting point after you have already created a catalog and saved at least one real update.
+## Work
 
-### When To Use It
+Work is banji's "what needs attention now?" workspace.
 
-Use Overview when you want to:
+Use Work to:
 
-- see the strongest reorder or follow-up issues first
-- switch between supplier-side and customer-side ticket work
-- start the next update session
-- open the next SKU or queue item that deserves inspection
+- review the supplier queue, which remains the default daily queue
+- switch to customer work when customer commitments need attention
+- open task drawers and jump to the matching detail or Capture lane
+- review Telegram/customer intake in the Intake section
+- capture real-world changes through the lane hub
 
-### Key Panels
+Important controls:
 
-#### Recommended next move
+- **Queue / Capture / Intake** switches between decision work, update authoring, and automation intake.
+- **Supplier / Customer** switches the queue family.
+- **Task filters** narrow the current queue.
+- **Search** and **Supplier filter** narrow visible work without changing saved data.
 
-This is banji's current best suggestion. Depending on the state of the workspace, it may tell you to:
+Work Queue helps choose work. Work Capture saves new operational evidence.
 
-- add the first SKU
-- start the first update
-- review reorder work
-- update ETA or receipt status
-- inspect a customer-impact task
-
-#### Why this action now
-
-This explains the reasoning behind the top recommendation. It may refer to:
-
-- missing catalog setup
-- missing live updates
-- rising reorder pressure
-- overdue follow-up
-- customer demand impact
-
-#### Needs attention / Planning queue
-
-This queue organizes the items that deserve review next. It is meant to answer four questions quickly:
-
-- what the move is
-- why now
-- what state the item is in
-- what to open next
-
-Overview opens on the **Supplier** queue by default. Switch to **Customer** when
-you want to review open customer commitments, stock blockers, or ready-to-complete
-customer work.
-
-#### Recent activity
-
-This summarizes what changed recently across saved updates. Use it when you need context before deciding whether to open Operations or start another update.
-
-### Important Controls And Buttons
-
-- **Supplier / Customer scope** switches the queue between supplier tickets and customer tickets.
-- **Task filters** narrow the current family queue to issue types such as to order, awaiting receipt, need stock, or follow up today.
-- **Search** narrows visible tasks and entities without changing saved data.
-- **Supplier filter** narrows the page to one supplier slice.
-- **Start update** opens the record-update hub.
-- **Task drawer actions** can jump straight into the matching update lane or detail page.
-
-### Common Mistakes
-
-- Using Overview as a substitute for Record update. Overview helps you choose work; it does not capture new evidence.
-- Treating every metric equally. The recommended move and queue should usually come first.
-- Expecting useful prioritization before the first catalog item or first saved update exists.
-
-## Record Update
-
-### Purpose
-
-Record update is banji's lane-based entry point for saving new operational evidence. Instead of one fixed wizard for every situation, banji lets you choose the kind of update you need to record.
-
-### When To Use It
-
-Use Record update when:
+Use Capture when:
 
 - stock counts changed
 - new customer orders came in
-- immediate sales happened or customer orders were fulfilled
+- immediate sales happened
 - supplier orders were placed or changed
 - supplier receipts arrived against an existing supplier ticket
-- one event needs a combined custom capture flow
+- one real-world event needs a custom combined capture flow
 
-### Update Lanes
+Canonical lanes:
 
-banji currently offers these lanes:
+- `/work/capture/stock-count`
+- `/work/capture/customer-order`
+- `/work/capture/immediate-sale`
+- `/work/capture/supplier-order`
+- `/work/capture/custom`
 
-- **Stock Count**: count what is physically on hand and reconcile stock facts
-- **Customer Order**: create a new customer ticket or update an existing customer ticket for open demand, changes, or cancellations
-- **Immediate Sale**: record same-session sales that resolve immediately
-- **Supplier Order**: create a new supplier ticket or update an existing supplier ticket for orders, ETA changes, and receipts
-- **Custom**: combine multiple lanes into one guided flow
+Customer Order and Supplier Order ask whether you are creating a new ticket or updating an existing ticket before the wizard continues. Supplier receipt stays inside Supplier Order when updating an existing supplier ticket.
 
-Draft badges on the hub mean banji found unfinished work saved on this device.
-
-Customer Order and Supplier Order now ask whether you are creating a **new**
-ticket or editing an **existing** ticket before the wizard continues.
-Supplier receipts are captured inside **Supplier Order** when you choose to
-update an existing supplier ticket.
-
-### Important Controls And Buttons
-
-- **Lane cards** open the matching capture flow.
-- **New / existing ticket choice** appears for customer and supplier order lanes before the form opens.
-- **Custom update builder** lets you choose multiple base lanes before starting.
-- **Draft saved** badges tell you a draft already exists for that lane.
-- **Resume draft / delete draft** appears when banji finds unfinished lane work on this device.
-- **Save ordering first** prevents you from leaving POS reordering with unsaved card-order changes.
-- **Delivery fee / paid by** controls appear on customer-facing receipt flows when delivery needs to be charged or absorbed.
-- **Save** commits the update and makes it available to Overview, Performance, Financials, Analysis, and Operations.
-- **Back / Next** moves through the current lane without discarding the draft.
-- **Discard draft** abandons the in-progress lane when you no longer want it.
-
-### Common Mistakes
-
-- Choosing a lane that does not match the event you are recording.
-- Treating supplier receipt as a separate primary flow instead of updating the existing supplier ticket.
-- Mixing unrelated real-world events into one update just because they happened on the same day.
-- Forgetting to save after reviewing the final step.
-- Ignoring saved drafts and starting duplicate work from scratch.
-
-## Automations
-
-### Purpose
-
-Automations is banji's operator workspace for channel-facing intake. It is
-currently built around Telegram and helps you connect a bot, expose sellable
-catalog items, review customer messages, and promote clean intake into
-ticket-backed work.
-
-### When To Use It
-
-Use Automations when you want to:
-
-- connect or pause the Telegram bot
-- control which SKUs and services customers can request through the bot
-- review incoming customer orders and ambiguous requests
-- promote quoted intake into customer tickets
-- resolve or dismiss intake that should not become operational work
-
-### Main Sections
-
-- **Overview**: connection health, queue totals, and recent activity
-- **Catalog**: exposure controls for automation-eligible SKUs and services
-- **Live intake**: inbound customer requests that are still active
-- **Needs review**: ambiguous or unresolved requests that need operator action
-- **Settings**: Telegram connection details, test message, and transport state
-
-### Important Controls And Buttons
-
-- **Connect / pause** changes whether the Telegram transport is actively serving customers.
-- **Open Telegram** jumps to the connected bot when banji knows the bot username or link.
-- **Exposure toggles** decide which sellables customers can order through automation.
-- **Promote intake** turns a clean intake row into ticket-backed operational work.
-- **Resolve intake** clears or closes intake that should not keep waiting in the queue.
-- **Test message** confirms that the bot token and current chat are working.
-
-### Common Mistakes
-
-- Treating Automations as the source of truth for inventory instead of a staging layer.
-- Exposing catalog items before their names, prices, and images are ready for customers.
-- Leaving ambiguous intake rows in Needs review instead of resolving or promoting them.
-- Assuming promotion only updates Automations. Promotion also writes operational ticket history used elsewhere in banji.
-
-## Performance
-
-### Purpose
-
-Performance turns banji's local planning output into action-oriented comparisons. It is for prioritization, not raw data entry.
-
-### When To Use It
-
-Use Performance when you want to:
-
-- see which items need action now
-- compare services and SKUs across a short or medium time horizon
-- review demand, available support, incoming stock, and price pressure together
-- understand what banji thinks will happen next if nothing changes
-
-### Key Panels
-
-- **Move now**: the highest-priority action rows
-- **Board**: side-by-side operational comparison across services and SKUs
-- **Cash**: winners, blocked profit, and cash traps
-- **Operational drag**: rows where friction is slowing useful work
-- **Recovery pipeline**: rows likely to improve when incoming supply lands
-- **Price watch**: price or margin conditions worth inspecting
-- **Confidence and coverage**: how strong the current signal base is
-- **Business timeline**: the important events shaping today's state
-
-### Important Controls And Buttons
-
-- **7d / 30d / 90d** changes the comparison window.
-- **All / Services / SKUs** narrows the scope.
-- **Supplier filter** narrows the page to one supplier slice.
-- **Compare view** switches between current-only and side-by-side comparison.
-- **Row actions** open the matching detail or workflow surface.
-
-### Common Mistakes
-
-- Treating Performance as a ledger of everything that happened. Operations is better for saved historical records.
-- Reading one panel in isolation when the surrounding cards explain why the row matters.
-- Expecting detailed explanations here instead of using Analysis.
-
-## Financials
-
-### Purpose
-
-Financials turns the same local inventory state into a money view. It is where banji organizes what is bringing money in, what is tying money up, and what is leaking value.
-
-### When To Use It
-
-Use Financials when you want to:
-
-- review net sales and gross profit signals
-- see how much capital is sitting on hand or in transit
-- inspect open commitments and slow stock
-- find margin erosion, markdown pressure, or blocked profit
-
-### Key Panels
-
-- **Statement blocks**: money in, money tied up, and money leaking
-- **Financial bands**: grouped rows that deserve attention now
-- **Contributor table**: the services and SKUs driving the current money picture
-- **Right rail**: quick summaries and follow-up pointers tied to the current range
-
-### Important Controls And Buttons
-
-- **1d / 7d / 30d / 90d** changes the financial window.
-- **All / Services / SKUs** narrows the scope.
-- **Supplier filter** narrows the page to one supplier slice.
-- **Compare view** switches between current-only and comparison framing.
-- **Rows and badges** jump to the underlying detail surface for inspection.
-
-### Common Mistakes
-
-- Reading Financials as accounting software. It is an operational money view, not a replacement for a full accounting system.
-- Ignoring the compare labels when a number looks surprising.
-- Treating capital tied up as the same thing as realized profit.
+Drafts, resume/delete behavior, save semantics, and ticket-backed authoring remain the same.
 
 ## Catalog
 
-### Purpose
+Catalog is the source of truth for SKU and service definitions.
 
-Catalog is the source of truth for the items banji tracks. This is where SKUs and services are created, edited, archived, and opened for deeper detail.
+Use Catalog to:
 
-### When To Use It
+- create or edit SKUs and services
+- search and filter active sellables
+- open SKU/service detail pages
+- archive or unarchive items
+- review archived items with `status=archived`
+- manage automation exposure for customer-facing sellables
 
-Use Catalog when you want to:
+Archive is not delete. Archived items are hidden from active work but remain available historically and can be restored.
 
-- create a new SKU or service
-- search by name, description, or identifier
-- filter the catalog by supplier
-- edit an item's definition or archive it
+## Insights
 
-### Important Controls And Buttons
+Insights is one workspace for reading operating signals.
 
-- **New SKU / New service** starts creation flows.
-- **Search catalog** narrows visible rows without changing saved data.
-- **All / SKUs / Services** changes the current list slice.
-- **Supplier filter** narrows the visible catalog to one supplier.
-- **Action menus** let you edit, archive, or inspect an item.
+Modes:
 
-### Common Mistakes
+- **Pressure**: demand, capacity, timing, price pressure, comparison, and prioritization.
+- **Money**: sales, gross profit signals, capital tied up, margin pressure, and leakage.
+- **Explain**: explanation surfaces for why banji is producing a signal.
 
-- Treating archive as delete. Archived items stay available historically and can be restored later.
-- Forgetting to add service dependencies after creating the related SKU records.
-- Using Catalog for day-to-day update capture instead of Record update.
+Mode-specific state is preserved:
 
-## Analysis
+- Pressure keeps range, scope, supplier, and compare state.
+- Money keeps range, scope, supplier, and compare state.
+- Explain keeps section, timeframe, supplier, and expanded chart state.
 
-### Purpose
+Insights is for reading and deciding. It is not a data-entry workflow.
 
-Analysis is the deeper explanation workspace. It helps answer "why does banji think this?" rather than only "what should I do next?"
+## History
 
-### When To Use It
+History is the saved update history workspace. It is a maintenance/context surface, not a persistent sidebar destination.
 
-Use Analysis when you want to:
+Use History to:
 
-- inspect the signal story behind a SKU or service
-- compare sections such as pressure, observations, fragility, and settings
-- change scope across all items, services only, or SKUs only
-- load older intervals and expand the chart view
+- search saved reports
+- inspect the heatmap or all-reports list
+- open a saved report
+- edit a report through the matching Capture flow
+- delete a mistaken report after confirmation
 
-### Important Controls And Buttons
+History explains what was saved. Work explains what deserves attention now.
 
-- **Section tabs** switch between workbench, pressure, observations, fragility, and settings.
-- **Timeframe controls** change the analysis interval.
-- **Scope toggle** narrows the page to services, SKUs, or both.
-- **Supplier filter** narrows the page to one supplier slice.
-- **Expanded chart** opens a wider view when the current interval history needs more space.
+## Settings And Help
 
-### Common Mistakes
+Settings contains:
 
-- Opening Analysis before any real update was saved and expecting detailed output.
-- Using Analysis for data entry. It is an explanation surface, not an editing workflow.
-- Ignoring the scope and supplier filters when the page seems thinner than expected.
+- workspace preferences
+- interface visibility controls
+- local data, backup, restore, and clear-data actions
+- local planning parameters
+- Telegram automation connection and test-message state
+- in-app Help at `/settings/help`
+- benchmarks
+- danger zone
+- credits
 
-## Operations
-
-### Purpose
-
-Operations is the saved update history workspace. It is where banji shows the reports that were captured over time and lets you inspect, edit, or delete them.
-
-### When To Use It
-
-Use Operations when you need to:
-
-- search saved updates
-- inspect activity across the recent year in the heatmap
-- switch to an all-reports list
-- reopen a report for editing
-- delete a mistaken report
-
-### Important Controls And Buttons
-
-- **Search** looks through notes, SKU names, service names, and related identifiers.
-- **All / SKUs / Services** narrows the current history slice.
-- **Supplier filter** narrows the page to one supplier slice.
-- **Heatmap / All** switches between the contribution calendar and paginated report cards.
-- **Previous year / Next year** changes the visible heatmap year.
-- **Edit report** reopens a saved report in the matching update flow.
-- **Delete report** permanently removes a report after confirmation.
-
-### Common Mistakes
-
-- Using Operations as a substitute for Overview. Operations explains what was saved, not what to do next.
-- Deleting a report when editing it would be safer.
-- Forgetting that the heatmap and list are showing the currently filtered history, not the full workspace.
-
-## Archive
-
-### Purpose
-
-Archive stores catalog items that should no longer appear in active workspaces but still matter historically.
-
-### When To Use It
-
-Use Archive when you want to:
-
-- review inactive SKUs or services
-- restore an item to active work
-- search inactive items without mixing them into the live catalog
-
-### Important Controls And Buttons
-
-- **Search archive** narrows visible archived items.
-- **All / SKUs / Services** changes the archive slice.
-- **Supplier filter** narrows the archive to one supplier.
-- **Unarchive** restores the selected item to active workspaces.
-
-### Common Mistakes
-
-- Expecting archived items to remain visible in active planning pages.
-- Using archive as permanent deletion.
-- Forgetting that Archive is reached from Settings navigation.
-
-## Settings
-
-### Purpose
-
-Settings controls how banji behaves on this device. It combines preferences, local workspace actions, planning controls, archive access, and maintenance flows.
-
-### Main Sections
-
-- **Workspace**: language, currency, image display, and other day-to-day workspace defaults
-- **Interface**: optional guidance, right-rail cards, compare toggles, and other visibility controls
-- **Local data**: local workspace paths, backup snapshots, restore, reveal-path actions, and clear-data controls
-- **Planning**: local planning parameters and rerun controls
-- **Archive**: shortcut into the inactive catalog view
-- **Danger zone**: destructive maintenance actions
-- **Credits**: product credits and acknowledgements
-
-### Important Controls And Buttons
-
-- **Save preferences** commits changed settings on this device.
-- **Create backup snapshot** creates a point-in-time backup before risky work.
-- **Restore backup snapshot** rolls the workspace back to a saved snapshot.
-- **Reveal path** opens the underlying local data path in the OS.
-- **Clear current data** removes local workspace data after confirmation.
-- **Planning parameters** let you adjust the local analysis behavior and trigger a rerun.
-
-### Common Mistakes
-
-- Changing interface switches and expecting them to affect other devices automatically.
-- Skipping a backup snapshot before destructive maintenance.
-- Treating restore as a lightweight undo. It changes the local workspace state.
-
-## Help
-
-### Purpose
-
-Help is banji's searchable in-app guide. It mirrors the repository copy of this document and keeps the main workflows, controls, glossary, and FAQ in one place.
-
-### Important Controls And Buttons
-
-- **Search help** finds sections by workflow, control, or question.
-- **Index** jumps directly to the matching section.
-- **Open overview** returns to the main workspace.
-- **Start update** jumps directly to the record-update hub.
-- **Open repository copy** opens the matching markdown guide in the repository.
-
-### Common Mistakes
-
-- Expecting Help to change workspace data. It is reference material only.
-- Forgetting that the repository copy and the in-app page are meant to stay in sync.
-
-## Glossary
-
-- **Record update**: a saved operational snapshot captured through one of banji's update lanes
-- **Lane**: one update flow type, such as stock count or supplier receipt
-- **Overview queue**: banji's current recommendation list for what deserves attention next
-- **Performance**: action-oriented comparison of demand, capacity, timing, and price signals
-- **Financials**: money-in, money-tied-up, and money-leaking surfaces
-- **Analysis**: deeper explanation of the signals behind banji's recommendations
-- **Operations**: saved update history, including heatmap and report editing
-- **Archive**: inactive catalog records kept out of active workspaces but preserved historically
-- **Backup snapshot**: a saved copy of the local workspace state created from Settings
+Help mirrors this user guide and can be searched inside the app.
 
 ## FAQ
 
-### What is the difference between Overview, Performance, Financials, and Analysis?
+### Why is Home different from Work?
 
-- **Overview** tells you what deserves attention now.
-- **Performance** compares operational pressure and likely follow-up moves.
-- **Financials** shows the same situation through a money lens.
-- **Analysis** explains the signals underneath those recommendations in more detail.
+Home is the command entry point. Work is the queue, capture, and intake workspace.
 
-### Why is Analysis empty or limited?
+### Where did the old signal pages go?
 
-Analysis needs a real catalog and saved updates. If nothing meaningful has been recorded yet, banji does not have enough local evidence to show detailed analysis.
+They are modes inside **Insights**: Pressure, Money, and Explain.
 
-### Where did Logs go?
+### Where did Automations go?
 
-The history workspace now lives under **Operations**. That page contains the update heatmap, the saved report list, and the edit/delete controls for reports.
+Automation intake moved to **Work**. Exposure controls moved to **Catalog**. Telegram connection and test-message controls moved to **Settings**.
 
-### What is the difference between Operations and Archive?
+### Where is update history?
 
-- **Operations** stores saved update history.
-- **Archive** stores inactive SKUs and services.
+History lives in **Settings** and contextual report actions.
 
-They solve different problems. Operations is historical activity; Archive is inactive catalog state.
+### Where did Archive go?
 
-### Can I edit or delete a saved report?
+Archive is now the archived status inside **Catalog**.
 
-Yes. Operations lets you reopen a saved report for editing or permanently delete it after confirmation.
+### Can I still use old links?
 
-### How should I use backup snapshots?
-
-Create a backup snapshot before risky maintenance, before restoring older data, or before clearing current local data. Backup and restore live in Settings under local data controls.
+No. Use the canonical Home, Work, Catalog, Insights, and Settings routes.

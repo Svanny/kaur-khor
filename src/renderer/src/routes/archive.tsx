@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { SearchInput } from '@/components/system/search-input';
@@ -18,6 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { matchesCatalogQuery } from '@/lib/catalog';
 import {
   buildArchiveSearchParams,
+  buildCatalogSearchParams,
   readArchiveRouteState,
   type ArchiveViewValue,
 } from '@/lib/navigation-state';
@@ -42,7 +44,11 @@ function updateArchiveSearchParams(
     view?: ArchiveViewValue;
   },
 ) {
-  return buildArchiveSearchParams(current, updates);
+  const archiveParams = buildArchiveSearchParams(current, updates);
+  return buildCatalogSearchParams(archiveParams, {
+    status: 'archived',
+    view: archiveParams.get('view') as ArchiveViewValue | null ?? 'all',
+  });
 }
 
 export function ArchiveRoute() {
@@ -123,8 +129,12 @@ export function ArchiveRoute() {
         }}
       />
       <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Settings')}
-        title={translateUiLiteral(language, 'Archive')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{translateUiLiteral(language, 'Archive')}</span>
+          </span>
+        }
         descriptor={translateUiLiteral(language, 'Review archived catalog items and restore anything that should return to active workspaces.')}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">

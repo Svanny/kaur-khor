@@ -1,3 +1,15 @@
+export const inboxSectionValues = ['queue', 'intake'] as const;
+export type InboxSectionValue = typeof inboxSectionValues[number];
+
+export const captureLaneValues = [
+  'stock-count',
+  'customer-order',
+  'immediate-sale',
+  'supplier-order',
+  'custom',
+] as const;
+export type CaptureLaneValue = typeof captureLaneValues[number];
+
 export const overviewScopeValues = ['all', 'skus', 'services'] as const;
 export type OverviewSearchScope = typeof overviewScopeValues[number];
 
@@ -34,16 +46,30 @@ export type OverviewCustomerFilterValue = typeof overviewCustomerFilterValues[nu
 export const catalogViewValues = ['all', 'skus', 'services'] as const;
 export type CatalogViewValue = typeof catalogViewValues[number];
 
+export const catalogStatusValues = ['active', 'archived'] as const;
+export type CatalogStatusValue = typeof catalogStatusValues[number];
+
+export const catalogSectionValues = ['items', 'automation'] as const;
+export type CatalogSectionValue = typeof catalogSectionValues[number];
+
 export const performanceScopeValues = ['all', 'services', 'skus'] as const;
 export type PerformanceScopeValue = typeof performanceScopeValues[number];
 
-export const performanceRangeValues = ['7d', '30d', '90d'] as const;
+export const insightsModeValues = ['performance', 'financials', 'analysis'] as const;
+export type InsightsModeValue = typeof insightsModeValues[number];
+export const insightsModePathByValue: Record<InsightsModeValue, string> = {
+  analysis: 'explain',
+  financials: 'money',
+  performance: 'pressure',
+};
+
+export const performanceRangeValues = ['7d', '30d', '90d', 'custom'] as const;
 export type PerformanceRangeValue = typeof performanceRangeValues[number];
 
 export const financialsScopeValues = ['all', 'services', 'skus'] as const;
 export type FinancialsScopeValue = typeof financialsScopeValues[number];
 
-export const financialsRangeValues = ['1d', '7d', '30d', '90d'] as const;
+export const financialsRangeValues = ['1d', '7d', '30d', '90d', 'custom'] as const;
 export type FinancialsRangeValue = typeof financialsRangeValues[number];
 
 export const automationChannelValues = ['telegram'] as const;
@@ -100,6 +126,7 @@ export const serviceActionValues = ['stock', 'receipt', 'price'] as const;
 export type ServiceActionValue = typeof serviceActionValues[number];
 
 export type OverviewRouteState = {
+  section: InboxSectionValue;
   filter: OverviewTaskFilterValue;
   scope: OverviewSearchScope;
   supplier: string | null;
@@ -108,6 +135,12 @@ export type OverviewRouteState = {
   workflow: OverviewWorkflowValue;
   customerFilter: OverviewCustomerFilterValue;
   customerTaskId: string | null;
+};
+
+export type InboxRouteState = OverviewRouteState;
+
+export type CaptureRouteState = {
+  lane: CaptureLaneValue | null;
 };
 
 export type AnalysisRouteState = {
@@ -123,6 +156,8 @@ export type PerformanceRouteState = {
   range: PerformanceRangeValue;
   scope: PerformanceScopeValue;
   supplier: string | null;
+  customRangeStart: string | null;
+  customRangeEnd: string | null;
 };
 
 export type FinancialsRouteState = {
@@ -130,6 +165,8 @@ export type FinancialsRouteState = {
   range: FinancialsRangeValue;
   scope: FinancialsScopeValue;
   supplier: string | null;
+  customRangeStart: string | null;
+  customRangeEnd: string | null;
 };
 
 export type AutomationRouteState = {
@@ -150,10 +187,27 @@ export type OperationsRouteState = {
   view: OperationsViewValue;
 };
 
+export type HistoryRouteState = OperationsRouteState;
+
 export type ArchiveRouteState = {
   q: string | null;
   supplier: string | null;
   view: ArchiveViewValue;
+};
+
+export type CatalogRouteState = {
+  q: string | null;
+  section: CatalogSectionValue;
+  status: CatalogStatusValue;
+  supplier: string | null;
+  view: CatalogViewValue;
+};
+
+export type InsightsRouteState = {
+  mode: InsightsModeValue;
+  analysis: AnalysisRouteState;
+  financials: FinancialsRouteState;
+  performance: PerformanceRouteState;
 };
 
 function readEnumValue<const T extends readonly string[]>(
@@ -243,6 +297,7 @@ export function readOverviewRouteState(searchParams: URLSearchParams): OverviewR
   const taskId = searchParams.get('task');
 
   return {
+    section: readEnumValue(searchParams, 'section', inboxSectionValues, 'queue'),
     filter: readEnumValue(searchParams, 'filter', overviewTaskFilterValues, 'all'),
     scope: readEnumValue(searchParams, 'scope', overviewScopeValues, 'all'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
@@ -263,6 +318,7 @@ export function buildOverviewSearchParams(
   const resolvedState = { ...currentState, ...nextState };
 
   writeEnumValue(searchParams, 'filter', resolvedState.filter, 'all');
+  writeEnumValue(searchParams, 'section', resolvedState.section, 'queue');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeOptionalValue(searchParams, 'task', resolvedState.taskId);
@@ -274,7 +330,29 @@ export function buildOverviewSearchParams(
 }
 
 export function buildOverviewHref(nextState?: Partial<OverviewRouteState>, currentSearchParams?: URLSearchParams | null) {
-  return createHref('/', buildOverviewSearchParams(currentSearchParams, nextState));
+  return createHref('/work/queue', buildOverviewSearchParams(currentSearchParams, nextState));
+}
+
+export const readInboxRouteState = readOverviewRouteState;
+export const readWorkRouteState = readOverviewRouteState;
+export const buildInboxSearchParams = buildOverviewSearchParams;
+export const buildWorkSearchParams = buildOverviewSearchParams;
+
+export function buildInboxHref(nextState?: Partial<InboxRouteState>, currentSearchParams?: URLSearchParams | null) {
+  return createHref('/work/queue', buildInboxSearchParams(currentSearchParams, nextState));
+}
+
+export function buildWorkHref(nextState?: Partial<InboxRouteState>, currentSearchParams?: URLSearchParams | null) {
+  return createHref('/work/queue', buildWorkSearchParams(currentSearchParams, nextState));
+}
+
+export function buildCaptureHref(nextState?: Partial<CaptureRouteState>, currentSearchParams?: URLSearchParams | null) {
+  const searchParams = cloneSearchParams(currentSearchParams);
+  const lane = nextState?.lane ?? null;
+  if (!lane) {
+    return createHref('/work/capture', searchParams);
+  }
+  return createHref(`/work/capture/${lane}`, searchParams);
 }
 
 export function readAnalysisRouteState(searchParams: URLSearchParams): AnalysisRouteState {
@@ -305,7 +383,7 @@ export function buildAnalysisSearchParams(
 }
 
 export function buildAnalysisHref(nextState?: Partial<AnalysisRouteState>, currentSearchParams?: URLSearchParams | null) {
-  return createHref('/analysis', buildAnalysisSearchParams(currentSearchParams, nextState));
+  return buildInsightsHref({ analysis: nextState, mode: 'analysis' }, currentSearchParams);
 }
 
 export function readPerformanceRouteState(searchParams: URLSearchParams): PerformanceRouteState {
@@ -314,6 +392,8 @@ export function readPerformanceRouteState(searchParams: URLSearchParams): Perfor
     range: readEnumValue(searchParams, 'range', performanceRangeValues, '30d'),
     scope: readEnumValue(searchParams, 'scope', performanceScopeValues, 'all'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    customRangeStart: searchParams.get('customStart')?.trim() || null,
+    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
   };
 }
 
@@ -329,6 +409,8 @@ export function buildPerformanceSearchParams(
   writeEnumValue(searchParams, 'range', resolvedState.range, '30d');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
+  writeOptionalValue(searchParams, 'customStart', resolvedState.customRangeStart?.trim() ? resolvedState.customRangeStart.trim() : null);
+  writeOptionalValue(searchParams, 'customEnd', resolvedState.customRangeEnd?.trim() ? resolvedState.customRangeEnd.trim() : null);
   return searchParams;
 }
 
@@ -336,7 +418,7 @@ export function buildPerformanceHref(
   nextState?: Partial<PerformanceRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return createHref('/performance', buildPerformanceSearchParams(currentSearchParams, nextState));
+  return buildInsightsHref({ mode: 'performance', performance: nextState }, currentSearchParams);
 }
 
 export function readFinancialsRouteState(searchParams: URLSearchParams): FinancialsRouteState {
@@ -345,6 +427,8 @@ export function readFinancialsRouteState(searchParams: URLSearchParams): Financi
     range: readEnumValue(searchParams, 'range', financialsRangeValues, '1d'),
     scope: readEnumValue(searchParams, 'scope', financialsScopeValues, 'all'),
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    customRangeStart: searchParams.get('customStart')?.trim() || null,
+    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
   };
 }
 
@@ -360,6 +444,8 @@ export function buildFinancialsSearchParams(
   writeEnumValue(searchParams, 'range', resolvedState.range, '1d');
   writeEnumValue(searchParams, 'scope', resolvedState.scope, 'all');
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
+  writeOptionalValue(searchParams, 'customStart', resolvedState.customRangeStart?.trim() ? resolvedState.customRangeStart.trim() : null);
+  writeOptionalValue(searchParams, 'customEnd', resolvedState.customRangeEnd?.trim() ? resolvedState.customRangeEnd.trim() : null);
   return searchParams;
 }
 
@@ -367,7 +453,7 @@ export function buildFinancialsHref(
   nextState?: Partial<FinancialsRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return createHref('/financials', buildFinancialsSearchParams(currentSearchParams, nextState));
+  return buildInsightsHref({ financials: nextState, mode: 'financials' }, currentSearchParams);
 }
 
 export function readAutomationRouteState(searchParams: URLSearchParams): AutomationRouteState {
@@ -409,7 +495,17 @@ export function buildAutomationHref(
   nextState?: Partial<AutomationRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return createHref('/automations', buildAutomationSearchParams(currentSearchParams, nextState));
+  const searchParams = buildAutomationSearchParams(currentSearchParams, nextState);
+  const section = readAutomationRouteState(searchParams).section;
+  if (section === 'catalog') {
+    searchParams.set('section', 'automation');
+    return createHref('/catalog', searchParams);
+  }
+  if (section === 'settings') {
+    return '/settings/automation';
+  }
+  searchParams.set('section', 'intake');
+  return createHref('/work/intake', searchParams);
 }
 
 export function readOperationsRouteState(searchParams: URLSearchParams): OperationsRouteState {
@@ -438,7 +534,17 @@ export function buildOperationsHref(
   nextState?: Partial<OperationsRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return createHref('/operations', buildOperationsSearchParams(currentSearchParams, nextState));
+  return buildHistoryHref(nextState, currentSearchParams);
+}
+
+export const readHistoryRouteState = readOperationsRouteState;
+export const buildHistorySearchParams = buildOperationsSearchParams;
+
+export function buildHistoryHref(
+  nextState?: Partial<HistoryRouteState>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  return createHref('/settings/history', buildHistorySearchParams(currentSearchParams, nextState));
 }
 
 export function readArchiveRouteState(searchParams: URLSearchParams): ArchiveRouteState {
@@ -467,17 +573,35 @@ export function buildOperationsArchiveHref(
   nextState?: Partial<ArchiveRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return createHref('/operations/archive', buildArchiveSearchParams(currentSearchParams, nextState));
+  const archiveSearchParams = buildArchiveSearchParams(currentSearchParams, nextState);
+  return buildCatalogHref({
+    q: archiveSearchParams.get('q'),
+    status: 'archived',
+    supplier: archiveSearchParams.get('supplier'),
+    view: readEnumValue(archiveSearchParams, 'view', archiveViewValues, 'all') as CatalogViewValue,
+  });
 }
 
 export function readCatalogView(searchParams: URLSearchParams): CatalogViewValue {
   return readEnumValue(searchParams, 'view', catalogViewValues, 'all');
 }
 
+export function readCatalogRouteState(searchParams: URLSearchParams): CatalogRouteState {
+  return {
+    q: searchParams.get('q')?.trim() ? searchParams.get('q')!.trim() : null,
+    section: readEnumValue(searchParams, 'section', catalogSectionValues, 'items'),
+    status: readEnumValue(searchParams, 'status', catalogStatusValues, 'active'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    view: readCatalogView(searchParams),
+  };
+}
+
 export function buildCatalogSearchParams(
   currentSearchParams?: URLSearchParams | null,
   nextState?: Partial<{
     q: string | null;
+    section: CatalogSectionValue;
+    status: CatalogStatusValue;
     supplier: string | null;
     view: CatalogViewValue;
   }>,
@@ -490,6 +614,12 @@ export function buildCatalogSearchParams(
   if (nextState?.supplier !== undefined) {
     writeOptionalValue(searchParams, 'supplier', nextState.supplier?.trim() ? nextState.supplier.trim() : null);
   }
+  if (nextState?.section !== undefined) {
+    writeEnumValue(searchParams, 'section', nextState.section, 'items');
+  }
+  if (nextState?.status !== undefined) {
+    writeEnumValue(searchParams, 'status', nextState.status, 'active');
+  }
   if (nextState?.view !== undefined) {
     writeEnumValue(searchParams, 'view', nextState.view, 'all');
   }
@@ -500,12 +630,85 @@ export function buildCatalogSearchParams(
 export function buildCatalogHref(
   nextState?: Partial<{
     q: string | null;
+    section: CatalogSectionValue;
+    status: CatalogStatusValue;
     supplier: string | null;
     view: CatalogViewValue;
   }>,
   currentSearchParams?: URLSearchParams | null,
 ) {
   return createHref('/catalog', buildCatalogSearchParams(currentSearchParams, nextState));
+}
+
+export function readInsightsRouteState(searchParams: URLSearchParams): InsightsRouteState {
+  return {
+    mode: readEnumValue(searchParams, 'mode', insightsModeValues, 'performance'),
+    analysis: readAnalysisRouteState(searchParams),
+    financials: readFinancialsRouteState(searchParams),
+    performance: readPerformanceRouteState(searchParams),
+  };
+}
+
+export function buildInsightsSearchParams(
+  currentSearchParams?: URLSearchParams | null,
+  nextState?: Partial<{
+    analysis: Partial<AnalysisRouteState>;
+    financials: Partial<FinancialsRouteState>;
+    mode: InsightsModeValue;
+    performance: Partial<PerformanceRouteState>;
+  }>,
+) {
+  const currentState = readInsightsRouteState(cloneSearchParams(currentSearchParams));
+  const mode = nextState?.mode ?? currentState.mode;
+  const baseSearchParams = new URLSearchParams();
+  writeEnumValue(baseSearchParams, 'mode', mode, 'performance');
+
+  if (mode === 'analysis') {
+    return buildAnalysisSearchParams(baseSearchParams, {
+      ...currentState.analysis,
+      ...nextState?.analysis,
+    });
+  }
+  if (mode === 'financials') {
+    return buildFinancialsSearchParams(baseSearchParams, {
+      ...currentState.financials,
+      ...nextState?.financials,
+    });
+  }
+  return buildPerformanceSearchParams(baseSearchParams, {
+    ...currentState.performance,
+    ...nextState?.performance,
+  });
+}
+
+export function buildInsightsHref(
+  nextState?: Partial<{
+    analysis: Partial<AnalysisRouteState>;
+    financials: Partial<FinancialsRouteState>;
+    mode: InsightsModeValue;
+    performance: Partial<PerformanceRouteState>;
+  }>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  if (!nextState && !currentSearchParams) {
+    return '/insights';
+  }
+
+  const mode =
+    nextState?.mode ??
+    (nextState?.analysis
+      ? 'analysis'
+      : nextState?.financials
+        ? 'financials'
+        : nextState?.performance
+          ? 'performance'
+          : readInsightsRouteState(cloneSearchParams(currentSearchParams)).mode);
+  const searchParams = buildInsightsSearchParams(currentSearchParams, {
+    ...nextState,
+    mode,
+  });
+  searchParams.delete('mode');
+  return createHref(`/insights/${insightsModePathByValue[mode]}`, searchParams);
 }
 
 export function readSkuAction(searchParams: URLSearchParams): SkuActionValue | null {

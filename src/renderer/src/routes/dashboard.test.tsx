@@ -589,9 +589,8 @@ describe('DashboardRoute', () => {
     const user = userEvent.setup();
     const { container } = renderRoute();
 
-    expect(screen.getByText('Overview')).toBeInTheDocument();
-    expect(screen.getByText('Mission Control')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
+    expect(screen.getAllByText('Queue').length).toBeGreaterThan(0);
+    expect(screen.getAllByPlaceholderText('Search name or description…')[0]!).toBeInTheDocument();
     const scopeToggle = screen.getByRole('group', { name: 'Select overview ticket family' });
     expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
@@ -933,7 +932,7 @@ describe('DashboardRoute', () => {
     renderRoute();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
-    fireEvent.change(screen.getByPlaceholderText('Search name or description…'), {
+    fireEvent.change(screen.getAllByPlaceholderText('Search name or description…')[0]!, {
       target: { value: 'Razor' },
     });
 
@@ -1039,7 +1038,7 @@ describe('DashboardRoute', () => {
 
     renderRouteWithOptionalHelp(false);
 
-    expect(await screen.findByText('Overview needs the catalog first')).toBeInTheDocument();
+    expect(await screen.findByText('Work needs the catalog first')).toBeInTheDocument();
     expect(screen.queryByText('Create the first SKU or service so banji can build an action list from real catalog work.')).not.toBeInTheDocument();
   });
 

@@ -21,6 +21,9 @@ function OverviewPage() {
   return (
     <div>
       <CurrentPath />
+      <Link state={buildBanjiNavigationState(location)} to="/catalog">
+        Open Catalog
+      </Link>
       <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open SKU
       </Link>
@@ -61,6 +64,25 @@ function NestedDetailPage() {
   );
 }
 
+function CatalogPage() {
+  const location = useLocation();
+  return (
+    <div>
+      <CurrentPath />
+      <RouteBackButton />
+      <Link state={buildBanjiNavigationState(location)} to="/catalog?status=archived">
+        Open Archive
+      </Link>
+      <Link state={buildBanjiNavigationState(location)} to="/catalog?status=archived&view=skus">
+        Open SKUs
+      </Link>
+      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
+        Open SKU
+      </Link>
+    </div>
+  );
+}
+
 function renderHistoryApp(initialEntries: Array<string | { pathname: string; state?: unknown }>) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
@@ -69,7 +91,7 @@ function renderHistoryApp(initialEntries: Array<string | { pathname: string; sta
           <Route element={<OverviewPage />} path="/" />
           <Route element={<FinancialsPage />} path="/financials" />
           <Route element={<ServiceDetailPage />} path="/catalog/services/:serviceId" />
-          <Route element={<div data-testid="path">/catalog</div>} path="/catalog" />
+          <Route element={<CatalogPage />} path="/catalog" />
           <Route element={<NestedDetailPage />} path="/catalog/skus/:skuId" />
         </Routes>
       </NavigationHistoryProvider>
@@ -83,10 +105,10 @@ describe('NavigationHistoryProvider', () => {
     renderHistoryApp(['/']);
 
     await user.click(screen.getByRole('link', { name: 'Open SKU' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/);
   });
 
   test('returns to the exact overview route including search params', async () => {
@@ -94,10 +116,10 @@ describe('NavigationHistoryProvider', () => {
     renderHistoryApp(['/?filter=to_order&scope=skus']);
 
     await user.click(screen.getByRole('link', { name: 'Open SKU' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/?filter=to_order&scope=skus');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/\?filter=to_order&scope=skus$/);
   });
 
   test('returns to service detail when sku detail was opened from a linked service view', async () => {
@@ -105,10 +127,10 @@ describe('NavigationHistoryProvider', () => {
     renderHistoryApp(['/catalog/services/service-1']);
 
     await user.click(screen.getByRole('link', { name: 'Open linked SKU' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/services/service-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/services\/service-1$/);
   });
 
   test('uses the current nested page as the next back target instead of reusing an older origin', async () => {
@@ -125,10 +147,10 @@ describe('NavigationHistoryProvider', () => {
     ]);
 
     await user.click(screen.getByRole('link', { name: 'Open linked SKU' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/services/service-1?action=receipt');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/services\/service-1\?action=receipt$/);
   });
 
   test('returns to financials when sku detail was opened from financials', async () => {
@@ -136,10 +158,10 @@ describe('NavigationHistoryProvider', () => {
     renderHistoryApp(['/financials']);
 
     await user.click(screen.getByRole('link', { name: 'Open financial SKU' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog/skus/sku-1');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/financials');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/financials$/);
   });
 
   test('falls back to catalog when a nested page is opened directly', async () => {
@@ -147,6 +169,43 @@ describe('NavigationHistoryProvider', () => {
     renderHistoryApp([{ pathname: '/catalog/skus/sku-1' }]);
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
-    expect(screen.getByTestId('path')).toHaveTextContent('/catalog');
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
+  });
+
+  test('merges same-pathname search param changes instead of stacking them', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/catalog']);
+
+    await user.click(screen.getByRole('link', { name: 'Open Archive' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\?status=archived$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKUs' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\?status=archived&view=skus$/);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
+  });
+
+  test('back from a nested detail skips merged intra-page state and returns to the origin page', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/']);
+
+    await user.click(screen.getByRole('link', { name: 'Open Catalog' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open Archive' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\?status=archived$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKUs' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\?status=archived&view=skus$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKU' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\?status=archived&view=skus$/);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/);
   });
 });

@@ -75,10 +75,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -88,14 +86,20 @@ describe('BanjiShell', () => {
       t: (key: string) => {
         const translations: Record<string, string> = {
           appBrand: 'banji',
-          navOverview: 'Overview',
-          navRecordUpdate: 'Record update',
+          navOverview: 'Inbox',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'Work',
+          navRecordUpdate: 'Capture',
+          navCapture: 'Capture',
           navPerformance: 'Performance',
+          navInsights: 'Insights',
           navFinancials: 'Financials',
           navAutomations: 'Automations',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
-          navOperations: 'Logs',
+          navOperations: 'History',
+          navHistory: 'History',
           navArchive: 'Archive',
           navHelp: 'Help',
           sidebarSectionMain: 'Main',
@@ -174,26 +178,25 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Record update' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Archive' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Help' })).not.toBeInTheDocument();
     expect(screen.getByText('Main')).toBeInTheDocument();
-    expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
     const navLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
-    expect(navLinks.indexOf('Overview')).toBeLessThan(navLinks.indexOf('Record update'));
-    expect(navLinks.indexOf('Record update')).toBeLessThan(navLinks.indexOf('Performance'));
-    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Financials'));
-    expect(navLinks.indexOf('Financials')).toBeLessThan(navLinks.indexOf('Automations'));
-    expect(navLinks.indexOf('Automations')).toBeLessThan(navLinks.indexOf('Analysis'));
-    expect(navLinks.indexOf('Analysis')).toBeLessThan(navLinks.indexOf('Logs'));
+    expect(navLinks.indexOf('Home')).toBeLessThan(navLinks.indexOf('Work'));
+    expect(navLinks.indexOf('Work')).toBeLessThan(navLinks.indexOf('Catalog'));
+    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Insights'));
+    expect(navLinks.indexOf('Insights')).toBeLessThan(navLinks.indexOf('Settings'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     const brandLabel = within(brandToggle).getByText('banji');
@@ -225,7 +228,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
-    expect(screen.getByRole('link', { name: 'Performance' })).toHaveAttribute('href', '/performance?range=7d&scope=skus');
+    expect(screen.getByRole('link', { name: 'Insights' })).toHaveAttribute('href', '/insights');
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings/interface');
   });
 
@@ -247,22 +250,20 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Interface' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Advanced' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Local data' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
     expect(screen.getAllByText('Main')).toHaveLength(1);
     expect(screen.getAllByText('Other')).toHaveLength(1);
-    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Work' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     const settingsLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
     expect(settingsLinks.indexOf('Back to app')).toBeLessThan(settingsLinks.indexOf('Preferences'));
-    expect(settingsLinks.indexOf('Local data')).toBeLessThan(settingsLinks.indexOf('Advanced'));
-    expect(settingsLinks.indexOf('Advanced')).toBeLessThan(settingsLinks.indexOf('Archive'));
-    expect(settingsLinks.indexOf('Archive')).toBeLessThan(settingsLinks.indexOf('Benchmarks'));
-    expect(settingsLinks.indexOf('Benchmarks')).toBeLessThan(settingsLinks.indexOf('Danger'));
-    expect(settingsLinks.indexOf('Archive')).toBeLessThan(settingsLinks.indexOf('Danger'));
-    expect(settingsLinks.indexOf('Danger')).toBeLessThan(settingsLinks.indexOf('Credits'));
+    expect(settingsLinks.indexOf('Automations')).toBeLessThan(settingsLinks.indexOf('Benchmarks'));
+    expect(settingsLinks.indexOf('Danger')).toBeLessThan(settingsLinks.indexOf('Help'));
+    expect(settingsLinks.indexOf('Help')).toBeLessThan(settingsLinks.indexOf('Credits'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
@@ -276,20 +277,20 @@ describe('BanjiShell', () => {
     await waitFor(() => {
       expect(screen.getByText('Overview screen')).toBeInTheDocument();
     });
-    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
   });
 
-  test('keeps the archive page in the settings rail', () => {
+  test('keeps archived catalog in the app rail', () => {
     setViewport({ width: 1440, isMobile: false });
 
     render(
-      <MemoryRouter initialEntries={['/operations/archive']}>
+      <MemoryRouter initialEntries={['/catalog?status=archived']}>
         <BanjiShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
-            <Route element={<div>Archive screen</div>} path="/operations/archive" />
+            <Route element={<div>Archive screen</div>} path="/catalog" />
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
         </BanjiShell>
@@ -297,12 +298,11 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByText('Archive screen')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Back to app' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Archive' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
+    expect(within(brandToggle).getByText('banji')).toBeInTheDocument();
   });
 
   test('does not render the view mode control in the sidebar', () => {
@@ -315,10 +315,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -328,13 +326,18 @@ describe('BanjiShell', () => {
       t: (key: string) =>
         ({
           appBrand: 'banji',
-          navOverview: 'Overview',
-          navRecordUpdate: 'Record update',
+          navOverview: 'Inbox',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navRecordUpdate: 'Capture',
+          navCapture: 'Capture',
           navPerformance: 'Performance',
+          navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
-          navOperations: 'Logs',
+          navOperations: 'History',
+          navHistory: 'History',
           navArchive: 'Archive',
           navHelp: 'Help',
           sidebarSectionMain: 'Main',
@@ -387,12 +390,10 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Overview' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Record update' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Work' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Catalog' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Logs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Insights' })).not.toBeInTheDocument();
   });
 
   test('shows gated tabs from startup metadata before observations hydrate', () => {
@@ -449,12 +450,10 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Record update' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Performance' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
   });
 
   test('hides the automations navigation item when disabled', () => {
@@ -467,10 +466,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -480,14 +477,19 @@ describe('BanjiShell', () => {
       t: (key: string) =>
         ({
           appBrand: 'banji',
-          navOverview: 'Overview',
-          navRecordUpdate: 'Record update',
+          navOverview: 'Inbox',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navRecordUpdate: 'Capture',
+          navCapture: 'Capture',
           navPerformance: 'Performance',
+          navInsights: 'Insights',
           navFinancials: 'Financials',
           navAutomations: 'Automations',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
-          navOperations: 'Logs',
+          navOperations: 'History',
+          navHistory: 'History',
           navArchive: 'Archive',
           navHelp: 'Help',
           sidebarSectionMain: 'Main',
@@ -510,7 +512,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
   });
 
   test('hides the automations navigation item before the first observation', () => {
@@ -533,7 +535,8 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Insights' })).not.toBeInTheDocument();
   });
 
   test('hides the automations navigation item when no automation-eligible sellable exists', () => {
@@ -570,6 +573,7 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
   });
 
@@ -583,10 +587,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: false,
-        operations: false,
-        performance: false,
-        financials: false,
-        automations: false,
+        insights: false,
+        work: false,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -596,13 +598,18 @@ describe('BanjiShell', () => {
       t: (key: string) =>
         ({
           appBrand: 'banji',
-          navOverview: 'Overview',
-          navRecordUpdate: 'Record update',
+          navOverview: 'Inbox',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navRecordUpdate: 'Capture',
+          navCapture: 'Capture',
           navPerformance: 'Performance',
+          navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
-          navOperations: 'Logs',
+          navOperations: 'History',
+          navHistory: 'History',
           navArchive: 'Archive',
           navHelp: 'Help',
           sidebarSectionMain: 'Main',
@@ -615,10 +622,10 @@ describe('BanjiShell', () => {
     });
 
     render(
-      <MemoryRouter initialEntries={['/performance']}>
+      <MemoryRouter initialEntries={['/insights']}>
         <BanjiShell>
           <Routes>
-            <Route element={<div>Performance screen</div>} path="/performance" />
+            <Route element={<div>Insights screen</div>} path="/insights" />
           </Routes>
         </BanjiShell>
       </MemoryRouter>,
@@ -627,11 +634,11 @@ describe('BanjiShell', () => {
     expect(screen.getAllByText('New!').length).toBeGreaterThan(0);
 
     await waitFor(() => {
-      expect(markUnlockedNavItemSeen).toHaveBeenCalledWith('performance');
+      expect(markUnlockedNavItemSeen).toHaveBeenCalledWith('insights');
     });
   });
 
-  test('hides the analysis navigation item when disabled', () => {
+  test('keeps the unified insights navigation item when analysis mode is disabled', () => {
     setViewport({ width: 1440, isMobile: false });
     preferencesHook.mockReturnValue({
       applyDisplayViewMode,
@@ -641,10 +648,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
       showAutomationsPage: true,
       showAnalysisPage: false,
@@ -654,13 +659,18 @@ describe('BanjiShell', () => {
       t: (key: string) =>
         ({
           appBrand: 'banji',
-          navOverview: 'Overview',
-          navRecordUpdate: 'Record update',
+          navOverview: 'Inbox',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navRecordUpdate: 'Capture',
+          navCapture: 'Capture',
           navPerformance: 'Performance',
+          navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Analysis',
           navCatalog: 'Catalog',
-          navOperations: 'Logs',
+          navOperations: 'History',
+          navHistory: 'History',
           navArchive: 'Archive',
           navHelp: 'Help',
           sidebarSectionMain: 'Main',
@@ -683,9 +693,9 @@ describe('BanjiShell', () => {
       </MemoryRouter>,
     );
 
+    expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Financials' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Logs' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
   });
 
   test('renders the sidebar search hint in Khmer', () => {
@@ -698,10 +708,8 @@ describe('BanjiShell', () => {
       markUnlockedNavItemSeen,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
@@ -900,10 +908,10 @@ describe('BanjiShell', () => {
     });
 
     render(
-      <MemoryRouter initialEntries={['/record-update']}>
+      <MemoryRouter initialEntries={['/capture']}>
         <BanjiShell>
           <Routes>
-            <Route element={<div>Record update screen</div>} path="/record-update" />
+            <Route element={<div>Record update screen</div>} path="/capture" />
           </Routes>
         </BanjiShell>
       </MemoryRouter>,

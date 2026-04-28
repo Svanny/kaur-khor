@@ -26,6 +26,7 @@ import {
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
@@ -46,6 +47,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
+import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
@@ -55,6 +57,7 @@ import { useAutomation } from '@/state/automation';
 import { useInventoryActions, useInventoryState } from '@/state/inventory';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { AutomationsRoute } from './automations';
 import { AutomationIntakeDrawer } from './automations/intake-drawer';
 import { OverviewTaskDrawer } from './overview/task-drawer';
 import {
@@ -371,7 +374,7 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
   return matchesSupplierName(task.supplierName, supplierFilter);
 }
 
-export function DashboardRoute() {
+export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const inventory = useInventoryState();
   const { loadSenaOrderBatches, loadSenaSkuDetail } = useInventoryActions();
   const automation = useAutomation();
@@ -556,7 +559,7 @@ export function DashboardRoute() {
       : null,
     [automation.intakes, selectedAutomationIntakeId],
   );
-  useBenchmarkRouteReady('dashboard', !inventory.isLoading && model != null, {
+  useBenchmarkRouteReady('work.queue', !inventory.isLoading && model != null, {
     hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
     workflow: overviewScope,
   });
@@ -609,11 +612,15 @@ export function DashboardRoute() {
     setSelectedAutomationIntakeId(task.automationIntakeId);
   }
 
+  if (routeState.section === 'intake') {
+    return <AutomationsRoute forcedSection="intake" />;
+  }
+
   if (!inventory.catalog) {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title={translateUiLiteral(language, 'Overview needs the catalog first')}
+          title={translateUiLiteral(language, 'Work needs the catalog first')}
           hint={translateUiLiteral(language, 'Create the first SKU or service so banji can build an action list from real catalog work.')}
           action={
             <WorkspaceActionRow>
@@ -635,18 +642,18 @@ export function DashboardRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title={translateUiLiteral(language, 'Overview needs your first update')}
+          title={translateUiLiteral(language, 'Work needs your first update')}
           hint={translateUiLiteral(language, 'Capture a live observation so banji can build the order, receipt, and follow-up queue.')}
           action={
             <WorkspaceActionRow>
               <Button asChild className={overviewStartUpdateButtonClassName}>
-                <Link to="/record-update">
+                <Link to="/work/capture">
                   <NavigationTaskListIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Start update')}
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/catalog">
+                <Link to={buildRememberedCatalogHref()}>
                   <NavigationCatalogIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Open catalog')}
                 </Link>
@@ -659,73 +666,69 @@ export function DashboardRoute() {
   }
 
   return (
-    <WorkspacePage className="gap-5">
-      <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Overview')}
-        title={translateUiLiteral(language, 'Mission Control')}
-        descriptor={translateUiLiteral(language, 'See what needs attention next, what is already in motion, and when banji will check back.')}
-        actions={
-          <WorkspaceActionRow>
-            <Button asChild className={overviewStartUpdateButtonClassName}>
-              <Link to="/record-update">
-                <NavigationTaskListIcon className="size-4" />
-                {translateUiLiteral(language, 'Start update')}
-              </Link>
-            </Button>
-          </WorkspaceActionRow>
-        }
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
-          <div className="w-full max-w-xl">
-            <SearchInput
-              ariaLabel={translateUiLiteral(language, 'Search overview')}
-              placeholder={t('searchPlaceholder')}
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
+    <WorkspacePage className={embedded ? 'gap-4 p-0' : 'gap-5'}>
+      {!embedded ? (
+        <WorkspaceTitleCard
+          title={
+            <span className="flex min-w-0 items-center gap-3">
+              <RouteBackButton className="shrink-0" />
+              <span className="truncate">{translateUiLiteral(language, 'Queue')}</span>
+            </span>
+          }
+          descriptor={translateUiLiteral(language, 'Review customer and supplier work that needs attention next.')}
+        >
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
+            <div className="w-full max-w-xl">
+              <SearchInput
+                ariaLabel={translateUiLiteral(language, 'Search queue')}
+                placeholder={t('searchPlaceholder')}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <ToggleGroup
+              aria-label={translateUiLiteral(language, 'Select overview ticket family')}
+              className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
+              spacing={1}
+              type="single"
+              value={overviewScope}
+              onValueChange={(nextValue) => {
+                if (nextValue) {
+                  updateRouteState({
+                    workflow: nextValue as OverviewWorkflowScope,
+                    customerFilter: nextValue === 'customer' ? customerFilter : 'all',
+                    customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
+                    taskId: nextValue === 'supplier' ? routeState.taskId : null,
+                    taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
+                  });
+                }
+              }}
+            >
+              <ToggleGroupItem value="customer">
+                <EntityCustomerIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Customer')}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="supplier">
+                <EntityTransitIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Supplier')}
+              </ToggleGroupItem>
+            </ToggleGroup>
+            <SupplierFilter
+              catalog={inventory.catalog}
+              className={compactFilterControlClassName}
+              value={supplierFilter}
+              disabled={overviewScope === 'customer'}
+              onChange={(nextSupplier) =>
+                updateRouteState({
+                  supplier: supplierFilterQueryValue(nextSupplier),
+                  taskId: null,
+                  taskMode: null,
+                })
+              }
             />
           </div>
-          <ToggleGroup
-            aria-label={translateUiLiteral(language, 'Select overview ticket family')}
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            spacing={1}
-            type="single"
-            value={overviewScope}
-            onValueChange={(nextValue) => {
-              if (nextValue) {
-                updateRouteState({
-                  workflow: nextValue as OverviewWorkflowScope,
-                  customerFilter: nextValue === 'customer' ? customerFilter : 'all',
-                  customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
-                  taskId: nextValue === 'supplier' ? routeState.taskId : null,
-                  taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
-                });
-              }
-            }}
-          >
-            <ToggleGroupItem value="customer">
-              <EntityCustomerIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'Customer')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="supplier">
-              <EntityTransitIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'Supplier')}
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <SupplierFilter
-            catalog={inventory.catalog}
-            className={compactFilterControlClassName}
-            value={supplierFilter}
-            disabled={overviewScope === 'customer'}
-            onChange={(nextSupplier) =>
-              updateRouteState({
-                supplier: supplierFilterQueryValue(nextSupplier),
-                taskId: null,
-                taskMode: null,
-              })
-            }
-          />
-        </div>
-      </WorkspaceTitleCard>
+        </WorkspaceTitleCard>
+      ) : null}
 
       <ChromeTabs
         className="relative gap-0"
@@ -943,7 +946,7 @@ export function DashboardRoute() {
                   </section>
                   <section className="mt-auto flex justify-center px-5 py-5">
                     <Button asChild variant="outline">
-                      <Link to="/record-update">
+                      <Link to="/work/capture">
                         <ActionOpenExternalIcon className="size-4" />
                         {translateUiLiteral(language, 'Open record updates')}
                       </Link>
@@ -1089,7 +1092,7 @@ export function DashboardRoute() {
                               </Button>
                             ) : (
                               <Button asChild className="w-[136px] justify-center" size="sm">
-                                <Link to="/record-update">
+                                <Link to="/work/capture">
                                   {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
                                   {task.actionLabel}
                                 </Link>
@@ -1261,7 +1264,7 @@ export function DashboardRoute() {
 
             <section className="mt-auto flex justify-center px-5 py-5">
               <Button asChild variant="outline">
-                <Link to="/operations">
+                <Link to="/settings/history">
                   <ActionOpenExternalIcon className="size-4" />
                   {translateUiLiteral(language, 'Open logs')}
                 </Link>

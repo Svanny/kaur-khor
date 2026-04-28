@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
+  ActionArchiveIcon,
   ActionCreatePackageIcon,
   ActionEditPencilIcon,
   ActionSearchOffIcon,
@@ -34,7 +35,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { buildCatalogSearchParams, readCatalogView } from '@/lib/navigation-state';
+import { buildCatalogSearchParams, readCatalogRouteState, readCatalogView } from '@/lib/navigation-state';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import {
@@ -55,6 +56,8 @@ import { deriveServiceDetailViewModel, type ServiceDetailViewModel } from '@/rou
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { ArchiveRoute } from './archive';
+import { AutomationsRoute } from './automations';
 
 function updateCatalogSearchParams(
   current: URLSearchParams,
@@ -326,11 +329,13 @@ export function InventoryRoute() {
   const location = useLocation();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
+  const catalogRouteState = readCatalogRouteState(searchParams);
   const [pendingArchive, setPendingArchive] = useState<{
     entityId: string;
     entityName: string;
     entityType: 'sku' | 'service';
   } | null>(null);
+
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
 
   const projectedSnapshot = useMemo(
@@ -362,6 +367,13 @@ export function InventoryRoute() {
   const hasResults =
     (showSkus && filteredSkus.length > 0) ||
     (showServices && filteredServices.length > 0);
+
+  if (catalogRouteState.status === 'archived') {
+    return <ArchiveRoute />;
+  }
+  if (catalogRouteState.section === 'automation') {
+    return <AutomationsRoute forcedSection="catalog" />;
+  }
 
   async function loadCatalogServiceActions(serviceId: string) {
     if (!activeSnapshot) {
@@ -434,6 +446,12 @@ export function InventoryRoute() {
               <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/services/new">
                 <NewServiceIcon className="size-4 shrink-0" />
                 {translateUiLiteral(language, 'New service')}
+              </Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog?status=archived">
+                <ActionArchiveIcon className="size-4 shrink-0" />
+                {translateUiLiteral(language, 'Archive')}
               </Link>
             </Button>
           </WorkspaceActionRow>
