@@ -185,7 +185,7 @@ export function HelpRoute() {
   }, [highlightedSubsectionId]);
 
   return (
-    <WorkspacePage>
+    <WorkspacePage className="pb-24 md:pb-36">
       <WorkspaceTitleCard
         helperExemptReason="Help page title explains itself through the guide intro"
         eyebrow={t('navHelp')}

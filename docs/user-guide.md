@@ -739,26 +739,26 @@ Search keywords: risk, urgency, reorder, stockout, can sell, available, demand, 
 
 ## FAQ
 
-### Why is Home different from Work?
+### What should I enter first?
 
-Home is the command entry point. Work is the queue, capture, and intake workspace.
+Start with the catalog items that matter most, then capture one real stock update. A small accurate setup is better than a complete but guessed setup. Once SKUs, services, suppliers, prices, and the first counts exist, banji has enough context to make later updates useful.
 
-### Where did the old signal pages go?
+### Can I use banji before every detail is perfect?
 
-They are modes inside **Insights**: Pressure, Money, and Explain.
+Yes. Use banji as a working notebook first, then tighten data quality over time. Mark uncertain information in notes, avoid inventing exact quantities, and fix catalog setup when a repeated issue appears. The app becomes more useful as saved evidence accumulates.
 
-### Where did Automations go?
+### How often should I capture updates?
 
-Automation intake moved to **Work**. Exposure controls moved to **Catalog**. Telegram connection and test-message controls moved to **Settings**.
+Capture updates whenever a real operating fact changes: stock counts, customer orders, supplier orders, receipts, prices, availability, or unusual demand. Daily capture is enough for many small operations, but urgent stock or supplier changes should be recorded when they happen.
 
-### Where is update history?
+### What if a recommendation looks wrong?
 
-History lives in **Settings** and contextual report actions.
+First check the source evidence before changing operations. Look for stale counts, missing receipts, wrong supplier assignment, incorrect prices, archived items, or notes that were too vague. If the evidence is wrong, fix the catalog or capture a correcting update instead of ignoring the signal silently.
 
-### Where did Archive go?
+### Why do some signals show low confidence?
 
-Archive is now the archived status inside **Catalog**.
+Low confidence usually means the app has sparse, stale, or conflicting evidence. Add a fresh count, record the missing order or receipt, check linked SKUs for services, and confirm prices or lead-time assumptions. Confidence should improve as the saved history becomes more consistent.
 
-### Can I still use old links?
+### What should I do before clearing or restoring local data?
 
-No. Use the canonical Home, Work, Catalog, Insights, and Settings routes.
+Export or back up the workspace first, then confirm you are working on the correct device and data folder. Clearing local data is for starting over or recovering from a bad test workspace. Restoring a snapshot should be treated as replacing the current local truth.

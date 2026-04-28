@@ -224,12 +224,20 @@ describe('HelpRoute', () => {
   });
 
   test('keeps the Khmer guide aligned with the intent-first IA', () => {
-    expect(guideSourceKm).toContain('Home');
-    expect(guideSourceKm).toContain('Work');
     expect(guideSourceKm).toContain('Capture');
     expect(guideSourceKm).toContain('Insights');
-    expect(guideSourceKm).toContain('History');
-    expect(guideSourceKm).toContain('Archive ឥឡូវនេះគឺ archived status នៅក្នុង **Catalog**');
+    expect(guideSourceKm).toContain('តើគួរបញ្ចូលអ្វីមុន?');
+    expect(guideSourceKm).toContain('តើធ្វើដូចម្តេច បើការណែនាំមើលទៅមិនត្រឹមត្រូវ?');
+  });
+
+  test('keeps bottom breathing room at the end of the Help page', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(container.firstElementChild).toHaveClass('pb-24', 'md:pb-36');
   });
 
   test('jumps to the matching guide card from the index', () => {
