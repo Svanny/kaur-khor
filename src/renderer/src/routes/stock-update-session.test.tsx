@@ -513,7 +513,7 @@ describe('StockUpdateSessionRoute', () => {
     goNext();
     chooseOptionalStepNo(3);
 
-    expect(screen.getByRole('button', { name: /Record update details/i })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: /Capture details/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('progressbar', { name: 'Wizard progress' })).toHaveAttribute('aria-valuenow', '88');
 
     fireEvent.click(screen.getAllByRole('button', { name: /Report notes/i })[0]);
@@ -1536,7 +1536,7 @@ describe('StockUpdateSessionRoute', () => {
     goNext(2);
     fireEvent.click(screen.getByRole('button', { name: /Report notes/i }));
     expect(screen.getByDisplayValue('Saved note')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Record update details/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Capture details/i }));
 
     goNext();
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));

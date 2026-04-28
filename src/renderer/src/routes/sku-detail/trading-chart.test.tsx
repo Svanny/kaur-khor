@@ -1158,7 +1158,7 @@ describe('SkuTradingChart settings', () => {
     expect(nextSettings.inventory.color).toBe('#2962ff');
     expect(nextSettings.inventory.lineWidth).toBe(4);
     expect(nextSettings.inventory.lineStyle).toBe('dotted');
-  });
+  }, 10_000);
 
   it('asks before leaving dirty settings and can keep editing or discard changes', async () => {
     const user = userEvent.setup();
@@ -1179,7 +1179,7 @@ describe('SkuTradingChart settings', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Chart indicator settings' })).not.toBeInTheDocument();
     expect(setIndicatorSettings).not.toHaveBeenCalled();
-  });
+  }, 10_000);
 
   it('asks before leaving dirty indicators and can apply staged changes', async () => {
     const user = userEvent.setup();

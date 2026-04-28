@@ -8190,7 +8190,7 @@ export function StockUpdateSessionRoute() {
     navigate('/', { replace: true, state: null });
     const schedulePostSaveRerun = () => {
       const currentRoute = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
-      if (currentRoute.startsWith('/record-update')) {
+      if (currentRoute.startsWith('/work/capture')) {
         window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
         return;
       }

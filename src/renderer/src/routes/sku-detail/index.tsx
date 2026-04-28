@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { hasActiveSenaSku } from '@/lib/sena-catalog';
+import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
@@ -287,7 +288,7 @@ function SkuDetailScreen() {
           hint={t('catalogSkuDetailNotFoundDescription')}
           action={
           <Button asChild variant="outline">
-              <Link to="/catalog">
+              <Link to={buildRememberedCatalogHref()}>
                 <NavigationBackIcon data-icon="inline-start" />
                 {t('backToCatalog')}
               </Link>

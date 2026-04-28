@@ -785,8 +785,8 @@ export function StockUpdateRoute() {
         onValueChange={setDeleteTokenValue}
       />
       <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Logs')}
-        title={translateUiLiteral(language, 'Update history')}
+        eyebrow={translateUiLiteral(language, 'Settings')}
+        title={translateUiLiteral(language, 'History')}
         descriptor={translateUiLiteral(language, 'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.')}
         actions={
           <WorkspaceActionRow>
@@ -843,14 +843,17 @@ export function StockUpdateRoute() {
             <Select value={view} onValueChange={(nextValue) => updateRouteState({ view: nextValue as ObservationView })}>
               <SelectTrigger
                 aria-label={translateUiLiteral(language, 'Select log view')}
-                className="h-11 rounded-2xl border border-border/70 bg-background/80 px-4 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-11 [&_svg]:opacity-100"
+                className={cn(
+                  'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+                  compactFilterControlClassName,
+                )}
               >
                 <span className="inline-flex items-center gap-2 text-foreground">
                   <SelectedViewIcon className="size-4" />
                   <span>{translateUiLiteral(language, 'View: {value}', { value: translateUiLiteral(language, selectedView.label) })}</span>
                 </span>
               </SelectTrigger>
-              <SelectContent align="start" position="popper">
+              <SelectContent align="start">
                 {(Object.entries(VIEW_OPTIONS) as [ObservationView, (typeof VIEW_OPTIONS)[ObservationView]][]).map(
                   ([value, option]) => {
                     const OptionIcon = option.icon;

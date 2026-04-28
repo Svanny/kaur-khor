@@ -135,7 +135,6 @@ describe('SkuDetailLedger', () => {
     });
     window.sessionStorage.clear();
     window.localStorage.clear();
-    window.sessionStorage.removeItem('banji:chart-settings:entity:v1');
   });
 
   it('remembers chart settings for same sku across remounts', async () => {
@@ -255,7 +254,7 @@ describe('SkuDetailLedger', () => {
     expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(2, { paneHeights: { main: 320, 'pane-1': 120 } });
   });
 
-  it('debounces indicator setting persistence to session storage', async () => {
+  it('debounces indicator setting persistence to page memory', async () => {
     vi.useFakeTimers();
     try {
       const props = {
@@ -275,21 +274,21 @@ describe('SkuDetailLedger', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Enable demand' }));
 
-      const persistedBeforeDebounce = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
-      expect(persistedBeforeDebounce['sku:sku-1']?.demand?.enabled).toBe(false);
+      const persistedBeforeDebounce = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      expect(persistedBeforeDebounce.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(119);
       });
-      const persistedStillBuffered = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
-      expect(persistedStillBuffered['sku:sku-1']?.demand?.enabled).toBe(false);
+      const persistedStillBuffered = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      expect(persistedStillBuffered.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
       });
 
-      const persisted = JSON.parse(window.sessionStorage.getItem('banji:chart-settings:entity:v1') ?? '{}');
-      expect(persisted['sku:sku-1']?.demand?.enabled).toBe(true);
+      const persisted = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      expect(persisted.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(true);
     } finally {
       vi.useRealTimers();
     }

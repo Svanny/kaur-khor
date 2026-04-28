@@ -434,9 +434,9 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
         });
       }
       for (const event of observation.input.ticketEvents?.filter((entry) =>
-        entry.lineItems.some((line) => line.entityType === 'sku' && line.entityId === skuId),
+        (entry.lineItems ?? []).some((line) => line.entityType === 'sku' && line.entityId === skuId),
       ) ?? []) {
-        const matchedQuantity = event.lineItems
+        const matchedQuantity = (event.lineItems ?? [])
           .filter((line) => line.entityType === 'sku' && line.entityId === skuId)
           .reduce((total, line) => total + Math.abs(line.quantity), 0);
         const title = (() => {
@@ -606,7 +606,7 @@ function buildPipelineChartIntervals({
   }
 
   for (const batch of orderBatches) {
-    for (const child of batch.children.filter((entry) => entry.skuId === skuId)) {
+    for (const child of (batch.children ?? []).filter((entry) => entry.skuId === skuId)) {
       if (child.status === 'received' || child.status === 'reviewed') {
         continue;
       }
@@ -687,7 +687,7 @@ export function deriveSenaSkuDetailViewModel({
     orderBand.high,
   );
   const pendingOrderBatches = orderBatches.filter((batch) =>
-    batch.children.some((child) => child.skuId === skuId && child.status !== 'reviewed'),
+    (batch.children ?? []).some((child) => child.skuId === skuId && child.status !== 'reviewed'),
   );
   const pendingBatchCount = pendingOrderBatches.length;
   const visibleIntervalIndices = new Set((detail?.demandPosterior ?? []).map((entry) => entry.intervalIndex));

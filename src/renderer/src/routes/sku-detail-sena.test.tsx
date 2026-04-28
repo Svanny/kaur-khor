@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import type { SenaDiagnostics, SenaObservationRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import type { SenaDiagnostics, SenaObservationRecord, SenaOrderBatchRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timeframe';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { getTranslation } from '@/lib/translations';
@@ -14,7 +14,7 @@ import { buildLeadTimeHintFromInputs } from './sku-detail/actions';
 import { SkuDetailEvidence } from './sku-detail/evidence';
 import { SkuDetailExposure } from './sku-detail/exposure';
 import { formatSenaCompactIntervalDate, formatSenaCompactIntervalDay, formatSenaLongDateTime24 } from './sku-detail/format';
-import { ribbonGridClassName } from './sku-detail/hero';
+
 import { SkuDetailLedger } from './sku-detail/ledger';
 import {
   buildSparsePolylineSegments,
@@ -603,13 +603,6 @@ describe('SKU detail SENA helpers', () => {
     expect(regimeInitials('stockout-constrained')).toBe('SC');
   });
 
-  test('sizes the operational ribbon grid to the rendered metric count', () => {
-    expect(ribbonGridClassName(5)).toBe('xl:grid-cols-5');
-    expect(ribbonGridClassName(6)).toBe('xl:grid-cols-6');
-    expect(ribbonGridClassName(0)).toBe('xl:grid-cols-1');
-    expect(ribbonGridClassName(9)).toBe('xl:grid-cols-8');
-  });
-
   test('maps retail price markers to interval slots without drawing an extra regime point', () => {
     const intervalMarkers = deriveIntervalPriceMarkers({
       intervals: [
@@ -837,6 +830,60 @@ describe('SKU detail SENA helpers', () => {
         }),
       ]),
     );
+  });
+
+  test('ignores legacy ticket events without line items', () => {
+    const ticketedObservations: SenaObservationRecord[] = [
+      {
+        ...observations[0]!,
+        input: {
+          ...observations[0]!.input,
+          ticketEvents: [
+            {
+              ticketId: 'legacy-ticket-1',
+              ticketFamily: 'supplier',
+              eventType: 'created',
+              lifecycle: 'open',
+              stage: 'ordered_waiting',
+              revision: 1,
+              occurredAt: '2026-03-27T09:00:00Z',
+            } as NonNullable<SenaObservationRecord['input']['ticketEvents']>[number],
+          ],
+        },
+      },
+    ];
+
+    expect(() => extractEvidence(ticketedObservations, 'sku-1')).not.toThrow();
+    expect(extractEvidence(ticketedObservations, 'sku-1').some((entry) => entry.type === 'ticket_event')).toBe(false);
+  });
+
+  test('derives the SKU detail model when legacy order batches omit children', () => {
+    const legacyOrderBatch = {
+      batchOrderId: 'legacy-batch-1',
+      ownerSub: 'desktop-owner',
+      supplierName: null,
+      status: 'open',
+      createdAt: '2026-03-27T09:00:00Z',
+      updatedAt: '2026-03-27T09:00:00Z',
+      shared: {},
+    } as SenaOrderBatchRecord;
+
+    expect(() =>
+      deriveSenaSkuDetailViewModel({
+        currency: 'USD',
+        diagnostics,
+        observations,
+        linkedServiceDetails: [],
+        orderBatches: [legacyOrderBatch],
+        selectedIntervalIndex: 0,
+        skuId: 'sku-1',
+        snapshot,
+        detail,
+        uiState: 'ready',
+        workspaceSummary: workspace,
+        language: 'en',
+      }),
+    ).not.toThrow();
   });
 
   test('builds a lead-time hint payload from typical days and ordinal variability', () => {

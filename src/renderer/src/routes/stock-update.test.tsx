@@ -301,8 +301,8 @@ describe('StockUpdateRoute', () => {
   it('renders the reusable logs title card, actions, and heatmap summary', () => {
     renderRoute();
 
-    expect(screen.getByText('Logs')).toBeInTheDocument();
-    expect(screen.getByText('Update history')).toBeInTheDocument();
+    expect(screen.getByText('Settings')).toBeInTheDocument();
+    expect(screen.getByText('History')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search name or description…')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();

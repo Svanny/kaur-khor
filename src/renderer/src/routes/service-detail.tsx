@@ -18,6 +18,7 @@ import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
+import { buildRememberedCatalogHref, useRememberedPageValue } from '@/lib/page-state-memory';
 import { usePreferences } from '@/state/preferences';
 import { useInventoryActions, useInventoryState } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from './loading-wireframes';
@@ -59,6 +60,10 @@ function mergeServiceDetailPages(older: SenaServiceDetail, newer: SenaServiceDet
     ...newer,
     regimeTimeline: [...older.regimeTimeline, ...newer.regimeTimeline],
   };
+}
+
+function rememberedContributorValidator(value: unknown) {
+  return typeof value === 'string' ? value : null;
 }
 
 function ServiceDetailLoadingState({
@@ -114,6 +119,13 @@ export function ServiceDetailRoute() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [selection, setSelection] = useState<ServiceInspectorSelection>({ type: 'overview' });
+  const [rememberedContributorSkuId, setRememberedContributorSkuId] = useRememberedPageValue(
+    'catalog',
+    'serviceContributor',
+    '',
+    rememberedContributorValidator,
+    { scope: `service:${serviceId}` },
+  );
   const initialDetailRequestRef = useRef<Promise<SenaServiceDetailPage | null> | null>(null);
   const chartController = useTradingChartController({
     subjectId: serviceId,
@@ -326,6 +338,15 @@ export function ServiceDetailRoute() {
       return;
     }
 
+    if (
+      rememberedContributorSkuId &&
+      selection.type === 'overview' &&
+      model.contributors.some((entry) => entry.skuId === rememberedContributorSkuId)
+    ) {
+      setSelection({ type: 'contributor', skuId: rememberedContributorSkuId });
+      return;
+    }
+
     setSelection((current) => {
       if (current.type === 'contributor' && current.skuId) {
         return model.contributors.some((entry) => entry.skuId === current.skuId) ? current : { type: 'overview' };
@@ -335,7 +356,16 @@ export function ServiceDetailRoute() {
       }
       return current;
     });
-  }, [model]);
+  }, [model, rememberedContributorSkuId, selection.type]);
+
+  const setRememberedSelection = useCallback((nextSelection: ServiceInspectorSelection) => {
+    setSelection(nextSelection);
+    if (nextSelection.type === 'contributor' && nextSelection.skuId) {
+      setRememberedContributorSkuId(nextSelection.skuId);
+    } else if (nextSelection.type === 'overview') {
+      setRememberedContributorSkuId('');
+    }
+  }, [setRememberedContributorSkuId]);
 
   if (!catalogService && !service) {
     return (
@@ -345,7 +375,7 @@ export function ServiceDetailRoute() {
           hint={t('catalogServiceDetailNotFoundDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">
+              <Link to={buildRememberedCatalogHref()}>
                 <NavigationBackIcon data-icon="inline-start" />
                 {t('backToCatalog')}
               </Link>
@@ -376,7 +406,7 @@ export function ServiceDetailRoute() {
           hint={error ?? t('catalogServiceDetailUnavailableDescription')}
           action={
             <Button asChild variant="outline">
-              <Link to="/catalog">
+              <Link to={buildRememberedCatalogHref()}>
                 <NavigationBackIcon data-icon="inline-start" />
                 {t('backToCatalog')}
               </Link>
@@ -440,7 +470,7 @@ export function ServiceDetailRoute() {
                   onTimeframeChange={chartController.handleTimeframeChange}
                   onToggleExpand={() => setLedgerExpanded(true)}
                   selection={selection}
-                  setSelection={setSelection}
+                  setSelection={setRememberedSelection}
                   timeframe={chartController.timeframe}
                 />
               ) : (
@@ -485,7 +515,7 @@ export function ServiceDetailRoute() {
               onTimeframeChange={chartController.handleTimeframeChange}
               onToggleExpand={() => setLedgerExpanded(false, true)}
               selection={selection}
-              setSelection={setSelection}
+              setSelection={setRememberedSelection}
               timeframe={chartController.timeframe}
             />
         </ChartLedgerOverlay>

@@ -4,24 +4,10 @@ import { translateRegimeLabel } from '@/lib/localized-display';
 import { SkuPageHero } from '@/routes/sku-page-hero';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { SupplierBadge } from '@/components/system/supplier';
+import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { usePreferences } from '@/state/preferences';
 import { SectionLabel } from './section-heading';
 import type { SenaSkuDetailViewModel } from './view-model';
-
-const ribbonGridColumnsClassNames = {
-  1: 'xl:grid-cols-1',
-  2: 'xl:grid-cols-2',
-  3: 'xl:grid-cols-3',
-  4: 'xl:grid-cols-4',
-  5: 'xl:grid-cols-5',
-  6: 'xl:grid-cols-6',
-  7: 'xl:grid-cols-7',
-  8: 'xl:grid-cols-8',
-} as const;
-
-export function ribbonGridClassName(metricCount: number) {
-  return ribbonGridColumnsClassNames[Math.min(Math.max(metricCount, 1), 8) as keyof typeof ribbonGridColumnsClassNames];
-}
 
 export function SkuDetailHero({
   actions,
@@ -73,29 +59,23 @@ export function SkuDetailHero({
       ) : null}
 
       {showHeartbeatRibbons ? (
-        <div className="mt-6 overflow-hidden rounded-[1rem] border border-border/70 bg-white shadow-[0_10px_24px_rgba(48,31,20,0.06)]">
-          <div className="border-b border-border/60 px-4 py-3">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        <div className="mt-6">
+          <MetricRibbon
+            title={
               <SectionLabel tooltip={t('catalogSenaSkuRibbonTooltip')}>
                 {t('catalogSenaSkuOperationalRibbon')}
               </SectionLabel>
-            </p>
-          </div>
-          <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${ribbonGridClassName(model.ribbon.length)}`}>
-            {model.ribbon.map((metric) => {
-              const valueClassName =
+            }
+            items={model.ribbon.map((metric) => ({
+              key: metric.key,
+              label: metric.label,
+              value: metric.value,
+              valueClassName:
                 metric.key === 'nextReceipt'
                   ? 'mt-1 text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
-                  : 'mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground';
-
-              return (
-              <div key={metric.key} className="min-w-0 bg-white px-4 py-3">
-                <p className="truncate text-sm text-muted-foreground">{metric.label}</p>
-                <p className={valueClassName}>{metric.value}</p>
-              </div>
-              );
-            })}
-          </div>
+                  : 'mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground',
+            }))}
+          />
         </div>
       ) : null}
     </SkuPageHero>
