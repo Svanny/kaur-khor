@@ -59,7 +59,7 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
 }
 
 describe('command palette descriptors', () => {
-  test('hides analysis commands when the analysis page is disabled', () => {
+  test('hides analysis commands when the explain mode is disabled', () => {
     const commands = buildCommandDescriptors({
       currency: 'USD',
       displayViewMode: 'custom',
@@ -81,6 +81,12 @@ describe('command palette descriptors', () => {
           navOverview: 'Overview',
           navPerformance: 'Performance',
           navFinancials: 'Financials',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'Work',
+          navCapture: 'Capture',
+          navInsights: 'Insights',
+          navHistory: 'History',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
           navHelp: 'Help',
@@ -89,6 +95,56 @@ describe('command palette descriptors', () => {
 
     expect(commands.some((command) => command.pageId === 'analysis')).toBe(false);
     expect(commands.some((command) => command.id === 'page:analysis')).toBe(false);
+  });
+
+  test('builds the settings command for automations and intake visibility', () => {
+    const enabledCommands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory(),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key) => key,
+    });
+    const disabledCommands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory(),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      t: (key) => key,
+    });
+
+    expect(enabledCommands.find((command) => command.id === 'settings:automations-page:off')).toMatchObject({
+      action: {
+        effect: 'set-show-automations-page',
+        href: '/settings/interface?highlight=automations',
+        type: 'settings',
+        value: false,
+      },
+      title: 'Hide automations and intake',
+    });
+    expect(disabledCommands.find((command) => command.id === 'settings:automations-page:on')).toMatchObject({
+      action: {
+        effect: 'set-show-automations-page',
+        href: '/settings/interface?highlight=automations',
+        type: 'settings',
+        value: true,
+      },
+      title: 'Show automations and intake',
+    });
+    expect(disabledCommands.some((command) => command.id === 'page:automations')).toBe(false);
+    expect(disabledCommands.some((command) => command.action.href === '/work/intake')).toBe(false);
   });
 
   test('builds static, entity, and overview workflow commands', () => {
@@ -209,6 +265,12 @@ describe('command palette descriptors', () => {
           navOverview: 'Overview',
           navPerformance: 'Performance',
           navFinancials: 'Financials',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'Work',
+          navCapture: 'Capture',
+          navInsights: 'Insights',
+          navHistory: 'History',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
           navHelp: 'Help',
@@ -216,7 +278,12 @@ describe('command palette descriptors', () => {
     });
 
     expect(commands.some((command) => command.id === 'page:catalog')).toBe(true);
-    expect(commands.some((command) => command.id === 'page:automations')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:home')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:work')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:capture')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:insights')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:history')).toBe(true);
+    expect(commands.some((command) => command.id === 'page:automations')).toBe(false);
     expect(commands.some((command) => command.id === 'page:archive')).toBe(true);
     expect(commands.some((command) => command.id === 'page:help')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:open:sku-1')).toBe(true);
@@ -224,7 +291,7 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'sku:sheet:order:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'service:sheet:price:service-1')).toBe(true);
     expect(commands.some((command) => command.id === 'service:archive:service-1')).toBe(true);
-    expect(commands.some((command) => command.id === 'overview:task:sku-1:log_order')).toBe(true);
+    expect(commands.some((command) => command.id === 'work:task:sku-1:log_order')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:language:km')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:create-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:restore-backup-snapshot')).toBe(true);
@@ -233,7 +300,7 @@ describe('command palette descriptors', () => {
     expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
     expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.action.href).toBe('/catalog/skus/sku-1');
     expect(commands.find((command) => command.id === 'service:sheet:price:service-1')?.action.href).toBe('/catalog/services/service-1');
-    expect(commands.find((command) => command.id === 'overview:task:sku-1:log_order')?.action.href).toBe('/?filter=to_order');
+    expect(commands.find((command) => command.id === 'work:task:sku-1:log_order')?.action.href).toBe('/work/queue?filter=to_order');
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
   });
 
@@ -268,6 +335,12 @@ describe('command palette descriptors', () => {
           navOverview: 'Overview',
           navPerformance: 'Performance',
           navFinancials: 'Financials',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'Work',
+          navCapture: 'Capture',
+          navInsights: 'Insights',
+          navHistory: 'History',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
           navHelp: 'Help',
@@ -275,7 +348,7 @@ describe('command palette descriptors', () => {
     });
 
     expect(commands.some((command) => command.id === 'page:catalog')).toBe(false);
-    expect(commands.some((command) => command.id === 'page:operations')).toBe(false);
+    expect(commands.some((command) => command.id === 'page:history')).toBe(false);
     expect(commands.some((command) => command.id === 'page:performance')).toBe(false);
     expect(commands.some((command) => command.id === 'page:financials')).toBe(false);
     expect(commands.some((command) => command.id === 'page:automations')).toBe(false);
@@ -328,6 +401,12 @@ describe('command palette descriptors', () => {
           navOverview: 'Overview',
           navPerformance: 'Performance',
           navFinancials: 'Financials',
+          navHome: 'Home',
+          navInbox: 'Inbox',
+          navWork: 'Work',
+          navCapture: 'Capture',
+          navInsights: 'Insights',
+          navHistory: 'History',
           navRecordUpdate: 'Record update',
           navSettings: 'Settings',
           navHelp: 'Help',
@@ -335,11 +414,9 @@ describe('command palette descriptors', () => {
     });
 
     expect(commands.find((command) => command.id === 'page:catalog')?.action.href).toBe('/catalog?q=scarf&view=skus');
-    expect(commands.find((command) => command.id === 'page:performance')?.action.href).toBe(
-      '/performance?range=7d&scope=skus&supplier=Mekong+Looms',
-    );
+    expect(commands.find((command) => command.id === 'page:insights')?.action.href).toBe('/insights');
     expect(commands.find((command) => command.id === 'performance:range:90d')?.action.href).toBe(
-      '/performance?range=90d&scope=skus&supplier=Mekong+Looms',
+      '/insights/pressure?range=90d&scope=skus&supplier=Mekong+Looms',
     );
   });
 
@@ -604,7 +681,7 @@ describe('command palette descriptors', () => {
         pagePrefixes: ['/analysis'],
         priority: 120,
         tabOrder: 2,
-        title: 'Analysis / Timeframe / Recent',
+        title: 'Explain / Timeframe / Recent',
       },
       {
         action: { href: '/catalog?view=skus', type: 'tab' as const },
@@ -661,7 +738,7 @@ describe('command palette descriptors', () => {
     });
 
     expect(sections.map((section) => section.title)).toEqual(['Best Matches', 'Pages', 'Tabs', 'Actions']);
-    expect(sections[0]?.items.map((item) => item.title)).toEqual(['Zebra item', 'Analysis / Timeframe / Recent']);
+    expect(sections[0]?.items.map((item) => item.title)).toEqual(['Zebra item', 'Explain / Timeframe / Recent']);
     expect(sections[1]?.items.map((item) => item.title)).toEqual(['Performance', 'Settings']);
     expect(sections[2]?.items.map((item) => item.title)).toEqual(['Catalog / SKUs']);
     expect(sections[3]?.items.map((item) => item.title)).toEqual(['Alpha action']);

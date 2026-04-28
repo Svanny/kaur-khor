@@ -242,10 +242,8 @@ describe('preferences state', () => {
       onboardingCompletedAt: null,
       seenUnlockedNavItems: {
         catalog: false,
-        operations: false,
-        performance: false,
-        financials: false,
-        automations: false,
+        insights: false,
+        work: false,
       },
       workbenchTileOrderByLane: {
         'supplier-order-pending': ['supplier-order:sku-2'],
@@ -255,7 +253,7 @@ describe('preferences state', () => {
       language: 'km',
       currency: 'KHR',
       usdToKhrExchangeRate: 4100,
-      displayViewMode: 'custom',
+      displayViewMode: payload.displayViewMode ?? 'minimal',
       itemImageMode: payload.itemImageMode ?? 'small',
       dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
       showExplanatoryTooltips: false,
@@ -290,10 +288,8 @@ describe('preferences state', () => {
       onboardingCompletedAt: payload.onboardingCompletedAt ?? null,
       seenUnlockedNavItems: payload.seenUnlockedNavItems ?? {
         catalog: false,
-        operations: false,
-        performance: false,
-        financials: false,
-        automations: false,
+        insights: false,
+        work: false,
       },
       workbenchTileOrderByLane: payload.workbenchTileOrderByLane ?? {
         'supplier-order-pending': ['supplier-order:sku-2'],
@@ -350,7 +346,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-right-rail-cards').textContent).toBe('false');
     expect(screen.getByTestId('show-overview-task-tabs').textContent).toBe('false');
     expect(screen.getByTestId('show-automations-page').textContent).toBe('false');
-    expect(screen.getByTestId('show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('show-analysis-page').textContent).toBe('true');
     expect(screen.getByTestId('show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('show-performance-timeline-card').textContent).toBe('false');
     expect(screen.getByTestId('show-logs-view-toggle').textContent).toBe('false');
@@ -358,7 +354,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('custom-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-overview-task-tabs').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-automations-page').textContent).toBe('false');
-    expect(screen.getByTestId('custom-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('custom-show-analysis-page').textContent).toBe('true');
     expect(screen.getByTestId('custom-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-performance-timeline-card').textContent).toBe('false');
     expect(screen.getByTestId('custom-show-logs-view-toggle').textContent).toBe('false');
@@ -391,7 +387,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('show-heartbeat-ribbons').textContent).toBe('true');
     expect(screen.getByTestId('onboarding-completed-at').textContent).toBe('null');
     expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
-      JSON.stringify({ catalog: false, operations: false, performance: false, financials: false, automations: false }),
+      JSON.stringify({ catalog: false, insights: false, work: false }),
     );
     expect(screen.getByTestId('workbench-tile-order-by-lane').textContent).toBe(
       JSON.stringify({ 'supplier-order-pending': ['supplier-order:sku-2'] }),
@@ -434,7 +430,7 @@ describe('preferences state', () => {
         showRightRailCards: false,
         showOverviewTaskTabs: false,
         showAutomationsPage: false,
-        showAnalysisPage: false,
+        showAnalysisPage: true,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
         showLogsViewToggle: false,
@@ -452,7 +448,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-show-right-rail-cards').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-overview-task-tabs').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-automations-page').textContent).toBe('false');
-    expect(screen.getByTestId('persisted-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-show-analysis-page').textContent).toBe('true');
     expect(screen.getByTestId('persisted-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-performance-timeline-card').textContent).toBe('false');
     expect(screen.getByTestId('persisted-show-logs-view-toggle').textContent).toBe('false');
@@ -460,7 +456,7 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-custom-show-explanatory-tooltips').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-overview-task-tabs').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-automations-page').textContent).toBe('false');
-    expect(screen.getByTestId('persisted-custom-show-analysis-page').textContent).toBe('false');
+    expect(screen.getByTestId('persisted-custom-show-analysis-page').textContent).toBe('true');
     expect(screen.getByTestId('persisted-custom-show-performance-compare-toggle').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-performance-timeline-card').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-logs-view-toggle').textContent).toBe('false');

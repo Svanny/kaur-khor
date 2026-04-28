@@ -15,6 +15,13 @@ function firstSavePreferencesButton() {
   ) as HTMLButtonElement;
 }
 
+async function checkboxInRow(label: string) {
+  const labelElement = await screen.findByText(label);
+  const row = labelElement.closest('[data-slot="checkbox-row"]');
+  expect(row).not.toBeNull();
+  return within(row as HTMLElement).getByRole('checkbox') as HTMLButtonElement;
+}
+
 function renderSettingsRoute(initialEntry = '/settings/workspace') {
   render(
     <MemoryRouter initialEntries={[initialEntry]}>
@@ -333,12 +340,14 @@ describe('SettingsRoute', () => {
 
     expect(await screen.findAllByText('Interface')).not.toHaveLength(0);
     expect(
-      screen.getByText('These switches control how much guidance and side context the desktop shows.'),
+      screen.getByText('Choose a view preset or fine-tune the individual interface visibility toggles below.'),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole('radio', { name: /compact view/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: /minimal view/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: /default view/i })[0]).toBeInTheDocument();
+    expect(screen.getAllByRole('radio', { name: /maximal view/i })[0]).toBeInTheDocument();
     expect(screen.getAllByRole('radio', { name: /custom view/i })[0]).toBeInTheDocument();
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
+    const checkbox = await checkboxInRow('Optional guidance');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -776,6 +785,7 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/workspace');
 
     const logOrderSelect = await screen.findByRole('combobox', { name: 'Log order' });
+    expect(logOrderSelect).toHaveClass('h-9', 'rounded-full', 'bg-card');
     fireEvent.click(logOrderSelect);
     fireEvent.click(screen.getByRole('option', { name: 'Always batch update' }));
     fireEvent.click(firstSavePreferencesButton());
@@ -904,7 +914,7 @@ describe('SettingsRoute', () => {
   it('renders and saves the right rail visibility preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show right rail cards/i });
+    const checkbox = await checkboxInRow('Right-side context panels');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -927,7 +937,7 @@ describe('SettingsRoute', () => {
   it('renders and saves the overview task tabs preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show overview task tabs/i });
+    const checkbox = await checkboxInRow('Work queue filter tabs');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -943,10 +953,18 @@ describe('SettingsRoute', () => {
     });
   });
 
-  it('renders and saves the automations page visibility preference', async () => {
+  it('does not render retired intake visibility preferences', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show automations page/i });
+    await checkboxInRow('Work queue filter tabs');
+
+    expect(screen.queryByRole('checkbox', { name: /show intake tools/i })).not.toBeInTheDocument();
+  });
+
+  it('renders and saves the automations and intake preference', async () => {
+    renderSettingsRoute('/settings/interface');
+
+    const checkbox = await checkboxInRow('Automations and intake');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -959,26 +977,63 @@ describe('SettingsRoute', () => {
     });
   });
 
-  it('renders and saves the analysis page visibility preference', async () => {
-    renderSettingsRoute('/settings/interface');
-
-    const checkbox = await screen.findByRole('checkbox', { name: /show analysis page/i });
-    expect(checkbox).toBeChecked();
-
-    fireEvent.click(checkbox);
-    fireEvent.click(firstSavePreferencesButton());
-
-    await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
-        showAnalysisPage: false,
-      }));
+  it('redirects disabled automation settings to the highlighted interface row', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: false,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+        automations: true,
+      },
     });
+
+    renderSettingsRoute('/settings/automation');
+
+    await checkboxInRow('Automations and intake');
+    expect(document.querySelector('[data-settings-interface-row="automations"]')).toHaveAttribute('data-highlighted', 'true');
   });
 
   it('renders and saves the performance compare toggle preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show performance compare toggle/i });
+    const checkbox = await checkboxInRow('Comparison view switch');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -994,7 +1049,7 @@ describe('SettingsRoute', () => {
   it('renders and saves the business timeline card preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show business timeline card/i });
+    const checkbox = await checkboxInRow('Pressure timeline card');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -1007,10 +1062,10 @@ describe('SettingsRoute', () => {
     });
   });
 
-  it('renders and saves the logs view button preference', async () => {
+  it('renders and saves the history log-style toggle preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show logs view button/i });
+    const checkbox = await checkboxInRow('History view selector');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -1026,7 +1081,7 @@ describe('SettingsRoute', () => {
   it('renders and saves the heartbeat and ribbons preference', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show heartbeats and ribbons/i });
+    const checkbox = await checkboxInRow('Heartbeat and signal ribbons');
     expect(checkbox).toBeChecked();
 
     fireEvent.click(checkbox);
@@ -1039,34 +1094,37 @@ describe('SettingsRoute', () => {
     });
   });
 
-  it('switches between compact and custom view modes from interface visibility', async () => {
+  it('switches between preset view modes from interface visibility', async () => {
     renderSettingsRoute('/settings/interface');
 
-    const compactButton = (await screen.findAllByRole('radio', { name: 'Compact View' }))[0] as HTMLButtonElement;
-    const customButton = screen.getAllByRole('radio', { name: 'Custom View' })[0] as HTMLButtonElement;
-    const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
+    const minimalButton = (await screen.findAllByRole('radio', { name: 'Minimal View' }))[0] as HTMLButtonElement;
+    expect(screen.getByRole('radio', { name: 'Default View' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Maximal View' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Custom View' })).toBeInTheDocument();
+    const optionalGuidanceCheckbox = within(screen.getByText('Optional guidance').closest('[data-slot="checkbox-row"]') as HTMLElement).getByRole('checkbox');
     const saveButton = firstSavePreferencesButton();
 
-    expect(extraGuidanceCheckbox).not.toBeDisabled();
+    expect(optionalGuidanceCheckbox).not.toBeDisabled();
     expect(saveButton).toBeDisabled();
 
-    fireEvent.click(compactButton);
+    fireEvent.click(minimalButton);
 
     expect(savePreferences).not.toHaveBeenCalled();
     expect(saveButton).not.toBeDisabled();
-    expect(extraGuidanceCheckbox).toBeDisabled();
+    expect(optionalGuidanceCheckbox).not.toBeDisabled();
+    expect(optionalGuidanceCheckbox).not.toBeChecked();
 
     fireEvent.click(saveButton);
 
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
-        displayViewMode: 'compact',
+        displayViewMode: 'minimal',
         showExplanatoryTooltips: false,
         showFloatingTitleActions: false,
         showRightRailCards: false,
         showOverviewTaskTabs: false,
         showAutomationsPage: false,
-        showAnalysisPage: false,
+        showAnalysisPage: true,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
         showLogsViewToggle: false,
@@ -1083,15 +1141,14 @@ describe('SettingsRoute', () => {
         customShowHeartbeatRibbons: true,
       }));
     });
-    expect(customButton).toBeInTheDocument();
   });
 
-  it('restores remembered custom visibility preferences when switching back from compact', async () => {
+  it('shows a custom card for non-preset toggle combinations', async () => {
     getPreferences.mockResolvedValue({
       language: 'en',
       currency: 'USD',
       usdToKhrExchangeRate: 4000,
-      displayViewMode: 'compact',
+      displayViewMode: 'minimal',
       itemImageMode: 'small',
       dimChartsWhileLoading: false,
       showExplanatoryTooltips: false,
@@ -1099,94 +1156,112 @@ describe('SettingsRoute', () => {
       showRightRailCards: false,
       showOverviewTaskTabs: false,
       showAutomationsPage: false,
-      showAnalysisPage: false,
+      showAnalysisPage: true,
       showPerformanceCompareToggle: false,
       showPerformanceTimelineCard: false,
       showLogsViewToggle: false,
       showHeartbeatRibbons: false,
-      customShowExplanatoryTooltips: true,
+      customShowExplanatoryTooltips: false,
       customShowFloatingTitleActions: false,
-      customShowRightRailCards: true,
+      customShowRightRailCards: false,
       customShowOverviewTaskTabs: false,
-      customShowAutomationsPage: true,
+      customShowAutomationsPage: false,
       customShowAnalysisPage: true,
-      customShowPerformanceCompareToggle: true,
+      customShowPerformanceCompareToggle: false,
       customShowPerformanceTimelineCard: false,
-      customShowLogsViewToggle: true,
+      customShowLogsViewToggle: false,
       customShowHeartbeatRibbons: false,
       senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     });
-    savePreferences.mockImplementation(async (payload) => ({
-      language: 'en',
-      currency: 'USD',
-      usdToKhrExchangeRate: 4000,
-      displayViewMode: payload.displayViewMode ?? 'custom',
-      itemImageMode: payload.itemImageMode ?? 'small',
-      dimChartsWhileLoading: payload.dimChartsWhileLoading ?? false,
-      showExplanatoryTooltips: payload.showExplanatoryTooltips ?? false,
-      showFloatingTitleActions: payload.showFloatingTitleActions ?? false,
-      showRightRailCards: payload.showRightRailCards ?? false,
-      showOverviewTaskTabs: payload.showOverviewTaskTabs ?? false,
-      showAutomationsPage: payload.showAutomationsPage ?? false,
-      showAnalysisPage: payload.showAnalysisPage ?? false,
-      showPerformanceCompareToggle: payload.showPerformanceCompareToggle ?? false,
-      showPerformanceTimelineCard: payload.showPerformanceTimelineCard ?? false,
-      showLogsViewToggle: payload.showLogsViewToggle ?? false,
-      showHeartbeatRibbons: payload.showHeartbeatRibbons ?? false,
-      customShowExplanatoryTooltips: payload.customShowExplanatoryTooltips ?? true,
-      customShowFloatingTitleActions: payload.customShowFloatingTitleActions ?? false,
-      customShowRightRailCards: payload.customShowRightRailCards ?? true,
-      customShowOverviewTaskTabs: payload.customShowOverviewTaskTabs ?? false,
-      customShowAutomationsPage: payload.customShowAutomationsPage ?? true,
-      customShowAnalysisPage: payload.customShowAnalysisPage ?? true,
-      customShowPerformanceCompareToggle: payload.customShowPerformanceCompareToggle ?? true,
-      customShowPerformanceTimelineCard: payload.customShowPerformanceTimelineCard ?? false,
-      customShowLogsViewToggle: payload.customShowLogsViewToggle ?? true,
-      customShowHeartbeatRibbons: payload.customShowHeartbeatRibbons ?? false,
-      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
-    }));
 
     renderSettingsRoute('/settings/interface');
 
-    const customButton = (await screen.findAllByRole('radio', { name: 'Custom View' }))[0] as HTMLButtonElement;
-    const extraGuidanceCheckbox = screen.getByRole('checkbox', { name: /show extra guidance/i });
-    const saveButton = firstSavePreferencesButton();
+    expect(await screen.findByRole('radio', { name: 'Minimal View' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Custom View' })).toHaveAttribute('aria-checked', 'false');
 
-    expect(extraGuidanceCheckbox).toBeDisabled();
+    const optionalGuidanceCheckbox = await checkboxInRow('Optional guidance');
+    fireEvent.click(optionalGuidanceCheckbox);
 
-    fireEvent.click(customButton);
+    expect(screen.getByRole('radio', { name: 'Custom View' })).toHaveAttribute('aria-checked', 'true');
+  });
 
-    expect(savePreferences).not.toHaveBeenCalled();
-    expect(saveButton).not.toBeDisabled();
-    expect(extraGuidanceCheckbox).not.toBeDisabled();
-
-    fireEvent.click(saveButton);
-
-    await waitFor(() => {
-      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
-        displayViewMode: 'custom',
-        showExplanatoryTooltips: true,
-        showFloatingTitleActions: false,
-        showRightRailCards: true,
-        showOverviewTaskTabs: false,
-        showAutomationsPage: true,
-        showAnalysisPage: true,
-        showPerformanceCompareToggle: true,
-        showPerformanceTimelineCard: false,
-        showLogsViewToggle: true,
-        showHeartbeatRibbons: false,
-        customShowExplanatoryTooltips: true,
-        customShowFloatingTitleActions: false,
-        customShowRightRailCards: true,
-        customShowOverviewTaskTabs: false,
-        customShowAutomationsPage: true,
-        customShowAnalysisPage: true,
-        customShowPerformanceCompareToggle: true,
-        customShowPerformanceTimelineCard: false,
-        customShowLogsViewToggle: true,
-        customShowHeartbeatRibbons: false,
-      }));
+  it('keeps custom selected when its visibility matches a preset', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: false,
+      customShowOverviewTaskTabs: false,
+      customShowAutomationsPage: false,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: false,
+      customShowPerformanceTimelineCard: false,
+      customShowLogsViewToggle: false,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
     });
+
+    renderSettingsRoute('/settings/interface');
+
+    expect(await screen.findByRole('radio', { name: 'Custom View' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('clicking custom restores remembered custom visibility', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'default',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
+      showOverviewTaskTabs: false,
+      showAutomationsPage: false,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: false,
+      showPerformanceTimelineCard: false,
+      showLogsViewToggle: false,
+      showHeartbeatRibbons: true,
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+    });
+
+    renderSettingsRoute('/settings/interface');
+
+    expect(await checkboxInRow('Right-side context panels')).not.toBeChecked();
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom View' }));
+
+    expect(screen.getByRole('radio', { name: 'Custom View' })).toHaveAttribute('aria-checked', 'true');
+    expect(await checkboxInRow('Right-side context panels')).toBeChecked();
+    expect(await checkboxInRow('Work queue filter tabs')).toBeChecked();
   });
 
   it('renders planning settings and reruns planning changes on save', async () => {
@@ -1464,7 +1539,7 @@ describe('SettingsRoute', () => {
       </MemoryRouter>,
     );
 
-    const checkbox = await screen.findByRole('checkbox', { name: /show extra guidance/i });
+    const checkbox = await checkboxInRow('Optional guidance');
     fireEvent.click(checkbox);
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 

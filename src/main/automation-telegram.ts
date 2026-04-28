@@ -296,14 +296,20 @@ async function syncTelegramAutomationOnce(
     loadPreferences: () => Promise<{
       currency: AppCurrency;
       language: 'en' | 'km';
+      showAutomationsPage: boolean;
       usdToKhrExchangeRate: number;
     }>;
   },
 ) {
+  const preferences = await loadPreferences();
+  if (!preferences.showAutomationsPage) {
+    return { disabled: true };
+  }
+
   const transport = await readAutomationTransportState(userDataPath);
   const token = transport.botToken?.trim();
   if (!token || transport.connection.status !== 'connected') {
-    return;
+    return { disabled: false };
   }
 
   const bot = await telegramGetMe(token);
@@ -317,10 +323,10 @@ async function syncTelegramAutomationOnce(
     timeout: 1,
   });
   if (updates.length === 0) {
-    return;
+    return { disabled: false };
   }
 
-  const [context, preferences] = await Promise.all([loadContext(), loadPreferences()]);
+  const context = await loadContext();
   const result = await ingestAutomationTelegramUpdates(userDataPath, {
     context,
     currency: preferences.currency,
@@ -417,6 +423,7 @@ async function syncTelegramAutomationOnce(
       });
     }
   }
+  return { disabled: false };
 }
 
 export function startTelegramAutomationLoop(
@@ -426,16 +433,18 @@ export function startTelegramAutomationLoop(
     loadPreferences: () => Promise<{
       currency: AppCurrency;
       language: 'en' | 'km';
+      showAutomationsPage: boolean;
       usdToKhrExchangeRate: number;
     }>;
   },
 ) {
   let stopped = false;
+  let enabled = true;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
 
   const schedule = (delayMs: number) => {
-    if (stopped) {
+    if (stopped || !enabled) {
       return;
     }
     if (timer) {
@@ -447,12 +456,14 @@ export function startTelegramAutomationLoop(
   };
 
   const tick = async () => {
-    if (stopped || running) {
+    if (stopped || !enabled || running) {
       return;
     }
     running = true;
+    let disabledByPreference = false;
     try {
-      await syncTelegramAutomationOnce(userDataPath, deps);
+      const result = await syncTelegramAutomationOnce(userDataPath, deps);
+      disabledByPreference = result.disabled;
     } catch (error) {
       await recordAutomationTelegramError(
         userDataPath,
@@ -460,7 +471,15 @@ export function startTelegramAutomationLoop(
       );
     } finally {
       running = false;
-      schedule(2_000);
+      if (disabledByPreference) {
+        enabled = false;
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      } else {
+        schedule(2_000);
+      }
     }
   };
 
@@ -473,6 +492,17 @@ export function startTelegramAutomationLoop(
         clearTimeout(timer);
         timer = null;
       }
+    },
+    setEnabled(nextEnabled: boolean) {
+      enabled = nextEnabled;
+      if (!enabled) {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        return;
+      }
+      schedule(0);
     },
     triggerSoon() {
       schedule(0);

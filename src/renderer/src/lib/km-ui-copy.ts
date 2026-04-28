@@ -5,13 +5,19 @@ type TranslationKey = keyof typeof enUiCopyV1;
 const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   appTitle: 'បញ្ជី កុំព្យូទ័រ',
   appBrand: 'បញ្ជី',
+  navHome: 'ទំព័រដើម',
+  navWork: 'ការងារ',
+  navInbox: 'ប្រអប់ការងារ',
+  navCapture: 'កត់ត្រា',
+  navInsights: 'ការយល់ដឹង',
+  navHistory: 'ប្រវត្តិ',
   navAutomations: 'អូតូម៉ាស្យុង',
   navArchive: 'បណ្ណសារ',
   navHelp: 'ជំនួយ',
   helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
-  helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់ banji ពីទំព័រជំនួយតែមួយ។',
-  helpOpenOverviewAction: 'បើកទិដ្ឋភាពទូទៅ',
-  helpStartUpdateAction: 'ចាប់ផ្តើមអាប់ដេត',
+  helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់ banji ពី Settings។',
+  helpOpenWorkAction: 'បើក Home',
+  helpStartUpdateAction: 'បើក Capture',
   helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
   helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
   helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
@@ -40,7 +46,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewBody:
     'មើលអ្វីដែលត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ អ្វីដែលបានផ្លាស់ប្តូរថ្មីៗ និងអ្វីដែលត្រូវធ្វើបន្ទាប់។',
   overviewSupportPromptBody:
-    'ទំព័រ Overview សម្រាប់សកម្មភាពបន្ទាប់ក្នុងការងារ។ ការកែប្រែ កំណត់ហេតុ និងផែនការមាននៅកន្លែងផ្សេង។',
+    'ទំព័រ Work សម្រាប់សកម្មភាពបន្ទាប់ក្នុងការងារ។ ការកែប្រែ កំណត់ហេតុ និងផែនការមាននៅកន្លែងផ្សេង។',
   overviewDecisionSupportCatalogTitle: 'ការធ្វើផែនការចាប់ផ្តើមបន្ទាប់ពីមានកាតាឡុក',
   overviewDecisionSupportCatalogBody:
     'បន្ថែម SKU ដំបូង ដើម្បីឲ្យ banji អាចបង្កើតការងារពីស្តុកពិត និងសកម្មភាពសេវាកម្ម។',
@@ -55,7 +61,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'កាតាឡុករួចរាល់ហើយ ប៉ុន្តែ banji នៅតែត្រូវការការអាប់ដេតពិតមួយ មុនពេលអាចទុកចិត្តលើស្ថានភាពបច្ចុប្បន្នបាន។',
   overviewDecisionSupportSteadyTitle: 'ស្ថានភាពចុងក្រោយមើលទៅមានស្ថិរភាព',
   overviewDecisionSupportSteadyBody:
-    'មិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ ជំហានបន្ទាប់ល្អបំផុត គឺកត់ត្រាការអាប់ដេតស្តុកបន្ទាប់ ហើយរក្សា Overview ឲ្យទាន់សម័យ។',
+    'មិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ ជំហានបន្ទាប់ល្អបំផុត គឺកត់ត្រាការអាប់ដេតស្តុកបន្ទាប់ ហើយរក្សា Work ឲ្យទាន់សម័យ។',
   overviewPrimaryAddFirstSkuDescription:
     'បង្កើត SKU ដំបូង ដើម្បីឲ្យ banji ចាប់ផ្តើមតាមដានស្តុក សេវាកម្ម និងផែនការ។',
   overviewPrimaryStartFirstUpdateDescription:
@@ -89,11 +95,11 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewRecentActivityDescription:
     'មើលអ្វីដែលបានផ្លាស់ប្តូរថ្មីៗបំផុត ក្នុងការអាប់ដេតស្តុក ការផ្លាស់ប្តូរតម្លៃ និងសញ្ញាលំដាប់លក់។',
   overviewRecentActivityFallback:
-    'មិនអាចផ្ទុកសកម្មភាពថ្មីៗបានឥឡូវនេះទេ។ ផ្នែកផ្សេងទៀតនៃ Overview នៅតែអាចប្រើបាន។',
+    'មិនអាចផ្ទុកសកម្មភាពថ្មីៗបានឥឡូវនេះទេ។ ផ្នែកផ្សេងទៀតនៃ Work នៅតែអាចប្រើបាន។',
   overviewRecentActivityEmpty:
     'មិនទាន់មានរបាយការណ៍ស្តុកនៅឡើយទេ។ ចាប់ផ្តើមវគ្គអាប់ដេតដំបូង នៅពេលស្តុករួចរាល់។',
   overviewQuickActionsDescription:
-    'រក្សាបញ្ជីនេះឲ្យខ្លី ដើម្បីឲ្យ Overview ផ្តោតលើសកម្មភាព មិនមែនការរៀបចំ។',
+    'រក្សាបញ្ជីនេះឲ្យខ្លី ដើម្បីឲ្យ Work ផ្តោតលើសកម្មភាព មិនមែនការរៀបចំ។',
   overviewQuickActionOperationsDescription: 'កត់ត្រាការអាប់ដេតស្តុកបន្ទាប់។',
   overviewQuickActionCatalogDescription: 'ពិនិត្យកាតាឡុក ឬបង្កើតធាតុថ្មី។',
   overviewQuickActionPlanningDescription: 'ពិនិត្យអាទិភាពលក់ និងបរិបទបញ្ជាទិញបន្ថែម។',
@@ -216,9 +222,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ជ្រើស SKU ទាំងអស់ ដែលជាទូទៅត្រូវបានប្រើ នៅពេលសេវាកម្មនេះត្រូវបានលក់។',
   analysisRouteDescriptor:
     'មើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាស្ថានភាពបច្ចុប្បន្នរបស់ banji អំពីតម្រូវការ ស្តុកកំពុងមកដល់ ពេលវេលាមកដល់ និងតម្លៃ យ៉ាងដូចម្តេច។',
-  analysisRouteNeedCatalogTitle: 'Analysis ត្រូវការកាតាឡុកជាមុន',
+  analysisRouteNeedCatalogTitle: 'Explain ត្រូវការកាតាឡុកជាមុន',
   analysisRouteNeedCatalogHint: 'បង្កើត SKU ដំបូងរបស់អ្នក ដើម្បីឲ្យ banji មានធាតុពិតសម្រាប់វិភាគ។',
-  analysisRouteNeedRunTitle: 'Analysis ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
+  analysisRouteNeedRunTitle: 'Explain ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
   analysisRouteNeedRunHint: 'រក្សាទុកការអាប់ដេតពិតមួយ ដើម្បីឲ្យ banji អាចពន្យល់ថាស្ថានភាពបច្ចុប្បន្ន ត្រូវបានបង្កើតឡើងយ៉ាងដូចម្តេច។',
   catalogSenaSkuHeroTooltip:
     'នេះគឺជាការប៉ាន់ស្មានចុងក្រោយរបស់ banji សម្រាប់ SKU នេះ។ វារួមបញ្ចូលស្តុកបច្ចុប្បន្ន ភាពមិនច្បាស់លាស់ ថ្ងៃគ្រប់គ្រាន់ សម្ពាធបញ្ជាទិញបន្ថែម និងស្តុកកំពុងមកដល់ នៅក្នុងទិដ្ឋភាពតែមួយ។',
@@ -258,7 +264,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSenaSkuEvidencePrevious: 'ទំព័រភស្តុតាងមុន',
   catalogSenaSkuEvidenceNext: 'ទំព័រភស្តុតាងបន្ទាប់',
   catalogSkuDetailNotFoundTitle: 'រកមិនឃើញ SKU',
-  catalogSkuOverviewIdentityDescription: 'នេះគឺជាកំណត់ត្រាការងារសំខាន់សម្រាប់ SKU នេះ។',
+  catalogSkuWorkIdentityDescription: 'នេះគឺជាកំណត់ត្រាការងារសំខាន់សម្រាប់ SKU នេះ។',
   catalogSkuDirectSellStatus: 'ស្ថានភាពលក់ផ្ទាល់',
   catalogSkuOperationalStatusTitle: 'ស្ថានភាពប្រតិបត្តិការ',
   catalogSkuOperationalReorderSoon: 'ជិតដល់ពេលបញ្ជាទិញបន្ថែម',
@@ -377,11 +383,11 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្ហាញ tooltip ការពិពណ៌នាផ្នែក និងជំនួយស្រេចចិត្ត។ ការណែនាំចាំបាច់នៅតែបង្ហាញជានិច្ច។',
   settingsShowFloatingActionsHelp:
     'រក្សាប៊ូតុងសកម្មភាពរបស់ទំព័រឲ្យនៅមើលឃើញ បន្ទាប់ពីចំណងជើងទំព័ររមូរចេញពីអេក្រង់។',
-  settingsShowOverviewTaskTabsLabel: 'បង្ហាញផ្ទាំងការងារនៅទិដ្ឋភាពទូទៅ',
-  settingsShowOverviewTaskTabsHelp:
+  settingsShowWorkTaskTabsLabel: 'បង្ហាញផ្ទាំងការងារនៅទិដ្ឋភាពទូទៅ',
+  settingsShowWorkTaskTabsHelp:
     'បង្ហាញផ្ទាំងស្ថានភាពការងារនៅទិដ្ឋភាពទូទៅ។ បើបិទ ទិដ្ឋភាពទូទៅនឹងបើកទៅបញ្ជី All Tasks ដោយផ្ទាល់។',
-  settingsShowAnalysisPageLabel: 'បង្ហាញទំព័រវិភាគ',
-  settingsShowAnalysisPageHelp:
+  settingsShowExplainPageLabel: 'បង្ហាញទំព័រវិភាគ',
+  settingsShowExplainPageHelp:
     'បង្ហាញទំព័រវិភាគក្នុងការរុករក និងស្វែងរក។ បើបិទ ទំព័រវិភាគនឹងត្រូវលាក់ពីកម្មវិធី។',
   settingsShowPerformanceCompareToggleLabel: 'បង្ហាញប៊ូតុងប្រៀបធៀបសុខភាពអាជីវកម្ម',
   settingsShowPerformanceCompareToggleHelp:
@@ -399,9 +405,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម ហិរញ្ញវត្ថុ និងទំព័រលម្អិត។',
   settingsSenaParametersPanelDescription:
     'កែថា banji ប្រើព័ត៌មានលម្អិតប៉ុន្មាន នៅពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញបន្ថែម។',
-  settingsAnalysisProfileTooltip:
+  settingsExplainProfileTooltip:
     'វាជ្រើសកំណែម៉ាស៊ីនវិភាគក្នុងម៉ាស៊ីន។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការរត់ផ្សេងៗ។',
-  settingsAnalysisProfileHelp: 'កំណែវិភាគក្នុងម៉ាស៊ីន ដែល banji នឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
+  settingsExplainProfileHelp: 'កំណែវិភាគក្នុងម៉ាស៊ីន ដែល banji នឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
   settingsRecommendationQuantileHelp:
     'កំណត់ថា banji គួរប្រុងប្រយ័ត្នប៉ុន្មាន នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
   settingsRecommendationQuantileTooltip:
@@ -510,8 +516,8 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បង្ហាញការណែនាំបញ្ជាទិញបច្ចុប្បន្ន បន្ទាប់ពីគិតស្តុក ស្តុកកំពុងមកដល់ តម្រូវការ និងពេលវេលាមកដល់។',
   analysisWorkbenchContributorStackTooltip:
     'មូលហេតុដែលភ្ជាប់គ្នា និងមានឥទ្ធិពលខ្លាំងបំផុត នៅពីក្រោយធាតុនេះ។',
-  analysisWorkbenchOverviewTitle: 'ស្ថានភាពអាជីវកម្មបច្ចុប្បន្ន',
-  analysisWorkbenchOverviewTooltip:
+  analysisWorkbenchWorkTitle: 'ស្ថានភាពអាជីវកម្មបច្ចុប្បន្ន',
+  analysisWorkbenchWorkTooltip:
     'សេចក្តីសង្ខេបស្ថានភាពប្រព័ន្ធបច្ចុប្បន្ន នៅពេលមិនមានធាតុណាមួយត្រូវបានជ្រើស។',
   analysisWorkbenchStrongestChannelsTitle: 'ភស្តុតាងសំខាន់ៗ',
   analysisWorkbenchStrongestChannelsTooltip:
@@ -544,7 +550,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateReviewTooltip:
     'banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
   stockUpdateReviewBody:
-    'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅ Analysis។',
+    'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Work ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅ Explain។',
   stockUpdateOrderSignalSaved:
     'បរិមាណបញ្ជាទិញ និងទទួលទំនិញ នឹងត្រូវបានរក្សាទុកជាសញ្ញាការបញ្ជាទិញសម្រាប់រយៈពេលនេះ។',
   stockUpdateServicePriceSaved:
@@ -794,16 +800,16 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   serviceVmHeroNoInboundVisible: 'មិនទាន់ឃើញការស្តារពីស្តុកកំពុងមកដល់ទេ',
   serviceVmInboundSingular: 'ការដឹកមកដល់',
   serviceVmInboundPlural: 'ការដឹកមកដល់',
-  serviceVmOverviewTimingPending: 'ពេលវេលានៅតែកំពុងត្រូវបានកំណត់ពីភស្តុតាងចុងក្រោយ។',
-  serviceVmOverviewIncoming: '{count} {noun} កំពុងមកដល់ដែលភ្ជាប់ អាចស្តារភាពមានស្រាប់ឡើងវិញ។',
-  serviceVmOverviewIncomingSingular: 'ការដឹកមកដល់',
-  serviceVmOverviewIncomingPlural: 'ការដឹកមកដល់',
+  serviceVmWorkTimingPending: 'ពេលវេលានៅតែកំពុងត្រូវបានកំណត់ពីភស្តុតាងចុងក្រោយ។',
+  serviceVmWorkIncoming: '{count} {noun} កំពុងមកដល់ដែលភ្ជាប់ អាចស្តារភាពមានស្រាប់ឡើងវិញ។',
+  serviceVmWorkIncomingSingular: 'ការដឹកមកដល់',
+  serviceVmWorkIncomingPlural: 'ការដឹកមកដល់',
   serviceVmRibbonDemandPerDay: 'តម្រូវការ / ថ្ងៃ',
   serviceVmRibbonLinkedSkuHealth: 'ស្ថានភាព SKU ដែលភ្ជាប់',
   serviceVmPending: 'កំពុងរង់ចាំ',
   serviceVmNoLinks: 'មិនមានការភ្ជាប់',
-  serviceVmOverviewTitleUnblock: 'ដោះស្រាយការរារាំង {name}',
-  serviceVmOverviewTitleProtect: 'ការពារ {name}',
+  serviceVmWorkTitleUnblock: 'ដោះស្រាយការរារាំង {name}',
+  serviceVmWorkTitleProtect: 'ការពារ {name}',
   performanceVmOnTheWay: 'កំពុងមកដល់',
   performanceVmPartialReceived: 'បានទទួលមួយផ្នែក',
   performanceVmDueSoon: 'ជិតដល់ពេល',
@@ -972,13 +978,13 @@ const catalogTranslations: Partial<Record<TranslationKey, string>> = {
     'មិនមានសេវាកម្មនេះនៅក្នុងកាតាឡុកបច្ចុប្បន្នទេ។ ត្រឡប់ទៅកាតាឡុក ដើម្បីជ្រើសកំណត់ត្រាផ្សេង។',
   catalogServiceDetailUnavailableTitle: 'មិនអាចបង្ហាញព័ត៌មានលម្អិតសេវាកម្មបាន',
   catalogServiceDetailUnavailableDescription: 'បញ្ជីមិនទាន់មានទិន្នន័យដែលបានរក្សាទុកគ្រប់គ្រាន់ សម្រាប់សេវាកម្មនេះនៅឡើយទេ។',
-  catalogSkuDetailOverviewDescription: 'ពិនិត្យស្តុក ថ្លៃដើម និងភាពអាចលក់បាន មុនពេលកែប្រែ SKU នេះ។',
+  catalogSkuDetailWorkDescription: 'ពិនិត្យស្តុក ថ្លៃដើម និងភាពអាចលក់បាន មុនពេលកែប្រែ SKU នេះ។',
   catalogSkuStockAction: 'កត់ត្រាការអាប់ដេតស្តុក',
   catalogSkuSnapshotFallback: 'កំពុងប្រើទិន្នន័យផែនការសង្ខេប ខណៈព័ត៌មានលម្អិតបន្ថែមមិនទាន់មាន។',
   catalogSkuOperationalNoPlanning: 'មិនអាចបង្ហាញស្ថានភាពផែនការបានទេ។',
   catalogSkuOperationalLinkedServiceSingular: 'មានសេវាកម្មដែលភ្ជាប់មួយ ពឹងលើ SKU នេះ',
   catalogSkuOperationalLinkedServicePlural: 'មានសេវាកម្មដែលភ្ជាប់ជាច្រើន ពឹងលើ SKU នេះ',
-  catalogServiceDetailOverviewDescription:
+  catalogServiceDetailWorkDescription:
     'ពិនិត្យតម្លៃ ការគ្របដណ្តប់ និងភាពមានស្រាប់បច្ចុប្បន្ន សម្រាប់សេវាកម្មនេះ។',
   catalogServiceDetailIdentityDescription:
     'ប្រើទំព័រនេះ ដើម្បីតាមដានស្ថានភាពបច្ចុប្បន្ន ចំណុចរារាំង និងភស្តុតាងចុងក្រោយរបស់សេវាកម្មនេះ។',
@@ -1164,7 +1170,7 @@ const settingsAndVmTranslations: Partial<Record<TranslationKey, string>> = {
     'ចន្លោះដែលទំនង {low}-{high} · ចំណុចរារាំងសំខាន់៖ {bottleneck} · ហានិភ័យ {risk} · ចំណុចរារាំងបន្ទាប់៖ {nextBlocker} · {inbound}',
 };
 
-const performanceAndAnalysisTranslations: Partial<Record<TranslationKey, string>> = {
+const performanceAndExplainTranslations: Partial<Record<TranslationKey, string>> = {
   performanceRouteEmptyCatalogHint:
     'បង្កើត SKU ដំបូង ដើម្បីឲ្យបញ្ជីអាចប្រៀបធៀបតម្រូវការ ភាពមានស្រាប់ និងតម្លៃ នៅក្នុងទិដ្ឋភាពអាជីវកម្មតែមួយ។',
   performanceRouteEmptyWorkspaceTitle: 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
@@ -1195,7 +1201,7 @@ const performanceAndAnalysisTranslations: Partial<Record<TranslationKey, string>
     'ការប៉ាន់ស្មានបច្ចុប្បន្នសម្រាប់តម្រូវការ ស្តុក ស្ថានភាពបញ្ជាទិញបន្ថែម និងស្តុកកំពុងមកដល់។',
   analysisWorkbenchReorderPolicyTooltip:
     'បង្ហាញការណែនាំបញ្ជាទិញបច្ចុប្បន្ន បន្ទាប់ពីគិតស្តុក ស្តុកកំពុងមកដល់ តម្រូវការ និងពេលវេលាមកដល់។',
-  analysisWorkbenchOverviewTooltip:
+  analysisWorkbenchWorkTooltip:
     'សេចក្តីសង្ខេបស្ថានភាពប្រព័ន្ធបច្ចុប្បន្ន នៅពេលមិនមានធាតុណាមួយត្រូវបានជ្រើស។',
   analysisWorkbenchSettingsDescriptor:
     'ពិនិត្យព័ត៌មានអំពីការរត់ និងកម្រិតភស្តុតាង នៅពីក្រោយការវិភាគនេះ។',
@@ -1264,7 +1270,7 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuDetailLoaderLoading: 'កំពុងផ្ទុកព័ត៌មានលម្អិតបន្ថែម…',
   catalogSkuDetailLoaderFallback: 'មិនមានព័ត៌មានលម្អិតបន្ថែមនៅពេលនេះទេ។',
   catalogSkuParametersLeadTimeAverage: 'ពេលវេលាមកដល់មធ្យម',
-  catalogSkuParametersDemandAnalysis: 'ការវិភាគតម្រូវការ',
+  catalogSkuParametersDemandExplain: 'ការវិភាគតម្រូវការ',
   catalogSkuParametersNoInventoryRemaining: 'មិនមានស្តុកនៅសល់ទេ',
   catalogSkuParametersCoverageThin: 'ការគ្របដណ្តប់នៅស្តើង',
   catalogSkuParametersCoverageStable: 'ការគ្របដណ្តប់មានស្ថិរភាព',
@@ -1413,9 +1419,9 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   searchPlaceholder: 'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
   settingsSenaParametersPanelDescription:
     'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
-  settingsAnalysisProfileTooltip:
+  settingsExplainProfileTooltip:
     'វាជ្រើសកំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន។ ទុកទម្រង់បច្ចុប្បន្ន លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការវិភាគផ្សេងៗ។',
-  settingsAnalysisProfileHelp: 'កំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើសម្រាប់ការផ្ទុកឡើងវិញបន្ទាប់។',
+  settingsExplainProfileHelp: 'កំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើសម្រាប់ការផ្ទុកឡើងវិញបន្ទាប់។',
   settingsNeedProbabilityGateTooltip:
     'ក្រោមកម្រិតនេះ banji អាចនៅតែបង្ហាញបរិមាណបញ្ជាទិញជាជម្រើស ប៉ុន្តែមិនបង្ហាញថាជាការណែនាំរឹងមាំទេ។',
   settingsSenaParametersFixErrors: 'កែការកំណត់ផែនការដែលបានបន្លិច មុនពេលរក្សាទុក។',
@@ -1446,7 +1452,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     performanceRouteRecoveryPipelineTitle: 'ផ្លូវស្តារឡើងវិញ',
     analysisRouteDescriptor:
       'ពិនិត្យថាការអាប់ដេតដែលបានរក្សាទុក បានបង្កើតរូបភាពបច្ចុប្បន្នរបស់ banji សម្រាប់តម្រូវការ ការបញ្ជាទិញ ការដឹកមកដល់ ការផ្លាស់ប្តូរពេលវេលា និងផលប៉ះពាល់តម្លៃ យ៉ាងដូចម្តេច។',
-    analysisRouteNeedRunTitle: 'ការវិភាគត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
+    analysisRouteNeedRunTitle: 'Explain ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
     analysisRouteLoadingDetails: 'កំពុងផ្ទុកព័ត៌មានលម្អិតធាតុ…',
     analysisWorkbenchSettingsSampleSizeLabel: 'កម្លាំងភស្តុតាង',
     analysisWorkbenchSettingsPredictiveErrorLabel: 'គម្លាតការព្យាករណ៍',
@@ -1467,10 +1473,10 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     analysisWorkbenchReorderTrigger: 'សញ្ញាបញ្ជាទិញបន្ថែម',
     analysisWorkbenchReorderPolicyTooltip:
       'បង្ហាញសំណើបញ្ជាទិញបច្ចុប្បន្ន បន្ទាប់ពីគិតស្តុក ស្តុកកំពុងមកដល់ តម្រូវការ និងពេលវេលាមកដល់។',
-    settingsAnalysisProfileLabel: 'វិធីផែនការ',
-    settingsAnalysisProfileTooltip:
+    settingsExplainProfileLabel: 'វិធីផែនការ',
+    settingsExplainProfileTooltip:
       'វាជ្រើសវិធីផែនការក្នុងម៉ាស៊ីនដែល banji នឹងប្រើ។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផល។',
-    settingsAnalysisProfileHelp: 'វិធីផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
+    settingsExplainProfileHelp: 'វិធីផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
     settingsRecommendationQuantileLabel: 'កម្រិតសំណើបញ្ជាទិញ',
     settingsRecommendationQuantileHelp:
       'ជ្រើសថា ចំណុចណាមួយក្នុងលទ្ធផលដែល បញ្ជី រំពឹង នឹងក្លាយជាបរិមាណបញ្ជាទិញដែលណែនាំ។',
@@ -1549,7 +1555,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     stockUpdateReviewTooltip:
       'banji រក្សាទុកតែជួរដែលបានផ្លាស់ប្តូរ និងសញ្ញាដែលកំពុងសកម្ម បន្ទាប់មកផ្ទុកទិដ្ឋភាពផែនការឡើងវិញ។',
     stockUpdateReviewBody:
-      'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Overview ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមការអាប់ដេតនេះទៅក្នុង Analysis។',
+      'banji នឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារ Work ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមការអាប់ដេតនេះទៅក្នុង Explain។',
     stockUpdateStepRegimeSummary: 'លំនាំលក់៖ {value}',
     stockUpdateStepContextSummary: 'ពេលវេលាដែលបានសង្កេត កំណត់ចំណាំ និងលំនាំលក់',
     stockUpdateContextFooterEmpty:
@@ -1582,9 +1588,9 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       serviceVmInStock: 'មានក្នុងស្តុក {count}',
       serviceVmBindingNow: '{name} គឺជាចំណុចរារាំងសំខាន់ឥឡូវនេះ។',
       serviceVmHeroHeadline: 'ទំនងជាអាចផ្តល់សេវាកម្មបាន {count} ឯកតា នៅថ្ងៃនេះ',
-      serviceVmOverviewRisk: 'ហានិភ័យ {risk} ដោយមាន {name} ជាចំណុចរារាំងសំខាន់។',
-      serviceVmOverviewNextBlocker: '{name} អាចក្លាយជាចំណុចកំណត់សម្រាប់សេវាកម្មនេះ ក្នុង {days} ថ្ងៃ។',
-      serviceVmOverviewNoIncoming: 'មិនឃើញស្តុកកំពុងមកដល់ សម្រាប់ខ្សែចំណុចរារាំងបច្ចុប្បន្នទេ។',
+      serviceVmWorkRisk: 'ហានិភ័យ {risk} ដោយមាន {name} ជាចំណុចរារាំងសំខាន់។',
+      serviceVmWorkNextBlocker: '{name} អាចក្លាយជាចំណុចកំណត់សម្រាប់សេវាកម្មនេះ ក្នុង {days} ថ្ងៃ។',
+      serviceVmWorkNoIncoming: 'មិនឃើញស្តុកកំពុងមកដល់ សម្រាប់ខ្សែចំណុចរារាំងបច្ចុប្បន្នទេ។',
       serviceVmNoLimitingContributor: 'ឥឡូវនេះមិនមាន SKU ដែលភ្ជាប់ណាមួយ កំពុងកំណត់សេវាកម្មនេះទេ។',
       serviceVmNoActiveBottleneck: 'មិនមានចំណុចរារាំងសកម្ម',
       serviceVmRibbonSellableNow: 'អាចលក់បានឥឡូវនេះ',
@@ -1617,7 +1623,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       performanceRouteTimelineTitle: 'បន្ទាត់ពេលវេលាអាជីវកម្ម',
       analysisRouteNeedCatalogTitle: 'ការវិភាគត្រូវការកាតាឡុកជាមុន',
       analysisRouteNeedRunTitle: 'ការវិភាគត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
-      analysisRouteOpenOverview: 'បើកទិដ្ឋភាពទូទៅ',
+      analysisRouteOpenWork: 'បើកប្រអប់ការងារ',
       analysisWorkbenchSettingsRunIdTooltip: 'លេខសម្គាល់តែមួយគត់ សម្រាប់ការវិភាគបច្ចុប្បន្ន។',
       analysisWorkbenchSettingsLatestObservedTooltip: 'ការសង្កេតថ្មីបំផុត ដែលត្រូវបានបញ្ចូលក្នុងរយៈពេលវិភាគនេះ។',
       analysisWorkbenchSettingsObservationsUsedTooltip: 'ចំនួនការសង្កេតដែលបានរក្សាទុក និងត្រូវបានបញ្ចូល បន្ទាប់ពីតម្រង។',
@@ -1746,17 +1752,16 @@ const directKeyTranslations: Partial<Record<TranslationKey, string>> = {
   ...operationsAndStockTranslations,
   ...planningTranslations,
   ...settingsAndVmTranslations,
-  ...performanceAndAnalysisTranslations,
+  ...performanceAndExplainTranslations,
   ...refinementTranslations,
   ...finalPassTranslations,
 };
 
 const exactValueTranslations: Record<string, string> = {
-  Overview: 'ទិដ្ឋភាពទូទៅ',
   Catalog: 'កាតាឡុក',
   Settings: 'ការកំណត់',
   Parameters: 'ប៉ារ៉ាម៉ែត្រ',
-  Analysis: 'ការវិភាគ',
+  Explain: 'ការវិភាគ',
   Workbench: 'តុការងារ',
   Risks: 'ហានិភ័យ',
   Observations: 'ការសង្កេត',
@@ -1784,8 +1789,11 @@ const exactValueTranslations: Record<string, string> = {
   'Open navigation': 'បើកម៉ឺនុយ',
   'Collapse navigation': 'បង្រួមម៉ឺនុយ',
   'Retry workspace load': 'សាកល្បងផ្ទុកកន្លែងធ្វើការម្ដងទៀត',
-  'Record update': 'កត់ត្រាការអាប់ដេត',
+  Work: 'ការងារ',
+  Capture: 'កត់ត្រា',
   'Choose an update lane': 'ជ្រើសផ្លូវអាប់ដេត',
+  'Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
+    'ជ្រើសលំហូរសំបុត្រស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ ដែលត្រូវនឹងការងារដែលអ្នកកំពុងកត់ត្រា។',
   'Choose the physical, customer, or supplier capture flow that matches the work you are recording.':
     'ជ្រើសលំហូរកត់ត្រាស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ ដែលត្រូវនឹងការងារដែលអ្នកកំពុងកត់ត្រា។',
   'banj removes the legacy batch update system in favor of a ticketing system. Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
@@ -2219,7 +2227,7 @@ const exactValueTranslations: Record<string, string> = {
   'Show extra guidance': 'បង្ហាញការណែនាំបន្ថែម',
   'Keep actions pinned': 'រក្សាសកម្មភាពឲ្យនៅជាប់',
   'Reset to defaults': 'កំណត់តម្លៃលំនាំដើមឡើងវិញ',
-  'Analysis profile': 'ទម្រង់វិភាគ',
+  'Planning profile': 'ទម្រង់វិភាគ',
   'Recommended order level': 'កម្រិតបញ្ជាទិញដែលបានណែនាំ',
   'Suggested range start': 'ចំណុចចាប់ផ្តើមនៃជួរណែនាំ',
   'Suggested range end': 'ចំណុចបញ្ចប់នៃជួរណែនាំ',
@@ -2281,11 +2289,12 @@ const exactValueTranslations: Record<string, string> = {
   'Delivery timing risk': 'ហានិភ័យពេលវេលាមកដល់',
   'Price sensitivity': 'ភាពងាយរងឥទ្ធិពលពីតម្លៃ',
   'Observation ledger': 'បញ្ជីការសង្កេត',
-  'Analysis details': 'ព័ត៌មានលម្អិតនៃការវិភាគ',
-  'Select analysis scope': 'ជ្រើសវិសាលភាពវិភាគ',
-  'Refresh analysis': 'ផ្ទុកការវិភាគឡើងវិញ',
+  'Explain details': 'ព័ត៌មានលម្អិតនៃការវិភាគ',
+  'Select explanation scope': 'ជ្រើសវិសាលភាពការពន្យល់',
+  'Refresh explanation': 'ផ្ទុកការពន្យល់ឡើងវិញ',
   'Loading item details…': 'កំពុងផ្ទុកព័ត៌មានលម្អិតធាតុ…',
-  'Open overview': 'បើក Overview',
+  'Open overview': 'បើកប្រអប់ការងារ',
+  'Open inbox': 'បើកប្រអប់ការងារ',
   Observed: 'បានសង្កេត',
   'Observation channels': 'ប្រភេទសញ្ញា',
   'Affected entities': 'ធាតុដែលរងផលប៉ះពាល់',
@@ -2327,7 +2336,7 @@ const exactValueTranslations: Record<string, string> = {
   Priority: 'អាទិភាព',
   Counted: 'បានរាប់',
   'All SKUs': 'SKU ទាំងអស់',
-  'Record update details': 'ព័ត៌មានលម្អិតការអាប់ដេត',
+  'Capture details': 'ព័ត៌មានលម្អិត Capture',
   'Count SKU stock': 'រាប់ស្តុក SKU',
   'Add service updates': 'បន្ថែមការអាប់ដេតសេវាកម្ម',
   'Rank recent selling order': 'កំណត់លំដាប់លក់ថ្មីៗ',
@@ -2432,7 +2441,7 @@ const exactValueTranslations: Record<string, string> = {
   'High confidence': 'ទំនុកចិត្តខ្ពស់',
   'Medium confidence': 'ទំនុកចិត្តមធ្យម',
   'Low confidence': 'ទំនុកចិត្តទាប',
-  'Performance needs the catalog first': 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការកាតាឡុកជាមុន',
+  'Pressure needs the catalog first': 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការកាតាឡុកជាមុន',
   'Compare view': 'ទិដ្ឋភាពប្រៀបធៀប',
   'Single view': 'ទិដ្ឋភាពតែមួយ',
   'Real-world update loaded': 'បានផ្ទុកការអាប់ដេតពិត',
@@ -2524,7 +2533,7 @@ const exactValueTranslations: Record<string, string> = {
   Low: 'ទាប',
   Medium: 'មធ្យម',
   High: 'ខ្ពស់',
-  'Mission Control': 'មជ្ឈមណ្ឌលបញ្ជាការ',
+  'Mission Control': 'Home',
   'Task queue': 'ជួរការងារ',
   'All Tasks': 'ការងារទាំងអស់',
   'To order': 'ត្រូវបញ្ជាទិញ',
@@ -2555,7 +2564,7 @@ const exactValueTranslations: Record<string, string> = {
   ...{
     'Main view': 'ទិដ្ឋភាពមេ',
     Workbench: 'ទិដ្ឋភាពមេ',
-    'Overview needs your first update': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
+    'Work needs your first update': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
     'Failed to prepare the SKU detail view.': 'មិនអាចរៀបចំទិដ្ឋភាពលម្អិតរបស់ SKU បានទេ។',
     Close: 'បិទ',
     'Resize drawer': 'ប្តូរទំហំផ្ទាំង',
@@ -2788,19 +2797,19 @@ const exactValueTranslations: Record<string, string> = {
   'No commands match this query.': 'មិនមានពាក្យបញ្ជាណាត្រូវនឹងការស្វែងរកនេះទេ។',
   'Try a page name, tab label, SKU name, service name, or action.':
     'សាកល្បងឈ្មោះទំព័រ ឈ្មោះផ្ទាំង ឈ្មោះ SKU ឈ្មោះសេវាកម្ម ឬសកម្មភាព។',
-  'Overview queue and follow-up work': 'ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន',
+  'Work queue and follow-up work': 'ជួរទិដ្ឋភាពទូទៅ និងការងារតាមដាន',
   'Capture the next live update': 'កត់ត្រាការអាប់ដេតពិតបន្ទាប់',
   'Demand, capacity, and cash movement': 'តម្រូវការ សមត្ថភាព និងលំហូរសាច់ប្រាក់',
   'Deep analysis workbench': 'ឧបករណ៍វិភាគលម្អិត',
   'Detailed analysis tools': 'ឧបករណ៍វិភាគលម្អិត',
   'Browse SKUs and services': 'រកមើល SKU និងសេវាកម្ម',
   'Observation history and logs': 'ប្រវត្តិការសង្កេត និងកំណត់ហេតុ',
-  'All overview items': 'ធាតុទិដ្ឋភាពទូទៅទាំងអស់',
-  'Overview SKU tasks': 'ការងារ SKU ក្នុងទិដ្ឋភាពទូទៅ',
-  'Overview service tasks': 'ការងារសេវាកម្មក្នុងទិដ្ឋភាពទូទៅ',
-  'Overview scope': 'វិសាលភាពទិដ្ឋភាពទូទៅ',
-  'All overview tasks': 'ការងារទិដ្ឋភាពទូទៅទាំងអស់',
-  'Overview filter': 'តម្រងទិដ្ឋភាពទូទៅ',
+  'All work items': 'ធាតុទិដ្ឋភាពទូទៅទាំងអស់',
+  'Work SKU tasks': 'ការងារ SKU ក្នុងទិដ្ឋភាពទូទៅ',
+  'Work service tasks': 'ការងារសេវាកម្មក្នុងទិដ្ឋភាពទូទៅ',
+  'Work scope': 'វិសាលភាពទិដ្ឋភាពទូទៅ',
+  'All work tasks': 'ការងារទិដ្ឋភាពទូទៅទាំងអស់',
+  'Work filter': 'តម្រងទិដ្ឋភាពទូទៅ',
   'Catalog / All items': 'កាតាឡុក / ធាតុទាំងអស់',
   'Catalog / SKUs': 'កាតាឡុក / SKU',
   'Catalog / Services': 'កាតាឡុក / សេវាកម្ម',
@@ -2810,37 +2819,37 @@ const exactValueTranslations: Record<string, string> = {
   'Logs / Services': 'កំណត់ហេតុ / សេវាកម្ម',
   'Logs / Heatmap view': 'កំណត់ហេតុ / ទិដ្ឋភាពផែនទីកម្ដៅ',
   'Logs / List view': 'កំណត់ហេតុ / ទិដ្ឋភាពបញ្ជី',
-  'Operations scope': 'វិសាលភាពកំណត់ហេតុ',
-  'Operations view': 'ទិដ្ឋភាពកំណត់ហេតុ',
-  'Performance / 7D': 'សុខភាពអាជីវកម្ម / 7 ថ្ងៃ',
-  'Performance / 30D': 'សុខភាពអាជីវកម្ម / 30 ថ្ងៃ',
-  'Performance / 90D': 'សុខភាពអាជីវកម្ម / 90 ថ្ងៃ',
-  'Performance / All items': 'សុខភាពអាជីវកម្ម / ធាតុទាំងអស់',
-  'Performance / Services': 'សុខភាពអាជីវកម្ម / សេវាកម្ម',
-  'Performance / SKUs': 'សុខភាពអាជីវកម្ម / SKU',
-  'Performance / Compare view': 'សុខភាពអាជីវកម្ម / ទិដ្ឋភាពប្រៀបធៀប',
-  'Performance / Single view': 'សុខភាពអាជីវកម្ម / ទិដ្ឋភាពតែមួយ',
-  'Performance range': 'រយៈពេលសុខភាពអាជីវកម្ម',
-  'Performance scope': 'វិសាលភាពសុខភាពអាជីវកម្ម',
-  'Performance comparison': 'ការប្រៀបធៀបសុខភាពអាជីវកម្ម',
-  'Analysis / All items': 'ការវិភាគ / ធាតុទាំងអស់',
-  'Analysis / Services': 'ការវិភាគ / សេវាកម្ម',
-  'Analysis / SKUs': 'ការវិភាគ / SKU',
-  'Analysis / Workbench': 'ការវិភាគ / ទិដ្ឋភាពមេ',
-  'Analysis / Main view': 'ការវិភាគ / ទិដ្ឋភាពមេ',
-  'Analysis / Pressure': 'ការវិភាគ / សម្ពាធ',
-  'Analysis / Observations': 'ការវិភាគ / ការសង្កេត',
-  'Analysis / Fragility': 'ការវិភាគ / ភាពងាយរង',
-  'Analysis / Settings': 'ការវិភាគ / ការកំណត់',
-  'Analysis / Timeframe / Recent': 'ការវិភាគ / រយៈពេល / ថ្មីៗ',
-  'Analysis / Timeframe / 1M': 'ការវិភាគ / រយៈពេល / 1 ខែ',
-  'Analysis / Timeframe / 3M': 'ការវិភាគ / រយៈពេល / 3 ខែ',
-  'Analysis / Timeframe / YTD': 'ការវិភាគ / រយៈពេល / ចាប់ពីដើមឆ្នាំ',
-  'Analysis / Timeframe / 1Y': 'ការវិភាគ / រយៈពេល / 1 ឆ្នាំ',
-  'Analysis / Timeframe / MAX': 'ការវិភាគ / រយៈពេល / ទាំងអស់',
-  'Analysis scope': 'វិសាលភាពការវិភាគ',
-  'Analysis section': 'ផ្នែកវិភាគ',
-  'Analysis timeframe': 'រយៈពេលវិភាគ',
+  'History scope': 'វិសាលភាពកំណត់ហេតុ',
+  'History view': 'ទិដ្ឋភាពកំណត់ហេតុ',
+  'Pressure / 7D': 'សុខភាពអាជីវកម្ម / 7 ថ្ងៃ',
+  'Pressure / 30D': 'សុខភាពអាជីវកម្ម / 30 ថ្ងៃ',
+  'Pressure / 90D': 'សុខភាពអាជីវកម្ម / 90 ថ្ងៃ',
+  'Pressure / All items': 'សុខភាពអាជីវកម្ម / ធាតុទាំងអស់',
+  'Pressure / Services': 'សុខភាពអាជីវកម្ម / សេវាកម្ម',
+  'Pressure / SKUs': 'សុខភាពអាជីវកម្ម / SKU',
+  'Pressure / Compare view': 'សុខភាពអាជីវកម្ម / ទិដ្ឋភាពប្រៀបធៀប',
+  'Pressure / Single view': 'សុខភាពអាជីវកម្ម / ទិដ្ឋភាពតែមួយ',
+  'Pressure range': 'រយៈពេលសុខភាពអាជីវកម្ម',
+  'Pressure scope': 'វិសាលភាពសុខភាពអាជីវកម្ម',
+  'Pressure comparison': 'ការប្រៀបធៀបសុខភាពអាជីវកម្ម',
+  'Explain / All items': 'ការវិភាគ / ធាតុទាំងអស់',
+  'Explain / Services': 'ការវិភាគ / សេវាកម្ម',
+  'Explain / SKUs': 'ការវិភាគ / SKU',
+  'Explain / Workbench': 'ការវិភាគ / ទិដ្ឋភាពមេ',
+  'Explain / Main view': 'ការវិភាគ / ទិដ្ឋភាពមេ',
+  'Explain / Pressure': 'ការវិភាគ / សម្ពាធ',
+  'Explain / Observations': 'ការវិភាគ / ការសង្កេត',
+  'Explain / Fragility': 'ការវិភាគ / ភាពងាយរង',
+  'Explain / Settings': 'ការវិភាគ / ការកំណត់',
+  'Explain / Timeframe / Recent': 'ការវិភាគ / រយៈពេល / ថ្មីៗ',
+  'Explain / Timeframe / 1M': 'ការវិភាគ / រយៈពេល / 1 ខែ',
+  'Explain / Timeframe / 3M': 'ការវិភាគ / រយៈពេល / 3 ខែ',
+  'Explain / Timeframe / YTD': 'ការវិភាគ / រយៈពេល / ចាប់ពីដើមឆ្នាំ',
+  'Explain / Timeframe / 1Y': 'ការវិភាគ / រយៈពេល / 1 ឆ្នាំ',
+  'Explain / Timeframe / MAX': 'ការវិភាគ / រយៈពេល / ទាំងអស់',
+  'Explain scope': 'វិសាលភាពការវិភាគ',
+  'Explain section': 'ផ្នែកវិភាគ',
+  'Explain timeframe': 'រយៈពេលវិភាគ',
   'Latest saved update': 'ការអាប់ដេតដែលបានរក្សាទុកចុងក្រោយ',
   'First saved update': 'ការអាប់ដេតដែលបានរក្សាទុកដំបូង',
   'Update {count}': 'អាប់ដេត {count}',
@@ -2876,13 +2885,13 @@ const exactValueTranslations: Record<string, string> = {
   'Show right rail cards': 'បង្ហាញកាតផ្នែកខាងស្តាំ',
   'Enable smoothing': 'បើកការធ្វើឲ្យរលោង',
   'Disable smoothing': 'បិទការធ្វើឲ្យរលោង',
-  'Overview needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការកាតាឡុកជាមុនសិន',
+  'Work needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការកាតាឡុកជាមុនសិន',
   'Create the first SKU so banji can build an action list from real stock work.':
     'បង្កើត SKU ដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីការងារស្តុកពិតបាន។',
   'Create the first SKU or service so banji can build an action list from real catalog work.':
     'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំបញ្ជីសកម្មភាពចេញពីកាតាឡុកពិតបាន។',
   'Create first service': 'បង្កើតសេវាកម្មដំបូង',
-  'Overview needs the first SENA run': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូង',
+  'Work needs the first SENA run': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូង',
   'Capture a live observation so banji can build the order, receipt, and follow-up queue.':
     'កត់ត្រាការសង្កេតពិតមួយសិន ដើម្បីឲ្យបញ្ជីអាចរៀបចំជួរបញ្ជាទិញ ការទទួល និងការតាមដានបាន។',
   'Start update': 'ចាប់ផ្តើមអាប់ដេត',
@@ -2895,7 +2904,7 @@ const exactValueTranslations: Record<string, string> = {
   'Item / impact': 'ទំនិញ / ផលប៉ះពាល់',
   'ETA / window': 'ពេលរំពឹង / រយៈពេល',
   'Capture a fresh update': 'កត់ត្រាការអាប់ដេតថ្មី',
-  'Overview reminder': 'ការរំលឹកទិដ្ឋភាពទូទៅ',
+  'Work reminder': 'ការរំលឹកទិដ្ឋភាពទូទៅ',
   'No tasks match this view': 'មិនមានការងារណាត្រូវនឹងទិដ្ឋភាពនេះទេ',
   'No urgent tasks are crowding the queue': 'មិនមានការងារបន្ទាន់ណាធ្វើឲ្យជួរតឹងណែនទេ',
   'Try a broader query or switch filters to bring more of the task ledger back into view.':
@@ -2948,7 +2957,7 @@ const exactValueTranslations: Record<string, string> = {
     'ពេលវេលាដឹកមកដល់របស់អ្នកផ្គត់ផ្គង់ ប្រែប្រួលគួរឲ្យកត់សម្គាល់ជុំវិញមធ្យមភាគ។',
   'Supplier timing is unstable and often drifts.':
     'ពេលវេលាដឹកមកដល់របស់អ្នកផ្គត់ផ្គង់ មិនស្ថិតស្ថេរ ហើយជាញឹកញាប់រំកិលចេញពីការរំពឹង។',
-  'Open Overview': 'បើកទិដ្ឋភាពទូទៅ',
+  'Open Work': 'បើកទិដ្ឋភាពទូទៅ',
   'Select performance time range': 'ជ្រើសរយៈពេលប្រសិទ្ធភាព',
   'Select performance scope': 'ជ្រើសវិសាលភាពប្រសិទ្ធភាព',
   'Loading contributions…': 'កំពុងផ្ទុកសកម្មភាព…',
@@ -3076,7 +3085,7 @@ const exactValueTranslations: Record<string, string> = {
 };
 
 const phraseTranslations: ReadonlyArray<readonly [string, string]> = [
-  ['Overview', 'ទិដ្ឋភាពទូទៅ'],
+  ['Work', 'ទិដ្ឋភាពទូទៅ'],
   ['overview', 'ទិដ្ឋភាពទូទៅ'],
   ['catalog', 'កាតាឡុក'],
   ['Catalog', 'កាតាឡុក'],
@@ -3087,11 +3096,11 @@ const phraseTranslations: ReadonlyArray<readonly [string, string]> = [
   ['planning', 'ផែនការ'],
   ['Planning', 'ផែនការ'],
   ['analysis', 'ការវិភាគ'],
-  ['Analysis', 'ការវិភាគ'],
+  ['Explain', 'ការវិភាគ'],
   ['logs', 'កំណត់ហេតុ'],
   ['Logs', 'កំណត់ហេតុ'],
   ['record update', 'ការអាប់ដេត'],
-  ['Record update', 'ការអាប់ដេត'],
+  ['Capture', 'កត់ត្រា'],
   ['stock update', 'ការអាប់ដេតស្តុក'],
   ['update session', 'វគ្គអាប់ដេត'],
   ['reorder queue', 'ជួរបញ្ជាទិញបន្ថែម'],

@@ -1064,6 +1064,7 @@ async function boot() {
       return {
         currency: preferences.currency,
         language: preferences.language,
+        showAutomationsPage: preferences.showAutomationsPage,
         usdToKhrExchangeRate: preferences.usdToKhrExchangeRate,
       };
     },
@@ -1256,11 +1257,21 @@ ipcMain.handle(
 ipcMain.handle(IPC_CHANNELS.automationGetConnection, benchmarkIpcHandle(IPC_CHANNELS.automationGetConnection, async () =>
   readAutomationConnection(desktopDataPath),
 ));
-ipcMain.handle(IPC_CHANNELS.automationSaveConnection, benchmarkIpcHandle(IPC_CHANNELS.automationSaveConnection, async (_event, payload: AutomationConnectionPatch) =>
-  validateAndSaveTelegramAutomationConnection(desktopDataPath, payload).finally(() => {
+async function ensureAutomationEnabled() {
+  const preferences = await loadDesktopPreferences(desktopDataPath);
+  if (!preferences.showAutomationsPage) {
+    throw new Error('Automations are disabled in Settings / Interface.');
+  }
+}
+
+ipcMain.handle(IPC_CHANNELS.automationSaveConnection, benchmarkIpcHandle(IPC_CHANNELS.automationSaveConnection, async (_event, payload: AutomationConnectionPatch) => {
+  const connection = await validateAndSaveTelegramAutomationConnection(desktopDataPath, payload);
+  const preferences = await loadDesktopPreferences(desktopDataPath);
+  if (preferences.showAutomationsPage) {
     telegramAutomationLoop?.triggerSoon();
-  }),
-));
+  }
+  return connection;
+}));
 ipcMain.handle(IPC_CHANNELS.automationListExposureRows, benchmarkIpcHandle(IPC_CHANNELS.automationListExposureRows, async () => {
   const context = await loadAutomationWorkspaceContext({
     loadCachedSenaRead,
@@ -1270,6 +1281,7 @@ ipcMain.handle(IPC_CHANNELS.automationListExposureRows, benchmarkIpcHandle(IPC_C
   return listAutomationExposureRows(desktopDataPath, context);
 }));
 ipcMain.handle(IPC_CHANNELS.automationPatchExposureRow, benchmarkIpcHandle(IPC_CHANNELS.automationPatchExposureRow, async (_event, payload: AutomationExposurePatch) => {
+  await ensureAutomationEnabled();
   const context = await loadAutomationWorkspaceContext({
     loadCachedSenaRead,
     invoke: managedCore.invoke.bind(managedCore),
@@ -1289,10 +1301,12 @@ ipcMain.handle(IPC_CHANNELS.automationListIntakes, benchmarkIpcHandle(IPC_CHANNE
 ipcMain.handle(IPC_CHANNELS.automationReadIntake, benchmarkIpcHandle(IPC_CHANNELS.automationReadIntake, async (_event, payload: AutomationReadIntakePayload) =>
   readAutomationIntake(desktopDataPath, payload.intakeId),
 ));
-ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHANNELS.automationResolveIntake, async (_event, payload: AutomationResolveIntakePayload) =>
-  resolveAutomationIntake(desktopDataPath, payload),
-));
+ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHANNELS.automationResolveIntake, async (_event, payload: AutomationResolveIntakePayload) => {
+  await ensureAutomationEnabled();
+  return resolveAutomationIntake(desktopDataPath, payload);
+}));
 ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHANNELS.automationPromoteIntake, async (_event, payload: PromoteAutomationIntakePayload) => {
+  await ensureAutomationEnabled();
   const observations = await loadAutomationObservations({
     loadCachedSenaRead,
     invoke: managedCore.invoke.bind(managedCore),
@@ -1320,6 +1334,7 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
   } satisfies PromoteAutomationIntakeResult;
 }));
 ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle(IPC_CHANNELS.automationTestTelegramConnection, async () => {
+  await ensureAutomationEnabled();
   if (process.env.BANJI_BENCHMARK === '1') {
     const [preferences, context] = await Promise.all([
       loadDesktopPreferences(desktopDataPath),
@@ -1563,8 +1578,13 @@ ipcMain.handle(IPC_CHANNELS.preferencesGet, benchmarkIpcHandle(IPC_CHANNELS.pref
 ipcMain.handle(
   IPC_CHANNELS.preferencesSave,
   benchmarkIpcHandle(IPC_CHANNELS.preferencesSave, async (_event, payload: Partial<DesktopPreferences>) => {
+    const previousPreferences = await loadDesktopPreferences(desktopDataPath);
     await snapshotBeforeWorkspaceMutation('preferences-save');
-    return saveDesktopPreferences(desktopDataPath, payload);
+    const nextPreferences = await saveDesktopPreferences(desktopDataPath, payload);
+    if (previousPreferences.showAutomationsPage !== nextPreferences.showAutomationsPage) {
+      telegramAutomationLoop?.setEnabled(nextPreferences.showAutomationsPage);
+    }
+    return nextPreferences;
   }),
 );
 

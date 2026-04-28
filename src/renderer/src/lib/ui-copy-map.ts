@@ -1,20 +1,26 @@
 export const enUiCopyV1 = {
   appTitle: 'banji desktop',
   appBrand: 'banj',
-  navOverview: 'Overview',
-  navRecordUpdate: 'Record update',
-  navPerformance: 'Performance',
-  navFinancials: 'Financials',
-  navAutomations: 'Automations',
-  navAnalysis: 'Analysis',
+  navHome: 'Home',
+  navWork: 'Work',
+  navInbox: 'Work',
+  navCapture: 'Capture',
+  navInsights: 'Insights',
+  navHistory: 'History',
+  navOverview: 'Work',
+  navRecordUpdate: 'Capture',
+  navPerformance: 'Pressure',
+  navFinancials: 'Money',
+  navAutomations: 'Automation',
+  navAnalysis: 'Explain',
   navCatalog: 'Catalog',
-  navOperations: 'Logs',
+  navOperations: 'History',
   navArchive: 'Archive',
   navHelp: 'Help',
   helpPageTitle: 'User Guide',
-  helpPageDescriptor: 'Browse banji workflows, screen-by-screen explanations, glossary terms, and FAQ from one in-app help surface.',
-  helpOpenOverviewAction: 'Open overview',
-  helpStartUpdateAction: 'Start update',
+  helpPageDescriptor: 'Browse banji workflows, screen-by-screen explanations, glossary terms, and FAQ from Settings.',
+  helpOpenOverviewAction: 'Open Home',
+  helpStartUpdateAction: 'Open Capture',
   helpSearchAriaLabel: 'Search help',
   helpSearchPlaceholder: 'Search features, workflows, buttons, or FAQ…',
   helpNoMatchesTitle: 'No matching help sections',
@@ -34,7 +40,7 @@ export const enUiCopyV1 = {
   navSist: 'Planning',
   navPlanning: 'Planning',
   shellGroupWorkflows: 'Workflows',
-  navDashboard: 'Overview',
+  navDashboard: 'Work',
   navInventory: 'Catalog',
   navStock: 'Update Sheet',
   navRanking: 'Merchandising',
@@ -55,7 +61,7 @@ export const enUiCopyV1 = {
   workspaceComputingHint:
     'First launch after a reset or reanalysis can take longer while banji rebuilds local views.',
   workspaceUnavailable: 'The local SENA workspace is unavailable.',
-  overviewHeading: 'Overview',
+  overviewHeading: 'Work Queue',
   overviewBody:
     'See what needs attention now, what changed recently, and what to do next.',
   overviewLoading: 'Loading the latest overview context…',
@@ -64,7 +70,7 @@ export const enUiCopyV1 = {
   overviewLatestChangeLabel: 'Latest change',
   overviewSupportPromptLabel: 'What this page is for',
   overviewSupportPromptBody:
-    'Overview is for the next operational move. Editing, logs, and planning live elsewhere.',
+    'Work is for the next operational move. Editing, history, and planning live elsewhere.',
   overviewDecisionSupportCatalogTitle: 'Planning starts after the catalog exists',
   overviewDecisionSupportCatalogBody:
     'Add the first SKU so banji can build tasks from real stock and service activity.',
@@ -79,7 +85,7 @@ export const enUiCopyV1 = {
     'The catalog is ready, but banji still needs a live observation before it can trust the current picture.',
   overviewDecisionSupportSteadyTitle: 'The latest picture looks steady',
   overviewDecisionSupportSteadyBody:
-    'Nothing urgent is waiting. The best next step is to log the next stock update and keep Overview current.',
+    'Nothing urgent is waiting. The best next step is to log the next stock update and keep Work current.',
   overviewPrimaryAddFirstSku: 'Add first SKU',
   overviewPrimaryAddFirstSkuDescription:
     'Create the first SKU so banji can start tracking stock, services, and planning.',
@@ -158,12 +164,12 @@ export const enUiCopyV1 = {
     'See what changed most recently across stock updates, price changes, and ranking signals.',
   overviewRecentActivityLoading: 'Loading recent activity…',
   overviewRecentActivityFallback:
-    'Recent activity could not be loaded right now. The rest of Overview is still available.',
+    'Recent activity could not be loaded right now. The rest of Work is still available.',
   overviewRecentActivityEmpty:
     'No stock reports have been captured yet. Start the first update session when inventory is ready.',
   overviewQuickActionsTitle: 'Quick actions',
   overviewQuickActionsDescription:
-    'Keep this list short so Overview stays focused on action, not setup.',
+    'Keep this list short so Work stays focused on action, not setup.',
   overviewQuickActionOperationsDescription:
     'Capture the next stock update.',
   overviewQuickActionCatalogDescription:
@@ -203,7 +209,7 @@ export const enUiCopyV1 = {
     'See which SKUs are at risk and where reorder pressure is building.',
   dashboardReorderCount: 'Reorders likely',
   dashboardTopRegime: 'Dominant regime',
-  dashboardReportFreshness: 'Analysis freshness',
+  dashboardReportFreshness: 'Insight freshness',
   dashboardHighRisk: 'High-risk SKUs',
   dashboardNoRisk: 'No urgent reorder signals yet.',
   inventoryBody:
@@ -1120,45 +1126,46 @@ export const enUiCopyV1 = {
     'Used only when formatting KHR; saved values stay in USD.',
   settingsInterfaceVisibilityTitle: 'Interface',
   settingsInterfaceVisibilityDescription:
-    'Choose a saved view mode or fine-tune the individual interface visibility toggles below.',
+    'Choose a view preset or fine-tune the individual interface visibility toggles below.',
   settingsViewModeLabel: 'View mode',
   settingsViewModeHelp:
-    'Compact View hides optional interface layers. Custom View keeps the full desktop treatment visible.',
+    'Default View keeps the essentials visible. Minimal hides optional layers. Maximal shows every interface layer.',
   settingsViewModeCompactLocksHelp:
-    'Compact View turns these interface layers off. Switch back to Custom View to edit your saved setup.',
-  settingsShowOptionalHelpLabel: 'Show optional help',
+    'Preset cards update the switches below. Manual changes create a Custom View.',
+  settingsShowOptionalHelpLabel: 'Optional guidance',
   settingsShowOptionalHelpHelp:
-    'Show tooltips, section descriptors, and optional hints. Required field guidance stays visible.',
-  settingsShowFloatingActionsLabel: 'Show floating title actions',
+    'Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible.',
+  settingsShowFloatingActionsLabel: 'Floating page actions',
   settingsShowFloatingActionsHelp:
-    'Keep page actions visible after the header scrolls off screen.',
-  settingsShowOverviewTaskTabsLabel: 'Show overview task tabs',
-  settingsShowOverviewTaskTabsHelp:
-    'Show the overview task-status tabs. When off, Overview opens directly to the All Tasks queue.',
-  settingsShowAnalysisPageLabel: 'Show analysis page',
-  settingsShowAnalysisPageHelp:
-    'Show the Analysis page in navigation and search. When off, Analysis is hidden from the app.',
-  settingsShowPerformanceCompareToggleLabel: 'Show performance compare toggle',
-  settingsShowPerformanceCompareToggleHelp:
-    'Show the Compare view / Single view control on Performance. When off, Performance stays in Single view.',
-  settingsShowPerformanceTimelineCardLabel: 'Show business timeline card',
-  settingsShowPerformanceTimelineCardHelp:
-    'Show the Business timeline card on Performance. When off, the timeline card is hidden.',
-  settingsShowLogsViewToggleLabel: 'Show logs view button',
-  settingsShowLogsViewToggleHelp:
-    'Show the View selector on Logs. When off, Logs stays in View: All mode.',
-  settingsShowHeartbeatRibbonsLabel: 'Show heartbeats and ribbons',
-  settingsShowHeartbeatRibbonsHelp:
-    'Show heartbeat summaries and key-signal ribbons on detail, performance, financials, and update pages.',
+    'Keeps primary page actions visible near the title area after the header scrolls away.',
+  settingsShowRightRailCardsLabel: 'Right-side context panels',
   settingsShowRightRailCardsHelp:
-    'Show the right-side context panels on analysis, performance, financials, and detail pages.',
+    'Shows supplemental right-side panels on Work, Insights, Pressure, Financials, and detail screens.',
+  settingsShowOverviewTaskTabsLabel: 'Work queue filter tabs',
+  settingsShowOverviewTaskTabsHelp:
+    'Shows task-status filter tabs above the Work queue. When off, Work uses a single All Tasks queue.',
+  settingsShowAutomationsPageLabel: 'Automations and intake',
+  settingsShowAutomationsPageHelp:
+    'Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused.',
+  settingsShowPerformanceCompareToggleLabel: 'Comparison view switch',
+  settingsShowPerformanceCompareToggleHelp:
+    'Shows the Compare / Single view switch on Pressure and Financials. When off, those pages stay in Single view.',
+  settingsShowPerformanceTimelineCardLabel: 'Pressure timeline card',
+  settingsShowPerformanceTimelineCardHelp:
+    'Shows the business timeline card on Pressure. When off, the card is hidden.',
+  settingsShowLogsViewToggleLabel: 'History view selector',
+  settingsShowLogsViewToggleHelp:
+    'Shows the Heatmap / All view selector in Settings / History. When off, History stays in All view.',
+  settingsShowHeartbeatRibbonsLabel: 'Heartbeat and signal ribbons',
+  settingsShowHeartbeatRibbonsHelp:
+    'Shows heartbeat indicators and signal ribbons on detail, Pressure, Financials, and update screens.',
   settingsSenaParametersPanelTitle: 'Planning settings',
   settingsSenaParametersPanelDescription:
     'Tune how local SENA runs sample uncertainty and turn the posterior into reorder guidance.',
   settingsResetDefaultsAction: 'Reset to defaults',
-  settingsAnalysisProfileLabel: 'Analysis profile',
+  settingsAnalysisProfileLabel: 'Planning profile',
   settingsAnalysisProfileTooltip:
-    'Analysis profile selects the local SENA runner version. Keep the current profile unless you are comparing analysis builds.',
+    'Planning profile selects the local SENA runner version. Keep the current profile unless you are comparing local planning builds.',
   settingsAnalysisProfileHelp:
     'Local runner version used for the next SENA refresh.',
   settingsRecommendationQuantileLabel: 'Recommendation quantile',
@@ -1530,13 +1537,13 @@ export const enUiCopyV1 = {
   performanceVmRibbonRevenueAtRisk: 'Revenue at risk',
   performanceVmLastUpdated: 'Updated {date} · {window}',
   performanceVmWaitingForUpdates: 'Waiting for SENA evidence',
-  performanceRouteEmptyCatalogTitle: 'Performance needs the catalog first',
+  performanceRouteEmptyCatalogTitle: 'Pressure needs the catalog first',
   performanceRouteEmptyCatalogHint:
     'Create the first SKU so banji can compare demand, coverage, and price in one business view.',
-  performanceRouteEmptyWorkspaceTitle: 'Performance needs the first SENA run',
+  performanceRouteEmptyWorkspaceTitle: 'Pressure needs the first SENA run',
   performanceRouteEmptyWorkspaceHint:
     'Capture a live observation so banji can read demand, capacity, pipeline, and price together.',
-  performanceRouteTitle: 'Business Health',
+  performanceRouteTitle: 'Pressure',
   performanceRouteDescriptor: 'Demand, capacity, incoming stock, and pricing in one business view.',
   performanceRouteScopeAll: 'All',
   performanceRouteScopeServices: 'Services',
@@ -1614,36 +1621,36 @@ export const enUiCopyV1 = {
   performanceRouteTimelineTitle: 'Business timeline',
   performanceRouteTimelineTooltip: 'The main shifts that shaped the current business posture.',
   performanceRouteTimelineDescriptor: 'What has been changing across the business posture.',
-  financialsRouteEyebrow: 'Financials',
-  financialsRouteTitle: 'Cash Flow',
+  financialsRouteEyebrow: 'Money',
+  financialsRouteTitle: 'Money',
   financialsRouteDescriptor:
-    'See the stock-linked money view of the business: sales, gross profit, inventory value, supplier commitments, and margin pressure.',
+    'See the money view of the business: sales, gross profit, inventory value, supplier commitments, and margin pressure.',
   financialsRouteScopeAll: 'All',
   financialsRouteScopeServices: 'Services',
   financialsRouteScopeSkus: 'SKUs',
-  financialsRouteEmptyCatalogTitle: 'Financials needs the catalog first',
+  financialsRouteEmptyCatalogTitle: 'Money needs the catalog first',
   financialsRouteEmptyCatalogHint:
     'Create the first SKU so banji can read stock-linked sales, margin, inventory value, and supplier commitments.',
-  financialsRouteEmptyWorkspaceTitle: 'Financials needs the first SENA run',
+  financialsRouteEmptyWorkspaceTitle: 'Money needs the first SENA run',
   financialsRouteEmptyWorkspaceHint:
     'Capture a live observation so banji can turn stock, sales, orders, receipts, and price evidence into a money view.',
-  analysisRouteEyebrow: 'Analysis',
-  analysisRouteTitle: 'Data Insights',
+  analysisRouteEyebrow: 'Explain',
+  analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
     'Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.',
-  analysisRouteNeedCatalogTitle: 'Analysis needs the catalog first',
-  analysisRouteNeedCatalogHint: 'Create the first SKU so Analysis has real entities to inspect.',
-  analysisRouteNeedRunTitle: 'Analysis needs the first SENA run',
+  analysisRouteNeedCatalogTitle: 'Explain needs the catalog first',
+  analysisRouteNeedCatalogHint: 'Create the first SKU so SENA has real entities to inspect.',
+  analysisRouteNeedRunTitle: 'Explain needs the first SENA run',
   analysisRouteNeedRunHint:
-    'Capture a live observation so Analysis can explain how sparse signals became the current system story.',
+    'Capture a live observation so SENA can explain how sparse signals became the current system story.',
   analysisRouteScopeAria: 'Select analysis scope',
   analysisRouteScopeAll: 'All',
   analysisRouteScopeServices: 'Services',
   analysisRouteScopeSkus: 'SKUs',
-  analysisRouteRunAnalysis: 'Run analysis',
-  analysisRouteRerunAnalysis: 'Re-run analysis',
+  analysisRouteRunAnalysis: 'Refresh explanation',
+  analysisRouteRerunAnalysis: 'Refresh explanation',
   analysisRouteLoadingDetails: 'Hydrating entity posteriors…',
-  analysisRouteOpenOverview: 'Open Overview',
+  analysisRouteOpenOverview: 'Open Work',
   analysisWorkbenchNavWorkbench: 'Workbench',
   analysisWorkbenchNavPressure: 'Pressure',
   analysisWorkbenchNavObservations: 'Observations',
@@ -1826,7 +1833,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchStrongestChannelsTitle: 'Strongest channels',
   analysisWorkbenchStrongestChannelsTooltip:
     'Evidence channels contributing most to the current system read.',
-  analysisWorkbenchSettingsTitle: 'Analysis settings',
+  analysisWorkbenchSettingsTitle: 'Explain settings',
   analysisWorkbenchSettingsTooltip:
     'Read-only model and evidence metadata for the current analysis window.',
   analysisWorkbenchSettingsDescriptor:
@@ -1976,7 +1983,7 @@ export const enUiCopyV1 = {
   stockUpdateReviewTooltipLabel: 'Save summary details',
   stockUpdateNoStructuredSignals: 'No structured signals yet',
   stockUpdateReviewBody:
-    'banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add evidence to Analysis.',
+    'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add evidence to Explain.',
   stockUpdatePriceBadge: 'Price: {name}',
   stockUpdateStockoutBadge: 'Stockout: {name}',
   stockUpdateOrderSignalSaved:
@@ -2065,7 +2072,7 @@ export const enUiCopyV1 = {
     'No line items yet. Add counts, orders, receipts, or rankings to build the session receipt.',
   stockUpdateSessionCurrentEffect: 'Current effect',
   stockUpdateSessionReviewConfirm: 'Review & confirm',
-  stockUpdateTitle: 'Record update',
+  stockUpdateTitle: 'Capture',
   stockUpdateDescriptorWithHistory:
     'Covers changes since {date}{suffix}.',
   stockUpdateDescriptorIntervalSuffix: ' · {days}-day interval',
@@ -2162,7 +2169,7 @@ export const enUiCopyV1 = {
   overviewDrawerSubmitNotOrdered: 'Save note',
   overviewDrawerSubmitDefault: 'Save and refresh',
   overviewDrawerSaveFailed: "banji could not save this update. Try again.",
-  stockUpdateEyebrow: 'Operations',
+  stockUpdateEyebrow: 'Capture',
 } as const;
 
 export type EnglishUiCopyVersion = 'v1' | 'v2';
@@ -2307,24 +2314,28 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsExchangeRateHelp:
     'Used only for showing KHR amounts. Saved values still stay in USD.',
   settingsInterfaceVisibilityDescription:
-    'These switches control how much guidance and side context the desktop shows.',
-  settingsShowOptionalHelpLabel: 'Show extra guidance',
+    'Choose a view preset or fine-tune the individual interface visibility toggles below.',
+  settingsShowOptionalHelpLabel: 'Optional guidance',
   settingsShowOptionalHelpHelp:
-    'Show tooltips, section descriptions, and optional hints. Required guidance stays visible.',
-  settingsShowFloatingActionsLabel: 'Keep actions pinned',
+    'Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible.',
+  settingsShowFloatingActionsLabel: 'Floating page actions',
   settingsShowFloatingActionsHelp:
-    'Keep page actions visible after the page title scrolls away.',
+    'Keeps primary page actions visible near the title area after the header scrolls away.',
+  settingsShowRightRailCardsLabel: 'Right-side context panels',
   settingsShowRightRailCardsHelp:
-    'Show the side context panels on analysis, performance, and detail pages.',
+    'Shows supplemental right-side panels on Work, Insights, Pressure, Financials, and detail screens.',
+  settingsShowAutomationsPageLabel: 'Automations and intake',
+  settingsShowAutomationsPageHelp:
+    'Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused.',
   settingsSenaParametersPanelTitle: 'Planning settings',
   settingsSenaParametersPanelDescription:
     'Adjust how much detail banji uses when estimating stock and suggesting reorder quantities.',
-  settingsAnalysisProfileLabel: 'Analysis profile',
+  settingsAnalysisProfileLabel: 'Planning profile',
   settingsAnalysisProfileTooltip:
     'This selects the local analysis engine version. Leave it alone unless you are comparing runs.',
   settingsAnalysisProfileHelp:
     'The local analysis version banji will use on the next refresh.',
-  settingsParticleCount: 'Analysis sample count',
+  settingsParticleCount: 'Planner sample count',
   settingsParticleCountTooltip:
     'Higher values usually make banji’s estimates steadier, but refreshes take longer.',
   settingsRecommendationQuantileLabel: 'Recommended order level',
@@ -2598,7 +2609,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   performanceVmRibbonRevenueAtRisk: 'Revenue at risk',
   performanceVmLastUpdated: 'Updated {date} · {window}',
   performanceVmWaitingForUpdates: 'Waiting for banji updates',
-  performanceRouteEmptyWorkspaceTitle: 'Performance needs your first update',
+  performanceRouteEmptyWorkspaceTitle: 'Pressure needs your first update',
   performanceRouteEmptyCatalogHint:
     'Create the first SKU so banji can compare demand, availability, and price in one business view.',
   performanceRouteEmptyWorkspaceHint:
@@ -2618,24 +2629,24 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Incoming events already underway that could restore capacity or ease a blocker.',
   performanceRouteConfidenceTitle: 'Confidence and coverage',
   performanceRouteTimelineDescriptor: 'What has been changing across the business.',
-  analysisRouteEyebrow: 'Analysis',
-  analysisRouteTitle: 'Data Insights',
+  analysisRouteEyebrow: 'Explain',
+  analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
     'See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.',
-  analysisRouteNeedCatalogTitle: 'Analysis needs a catalog first',
+  analysisRouteNeedCatalogTitle: 'Explain needs a catalog first',
   analysisRouteNeedCatalogHint:
     'Create your first SKU so banji has real items to analyze.',
-  analysisRouteNeedRunTitle: 'Analysis needs your first update',
+  analysisRouteNeedRunTitle: 'Explain needs your first update',
   analysisRouteNeedRunHint:
     'Save a real update so banji can explain how the current picture was formed.',
-  analysisRouteScopeAria: 'Select analysis scope',
+  analysisRouteScopeAria: 'Select explanation scope',
   analysisRouteScopeAll: 'All',
   analysisRouteScopeServices: 'Services',
   analysisRouteScopeSkus: 'SKUs',
-  analysisRouteRunAnalysis: 'Refresh analysis',
-  analysisRouteRerunAnalysis: 'Refresh analysis',
+  analysisRouteRunAnalysis: 'Refresh explanation',
+  analysisRouteRerunAnalysis: 'Refresh explanation',
   analysisRouteLoadingDetails: 'Loading item details…',
-  analysisRouteOpenOverview: 'Open overview',
+  analysisRouteOpenOverview: 'Open Work',
   analysisWorkbenchNavPressure: 'Risks',
   analysisWorkbenchNavFragility: 'Blockers',
   analysisWorkbenchSettingsSampleSizeLabel: 'Evidence strength',
@@ -2742,12 +2753,12 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisWorkbenchChangePointProbability: 'Shift probability {value}',
   analysisWorkbenchStrongestChannelsTitle: 'Main evidence',
   analysisWorkbenchAffectedEntitiesHeader: 'Affected items',
-  analysisWorkbenchSettingsTitle: 'Analysis details',
+  analysisWorkbenchSettingsTitle: 'Explain details',
   analysisWorkbenchSettingsTooltip:
     'Read-only analysis and evidence details for the current window.',
   analysisWorkbenchSettingsDescriptor:
     'Check the run details and evidence coverage behind this analysis.',
-  stockUpdateStepContextTitle: 'Record update details',
+  stockUpdateStepContextTitle: 'Capture details',
   stockUpdateStepContextDescription:
     'Choose an optional sales pattern.',
   stockUpdateStepObservedAtTitle: 'Observed at',
@@ -2837,7 +2848,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateRegimeCorrectionDetail:
     'Bookkeeping or cleanup activity drove this period.',
   stockUpdateReviewBody:
-    'banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add this evidence to Analysis.',
+    'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this evidence to Explain.',
   stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
   stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
   stockUpdateStepObservedAtReady: 'Time confirmed',
@@ -2945,13 +2956,13 @@ export const enUiCopyV2: EnglishUiCopy = {
     serviceVmHeroSummary:
       'Likely range {low}-{high} · main blocker {bottleneck} · risk {risk} · next blocker {nextBlocker} · {inbound}',
     performanceVmWaitingForUpdates: 'Waiting for recent updates',
-    performanceRouteEmptyWorkspaceTitle: 'Performance needs your first update',
+    performanceRouteEmptyWorkspaceTitle: 'Pressure needs your first update',
     performanceRouteBoardTooltip:
       'A mixed portfolio view of demand, support, incoming stock, and margin posture.',
     performanceRouteRecoveryPipelineTitle: 'Recovery path',
     analysisRouteDescriptor:
       'Inspect how saved updates shaped banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.',
-    analysisRouteNeedRunTitle: 'Analysis needs your first update',
+    analysisRouteNeedRunTitle: 'Explain needs your first update',
     analysisRouteLoadingDetails: 'Loading item details…',
     analysisWorkbenchSettingsSampleSizeLabel: 'Evidence strength',
     analysisWorkbenchSettingsPredictiveErrorLabel: 'Prediction gap',
@@ -3055,7 +3066,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateReviewTooltip:
         'banji saves only changed rows and active signals, then refreshes the planning views.',
       stockUpdateReviewBody:
-        'banji will refresh stock and sellability, update Overview tasks, refresh Performance moves, and add this update to Analysis.',
+        'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this update to Explain.',
       stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
       stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
       stockUpdateContextFooterEmpty:
@@ -3082,7 +3093,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateBlockedStateAria: 'Blocked or stockout for {name}',
       stockUpdateRemovePriceFlagFor: 'Remove price flag for {name}',
       stockUpdatePriceChangedAria: 'Price if changed for {name}',
-      stockUpdateEyebrow: 'Operations',
+      stockUpdateEyebrow: 'Capture',
     },
   },
 } as const;

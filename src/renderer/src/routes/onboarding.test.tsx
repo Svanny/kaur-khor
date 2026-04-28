@@ -47,10 +47,8 @@ describe('OnboardingRoute', () => {
     onboardingCompletedAt: null,
     seenUnlockedNavItems: {
       catalog: false,
-      operations: false,
-      performance: false,
-      financials: false,
-      automations: false,
+        insights: false,
+        work: false,
     },
   };
 
@@ -94,6 +92,10 @@ describe('OnboardingRoute', () => {
     expect(screen.getByText('$')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Currency' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'Minimal View' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Maximal View' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Custom View' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -101,25 +103,46 @@ describe('OnboardingRoute', () => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         language: 'en',
         currency: 'USD',
-        displayViewMode: 'custom',
+        displayViewMode: 'default',
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: false,
         showOverviewTaskTabs: false,
         showAutomationsPage: false,
-        showAnalysisPage: false,
+        showAnalysisPage: true,
         showPerformanceCompareToggle: false,
         showPerformanceTimelineCard: false,
         showLogsViewToggle: false,
-        showHeartbeatRibbons: false,
+        showHeartbeatRibbons: true,
         onboardingCompletedAt: expect.any(String),
         seenUnlockedNavItems: {
           catalog: false,
-          operations: false,
-          performance: false,
-          financials: false,
-          automations: false,
+        insights: false,
+        work: false,
         },
+      }));
+    });
+  });
+
+  it('saves the selected maximal onboarding preset', async () => {
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('radio', { name: 'Maximal View' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        displayViewMode: 'maximal',
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        showOverviewTaskTabs: true,
+        showAutomationsPage: true,
+        showAnalysisPage: true,
+        showPerformanceCompareToggle: true,
+        showPerformanceTimelineCard: true,
+        showLogsViewToggle: true,
+        showHeartbeatRibbons: true,
       }));
     });
   });
@@ -130,10 +153,8 @@ describe('OnboardingRoute', () => {
       onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+      insights: true,
+      work: true,
       },
     });
 

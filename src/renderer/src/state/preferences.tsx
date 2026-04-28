@@ -8,6 +8,13 @@ import {
 } from 'react';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import {
+  getInterfaceVisibilityForPreset,
+  isPresetViewMode,
+  resolveInterfaceViewMode,
+  type InterfaceVisibilityPreferences,
+  type InterfaceViewMode,
+} from '@shared/interface-view';
+import {
   DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
@@ -34,7 +41,7 @@ interface PreferencesContextValue {
   language: AppLanguage;
   currency: AppCurrency;
   usdToKhrExchangeRate: number;
-  displayViewMode: 'compact' | 'custom';
+  displayViewMode: InterfaceViewMode;
   itemImageMode: DesktopItemImageMode;
   dimChartsWhileLoading: boolean;
   taskBatchUpdatePreferences: DesktopTaskBatchUpdatePreferences;
@@ -66,7 +73,7 @@ interface PreferencesContextValue {
   persistedLanguage: AppLanguage;
   persistedCurrency: AppCurrency;
   persistedUsdToKhrExchangeRate: number;
-  persistedDisplayViewMode: 'compact' | 'custom';
+  persistedDisplayViewMode: InterfaceViewMode;
   persistedItemImageMode: DesktopItemImageMode;
   persistedDimChartsWhileLoading: boolean;
   persistedShowExplanatoryTooltips: boolean;
@@ -98,7 +105,7 @@ interface PreferencesContextValue {
   setLanguage: (value: AppLanguage) => void;
   setCurrency: (value: AppCurrency) => void;
   setUsdToKhrExchangeRate: (value: number) => void;
-  setDisplayViewMode: (value: 'compact' | 'custom') => void;
+  setDisplayViewMode: (value: InterfaceViewMode) => void;
   setItemImageMode: (value: DesktopItemImageMode) => void;
   setDimChartsWhileLoading: (value: boolean) => void;
   setShowExplanatoryTooltips: (value: boolean) => void;
@@ -119,12 +126,12 @@ interface PreferencesContextValue {
   setOverviewStaleUpdateReminderSnoozeUntil: (value: string | null) => void;
   applySenaEngineParameters: (value: SenaEngineParameters) => Promise<void>;
   applyOverviewStaleUpdateReminderSnoozeUntil: (value: string | null) => Promise<void>;
-  applyDisplayViewMode: (mode: 'compact' | 'custom') => Promise<void>;
+  applyDisplayViewMode: (mode: InterfaceViewMode) => Promise<void>;
   savePreferences: (overrides?: Partial<{
     language: AppLanguage;
     currency: AppCurrency;
     usdToKhrExchangeRate: number;
-    displayViewMode: 'compact' | 'custom';
+    displayViewMode: InterfaceViewMode;
     itemImageMode: DesktopItemImageMode;
     dimChartsWhileLoading: boolean;
     showExplanatoryTooltips: boolean;
@@ -170,35 +177,45 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
     : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
 }
 
+function deriveInterfaceViewMode(preferences: InterfaceVisibilityPreferences & { displayViewMode?: InterfaceViewMode | null }) {
+  return resolveInterfaceViewMode({
+    requestedMode: preferences.displayViewMode ?? null,
+    visibility: {
+    ...preferences,
+    showAnalysisPage: true,
+    },
+  });
+}
+
 export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [language, setLanguageState] = useState<AppLanguage>('en');
   const [currency, setCurrencyState] = useState<AppCurrency>('USD');
   const [usdToKhrExchangeRate, setUsdToKhrExchangeRateState] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
-  const [displayViewMode, setDisplayViewModeState] = useState<'compact' | 'custom'>('custom');
+  const [displayViewMode, setDisplayViewModeState] = useState<InterfaceViewMode>('default');
   const [itemImageMode, setItemImageModeState] = useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
   const [dimChartsWhileLoading, setDimChartsWhileLoadingState] = useState(false);
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
-  const [showRightRailCards, setShowRightRailCardsState] = useState(true);
-  const [showOverviewTaskTabs, setShowOverviewTaskTabsState] = useState(true);
-  const [showAutomationsPage, setShowAutomationsPageState] = useState(true);
+  const [showRightRailCards, setShowRightRailCardsState] = useState(false);
+  const [showOverviewTaskTabs, setShowOverviewTaskTabsState] = useState(false);
+  const [showAutomationsPage, setShowAutomationsPageState] = useState(false);
   const [showAnalysisPage, setShowAnalysisPageState] = useState(true);
-  const [showPerformanceCompareToggle, setShowPerformanceCompareToggleState] = useState(true);
-  const [showPerformanceTimelineCard, setShowPerformanceTimelineCardState] = useState(true);
-  const [showLogsViewToggle, setShowLogsViewToggleState] = useState(true);
+  const [showPerformanceCompareToggle, setShowPerformanceCompareToggleState] = useState(false);
+  const [showPerformanceTimelineCard, setShowPerformanceTimelineCardState] = useState(false);
+  const [showLogsViewToggle, setShowLogsViewToggleState] = useState(false);
   const [showHeartbeatRibbons, setShowHeartbeatRibbonsState] = useState(true);
   const [taskBatchUpdatePreferences, setTaskBatchUpdatePreferencesState] =
     useState<DesktopTaskBatchUpdatePreferences>(DEFAULT_TASK_BATCH_UPDATE_PREFERENCES);
   const [customShowExplanatoryTooltips, setCustomShowExplanatoryTooltipsState] = useState(true);
   const [customShowFloatingTitleActions, setCustomShowFloatingTitleActionsState] = useState(true);
-  const [customShowRightRailCards, setCustomShowRightRailCardsState] = useState(true);
-  const [customShowOverviewTaskTabs, setCustomShowOverviewTaskTabsState] = useState(true);
-  const [customShowAutomationsPage, setCustomShowAutomationsPageState] = useState(true);
+  const [customShowRightRailCards, setCustomShowRightRailCardsState] = useState(false);
+  const [customShowOverviewTaskTabs, setCustomShowOverviewTaskTabsState] = useState(false);
+  const [customShowAutomationsPage, setCustomShowAutomationsPageState] = useState(false);
   const [customShowAnalysisPage, setCustomShowAnalysisPageState] = useState(true);
-  const [customShowPerformanceCompareToggle, setCustomShowPerformanceCompareToggleState] = useState(true);
-  const [customShowPerformanceTimelineCard, setCustomShowPerformanceTimelineCardState] = useState(true);
-  const [customShowLogsViewToggle, setCustomShowLogsViewToggleState] = useState(true);
+  const [customShowPerformanceCompareToggle, setCustomShowPerformanceCompareToggleState] = useState(false);
+  const [customShowPerformanceTimelineCard, setCustomShowPerformanceTimelineCardState] = useState(false);
+  const [customShowLogsViewToggle, setCustomShowLogsViewToggleState] = useState(false);
   const [customShowHeartbeatRibbons, setCustomShowHeartbeatRibbonsState] = useState(true);
   const [senaEngineParameters, setSenaEngineParametersState] = useState(() =>
     normalizeSenaEngineParameters(null),
@@ -215,31 +232,31 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedLanguage, setPersistedLanguage] = useState<AppLanguage>('en');
   const [persistedCurrency, setPersistedCurrency] = useState<AppCurrency>('USD');
   const [persistedUsdToKhrExchangeRate, setPersistedUsdToKhrExchangeRate] = useState(DEFAULT_USD_TO_KHR_EXCHANGE_RATE);
-  const [persistedDisplayViewMode, setPersistedDisplayViewMode] = useState<'compact' | 'custom'>('custom');
+  const [persistedDisplayViewMode, setPersistedDisplayViewMode] = useState<InterfaceViewMode>('default');
   const [persistedItemImageMode, setPersistedItemImageMode] =
     useState<DesktopItemImageMode>(DEFAULT_DESKTOP_ITEM_IMAGE_MODE);
   const [persistedDimChartsWhileLoading, setPersistedDimChartsWhileLoading] = useState(false);
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
-  const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(true);
-  const [persistedShowOverviewTaskTabs, setPersistedShowOverviewTaskTabs] = useState(true);
-  const [persistedShowAutomationsPage, setPersistedShowAutomationsPage] = useState(true);
+  const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(false);
+  const [persistedShowOverviewTaskTabs, setPersistedShowOverviewTaskTabs] = useState(false);
+  const [persistedShowAutomationsPage, setPersistedShowAutomationsPage] = useState(false);
   const [persistedShowAnalysisPage, setPersistedShowAnalysisPage] = useState(true);
-  const [persistedShowPerformanceCompareToggle, setPersistedShowPerformanceCompareToggle] = useState(true);
-  const [persistedShowPerformanceTimelineCard, setPersistedShowPerformanceTimelineCard] = useState(true);
-  const [persistedShowLogsViewToggle, setPersistedShowLogsViewToggle] = useState(true);
+  const [persistedShowPerformanceCompareToggle, setPersistedShowPerformanceCompareToggle] = useState(false);
+  const [persistedShowPerformanceTimelineCard, setPersistedShowPerformanceTimelineCard] = useState(false);
+  const [persistedShowLogsViewToggle, setPersistedShowLogsViewToggle] = useState(false);
   const [persistedShowHeartbeatRibbons, setPersistedShowHeartbeatRibbons] = useState(true);
   const [persistedTaskBatchUpdatePreferences, setPersistedTaskBatchUpdatePreferences] =
     useState<DesktopTaskBatchUpdatePreferences>(DEFAULT_TASK_BATCH_UPDATE_PREFERENCES);
   const [persistedCustomShowExplanatoryTooltips, setPersistedCustomShowExplanatoryTooltips] = useState(true);
   const [persistedCustomShowFloatingTitleActions, setPersistedCustomShowFloatingTitleActions] = useState(true);
-  const [persistedCustomShowRightRailCards, setPersistedCustomShowRightRailCards] = useState(true);
-  const [persistedCustomShowOverviewTaskTabs, setPersistedCustomShowOverviewTaskTabs] = useState(true);
-  const [persistedCustomShowAutomationsPage, setPersistedCustomShowAutomationsPage] = useState(true);
+  const [persistedCustomShowRightRailCards, setPersistedCustomShowRightRailCards] = useState(false);
+  const [persistedCustomShowOverviewTaskTabs, setPersistedCustomShowOverviewTaskTabs] = useState(false);
+  const [persistedCustomShowAutomationsPage, setPersistedCustomShowAutomationsPage] = useState(false);
   const [persistedCustomShowAnalysisPage, setPersistedCustomShowAnalysisPage] = useState(true);
-  const [persistedCustomShowPerformanceCompareToggle, setPersistedCustomShowPerformanceCompareToggle] = useState(true);
-  const [persistedCustomShowPerformanceTimelineCard, setPersistedCustomShowPerformanceTimelineCard] = useState(true);
-  const [persistedCustomShowLogsViewToggle, setPersistedCustomShowLogsViewToggle] = useState(true);
+  const [persistedCustomShowPerformanceCompareToggle, setPersistedCustomShowPerformanceCompareToggle] = useState(false);
+  const [persistedCustomShowPerformanceTimelineCard, setPersistedCustomShowPerformanceTimelineCard] = useState(false);
+  const [persistedCustomShowLogsViewToggle, setPersistedCustomShowLogsViewToggle] = useState(false);
   const [persistedCustomShowHeartbeatRibbons, setPersistedCustomShowHeartbeatRibbons] = useState(true);
   const [persistedSenaEngineParameters, setPersistedSenaEngineParameters] = useState(() =>
     normalizeSenaEngineParameters(null),
@@ -269,13 +286,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         const nextWorkbenchTileOrderByLane = normalizeDesktopWorkbenchTileOrderByLane(
           preferences.workbenchTileOrderByLane,
         );
+        const nextDisplayViewMode = deriveInterfaceViewMode(preferences);
 
         setLanguageState(preferences.language);
         setCurrencyState(preferences.currency);
         const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(preferences.usdToKhrExchangeRate);
 
         setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
-        setDisplayViewModeState(preferences.displayViewMode);
+        setDisplayViewModeState(nextDisplayViewMode);
         setItemImageModeState(preferences.itemImageMode);
         setDimChartsWhileLoadingState(preferences.dimChartsWhileLoading);
         setShowExplanatoryTooltipsState(preferences.showExplanatoryTooltips);
@@ -283,7 +301,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowRightRailCardsState(preferences.showRightRailCards);
         setShowOverviewTaskTabsState(preferences.showOverviewTaskTabs);
         setShowAutomationsPageState(preferences.showAutomationsPage);
-        setShowAnalysisPageState(preferences.showAnalysisPage);
+        setShowAnalysisPageState(true);
         setShowPerformanceCompareToggleState(preferences.showPerformanceCompareToggle);
         setShowPerformanceTimelineCardState(preferences.showPerformanceTimelineCard);
         setShowLogsViewToggleState(preferences.showLogsViewToggle);
@@ -297,7 +315,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCustomShowRightRailCardsState(preferences.customShowRightRailCards);
         setCustomShowOverviewTaskTabsState(preferences.customShowOverviewTaskTabs);
         setCustomShowAutomationsPageState(preferences.customShowAutomationsPage);
-        setCustomShowAnalysisPageState(preferences.customShowAnalysisPage);
+        setCustomShowAnalysisPageState(true);
         setCustomShowPerformanceCompareToggleState(preferences.customShowPerformanceCompareToggle);
         setCustomShowPerformanceTimelineCardState(preferences.customShowPerformanceTimelineCard);
         setCustomShowLogsViewToggleState(preferences.customShowLogsViewToggle);
@@ -312,7 +330,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedLanguage(preferences.language);
         setPersistedCurrency(preferences.currency);
         setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
-        setPersistedDisplayViewMode(preferences.displayViewMode);
+        setPersistedDisplayViewMode(nextDisplayViewMode);
         setPersistedItemImageMode(preferences.itemImageMode);
         setPersistedDimChartsWhileLoading(preferences.dimChartsWhileLoading);
         setPersistedShowExplanatoryTooltips(preferences.showExplanatoryTooltips);
@@ -320,7 +338,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedShowRightRailCards(preferences.showRightRailCards);
         setPersistedShowOverviewTaskTabs(preferences.showOverviewTaskTabs);
         setPersistedShowAutomationsPage(preferences.showAutomationsPage);
-        setPersistedShowAnalysisPage(preferences.showAnalysisPage);
+        setPersistedShowAnalysisPage(true);
         setPersistedShowPerformanceCompareToggle(preferences.showPerformanceCompareToggle);
         setPersistedShowPerformanceTimelineCard(preferences.showPerformanceTimelineCard);
         setPersistedShowLogsViewToggle(preferences.showLogsViewToggle);
@@ -331,7 +349,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setPersistedCustomShowRightRailCards(preferences.customShowRightRailCards);
         setPersistedCustomShowOverviewTaskTabs(preferences.customShowOverviewTaskTabs);
         setPersistedCustomShowAutomationsPage(preferences.customShowAutomationsPage);
-        setPersistedCustomShowAnalysisPage(preferences.customShowAnalysisPage);
+        setPersistedCustomShowAnalysisPage(true);
         setPersistedCustomShowPerformanceCompareToggle(preferences.customShowPerformanceCompareToggle);
         setPersistedCustomShowPerformanceTimelineCard(preferences.customShowPerformanceTimelineCard);
         setPersistedCustomShowLogsViewToggle(preferences.customShowLogsViewToggle);
@@ -359,7 +377,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     language: AppLanguage;
     currency: AppCurrency;
     usdToKhrExchangeRate: number;
-    displayViewMode: 'compact' | 'custom';
+    displayViewMode: InterfaceViewMode;
     itemImageMode: DesktopItemImageMode;
     dimChartsWhileLoading: boolean;
     showExplanatoryTooltips: boolean;
@@ -398,11 +416,12 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     const nextWorkbenchTileOrderByLane = normalizeDesktopWorkbenchTileOrderByLane(
       nextPreferences.workbenchTileOrderByLane,
     );
+    const nextDisplayViewMode = deriveInterfaceViewMode(nextPreferences);
     setLanguageState(nextPreferences.language);
     setCurrencyState(nextPreferences.currency);
     const nextUsdToKhrExchangeRate = normalizeUsdToKhrExchangeRate(nextPreferences.usdToKhrExchangeRate);
     setUsdToKhrExchangeRateState(nextUsdToKhrExchangeRate);
-    setDisplayViewModeState(nextPreferences.displayViewMode);
+    setDisplayViewModeState(nextDisplayViewMode);
     setItemImageModeState(nextPreferences.itemImageMode);
     setDimChartsWhileLoadingState(nextPreferences.dimChartsWhileLoading);
     setShowExplanatoryTooltipsState(nextPreferences.showExplanatoryTooltips);
@@ -410,7 +429,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setShowRightRailCardsState(nextPreferences.showRightRailCards);
     setShowOverviewTaskTabsState(nextPreferences.showOverviewTaskTabs);
     setShowAutomationsPageState(nextPreferences.showAutomationsPage);
-    setShowAnalysisPageState(nextPreferences.showAnalysisPage);
+    setShowAnalysisPageState(true);
     setShowPerformanceCompareToggleState(nextPreferences.showPerformanceCompareToggle);
     setShowPerformanceTimelineCardState(nextPreferences.showPerformanceTimelineCard);
     setShowLogsViewToggleState(nextPreferences.showLogsViewToggle);
@@ -424,7 +443,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setCustomShowRightRailCardsState(nextPreferences.customShowRightRailCards);
     setCustomShowOverviewTaskTabsState(nextPreferences.customShowOverviewTaskTabs);
     setCustomShowAutomationsPageState(nextPreferences.customShowAutomationsPage);
-    setCustomShowAnalysisPageState(nextPreferences.customShowAnalysisPage);
+    setCustomShowAnalysisPageState(true);
     setCustomShowPerformanceCompareToggleState(nextPreferences.customShowPerformanceCompareToggle);
     setCustomShowPerformanceTimelineCardState(nextPreferences.customShowPerformanceTimelineCard);
     setCustomShowLogsViewToggleState(nextPreferences.customShowLogsViewToggle);
@@ -437,7 +456,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedLanguage(nextPreferences.language);
     setPersistedCurrency(nextPreferences.currency);
     setPersistedUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
-    setPersistedDisplayViewMode(nextPreferences.displayViewMode);
+    setPersistedDisplayViewMode(nextDisplayViewMode);
     setPersistedItemImageMode(nextPreferences.itemImageMode);
     setPersistedDimChartsWhileLoading(nextPreferences.dimChartsWhileLoading);
     setPersistedShowExplanatoryTooltips(nextPreferences.showExplanatoryTooltips);
@@ -445,7 +464,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedShowRightRailCards(nextPreferences.showRightRailCards);
     setPersistedShowOverviewTaskTabs(nextPreferences.showOverviewTaskTabs);
     setPersistedShowAutomationsPage(nextPreferences.showAutomationsPage);
-    setPersistedShowAnalysisPage(nextPreferences.showAnalysisPage);
+    setPersistedShowAnalysisPage(true);
     setPersistedShowPerformanceCompareToggle(nextPreferences.showPerformanceCompareToggle);
     setPersistedShowPerformanceTimelineCard(nextPreferences.showPerformanceTimelineCard);
     setPersistedShowLogsViewToggle(nextPreferences.showLogsViewToggle);
@@ -456,7 +475,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedCustomShowRightRailCards(nextPreferences.customShowRightRailCards);
     setPersistedCustomShowOverviewTaskTabs(nextPreferences.customShowOverviewTaskTabs);
     setPersistedCustomShowAutomationsPage(nextPreferences.customShowAutomationsPage);
-    setPersistedCustomShowAnalysisPage(nextPreferences.customShowAnalysisPage);
+    setPersistedCustomShowAnalysisPage(true);
     setPersistedCustomShowPerformanceCompareToggle(nextPreferences.customShowPerformanceCompareToggle);
     setPersistedCustomShowPerformanceTimelineCard(nextPreferences.customShowPerformanceTimelineCard);
     setPersistedCustomShowLogsViewToggle(nextPreferences.customShowLogsViewToggle);
@@ -467,6 +486,62 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
     setPersistedWorkbenchTileOrderByLane(nextWorkbenchTileOrderByLane);
     return nextPreferences;
+  }
+
+  function currentInterfaceVisibility(overrides: Partial<InterfaceVisibilityPreferences> = {}) {
+    return {
+      showExplanatoryTooltips,
+      showFloatingTitleActions,
+      showRightRailCards,
+      showOverviewTaskTabs,
+      showAutomationsPage,
+      showAnalysisPage,
+      showPerformanceCompareToggle,
+      showPerformanceTimelineCard,
+      showLogsViewToggle,
+      showHeartbeatRibbons,
+      ...overrides,
+    } satisfies InterfaceVisibilityPreferences;
+  }
+
+  function setInterfaceVisibilityStates(next: InterfaceVisibilityPreferences, updateCustom = true) {
+    setShowExplanatoryTooltipsState(next.showExplanatoryTooltips);
+    setShowFloatingTitleActionsState(next.showFloatingTitleActions);
+    setShowRightRailCardsState(next.showRightRailCards);
+    setShowOverviewTaskTabsState(next.showOverviewTaskTabs);
+    setShowAutomationsPageState(next.showAutomationsPage);
+    setShowAnalysisPageState(true);
+    setShowPerformanceCompareToggleState(next.showPerformanceCompareToggle);
+    setShowPerformanceTimelineCardState(next.showPerformanceTimelineCard);
+    setShowLogsViewToggleState(next.showLogsViewToggle);
+    setShowHeartbeatRibbonsState(next.showHeartbeatRibbons);
+
+    if (!updateCustom) {
+      return;
+    }
+    setCustomShowExplanatoryTooltipsState(next.showExplanatoryTooltips);
+    setCustomShowFloatingTitleActionsState(next.showFloatingTitleActions);
+    setCustomShowRightRailCardsState(next.showRightRailCards);
+    setCustomShowOverviewTaskTabsState(next.showOverviewTaskTabs);
+    setCustomShowAutomationsPageState(next.showAutomationsPage);
+    setCustomShowAnalysisPageState(true);
+    setCustomShowPerformanceCompareToggleState(next.showPerformanceCompareToggle);
+    setCustomShowPerformanceTimelineCardState(next.showPerformanceTimelineCard);
+    setCustomShowLogsViewToggleState(next.showLogsViewToggle);
+    setCustomShowHeartbeatRibbonsState(next.showHeartbeatRibbons);
+  }
+
+  function setCustomInterfaceVisibilityStates(next: InterfaceVisibilityPreferences) {
+    setCustomShowExplanatoryTooltipsState(next.showExplanatoryTooltips);
+    setCustomShowFloatingTitleActionsState(next.showFloatingTitleActions);
+    setCustomShowRightRailCardsState(next.showRightRailCards);
+    setCustomShowOverviewTaskTabsState(next.showOverviewTaskTabs);
+    setCustomShowAutomationsPageState(next.showAutomationsPage);
+    setCustomShowAnalysisPageState(true);
+    setCustomShowPerformanceCompareToggleState(next.showPerformanceCompareToggle);
+    setCustomShowPerformanceTimelineCardState(next.showPerformanceTimelineCard);
+    setCustomShowLogsViewToggleState(next.showLogsViewToggle);
+    setCustomShowHeartbeatRibbonsState(next.showHeartbeatRibbons);
   }
 
   const value = useMemo<PreferencesContextValue>(
@@ -543,80 +618,126 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
       setDimChartsWhileLoading: setDimChartsWhileLoadingState,
       setDisplayViewMode: (next) => {
         setDisplayViewModeState(next);
-        if (next === 'compact') {
-          setShowExplanatoryTooltipsState(false);
-          setShowFloatingTitleActionsState(false);
-          setShowRightRailCardsState(false);
-          setShowOverviewTaskTabsState(false);
-          setShowAutomationsPageState(false);
-          setShowAnalysisPageState(false);
-          setShowPerformanceCompareToggleState(false);
-          setShowPerformanceTimelineCardState(false);
-          setShowLogsViewToggleState(false);
-          setShowHeartbeatRibbonsState(false);
+        if (isPresetViewMode(next)) {
+          setInterfaceVisibilityStates(getInterfaceVisibilityForPreset(next), false);
           return;
         }
 
-        setShowExplanatoryTooltipsState(customShowExplanatoryTooltips);
-        setShowFloatingTitleActionsState(customShowFloatingTitleActions);
-        setShowRightRailCardsState(customShowRightRailCards);
-        setShowOverviewTaskTabsState(customShowOverviewTaskTabs);
-        setShowAutomationsPageState(customShowAutomationsPage);
-        setShowAnalysisPageState(customShowAnalysisPage);
-        setShowPerformanceCompareToggleState(customShowPerformanceCompareToggle);
-        setShowPerformanceTimelineCardState(customShowPerformanceTimelineCard);
-        setShowLogsViewToggleState(customShowLogsViewToggle);
-        setShowHeartbeatRibbonsState(customShowHeartbeatRibbons);
+        setInterfaceVisibilityStates({
+          showExplanatoryTooltips: customShowExplanatoryTooltips,
+          showFloatingTitleActions: customShowFloatingTitleActions,
+          showRightRailCards: customShowRightRailCards,
+          showOverviewTaskTabs: customShowOverviewTaskTabs,
+          showAutomationsPage: customShowAutomationsPage,
+          showAnalysisPage: customShowAnalysisPage,
+          showPerformanceCompareToggle: customShowPerformanceCompareToggle,
+          showPerformanceTimelineCard: customShowPerformanceTimelineCard,
+          showLogsViewToggle: customShowLogsViewToggle,
+          showHeartbeatRibbons: customShowHeartbeatRibbons,
+        }, false);
       },
       setShowExplanatoryTooltips: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showExplanatoryTooltips: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowExplanatoryTooltipsState(next);
-        setCustomShowExplanatoryTooltipsState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowFloatingTitleActions: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showFloatingTitleActions: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowFloatingTitleActionsState(next);
-        setCustomShowFloatingTitleActionsState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowRightRailCards: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showRightRailCards: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowRightRailCardsState(next);
-        setCustomShowRightRailCardsState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowOverviewTaskTabs: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showOverviewTaskTabs: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowOverviewTaskTabsState(next);
-        setCustomShowOverviewTaskTabsState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowAutomationsPage: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showAutomationsPage: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowAutomationsPageState(next);
-        setCustomShowAutomationsPageState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
-      setShowAnalysisPage: (next) => {
-        setDisplayViewModeState('custom');
-        setShowAnalysisPageState(next);
-        setCustomShowAnalysisPageState(next);
+      setShowAnalysisPage: () => {
+        setShowAnalysisPageState(true);
+        setCustomShowAnalysisPageState(true);
       },
       setShowPerformanceCompareToggle: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showPerformanceCompareToggle: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowPerformanceCompareToggleState(next);
-        setCustomShowPerformanceCompareToggleState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowPerformanceTimelineCard: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showPerformanceTimelineCard: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowPerformanceTimelineCardState(next);
-        setCustomShowPerformanceTimelineCardState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowLogsViewToggle: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showLogsViewToggle: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowLogsViewToggleState(next);
-        setCustomShowLogsViewToggleState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setShowHeartbeatRibbons: (next) => {
-        setDisplayViewModeState('custom');
+        const nextVisibility = currentInterfaceVisibility({ showHeartbeatRibbons: next });
+        const nextMode = displayViewMode === 'custom'
+          ? 'custom'
+          : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: nextVisibility });
+        setDisplayViewModeState(nextMode);
         setShowHeartbeatRibbonsState(next);
-        setCustomShowHeartbeatRibbonsState(next);
+        if (nextMode === 'custom') {
+          setCustomInterfaceVisibilityStates(nextVisibility);
+        }
       },
       setTaskBatchUpdatePreference: (key, next) =>
         setTaskBatchUpdatePreferencesState((current) => ({
@@ -638,29 +759,11 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         });
       },
       applyDisplayViewMode: async (mode) => {
-        if (mode === 'compact') {
+        if (isPresetViewMode(mode)) {
+          const preset = getInterfaceVisibilityForPreset(mode);
           await savePreferencesPatch({
-            displayViewMode: 'compact',
-            showExplanatoryTooltips: false,
-            showFloatingTitleActions: false,
-            showRightRailCards: false,
-            showOverviewTaskTabs: false,
-            showAutomationsPage: false,
-            showAnalysisPage: false,
-            showPerformanceCompareToggle: false,
-            showPerformanceTimelineCard: false,
-            showLogsViewToggle: false,
-            showHeartbeatRibbons: false,
-            customShowExplanatoryTooltips,
-            customShowFloatingTitleActions,
-            customShowRightRailCards,
-            customShowOverviewTaskTabs,
-            customShowAutomationsPage,
-            customShowAnalysisPage,
-            customShowPerformanceCompareToggle,
-            customShowPerformanceTimelineCard,
-            customShowLogsViewToggle,
-            customShowHeartbeatRibbons,
+            displayViewMode: mode,
+            ...preset,
           });
           return;
         }
@@ -700,8 +803,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.showOverviewTaskTabs ?? showOverviewTaskTabs;
         const resolvedShowAutomationsPage =
           overrides?.showAutomationsPage ?? showAutomationsPage;
-        const resolvedShowAnalysisPage =
-          overrides?.showAnalysisPage ?? showAnalysisPage;
+        const resolvedShowAnalysisPage = true;
         const resolvedShowPerformanceCompareToggle =
           overrides?.showPerformanceCompareToggle ?? showPerformanceCompareToggle;
         const resolvedShowPerformanceTimelineCard =
@@ -730,10 +832,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.customShowAutomationsPage ?? (
             overrides?.showAutomationsPage ?? customShowAutomationsPage
           );
-        const resolvedCustomShowAnalysisPage =
-          overrides?.customShowAnalysisPage ?? (
-            overrides?.showAnalysisPage ?? customShowAnalysisPage
-          );
+        const resolvedCustomShowAnalysisPage = true;
         const resolvedCustomShowPerformanceCompareToggle =
           overrides?.customShowPerformanceCompareToggle ?? (
             overrides?.showPerformanceCompareToggle ?? customShowPerformanceCompareToggle
@@ -771,9 +870,30 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           overrides?.customShowPerformanceTimelineCard != null ||
           overrides?.customShowLogsViewToggle != null ||
           overrides?.customShowHeartbeatRibbons != null;
+        const explicitPresetVisibility = isPresetViewMode(overrides?.displayViewMode)
+          ? getInterfaceVisibilityForPreset(overrides.displayViewMode)
+          : null;
+        const resolvedVisibility = explicitPresetVisibility ?? {
+          showExplanatoryTooltips: resolvedShowExplanatoryTooltips,
+          showFloatingTitleActions: resolvedShowFloatingTitleActions,
+          showRightRailCards: resolvedShowRightRailCards,
+          showOverviewTaskTabs: resolvedShowOverviewTaskTabs,
+          showAutomationsPage: resolvedShowAutomationsPage,
+          showAnalysisPage: resolvedShowAnalysisPage,
+          showPerformanceCompareToggle: resolvedShowPerformanceCompareToggle,
+          showPerformanceTimelineCard: resolvedShowPerformanceTimelineCard,
+          showLogsViewToggle: resolvedShowLogsViewToggle,
+          showHeartbeatRibbons: resolvedShowHeartbeatRibbons,
+        };
         const resolvedDisplayViewMode =
           overrides?.displayViewMode ??
-          (updatesVisibilityPreferences ? 'custom' : displayViewMode);
+          (updatesVisibilityPreferences
+            ? displayViewMode === 'custom'
+              ? 'custom'
+              : resolveInterfaceViewMode({ requestedMode: displayViewMode, visibility: resolvedVisibility })
+            : displayViewMode);
+        const storesResolvedVisibilityAsCustom =
+          resolvedDisplayViewMode === 'custom' && (updatesVisibilityPreferences || overrides?.displayViewMode === 'custom');
 
         await savePreferencesPatch({
           language: overrides?.language ?? language,
@@ -782,36 +902,17 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           displayViewMode: resolvedDisplayViewMode,
           itemImageMode: overrides?.itemImageMode ?? itemImageMode,
           dimChartsWhileLoading: overrides?.dimChartsWhileLoading ?? dimChartsWhileLoading,
-          showExplanatoryTooltips:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowExplanatoryTooltips,
-          showFloatingTitleActions:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowFloatingTitleActions,
-          showRightRailCards:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowRightRailCards,
-          showOverviewTaskTabs:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowOverviewTaskTabs,
-          showAutomationsPage:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowAutomationsPage,
-          showAnalysisPage:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowAnalysisPage,
-          showPerformanceCompareToggle:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowPerformanceCompareToggle,
-          showPerformanceTimelineCard:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowPerformanceTimelineCard,
-          showLogsViewToggle:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowLogsViewToggle,
-          showHeartbeatRibbons:
-            resolvedDisplayViewMode === 'compact' ? false : resolvedShowHeartbeatRibbons,
-          customShowExplanatoryTooltips: resolvedCustomShowExplanatoryTooltips,
-          customShowFloatingTitleActions: resolvedCustomShowFloatingTitleActions,
-          customShowRightRailCards: resolvedCustomShowRightRailCards,
-          customShowOverviewTaskTabs: resolvedCustomShowOverviewTaskTabs,
-          customShowAutomationsPage: resolvedCustomShowAutomationsPage,
-          customShowAnalysisPage: resolvedCustomShowAnalysisPage,
-          customShowPerformanceCompareToggle: resolvedCustomShowPerformanceCompareToggle,
-          customShowPerformanceTimelineCard: resolvedCustomShowPerformanceTimelineCard,
-          customShowLogsViewToggle: resolvedCustomShowLogsViewToggle,
-          customShowHeartbeatRibbons: resolvedCustomShowHeartbeatRibbons,
+          ...resolvedVisibility,
+          customShowExplanatoryTooltips: storesResolvedVisibilityAsCustom ? resolvedVisibility.showExplanatoryTooltips : resolvedCustomShowExplanatoryTooltips,
+          customShowFloatingTitleActions: storesResolvedVisibilityAsCustom ? resolvedVisibility.showFloatingTitleActions : resolvedCustomShowFloatingTitleActions,
+          customShowRightRailCards: storesResolvedVisibilityAsCustom ? resolvedVisibility.showRightRailCards : resolvedCustomShowRightRailCards,
+          customShowOverviewTaskTabs: storesResolvedVisibilityAsCustom ? resolvedVisibility.showOverviewTaskTabs : resolvedCustomShowOverviewTaskTabs,
+          customShowAutomationsPage: storesResolvedVisibilityAsCustom ? resolvedVisibility.showAutomationsPage : resolvedCustomShowAutomationsPage,
+          customShowAnalysisPage: true,
+          customShowPerformanceCompareToggle: storesResolvedVisibilityAsCustom ? resolvedVisibility.showPerformanceCompareToggle : resolvedCustomShowPerformanceCompareToggle,
+          customShowPerformanceTimelineCard: storesResolvedVisibilityAsCustom ? resolvedVisibility.showPerformanceTimelineCard : resolvedCustomShowPerformanceTimelineCard,
+          customShowLogsViewToggle: storesResolvedVisibilityAsCustom ? resolvedVisibility.showLogsViewToggle : resolvedCustomShowLogsViewToggle,
+          customShowHeartbeatRibbons: storesResolvedVisibilityAsCustom ? resolvedVisibility.showHeartbeatRibbons : resolvedCustomShowHeartbeatRibbons,
           taskBatchUpdatePreferences:
             overrides?.taskBatchUpdatePreferences ?? taskBatchUpdatePreferences,
           senaEngineParameters: overrides?.senaEngineParameters ?? senaEngineParameters,
@@ -851,7 +952,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setShowRightRailCardsState(persistedShowRightRailCards);
         setShowOverviewTaskTabsState(persistedShowOverviewTaskTabs);
         setShowAutomationsPageState(persistedShowAutomationsPage);
-        setShowAnalysisPageState(persistedShowAnalysisPage);
+        setShowAnalysisPageState(true);
         setShowPerformanceCompareToggleState(persistedShowPerformanceCompareToggle);
         setShowPerformanceTimelineCardState(persistedShowPerformanceTimelineCard);
         setShowLogsViewToggleState(persistedShowLogsViewToggle);
@@ -861,7 +962,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setCustomShowRightRailCardsState(persistedCustomShowRightRailCards);
         setCustomShowOverviewTaskTabsState(persistedCustomShowOverviewTaskTabs);
         setCustomShowAutomationsPageState(persistedCustomShowAutomationsPage);
-        setCustomShowAnalysisPageState(persistedCustomShowAnalysisPage);
+        setCustomShowAnalysisPageState(true);
         setCustomShowPerformanceCompareToggleState(persistedCustomShowPerformanceCompareToggle);
         setCustomShowPerformanceTimelineCardState(persistedCustomShowPerformanceTimelineCard);
         setCustomShowLogsViewToggleState(persistedCustomShowLogsViewToggle);

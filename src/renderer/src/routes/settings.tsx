@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
@@ -14,13 +14,10 @@ import {
 import { overviewTaskActionIcons } from '@icons/domain';
 import { EntityBackupIcon, EntityComparisonIcon, EntityFavoriteIcon, EntitySignalIcon } from '@icons/entities';
 import {
-  NavigationAnalysisIcon,
   NavigationAutomationIcon,
-  NavigationBoardViewIcon,
   NavigationListIcon,
   NavigationPerformanceIcon,
   NavigationRightPanelIcon,
-  NavigationSplitViewIcon,
   NavigationTaskListIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
@@ -36,13 +33,14 @@ import {
   type DesktopLocalDataInfo,
   type SenaEngineParameters,
 } from '@shared/ipc';
+import type { InterfaceViewMode } from '@shared/interface-view';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { HelpTooltip } from '@/components/system/help-tooltip';
+import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   createBackupSnapshotAction,
   exportLogsAction,
@@ -56,6 +54,9 @@ import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import { BenchmarkSettingsPage } from './benchmark-settings';
+import { AutomationsRoute } from './automations';
+import { HelpRoute } from './help';
+import { StockUpdateRoute } from './stock-update';
 
 const numberInputClassName =
   'h-11 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none outline-none';
@@ -67,7 +68,7 @@ const SHOW_SENA_ANALYSIS_PROFILE_PARAMETER = false;
 const preferenceSelectTriggerClassName =
   'h-14 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none data-[size=default]:h-14';
 const compactPreferenceSelectTriggerClassName =
-  'h-12 w-full rounded-2xl border border-border bg-background px-4 text-sm font-medium shadow-none data-[size=default]:h-12';
+  'h-9 w-full rounded-full border border-border/70 bg-card px-3.5 text-sm font-medium text-foreground shadow-xs data-[size=default]:h-9 [&_svg]:opacity-100';
 const exportSelectTriggerClassName =
   'h-11 w-11 rounded-l-none rounded-r-2xl border border-l-0 border-border/70 bg-background/80 px-0 text-foreground shadow-xs hover:bg-accent hover:text-accent-foreground data-[size=default]:h-11 data-[state=open]:bg-accent data-[state=open]:text-accent-foreground [&_svg]:mx-auto [&_svg]:opacity-100';
 const exportActionButtonClassName =
@@ -586,9 +587,9 @@ function WorkspacePreferencesPage({
         <section className="grid gap-5 border-t border-border/60 pt-6">
           <div className="grid gap-5">
             <div className="grid gap-1">
-              <p className="text-sm font-medium text-foreground">Overview batch-action defaults</p>
+              <p className="text-sm font-medium text-foreground">Work queue action defaults</p>
               <p className="text-sm text-muted-foreground">
-                Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each overview action button.
+                Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.
               </p>
             </div>
             <div className="divide-y divide-border/60 rounded-[1.25rem] border border-border/60 bg-background/70">
@@ -654,49 +655,14 @@ function WorkspacePreferencesPage({
   );
 }
 
-function DisplayViewModeToggle({
-  displayViewMode,
-  setDisplayViewMode,
-  t,
-}: {
-  displayViewMode: 'compact' | 'custom';
-  setDisplayViewMode: (value: 'compact' | 'custom') => void;
-  t: TranslateFn;
-}) {
-  return (
-    <ToggleGroup
-      aria-label="Display view mode"
-      className="max-w-full justify-start overflow-x-auto rounded-full"
-      orientation="horizontal"
-      spacing={1}
-      type="single"
-      value={displayViewMode}
-      onValueChange={(nextValue) => {
-        if (nextValue === 'compact' || nextValue === 'custom') {
-          setDisplayViewMode(nextValue);
-        }
-      }}
-    >
-      <ToggleGroupItem aria-label="Compact View" value="compact">
-        <NavigationSplitViewIcon data-icon="inline-start" />
-        {t('shellViewModeMinimal')}
-      </ToggleGroupItem>
-      <ToggleGroupItem aria-label="Custom View" value="custom">
-        <NavigationBoardViewIcon data-icon="inline-start" />
-        {t('shellViewModeMaximal')}
-      </ToggleGroupItem>
-    </ToggleGroup>
-  );
-}
-
 function InterfaceVisibilityPage({
-  interfaceVisibilityDisabled,
+  displayViewMode,
   setShowExplanatoryTooltips,
+  setDisplayViewMode,
   setShowFloatingTitleActions,
   setShowHeartbeatRibbons,
   setShowOverviewTaskTabs,
   setShowAutomationsPage,
-  setShowAnalysisPage,
   setShowLogsViewToggle,
   setShowPerformanceCompareToggle,
   setShowPerformanceTimelineCard,
@@ -706,20 +672,19 @@ function InterfaceVisibilityPage({
   showHeartbeatRibbons,
   showOverviewTaskTabs,
   showAutomationsPage,
-  showAnalysisPage,
   showLogsViewToggle,
   showPerformanceCompareToggle,
   showPerformanceTimelineCard,
   showRightRailCards,
   t,
 }: {
-  interfaceVisibilityDisabled: boolean;
+  displayViewMode: InterfaceViewMode;
+  setDisplayViewMode: (value: InterfaceViewMode) => void;
   setShowExplanatoryTooltips: (checked: boolean) => void;
   setShowFloatingTitleActions: (checked: boolean) => void;
   setShowHeartbeatRibbons: (checked: boolean) => void;
   setShowOverviewTaskTabs: (checked: boolean) => void;
   setShowAutomationsPage: (checked: boolean) => void;
-  setShowAnalysisPage: (checked: boolean) => void;
   setShowLogsViewToggle: (checked: boolean) => void;
   setShowPerformanceCompareToggle: (checked: boolean) => void;
   setShowPerformanceTimelineCard: (checked: boolean) => void;
@@ -729,37 +694,63 @@ function InterfaceVisibilityPage({
   showHeartbeatRibbons: boolean;
   showOverviewTaskTabs: boolean;
   showAutomationsPage: boolean;
-  showAnalysisPage: boolean;
   showLogsViewToggle: boolean;
   showPerformanceCompareToggle: boolean;
   showPerformanceTimelineCard: boolean;
   showRightRailCards: boolean;
   t: TranslateFn;
 }) {
+  const location = useLocation();
+  const highlightAutomations = new URLSearchParams(location.search).get('highlight') === 'automations';
+
+  useEffect(() => {
+    if (!highlightAutomations) {
+      return;
+    }
+    document.querySelector('[data-settings-interface-row="automations"]')?.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    });
+  }, [highlightAutomations]);
+
   return (
     <WorkspacePanel>
-      <div className="grid">
-        <div>
-          <CheckboxRow
-            checked={showExplanatoryTooltips}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show extra guidance"
-            hint="Adds extra explanatory labels and helper copy across the desktop."
-            icon={<StatusHelpBadgeIcon className="size-4" />}
-            label="Show extra guidance"
-            onCheckedChange={setShowExplanatoryTooltips}
-            variant="flat"
-          />
-        </div>
+      <div className="grid gap-6">
+        <InterfaceViewModeCards
+          displayViewMode={displayViewMode}
+          modes={['default', 'minimal', 'maximal', 'custom']}
+          visibility={{
+            showExplanatoryTooltips,
+            showFloatingTitleActions,
+            showRightRailCards,
+            showOverviewTaskTabs,
+            showAutomationsPage,
+            showAnalysisPage: true,
+            showPerformanceCompareToggle,
+            showPerformanceTimelineCard,
+            showLogsViewToggle,
+            showHeartbeatRibbons,
+          }}
+          onDisplayViewModeChange={setDisplayViewMode}
+        />
+        <div className="grid">
+          <div>
+            <CheckboxRow
+              checked={showExplanatoryTooltips}
+              hint="Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible."
+              icon={<StatusHelpBadgeIcon className="size-4" />}
+              label="Optional guidance"
+              onCheckedChange={setShowExplanatoryTooltips}
+              variant="flat"
+            />
+          </div>
         <div className="border-b border-border/60" />
         <div>
           <CheckboxRow
             checked={showFloatingTitleActions}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show floating title actions"
-            hint="Keeps contextual page actions visible near workspace titles."
+            hint="Keeps primary page actions visible near the title area after the header scrolls away."
             icon={<NavigationWorkspacePanelsIcon className="size-4" />}
-            label="Show floating title actions"
+            label="Floating page actions"
             onCheckedChange={setShowFloatingTitleActions}
             variant="flat"
           />
@@ -768,11 +759,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showRightRailCards}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show right rail cards"
-            hint="Displays supplemental side cards for analysis, performance, financials, and detail context."
+            hint="Shows supplemental right-side panels on Work, Insights, Pressure, Financials, and detail screens."
             icon={<NavigationRightPanelIcon className="size-4" />}
-            label="Show right rail cards"
+            label="Right-side context panels"
             onCheckedChange={setShowRightRailCards}
             variant="flat"
           />
@@ -781,24 +770,24 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showOverviewTaskTabs}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show overview task tabs"
-            hint="Keeps task-focused tabs visible in the overview workspace."
+            hint="Shows task-status filter tabs above the Work queue. When off, Work uses a single All Tasks queue."
             icon={<NavigationTaskListIcon className="size-4" />}
-            label="Show overview task tabs"
+            label="Work queue filter tabs"
             onCheckedChange={setShowOverviewTaskTabs}
             variant="flat"
           />
         </div>
         <div className="border-b border-border/60" />
-        <div>
+        <div
+          className={highlightAutomations ? 'rounded-2xl bg-primary/10 px-2 ring-2 ring-primary/40' : undefined}
+          data-settings-interface-row="automations"
+          data-highlighted={highlightAutomations ? 'true' : undefined}
+        >
           <CheckboxRow
             checked={showAutomationsPage}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show automations page"
-            hint="Keeps the automations route available in navigation once the workspace unlocks it."
+            hint="Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused."
             icon={<NavigationAutomationIcon className="size-4" />}
-            label="Show automations page"
+            label="Automations and intake"
             onCheckedChange={setShowAutomationsPage}
             variant="flat"
           />
@@ -806,25 +795,10 @@ function InterfaceVisibilityPage({
         <div className="border-b border-border/60" />
         <div>
           <CheckboxRow
-            checked={showAnalysisPage}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show analysis page"
-            hint="Keeps the analysis route available in navigation."
-            icon={<NavigationAnalysisIcon className="size-4" />}
-            label="Show analysis page"
-            onCheckedChange={setShowAnalysisPage}
-            variant="flat"
-          />
-        </div>
-        <div className="border-b border-border/60" />
-        <div>
-          <CheckboxRow
             checked={showPerformanceCompareToggle}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show performance compare toggle"
-            hint="Lets you switch between comparison views inside performance analysis."
+            hint="Shows the Compare / Single view switch on Pressure and Financials. When off, those pages stay in Single view."
             icon={<EntityComparisonIcon className="size-4" />}
-            label="Show performance compare toggle"
+            label="Comparison view switch"
             onCheckedChange={setShowPerformanceCompareToggle}
             variant="flat"
           />
@@ -833,11 +807,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showPerformanceTimelineCard}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show business timeline card"
-            hint="Shows the timeline card in performance and business review screens."
+            hint="Shows the business timeline card on Pressure."
             icon={<NavigationPerformanceIcon className="size-4" />}
-            label="Show business timeline card"
+            label="Pressure timeline card"
             onCheckedChange={setShowPerformanceTimelineCard}
             variant="flat"
           />
@@ -846,11 +818,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showLogsViewToggle}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show logs view button"
-            hint="Keeps the logs view shortcut visible where available."
+            hint="Shows the Heatmap / All view selector in Settings / History. When off, History stays in All view."
             icon={<NavigationListIcon className="size-4" />}
-            label="Show logs view button"
+            label="History view selector"
             onCheckedChange={setShowLogsViewToggle}
             variant="flat"
           />
@@ -859,14 +829,13 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showHeartbeatRibbons}
-            disabled={interfaceVisibilityDisabled}
-            helper="Show heartbeats and ribbons"
-            hint="Shows heartbeat indicators and key-signal ribbons across detail, performance, financials, and update pages."
+            hint="Shows heartbeat indicators and signal ribbons on detail, Pressure, Financials, and update screens."
             icon={<EntitySignalIcon className="size-4" />}
-            label="Show heartbeats and ribbons"
+            label="Heartbeat and signal ribbons"
             onCheckedChange={setShowHeartbeatRibbons}
             variant="flat"
           />
+        </div>
         </div>
       </div>
     </WorkspacePanel>
@@ -1147,6 +1116,7 @@ export function SettingsRoute() {
   const {
     currency,
     hasPendingChanges,
+    isHydrated,
     language,
     usdToKhrExchangeRate,
     applySenaEngineParameters,
@@ -1165,7 +1135,6 @@ export function SettingsRoute() {
     setShowRightRailCards,
     setShowOverviewTaskTabs,
     setShowAutomationsPage,
-    setShowAnalysisPage,
     setShowLogsViewToggle,
     setShowPerformanceCompareToggle,
     setShowPerformanceTimelineCard,
@@ -1181,7 +1150,6 @@ export function SettingsRoute() {
     showRightRailCards,
     showOverviewTaskTabs,
     showAutomationsPage,
-    showAnalysisPage,
     showLogsViewToggle,
     showPerformanceCompareToggle,
     showPerformanceTimelineCard,
@@ -1223,7 +1191,6 @@ export function SettingsRoute() {
   const exchangeRateChanged = exchangeRateDraft !== String(usdToKhrExchangeRate);
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
   const senaEngineParameterFields = buildSenaEngineParameterFields(t);
-  const interfaceVisibilityDisabled = displayViewMode === 'compact';
   const showDevOnboardingInjector = false;
   const isInterfaceSection = currentSection.id === 'interface';
   const showSaveAction =
@@ -1428,43 +1395,38 @@ export function SettingsRoute() {
       />
 
       <div className="grid min-w-0 gap-4">
-        <WorkspaceTitleCard
-          actions={
-            showSaveAction ? (
-              <WorkspaceActionRow className="justify-end">
-                {isInterfaceSection ? (
-                  <DisplayViewModeToggle
-                    displayViewMode={displayViewMode}
-                    setDisplayViewMode={setDisplayViewMode}
-                    t={t}
-                  />
-                ) : null}
-                {showResetSenaDefaultsAction ? (
+        {currentSection.id !== 'automation' && (
+          <WorkspaceTitleCard
+            actions={
+              showSaveAction ? (
+                <WorkspaceActionRow className="justify-end">
+                  {showResetSenaDefaultsAction ? (
+                    <Button
+                      disabled={resetSenaDefaultsDisabled}
+                      type="button"
+                      variant="outline"
+                      onClick={() => void handleResetSenaDefaults()}
+                    >
+                      <ActionUndoIcon data-icon="inline-start" />
+                      {t('settingsResetDefaultsAction')}
+                    </Button>
+                  ) : null}
                   <Button
-                    disabled={resetSenaDefaultsDisabled}
+                    disabled={saveButtonDisabled}
                     type="button"
-                    variant="outline"
-                    onClick={() => void handleResetSenaDefaults()}
+                    onClick={() => void handleSavePreferences()}
                   >
-                    <ActionUndoIcon data-icon="inline-start" />
-                    {t('settingsResetDefaultsAction')}
+                    <ActionSaveIcon data-icon="inline-start" />
+                    {t('settingsSavePreferencesAction')}
                   </Button>
-                ) : null}
-                <Button
-                  disabled={saveButtonDisabled}
-                  type="button"
-                  onClick={() => void handleSavePreferences()}
-                >
-                  <ActionSaveIcon data-icon="inline-start" />
-                  {t('settingsSavePreferencesAction')}
-                </Button>
-              </WorkspaceActionRow>
-            ) : undefined
-          }
-          descriptor={t(currentSection.descriptionKey)}
-          eyebrow={t('settingsTitle')}
-          title={t(currentSection.titleKey)}
-        />
+                </WorkspaceActionRow>
+              ) : undefined
+            }
+            descriptor={t(currentSection.descriptionKey)}
+            eyebrow={t('settingsTitle')}
+            title={t(currentSection.titleKey)}
+          />
+        )}
 
         <Routes>
             <Route element={<Navigate replace to="workspace" />} index />
@@ -1494,18 +1456,17 @@ export function SettingsRoute() {
             <Route
               element={
                 <InterfaceVisibilityPage
-                  interfaceVisibilityDisabled={interfaceVisibilityDisabled}
+                  displayViewMode={displayViewMode}
+                  setDisplayViewMode={setDisplayViewMode}
                   setShowExplanatoryTooltips={setShowExplanatoryTooltips}
                   setShowFloatingTitleActions={setShowFloatingTitleActions}
                   setShowHeartbeatRibbons={setShowHeartbeatRibbons}
-                  setShowAnalysisPage={setShowAnalysisPage}
                   setShowAutomationsPage={setShowAutomationsPage}
                   setShowLogsViewToggle={setShowLogsViewToggle}
                   setShowPerformanceCompareToggle={setShowPerformanceCompareToggle}
                   setShowPerformanceTimelineCard={setShowPerformanceTimelineCard}
                   setShowOverviewTaskTabs={setShowOverviewTaskTabs}
                   setShowRightRailCards={setShowRightRailCards}
-                  showAnalysisPage={showAnalysisPage}
                   showLogsViewToggle={showLogsViewToggle}
                   showPerformanceCompareToggle={showPerformanceCompareToggle}
                   showPerformanceTimelineCard={showPerformanceTimelineCard}
@@ -1563,6 +1524,24 @@ export function SettingsRoute() {
             <Route
               element={<BenchmarkSettingsPage />}
               path="benchmarks"
+            />
+            <Route
+              element={
+                !isHydrated
+                  ? null
+                  : showAutomationsPage
+                  ? <AutomationsRoute allowConfigurationWithoutEligibility forcedSection="settings" />
+                  : <Navigate replace to="/settings/interface?highlight=automations" />
+              }
+              path="automation"
+            />
+            <Route
+              element={<StockUpdateRoute />}
+              path="history"
+            />
+            <Route
+              element={<HelpRoute />}
+              path="help"
             />
             <Route
               element={<CreditsPage t={t} />}

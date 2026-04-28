@@ -2,7 +2,13 @@ import { type ReactNode, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS } from '@shared/ipc';
+import {
+  getInterfaceVisibilityForPreset,
+  isPresetViewMode,
+  type InterfaceViewMode,
+} from '@shared/interface-view';
 import { ActionContinueIcon } from '@icons/actions';
+import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { translateUiLiteral } from '@/lib/translations';
@@ -19,8 +25,8 @@ function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
     Welcome: 'សូមស្វាគមន៍',
     'Set up banji': 'រៀបចំ បញ្ជី',
-    'Choose the basic language and currency first. banji will start in Custom View with extra guidance and floating title actions turned on.':
-      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ បញ្ជី នឹងចាប់ផ្តើមក្នុងទិដ្ឋភាពផ្ទាល់ខ្លួន ដោយបើកការណែនាំបន្ថែម និងសកម្មភាពចំណងជើងអណ្តែត។',
+    'Choose the basic language, currency, and interface view first. You can fine-tune individual controls later in Settings.':
+      'ជ្រើសរើសភាសា រូបិយប័ណ្ណ និងរបៀបបង្ហាញផ្ទៃមុខមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលប៊ូតុងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
     Language: 'ភាសា',
     Currency: 'រូបិយប័ណ្ណ',
     Continue: 'បន្ត',
@@ -107,12 +113,13 @@ export function OnboardingRoute() {
   } = usePreferences();
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>(language);
   const [selectedCurrency, setSelectedCurrency] = useState<AppCurrency>(currency);
+  const [selectedViewMode, setSelectedViewMode] = useState<InterfaceViewMode>('default');
   const [isSaving, setIsSaving] = useState(false);
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     title: onboardingCopy('Set up banji'),
     description: onboardingCopy(
-      'Choose the basic language and currency first. banji will start in Custom View with extra guidance and floating title actions turned on.',
+      'Choose the basic language, currency, and interface view first. You can fine-tune individual controls later in Settings.',
     ),
     language: onboardingCopy('Language'),
     currency: onboardingCopy('Currency'),
@@ -141,30 +148,24 @@ export function OnboardingRoute() {
   async function handleContinue() {
     setIsSaving(true);
     try {
+      const selectedVisibility = getInterfaceVisibilityForPreset(
+        isPresetViewMode(selectedViewMode) ? selectedViewMode : 'default',
+      );
       await savePreferences({
         language: selectedLanguage,
         currency: selectedCurrency,
-        displayViewMode: 'custom',
-        showExplanatoryTooltips: true,
-        showFloatingTitleActions: true,
-        showRightRailCards: false,
-        showOverviewTaskTabs: false,
-        showAutomationsPage: false,
-        showAnalysisPage: false,
-        showPerformanceCompareToggle: false,
-        showPerformanceTimelineCard: false,
-        showLogsViewToggle: false,
-        showHeartbeatRibbons: false,
-        customShowExplanatoryTooltips: true,
-        customShowFloatingTitleActions: true,
-        customShowRightRailCards: false,
-        customShowOverviewTaskTabs: false,
-        customShowAutomationsPage: false,
-        customShowAnalysisPage: false,
-        customShowPerformanceCompareToggle: false,
-        customShowPerformanceTimelineCard: false,
-        customShowLogsViewToggle: false,
-        customShowHeartbeatRibbons: false,
+        displayViewMode: selectedViewMode,
+        ...selectedVisibility,
+        customShowExplanatoryTooltips: selectedVisibility.showExplanatoryTooltips,
+        customShowFloatingTitleActions: selectedVisibility.showFloatingTitleActions,
+        customShowRightRailCards: selectedVisibility.showRightRailCards,
+        customShowOverviewTaskTabs: selectedVisibility.showOverviewTaskTabs,
+        customShowAutomationsPage: selectedVisibility.showAutomationsPage,
+        customShowAnalysisPage: selectedVisibility.showAnalysisPage,
+        customShowPerformanceCompareToggle: selectedVisibility.showPerformanceCompareToggle,
+        customShowPerformanceTimelineCard: selectedVisibility.showPerformanceTimelineCard,
+        customShowLogsViewToggle: selectedVisibility.showLogsViewToggle,
+        customShowHeartbeatRibbons: selectedVisibility.showHeartbeatRibbons,
         onboardingCompletedAt: new Date().toISOString(),
         seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
       });
@@ -176,7 +177,7 @@ export function OnboardingRoute() {
 
   return (
     <div className="flex min-h-svh items-center justify-center px-6 py-10">
-      <div className="hero-mesh editorial-panel w-full max-w-2xl rounded-[2rem] p-8 md:p-10">
+      <div className="hero-mesh editorial-panel w-full max-w-4xl rounded-[2rem] p-8 md:p-10">
         <style>{`
           @keyframes ${onboardingCopyEnglishAnimationName} {
             0%, 44% {
@@ -280,6 +281,15 @@ export function OnboardingRoute() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+
+        <div className="mt-8 grid gap-3">
+          <p className="text-sm font-semibold text-foreground">Interface view</p>
+          <InterfaceViewModeCards
+            displayViewMode={selectedViewMode}
+            modes={['default', 'minimal', 'maximal', 'custom']}
+            onDisplayViewModeChange={setSelectedViewMode}
+          />
         </div>
 
         <div className="mt-8 flex items-center justify-end">

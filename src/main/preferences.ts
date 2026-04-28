@@ -15,34 +15,38 @@ import {
   type DesktopPreferences,
   type DesktopTaskBatchUpdatePreference,
 } from '@shared/ipc';
+import {
+  normalizeInterfaceViewMode,
+  resolveInterfaceViewMode,
+} from '@shared/interface-view';
 
 const DEFAULT_PREFERENCES: DesktopPreferences = {
   language: 'en',
   currency: 'USD',
   usdToKhrExchangeRate: DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
-  displayViewMode: 'custom',
+  displayViewMode: 'default',
   itemImageMode: DEFAULT_DESKTOP_ITEM_IMAGE_MODE,
   dimChartsWhileLoading: false,
   showExplanatoryTooltips: true,
   showFloatingTitleActions: true,
-  showRightRailCards: true,
-  showOverviewTaskTabs: true,
-  showAutomationsPage: true,
+  showRightRailCards: false,
+  showOverviewTaskTabs: false,
+  showAutomationsPage: false,
   showAnalysisPage: true,
-  showPerformanceCompareToggle: true,
-  showPerformanceTimelineCard: true,
-  showLogsViewToggle: true,
+  showPerformanceCompareToggle: false,
+  showPerformanceTimelineCard: false,
+  showLogsViewToggle: false,
   showHeartbeatRibbons: true,
   taskBatchUpdatePreferences: DEFAULT_TASK_BATCH_UPDATE_PREFERENCES,
   customShowExplanatoryTooltips: true,
   customShowFloatingTitleActions: true,
-  customShowRightRailCards: true,
-  customShowOverviewTaskTabs: true,
-  customShowAutomationsPage: true,
+  customShowRightRailCards: false,
+  customShowOverviewTaskTabs: false,
+  customShowAutomationsPage: false,
   customShowAnalysisPage: true,
-  customShowPerformanceCompareToggle: true,
-  customShowPerformanceTimelineCard: true,
-  customShowLogsViewToggle: true,
+  customShowPerformanceCompareToggle: false,
+  customShowPerformanceTimelineCard: false,
+  customShowLogsViewToggle: false,
   customShowHeartbeatRibbons: true,
   senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
   overviewStaleUpdateReminderSnoozeUntil: null,
@@ -75,7 +79,7 @@ function normalizePreferences(
   const showRightRailCards = value?.showRightRailCards ?? true;
   const showOverviewTaskTabs = value?.showOverviewTaskTabs ?? true;
   const showAutomationsPage = value?.showAutomationsPage ?? true;
-  const showAnalysisPage = value?.showAnalysisPage ?? true;
+  const showAnalysisPage = true;
   const showPerformanceCompareToggle = value?.showPerformanceCompareToggle ?? true;
   const showPerformanceTimelineCard = value?.showPerformanceTimelineCard ?? true;
   const showLogsViewToggle = value?.showLogsViewToggle ?? true;
@@ -85,28 +89,30 @@ function normalizePreferences(
   const customShowRightRailCards = value?.customShowRightRailCards ?? showRightRailCards;
   const customShowOverviewTaskTabs = value?.customShowOverviewTaskTabs ?? showOverviewTaskTabs;
   const customShowAutomationsPage = value?.customShowAutomationsPage ?? showAutomationsPage;
-  const customShowAnalysisPage = value?.customShowAnalysisPage ?? showAnalysisPage;
+  const customShowAnalysisPage = true;
   const customShowPerformanceCompareToggle =
     value?.customShowPerformanceCompareToggle ?? showPerformanceCompareToggle;
   const customShowPerformanceTimelineCard =
     value?.customShowPerformanceTimelineCard ?? showPerformanceTimelineCard;
   const customShowLogsViewToggle = value?.customShowLogsViewToggle ?? showLogsViewToggle;
   const customShowHeartbeatRibbons = value?.customShowHeartbeatRibbons ?? showHeartbeatRibbons;
-  const displayViewMode =
-    value?.displayViewMode === 'compact' || value?.displayViewMode === 'custom'
-      ? value.displayViewMode
-      : !showExplanatoryTooltips &&
-          !showFloatingTitleActions &&
-          !showRightRailCards &&
-          !showOverviewTaskTabs &&
-          !showAutomationsPage &&
-          !showAnalysisPage &&
-          !showPerformanceCompareToggle &&
-          !showPerformanceTimelineCard &&
-          !showLogsViewToggle &&
-          !showHeartbeatRibbons
-        ? 'compact'
-        : 'custom';
+  const visibilityPreferences = {
+    showExplanatoryTooltips,
+    showFloatingTitleActions,
+    showRightRailCards,
+    showOverviewTaskTabs,
+    showAutomationsPage,
+    showAnalysisPage,
+    showPerformanceCompareToggle,
+    showPerformanceTimelineCard,
+    showLogsViewToggle,
+    showHeartbeatRibbons,
+  };
+  const normalizedDisplayViewMode = normalizeInterfaceViewMode(value?.displayViewMode);
+  const displayViewMode = resolveInterfaceViewMode({
+    requestedMode: normalizedDisplayViewMode,
+    visibility: visibilityPreferences,
+  });
   const itemImageMode =
     value?.itemImageMode === 'off' ||
     value?.itemImageMode === 'thumbnail' ||

@@ -2006,9 +2006,10 @@ export async function readAutomationConnection(userDataPath: string): Promise<Au
 
 export async function readAutomationTransportState(userDataPath: string) {
   const state = await loadAutomationState(userDataPath);
+  const connection = state.connection;
   return {
-    botToken: state.connection.botToken,
-    connection: state.connection,
+    botToken: connection.botToken,
+    connection,
     telegramUpdateCursor: state.telegramUpdateCursor,
   };
 }

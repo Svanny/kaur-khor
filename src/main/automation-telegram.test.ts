@@ -17,8 +17,25 @@ import {
   notifyTelegramCustomerOfPromotion,
   notifyTelegramCustomerOfTicketUpdate,
   resolveTelegramPhotoPath,
+  startTelegramAutomationLoop,
   validateAndSaveTelegramAutomationConnection,
 } from './automation-telegram';
+
+async function waitForAssertion(assertion: () => void) {
+  const startedAt = Date.now();
+  let lastError: unknown;
+  while (Date.now() - startedAt < 250) {
+    try {
+      assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  assertion();
+  throw lastError;
+}
 
 const context = {
   catalog: {
@@ -143,6 +160,7 @@ async function completePreferencesOnboarding(
 
 describe('telegram automation connection setup', () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -188,6 +206,65 @@ describe('telegram automation connection setup', () => {
     await expect(resolveTelegramPhotoPath(userDataPath, relativeName)).resolves.toBe(absolutePath);
   });
 
+  it('does not poll Telegram while automations are disabled and resumes when re-enabled', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-loop-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'banji bot',
+          username: 'banji_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'banji bot',
+          username: 'banji_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: [] })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    let showAutomationsPage = false;
+    const loadPreferences = vi.fn(async () => ({
+      currency: 'USD' as const,
+      language: 'en' as const,
+      showAutomationsPage,
+      usdToKhrExchangeRate: 4000,
+    }));
+    const loop = startTelegramAutomationLoop(userDataPath, {
+      loadContext: async () => context as never,
+      loadPreferences,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(loadPreferences).toHaveBeenCalledTimes(1);
+
+    showAutomationsPage = true;
+    loop.setEnabled(true);
+
+    await waitForAssertion(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(5);
+      expect(loadPreferences).toHaveBeenCalledTimes(2);
+    });
+    loop.stop();
+  });
+
   it('notifies the Telegram customer after an intake is promoted to a ticket', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-'));
     const fetchMock = vi.fn()
@@ -202,7 +279,7 @@ describe('telegram automation connection setup', () => {
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
+      .mockResolvedValue(new Response(JSON.stringify({
         ok: true,
         result: {
           message_id: 10,
@@ -283,7 +360,7 @@ describe('telegram automation connection setup', () => {
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
+      .mockResolvedValue(new Response(JSON.stringify({
         ok: true,
         result: {
           message_id: 11,

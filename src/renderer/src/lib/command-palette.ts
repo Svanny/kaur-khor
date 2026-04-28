@@ -1,9 +1,9 @@
 import Fuse from 'fuse.js';
 import type { SenaCatalog } from '@shared/sena';
 import type { AppLanguage } from '@shared/inventory';
+import type { InterfaceViewMode } from '@shared/interface-view';
 import type { InventoryContextValue } from '@/state/inventory';
 import {
-  buildOverviewHref,
   buildServiceDetailHref,
   buildSkuDetailHref,
   type AnalysisScopeValue,
@@ -15,8 +15,6 @@ import {
   type FinancialsScopeValue,
   type OverviewSearchScope,
   type OverviewTaskFilterValue,
-  type OperationsScopeValue,
-  type OperationsViewValue,
   type PerformanceRangeValue,
   type PerformanceScopeValue,
   type ServiceActionValue,
@@ -24,11 +22,11 @@ import {
 } from '@/lib/navigation-state';
 import {
   buildRememberedAnalysisHref,
-  buildRememberedAutomationHref,
   buildRememberedArchiveHref,
   buildRememberedCatalogHref,
   buildRememberedFinancialsHref,
-  buildRememberedOperationsHref,
+  buildRememberedHistoryHref,
+  buildRememberedInsightsHref,
   buildRememberedOverviewHref,
   buildRememberedPerformanceHref,
   buildRememberedSettingsHref,
@@ -68,13 +66,12 @@ export type CommandAction =
         | 'set-show-floating-title-actions'
         | 'set-show-right-rail-cards'
         | 'set-show-automations-page'
-        | 'set-show-analysis-page'
         | 'set-smoothing-enabled'
         | 'create-backup-snapshot'
         | 'restore-backup-snapshot'
         | 'export-logs'
         | 'export-planning-data';
-      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | 'compact' | 'custom' | 'excel';
+      value: boolean | 'en' | 'km' | 'USD' | 'KHR' | InterfaceViewMode | 'excel';
     };
 
 export interface CommandDescriptor {
@@ -274,114 +271,54 @@ function buildPageCommands(
   t: Translator,
   {
     hasCatalogTab,
-    hasAutomationsTab,
-    hasFinancialsTab,
-    hasLogsTab,
-    hasPerformanceTab,
-    hasRecordUpdateTab,
-    showAutomationsPage,
-    showAnalysisPage,
+    hasHistory,
+    hasInsights,
+    hasWork,
   }: {
-    hasAutomationsTab: boolean;
     hasCatalogTab: boolean;
-    hasFinancialsTab: boolean;
-    hasLogsTab: boolean;
-    hasPerformanceTab: boolean;
-    hasRecordUpdateTab: boolean;
-    showAutomationsPage: boolean;
-    showAnalysisPage: boolean;
+    hasHistory: boolean;
+    hasInsights: boolean;
+    hasWork: boolean;
   },
 ) {
   return [
     pageCommand({
-      aliases: ['home', 'dashboard'],
-      href: buildRememberedOverviewHref(),
-      id: 'page:overview',
-      keywords: ['queue', 'tasks', 'overview'],
-      pageId: 'overview',
+      aliases: ['command home', 'dashboard'],
+      href: '/',
+      id: 'page:home',
+      keywords: ['home', 'command', 'start'],
+      pageId: 'home',
       pageOrder: 0,
       pagePrefix: '/',
       priority: 10,
-      subtitle: 'Overview queue and follow-up work',
-      title: t('navOverview'),
+      subtitle: 'Command home and daily entry point',
+      title: t('navHome'),
     }),
-    ...(hasRecordUpdateTab
+    pageCommand({
+      aliases: ['queue', 'daily work'],
+      href: buildRememberedOverviewHref(),
+      id: 'page:work',
+      keywords: ['queue', 'tasks', 'work'],
+      pageId: 'work',
+      pageOrder: 1,
+      pagePrefix: '/work',
+      priority: 11,
+      subtitle: 'Queue, capture, and intake work',
+      title: t('navWork'),
+    }),
+    ...(hasInsights
       ? [
           pageCommand({
-            aliases: ['update', 'capture'],
-            href: '/record-update',
-            id: 'page:record-update',
-            keywords: ['record', 'update', 'observation'],
-            pageId: 'record-update',
-            pageOrder: 1,
-            pagePrefix: '/record-update',
-            priority: 11,
-            subtitle: 'Capture the next live update',
-            title: t('navRecordUpdate'),
-          }),
-        ]
-      : []),
-    ...(hasPerformanceTab
-      ? [
-          pageCommand({
-            aliases: ['metrics'],
-            href: buildRememberedPerformanceHref(),
-            id: 'page:performance',
-            keywords: ['performance', 'range', 'compare'],
-            pageId: 'performance',
+            aliases: ['metrics', 'pressure', 'money', 'explain'],
+            href: buildRememberedInsightsHref(),
+            id: 'page:insights',
+            keywords: ['pressure', 'money', 'explain', 'insights', 'range', 'compare'],
+            pageId: 'insights',
             pageOrder: 2,
-            pagePrefix: '/performance',
-            priority: 12,
-            subtitle: 'Demand, capacity, and cash movement',
-            title: t('navPerformance'),
-          }),
-        ]
-      : []),
-    ...(hasFinancialsTab
-      ? [
-          pageCommand({
-            aliases: ['money', 'finance', 'financials'],
-            href: buildRememberedFinancialsHref(),
-            id: 'page:financials',
-            keywords: ['financials', 'money', 'margin', 'capital', 'commitments'],
-            pageId: 'financials',
-            pageOrder: 4,
-            pagePrefix: '/financials',
+            pagePrefix: '/insights',
             priority: 13,
-            subtitle: 'Stock-linked sales, margin, capital, and commitments',
-            title: t('navFinancials'),
-          }),
-        ]
-      : []),
-    ...(showAutomationsPage && hasAutomationsTab
-      ? [
-          pageCommand({
-            aliases: ['automation', 'automations', 'telegram'],
-            href: buildRememberedAutomationHref(),
-            id: 'page:automations',
-            keywords: ['automations', 'telegram', 'intake', 'sellables'],
-            pageId: 'automations',
-            pageOrder: 4,
-            pagePrefix: '/automations',
-            priority: 14,
-            subtitle: 'Telegram intake, exposure, and automation settings',
-            title: t('navAutomations'),
-          }),
-        ]
-      : []),
-    ...(showAnalysisPage
-      ? [
-          pageCommand({
-            aliases: ['workbench', 'analysis'],
-            href: buildRememberedAnalysisHref(),
-            id: 'page:analysis',
-            keywords: ['analysis', 'workbench', 'fragility', 'pressure'],
-            pageId: 'analysis',
-            pageOrder: 5,
-            pagePrefix: '/analysis',
-            priority: 14,
-            subtitle: 'Detailed analysis tools',
-            title: t('navAnalysis'),
+            subtitle: 'Pressure, money, and explanation views',
+            title: t('navInsights'),
           }),
         ]
       : []),
@@ -391,29 +328,29 @@ function buildPageCommands(
             aliases: ['inventory'],
             href: buildRememberedCatalogHref(),
             id: 'page:catalog',
-            keywords: ['catalog', 'skus', 'services'],
+            keywords: ['catalog', 'skus', 'services', 'archive', 'automation', 'exposure'],
             pageId: 'catalog',
             pageOrder: 3,
             pagePrefix: '/catalog',
             priority: 14,
-            subtitle: 'Browse SKUs and services',
+            subtitle: 'Browse active and archived SKUs and services',
             title: t('navCatalog'),
           }),
         ]
       : []),
-    ...(hasLogsTab
+    ...(hasHistory
       ? [
           pageCommand({
             aliases: ['logs', 'history'],
-            href: buildRememberedOperationsHref(),
-            id: 'page:operations',
-            keywords: ['operations', 'logs', 'history', 'heatmap'],
-            pageId: 'operations',
+            href: buildRememberedHistoryHref(),
+            id: 'page:history',
+            keywords: ['logs', 'history', 'heatmap'],
+            pageId: 'history',
             pageOrder: 5,
-            pagePrefix: '/operations',
+            pagePrefix: '/settings/history',
             priority: 15,
-            subtitle: 'Observation history and logs',
-            title: t('navOperations'),
+            subtitle: 'Saved update history and reports',
+            title: t('navHistory'),
           }),
         ]
       : []),
@@ -421,10 +358,10 @@ function buildPageCommands(
       aliases: ['archive', 'archived'],
       href: buildRememberedArchiveHref(),
       id: 'page:archive',
-      keywords: ['archive', 'archived', 'logs'],
+      keywords: ['archive', 'archived', 'catalog'],
       pageId: 'archive',
       pageOrder: 6,
-      pagePrefix: '/operations/archive',
+      pagePrefix: '/catalog',
       priority: 16,
       subtitle: 'Archived SKUs and services',
       title: t('navArchive'),
@@ -443,12 +380,12 @@ function buildPageCommands(
     }),
     pageCommand({
       aliases: ['guide', 'docs', 'documentation', 'manual', 'faq'],
-      href: '/help',
+      href: '/settings/help',
       id: 'page:help',
       keywords: ['help', 'guide', 'docs', 'documentation', 'manual', 'faq', 'support'],
       pageId: 'help',
       pageOrder: 8,
-      pagePrefix: '/help',
+      pagePrefix: '/settings',
       priority: 18,
       subtitle: 'User guide, feature explanations, and FAQ',
       title: t('navHelp'),
@@ -458,12 +395,12 @@ function buildPageCommands(
 
 function buildOverviewCommands() {
   const scopeCommands: Array<{ label: string; value: OverviewSearchScope }> = [
-    { label: 'All overview items', value: 'all' },
-    { label: 'Overview SKU tasks', value: 'skus' },
-    { label: 'Overview service tasks', value: 'services' },
+    { label: 'All work items', value: 'all' },
+    { label: 'Work SKU tasks', value: 'skus' },
+    { label: 'Work service tasks', value: 'services' },
   ];
   const filterCommands: Array<{ label: string; value: OverviewTaskFilterValue }> = [
-    { label: 'All overview tasks', value: 'all' },
+    { label: 'All work tasks', value: 'all' },
     { label: 'To order', value: 'to_order' },
     { label: 'Awaiting receipt', value: 'awaiting_receipt' },
     { label: 'Follow up today', value: 'follow_up_today' },
@@ -482,7 +419,7 @@ function buildOverviewCommands() {
         pageOrder: 0,
         pagePrefix: '/',
         priority: 40 + index,
-        subtitle: 'Overview scope',
+        subtitle: 'Work scope',
         tabOrder: index,
         title: command.label,
       }),
@@ -497,7 +434,7 @@ function buildOverviewCommands() {
         pageOrder: 0,
         pagePrefix: '/',
         priority: 50 + index,
-        subtitle: 'Overview filter',
+        subtitle: 'Work filter',
         tabOrder: scopeCommands.length + index,
         title: command.label,
       }),
@@ -529,51 +466,6 @@ function buildCatalogCommands() {
   );
 }
 
-function buildOperationsCommands() {
-  const scopeCommands: Array<{ label: string; value: OperationsScopeValue }> = [
-    { label: 'Logs / All items', value: 'all' },
-    { label: 'Logs / SKUs', value: 'skus' },
-    { label: 'Logs / Services', value: 'services' },
-  ];
-  const viewCommands: Array<{ label: string; value: OperationsViewValue }> = [
-    { label: 'Logs / Heatmap view', value: 'heatmap' },
-    { label: 'Logs / List view', value: 'all' },
-  ];
-
-  return [
-    ...scopeCommands.map((command, index) =>
-      tabCommand({
-        aliases: ['logs', 'operations', 'scope'],
-        href: buildRememberedOperationsHref({ scope: command.value }),
-        id: `operations:scope:${command.value}`,
-        keywords: ['operations', 'logs', command.value],
-        pageId: 'operations',
-        pageOrder: 5,
-        pagePrefix: '/operations',
-        priority: 70 + index,
-        subtitle: 'Operations scope',
-        tabOrder: index,
-        title: command.label,
-      }),
-    ),
-    ...viewCommands.map((command, index) =>
-      tabCommand({
-        aliases: ['logs', 'operations', 'view'],
-        href: buildRememberedOperationsHref({ view: command.value }),
-        id: `operations:view:${command.value}`,
-        keywords: ['operations', 'logs', 'view', command.value],
-        pageId: 'operations',
-        pageOrder: 5,
-        pagePrefix: '/operations',
-        priority: 80 + index,
-        subtitle: 'Operations view',
-        tabOrder: scopeCommands.length + index,
-        title: command.label,
-      }),
-    ),
-  ];
-}
-
 function buildArchiveCommands() {
   const viewCommands: Array<{ label: string; value: ArchiveViewValue }> = [
     { label: 'Archive / All items', value: 'all' },
@@ -589,7 +481,7 @@ function buildArchiveCommands() {
       keywords: ['archive', command.value],
       pageId: 'archive',
       pageOrder: 6,
-      pagePrefix: '/operations/archive',
+      pagePrefix: '/catalog',
       priority: 85 + index,
       subtitle: 'Archive view',
       tabOrder: index,
@@ -600,14 +492,14 @@ function buildArchiveCommands() {
 
 function buildPerformanceCommands() {
   const rangeCommands: Array<{ label: string; value: PerformanceRangeValue }> = [
-    { label: 'Performance / 7D', value: '7d' },
-    { label: 'Performance / 30D', value: '30d' },
-    { label: 'Performance / 90D', value: '90d' },
+    { label: 'Pressure / 7D', value: '7d' },
+    { label: 'Pressure / 30D', value: '30d' },
+    { label: 'Pressure / 90D', value: '90d' },
   ];
   const scopeCommands: Array<{ label: string; value: PerformanceScopeValue }> = [
-    { label: 'Performance / All items', value: 'all' },
-    { label: 'Performance / Services', value: 'services' },
-    { label: 'Performance / SKUs', value: 'skus' },
+    { label: 'Pressure / All items', value: 'all' },
+    { label: 'Pressure / Services', value: 'services' },
+    { label: 'Pressure / SKUs', value: 'skus' },
   ];
 
   return [
@@ -619,9 +511,9 @@ function buildPerformanceCommands() {
         keywords: ['performance', 'range', command.value],
         pageId: 'performance',
         pageOrder: 2,
-        pagePrefix: '/performance',
+        pagePrefix: '/insights',
         priority: 90 + index,
-        subtitle: 'Performance range',
+        subtitle: 'Pressure range',
         tabOrder: index,
         title: command.label,
       }),
@@ -634,9 +526,9 @@ function buildPerformanceCommands() {
         keywords: ['performance', 'scope', command.value],
         pageId: 'performance',
         pageOrder: 2,
-        pagePrefix: '/performance',
+        pagePrefix: '/insights',
         priority: 100 + index,
-        subtitle: 'Performance scope',
+        subtitle: 'Pressure scope',
         tabOrder: rangeCommands.length + index,
         title: command.label,
       }),
@@ -648,11 +540,11 @@ function buildPerformanceCommands() {
       keywords: ['performance', 'compare', 'on'],
       pageId: 'performance',
       pageOrder: 2,
-      pagePrefix: '/performance',
+      pagePrefix: '/insights',
       priority: 104,
-      subtitle: 'Performance comparison',
+      subtitle: 'Pressure comparison',
       tabOrder: rangeCommands.length + scopeCommands.length,
-      title: 'Performance / Compare view',
+      title: 'Pressure / Compare view',
     }),
     tabCommand({
       aliases: ['performance', 'compare'],
@@ -661,26 +553,26 @@ function buildPerformanceCommands() {
       keywords: ['performance', 'compare', 'off'],
       pageId: 'performance',
       pageOrder: 2,
-      pagePrefix: '/performance',
+      pagePrefix: '/insights',
       priority: 105,
-      subtitle: 'Performance comparison',
+      subtitle: 'Pressure comparison',
       tabOrder: rangeCommands.length + scopeCommands.length + 1,
-      title: 'Performance / Single view',
+      title: 'Pressure / Single view',
     }),
   ];
 }
 
 function buildFinancialsCommands() {
   const rangeCommands: Array<{ label: string; value: FinancialsRangeValue }> = [
-    { label: 'Financials / 1D', value: '1d' },
-    { label: 'Financials / 7D', value: '7d' },
-    { label: 'Financials / 30D', value: '30d' },
-    { label: 'Financials / 90D', value: '90d' },
+    { label: 'Money / 1D', value: '1d' },
+    { label: 'Money / 7D', value: '7d' },
+    { label: 'Money / 30D', value: '30d' },
+    { label: 'Money / 90D', value: '90d' },
   ];
   const scopeCommands: Array<{ label: string; value: FinancialsScopeValue }> = [
-    { label: 'Financials / All items', value: 'all' },
-    { label: 'Financials / Services', value: 'services' },
-    { label: 'Financials / SKUs', value: 'skus' },
+    { label: 'Money / All items', value: 'all' },
+    { label: 'Money / Services', value: 'services' },
+    { label: 'Money / SKUs', value: 'skus' },
   ];
 
   return [
@@ -692,9 +584,9 @@ function buildFinancialsCommands() {
         keywords: ['financials', 'money', 'range', command.value],
         pageId: 'financials',
         pageOrder: 4,
-        pagePrefix: '/financials',
+        pagePrefix: '/insights',
         priority: 106 + index,
-        subtitle: 'Financials range',
+        subtitle: 'Money range',
         tabOrder: index,
         title: command.label,
       }),
@@ -707,9 +599,9 @@ function buildFinancialsCommands() {
         keywords: ['financials', 'money', 'scope', command.value],
         pageId: 'financials',
         pageOrder: 4,
-        pagePrefix: '/financials',
+        pagePrefix: '/insights',
         priority: 109 + index,
-        subtitle: 'Financials scope',
+        subtitle: 'Money scope',
         tabOrder: rangeCommands.length + index,
         title: command.label,
       }),
@@ -721,11 +613,11 @@ function buildFinancialsCommands() {
       keywords: ['financials', 'money', 'compare', 'on'],
       pageId: 'financials',
       pageOrder: 4,
-      pagePrefix: '/financials',
+      pagePrefix: '/insights',
       priority: 112,
-      subtitle: 'Financials comparison',
+      subtitle: 'Money comparison',
       tabOrder: rangeCommands.length + scopeCommands.length,
-      title: 'Financials / Compare view',
+      title: 'Money / Compare view',
     }),
     tabCommand({
       aliases: ['financials', 'compare'],
@@ -734,27 +626,27 @@ function buildFinancialsCommands() {
       keywords: ['financials', 'money', 'compare', 'off'],
       pageId: 'financials',
       pageOrder: 4,
-      pagePrefix: '/financials',
+      pagePrefix: '/insights',
       priority: 113,
-      subtitle: 'Financials comparison',
+      subtitle: 'Money comparison',
       tabOrder: rangeCommands.length + scopeCommands.length + 1,
-      title: 'Financials / Single view',
+      title: 'Money / Single view',
     }),
   ];
 }
 
 function buildAnalysisCommands() {
   const scopeCommands: Array<{ label: string; value: AnalysisScopeValue }> = [
-    { label: 'Analysis / All items', value: 'all' },
-    { label: 'Analysis / Services', value: 'services' },
-    { label: 'Analysis / SKUs', value: 'skus' },
+    { label: 'Explain / All items', value: 'all' },
+    { label: 'Explain / Services', value: 'services' },
+    { label: 'Explain / SKUs', value: 'skus' },
   ];
   const sectionCommands: Array<{ label: string; value: AnalysisSectionValue }> = [
-    { label: 'Analysis / Main view', value: 'workbench' },
-    { label: 'Analysis / Pressure', value: 'pressure' },
-    { label: 'Analysis / Observations', value: 'observations' },
-    { label: 'Analysis / Fragility', value: 'fragility' },
-    { label: 'Analysis / Settings', value: 'settings' },
+    { label: 'Explain / Main view', value: 'workbench' },
+    { label: 'Explain / Pressure', value: 'pressure' },
+    { label: 'Explain / Observations', value: 'observations' },
+    { label: 'Explain / Fragility', value: 'fragility' },
+    { label: 'Explain / Settings', value: 'settings' },
   ];
   const timeframeCommands: AnalysisTimeframeValue[] = ['Recent', '1M', '3M', 'YTD', '1Y', 'MAX'];
 
@@ -767,9 +659,9 @@ function buildAnalysisCommands() {
         keywords: ['analysis', 'scope', command.value],
         pageId: 'analysis',
         pageOrder: 4,
-        pagePrefix: '/analysis',
+        pagePrefix: '/insights',
         priority: 110 + index,
-        subtitle: 'Analysis scope',
+        subtitle: 'Explain scope',
         tabOrder: index,
         title: command.label,
       }),
@@ -782,9 +674,9 @@ function buildAnalysisCommands() {
         keywords: ['analysis', 'section', command.value],
         pageId: 'analysis',
         pageOrder: 4,
-        pagePrefix: '/analysis',
+        pagePrefix: '/insights',
         priority: 120 + index,
-        subtitle: 'Analysis section',
+        subtitle: 'Explain section',
         tabOrder: scopeCommands.length + index,
         title: command.label,
       }),
@@ -797,17 +689,17 @@ function buildAnalysisCommands() {
         keywords: ['analysis', 'timeframe', command],
         pageId: 'analysis',
         pageOrder: 4,
-        pagePrefix: '/analysis',
+        pagePrefix: '/insights',
         priority: 130 + index,
-        subtitle: 'Analysis timeframe',
+        subtitle: 'Explain timeframe',
         tabOrder: scopeCommands.length + sectionCommands.length + index,
-        title: `Analysis / Timeframe / ${command}`,
+        title: `Explain / Timeframe / ${command}`,
       }),
     ),
   ];
 }
 
-function buildWorkflowCommands({ hasRecordUpdateTab }: { hasRecordUpdateTab: boolean }) {
+function buildWorkflowCommands({ hasWork }: { hasWork: boolean }) {
   return [
     createCommand({
       action: { href: '/catalog/skus/new', type: 'workflow' },
@@ -837,21 +729,21 @@ function buildWorkflowCommands({ hasRecordUpdateTab }: { hasRecordUpdateTab: boo
       subtitle: 'Create a new service',
       title: 'New service',
     }),
-    ...(hasRecordUpdateTab
+    ...(hasWork
       ? [
           createCommand({
-            action: { href: '/record-update', type: 'workflow' },
+            action: { href: '/work/capture', type: 'workflow' },
             aliases: ['capture update', 'start update'],
             emptyQueryRank: 19,
             id: 'workflow:start-update',
             keywords: ['start', 'update', 'record', 'observation'],
             kind: 'workflow',
-            pageId: 'record-update',
+            pageId: 'capture',
             pageOrder: 1,
-            pagePrefixes: ['/record-update', '/'],
+            pagePrefixes: ['/work', '/'],
             priority: 19,
             subtitle: 'Capture the next observation',
-            title: 'Start update',
+            title: 'Capture update',
           }),
         ]
       : []),
@@ -866,18 +758,16 @@ function buildSettingsCommands({
   showExplanatoryTooltips,
   showFloatingTitleActions,
   showAutomationsPage,
-  showAnalysisPage,
   showRightRailCards,
   t,
 }: {
   currency: 'USD' | 'KHR';
-  displayViewMode: 'compact' | 'custom';
+  displayViewMode: InterfaceViewMode;
   language: 'en' | 'km';
   senaEngineParameters: { smoothingEnabled?: boolean };
   showExplanatoryTooltips: boolean;
   showFloatingTitleActions: boolean;
   showAutomationsPage: boolean;
-  showAnalysisPage: boolean;
   showRightRailCards: boolean;
   t: Translator;
 }) {
@@ -937,95 +827,95 @@ function buildSettingsCommands({
       title: 'Set currency to KHR',
     }),
     createCommand({
-      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'custom' },
-      aliases: ['settings custom view', 'settings full view', 'settings maximal'],
-      id: 'settings:view:maximal',
-      keywords: ['settings', 'view', 'custom', 'maximal', displayViewMode === 'custom' ? 'current' : ''],
+      action: { effect: 'set-display-mode', href: '/settings/interface', type: 'settings', value: 'default' },
+      aliases: ['settings default view'],
+      id: 'settings:view:default',
+      keywords: ['settings', 'view', 'default', displayViewMode === 'default' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 504,
       subtitle: 'Settings / View mode',
-      title: 'Set view mode to Custom View',
+      title: 'Set view mode to Default View',
     }),
     createCommand({
-      action: { effect: 'set-display-mode', href: '/settings', type: 'settings', value: 'compact' },
-      aliases: ['settings compact view', 'settings minimal'],
+      action: { effect: 'set-display-mode', href: '/settings/interface', type: 'settings', value: 'minimal' },
+      aliases: ['settings minimal view', 'settings compact view'],
       id: 'settings:view:minimal',
-      keywords: ['settings', 'view', 'compact', 'minimal', displayViewMode === 'compact' ? 'current' : ''],
+      keywords: ['settings', 'view', 'minimal', 'compact', displayViewMode === 'minimal' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 505,
       subtitle: 'Settings / View mode',
-      title: 'Set view mode to Compact View',
+      title: 'Set view mode to Minimal View',
     }),
     createCommand({
-      action: { effect: 'set-show-explanatory-tooltips', href: '/settings', type: 'settings', value: !showExplanatoryTooltips },
-      aliases: ['settings optional help'],
-      id: `settings:help:${showExplanatoryTooltips ? 'off' : 'on'}`,
-      keywords: ['settings', 'help', 'tooltips', showExplanatoryTooltips ? 'disable' : 'enable'],
+      action: { effect: 'set-display-mode', href: '/settings/interface', type: 'settings', value: 'maximal' },
+      aliases: ['settings maximal view', 'settings full view'],
+      id: 'settings:view:maximal',
+      keywords: ['settings', 'view', 'maximal', 'full', displayViewMode === 'maximal' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 506,
-      subtitle: 'Settings / Interface visibility',
-      title: `${showExplanatoryTooltips ? 'Hide' : 'Show'} optional help`,
+      subtitle: 'Settings / View mode',
+      title: 'Set view mode to Maximal View',
     }),
     createCommand({
-      action: { effect: 'set-show-floating-title-actions', href: '/settings', type: 'settings', value: !showFloatingTitleActions },
-      aliases: ['settings floating actions'],
-      id: `settings:floating-actions:${showFloatingTitleActions ? 'off' : 'on'}`,
-      keywords: ['settings', 'floating', 'actions', showFloatingTitleActions ? 'disable' : 'enable'],
+      action: { effect: 'set-show-explanatory-tooltips', href: '/settings', type: 'settings', value: !showExplanatoryTooltips },
+      aliases: ['settings guidance labels', 'settings optional help'],
+      id: `settings:help:${showExplanatoryTooltips ? 'off' : 'on'}`,
+      keywords: ['settings', 'guidance', 'labels', 'help', 'tooltips', showExplanatoryTooltips ? 'disable' : 'enable'],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 507,
       subtitle: 'Settings / Interface visibility',
-      title: `${showFloatingTitleActions ? 'Hide' : 'Show'} floating title actions`,
+      title: `${showExplanatoryTooltips ? 'Hide' : 'Show'} guidance labels`,
+    }),
+    createCommand({
+      action: { effect: 'set-show-floating-title-actions', href: '/settings', type: 'settings', value: !showFloatingTitleActions },
+      aliases: ['settings floating page actions', 'settings floating actions'],
+      id: `settings:floating-actions:${showFloatingTitleActions ? 'off' : 'on'}`,
+      keywords: ['settings', 'floating', 'page', 'actions', showFloatingTitleActions ? 'disable' : 'enable'],
+      kind: 'workflow',
+      pageId: 'settings',
+      pageOrder: 6,
+      pagePrefixes: ['/settings'],
+      priority: 507,
+      subtitle: 'Settings / Interface visibility',
+      title: `${showFloatingTitleActions ? 'Hide' : 'Show'} floating page actions`,
     }),
     createCommand({
       action: { effect: 'set-show-right-rail-cards', href: '/settings', type: 'settings', value: !showRightRailCards },
-      aliases: ['settings right rail cards'],
+      aliases: ['settings right side context panels', 'settings right rail cards'],
       id: `settings:right-rail:${showRightRailCards ? 'off' : 'on'}`,
-      keywords: ['settings', 'right rail', 'cards', showRightRailCards ? 'disable' : 'enable'],
+      keywords: ['settings', 'right side', 'context', 'panels', 'right rail', showRightRailCards ? 'disable' : 'enable'],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 508,
       subtitle: 'Settings / Interface visibility',
-      title: `${showRightRailCards ? 'Hide' : 'Show'} right rail cards`,
+      title: `${showRightRailCards ? 'Hide' : 'Show'} right-side context panels`,
     }),
     createCommand({
-      action: { effect: 'set-show-automations-page', href: '/settings', type: 'settings', value: !showAutomationsPage },
-      aliases: ['settings automations page'],
+      action: { effect: 'set-show-automations-page', href: '/settings/interface?highlight=automations', type: 'settings', value: !showAutomationsPage },
+      aliases: ['settings automations and intake', 'automation', 'intake', 'telegram bot'],
       id: `settings:automations-page:${showAutomationsPage ? 'off' : 'on'}`,
-      keywords: ['settings', 'automations', 'page', showAutomationsPage ? 'disable' : 'enable'],
+      keywords: ['settings', 'automation', 'automations', 'intake', 'telegram', 'bot', showAutomationsPage ? 'disable' : 'enable'],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
       pagePrefixes: ['/settings'],
       priority: 509,
       subtitle: 'Settings / Interface visibility',
-      title: `${showAutomationsPage ? 'Hide' : 'Show'} automations page`,
-    }),
-    createCommand({
-      action: { effect: 'set-show-analysis-page', href: '/settings', type: 'settings', value: !showAnalysisPage },
-      aliases: ['settings analysis page'],
-      id: `settings:analysis-page:${showAnalysisPage ? 'off' : 'on'}`,
-      keywords: ['settings', 'analysis', 'page', showAnalysisPage ? 'disable' : 'enable'],
-      kind: 'workflow',
-      pageId: 'settings',
-      pageOrder: 6,
-      pagePrefixes: ['/settings'],
-      priority: 510,
-      subtitle: 'Settings / Interface visibility',
-      title: `${showAnalysisPage ? 'Hide' : 'Show'} analysis page`,
+      title: `${showAutomationsPage ? 'Hide' : 'Show'} automations and intake`,
     }),
     createCommand({
       action: { effect: 'set-smoothing-enabled', href: '/settings', type: 'settings', value: !smoothingEnabled },
@@ -1273,7 +1163,7 @@ function buildArchivedEntityCommands(catalog: SenaCatalog) {
         kind: 'workflow',
         pageId: 'archive',
         pageOrder: 6,
-        pagePrefixes: ['/operations/archive'],
+        pagePrefixes: ['/catalog'],
         priority: 260,
         subtitle: supplierName ? `Archived SKU · Supplier: ${supplierName}` : 'Archived SKU',
         title: `Unarchive ${sku.name}`,
@@ -1295,7 +1185,7 @@ function buildArchivedEntityCommands(catalog: SenaCatalog) {
       kind: 'workflow',
       pageId: 'archive',
       pageOrder: 6,
-      pagePrefixes: ['/operations/archive'],
+      pagePrefixes: ['/catalog'],
       priority: 261,
       subtitle: `Archived Service · ${service.serviceId}`,
       title: `Unarchive ${service.name}`,
@@ -1321,12 +1211,12 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
     if (!isOverviewSkuTask(task)) {
       commands.push(
         createCommand({
-          action: { href: '/record-update', type: 'workflow' },
+          action: { href: '/work/capture', type: 'workflow' },
           aliases: ['stale update', 'reminder'],
-          id: 'overview:stale-update',
-          keywords: ['overview', 'task', 'record', 'update'],
+          id: 'work:stale-update',
+          keywords: ['work', 'task', 'capture', 'update'],
           kind: 'workflow',
-          pageId: 'overview',
+          pageId: 'work',
           pageOrder: 0,
           pagePrefixes: ['/'],
           priority: 300,
@@ -1340,18 +1230,18 @@ function buildOverviewTaskCommands(inventory: InventoryContextValue, language: A
     commands.push(
       createCommand({
         action: {
-          href: buildOverviewHref({
+          href: buildRememberedOverviewHref({
             filter: task.state,
           }),
           type: 'workflow',
         },
         aliases: [task.skuName, task.action, task.state],
-        id: `overview:task:${task.skuId}:${task.action}`,
-        keywords: ['overview', 'task', task.action, task.state, ...task.linkedServiceNames],
+        id: `work:task:${task.skuId}:${task.action}`,
+        keywords: ['work', 'task', task.action, task.state, ...task.linkedServiceNames],
         kind: 'workflow',
-        pageId: 'overview',
+        pageId: 'work',
         pageOrder: 0,
-        pagePrefixes: ['/', `/catalog/skus/${task.skuId}`],
+        pagePrefixes: ['/work', `/catalog/skus/${task.skuId}`],
         priority: 310,
         subtitle: `${task.stateLabel} · ${task.whyNow}`,
         title: `${task.actionLabel} for ${task.skuName}`,
@@ -1376,7 +1266,7 @@ export function buildCommandDescriptors({
   t,
 }: {
   currency: 'USD' | 'KHR';
-  displayViewMode: 'compact' | 'custom';
+  displayViewMode: InterfaceViewMode;
   inventory: InventoryContextValue;
   language: AppLanguage;
   senaEngineParameters: { smoothingEnabled?: boolean };
@@ -1391,10 +1281,8 @@ export function buildCommandDescriptors({
   const commands = [
     ...buildPageCommands(t, {
       ...availability,
-      showAnalysisPage,
-      showAutomationsPage,
     }),
-    ...buildWorkflowCommands({ hasRecordUpdateTab: availability.hasRecordUpdateTab }),
+    ...buildWorkflowCommands({ hasWork: availability.hasWork }),
     ...buildSettingsCommands({
       currency,
       displayViewMode,
@@ -1409,10 +1297,9 @@ export function buildCommandDescriptors({
     }),
     ...buildOverviewCommands(),
     ...buildCatalogCommands(),
-    ...(availability.hasLogsTab ? buildOperationsCommands() : []),
     ...buildArchiveCommands(),
-    ...(availability.hasPerformanceTab ? buildPerformanceCommands() : []),
-    ...(availability.hasFinancialsTab ? buildFinancialsCommands() : []),
+    ...(availability.hasInsights ? buildPerformanceCommands() : []),
+    ...(availability.hasInsights ? buildFinancialsCommands() : []),
     ...(showAnalysisPage ? buildAnalysisCommands() : []),
   ];
 
@@ -1457,7 +1344,7 @@ function isOpaqueSkuIdQuery(query: string) {
 }
 
 function commandTargetsSku(command: CommandDescriptor) {
-  if (command.id.startsWith('sku:') || command.id.startsWith('overview:task:')) {
+  if (command.id.startsWith('sku:') || command.id.startsWith('work:task:')) {
     return true;
   }
 
