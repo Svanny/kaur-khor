@@ -35,6 +35,15 @@ function normalizeInlineMarkdown(value: string) {
     .trim();
 }
 
+function parseHeadingText(value: string) {
+  const match = value.match(/^(.*?)\s*\{#([\p{Letter}\p{Number}_-]+)\}\s*$/u);
+  const text = normalizeInlineMarkdown(match?.[1] ?? value);
+  return {
+    id: match?.[2] ?? slugify(text),
+    text,
+  };
+}
+
 function blockSearchText(block: HelpBlock) {
   if (block.type === 'paragraph' || block.type === 'heading') {
     return block.text;
@@ -92,10 +101,10 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
     }
 
     if (line.startsWith('## ')) {
-      const title = normalizeInlineMarkdown(line.slice(3));
+      const { id, text: title } = parseHeadingText(line.slice(3));
       collectingIntro = false;
       if (!['table of contents', 'មាតិកា'].includes(title.toLowerCase())) {
-        currentSection = { blocks: [], id: slugify(title), searchText: '', title };
+        currentSection = { blocks: [], id, searchText: '', title };
         sections.push(currentSection);
       } else {
         currentSection = null;
@@ -119,15 +128,15 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
     }
 
     if (line.startsWith('### ')) {
-      const text = normalizeInlineMarkdown(line.slice(4));
-      currentSection.blocks.push({ depth: 3, id: slugify(text), text, type: 'heading' });
+      const { id, text } = parseHeadingText(line.slice(4));
+      currentSection.blocks.push({ depth: 3, id, text, type: 'heading' });
       index += 1;
       continue;
     }
 
     if (line.startsWith('#### ')) {
-      const text = normalizeInlineMarkdown(line.slice(5));
-      currentSection.blocks.push({ depth: 4, id: slugify(text), text, type: 'heading' });
+      const { id, text } = parseHeadingText(line.slice(5));
+      currentSection.blocks.push({ depth: 4, id, text, type: 'heading' });
       index += 1;
       continue;
     }

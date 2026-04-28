@@ -31,11 +31,19 @@ function scriptKindForPath(path: string): ts.ScriptKind {
 }
 
 function slugifyHelpHeading(value: string) {
-  return value
+  const explicitAnchor = value.match(/\{#([\p{Letter}\p{Number}_-]+)\}\s*$/u)?.[1];
+  if (explicitAnchor) {
+    return explicitAnchor;
+  }
+  return visibleHelpHeading(value)
     .trim()
     .toLowerCase()
     .replace(/[^\p{Letter}\p{Number}]+/gu, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function visibleHelpHeading(value: string) {
+  return value.replace(/\s*\{#[\p{Letter}\p{Number}_-]+\}\s*$/u, '');
 }
 
 async function collectHelpSubsectionIds(path: string) {
@@ -46,6 +54,44 @@ async function collectHelpSubsectionIds(path: string) {
       .filter((line) => line.startsWith('### ') || line.startsWith('#### '))
       .map((line) => slugifyHelpHeading(line.replace(/^#{3,4}\s+/, ''))),
   );
+}
+
+async function collectRepeatedHelpSubsectionPrefixes(path: string) {
+  const markdown = await readFile(path, 'utf8');
+  const offenders: string[] = [];
+  let sectionTitle = '';
+  const alternatePrefixesBySection = new Map([
+    ['Capture', ['Record Update']],
+    ['Intake', ['Automation']],
+    ['Automations', ['Automation']],
+  ]);
+
+  for (const line of markdown.split(/\r?\n/)) {
+    if (line.startsWith('## ')) {
+      sectionTitle = visibleHelpHeading(line.replace(/^##\s+/, '')).trim();
+      continue;
+    }
+    if (!line.startsWith('### ') && !line.startsWith('#### ')) {
+      continue;
+    }
+
+    const title = visibleHelpHeading(line.replace(/^#{3,4}\s+/, '')).trim();
+    const prefixes = [sectionTitle, ...(alternatePrefixesBySection.get(sectionTitle) ?? [])].filter(Boolean);
+    if (prefixes.some((prefix) => title.startsWith(`${prefix} `))) {
+      offenders.push(title);
+    }
+  }
+
+  return offenders;
+}
+
+async function collectLatinKhmerHelpSubsectionTitles(path: string) {
+  const markdown = await readFile(path, 'utf8');
+  return markdown
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith('### ') || line.startsWith('#### '))
+    .map((line) => visibleHelpHeading(line.replace(/^#{3,4}\s+/, '')).trim())
+    .filter((title) => /\p{Script=Latin}/u.test(title));
 }
 
 function isQuotedLiteralNode(node: ts.Node): node is ts.StringLiteral | ts.NoSubstitutionTemplateLiteral {
@@ -1051,5 +1097,17 @@ describe('global design rules', () => {
     expect(bareHelpTargets).toEqual([]);
     expect(glossaryTargets).toEqual([]);
     expect(missingSections).toEqual([]);
+  });
+
+  test('keeps Help subsection titles free of repeated page prefixes', async () => {
+    const prefixedHeadings = await collectRepeatedHelpSubsectionPrefixes(resolve(docsRoot, 'user-guide.md'));
+
+    expect(prefixedHeadings).toEqual([]);
+  });
+
+  test('keeps visible Khmer Help subsection titles free of Latin text', async () => {
+    const latinHeadings = await collectLatinKhmerHelpSubsectionTitles(resolve(docsRoot, 'user-guide.km.md'));
+
+    expect(latinHeadings).toEqual([]);
   });
 });

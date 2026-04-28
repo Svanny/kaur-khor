@@ -268,7 +268,7 @@ describe('HelpRoute', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
     expect(intersectionObserver.observe).toHaveBeenCalled();
     const target = document.getElementById('automation-intake-request');
-    expect(target).toHaveTextContent('Automation Intake Request');
+    expect(target).toHaveTextContent('Request');
     const highlightedGroup = target?.closest('[data-active-help-subsection="true"]');
     expect(highlightedGroup).toBeNull();
 
@@ -285,6 +285,18 @@ describe('HelpRoute', () => {
     expect(delayedHighlightedGroup).toHaveTextContent('The Request column summarizes what the customer appears to be asking for');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
+  });
+
+  test('renders cleaned subsection titles while preserving old More-link anchors', () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(document.getElementById('money-band-capital-traps')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: "Band's Capital Traps" })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Money Band Capital Traps' })).not.toBeInTheDocument();
   });
 
   test('clears the More-link subsection highlight after a short reading window', async () => {
