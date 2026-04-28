@@ -75,7 +75,7 @@ describe('CommandPaletteProvider', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
           navOperations: 'Logs',
@@ -279,7 +279,7 @@ describe('CommandPaletteProvider', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          navAnalysis: 'ការវិភាគ',
+          navAnalysis: 'Explain',
           navArchive: 'បណ្ណសារ',
           navCatalog: 'កាតាឡុក',
           navHome: 'Home',
@@ -317,7 +317,7 @@ describe('CommandPaletteProvider', () => {
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
 
     expect(screen.getByRole('searchbox', { name: 'ស្វែងរកពាក្យបញ្ជា' })).toBeInTheDocument();
-    expect(screen.getByText('Command home and daily entry point')).toBeInTheDocument();
+    expect(screen.getByText('ទំព័រដើមពាក្យបញ្ជា និងចំណុចចូលប្រចាំថ្ងៃ')).toBeInTheDocument();
     expect(screen.getAllByText('ទំព័រ').length).toBeGreaterThan(0);
     expect(screen.getByText('រុករក')).toBeInTheDocument();
     expect(screen.getByText('បើក')).toBeInTheDocument();

@@ -292,7 +292,7 @@ describe('AnalysisWorkbench', () => {
 
     expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
 
-    const tabList = screen.getByRole('tablist', { name: 'Select analysis view' });
+    const tabList = screen.getByRole('tablist', { name: 'Select Explain view' });
     expect(tabList.parentElement).toHaveClass('overflow-x-auto');
     expect(tabList.parentElement).not.toHaveClass('overflow-hidden');
 

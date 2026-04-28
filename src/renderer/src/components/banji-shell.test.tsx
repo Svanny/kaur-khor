@@ -96,7 +96,7 @@ describe('BanjiShell', () => {
           navInsights: 'Insights',
           navFinancials: 'Financials',
           navAutomations: 'Automations',
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navCatalog: 'Catalog',
           navOperations: 'History',
           navHistory: 'History',
@@ -186,7 +186,7 @@ describe('BanjiShell', () => {
     expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Explain' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Archive' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Help' })).not.toBeInTheDocument();
@@ -334,7 +334,7 @@ describe('BanjiShell', () => {
           navPerformance: 'Performance',
           navInsights: 'Insights',
           navFinancials: 'Financials',
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navCatalog: 'Catalog',
           navOperations: 'History',
           navHistory: 'History',
@@ -486,7 +486,7 @@ describe('BanjiShell', () => {
           navInsights: 'Insights',
           navFinancials: 'Financials',
           navAutomations: 'Automations',
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navCatalog: 'Catalog',
           navOperations: 'History',
           navHistory: 'History',
@@ -606,7 +606,7 @@ describe('BanjiShell', () => {
           navPerformance: 'Performance',
           navInsights: 'Insights',
           navFinancials: 'Financials',
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navCatalog: 'Catalog',
           navOperations: 'History',
           navHistory: 'History',
@@ -667,7 +667,7 @@ describe('BanjiShell', () => {
           navPerformance: 'Performance',
           navInsights: 'Insights',
           navFinancials: 'Financials',
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navCatalog: 'Catalog',
           navOperations: 'History',
           navHistory: 'History',
@@ -694,7 +694,7 @@ describe('BanjiShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Analysis' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Explain' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
   });
 
@@ -722,7 +722,7 @@ describe('BanjiShell', () => {
           navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
           navPerformance: 'សុខភាពអាជីវកម្ម',
           navFinancials: 'ហិរញ្ញវត្ថុ',
-          navAnalysis: 'ការវិភាគ',
+          navAnalysis: 'Explain',
           navCatalog: 'កាតាឡុក',
           navOperations: 'កំណត់ហេតុ',
           navArchive: 'បណ្ណសារ',

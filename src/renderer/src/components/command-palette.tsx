@@ -23,13 +23,14 @@ import {
   NavigationCatalogIcon,
   NavigationDashboardIcon,
   NavigationFinancialsIcon,
-  NavigationLogsIcon,
+  NavigationHistoryIcon,
   NavigationMoveDownIcon,
   NavigationMoveUpIcon,
   NavigationPerformanceIcon,
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
+  NavigationWorkIcon,
   NavigationWorkspacePanelsIcon,
 } from '@icons/navigation';
 import { EntityBackupIcon } from '@icons/entities';
@@ -100,8 +101,10 @@ function pageIcon(pageId: string): CommandIconComponent {
   switch (pageId) {
     case 'overview':
       return NavigationDashboardIcon;
+    case 'work':
+      return NavigationWorkIcon;
     case 'record-update':
-      return NavigationTaskListIcon;
+      return ActionCreatePackageIcon;
     case 'performance':
       return NavigationPerformanceIcon;
     case 'financials':
@@ -113,7 +116,8 @@ function pageIcon(pageId: string): CommandIconComponent {
     case 'analysis':
       return NavigationAnalysisIcon;
     case 'operations':
-      return NavigationLogsIcon;
+    case 'history':
+      return NavigationHistoryIcon;
     case 'archive':
       return NavigationArchiveIcon;
     case 'settings':

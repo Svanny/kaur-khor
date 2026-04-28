@@ -74,7 +74,7 @@ export function CustomTimeframeDialog({
             {translateUiLiteral(language, 'Custom timeframe')}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="mt-3 text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Choose a start and end date for the analysis window.')}
+            {translateUiLiteral(language, 'Choose a start and end date for this window.')}
           </DialogPrimitive.Description>
           <div className="mt-5 grid gap-4">
             <div className="text-sm font-medium text-foreground">

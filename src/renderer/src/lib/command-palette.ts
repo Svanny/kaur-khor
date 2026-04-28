@@ -653,10 +653,10 @@ function buildAnalysisCommands() {
   return [
     ...scopeCommands.map((command, index) =>
       tabCommand({
-        aliases: ['analysis', 'scope'],
+        aliases: ['explain', 'analysis', 'scope'],
         href: buildRememberedAnalysisHref({ scope: command.value }),
         id: `analysis:scope:${command.value}`,
-        keywords: ['analysis', 'scope', command.value],
+        keywords: ['explain', 'analysis', 'scope', command.value],
         pageId: 'analysis',
         pageOrder: 4,
         pagePrefix: '/insights',
@@ -668,10 +668,10 @@ function buildAnalysisCommands() {
     ),
     ...sectionCommands.map((command, index) =>
       tabCommand({
-        aliases: ['analysis', 'section'],
+        aliases: ['explain', 'analysis', 'section'],
         href: buildRememberedAnalysisHref({ section: command.value }),
         id: `analysis:section:${command.value}`,
-        keywords: ['analysis', 'section', command.value],
+        keywords: ['explain', 'analysis', 'section', command.value],
         pageId: 'analysis',
         pageOrder: 4,
         pagePrefix: '/insights',
@@ -683,10 +683,10 @@ function buildAnalysisCommands() {
     ),
     ...timeframeCommands.map((command, index) =>
       tabCommand({
-        aliases: ['analysis', 'timeframe'],
+        aliases: ['explain', 'analysis', 'timeframe'],
         href: buildRememberedAnalysisHref({ timeframe: command }),
         id: `analysis:timeframe:${command}`,
-        keywords: ['analysis', 'timeframe', command],
+        keywords: ['explain', 'analysis', 'timeframe', command],
         pageId: 'analysis',
         pageOrder: 4,
         pagePrefix: '/insights',

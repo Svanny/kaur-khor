@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ActionCreatePackageIcon } from '@icons/actions';
 import {
   EntitySignalIcon,
   EntitySkuIcon,
@@ -6,9 +7,8 @@ import {
 } from '@icons/entities';
 import {
   NavigationCatalogIcon,
-  NavigationDashboardIcon,
   NavigationPerformanceIcon,
-  NavigationTaskListIcon,
+  NavigationWorkIcon,
 } from '@icons/navigation';
 import type { IconComponent } from '@icons';
 import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
@@ -128,7 +128,7 @@ export function CommandHomeRoute() {
 
       <CenteredTileGrid>
         <CommandAction
-          icon={NavigationDashboardIcon}
+          icon={NavigationWorkIcon}
           label={translateUiLiteral(language, 'Continue Work')}
           description={translateUiLiteral(language, 'Open supplier, customer, and intake work that needs a decision.')}
           tone="continue-work"
@@ -136,7 +136,7 @@ export function CommandHomeRoute() {
         />
         <CommandAction
           disabled={skuCount + serviceCount === 0}
-          icon={NavigationTaskListIcon}
+          icon={ActionCreatePackageIcon}
           label={translateUiLiteral(language, 'Capture Update')}
           description={translateUiLiteral(language, 'Save a stock count, customer order, sale, supplier order, or custom event.')}
           tone="capture-update"

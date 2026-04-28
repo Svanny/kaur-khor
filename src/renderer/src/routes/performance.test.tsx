@@ -566,7 +566,7 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: /Select analysis time range/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: /Select Explain time range/i })).not.toBeInTheDocument();
   }, 10_000);
 
   test('does not restart analysis detail hydration on an unchanged route rerender', async () => {

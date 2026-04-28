@@ -42,6 +42,22 @@ function samePathname(a: string, b: string) {
   return a.split('?')[0] === b.split('?')[0];
 }
 
+function entryReturnsToTarget(entry: NavigationEntry, target: string) {
+  return (
+    entry.origin === target ||
+    (entry.fallbackTo != null && samePathname(entry.fallbackTo, target))
+  );
+}
+
+function lastIndexOfTarget(entries: NavigationEntry[], target: string) {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    if (entries[index]?.to === target) {
+      return index;
+    }
+  }
+  return -1;
+}
+
 function readBanjiNavigationState(state: unknown): BanjiNavigationState {
   if (!state || typeof state !== 'object') {
     return {};
@@ -62,6 +78,9 @@ function readBanjiNavigationState(state: unknown): BanjiNavigationState {
 }
 
 function nestedFallbackForPath(pathname: string) {
+  if (pathname.startsWith('/work/capture/') && pathname !== '/work/capture') {
+    return '/work/capture';
+  }
   if (pathname.startsWith('/catalog/skus/') || pathname.startsWith('/catalog/services/')) {
     return DEFAULT_NESTED_FALLBACK;
   }
@@ -140,8 +159,15 @@ function nextEntriesForLocation({
   }
 
   if (navigationType === 'PUSH') {
-    if (currentEntries[currentEntries.length - 1]?.to === currentEntry.to) {
+    const lastEntry = currentEntries[currentEntries.length - 1];
+
+    if (lastEntry?.to === currentEntry.to) {
       return currentEntries;
+    }
+
+    if (lastEntry && entryReturnsToTarget(lastEntry, currentEntry.to)) {
+      const existingIndex = lastIndexOfTarget(currentEntries.slice(0, -1), currentEntry.to);
+      return existingIndex >= 0 ? currentEntries.slice(0, existingIndex + 1) : [currentEntry];
     }
 
     if (currentEntries.length > 0 && samePathname(currentEntries[currentEntries.length - 1].to, currentEntry.to)) {

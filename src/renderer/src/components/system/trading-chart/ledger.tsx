@@ -201,7 +201,7 @@ export function TradingChartLedger({
         <div>
           <p className="text-sm font-semibold leading-none tracking-normal text-muted-foreground">banji</p>
           <div className="mt-1">
-            <SectionTitle title={title} tooltip={tooltip} />
+            <SectionTitle helpHref="/settings/help#trading-chart-ledger" title={title} tooltip={tooltip} />
           </div>
         </div>
       </div>

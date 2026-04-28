@@ -3,7 +3,7 @@ import { EntityFavoriteIcon } from '@icons/entities';
 import {
   NavigationAutomationIcon,
   NavigationBrainCircuitIcon,
-  NavigationListIcon,
+  NavigationHistoryIcon,
   NavigationPerformanceIcon,
   NavigationSplitViewIcon,
   NavigationWorkspacePanelsIcon,
@@ -73,7 +73,7 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     path: '/settings/history',
     titleKey: 'navHistory',
     descriptionKey: 'navHistory',
-    icon: NavigationListIcon,
+    icon: NavigationHistoryIcon,
   },
   {
     id: 'benchmarks',

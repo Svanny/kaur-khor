@@ -9,6 +9,7 @@ import {
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
+  NavigationWorkIcon,
   NavigationPerformanceIcon,
 } from '@icons/navigation';
 import { StatusLoadingIcon } from '@icons/status';
@@ -109,7 +110,7 @@ const APP_SECTIONS: ShellSectionConfig[] = [
     destination: '/work',
     gatedNavItemId: 'work',
     labelKey: 'navWork',
-    icon: NavigationTaskListIcon,
+    icon: NavigationWorkIcon,
     matches: (pathname) => matchesSection(pathname, '/work'),
   },
   {

@@ -73,7 +73,7 @@ describe('command palette descriptors', () => {
       showAnalysisPage: false,
       t: (key) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
@@ -257,7 +257,7 @@ describe('command palette descriptors', () => {
       showAnalysisPage: true,
       t: (key) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
@@ -327,7 +327,7 @@ describe('command palette descriptors', () => {
       showAnalysisPage: true,
       t: (key) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
@@ -393,7 +393,7 @@ describe('command palette descriptors', () => {
       showAnalysisPage: true,
       t: (key) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
@@ -514,7 +514,7 @@ describe('command palette descriptors', () => {
       showAnalysisPage: true,
       t: (key) =>
         ({
-          navAnalysis: 'Analysis',
+          navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
           navCatalog: 'Catalog',
@@ -560,7 +560,7 @@ describe('command palette descriptors', () => {
         pageOrder: 4,
         pagePrefixes: ['/analysis'],
         priority: 10,
-        title: 'Analysis',
+        title: 'Explain',
       },
     ];
 

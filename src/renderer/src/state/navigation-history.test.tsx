@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { buildBanjiNavigationState, NavigationHistoryProvider } from './navigation-history';
 
@@ -23,6 +23,9 @@ function OverviewPage() {
       <CurrentPath />
       <Link state={buildBanjiNavigationState(location)} to="/catalog">
         Open Catalog
+      </Link>
+      <Link state={buildBanjiNavigationState(location)} to="/work/capture">
+        Open Capture
       </Link>
       <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open SKU
@@ -83,7 +86,31 @@ function CatalogPage() {
   );
 }
 
-function renderHistoryApp(initialEntries: Array<string | { pathname: string; state?: unknown }>) {
+function CapturePage() {
+  return (
+    <div>
+      <CurrentPath />
+      <RouteBackButton />
+      <Link to="/work/capture/stock-count">
+        Open Stock Count
+      </Link>
+    </div>
+  );
+}
+
+function StockCountPage() {
+  return (
+    <div>
+      <CurrentPath />
+      <RouteBackButton />
+      <Link to="/work/capture">
+        Open Capture As Link
+      </Link>
+    </div>
+  );
+}
+
+function renderHistoryApp(initialEntries: Array<string | { pathname: string; search?: string; state?: unknown }>) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
       <NavigationHistoryProvider>
@@ -93,6 +120,8 @@ function renderHistoryApp(initialEntries: Array<string | { pathname: string; sta
           <Route element={<ServiceDetailPage />} path="/catalog/services/:serviceId" />
           <Route element={<CatalogPage />} path="/catalog" />
           <Route element={<NestedDetailPage />} path="/catalog/skus/:skuId" />
+          <Route element={<CapturePage />} path="/work/capture" />
+          <Route element={<StockCountPage />} path="/work/capture/stock-count" />
         </Routes>
       </NavigationHistoryProvider>
     </MemoryRouter>,
@@ -100,6 +129,10 @@ function renderHistoryApp(initialEntries: Array<string | { pathname: string; sta
 }
 
 describe('NavigationHistoryProvider', () => {
+  beforeEach(() => {
+    window.sessionStorage.clear();
+  });
+
   test('returns to overview when sku detail was opened from overview', async () => {
     const user = userEvent.setup();
     renderHistoryApp(['/']);
@@ -207,5 +240,42 @@ describe('NavigationHistoryProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/);
+  });
+
+  test('back from a capture lane consumes the lane entry instead of looping back to it', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/work/capture']);
+
+    await user.click(screen.getByRole('link', { name: 'Open Stock Count' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture\/stock-count$/);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture$/);
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  test('pushed parent links cannot make the parent point back to its child', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/']);
+
+    await user.click(screen.getByRole('link', { name: 'Open Capture' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open Stock Count' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture\/stock-count$/);
+
+    await user.click(screen.getByRole('link', { name: 'Open Capture As Link' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture$/);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/);
+  });
+
+  test('falls back to capture when a capture lane is opened directly', async () => {
+    const user = userEvent.setup();
+    renderHistoryApp(['/work/capture/stock-count']);
+
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/work\/capture$/);
   });
 });
