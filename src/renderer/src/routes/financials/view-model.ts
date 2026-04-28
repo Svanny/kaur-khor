@@ -17,8 +17,9 @@ import { buildBatchUpdateHref, RECORD_UPDATE_SUPPLIER_PENDING_PATH } from '@/lib
 import { translateUiLiteral } from '@/lib/translations';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate } from '@/routes/sku-detail/format';
+import { daysBetween } from '@/lib/date-input-utils';
 
-export type FinancialsRange = '1d' | '7d' | '30d' | '90d';
+export type FinancialsRange = '1d' | '7d' | '30d' | '90d' | 'custom';
 export type FinancialsScope = 'all' | 'services' | 'skus';
 
 export interface FinancialsRibbonMetric {
@@ -181,7 +182,10 @@ function daysForRange(range: FinancialsRange) {
   return 30;
 }
 
-function windowLabel(range: FinancialsRange, language: AppLanguage) {
+function windowLabel(range: FinancialsRange, language: AppLanguage, customRange: { startAt: string; endAt: string } | null) {
+  if (range === 'custom' && customRange) {
+    return literal(language, 'custom range');
+  }
   return literal(language, 'last {days}d', { days: daysForRange(range) });
 }
 
@@ -886,6 +890,7 @@ export function deriveFinancialsViewModel({
   skuDetailsById,
   range,
   workspaceSummary,
+  customRange,
 }: {
   catalog: SenaCatalog;
   compareMode: boolean;
@@ -900,15 +905,28 @@ export function deriveFinancialsViewModel({
   skuDetailsById: Record<string, SenaSkuDetail | null>;
   range: FinancialsRange;
   workspaceSummary: SenaWorkspaceSummary | null;
+  customRange: { startAt: string; endAt: string } | null;
 }): FinancialsViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
-  const rangeDays = daysForRange(range);
-  const activeWindowLabel = windowLabel(range, language);
-  const priorWindowLabel = literal(language, 'prior {days}d', { days: rangeDays });
-  const recentObservations = filterObservationsForWindow({ observations, endAt: observedAt, windowDays: rangeDays });
+  let rangeDays: number;
+  let activeWindowEndAt: string;
+
+  if (range === 'custom' && customRange) {
+    rangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    activeWindowEndAt = customRange.endAt;
+  } else {
+    rangeDays = daysForRange(range);
+    activeWindowEndAt = observedAt ?? new Date().toISOString();
+  }
+
+  const activeWindowLabel = windowLabel(range, language, customRange);
+  const priorWindowLabel = range === 'custom' && customRange
+    ? literal(language, 'prior custom period')
+    : literal(language, 'prior {days}d', { days: rangeDays });
+  const recentObservations = filterObservationsForWindow({ observations, endAt: activeWindowEndAt, windowDays: rangeDays });
   const previousObservations = filterObservationsForWindow({
     observations,
-    endAt: observedAt,
+    endAt: activeWindowEndAt,
     offsetDays: rangeDays,
     windowDays: rangeDays,
   });

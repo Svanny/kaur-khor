@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
@@ -314,9 +314,9 @@ describe('FinancialsRoute', () => {
   test('renders a statement-first financial surface', () => {
     renderRoute();
 
-    expect(screen.getAllByText('Financials').length).toBeGreaterThan(0);
-    expect(screen.getByText('Cash Flow')).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: '1D' })).toHaveAttribute('data-state', 'on');
+    expect(screen.getAllByText('Money').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Money').length).toBeGreaterThan(0);
+    expect(screen.getByRole('combobox', { name: /Select financials time range/i })).toHaveTextContent('1D');
     expect(screen.getAllByText('Net sales').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Gross profit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Inventory capital').length).toBeGreaterThan(0);
@@ -345,17 +345,12 @@ describe('FinancialsRoute', () => {
     expect(screen.getByRole('heading', { name: 'Margin leaks' }).closest('div')).toHaveClass('bg-rose-50/70');
   });
 
-  test('links ribbon metrics to the financial statement rows', () => {
+  test('renders ribbon metrics without clickable links', () => {
     renderRoute();
 
-    expect(screen.getByRole('link', { name: /jump to net sales in the financial statement/i })).toHaveAttribute(
-      'href',
-      '#financials-statement-net-sales',
-    );
-    expect(screen.getByRole('link', { name: /jump to open commitments in the financial statement/i })).toHaveAttribute(
-      'href',
-      '#financials-statement-open-orders',
-    );
+    expect(screen.getAllByText('Net sales').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Open commitments').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: /jump to net sales in the financial statement/i })).not.toBeInTheDocument();
     expect(document.getElementById('financials-statement-cost-consumed')).toBeInTheDocument();
   });
 
@@ -364,7 +359,7 @@ describe('FinancialsRoute', () => {
 
     renderRoute();
 
-    expect(screen.getByText('Cash Flow')).toBeInTheDocument();
+    expect(screen.getAllByText('Money').length).toBeGreaterThan(0);
     expect(screen.queryByText('Inventory capital')).not.toBeInTheDocument();
     expect(screen.queryByText(/showing last 1d/i)).not.toBeInTheDocument();
   });
@@ -394,6 +389,39 @@ describe('FinancialsRoute', () => {
     expect(screen.getByRole('combobox', { name: 'Filter by supplier' })).toHaveTextContent('Mekong Looms');
   });
 
+  test('shows custom timeframe option in the time-range dropdown', () => {
+    renderRoute();
+
+    const combobox = screen.getByRole('combobox', { name: /Select financials time range/i });
+    fireEvent.click(combobox);
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
+  });
+
+  test('opens custom timeframe dialog when custom is selected and clears back to 30d', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Select financials time range/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Custom timeframe' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Custom timeframe start date/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Custom timeframe end date/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Custom timeframe' })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Timeframe: 30D/i)).toBeInTheDocument();
+  });
+
+  test('shows custom timeframe label when range is custom', () => {
+    renderRoute('/financials?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
+
+    expect(screen.getByText(/Timeframe: Custom/i)).toBeInTheDocument();
+  });
+
   test('summarizes Telegram attribution in the right rail', () => {
     renderRoute();
 
@@ -403,7 +431,7 @@ describe('FinancialsRoute', () => {
     expect(screen.getByText(/Telegram-origin reversals \/ cancellations/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Automations' })).toHaveAttribute(
       'href',
-      '/automations?section=intake',
+      '/work/intake',
     );
   });
 });

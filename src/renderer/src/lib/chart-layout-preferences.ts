@@ -6,6 +6,10 @@ import {
   type ChartResolutionOption,
 } from '@/components/system/chart-resolution';
 import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
+import {
+  readRememberedPageValue,
+  writeRememberedPageValue,
+} from '@/lib/page-state-memory';
 
 export interface ChartVisibleDateRange {
   startAt: string;
@@ -26,7 +30,6 @@ export interface PersistedChartLayoutPreferences {
   paneHeights: Record<string, number>;
 }
 
-const ENTITY_CHART_LAYOUT_STORAGE_KEY = 'banji:chart-layout:entity:v1';
 const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'banji:chart-layout:defaults:v1';
 
 function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
@@ -218,12 +221,13 @@ export function readEntityChartLayoutPreferences(
   subtype: ChartSettingsSubtype,
   subjectId: string,
 ) {
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(
-    getWindowStorage('sessionStorage'),
-    ENTITY_CHART_LAYOUT_STORAGE_KEY,
+  return readRememberedPageValue<PersistedChartLayoutPreferences | null>(
+    'catalog',
+    'chartLayout',
+    null,
+    (value) => value == null ? null : normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
+    { scope: subjectStorageKey(subtype, subjectId) },
   );
-  const persisted = record[subjectStorageKey(subtype, subjectId)];
-  return persisted ? normalizeChartLayoutPreferences(persisted) : null;
 }
 
 export function writeEntityChartLayoutPreferences(
@@ -231,13 +235,13 @@ export function writeEntityChartLayoutPreferences(
   subjectId: string,
   preferences: PersistedChartLayoutPreferences,
 ) {
-  const storage = getWindowStorage('sessionStorage');
-  const record = readStorageRecord<PersistedChartLayoutPreferences>(
-    storage,
-    ENTITY_CHART_LAYOUT_STORAGE_KEY,
+  writeRememberedPageValue<PersistedChartLayoutPreferences>(
+    'catalog',
+    'chartLayout',
+    preferences,
+    (value) => normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
+    { scope: subjectStorageKey(subtype, subjectId) },
   );
-  record[subjectStorageKey(subtype, subjectId)] = normalizeChartLayoutPreferences(preferences);
-  writeStorageRecord(storage, ENTITY_CHART_LAYOUT_STORAGE_KEY, record);
 }
 
 export function readSubtypeDefaultChartLayoutPreferences(subtype: ChartSettingsSubtype) {

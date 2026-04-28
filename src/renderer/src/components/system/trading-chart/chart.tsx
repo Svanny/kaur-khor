@@ -81,7 +81,6 @@ import {
   StatusReadyIcon,
   StatusReorderPointIcon,
   StatusSettingsControlIcon,
-  StatusTimingIcon,
   StatusWarningIcon,
   StatusTrendChartIcon,
 } from '@icons/status';
@@ -4685,7 +4684,7 @@ export function SkuTradingChart({
 
       <div
         className={cn(
-          'relative min-h-[420px] flex-1 overflow-hidden rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
+          'relative min-h-[420px] flex-1 rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
           shouldDimChartWhileBusy && 'opacity-45',
         )}
         data-busy={showBusyState || undefined}
@@ -4845,7 +4844,6 @@ export function SkuTradingChart({
                 }
               }}
             >
-              <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
               {option === 'MAX' ? translateUiLiteral(language, 'All') : translateChartTimeframeLabel(language, option)}
             </button>
           ))}
@@ -4861,7 +4859,6 @@ export function SkuTradingChart({
                 type="button"
                 onClick={openCustomRangeDialog}
               >
-                <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                 {translateUiLiteral(language, 'Custom')}
               </button>
             </DialogPrimitive.Trigger>
@@ -4950,7 +4947,6 @@ export function SkuTradingChart({
                       )}
                       type="button"
                     >
-                      <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                       {formatChartResolution(option, customChartResolution)}
                     </button>
                   </DialogPrimitive.Trigger>
@@ -5002,7 +4998,6 @@ export function SkuTradingChart({
                 type="button"
                 onClick={() => onChartResolutionChange?.(option, null)}
               >
-                <StatusTimingIcon data-icon="inline-start" className="mr-1 inline size-3.5" />
                 {option}
               </button>
             );

@@ -3,6 +3,7 @@ import { ActionResetIcon } from '@icons/actions';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { SupplierFilter } from '@/components/system/supplier';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
@@ -19,6 +20,7 @@ import {
   type AnalysisSelection,
   deriveAnalysisViewModel,
 } from './analysis-view-model';
+import { MetricRibbon } from '@/components/system/metric-ribbon';
 import type { InventoryContextValue } from '@/state/inventory';
 import type { AnalysisTimeframe } from './analysis-timeframe';
 
@@ -115,7 +117,7 @@ function AnalysisContentInner({
   supplierFilter = 'all',
   timeframeHydrationProgress,
 }: AnalysisContentInnerProps) {
-  const { t } = usePreferences();
+  const { t, showHeartbeatRibbons } = usePreferences();
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [expandedLedgerSelection, setExpandedLedgerSelection] = useState<AnalysisSelection>({ type: 'overview' });
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
@@ -203,7 +205,7 @@ function AnalysisContentInner({
   const heldShowsLoadingIsland = useHeldTradingChartBusy(showsLoadingIsland);
 
   return (
-    <WorkspacePage className="gap-5">
+    <WorkspacePage fitViewport className="gap-5">
       {!isLedgerExpanded ? (
         <LoadingMoreIntervalsIsland
           currentBatch={(timeframeHydrationProgress ?? chartController.olderLoadProgress)?.current ?? null}
@@ -212,8 +214,12 @@ function AnalysisContentInner({
         />
       ) : null}
       <WorkspaceTitleCard
-        eyebrow={t('analysisRouteEyebrow')}
-        title={t('analysisRouteTitle')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{t('analysisRouteTitle')}</span>
+          </span>
+        }
         descriptor={t('analysisRouteDescriptor')}
         actions={(
           <WorkspaceActionRow className="justify-end">
@@ -264,11 +270,17 @@ function AnalysisContentInner({
           </WorkspaceActionRow>
         )}
       >
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>{model.lastUpdatedLabel}</span>
-          {isHydratingDetails ? <span>{t('analysisRouteLoadingDetails')}</span> : null}
-          <span>{model.internalNavSummary}</span>
-        </div>
+        {showHeartbeatRibbons && model.ribbon ? (
+          <MetricRibbon
+            columns={6}
+            items={model.ribbon.map((metric) => ({
+              key: metric.key,
+              label: metric.label,
+              value: metric.value,
+              detail: metric.detail,
+            }))}
+          />
+        ) : null}
       </WorkspaceTitleCard>
 
       {!isLedgerExpanded ? (

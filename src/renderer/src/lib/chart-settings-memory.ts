@@ -1,6 +1,10 @@
+import {
+  readRememberedPageValue,
+  writeRememberedPageValue,
+} from '@/lib/page-state-memory';
+
 export type ChartSettingsSubtype = 'analysis' | 'service' | 'sku';
 
-const ENTITY_CHART_SETTINGS_STORAGE_KEY = 'banji:chart-settings:entity:v1';
 const SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY = 'banji:chart-settings:defaults:v1';
 
 function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
@@ -34,12 +38,13 @@ export function readEntityChartSettings<T>(
   subjectId: string,
   normalize: (value: T) => T,
 ): T | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const record = readStorageRecord<T>(window.sessionStorage, ENTITY_CHART_SETTINGS_STORAGE_KEY);
-  const persisted = record[subjectStorageKey(subtype, subjectId)];
-  return persisted ? normalize(persisted) : null;
+  return readRememberedPageValue<T | null>(
+    'catalog',
+    'chartSettings',
+    null,
+    (value) => value == null ? null : normalize(value as T),
+    { scope: subjectStorageKey(subtype, subjectId) },
+  );
 }
 
 export function writeEntityChartSettings<T>(
@@ -48,12 +53,13 @@ export function writeEntityChartSettings<T>(
   settings: T,
   normalize: (value: T) => T,
 ) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  const record = readStorageRecord<T>(window.sessionStorage, ENTITY_CHART_SETTINGS_STORAGE_KEY);
-  record[subjectStorageKey(subtype, subjectId)] = normalize(settings);
-  writeStorageRecord(window.sessionStorage, ENTITY_CHART_SETTINGS_STORAGE_KEY, record);
+  writeRememberedPageValue<T>(
+    'catalog',
+    'chartSettings',
+    settings,
+    (value) => normalize(value as T),
+    { scope: subjectStorageKey(subtype, subjectId) },
+  );
 }
 
 export function readSubtypeDefaultChartSettings<T>(

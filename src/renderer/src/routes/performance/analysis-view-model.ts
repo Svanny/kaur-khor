@@ -252,6 +252,7 @@ export interface AnalysisWorkbenchChartModel {
 
 export interface AnalysisWorkbenchViewModel {
   lastUpdatedLabel: string;
+  ribbon: AnalysisDiagnosticReadout[];
   diagnostics: AnalysisDiagnosticReadout[];
   intervals: AnalysisIntervalRow[];
   workbench: AnalysisWorkbenchChartModel;
@@ -1495,6 +1496,7 @@ export function deriveAnalysisViewModel({
           date: formatSenaDateTime(latestObservedAt, language),
         })
       : literal(language, 'No saved update loaded yet'),
+    ribbon: diagnosticsReadouts,
     diagnostics: diagnosticsReadouts,
     intervals: intervalRows,
     workbench,

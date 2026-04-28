@@ -86,6 +86,7 @@ export function TradingChartLedger({
   subtype,
   title,
   tooltip,
+  className,
 }: {
   chartLayoutPreferences: PersistedChartLayoutPreferences;
   chartModel: TradingChartModel;
@@ -112,6 +113,7 @@ export function TradingChartLedger({
   subtype: ChartSettingsSubtype;
   title: string;
   tooltip: string;
+  className?: string;
 }) {
   const initialPersistedSettings = useMemo(
     () => resolveTradingChartSettings(subtype, subjectId),
@@ -191,7 +193,8 @@ export function TradingChartLedger({
         'relative isolate flex min-w-0 flex-col',
         expanded
           ? `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`
-          : `${cardFrameClassName} ${cardSurfaceClassName} h-[100svh] self-start rounded-[2rem] px-6 py-5`,
+          : `${cardFrameClassName} ${cardSurfaceClassName} h-full w-full rounded-[2rem] px-6 py-5`,
+        className,
       )}
     >
       <div className="flex flex-col gap-2 border-b border-border/60 pb-4 sm:flex-row sm:items-end sm:justify-between">
@@ -203,7 +206,7 @@ export function TradingChartLedger({
         </div>
       </div>
 
-      <div className="mt-5 flex min-h-0 flex-1">
+      <div className="mt-5 flex flex-1">
         <SkuTradingChart
           chartModel={chartModel}
           chartResolution={chartResolution}

@@ -26,9 +26,10 @@ import {
 } from '@/lib/sena-reorder-quantity';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate, formatSenaDays, formatSenaPercent } from '@/routes/sku-detail/format';
+import { daysBetween } from '@/lib/date-input-utils';
 
 export type PerformanceScope = 'all' | 'services' | 'skus';
-export type PerformanceTimeRange = '7d' | '30d' | '90d';
+export type PerformanceTimeRange = '7d' | '30d' | '90d' | 'custom';
 
 type TrendTone = 'up' | 'flat' | 'down';
 type BusinessStatus = 'push' | 'unblock' | 'review' | 'clear' | 'steady';
@@ -221,7 +222,10 @@ function daysForTimeRange(timeRange: PerformanceTimeRange) {
   return 30;
 }
 
-function windowLabel(timeRange: PerformanceTimeRange, language: AppLanguage) {
+function windowLabel(timeRange: PerformanceTimeRange, language: AppLanguage, customRange: { startAt: string; endAt: string } | null) {
+  if (timeRange === 'custom' && customRange) {
+    return translateUiLiteral(language, 'custom range');
+  }
   return translateUiLiteral(language, 'last {days}d', {
     days: daysForTimeRange(timeRange),
   });
@@ -1162,6 +1166,7 @@ export function derivePerformanceViewModel({
   skuDetailsById,
   timeRange,
   workspaceSummary,
+  customRange,
 }: {
   catalog: SenaCatalog;
   compareMode: boolean;
@@ -1175,25 +1180,38 @@ export function derivePerformanceViewModel({
   skuDetailsById: Record<string, SenaSkuDetail | null>;
   timeRange: PerformanceTimeRange;
   workspaceSummary: SenaWorkspaceSummary | null;
+  customRange: { startAt: string; endAt: string } | null;
 }): PerformanceViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
-  const rangeDays = daysForTimeRange(timeRange);
-  const activeWindowLabel = windowLabel(timeRange, language);
-  const priorWindowLabel = translateUiLiteral(language, 'prior {days}d', { days: rangeDays });
+  let rangeDays: number;
+  let activeWindowEndAt: string;
+
+  if (timeRange === 'custom' && customRange) {
+    rangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    activeWindowEndAt = customRange.endAt;
+  } else {
+    rangeDays = daysForTimeRange(timeRange);
+    activeWindowEndAt = observedAt ?? new Date().toISOString();
+  }
+
+  const activeWindowLabel = windowLabel(timeRange, language, customRange);
+  const priorWindowLabel = timeRange === 'custom' && customRange
+    ? literal(language, 'prior custom period')
+    : translateUiLiteral(language, 'prior {days}d', { days: rangeDays });
   const recentObservations = filterObservationsForWindow({
     observations,
-    endAt: observedAt,
+    endAt: activeWindowEndAt,
     windowDays: rangeDays,
   });
   const previousObservations = filterObservationsForWindow({
     observations,
-    endAt: observedAt,
+    endAt: activeWindowEndAt,
     offsetDays: rangeDays,
     windowDays: rangeDays,
   });
-  const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays, endAt: observedAt });
-  const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays, endAt: observedAt });
-  const recentCommercialEvents = filterObservationsForDays(observations, rangeDays, observedAt)
+  const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays, endAt: activeWindowEndAt });
+  const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays, endAt: activeWindowEndAt });
+  const recentCommercialEvents = filterObservationsForDays(observations, rangeDays, activeWindowEndAt)
     .flatMap((observation) => observation.input.commercialEvents ?? []);
   const recentCommercialSummary = observationCommercialSummary(recentCommercialEvents);
   const blockedCustomerOrders = [...customerSkuSnapshots.values()].reduce((sum, snapshot) => sum + snapshot.blockedPendingQuantity, 0)

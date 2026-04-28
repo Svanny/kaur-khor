@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage } from '@/components/system/workspace';
 import { scrollWorkspaceViewportToTop } from '@/components/system/workspace-scroll';
 import { Button } from '@/components/ui/button';
@@ -53,8 +54,12 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
           </div>
         }
         descriptor={t('analysisRouteDescriptor')}
-        eyebrow={t('analysisRouteEyebrow')}
-        title={t('analysisRouteTitle')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{t('analysisRouteTitle')}</span>
+          </span>
+        }
       >
         <div className="mt-1 flex flex-wrap gap-3">
           <Skeleton className="h-5 w-32 rounded-full" />
@@ -113,7 +118,7 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
 
 export function AnalysisRoute() {
   const inventory = useInventory();
-  const { currency, language, showAnalysisPage, showRightRailCards, t } = usePreferences();
+  const { currency, language, showRightRailCards, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readAnalysisRouteState(searchParams);
   const scope = routeState.scope as AnalysisScope;
@@ -198,16 +203,12 @@ export function AnalysisRoute() {
     }
   }, [hasCatalog, hasWorkspaceSummary]);
 
-  useBenchmarkRouteReady('analysis', !inventory.isLoading && !isPreparingInitialAnalysis, {
+  useBenchmarkRouteReady('insights.explain', !inventory.isLoading && !isPreparingInitialAnalysis, {
     hasCatalog,
     hasWorkspaceSummary,
     scope,
     section,
   });
-
-  if (!showAnalysisPage) {
-    return <Navigate replace to="/" />;
-  }
 
   if (isPreparingInitialAnalysis) {
     return (
@@ -238,7 +239,7 @@ export function AnalysisRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">
+                <Link to="/work/capture">
                   <NavigationTaskListIcon data-icon="inline-start" />
                   {t('overviewStaleReminderAction')}
                 </Link>

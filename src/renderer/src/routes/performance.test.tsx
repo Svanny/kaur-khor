@@ -509,7 +509,7 @@ describe('PerformanceRoute', () => {
   test('renders the performance steering surface', async () => {
     await renderPerformanceRouteSettled();
 
-    expect(screen.getByText('Performance')).toBeInTheDocument();
+    expect(screen.getAllByText('Pressure')[0]).toBeInTheDocument();
     expect(screen.getByText('Demand, available capacity, incoming stock, and pricing in one business view.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Move now' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Demand × capacity board' })).toBeInTheDocument();
@@ -549,7 +549,7 @@ describe('PerformanceRoute', () => {
   test('renders the dedicated analysis workbench route', async () => {
     renderAnalysisRoute();
 
-    expect(screen.getByText('Data Insights')).toBeInTheDocument();
+    expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(
       screen.getByText('Inspect how saved updates shaped banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.'),
     ).toBeInTheDocument();
@@ -562,7 +562,7 @@ describe('PerformanceRoute', () => {
     expect(screen.getByRole('button', { name: 'Reset chart' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh analysis' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Refresh explanation' })).toBeInTheDocument();
     expect(screen.queryByText('Risk explorer')).not.toBeInTheDocument();
     expect(screen.queryByText('Saved updates')).not.toBeInTheDocument();
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
@@ -611,7 +611,7 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    await user.click(await screen.findByRole('button', { name: 'Refresh analysis' }));
+    await user.click(await screen.findByRole('button', { name: 'Refresh explanation' }));
 
     expect(retrySenaRun).toHaveBeenCalledWith({ runId: 'run-1' });
   });
@@ -627,9 +627,9 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Data Insights')).toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs a catalog first')).not.toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
+    expect(screen.queryByText('Explain needs a catalog first')).not.toBeInTheDocument();
+    expect(screen.queryByText('Explain needs your first update')).not.toBeInTheDocument();
   });
 
   test('renders the analysis empty-state create first SKU CTA with an icon', () => {
@@ -656,9 +656,9 @@ describe('PerformanceRoute', () => {
 
     renderAnalysisRoute();
 
-    expect(screen.getByText('Data Insights')).toBeInTheDocument();
+    expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Analysis needs your first update')).not.toBeInTheDocument();
+    expect(screen.queryByText('Explain needs your first update')).not.toBeInTheDocument();
   });
 
   test('renders the analysis pressure tab as its own surface', async () => {
@@ -756,7 +756,7 @@ describe('PerformanceRoute', () => {
   test('keeps the analysis chart on the workbench tab only', async () => {
     renderAnalysisRoute('/analysis?section=pressure');
 
-    expect(screen.getByText('Data Insights')).toBeInTheDocument();
+    expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(await screen.findByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
   });
@@ -772,7 +772,7 @@ describe('PerformanceRoute', () => {
   test('hides analysis page descriptors when explanatory text is disabled', async () => {
     await renderAnalysisRouteSettledWithDescriptionVisibility(false);
 
-    expect(screen.getByText('Data Insights')).toBeInTheDocument();
+    expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(
       screen.queryByText('See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.'),
     ).not.toBeInTheDocument();
@@ -827,9 +827,8 @@ describe('PerformanceRoute', () => {
 
     renderRoute('/performance?compare=1');
 
-    expect(await screen.findByText('Showing last 30d posture only')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /compare/i })).not.toBeInTheDocument();
-    expect(screen.queryByText('Showing last 30d posture vs prior 30d')).not.toBeInTheDocument();
+    expect(screen.queryByText('Compare view')).not.toBeInTheDocument();
   });
 
   test('hides the business timeline card when disabled', async () => {
@@ -847,29 +846,62 @@ describe('PerformanceRoute', () => {
     renderRoute('/performance?compare=0');
 
     expect(await screen.findByRole('heading', { name: 'Move now' })).toBeInTheDocument();
-    expect(screen.queryByText('Showing last 30d posture only')).not.toBeInTheDocument();
     expect(screen.queryByText('Demand momentum')).not.toBeInTheDocument();
   });
 
   test('updates the business window when the time-range toggle changes', async () => {
     renderRoute('/performance?compare=1');
 
-    expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
+    expect(await screen.findByText('Compare view')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 30d/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '7D' }));
-    expect(screen.getByText('Showing last 7d posture vs prior 7d')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
+    fireEvent.click(screen.getByRole('option', { name: '7D' }));
+    expect(screen.getByText('Compare view')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 7d/i)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: '90D' }));
-    expect(screen.getByText('Showing last 90d posture vs prior 90d')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
+    fireEvent.click(screen.getByRole('option', { name: '90D' }));
+    expect(screen.getByText('Compare view')).toBeInTheDocument();
     expect(screen.getByText(/price or margin drags in last 90d/i)).toBeInTheDocument();
+  });
+
+  test('shows custom timeframe option in the time-range dropdown', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
+  });
+
+  test('opens custom timeframe dialog when custom is selected and clears back to 30d', async () => {
+    renderRoute();
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
+    fireEvent.click(screen.getByRole('option', { name: 'Custom' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Custom timeframe' })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Custom timeframe start date/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Custom timeframe end date/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Clear/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Custom timeframe' })).not.toBeInTheDocument();
+    });
+
+    expect(screen.getByText(/Timeframe: 30D/i)).toBeInTheDocument();
+  });
+
+  test('shows custom timeframe label when range is custom', async () => {
+    renderRoute('/performance?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
+
+    expect(await screen.findByText(/Timeframe: Custom/i)).toBeInTheDocument();
   });
 
   test('turns the board into a comparison surface when compare is enabled', async () => {
     const { container } = renderRoute('/performance?compare=1');
 
-    expect(await screen.findByText('Showing last 30d posture vs prior 30d')).toBeInTheDocument();
+    expect(await screen.findByText('Compare view')).toBeInTheDocument();
     expect(
       screen.getAllByText((_, element) => {
         const text = element?.textContent ?? '';
@@ -886,7 +918,7 @@ describe('PerformanceRoute', () => {
     expect(container.querySelectorAll('line[stroke-dasharray="4 3"]').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole('button', { name: /compare/i }));
-    expect(screen.getByText('Showing last 30d posture only')).toBeInTheDocument();
+    expect(screen.getByText('Single view')).toBeInTheDocument();
     expect(screen.queryByText(/Push from Stable|Unblock from Stable|Review price from Stable/i)).not.toBeInTheDocument();
     expect(container.querySelectorAll('[data-tone]').length).toBeGreaterThan(1);
   });
@@ -894,7 +926,7 @@ describe('PerformanceRoute', () => {
   test('renders sparklines for demand in normal mode only', async () => {
     const { container } = renderRoute('/performance?compare=1');
 
-    await screen.findByText('Showing last 30d posture vs prior 30d');
+    await screen.findByText('Compare view');
     fireEvent.click(screen.getByRole('button', { name: /compare/i }));
 
     const sparklineNodes = container.querySelectorAll('[data-tone]');

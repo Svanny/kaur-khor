@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dialog';
+import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
+import { ActionEyeIcon, ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
 import {
   EntityComparisonIcon,
   EntityLayersIcon,
@@ -10,7 +12,8 @@ import {
   EntityTransitIcon,
 } from '@icons/entities';
 import { NavigationDashboardIcon, NavigationForwardIcon, NavigationPerformanceIcon, NavigationTaskListIcon } from '@icons/navigation';
-import { StatusAchievementIcon, StatusSavingsIcon, StatusWarningIcon } from '@icons/status';
+import { StatusAchievementIcon, StatusSavingsIcon, StatusScheduleIcon, StatusWarningIcon } from '@icons/status';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
@@ -29,6 +32,7 @@ import {
 } from '@/components/system/headered-table';
 import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
@@ -41,10 +45,11 @@ import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
+import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { intervalDaysBetween, latestObservationAt } from './observation-payload';
-import { PerformanceRightRailBlock, PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
+import { PerformanceRightRailBlock, PerformanceSectionShell } from './performance/chrome';
 import { useSenaDetailHydration } from './performance/use-sena-detail-hydration';
 import {
   derivePerformanceViewModel,
@@ -85,7 +90,7 @@ function SteeringPill({
   return (
     <Button
       aria-pressed={active}
-      className={compactActionButtonClassName}
+      className={cn(compactActionButtonClassName, !active && 'bg-card')}
       data-hover-suppressed="false"
       type="button"
       variant={active ? 'default' : 'outline'}
@@ -377,6 +382,20 @@ export function PerformanceRoute() {
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+
+  const currentCustomRange = routeState.range === 'custom' && routeState.customRangeStart && routeState.customRangeEnd
+    ? { startAt: routeState.customRangeStart, endAt: routeState.customRangeEnd }
+    : null;
+
+  const previousCustomRange = useMemo(() => {
+    if (!currentCustomRange) return null;
+    const days = daysBetween(currentCustomRange.startAt, currentCustomRange.endAt);
+    return {
+      startAt: shiftDateByDays(currentCustomRange.startAt, -days),
+      endAt: shiftDateByDays(currentCustomRange.endAt, -days),
+    };
+  }, [currentCustomRange]);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -430,6 +449,7 @@ export function PerformanceRoute() {
       skuDetailsById,
       timeRange,
       workspaceSummary: inventory.workspaceSummary,
+      customRange: currentCustomRange,
     });
   }, [
     currency,
@@ -461,7 +481,7 @@ export function PerformanceRoute() {
     return () => window.clearTimeout(timeoutId);
   }, [inventory.diagnostics, inventory.loadSenaDiagnostics]);
 
-  useBenchmarkRouteReady('performance', !inventory.isLoading && (!visibleCatalog || model != null), {
+  useBenchmarkRouteReady('insights.pressure', !inventory.isLoading && (!visibleCatalog || model != null), {
     compareMode,
     hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
     scope,
@@ -488,7 +508,7 @@ export function PerformanceRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">
+                <Link to="/work/capture">
                   <NavigationTaskListIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Start update')}
                 </Link>
@@ -496,7 +516,7 @@ export function PerformanceRoute() {
               <Button asChild variant="outline">
                 <Link to="/">
                   <NavigationDashboardIcon data-icon="inline-start" />
-                  {translateUiLiteral(language, 'Open Overview')}
+                  {translateUiLiteral(language, 'Open Work')}
                 </Link>
               </Button>
             </WorkspaceActionRow>
@@ -509,28 +529,15 @@ export function PerformanceRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Performance')}
-        title={t('performanceRouteTitle')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{t('performanceRouteTitle')}</span>
+          </span>
+        }
         descriptor={t('performanceRouteDescriptor')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <ToggleGroup
-              aria-label={translateUiLiteral(language, 'Select performance time range')}
-              className="rounded-full"
-              spacing={1}
-              type="single"
-              value={timeRange}
-              onValueChange={(nextValue) => {
-                if (nextValue) {
-                  updateRouteState({ range: nextValue as PerformanceTimeRange });
-                }
-              }}
-            >
-              <ToggleGroupItem value="7d">{translateUiLiteral(language, '7D')}</ToggleGroupItem>
-              <ToggleGroupItem value="30d">{translateUiLiteral(language, '30D')}</ToggleGroupItem>
-              <ToggleGroupItem value="90d">{translateUiLiteral(language, '90D')}</ToggleGroupItem>
-            </ToggleGroup>
-
             <ToggleGroup
               aria-label={translateUiLiteral(language, 'Select performance scope')}
               className="rounded-full"
@@ -566,69 +573,115 @@ export function PerformanceRoute() {
               }
             />
 
+            <Select
+              value={timeRange}
+              onValueChange={(nextValue) => {
+                if (nextValue === 'custom') {
+                  setCustomDialogOpen(true);
+                  return;
+                }
+                updateRouteState({ range: nextValue as PerformanceTimeRange, customRangeStart: null, customRangeEnd: null });
+              }}
+            >
+              <SelectTrigger
+                aria-label={translateUiLiteral(language, 'Select performance time range')}
+                className={cn(
+                  'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+                  compactFilterControlClassName,
+                )}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <StatusScheduleIcon className="size-4" />
+                  <span>
+                    {translateUiLiteral(
+                      language,
+                      'Timeframe: {value}',
+                      { value: timeRange === 'custom' ? translateUiLiteral(language, 'Custom') : translateUiLiteral(language, timeRange.replace('d', 'D')) }
+                    )}
+                  </span>
+                </span>
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {(['7d', '30d', '90d', 'custom'] as PerformanceTimeRange[]).map((option) =>
+                  option === 'custom' ? (
+                    <div className="relative" key={option}>
+                      <SelectItem value={option} className="pr-14">
+                        <span>{translateUiLiteral(language, 'Custom')}</span>
+                      </SelectItem>
+                      <button
+                        type="button"
+                        className="absolute right-8 top-1/2 -translate-y-1/2 z-10 cursor-pointer p-1 rounded-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={translateUiLiteral(language, 'Open custom date range dialog')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCustomDialogOpen(true);
+                        }}
+                      >
+                        <ActionEyeIcon className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <SelectItem key={option} value={option}>
+                      {translateUiLiteral(language, option.replace('d', 'D'))}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+
             {showPerformanceCompareToggle ? (
               <SteeringPill active={compareMode} onClick={() => updateRouteState({ compare: !compareMode })}>
                 <EntityComparisonIcon className="size-4" />
                 {compareMode ? t('performanceRouteCompareView') : t('performanceRouteSingleView')}
               </SteeringPill>
             ) : null}
+
+            <CustomTimeframeDialog
+              language={language}
+              open={customDialogOpen}
+              onOpenChange={setCustomDialogOpen}
+              currentStart={currentCustomRange?.startAt ?? null}
+              currentEnd={currentCustomRange?.endAt ?? null}
+              previousStart={previousCustomRange?.startAt ?? null}
+              previousEnd={previousCustomRange?.endAt ?? null}
+              compareMode={compareMode}
+              onApply={(currentStart, currentEnd, previousStart, previousEnd) => {
+                updateRouteState({
+                  range: 'custom',
+                  customRangeStart: currentStart,
+                  customRangeEnd: currentEnd,
+                });
+              }}
+              onClear={() => {
+                setCustomDialogOpen(false);
+                updateRouteState({ range: '30d', customRangeStart: null, customRangeEnd: null });
+              }}
+            />
           </div>
         }
       >
         {showHeartbeatRibbons ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            <span>{model.lastUpdatedLabel}</span>
-            <span>
-              {latestUpdateAt
-                ? latestUpdateAgeDays == null
-                  ? t('performanceRouteRealWorldUpdateLoaded')
-                  : t('performanceRouteRealWorldUpdateAgo', { days: latestUpdateAgeDays })
-                : t('performanceRouteNoRealWorldUpdate')}
-            </span>
-            {isHydratingDetails ? <span>{t('performanceRouteRefiningSignals')}</span> : null}
-            <span>
-              {scope === 'all'
-                ? t('performanceRouteScopeMixed')
-                : scope === 'services'
-                  ? t('performanceRouteScopeServicesOnly')
-                  : t('performanceRouteScopeSkusOnly')}
-            </span>
-            <span>
-              {compareMode
-                ? t('performanceRouteShowingCompare', {
-                    current: model.windowLabel,
-                    previous: model.previousWindowLabel,
-                  })
-                : t('performanceRouteShowingSingle', { current: model.windowLabel })}
-            </span>
-          </div>
+          <MetricRibbon
+            columns={5}
+            items={model.ribbon.map((metric) => ({
+              key: metric.key,
+              label: metric.label,
+              value: metric.trendSignal ? (
+                <TrendSignalInline
+                  label={metric.trendSignal.label}
+                  labelBelow
+                  points={metric.trendSignal.points}
+                  splitIndex={metric.trendSignal.splitIndex}
+                  tone={metric.trendSignal.tone}
+                />
+              ) : (
+                metric.value
+              ),
+              detail: metric.detail,
+            }))}
+          />
         ) : null}
       </WorkspaceTitleCard>
-      {showHeartbeatRibbons ? (
-        <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
-          <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
-            {model.ribbon.map((metric) => (
-              <div key={metric.key} className="bg-white px-5 py-4 sm:px-6">
-                <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">{metric.label}</p>
-                <div className="mt-2">
-                  {metric.trendSignal ? (
-                    <TrendSignalInline
-                      label={metric.trendSignal.label}
-                      labelBelow
-                      points={metric.trendSignal.points}
-                      splitIndex={metric.trendSignal.splitIndex}
-                      tone={metric.trendSignal.tone}
-                    />
-                  ) : (
-                    <p className="text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground">{metric.value}</p>
-                  )}
-                </div>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">{metric.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
@@ -905,7 +958,7 @@ export function PerformanceRoute() {
                 {t('performanceRouteConfidenceLeastCertain', { value: model.confidence.weakSpotLabel })}
               </p>
               <Button asChild className="w-full" size="sm" variant="outline">
-                <Link to="/record-update">
+                <Link to="/work/capture">
                   <ActionOpenExternalIcon className="size-4" />
                   {translateUiLiteral(language, 'Start update')}
                 </Link>

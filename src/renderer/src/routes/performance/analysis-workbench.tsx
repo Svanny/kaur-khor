@@ -92,7 +92,7 @@ import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '
 import type { ChartCustomTimeframeRange } from '@/components/system/chart-timeframe';
 import type { ChartLayoutPreferenceMergeOptions, PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { PagedPanelNavigation } from '@/routes/detail-panels';
-import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './chrome';
+import { PerformanceSectionShell } from './chrome';
 import type {
   AnalysisEntityPressureRow,
   AnalysisRiskLevel,
@@ -383,22 +383,6 @@ function AnalysisRailRow({
       <div className="min-w-0 break-words text-sm text-foreground">{primary}</div>
       <div className="min-w-0 break-words text-right text-sm text-muted-foreground [overflow-wrap:anywhere]">{secondary}</div>
     </div>
-  );
-}
-
-function DiagnosticStrip({ model }: { model: AnalysisWorkbenchViewModel }) {
-  return (
-    <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
-      <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-6">
-        {model.diagnostics.map((entry) => (
-          <div key={entry.key} className="bg-white px-5 py-4 sm:px-6">
-            <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">{entry.label}</p>
-            <p className="mt-2 text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground">{entry.value}</p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{entry.detail}</p>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
 
@@ -906,17 +890,17 @@ function SystemLedger({
 
         <div
           ref={laneRowsRef}
-          className="grid min-h-0 gap-4"
+          className="grid gap-4"
           data-analysis-lane-rows="true"
           style={laneRowsStyle}
         >
-          {visibleLaneOrder.includes('regime') ? <div className="grid h-full min-h-0 gap-3" data-lane="regime" style={laneGridStyle}>
+          {visibleLaneOrder.includes('regime') ? <div className="grid h-full gap-3" data-lane="regime" style={laneGridStyle}>
             <LaneLabel
               subtitle={t('analysisWorkbenchLaneRegimeSubtitle')}
               title={t('analysisWorkbenchLaneRegimeTitle')}
               tooltip={t('analysisWorkbenchLaneRegimeTooltip')}
             />
-            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
+            <div className="grid gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   {visibleRegimes.map((regime) => (
@@ -944,10 +928,10 @@ function SystemLedger({
               </div>
               <div
                 ref={regimeScrollRef}
-                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
               >
-                <div className="relative h-full" style={{ width: contentWidth, height: regimeChartMinHeight }}>
+                <div className="relative" style={{ width: contentWidth, height: regimeChartMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -1011,13 +995,13 @@ function SystemLedger({
             </div>
           </div> : null}
 
-          {visibleLaneOrder.includes('inventory') ? <div className="grid h-full min-h-0 gap-3" data-lane="inventory" style={laneGridStyle}>
+          {visibleLaneOrder.includes('inventory') ? <div className="grid h-full gap-3" data-lane="inventory" style={laneGridStyle}>
             <LaneLabel
               subtitle={t('analysisWorkbenchLaneInventorySubtitle')}
               title={t('analysisWorkbenchLaneInventoryTitle')}
               tooltip={t('analysisWorkbenchLaneInventoryTooltip')}
             />
-            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
+            <div className="grid gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
@@ -1049,10 +1033,10 @@ function SystemLedger({
               </div>
               <div
                 ref={inventoryScrollRef}
-                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
+                className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20 px-0"
                 onScroll={handleScrollerScroll}
               >
-                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: inventoryLaneMinHeight }}>
+                <div className="relative flex items-stretch" style={{ width: contentWidth, minHeight: inventoryLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -1221,13 +1205,13 @@ function SystemLedger({
             </div>
           </div> : null}
 
-          {visibleLaneOrder.includes('pipeline') ? <div className="grid h-full min-h-0 gap-3" data-lane="pipeline" style={laneGridStyle}>
+          {visibleLaneOrder.includes('pipeline') ? <div className="grid h-full gap-3" data-lane="pipeline" style={laneGridStyle}>
             <LaneLabel
               subtitle={t('analysisWorkbenchLanePipelineSubtitle')}
               title={t('analysisWorkbenchLanePipelineTitle')}
               tooltip={t('analysisWorkbenchLanePipelineTooltip')}
             />
-            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
+            <div className="grid gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
@@ -1251,10 +1235,10 @@ function SystemLedger({
               </div>
               <div
                 ref={pipelineScrollRef}
-                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
               >
-                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
+                <div className="relative flex items-stretch" style={{ width: contentWidth, minHeight: pipelineLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -1360,13 +1344,13 @@ function SystemLedger({
             </div>
           </div> : null}
 
-          {visibleLaneOrder.includes('lead-time') ? <div className="grid h-full min-h-0 gap-3" data-lane="lead-time" style={laneGridStyle}>
+          {visibleLaneOrder.includes('lead-time') ? <div className="grid h-full gap-3" data-lane="lead-time" style={laneGridStyle}>
             <LaneLabel
               subtitle={t('analysisWorkbenchLaneLeadTimeSubtitle')}
               title={t('analysisWorkbenchLaneLeadTimeTitle')}
               tooltip={t('analysisWorkbenchLaneLeadTimeTooltip')}
             />
-            <div className="grid min-h-0 gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
+            <div className="grid gap-2 [grid-template-rows:auto_minmax(0,1fr)]">
               <div className="flex items-start justify-between gap-3 px-1">
                 <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-2">
@@ -1382,10 +1366,10 @@ function SystemLedger({
               </div>
               <div
                 ref={leadTimeScrollRef}
-                className="hidden-scrollbar min-h-0 overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
+                className="hidden-scrollbar overflow-x-auto overscroll-contain rounded-[1.2rem] border border-border/60 bg-muted/20"
                 onScroll={handleScrollerScroll}
               >
-                <div className="relative flex h-full items-stretch" style={{ width: contentWidth, minHeight: leadTimeLaneMinHeight }}>
+                <div className="relative flex items-stretch" style={{ width: contentWidth, minHeight: leadTimeLaneMinHeight }}>
                   <SelectedIntervalColumnOverlay
                     activeIndex={selectedIntervalPosition}
                     axisContentWidth={contentWidth}
@@ -2291,7 +2275,7 @@ function WorkbenchSurface({
   timeframe: AnalysisTimeframe;
 }) {
   return (
-    <div className={cn('grid w-full min-w-0 gap-6', expanded && 'h-full min-h-0')}>
+    <div className={cn('grid w-full min-w-0 gap-6 flex-1')}>
       <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
         chartLayoutPreferences={chartLayoutPreferences}
@@ -2596,10 +2580,9 @@ export function AnalysisWorkbench({
   }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   return (
-    <div className={cn('grid gap-6', expanded && 'h-full min-h-0')} onPointerDown={handleWorkbenchPointerDown}>
-      <DiagnosticStrip model={model} />
+    <div className={cn('grid gap-6 h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')} onPointerDown={handleWorkbenchPointerDown}>
       <ChromeTabs
-        className={cn('relative gap-0', expanded && 'flex min-h-0 flex-1 flex-col')}
+        className={cn('relative gap-0 flex min-h-0 flex-1 flex-col')}
         value={activeSection}
         onValueChange={(nextValue) => {
           if (nextValue) {
@@ -2617,14 +2600,19 @@ export function AnalysisWorkbench({
         <InternalNav section={activeSection} showRightRailCards={railEnabled} />
 
         <section
-          className={cn(ANALYSIS_BOARD_CLASS_NAME, expanded && 'flex min-h-0 flex-1 flex-col')}
+          className={cn(
+            ANALYSIS_BOARD_CLASS_NAME,
+            'flex flex-1 flex-col',
+            activeSection === 'workbench' ? 'overflow-hidden' : 'overflow-y-auto',
+          )}
+          data-testid="insights-board-section"
           style={{
             marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
           }}
         >
-          <div className={cn(railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0', expanded && 'min-h-0 flex-1')}>
-            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', expanded && 'flex min-h-0 flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}>
-              <div className={cn('grid min-h-full min-w-0 gap-6 px-0 py-0', expanded && 'flex min-h-0 flex-1 flex-col')}>{surface}</div>
+          <div className={cn(railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0', 'flex-1')}>
+            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', 'flex flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}>
+              <div className={cn('flex min-w-0 gap-6 px-0 py-0 flex-1 flex-col')}>{surface}</div>
             </div>
             {railEnabled ? (
               isSectionPending

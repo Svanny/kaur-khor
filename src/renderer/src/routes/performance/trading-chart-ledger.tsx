@@ -61,6 +61,7 @@ export function AnalysisTradingChartLedger({
       chartModel={chartModel}
       chartResolution={chartResolution ?? chartLayoutPreferences.chartResolution}
       chartZoomResetToken={chartZoomResetToken}
+      className="h-full"
       customChartResolution={customChartResolution ?? chartLayoutPreferences.customChartResolution}
       customTimeframeRange={customTimeframeRange ?? chartLayoutPreferences.customTimeframeRange}
       expanded={expanded}

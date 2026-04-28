@@ -314,7 +314,7 @@ describe('AnalysisContent', () => {
       />,
     );
 
-    const button = screen.getByRole('button', { name: 'Refresh analysis' });
+    const button = screen.getByRole('button', { name: 'Refresh explanation' });
     await user.click(button);
 
     expect(retrySenaRun).toHaveBeenCalledWith({ runId: 'run-1' });

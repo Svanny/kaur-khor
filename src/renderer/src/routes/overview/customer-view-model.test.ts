@@ -237,19 +237,19 @@ describe('buildCustomerOverviewModel', () => {
     expect(model.tasks.every((task) => task.source === 'telegram_intake')).toBe(true);
     expect(model.tasks.every((task) => task.sourceLabel === 'Telegram')).toBe(true);
     expect(model.tasks.find((task) => task.id === 'automation:intake:intake-quoted')?.href).toBe(
-      '/automations?section=intake&conversation=conv-quoted&intake=intake-quoted',
+      '/work/intake?section=intake&conversation=conv-quoted&intake=intake-quoted',
     );
     expect(model.tasks.find((task) => task.id === 'automation:intake:intake-ticketed')).toMatchObject({
       actionLabel: 'Open ticket',
-      href: '/record-update/customer-orders-pending?ticketMode=edit&ticketId=ticket-1',
+      href: '/work/capture/customer-order?ticketMode=edit&ticketId=ticket-1',
     });
     expect(model.tasks.find((task) => task.id === 'automation:intake:intake-completed')).toMatchObject({
       actionLabel: 'Open ticket',
-      href: '/record-update/customer-orders-pending?ticketMode=edit&ticketId=ticket-2',
+      href: '/work/capture/customer-order?ticketMode=edit&ticketId=ticket-2',
     });
     expect(model.tasks.find((task) => task.id === 'automation:intake:intake-canceled')).toMatchObject({
       actionLabel: 'Open intake',
-      href: '/automations?section=intake&conversation=conv-canceled&intake=intake-canceled',
+      href: '/work/intake?section=intake&conversation=conv-canceled&intake=intake-canceled',
     });
     expect(model.counts).toEqual({
       review: 2,

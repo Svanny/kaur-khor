@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dialog';
+import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { ActionOpenExternalIcon } from '@icons/actions';
+import { ActionEyeIcon, ActionOpenExternalIcon } from '@icons/actions';
 import {
   EntityComparisonIcon,
   EntityLayersIcon,
@@ -18,6 +20,7 @@ import {
   StatusDeltaTriangleIcon,
   StatusPromoIcon,
   StatusSavingsIcon,
+  StatusScheduleIcon,
   StatusTimingIcon,
   StatusWarningIcon,
 } from '@icons/status';
@@ -36,9 +39,11 @@ import {
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
+import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
@@ -46,8 +51,10 @@ import { buildFinancialsSearchParams, readFinancialsRouteState } from '@/lib/nav
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { statusPillClassName, tintedSurfaceClassName, type StatusPillTone } from '@/lib/state-tones';
+import { cn } from '@/lib/utils';
 import { translateUiLiteral } from '@/lib/translations';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
+import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useOptionalAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
@@ -134,23 +141,6 @@ function statementRowIcon(rowKey: string) {
 
 function financialsStatementRowId(rowKey: string) {
   return `financials-statement-${rowKey}`;
-}
-
-function financialsRibbonTargetId(metricKey: string) {
-  switch (metricKey) {
-    case 'netSales':
-      return financialsStatementRowId('net-sales');
-    case 'grossProfit':
-      return financialsStatementRowId('gross-profit');
-    case 'inventoryCapital':
-      return financialsStatementRowId('on-hand');
-    case 'openCommitments':
-      return financialsStatementRowId('open-orders');
-    case 'marginErosion':
-      return 'financials-statement-money-leaking';
-    default:
-      return 'financials-statement';
-  }
 }
 
 function rangeDaysForFinancials(range: FinancialsRange) {
@@ -421,8 +411,12 @@ function FinancialsLoadingState() {
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCardWireframe
         descriptor={translateUiLiteral(language, 'Loading the stock-linked money view.')}
-        eyebrow={translateUiLiteral(language, 'Financials')}
-        title={translateUiLiteral(language, 'Financials')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{translateUiLiteral(language, 'Money')}</span>
+          </span>
+        }
         actions={
           <div className="flex flex-wrap justify-end gap-2">
             <Skeleton className="h-12 w-40 rounded-full" />
@@ -481,6 +475,20 @@ export function FinancialsRoute() {
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const requestedOrderBatchesRef = useRef(false);
+  const [customDialogOpen, setCustomDialogOpen] = useState(false);
+
+  const currentCustomRange = routeState.range === 'custom' && routeState.customRangeStart && routeState.customRangeEnd
+    ? { startAt: routeState.customRangeStart, endAt: routeState.customRangeEnd }
+    : null;
+
+  const previousCustomRange = useMemo(() => {
+    if (!currentCustomRange) return null;
+    const days = daysBetween(currentCustomRange.startAt, currentCustomRange.endAt);
+    return {
+      startAt: shiftDateByDays(currentCustomRange.startAt, -days),
+      endAt: shiftDateByDays(currentCustomRange.endAt, -days),
+    };
+  }, [currentCustomRange]);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -564,6 +572,7 @@ export function FinancialsRoute() {
       serviceDetailsById,
       skuDetailsById,
       workspaceSummary: inventory.workspaceSummary,
+      customRange: currentCustomRange,
     });
   }, [
     compareMode,
@@ -603,7 +612,7 @@ export function FinancialsRoute() {
     };
   }, [automation.intakes, currency, language, range, usdToKhrExchangeRate]);
 
-  useBenchmarkRouteReady('financials', !inventory.isLoading && (!visibleCatalog || model != null), {
+  useBenchmarkRouteReady('insights.money', !inventory.isLoading && (!visibleCatalog || model != null), {
     compareMode,
     hasWorkspaceSummary: Boolean(inventory.workspaceSummary),
     range,
@@ -635,7 +644,7 @@ export function FinancialsRoute() {
           action={
             <WorkspaceActionRow>
               <Button asChild>
-                <Link to="/record-update">
+                <Link to="/work/capture">
                   <NavigationTaskListIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Start update')}
                 </Link>
@@ -643,7 +652,7 @@ export function FinancialsRoute() {
               <Button asChild variant="outline">
                 <Link to="/">
                   <NavigationDashboardIcon data-icon="inline-start" />
-                  {translateUiLiteral(language, 'Open Overview')}
+                  {translateUiLiteral(language, 'Open Work')}
                 </Link>
               </Button>
             </WorkspaceActionRow>
@@ -656,29 +665,15 @@ export function FinancialsRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
-        eyebrow={t('financialsRouteEyebrow')}
-        title={t('financialsRouteTitle')}
+        title={
+          <span className="flex min-w-0 items-center gap-3">
+            <RouteBackButton className="shrink-0" />
+            <span className="truncate">{t('financialsRouteTitle')}</span>
+          </span>
+        }
         descriptor={t('financialsRouteDescriptor')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <ToggleGroup
-              aria-label={translateUiLiteral(language, 'Select financials time range')}
-              className="rounded-full"
-              spacing={1}
-              type="single"
-              value={range}
-              onValueChange={(nextValue) => {
-                if (nextValue) {
-                  updateRouteState({ range: nextValue as FinancialsRange });
-                }
-              }}
-            >
-              <ToggleGroupItem value="1d">{translateUiLiteral(language, '1D')}</ToggleGroupItem>
-              <ToggleGroupItem value="7d">{translateUiLiteral(language, '7D')}</ToggleGroupItem>
-              <ToggleGroupItem value="30d">{translateUiLiteral(language, '30D')}</ToggleGroupItem>
-              <ToggleGroupItem value="90d">{translateUiLiteral(language, '90D')}</ToggleGroupItem>
-            </ToggleGroup>
-
             <ToggleGroup
               aria-label={translateUiLiteral(language, 'Select financials scope')}
               className="rounded-full"
@@ -714,10 +709,66 @@ export function FinancialsRoute() {
               }
             />
 
+            <Select
+              value={range}
+              onValueChange={(nextValue) => {
+                if (nextValue === 'custom') {
+                  setCustomDialogOpen(true);
+                  return;
+                }
+                updateRouteState({ range: nextValue as FinancialsRange, customRangeStart: null, customRangeEnd: null });
+              }}
+            >
+              <SelectTrigger
+                aria-label={translateUiLiteral(language, 'Select financials time range')}
+                className={cn(
+                  'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+                  compactFilterControlClassName,
+                )}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <StatusScheduleIcon className="size-4" />
+                  <span>
+                    {translateUiLiteral(
+                      language,
+                      'Timeframe: {value}',
+                      { value: range === 'custom' ? translateUiLiteral(language, 'Custom') : translateUiLiteral(language, range.replace('d', 'D')) }
+                    )}
+                  </span>
+                </span>
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {(['1d', '7d', '30d', '90d', 'custom'] as FinancialsRange[]).map((option) =>
+                  option === 'custom' ? (
+                    <div className="relative" key={option}>
+                      <SelectItem value={option} className="pr-14">
+                        <span>{translateUiLiteral(language, 'Custom')}</span>
+                      </SelectItem>
+                      <button
+                        type="button"
+                        className="absolute right-8 top-1/2 -translate-y-1/2 z-10 cursor-pointer p-1 rounded-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label={translateUiLiteral(language, 'Open custom date range dialog')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCustomDialogOpen(true);
+                        }}
+                      >
+                        <ActionEyeIcon className="size-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <SelectItem key={option} value={option}>
+                      {translateUiLiteral(language, option.replace('d', 'D'))}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+
             {showPerformanceCompareToggle ? (
               <Button
                 aria-pressed={compareMode}
-                className={compactActionButtonClassName}
+                className={cn(compactActionButtonClassName, !compareMode && 'bg-card')}
                 data-hover-suppressed="false"
                 type="button"
                 variant={compareMode ? 'default' : 'outline'}
@@ -727,44 +778,53 @@ export function FinancialsRoute() {
                 {compareMode ? translateUiLiteral(language, 'Compare view') : translateUiLiteral(language, 'Single view')}
               </Button>
             ) : null}
+
+            <CustomTimeframeDialog
+              language={language}
+              open={customDialogOpen}
+              onOpenChange={setCustomDialogOpen}
+              currentStart={currentCustomRange?.startAt ?? null}
+              currentEnd={currentCustomRange?.endAt ?? null}
+              previousStart={previousCustomRange?.startAt ?? null}
+              previousEnd={previousCustomRange?.endAt ?? null}
+              compareMode={compareMode}
+              onApply={(currentStart, currentEnd, previousStart, previousEnd) => {
+                updateRouteState({
+                  range: 'custom',
+                  customRangeStart: currentStart,
+                  customRangeEnd: currentEnd,
+                });
+              }}
+              onClear={() => {
+                setCustomDialogOpen(false);
+                updateRouteState({ range: '30d', customRangeStart: null, customRangeEnd: null });
+              }}
+            />
           </div>
         }
       >
         {showHeartbeatRibbons ? (
-          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-            {model.titleMeta.map((line) => (
-              <span key={line}>{line}</span>
-            ))}
-            {isHydratingDetails ? <span>{translateUiLiteral(language, 'Refining financial details…')}</span> : null}
-          </div>
-        ) : null}
-      </WorkspaceTitleCard>
-
-      {showHeartbeatRibbons ? (
-        <section className={`${PERFORMANCE_HEADER_SURFACE_CLASS_NAME} overflow-hidden`}>
-          <div className="grid divide-y divide-border/60 bg-border/40 md:grid-cols-2 md:divide-x md:divide-y-0 xl:grid-cols-5">
-            {model.ribbon.map((metric) => (
-              <a
-                key={metric.key}
-                aria-label={translateUiLiteral(language, 'Jump to {label} in the financial statement', { label: metric.label })}
-                className={`block border-t-2 px-5 py-4 transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 sm:px-6 ${tintedSurfaceClassName(metric.tone)}`}
-                href={`#${financialsRibbonTargetId(metric.key)}`}
-              >
-                <p className="text-[0.72rem] font-medium tracking-[0.08em] text-muted-foreground/80">{metric.label}</p>
-                <p className="mt-2 text-[1.45rem] font-semibold tracking-[-0.04em] text-foreground">{metric.value}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm leading-6 text-muted-foreground">
+          <MetricRibbon
+            columns={5}
+            items={model.ribbon.map((metric) => ({
+              key: metric.key,
+              label: metric.label,
+              value: metric.value,
+              detail: (
+                <>
                   <span>{metric.detail}</span>
                   {metric.compareLabel ? (
                     <span className={`${financialsCompactPillClassName} ${statusPillClassName(metric.compareTone ?? 'neutral')}`}>
                       {metric.compareLabel}
                     </span>
                   ) : null}
-                </div>
-              </a>
-            ))}
-          </div>
-        </section>
-      ) : null}
+                </>
+              ),
+              className: `border-t-2 px-5 py-4 sm:px-6 ${tintedSurfaceClassName(metric.tone)}`,
+            }))}
+          />
+        ) : null}
+      </WorkspaceTitleCard>
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
@@ -865,7 +925,7 @@ export function FinancialsRoute() {
                   </p>
                 ))}
                 <Button asChild className="w-full" size="sm" variant="outline">
-                  <Link to="/record-update">
+                  <Link to="/work/capture">
                     <ActionOpenExternalIcon className="size-4" />
                     {translateUiLiteral(language, 'Start update')}
                   </Link>
@@ -891,7 +951,7 @@ export function FinancialsRoute() {
                   {translateUiLiteral(language, 'Ticketed Telegram intake')} · {telegramWindowSummary.ticketedCount}
                 </p>
                 <Button asChild className="w-full" size="sm" variant="outline">
-                  <Link to="/automations?section=intake">
+                  <Link to="/work/intake">
                     <ActionOpenExternalIcon className="size-4" />
                     {translateUiLiteral(language, 'Open Automations')}
                   </Link>

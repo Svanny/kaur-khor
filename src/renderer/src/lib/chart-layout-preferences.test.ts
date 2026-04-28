@@ -323,9 +323,6 @@ describe('chart layout preference storage', () => {
     const localStorageGetter = vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
       throw new Error('blocked');
     });
-    const sessionStorageGetter = vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
-      throw new Error('blocked');
-    });
 
     expect(readSubtypeDefaultChartLayoutPreferences('sku')).toBeNull();
     expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toBeNull();
@@ -344,20 +341,23 @@ describe('chart layout preference storage', () => {
     ).not.toThrow();
 
     localStorageGetter.mockRestore();
-    sessionStorageGetter.mockRestore();
   });
 
   it('normalizes invalid persisted values before comparison and resolution', () => {
-    window.sessionStorage.setItem(
-      'banji:chart-layout:entity:v1',
+    window.localStorage.setItem(
+      'banji:page-state-memory:v1',
       JSON.stringify({
-        'sku:sku-1': {
-          timeframe: 'Bogus',
-          chartResolution: 'Fake',
-          customChartResolution: { expression: 'not-a-resolution' },
-          customTimeframeRange: { startAt: '2026-03-01T00:00:00.000Z' },
-          visibleDateRange: { endAt: '2026-03-05T00:00:00.000Z' },
-          paneHeights: { valid: 220, zero: 0, invalid: 'wide' },
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': {
+              timeframe: 'Bogus',
+              chartResolution: 'Fake',
+              customChartResolution: { expression: 'not-a-resolution' },
+              customTimeframeRange: { startAt: '2026-03-01T00:00:00.000Z' },
+              visibleDateRange: { endAt: '2026-03-05T00:00:00.000Z' },
+              paneHeights: { valid: 220, zero: 0, invalid: 'wide' },
+            },
+          },
         },
       }),
     );

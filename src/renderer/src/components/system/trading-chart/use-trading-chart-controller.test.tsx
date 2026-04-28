@@ -14,7 +14,7 @@ import {
   type TradingChartController,
 } from './use-trading-chart-controller';
 
-const ENTITY_LAYOUT_STORAGE_KEY = 'banji:chart-layout:entity:v1';
+const PAGE_STATE_MEMORY_STORAGE_KEY = 'banji:page-state-memory:v1';
 
 function makeStorageMock() {
   const state = new Map<string, string>();
@@ -151,8 +151,8 @@ describe('useTradingChartController', () => {
     });
 
     await waitFor(() => {
-      const record = JSON.parse(window.sessionStorage.getItem(ENTITY_LAYOUT_STORAGE_KEY) ?? '{}');
-      expect(record['sku:sku-1']?.paneHeights).toEqual({ main: 360 });
+      const record = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
+      expect(record.catalog?.values?.['sku:sku-1:chartLayout']?.paneHeights).toEqual({ main: 360 });
     });
   });
 
