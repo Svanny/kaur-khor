@@ -1,6 +1,5 @@
 import { test } from '@playwright/test';
 import {
-  clickSidebarNavigation,
   closeBanjiBenchmarkApp,
   currentBenchmarkRoute,
   launchBanjiForBenchmark,
@@ -21,30 +20,30 @@ const HUB_LANES: Array<{
 }> = [
   {
     cardLabel: 'Stock Count',
-    metricName: 'interaction.open_record_update_ms',
+    metricName: 'interaction.open_capture_ms',
     name: 'stock-count',
-    path: '/record-update/stock-count',
+    path: '/work/capture/stock-count',
   },
   {
     actionLabel: 'New',
     cardLabel: 'Supplier Order',
-    metricName: 'nav.record_update_hub_to_lane_ms',
+    metricName: 'nav.capture_hub_to_lane_ms',
     name: 'supplier-order',
-    path: '/record-update/supplier-orders-pending?ticketMode=new',
+    path: '/work/capture/supplier-order?ticketMode=new',
   },
   {
     actionLabel: 'New',
     cardLabel: 'Immediate Sale',
-    metricName: 'nav.record_update_hub_to_lane_ms',
+    metricName: 'nav.capture_hub_to_lane_ms',
     name: 'immediate-sale',
-    path: '/record-update/customer-orders-completed?ticketMode=new',
+    path: '/work/capture/immediate-sale?ticketMode=new',
   },
   {
     actionLabel: 'New',
     cardLabel: 'Customer Order',
-    metricName: 'nav.record_update_hub_to_lane_ms',
+    metricName: 'nav.capture_hub_to_lane_ms',
     name: 'customer-order',
-    path: '/record-update/customer-orders-pending?ticketMode=new',
+    path: '/work/capture/customer-order?ticketMode=new',
   },
 ];
 
@@ -52,31 +51,42 @@ async function waitForRecordUpdateReady(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
   previousCount?: number,
 ) {
-  const count = previousCount ?? await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
-  await waitForPersistedBenchmarkEventCount(launched, 'route.record-update.ready', count + 1);
+  const count = previousCount ?? await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
+  await waitForPersistedBenchmarkEventCount(launched, 'route.work.capture.ready', count + 1);
 }
 
 async function returnToRecordUpdateHub(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
 ) {
   const currentRoute = await currentBenchmarkRoute(launched.page);
-  const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
-  await clickSidebarNavigation(launched.page, 'Record update');
-  const leaveDialog = launched.page.getByRole('dialog').filter({ hasText: 'Leave record update?' });
-  if (await leaveDialog.isVisible().catch(() => false)) {
-    await leaveDialog.getByRole('button', { name: 'Save draft and leave', exact: true }).click();
-  }
-  if (currentRoute !== '/record-update') {
+  const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
+  if (currentRoute !== '/work/capture') {
+    const startedAt = Date.now();
+    await launched.page.evaluate(() => {
+      window.location.hash = '#/work/capture';
+    });
+    const leaveDialog = launched.page.getByRole('dialog').filter({ hasText: /Leave (capture|record update)\?/i });
+    if (await leaveDialog.isVisible().catch(() => false)) {
+      await leaveDialog.getByRole('button', { name: 'Save draft and leave', exact: true }).click();
+    }
+    await launched.page.waitForFunction(() => window.location.hash.slice(1) === '/work/capture');
     await waitForRecordUpdateReady(launched, previousCount);
+    await recordPlaywrightDuration(launched.page, {
+      metricName: 'nav.work_queue_to_capture_ms',
+      durationMs: Date.now() - startedAt,
+      route: '/work/capture',
+      category: 'navigation',
+    });
   }
-  await launched.page.getByText('Choose an update lane', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  await launched.page.getByRole('link', { name: 'Stock Count' }).waitFor({ state: 'visible', timeout: 30_000 });
+  await launched.page.getByRole('button', { name: 'Supplier Order' }).waitFor({ state: 'visible', timeout: 30_000 });
 }
 
 async function openHubLane(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
   lane: (typeof HUB_LANES)[number],
 ) {
-  const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
+  const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
   const startedAt = Date.now();
   if (lane.actionLabel) {
     await launched.page.getByRole('button', { name: lane.cardLabel }).click();
@@ -97,7 +107,7 @@ async function openHubLane(
   }
   await snapshotRendererBenchmarkMemory(
     launched.page,
-    `memory.renderer_after_record_update_${lane.name.replace(/\W+/g, '_')}_mb`,
+    `memory.renderer_after_capture_${lane.name.replace(/\W+/g, '_')}_mb`,
   );
 }
 
@@ -112,13 +122,11 @@ async function openFirstWorkbenchTile(
 async function completeReviewSaveFlow(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
   {
-    dashboardCount,
     metricName,
     reviewDialogTitle,
     reviewLabel,
     route,
   }: {
-    dashboardCount: number;
     metricName: string;
     reviewDialogTitle: string;
     reviewLabel: string;
@@ -130,7 +138,13 @@ async function completeReviewSaveFlow(
   const reviewDialog = launched.page.getByRole('dialog', { name: reviewDialogTitle });
   await reviewDialog.waitFor({ state: 'visible', timeout: 30_000 });
   await reviewDialog.getByRole('button', { name: 'Confirm save', exact: true }).click();
-  await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready', dashboardCount + 1);
+  await reviewDialog.waitFor({ state: 'hidden', timeout: 30_000 });
+  await launched.page.waitForFunction(() => {
+    const route = window.location.hash.startsWith('#/')
+      ? window.location.hash.slice(1)
+      : `${window.location.pathname}${window.location.search}` || '/';
+    return route === '/' || route === '/work/queue';
+  });
   await recordPlaywrightDuration(launched.page, {
     metricName,
     durationMs: Date.now() - startedAt,
@@ -145,17 +159,15 @@ async function benchmarkStockCountSave(
   await returnToRecordUpdateHub(launched);
   await openHubLane(launched, HUB_LANES[0]!);
 
-  const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
   await openFirstWorkbenchTile(launched);
   const itemDialog = launched.page.getByRole('dialog').first();
   await itemDialog.getByLabel('Units in stock').fill('7');
   await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
   await completeReviewSaveFlow(launched, {
-    dashboardCount,
     metricName: 'interaction.save_stock_count_ms',
     reviewDialogTitle: 'Review update',
     reviewLabel: 'Review update',
-    route: '/record-update/stock-count',
+    route: '/work/capture/stock-count',
   });
 }
 
@@ -163,7 +175,7 @@ async function benchmarkSupplierReceiptSave(
   launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
 ) {
   await returnToRecordUpdateHub(launched);
-  const previousCount = await persistedBenchmarkEventCount(launched, 'route.record-update.ready');
+  const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
   await launched.page.getByRole('button', { name: 'Supplier Order' }).click();
   const editButton = launched.page.getByRole('button', { name: 'Edit/Update', exact: true });
   if (await editButton.isEnabled().catch(() => false)) {
@@ -178,24 +190,22 @@ async function benchmarkSupplierReceiptSave(
   }
   await waitForRecordUpdateReady(launched, previousCount);
 
-  const dashboardCount = await persistedBenchmarkEventCount(launched, 'route.dashboard.ready');
   await openFirstWorkbenchTile(launched);
   await launched.page.getByRole('dialog').first().getByRole('button', { name: 'Add line', exact: true }).click();
   await completeReviewSaveFlow(launched, {
-    dashboardCount,
     metricName: 'interaction.save_supplier_order_receipt_ms',
     reviewDialogTitle: 'Confirm receipt',
     reviewLabel: 'Review receipt',
-    route: '/record-update/supplier-orders-pending',
+    route: '/work/capture/supplier-order',
   });
 }
 
-test('record update hub opens current lanes and saves current flows', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('record-update-hub-current-flows', testInfo);
+test('capture hub opens current lanes and saves current flows', async ({}, testInfo) => {
+  const launched = await launchBanjiForBenchmark('capture-hub-current-flows', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
-    await markBenchmarkMeasurementStart(launched, { workflow: 'record-update' });
+    await markBenchmarkMeasurementStart(launched, { workflow: 'capture' });
     await returnToRecordUpdateHub(launched);
 
     for (const lane of HUB_LANES) {
@@ -209,10 +219,10 @@ test('record update hub opens current lanes and saves current flows', async ({},
     scenarioError = error;
   } finally {
     await markBenchmarkMeasurementEnd(launched, {
-      workflow: 'record-update',
+      workflow: 'capture',
       ok: scenarioError == null,
     });
-    await closeBanjiBenchmarkApp(launched, 'record-update');
+    await closeBanjiBenchmarkApp(launched, 'capture');
   }
   if (scenarioError) {
     throw scenarioError;

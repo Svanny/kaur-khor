@@ -10,13 +10,13 @@ import {
   markBenchmarkMeasurementStart,
   recordBenchmarkPhaseMarker,
   navigateBenchmarkRouteAndMeasureDuration,
-  openOverviewCustomerIntakeDrawerAndRecordDuration,
-  openOverviewSupplierDrawerAndRecordDuration,
+  openWorkCustomerIntakeDrawerAndRecordDuration,
+  openWorkSupplierDrawerAndRecordDuration,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
 
-test('overview measures current supplier and customer workflows', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('overview-current-workflows', testInfo);
+test('work measures current supplier and customer workflows', async ({}, testInfo) => {
+  const launched = await launchBanjiForBenchmark('work-current-workflows', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
@@ -31,13 +31,13 @@ test('overview measures current supplier and customer workflows', async ({}, tes
       targetSupplierFilterLabel: seedSummary.targetSupplierFilterLabel,
     });
     await markBenchmarkMeasurementStart(launched, {
-      workflow: 'overview',
+      workflow: 'work',
     });
 
     await navigateBenchmarkRouteAndMeasureDuration(launched, {
-      route: '/?workflow=customer&customerFilter=review',
-      readyEvent: 'route.dashboard.ready',
-      metricName: 'interaction.overview_workflow_toggle_ms',
+      route: '/work/queue?workflow=customer&customerFilter=review',
+      readyEvent: 'route.work.queue.ready',
+      metricName: 'interaction.work_workflow_toggle_ms',
       category: 'interaction',
       waitFor: async () => {
         await launched.page.getByRole('heading', { name: 'Customer queue' }).waitFor({ state: 'visible', timeout: 30_000 });
@@ -45,15 +45,15 @@ test('overview measures current supplier and customer workflows', async ({}, tes
     });
 
     const customerIntakeButtons = launched.page.locator('[data-customer-task-id] button');
-    await assertLocatorCountAtLeast(customerIntakeButtons, 1, 'overview customer intake action button(s)');
+    await assertLocatorCountAtLeast(customerIntakeButtons, 1, 'work customer intake action button(s)');
 
-    await openOverviewCustomerIntakeDrawerAndRecordDuration(launched);
+    await openWorkCustomerIntakeDrawerAndRecordDuration(launched);
     await closeVisibleDialog(launched.page);
 
     await navigateBenchmarkRouteAndMeasureDuration(launched, {
-      route: '/?workflow=supplier',
-      readyEvent: 'route.dashboard.ready',
-      metricName: 'interaction.overview_workflow_toggle_ms',
+      route: '/work/queue?workflow=supplier',
+      readyEvent: 'route.work.queue.ready',
+      metricName: 'interaction.work_workflow_toggle_ms',
       category: 'interaction',
       waitFor: async () => {
         await launched.page.getByRole('heading', { name: 'Task queue' }).waitFor({ state: 'visible', timeout: 30_000 });
@@ -61,20 +61,20 @@ test('overview measures current supplier and customer workflows', async ({}, tes
     });
 
     await navigateBenchmarkRouteAndMeasureDuration(launched, {
-      route: '/?workflow=supplier&filter=to_order',
-      readyEvent: 'route.dashboard.ready',
-      metricName: 'interaction.overview_task_tab_transition_ms',
+      route: '/work/queue?workflow=supplier&filter=to_order',
+      readyEvent: 'route.work.queue.ready',
+      metricName: 'interaction.work_task_tab_transition_ms',
       category: 'interaction',
     });
 
     await navigateBenchmarkRouteAndMeasureDuration(launched, {
-      route: '/?workflow=supplier&filter=all',
-      readyEvent: 'route.dashboard.ready',
-      metricName: 'interaction.overview_task_tab_transition_ms',
+      route: '/work/queue?workflow=supplier&filter=all',
+      readyEvent: 'route.work.queue.ready',
+      metricName: 'interaction.work_task_tab_transition_ms',
       category: 'interaction',
     });
 
-    await openOverviewSupplierDrawerAndRecordDuration(launched);
+    await openWorkSupplierDrawerAndRecordDuration(launched);
     await closeVisibleDialog(launched.page);
 
     const supplierTrigger = launched.page.getByRole('combobox', { name: 'Filter by supplier' });
@@ -102,29 +102,29 @@ test('overview measures current supplier and customer workflows', async ({}, tes
             .__BANJI_BENCHMARK_ACTION_STARTED_AT__);
         return { startedAt };
       },
-      readyEvent: 'route.dashboard.ready',
-      metricName: 'interaction.overview_supplier_filter_ms',
-      route: '/?workflow=supplier',
+      readyEvent: 'route.work.queue.ready',
+      metricName: 'interaction.work_supplier_filter_ms',
+      route: '/work/queue?workflow=supplier',
       category: 'interaction',
     });
   } catch (error) {
     scenarioError = error;
   } finally {
     await markBenchmarkMeasurementEnd(launched, {
-      workflow: 'overview',
+      workflow: 'work',
       ok: scenarioError == null,
     });
   }
 
   await closeBanjiBenchmarkAppWithTargetCoverage(
     launched,
-    'overview',
+    'work',
     [
-      'interaction.overview_workflow_toggle_ms',
-      'interaction.open_overview_customer_intake_drawer_ms',
-      'interaction.open_overview_supplier_drawer_ms',
-      'interaction.overview_task_tab_transition_ms',
-      'interaction.overview_supplier_filter_ms',
+      'interaction.work_workflow_toggle_ms',
+      'interaction.open_work_customer_intake_drawer_ms',
+      'interaction.open_work_supplier_drawer_ms',
+      'interaction.work_task_tab_transition_ms',
+      'interaction.work_supplier_filter_ms',
       'backend.core.interactive_queue_wait_p95_ms',
       'backend.core.read_pool_queue_wait_p95_ms',
     ],

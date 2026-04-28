@@ -22,14 +22,14 @@ test('cold dev launch reaches a usable workspace', async ({}, testInfo) => {
     await waitForPersistedBenchmarkEventCount(launched, 'preload.bridge.exposed');
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.app.getAppContext');
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
-    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready');
+    await waitForPersistedBenchmarkEventCount(launched, 'route.home.ready');
     await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_startup_cold_mb');
 
     const priorWorkspaceReadyCount = await benchmarkEventCount(launched, 'renderer.workspace.ready');
     const warmStartedAt = Date.now();
     await launched.page.reload({ waitUntil: 'domcontentloaded' });
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready', priorWorkspaceReadyCount + 1);
-    await waitForPersistedBenchmarkEventCount(launched, 'route.dashboard.ready');
+    await waitForPersistedBenchmarkEventCount(launched, 'route.home.ready');
     await recordPlaywrightDuration(launched.page, {
       metricName: 'startup.warm_workspace_ready_ms',
       durationMs: Date.now() - warmStartedAt,

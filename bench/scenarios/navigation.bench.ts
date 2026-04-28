@@ -5,6 +5,8 @@ import {
   launchBanjiForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
+  persistedBenchmarkEventCount,
+  recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
@@ -15,16 +17,37 @@ const SIDEBAR_SECTIONS: Array<{
   path: `/${string}`;
   readyEvent: string;
 }> = [
-  { label: 'Record update', metric: 'nav.dashboard_to_record_update_ms', path: '/record-update', readyEvent: 'route.record-update.ready' },
-  { label: 'Performance', metric: 'nav.dashboard_to_performance_ms', path: '/performance', readyEvent: 'route.performance.ready' },
-  { label: 'Catalog', metric: 'nav.dashboard_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
-  { label: 'Financials', metric: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
-  { label: 'Automations', metric: 'nav.to_automations_ms', path: '/automations', readyEvent: 'route.automations.ready' },
-  { label: 'Analysis', metric: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
-  { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
-  { label: 'Help', path: '/help', readyEvent: 'route.help.ready' },
+  { label: 'Work', metric: 'nav.home_to_work_ms', path: '/work/queue', readyEvent: 'route.work.queue.ready' },
+  { label: 'Catalog', metric: 'nav.work_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
+  { label: 'Insights', metric: 'nav.work_to_insights_ms', path: '/insights/pressure', readyEvent: 'route.insights.pressure.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
 ];
+
+async function switchInsightsMode(
+  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  {
+    label,
+    metricName,
+    readyEvent,
+    route,
+  }: {
+    label: string;
+    metricName: string;
+    readyEvent: string;
+    route: `/${string}`;
+  },
+) {
+  const previousCount = await persistedBenchmarkEventCount(launched, readyEvent);
+  const startedAt = Date.now();
+  await launched.page.getByRole('link', { name: new RegExp(label, 'i') }).click();
+  await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1);
+  await recordPlaywrightDuration(launched.page, {
+    metricName,
+    durationMs: Date.now() - startedAt,
+    route,
+    category: 'navigation',
+  });
+}
 
 test('major sidebar transitions reach ready state', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('navigation-sidebar-routes', testInfo);
@@ -44,11 +67,25 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
         launched.page,
         `memory.renderer_after_${section.path.replace(/\W+/g, '_')}_mb`,
       );
+      if (section.label === 'Insights') {
+        await switchInsightsMode(launched, {
+          label: 'Money',
+          metricName: 'nav.insights_pressure_to_money_ms',
+          readyEvent: 'route.insights.money.ready',
+          route: '/insights/money',
+        });
+        await switchInsightsMode(launched, {
+          label: 'Explain',
+          metricName: 'nav.insights_money_to_explain_ms',
+          readyEvent: 'route.insights.explain.ready',
+          route: '/insights/explain',
+        });
+      }
     }
 
     await clickSidebarNavigationAndMeasureDuration(launched, {
       label: 'Back to app',
-      readyEvent: 'route.dashboard.ready',
+      readyEvent: 'route.home.ready',
       route: '/',
       category: 'navigation',
     });

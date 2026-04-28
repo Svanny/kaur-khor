@@ -279,7 +279,7 @@ function deriveBenchmarkMetrics(
     maybeSet('startup.app_to_bridge_ms', durationMetric(events, 'main.boot.start', 'preload.bridge.exposed'));
     maybeSet('startup.app_to_context_ms', durationMetric(events, 'main.boot.start', 'renderer.app.getAppContext'));
     maybeSet('startup.app_to_workspace_ready_ms', durationMetric(events, 'main.boot.start', 'renderer.workspace.ready'));
-    maybeSet('startup.app_to_first_route_ready_ms', durationMetric(events, 'main.boot.start', 'route.dashboard.ready'));
+    maybeSet('startup.app_to_first_route_ready_ms', durationMetric(events, 'main.boot.start', 'route.home.ready'));
     maybeSet(
       'ipc.system_get_app_context_ms',
       firstSummaryMetric(metrics, ['ipc.banji:system:get-app-context.handle', 'preload.invoke.banji:system:get-app-context']),
@@ -290,14 +290,17 @@ function deriveBenchmarkMetrics(
     );
   }
 
-  if (scenario === 'navigation' || scenario === 'record-update' || scenario === 'stability') {
+  if (scenario === 'navigation' || scenario === 'capture' || scenario === 'stability') {
     maybeSet(
       'ipc.sena_get_workspace_summary_ms',
       firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
     );
     maybeSet(
-      'ipc.sena_get_record_update_context_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-record-update-context.handle', 'preload.invoke.banji:sena:get-record-update-context']),
+      'ipc.sena_get_capture_context_ms',
+      firstSummaryMetric(metrics, [
+        'ipc.banji:sena:get-record-update-context.handle',
+        'preload.invoke.banji:sena:get-record-update-context',
+      ]),
     );
   }
 

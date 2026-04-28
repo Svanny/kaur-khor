@@ -39,9 +39,8 @@ const D3_FLAMEGRAPH_JS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/
 const SCENARIO_FILE_BY_ID: Record<BanjiBenchmarkScenarioId, string> = {
   startup: 'bench/scenarios/startup.bench.ts',
   navigation: 'bench/scenarios/navigation.bench.ts',
-  overview: 'bench/scenarios/overview.bench.ts',
-  automations: 'bench/scenarios/automations.bench.ts',
-  'record-update': 'bench/scenarios/record-update.bench.ts',
+  work: 'bench/scenarios/work.bench.ts',
+  capture: 'bench/scenarios/capture.bench.ts',
   'detail-pages': 'bench/scenarios/detail-pages.bench.ts',
   stability: 'bench/scenarios/stability.bench.ts',
 };

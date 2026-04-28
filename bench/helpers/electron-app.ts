@@ -558,12 +558,12 @@ export async function closeVisibleDialog(page: Page) {
   await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
 }
 
-export async function openOverviewSupplierDrawerAndRecordDuration(
+export async function openWorkSupplierDrawerAndRecordDuration(
   launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
-  metricName = 'interaction.open_overview_supplier_drawer_ms',
+  metricName = 'interaction.open_work_supplier_drawer_ms',
 ) {
   const actionButtons = launched.page.locator('[data-slot="overview-task-row"] button[type="button"]');
-  await assertLocatorCountAtLeast(actionButtons, 1, 'overview supplier drawer action button(s)');
+  await assertLocatorCountAtLeast(actionButtons, 1, 'work supplier drawer action button(s)');
   await armDialogOpenedTimestamp(launched.page);
   const startedAt = await clickWithBrowserStartTime(actionButtons.first());
   await launched.page.getByRole('dialog').waitFor({ state: 'visible', timeout: 30_000 });
@@ -571,18 +571,18 @@ export async function openOverviewSupplierDrawerAndRecordDuration(
   await recordPlaywrightDuration(launched.page, {
     metricName,
     durationMs,
-    route: '/?workflow=supplier&filter=all',
+    route: '/work/queue?workflow=supplier&filter=all',
     category: 'interaction',
   });
   return durationMs;
 }
 
-export async function openOverviewCustomerIntakeDrawerAndRecordDuration(
+export async function openWorkCustomerIntakeDrawerAndRecordDuration(
   launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
-  metricName = 'interaction.open_overview_customer_intake_drawer_ms',
+  metricName = 'interaction.open_work_customer_intake_drawer_ms',
 ) {
   const intakeButtons = launched.page.locator('[data-customer-task-id] button');
-  await assertLocatorCountAtLeast(intakeButtons, 1, 'overview customer intake action button(s)');
+  await assertLocatorCountAtLeast(intakeButtons, 1, 'work customer intake action button(s)');
   await armDialogOpenedTimestamp(launched.page);
   const startedAt = await clickWithBrowserStartTime(intakeButtons.first());
   await launched.page.getByRole('dialog').filter({ hasText: 'Telegram intake' }).waitFor({ state: 'visible', timeout: 30_000 });
@@ -590,7 +590,7 @@ export async function openOverviewCustomerIntakeDrawerAndRecordDuration(
   await recordPlaywrightDuration(launched.page, {
     metricName,
     durationMs,
-    route: '/?workflow=customer&customerFilter=review',
+    route: '/work/queue?workflow=customer&customerFilter=review',
     category: 'interaction',
   });
   return durationMs;

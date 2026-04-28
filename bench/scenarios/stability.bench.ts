@@ -17,15 +17,41 @@ const CYCLE_SECTIONS: Array<{
   path: `/${string}`;
   readyEvent: string;
 }> = [
-  { label: 'Record update', path: '/record-update', readyEvent: 'route.record-update.ready' },
-  { label: 'Performance', metricName: 'nav.dashboard_to_performance_ms', path: '/performance', readyEvent: 'route.performance.ready' },
+  { label: 'Work', path: '/work/queue', readyEvent: 'route.work.queue.ready' },
   { label: 'Catalog', path: '/catalog', readyEvent: 'route.catalog.ready' },
-  { label: 'Financials', metricName: 'nav.performance_to_financials_ms', path: '/financials', readyEvent: 'route.financials.ready' },
-  { label: 'Automations', metricName: 'nav.to_automations_ms', path: '/automations', readyEvent: 'route.automations.ready' },
-  { label: 'Analysis', metricName: 'nav.financials_to_analysis_ms', path: '/analysis', readyEvent: 'route.analysis.ready' },
-  { label: 'Logs', path: '/operations', readyEvent: 'route.operations.ready' },
-  { label: 'Overview', path: '/', readyEvent: 'route.dashboard.ready' },
+  { label: 'Insights', metricName: 'nav.work_to_insights_ms', path: '/insights/pressure', readyEvent: 'route.insights.pressure.ready' },
+  { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
+  { label: 'Back to app', path: '/', readyEvent: 'route.home.ready' },
 ];
+
+async function switchInsightsMode(
+  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  {
+    cycle,
+    label,
+    metricName,
+    readyEvent,
+    route,
+  }: {
+    cycle: number;
+    label: string;
+    metricName: string;
+    readyEvent: string;
+    route: `/${string}`;
+  },
+) {
+  const previousCount = await persistedBenchmarkEventCount(launched, readyEvent);
+  const startedAt = Date.now();
+  await launched.page.getByRole('link', { name: new RegExp(label, 'i') }).click();
+  await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1);
+  await recordPlaywrightDuration(launched.page, {
+    metricName,
+    durationMs: Date.now() - startedAt,
+    route,
+    category: 'navigation',
+    detail: { cycle },
+  });
+}
 
 test('repeated sidebar navigation stays crash-free and records memory slope inputs', async ({}, testInfo) => {
   const launched = await launchBanjiForBenchmark('stability-sidebar-cycle', testInfo);
@@ -36,6 +62,43 @@ test('repeated sidebar navigation stays crash-free and records memory slope inpu
 
     for (let cycle = 0; cycle < 4; cycle += 1) {
       for (const section of CYCLE_SECTIONS) {
+        if (section.label === 'Insights') {
+          const startedAt = Date.now();
+          await clickSidebarNavigation(launched.page, section.label);
+          await launched.page.waitForFunction(() => window.location.hash.includes('/insights'));
+          const currentHash = await launched.page.evaluate(() => window.location.hash);
+          if (!currentHash.includes('/insights/pressure')) {
+            await launched.page.getByRole('link', { name: /Pressure/i }).click();
+            await launched.page.waitForFunction(() => {
+              const hash = window.location.hash;
+              return hash.includes('/insights/pressure');
+            });
+          }
+          if (section.metricName) {
+            await recordPlaywrightDuration(launched.page, {
+              metricName: section.metricName,
+              durationMs: Date.now() - startedAt,
+              route: section.path,
+              category: 'navigation',
+              detail: { cycle: cycle + 1 },
+            });
+          }
+          await switchInsightsMode(launched, {
+            cycle: cycle + 1,
+            label: 'Money',
+            metricName: 'nav.insights_pressure_to_money_ms',
+            readyEvent: 'route.insights.money.ready',
+            route: '/insights/money',
+          });
+          await switchInsightsMode(launched, {
+            cycle: cycle + 1,
+            label: 'Explain',
+            metricName: 'nav.insights_money_to_explain_ms',
+            readyEvent: 'route.insights.explain.ready',
+            route: '/insights/explain',
+          });
+          continue;
+        }
         const previousCount = await persistedBenchmarkEventCount(launched, section.readyEvent);
         const startedAt = Date.now();
         await clickSidebarNavigation(launched.page, section.label);

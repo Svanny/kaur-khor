@@ -77,7 +77,7 @@ describe('buildScenarioSummary', () => {
         benchmarkEvent({ layer: 'preload', name: 'preload.bridge.exposed', ts: 100 }),
         benchmarkEvent({ layer: 'renderer', name: 'renderer.app.getAppContext', ts: 160 }),
         benchmarkEvent({ layer: 'renderer', name: 'renderer.workspace.ready', ts: 450 }),
-        benchmarkEvent({ layer: 'renderer', name: 'route.dashboard.ready', ts: 480 }),
+        benchmarkEvent({ layer: 'renderer', name: 'route.home.ready', ts: 480 }),
         benchmarkEvent({
           category: 'startup',
           name: 'startup.warm_workspace_ready_ms',
@@ -120,7 +120,7 @@ describe('buildScenarioSummary', () => {
       status: 'pass',
     });
     expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_workspace_summary_ms')).toBeUndefined();
-    expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_catalog_ms')).toBeUndefined();
+    expect(summary.targets?.find((target) => target.metricName === 'nav.work_to_catalog_ms')).toBeUndefined();
   });
 
   it('keeps stability summaries scoped to stability-owned metrics', () => {
@@ -148,7 +148,7 @@ describe('buildScenarioSummary', () => {
         }),
         benchmarkEvent({
           category: 'navigation',
-          name: 'nav.dashboard_to_performance_ms',
+          name: 'nav.work_to_insights_ms',
           phase: 'end',
           durationMs: 320,
           ts: 20,
@@ -183,7 +183,7 @@ describe('buildScenarioSummary', () => {
       ],
     });
 
-    expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_performance_ms')).toMatchObject({
+    expect(summary.targets?.find((target) => target.metricName === 'nav.work_to_insights_ms')).toMatchObject({
       value: 320,
     });
     expect(summary.targets?.find((target) => target.metricName === 'renderer.long_task_max_ms')).toMatchObject({
@@ -208,7 +208,7 @@ describe('buildScenarioSummary', () => {
       events: [
         benchmarkEvent({
           category: 'navigation',
-          name: 'nav.dashboard_to_performance_ms',
+          name: 'nav.work_to_insights_ms',
           phase: 'end',
           durationMs: 320,
         }),
@@ -223,17 +223,17 @@ describe('buildScenarioSummary', () => {
       ],
     });
 
-    expect(summary.targets?.find((target) => target.metricName === 'nav.dashboard_to_performance_ms')).toMatchObject({
+    expect(summary.targets?.find((target) => target.metricName === 'nav.work_to_insights_ms')).toMatchObject({
       value: 320,
     });
     expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_workspace_summary_ms')).toBeUndefined();
     expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_list_observation_page_ms')).toBeUndefined();
   });
 
-  it('derives record-update-context IPC metrics for record-update scenarios', () => {
+  it('derives capture-context IPC metrics for capture scenarios', () => {
     const summary = buildScenarioSummary({
       runId: 'run-1',
-      scenario: 'record-update',
+      scenario: 'capture',
       events: [
         benchmarkEvent({
           category: 'ipc',
@@ -244,7 +244,7 @@ describe('buildScenarioSummary', () => {
       ],
     });
 
-    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_record_update_context_ms')).toMatchObject({
+    expect(summary.targets?.find((target) => target.metricName === 'ipc.sena_get_capture_context_ms')).toMatchObject({
       value: 42,
       status: 'pass',
     });
@@ -253,7 +253,7 @@ describe('buildScenarioSummary', () => {
   it('isolates setup queue waits from measurement queue waits using phase markers', () => {
     const summary = buildScenarioSummary({
       runId: 'run-1',
-      scenario: 'overview',
+      scenario: 'work',
       events: [
         benchmarkEvent({
           category: 'core-command',
@@ -287,7 +287,7 @@ describe('buildScenarioSummary', () => {
         }),
         benchmarkEvent({
           category: 'interaction',
-          name: 'interaction.overview_supplier_filter_ms',
+          name: 'interaction.work_supplier_filter_ms',
           phase: 'end',
           ts: 360,
           durationMs: 130,
@@ -317,7 +317,7 @@ describe('buildScenarioSummary', () => {
   it('reports zero interactive queue wait when measured actions are served from cache', () => {
     const summary = buildScenarioSummary({
       runId: 'run-1',
-      scenario: 'overview',
+      scenario: 'work',
       events: [
         benchmarkEvent({
           category: 'core-command',
@@ -343,7 +343,7 @@ describe('buildScenarioSummary', () => {
         }),
         benchmarkEvent({
           category: 'interaction',
-          name: 'interaction.overview_supplier_filter_ms',
+          name: 'interaction.work_supplier_filter_ms',
           phase: 'end',
           ts: 250,
           durationMs: 80,
@@ -370,7 +370,7 @@ describe('buildScenarioSummary', () => {
   it('falls back to whole-run metrics when measurement markers are missing', () => {
     const summary = buildScenarioSummary({
       runId: 'run-1',
-      scenario: 'overview',
+      scenario: 'work',
       events: [
         benchmarkEvent({
           category: 'core-command',

@@ -14,9 +14,8 @@ Run a focused scenario:
 ```bash
 pnpm bench:startup
 pnpm bench:navigation
-pnpm bench:overview
-pnpm bench:automations
-pnpm bench:record-update
+pnpm bench:work
+pnpm bench:capture
 pnpm bench:detail-pages
 pnpm bench:stability
 ```
@@ -88,10 +87,10 @@ interaction windows using `benchmark.phase.seed_end`,
 `benchmark.phase.measurement_start`, and `benchmark.phase.measurement_end`
 markers.
 
-Overview and Automations scenarios now measure current operator-critical flows:
+Work and Capture scenarios now measure current operator-critical flows:
 
-- `overview`: supplier drawer open, customer intake drawer open, supplier/customer workflow toggles, supplier filter transitions, and task-tab transitions.
-- `automations`: connection/health shell load, exposure filters, live-intake section load, intake drawer open, and exceptions section load.
+- `work`: supplier drawer open, customer intake drawer open, supplier/customer workflow toggles, supplier filter transitions, and task-tab transitions.
+- `capture`: hub lane opens, stock-count saves, and supplier receipt saves.
 
 Automation and customer benchmark coverage is seeded deterministically during the
 scenario setup. Bench helpers now force a minimum exposed-row and intake-row
@@ -103,9 +102,9 @@ JSONL polling. Scenario summaries include harness truth metrics:
 `harness.ready_latency_p95_ms`, `harness.measurement_duration_p95_ms`, and
 `harness.overhead_p95_ms`.
 
-Navigation and record-update scenarios follow current UI routes and labels
+Navigation and capture scenarios follow current UI routes and labels
 instead of deprecated deep-link aliases. Sidebar benchmarks click visible shell
-navigation, and record-update benchmarks open lanes through the hub cards and
+navigation, and capture benchmarks open lanes through the hub cards and
 the New or Edit/Update prompts. Supplier receipt coverage is measured inside
 the supplier-order flow rather than through a standalone receipt route.
 Detail-page benchmarks navigate through hash routes and measure SKU/service
