@@ -69,14 +69,14 @@ Old top-level URLs are no longer supported.
 
 ## Home
 
-Home is the first screen. It is a quiet command surface with four primary actions:
+Home is the first screen. It is a quiet command surface with up to four primary actions:
 
-- **Continue Work**
+- **Start Work**
 - **Capture Update**
 - **Open Catalog**
 - **Open Insights**
 
-The four actions sit in a centered 2x2 command grid, matching the Capture hub layout.
+The available actions sit in a centered command grid, matching the Capture hub layout. banji hides unavailable actions instead of showing disabled cards.
 
 Use Home when you are not sure where to begin. It points you toward the next practical operator action without exposing backend or analysis jargon.
 

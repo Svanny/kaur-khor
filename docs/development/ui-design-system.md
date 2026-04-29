@@ -51,7 +51,9 @@ Keep card colors supplied by `gridCardSurfaceClassName()`. New hub tones belong 
 
 Interface visibility uses four modes from `src/shared/interface-view.ts`: Default, Minimal, Maximal, and Custom. Default is the first-run baseline; Minimal hides optional layers; Maximal turns every optional layer on; Custom stores the operator's manual switch combination.
 
-Use `InterfaceViewModeCards` for preset selection in onboarding and Settings / Interface. Preset cards must stay square, evenly spaced, and backed by the same visibility model that the settings switches use. Manual switch changes should resolve back to a named preset only when the full visibility set exactly matches that preset; otherwise they should persist as Custom.
+Use `InterfaceViewModeCards` for preset selection in onboarding and Settings / Interface. The component renders centered fixed-card tracks with responsive 1/2/3/4-column layouts, a 1.2:1 preview area, and denser wireframe content. It accepts a `language` prop for localized labels and descriptions (English and Khmer).
+
+Onboarding intentionally offers only Default, Minimal, and Maximal. Settings / Interface shows all four modes. Manual switch changes should resolve back to a named preset only when the full visibility set exactly matches that preset; otherwise they should persist as Custom. The cards are backed by the same visibility model that the settings switches use.
 
 ## Page State Memory Rule
 
