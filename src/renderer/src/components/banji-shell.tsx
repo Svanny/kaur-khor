@@ -605,12 +605,6 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                     <p className="mt-4 max-w-xl text-pretty text-base leading-7 text-muted-foreground">
                       {t('workspaceComputingBody')}
                     </p>
-                    <p className="mt-6 max-w-lg rounded-[1.4rem] border border-border/70 bg-background/75 px-5 py-4 text-sm leading-6 text-muted-foreground shadow-[var(--shadow-soft)]">
-                      {t('workspaceComputingHint')}
-                    </p>
-                    <p className="mt-5 text-sm text-muted-foreground">
-                      {t('workspaceStarting')}
-                    </p>
                   </div>
                 </div>
               ) : (

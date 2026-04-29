@@ -871,7 +871,9 @@ describe('BanjiShell', () => {
 
     expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
     expect(screen.getByText('SENA is computing your workspace')).toBeInTheDocument();
-    expect(screen.getByText('Computing hint')).toBeInTheDocument();
+    expect(screen.getByText('Computing body')).toBeInTheDocument();
+    expect(screen.queryByText('Computing hint')).not.toBeInTheDocument();
+    expect(screen.queryByText('Starting workspace')).not.toBeInTheDocument();
     expect(screen.queryByText('Overview screen')).not.toBeInTheDocument();
   });
 
