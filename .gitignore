@@ -30,6 +30,7 @@ migrate_working_dir/
 /release/
 /coverage/
 /bench-results/
+/test-results/
 /apps/api/target/
 /apps/desktop-core/target/
 /apps/sena-core/target/
