@@ -1440,6 +1440,28 @@ pub fn trigger_run(owner_sub: &str, algorithm_version: &str) -> Result<SenaAnaly
     trigger_run_with_parameters(owner_sub, algorithm_version, None)
 }
 
+fn execute_run_and_mark_failure(
+    repo: &SqliteSenaRepository,
+    run_id: &str,
+    algorithm_version: &str,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<SenaAnalysisRunRecord> {
+    let completed_result = block_on(execute_analysis_run_with_parameters(
+        repo,
+        run_id,
+        algorithm_version,
+        parameters,
+    ));
+    let (completed, _) = match completed_result {
+        Ok(completed) => completed,
+        Err(error) => {
+            block_on(repo.mark_run_failed(run_id, &error.to_string()))?;
+            return Err(error);
+        }
+    };
+    Ok(completed)
+}
+
 pub fn trigger_run_with_parameters(
     owner_sub: &str,
     algorithm_version: &str,
@@ -1447,19 +1469,12 @@ pub fn trigger_run_with_parameters(
 ) -> Result<SenaAnalysisRunRecord> {
     let repo = repository()?;
     let run = block_on(trigger_analysis_run(&repo, owner_sub, algorithm_version))?;
-    let (completed, _) = block_on(execute_analysis_run_with_parameters(
-        &repo,
-        &run.run_id,
-        algorithm_version,
-        parameters,
-    ))?;
-    Ok(completed)
+    execute_run_and_mark_failure(&repo, &run.run_id, algorithm_version, parameters)
 }
 
 pub fn retry_run(run_id: &str, algorithm_version: &str) -> Result<SenaAnalysisRunRecord> {
     let repo = repository()?;
-    let (completed, _) = block_on(execute_analysis_run(&repo, run_id, algorithm_version))?;
-    Ok(completed)
+    execute_run_and_mark_failure(&repo, run_id, algorithm_version, None)
 }
 
 pub fn get_workspace_summary(owner_sub: &str) -> Result<Option<SenaWorkspaceSummary>> {

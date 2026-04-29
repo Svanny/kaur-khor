@@ -105,31 +105,40 @@ fn main() -> Result<()> {
             continue;
         }
 
-        let response = match handle_line(&line) {
-            Ok(response) => response,
-            Err(error) => ResponseEnvelope {
-                id: 0,
-                ok: false,
-                payload: None,
-                error: Some(error.to_string()),
-            },
-        };
+        let response = handle_line(&line);
         write_response(&mut stdout, response)?;
     }
 
     Ok(())
 }
 
-fn handle_line(line: &str) -> Result<ResponseEnvelope> {
+fn handle_line(line: &str) -> ResponseEnvelope {
     let envelope: CommandEnvelope =
-        serde_json::from_str(line).context("failed to decode desktop core command")?;
-    let payload = handle_command(&envelope.command, envelope.payload)?;
-    Ok(ResponseEnvelope {
-        id: envelope.id,
-        ok: true,
-        payload,
-        error: None,
-    })
+        match serde_json::from_str(line).context("failed to decode desktop core command") {
+            Ok(envelope) => envelope,
+            Err(error) => {
+                return ResponseEnvelope {
+                    id: 0,
+                    ok: false,
+                    payload: None,
+                    error: Some(error.to_string()),
+                };
+            }
+        };
+    match handle_command(&envelope.command, envelope.payload) {
+        Ok(payload) => ResponseEnvelope {
+            id: envelope.id,
+            ok: true,
+            payload,
+            error: None,
+        },
+        Err(error) => ResponseEnvelope {
+            id: envelope.id,
+            ok: false,
+            payload: None,
+            error: Some(error.to_string()),
+        },
+    }
 }
 
 fn handle_command(command: &str, payload: Value) -> Result<Option<Value>> {
@@ -327,7 +336,7 @@ fn write_response(stdout: &mut impl Write, response: ResponseEnvelope) -> Result
 
 #[cfg(test)]
 mod tests {
-    use super::handle_command_inner;
+    use super::{handle_command_inner, handle_line};
     use serde_json::Value;
     use std::{
         env,
@@ -384,6 +393,77 @@ mod tests {
             assert!(empty["workspaceSummary"].is_null());
             assert!(empty["latestRun"].is_null());
             assert_eq!(empty["observationFingerprint"]["count"], 0);
+        });
+    }
+
+    #[test]
+    fn command_errors_preserve_request_id_and_mark_failed_runs() {
+        with_temp_store("trigger-run-one-observation", || {
+            handle_command_inner(
+                "sena.upsertCatalog",
+                serde_json::json!({
+                    "schemaVersion": 1,
+                    "skus": [{
+                        "skuId": "sku-1",
+                        "name": "Razor refill",
+                        "description": "Refill pack",
+                        "supplierName": null,
+                        "costPerUnit": 4.0,
+                        "soldAsProduct": true,
+                        "productPrice": 9.0,
+                        "leadTimeMeanDaysHint": 5.0,
+                        "leadTimeStdDaysHint": 1.0
+                    }],
+                    "services": [],
+                    "bundles": [],
+                    "sharingMask": []
+                }),
+            )
+            .expect("catalog should upsert");
+            handle_command_inner(
+                "sena.ingestObservation",
+                serde_json::json!({
+                    "observedAt": "2026-04-02T00:00:00Z",
+                    "stockSnapshot": [{
+                        "skuId": "sku-1",
+                        "unitsInStock": 12.0,
+                        "costPerUnit": 4.0,
+                        "productPrice": 9.0
+                    }],
+                    "retailSalesSnapshot": [],
+                    "serviceSalesSnapshot": [],
+                    "serviceRankings": [],
+                    "retailRankings": [],
+                    "serviceStockouts": [],
+                    "retailStockouts": [],
+                    "orderSignals": [],
+                    "servicePrices": [],
+                    "retailPrices": [],
+                    "leadTimeHints": [],
+                    "notes": null
+                }),
+            )
+            .expect("observation should insert");
+
+            let response = handle_line(
+                r#"{"id":42,"command":"sena.triggerRun","payload":{"algorithmVersion":"sena-analysis-v3"}}"#,
+            );
+
+            assert_eq!(response.id, 42);
+            assert!(!response.ok);
+            assert_eq!(
+                response.error.as_deref(),
+                Some("SENA analysis requires at least two observations")
+            );
+
+            let workspace = handle_command_inner("sena.getStartupWorkspace", Value::Null)
+                .expect("startup command should succeed")
+                .expect("startup command should return a payload");
+            assert_eq!(workspace["latestRun"]["status"], "failed");
+            assert_eq!(
+                workspace["latestRun"]["error"],
+                "SENA analysis requires at least two observations"
+            );
         });
     }
 

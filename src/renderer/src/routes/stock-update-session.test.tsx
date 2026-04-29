@@ -1607,6 +1607,30 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.queryByLabelText('Current interval sales for Towel wrap')).not.toBeInTheDocument();
   });
 
+  it('skips the post-save rerun after the first observation', async () => {
+    setStoredSessionViewMode('form');
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
+
+    renderRoutedSession([]);
+
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(setTimeoutSpy).not.toHaveBeenCalledWith(expect.any(Function), 5_000);
+    expect(triggerSenaRun).not.toHaveBeenCalled();
+    expect(runWorkspacePreparation).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+
+    setTimeoutSpy.mockRestore();
+  });
+
   it('resets the session immediately after saving and schedules the rerun in the background', async () => {
     setStoredSessionViewMode('form');
     const rerun = deferredPromise<void>();

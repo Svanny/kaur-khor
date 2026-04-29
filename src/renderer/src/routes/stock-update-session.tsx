@@ -8079,6 +8079,7 @@ export function StockUpdateSessionRoute() {
       setError(validationError);
       return;
     }
+    const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     try {
       if (lane.id === 'supplier-order-pending' && supplierPendingMode !== 'cancel_supplier_order') {
         const tableMeanDays =
@@ -8196,6 +8197,9 @@ export function StockUpdateSessionRoute() {
     setDraftWasRestored(false);
     resetRecordUpdateState();
     navigate('/', { replace: true, state: null });
+    if (!shouldSchedulePostSaveRerun) {
+      return;
+    }
     const schedulePostSaveRerun = () => {
       const currentRoute = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
       if (currentRoute.startsWith('/work/capture')) {
