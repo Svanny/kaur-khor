@@ -37,6 +37,13 @@ async function collectSourceFiles(directory: string): Promise<string[]> {
   return nested.flat();
 }
 
+function collectStaticTranslateUiLiteralCalls(source: string): Array<{ literal: string; line: number }> {
+  return [...source.matchAll(/\btranslateUiLiteral\(\s*language\s*,\s*(['"])((?:\\.|(?!\1).)*)\1/g)].map((match) => ({
+    literal: match[2].replace(/\\'/g, "'").replace(/\\"/g, '"'),
+    line: source.slice(0, match.index).split('\n').length,
+  }));
+}
+
 describe('getTranslation', () => {
   test('keeps v1 and v2 on the same key set', () => {
     expect(Object.keys(enUiCopyV2).sort()).toEqual(Object.keys(enUiCopyV1).sort());
@@ -242,24 +249,17 @@ describe('getTranslation', () => {
     }
   });
 
-  test('keeps chart and record-update literal translations localized in Khmer', async () => {
-    const sourcePaths = [
-      'src/renderer/src/components/system/supplier.tsx',
-      'src/renderer/src/components/system/trading-chart/chart.tsx',
-      'src/renderer/src/routes/record-update-hub.tsx',
-      'src/renderer/src/routes/stock-update-session.tsx',
-    ];
+  test('keeps static runtime literal translations localized in Khmer', async () => {
+    const rendererRoot = resolve(process.cwd(), 'src/renderer/src');
+    const sourceFiles = await collectSourceFiles(rendererRoot);
     const offenders: string[] = [];
 
-    for (const sourcePath of sourcePaths) {
-      const source = await readFile(resolve(process.cwd(), sourcePath), 'utf8');
-      const matches = [...source.matchAll(/\btranslateUiLiteral\(\s*language\s*,\s*'([^']+)'/g)];
-      for (const match of matches) {
-        const literal = match[1];
+    for (const sourceFile of sourceFiles) {
+      const source = await readFile(sourceFile, 'utf8');
+      for (const { literal, line } of collectStaticTranslateUiLiteralCalls(source)) {
         const translated = translateUiLiteral('km', literal);
-        if (/[A-Za-z]/.test(stripAllowedLatin(translated))) {
-          const line = source.slice(0, match.index).split('\n').length;
-          offenders.push(`${sourcePath}:${line}: ${literal} -> ${translated}`);
+        if (/[A-Za-z]/.test(stripTemplateVariables(translated))) {
+          offenders.push(`${relative(rendererRoot, sourceFile)}:${line}: ${literal} -> ${translated}`);
         }
       }
     }

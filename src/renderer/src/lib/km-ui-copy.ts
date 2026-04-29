@@ -3090,6 +3090,258 @@ const exactValueTranslations: Record<string, string> = {
   'n/a': 'មិនមាន',
 };
 
+const runtimeLiteralTranslations: Record<string, string> = {
+  'New!': 'ថ្មី!',
+  'This item will return to active workspaces and become visible across banji again.':
+    'ធាតុនេះនឹងត្រឡប់ទៅកន្លែងធ្វើការសកម្ម ហើយអាចមើលឃើញទូទាំងបញ្ជីម្ដងទៀត។',
+  'Current interval': 'ចន្លោះពេលបច្ចុប្បន្ន',
+  'Previous interval': 'ចន្លោះពេលមុន',
+  'Previous interval start date': 'កាលបរិច្ឆេទចាប់ផ្តើមនៃចន្លោះពេលមុន',
+  'Previous interval end date': 'កាលបរិច្ឆេទបញ្ចប់នៃចន្លោះពេលមុន',
+  'Protection horizon: lead time + {days}d review delay':
+    'រយៈពេលការពារ៖ ពេលវេលាមកដល់ + ការពន្យារពិនិត្យ {days} ថ្ងៃ',
+  'Unarchive {name}?': 'ស្ដារ {name} ចេញពីបណ្ណសារឬ?',
+  'Archive {name}?': 'ដាក់ {name} ក្នុងបណ្ណសារឬ?',
+  'Search archive': 'ស្វែងរកក្នុងបណ្ណសារ',
+  'Filter archive items': 'តម្រងធាតុក្នុងបណ្ណសារ',
+  'No archived items match this view': 'មិនមានធាតុក្នុងបណ្ណសារណាត្រូវនឹងទិដ្ឋភាពនេះទេ',
+  'Try a broader search or switch filters to inspect the archive ledger.':
+    'សាកស្វែងរកទូលំទូលាយជាងនេះ ឬប្តូរតម្រង ដើម្បីពិនិត្យបញ្ជីបណ្ណសារ។',
+  'Automated Telegram Bot': 'បូតតេលេក្រាមស្វ័យប្រវត្តិ',
+  'Telegram intake counts for today.': 'ចំនួនសំណើតេលេក្រាមសម្រាប់ថ្ងៃនេះ។',
+  'The latest Telegram intake and promotion movement.':
+    'សំណើតេលេក្រាម និងចលនាផ្សព្វផ្សាយចុងក្រោយ។',
+  'How much of the sellable catalog Telegram can safely offer right now.':
+    'ចំណែកនៃកាតាឡុកដែលអាចលក់បាន ដែលតេលេក្រាមអាចបង្ហាញដោយសុវត្ថិភាពឥឡូវនេះ។',
+  'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.':
+    'កំណត់ការភ្ជាប់បូតតេលេក្រាម ហើយរក្សាបញ្ជីជាប្រភពពិតសម្រាប់តម្លៃ សំបុត្រការងារ និងការបំពេញការបញ្ជាទិញ។',
+  'Choose exactly which customer-facing SKUs and services the bot may offer.':
+    'ជ្រើសអេសខេយូ និងសេវាកម្មសម្រាប់អតិថិជន ដែលបូតអាចបង្ហាញបាន។',
+  'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.':
+    'សំណើតេលេក្រាមថ្មីៗកំពុងរង់ចាំការពិនិត្យ ការបញ្ជាក់ ឬការបំលែងទៅជាសំបុត្រការងារក្នុងបញ្ជី។',
+  'Messages that banji could not safely convert into clean customer order intake.':
+    'សារដែលបញ្ជីមិនអាចបំលែងដោយសុវត្ថិភាពទៅជាសំណើបញ្ជាទិញអតិថិជនស្អាតបាន។',
+  'Save a stock count, customer order, sale, supplier order, or custom event.':
+    'រក្សាទុកការរាប់ស្តុក ការបញ្ជាទិញអតិថិជន ការលក់ ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ឬព្រឹត្តិការណ៍ផ្ទាល់ខ្លួន។',
+  'Capture Update': 'កត់ត្រាការអាប់ដេត',
+  'Manage active and archived SKUs and services.': 'គ្រប់គ្រងអេសខេយូ និងសេវាកម្មសកម្ម ឬក្នុងបណ្ណសារ។',
+  'Open pressure, money, or explanation workspaces.':
+    'បើកកន្លែងធ្វើការសម្ពាធ ហិរញ្ញវត្ថុ ឬការពន្យល់។',
+  'Open Insights': 'បើកការយល់ដឹង',
+  'Command home': 'ទំព័រដើមបញ្ជា',
+  'Start with the next operational decision, then move into capture, catalog, or insight work.':
+    'ចាប់ផ្តើមពីសេចក្តីសម្រេចប្រតិបត្តិការបន្ទាប់ បន្ទាប់មកចូលទៅកត់ត្រា កាតាឡុក ឬការយល់ដឹង។',
+  'Next move': 'សកម្មភាពបន្ទាប់',
+  '{count} items': 'ធាតុ {count}',
+  '{count} updates': 'ការអាប់ដេត {count}',
+  Quoted: 'បានដកស្រង់តម្លៃ',
+  Closed: 'បានបិទ',
+  'Review customer and supplier work that needs attention next.':
+    'ពិនិត្យការងារអតិថិជន និងអ្នកផ្គត់ផ្គង់ ដែលត្រូវយកចិត្តទុកដាក់បន្ទាប់។',
+  'Search queue': 'ស្វែងរកជួរ',
+  'Select overview ticket family': 'ជ្រើសក្រុមសំបុត្រការងារទិដ្ឋភាពទូទៅ',
+  'Customer queue': 'ជួរអតិថិជន',
+  'Open customer commitments, blocked work, and today’s completion signals.':
+    'បើកការប្តេជ្ញារបស់អតិថិជន ការងារដែលត្រូវរារាំង និងសញ្ញាបញ្ចប់ថ្ងៃនេះ។',
+  'Customer work': 'ការងារអតិថិជន',
+  'Open / today': 'បើក / ថ្ងៃនេះ',
+  '{open} open · {done} completed today': 'បើក {open} · បានបញ្ចប់ថ្ងៃនេះ {done}',
+  '{blocked} blocked · {canceled} canceled today': 'ត្រូវរារាំង {blocked} · បានលុបចោលថ្ងៃនេះ {canceled}',
+  'No customer tasks match this view': 'មិនមានការងារអតិថិជនណាត្រូវនឹងទិដ្ឋភាពនេះទេ',
+  'Record pending or completed customer orders to bring the customer queue into view.':
+    'កត់ត្រាការបញ្ជាទិញអតិថិជនដែលកំពុងរង់ចាំ ឬបានបញ្ចប់ ដើម្បីបង្ហាញជួរអតិថិជន។',
+  'Customer signals': 'សញ្ញាអតិថិជន',
+  'Open record updates': 'បើកការអាប់ដេតដែលបានកត់ត្រា',
+  'refining receipt windows…': 'កំពុងកែលម្អរយៈពេលទទួលទំនិញ…',
+  'No contributors match the current filters. Broaden scope, clear supplier, or record more live data.':
+    'មិនមានអ្នករួមចំណែកណាត្រូវនឹងតម្រងបច្ចុប្បន្នទេ។ ពង្រីកវិសាលភាព សម្អាតអ្នកផ្គត់ផ្គង់ ឬកត់ត្រាទិន្នន័យពិតបន្ថែម។',
+  'The SKU or service explaining part of the current money view.':
+    'អេសខេយូ ឬសេវាកម្ម ដែលពន្យល់ផ្នែកមួយនៃទិដ្ឋភាពហិរញ្ញវត្ថុបច្ចុប្បន្ន។',
+  'Realized stock-linked sales in the selected window.':
+    'ការលក់ដែលបានកើតឡើង និងភ្ជាប់នឹងស្តុក ក្នុងរយៈពេលដែលបានជ្រើស។',
+  'Net sales': 'ការលក់សុទ្ធ',
+  'Sales after known or inferred stock-linked cost.':
+    'ការលក់បន្ទាប់ពីថ្លៃដើមដែលភ្ជាប់នឹងស្តុក ដែលបានដឹង ឬប៉ាន់ស្មាន។',
+  'Gross profit': 'ចំណេញសរុប',
+  'Current stock-linked capital attached to this entity.':
+    'ទុនដែលភ្ជាប់នឹងស្តុកបច្ចុប្បន្ន សម្រាប់ធាតុនេះ។',
+  'Capital tied up': 'ទុនដែលជាប់',
+  'Whether inventory is converting into money cleanly.':
+    'បង្ហាញថាស្តុកកំពុងបំលែងទៅជាប្រាក់បានស្អាតឬអត់។',
+  'Turn quality': 'គុណភាពបង្វិលស្តុក',
+  'Financial classification for this row.': 'ចំណាត់ថ្នាក់ហិរញ្ញវត្ថុសម្រាប់ជួរនេះ។',
+  'Loading the stock-linked money view.': 'កំពុងផ្ទុកទិដ្ឋភាពហិរញ្ញវត្ថុដែលភ្ជាប់នឹងស្តុក។',
+  Money: 'ហិរញ្ញវត្ថុ',
+  'Select financials scope': 'ជ្រើសវិសាលភាពហិរញ្ញវត្ថុ',
+  'Select financials time range': 'ជ្រើសរយៈពេលហិរញ្ញវត្ថុ',
+  'Open custom date range dialog': 'បើកប្រអប់រយៈពេលកាលបរិច្ឆេទផ្ទាល់ខ្លួន',
+  'Financial statement': 'របាយការណ៍ហិរញ្ញវត្ថុ',
+  'The money shape of the business in money in, money tied up, and money leaking layers.':
+    'រូបរាងហិរញ្ញវត្ថុនៃអាជីវកម្ម តាមស្រទាប់ប្រាក់ចូល ទុនដែលជាប់ និងប្រាក់ដែលលេចធ្លាយ។',
+  'Read the stock-linked money view as a statement, not an action queue.':
+    'អានទិដ្ឋភាពហិរញ្ញវត្ថុដែលភ្ជាប់នឹងស្តុកជារបាយការណ៍ មិនមែនជាជួរសកម្មភាពទេ។',
+  'Economic contributors': 'អ្នករួមចំណែកសេដ្ឋកិច្ច',
+  'The SKUs and services explaining most of the current economic picture.':
+    'អេសខេយូ និងសេវាកម្ម ដែលពន្យល់ភាគច្រើននៃរូបភាពសេដ្ឋកិច្ចបច្ចុប្បន្ន។',
+  'Ranked by gross profit contribution, then sales contribution.':
+    'រៀបតាមចំណែកចំណេញសរុប បន្ទាប់មកចំណែកការលក់។',
+  'Money quality bands': 'ក្រុមគុណភាពហិរញ្ញវត្ថុ',
+  'Financial groupings by earning quality, trapped capital, and margin leakage.':
+    'ក្រុមហិរញ្ញវត្ថុតាមគុណភាពចំណូល ទុនដែលជាប់ និងការលេចធ្លាយម៉ាស៊ីនចំណេញ។',
+  'Scan where money is working, sitting, or leaking.':
+    'មើលថាប្រាក់កំពុងធ្វើការ នៅស្ងៀម ឬលេចធ្លាយនៅកន្លែងណា។',
+  'No efficient earners are standing out in this window.':
+    'មិនមានអ្នករកចំណូលប្រសិទ្ធភាពណាលេចធ្លោក្នុងរយៈពេលនេះទេ។',
+  Earners: 'អ្នករកចំណូល',
+  'Strong sales, healthy profit, and acceptable capital footprint.':
+    'ការលក់ខ្លាំង ចំណេញមានសុខភាពល្អ និងទំហំទុនអាចទទួលយកបាន។',
+  'No capital traps are stacking up in this window.': 'មិនមានទុនជាប់កំពុងកើនក្នុងរយៈពេលនេះទេ។',
+  'Capital traps': 'អន្ទាក់ទុន',
+  'Too much stock value relative to realized return.':
+    'តម្លៃស្តុកច្រើនពេក បើប្រៀបធៀបនឹងផលតបស្នងដែលបានកើតឡើង។',
+  'No margin leaks are standing out in this window.':
+    'មិនមានការលេចធ្លាយម៉ាស៊ីនចំណេញណាលេចធ្លោក្នុងរយៈពេលនេះទេ។',
+  'Margin leaks': 'ការលេចធ្លាយម៉ាស៊ីនចំណេញ',
+  'Sales activity exists, but spread is weak or deteriorating.':
+    'មានសកម្មភាពលក់ ប៉ុន្តែគម្លាតចំណេញខ្សោយ ឬកំពុងធ្លាក់ចុះ។',
+  'Commitments due': 'ការប្តេជ្ញាដល់កំណត់',
+  'Supplier-side value likely to leave the business soon.':
+    'តម្លៃខាងអ្នកផ្គត់ផ្គង់ទំនងជានឹងចេញពីអាជីវកម្មឆាប់ៗ។',
+  'No open supplier commitments are visible right now.':
+    'ឥឡូវនេះមិនឃើញការប្តេជ្ញាអ្នកផ្គត់ផ្គង់ដែលនៅបើកទេ។',
+  'Largest capital positions': 'ទីតាំងទុនធំបំផុត',
+  'The biggest current stock-value concentrations.': 'ការប្រមូលផ្តុំតម្លៃស្តុកបច្ចុប្បន្នធំបំផុត។',
+  'No material stock-value concentration is visible yet.':
+    'មិនទាន់ឃើញការប្រមូលផ្តុំតម្លៃស្តុកសំខាន់នៅឡើយទេ។',
+  'Recent margin shifts': 'ការផ្លាស់ប្តូរម៉ាស៊ីនចំណេញថ្មីៗ',
+  'Recent price, cost, receipt, or correction changes with financial impact.':
+    'ការផ្លាស់ប្តូរតម្លៃ ថ្លៃដើម ការទទួលទំនិញ ឬការកែតម្រូវថ្មីៗ ដែលប៉ះពាល់ហិរញ្ញវត្ថុ។',
+  'No recent price or cost shifts are visible in this window.':
+    'មិនឃើញការផ្លាស់ប្តូរតម្លៃ ឬថ្លៃដើមថ្មីៗក្នុងរយៈពេលនេះទេ។',
+  'Price, cost, and freshness coverage behind this money view.':
+    'ការគ្របដណ្តប់តម្លៃ ថ្លៃដើម និងភាពថ្មី នៅពីក្រោយទិដ្ឋភាពហិរញ្ញវត្ថុនេះ។',
+  'Telegram attribution': 'ការបែងចែកប្រភពតេលេក្រាម',
+  'Quoted, realized, and canceled value attributed to Telegram-origin customer intake.':
+    'តម្លៃដែលបានដកស្រង់ បានកើតឡើង និងបានលុបចោល ដែលភ្ជាប់នឹងសំណើអតិថិជនពីតេលេក្រាម។',
+  'Open quoted Telegram value': 'តម្លៃតេលេក្រាមដែលបានដកស្រង់ និងនៅបើក',
+  'Realized Telegram value': 'តម្លៃតេលេក្រាមដែលបានកើតឡើង',
+  'Telegram-origin reversals / cancellations': 'ការបញ្ច្រាស / ការលុបចោលពីប្រភពតេលេក្រាម',
+  'Ticketed Telegram intake': 'សំណើតេលេក្រាមដែលមានសំបុត្រការងារ',
+  Insights: 'ការយល់ដឹង',
+  'Understand what needs attention': 'យល់ពីអ្វីដែលត្រូវយកចិត្តទុកដាក់',
+  'Choose the operating lens before opening the detailed workspace.':
+    'ជ្រើសមុំមើលប្រតិបត្តិការ មុនបើកកន្លែងធ្វើការលម្អិត។',
+  '{count} counted SKU{suffix}': 'បានរាប់អេសខេយូ {count}{suffix}',
+  '{count} retail sales count{suffix}': 'ការរាប់ការលក់រាយ {count}{suffix}',
+  '{count} service sales count{suffix}': 'ការរាប់ការលក់សេវាកម្ម {count}{suffix}',
+  '{count} order{suffix}': 'ការបញ្ជាទិញ {count}{suffix}',
+  '{count} receipt{suffix}': 'ការទទួលទំនិញ {count}{suffix}',
+  '{count} service price{suffix}': 'តម្លៃសេវាកម្ម {count}{suffix}',
+  '{count} retail price{suffix}': 'តម្លៃលក់រាយ {count}{suffix}',
+  '{count} stockout flag{suffix}': 'សញ្ញាអស់ស្តុក {count}{suffix}',
+  '{count} delivery note{suffix}': 'កំណត់ចំណាំការដឹកមកដល់ {count}{suffix}',
+  '{count} adjustment{suffix}': 'ការកែសម្រួល {count}{suffix}',
+  '{count} customer pending change{suffix}': 'ការផ្លាស់ប្តូរការរង់ចាំអតិថិជន {count}{suffix}',
+  '{count} customer completion{suffix}': 'ការបញ្ចប់របស់អតិថិជន {count}{suffix}',
+  '{count} supplier order change{suffix}': 'ការផ្លាស់ប្តូរការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ {count}{suffix}',
+  '{count} supplier receipt{suffix}': 'ការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់ {count}{suffix}',
+  '{count} ticket event{suffix}': 'ព្រឹត្តិការណ៍សំបុត្រការងារ {count}{suffix}',
+  note: 'កំណត់ចំណាំ',
+  'No structured signals': 'មិនមានសញ្ញាមានរចនាសម្ព័ន្ធទេ',
+  'Loading preferences…': 'កំពុងផ្ទុកចំណូលចិត្ត…',
+  'supplier order probability': 'លទ្ធភាពបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Supplier receipt': 'ការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
+  'Supplier order cue': 'សញ្ញាបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Supplier receipt cue': 'សញ្ញាទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
+  'custom range': 'រយៈពេលផ្ទាល់ខ្លួន',
+  'Push {name}': 'ជំរុញ {name}',
+  'Capture upside while capacity is still holding':
+    'កត់ត្រាឱកាសឡើងខ្ពស់ ខណៈសមត្ថភាពនៅតែទ្រាំបាន។',
+  'Recover {name}': 'ស្តារ {name}',
+  'Review {name} pricing': 'ពិនិត្យតម្លៃ {name}',
+  'Protect margin without stalling service demand':
+    'ការពារម៉ាស៊ីនចំណេញ ដោយមិនធ្វើឲ្យតម្រូវការសេវាកម្មជាប់គាំង។',
+  'Restock {name}': 'បំពេញស្តុក {name}',
+  'Recover velocity or margin before the drag hardens':
+    'ស្តារល្បឿនលក់ ឬម៉ាស៊ីនចំណេញ មុនពេលសម្ពាធក្លាយជារឹង។',
+  'Clear {name}': 'សម្អាត {name}',
+  'Free cash tied up in slow-moving stock': 'ដោះលែងសាច់ប្រាក់ដែលជាប់ក្នុងស្តុកលក់យឺត។',
+  'Capture stronger retail or service-led demand': 'កត់ត្រាតម្រូវការលក់រាយ ឬតម្រូវការដឹកនាំដោយសេវាកម្មដែលខ្លាំងជាង។',
+  'Unblock customer orders': 'ដោះការរារាំងការបញ្ជាទិញអតិថិជន',
+  'Review pending': 'ពិនិត្យអ្វីដែលកំពុងរង់ចាំ',
+  '{count} open service order{suffix} are blocked': 'ការបញ្ជាទិញសេវាកម្មបើក {count}{suffix} ត្រូវបានរារាំង',
+  'This reopens stalled customer revenue without changing the current page contract.':
+    'វាបើកចំណូលអតិថិជនដែលជាប់គាំងឡើងវិញ ដោយមិនប្តូរកិច្ចសន្យាទំព័របច្ចុប្បន្ន។',
+  'Release blocked customer demand': 'ដោះតម្រូវការអតិថិជនដែលត្រូវរារាំង',
+  '{count} open customer order{suffix} are waiting on this SKU':
+    'ការបញ្ជាទិញអតិថិជនបើក {count}{suffix} កំពុងរង់ចាំអេសខេយូនេះ',
+  'Restocking or correcting this SKU should free pending customer completions.':
+    'ការបំពេញស្តុក ឬកែអេសខេយូនេះ គួរដោះការបញ្ចប់អតិថិជនដែលកំពុងរង់ចាំ។',
+  '{count} entities pulling ahead across {window} · {completed} customer completions landed':
+    'ធាតុ {count} កំពុងរីកមុខក្នុង {window} · ការបញ្ចប់អតិថិជន {completed} បានកើតឡើង',
+  'Demand is broadly holding across {window} · {open} customer orders remain open':
+    'តម្រូវការជាទូទៅនៅតែថេរក្នុង {window} · ការបញ្ជាទិញអតិថិជន {open} នៅតែបើក',
+  '{count} open customer order{suffix} blocked': 'ការបញ្ជាទិញអតិថិជនបើក {count}{suffix} ត្រូវបានរារាំង',
+  '{count} refund or cancellation signal{suffix}': 'សញ្ញាសងប្រាក់ ឬលុបចោល {count}{suffix}',
+  '{count} services exposed': 'សេវាកម្មដែលបានបង្ហាញ {count}',
+  '{count} open customer order{suffix} are waiting on stock or capacity':
+    'ការបញ្ជាទិញអតិថិជនបើក {count}{suffix} កំពុងរង់ចាំស្តុក ឬសមត្ថភាព',
+  'Refund pressure is active': 'សម្ពាធសងប្រាក់កំពុងសកម្ម',
+  '{count} refund or reversal signal{suffix} landed in the current window':
+    'សញ្ញាសងប្រាក់ ឬបញ្ច្រាស {count}{suffix} បានកើតឡើងក្នុងរយៈពេលបច្ចុប្បន្ន',
+  'Customer commitments': 'ការប្តេជ្ញារបស់អតិថិជន',
+  'Service unavailable': 'សេវាកម្មមិនអាចប្រើបាន',
+  '{count} open service orders are blocked': 'ការបញ្ជាទិញសេវាកម្មបើក {count} ត្រូវបានរារាំង',
+  '{count} open service orders are active': 'ការបញ្ជាទិញសេវាកម្មបើក {count} កំពុងសកម្ម',
+  '{completed} completed recently · {issues} refund or cancellation signal':
+    'បានបញ្ចប់ថ្មីៗ {completed} · សញ្ញាសងប្រាក់ ឬលុបចោល {issues}',
+  'Customer pending': 'អតិថិជនកំពុងរង់ចាំ',
+  'Customer completed': 'អតិថិជនបានបញ្ចប់',
+  'Refund / cancel': 'សងប្រាក់ / លុបចោល',
+  '{count} open order{suffix} exposed here': 'ការបញ្ជាទិញបើក {count}{suffix} ត្រូវបានបង្ហាញទីនេះ',
+  'No blocked open orders tied to this SKU right now':
+    'ឥឡូវនេះមិនមានការបញ្ជាទិញបើកដែលត្រូវរារាំង និងភ្ជាប់នឹងអេសខេយូនេះទេ',
+  'Supplier relief is available if this contributor is reordered':
+    'មានជំនួយពីអ្នកផ្គត់ផ្គង់ ប្រសិនបើអ្នករួមចំណែកនេះត្រូវបានបញ្ជាទិញបន្ថែម។',
+  'No supplier relief has been logged yet': 'មិនទាន់បានកត់ត្រាជំនួយពីអ្នកផ្គត់ផ្គង់នៅឡើយទេ',
+  'Open orders': 'ការបញ្ជាទិញបើក',
+  Completed: 'បានបញ្ចប់',
+  '{count} open service order{suffix}': 'ការបញ្ជាទិញសេវាកម្មបើក {count}{suffix}',
+  '{count} completed in the recent window': 'បានបញ្ចប់ {count} ក្នុងរយៈពេលថ្មីៗ',
+  '{count} blocked by linked SKU pressure': 'ត្រូវរារាំង {count} ដោយសម្ពាធអេសខេយូដែលភ្ជាប់',
+  'No open service order is currently blocked': 'ឥឡូវនេះមិនមានការបញ្ជាទិញសេវាកម្មបើកណាត្រូវរារាំងទេ',
+  '{count} refunds or cancellations need review': 'ការសងប្រាក់ ឬការលុបចោល {count} ត្រូវការពិនិត្យ',
+  'No recent refund or cancellation signal': 'មិនមានសញ្ញាសងប្រាក់ ឬលុបចោលថ្មីៗទេ',
+  'Inject onboarding stage': 'បញ្ចូលដំណាក់កាលណែនាំដំបូង',
+  'Supplier assigned to this SKU.': 'អ្នកផ្គត់ផ្គង់ដែលបានកំណត់សម្រាប់អេសខេយូនេះ។',
+  'Customer demand': 'តម្រូវការអតិថិជន',
+  'Open customer commitments and realized customer flow linked to this SKU.':
+    'បើកការប្តេជ្ញារបស់អតិថិជន និងលំហូរអតិថិជនដែលបានកើតឡើង ដែលភ្ជាប់នឹងអេសខេយូនេះ។',
+  'Customer order updated': 'បានអាប់ដេតការបញ្ជាទិញអតិថិជន',
+  'Customer order completed': 'បានបញ្ចប់ការបញ្ជាទិញអតិថិជន',
+  'Supplier order updated': 'បានអាប់ដេតការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Supplier receipt updated': 'បានអាប់ដេតការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
+  '{count} units · {reason}': '{count} ឯកតា · {reason}',
+  'Partial receipt': 'ការទទួលទំនិញមួយផ្នែក',
+  'Full receipt': 'ការទទួលទំនិញពេញលេញ',
+  'Ticket canceled': 'បានលុបចោលសំបុត្រការងារ',
+  'Customer order created': 'បានបង្កើតការបញ្ជាទិញអតិថិជន',
+  'Supplier order placed': 'បានដាក់ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Adjustment created': 'បានបង្កើតការកែសម្រួល',
+  'Customer ticket updated': 'បានអាប់ដេតសំបុត្រការងារអតិថិជន',
+  'Supplier ticket updated': 'បានអាប់ដេតសំបុត្រការងារអ្នកផ្គត់ផ្គង់',
+  'Adjustment updated': 'បានអាប់ដេតការកែសម្រួល',
+  'Open customer orders {count}': 'ការបញ្ជាទិញអតិថិជនបើក {count}',
+  'Completed in window {count}': 'បានបញ្ចប់ក្នុងរយៈពេល {count}',
+  'Blocked commitments {count}': 'ការប្តេជ្ញាដែលត្រូវរារាំង {count}',
+  'Refund / reversal pressure {count}': 'សម្ពាធសងប្រាក់ / បញ្ច្រាស {count}',
+  'Choose a day in the heatmap to inspect the filtered observations captured on that date.':
+    'ជ្រើសថ្ងៃមួយក្នុងផែនទីកម្ដៅ ដើម្បីពិនិត្យការសង្កេតដែលបានតម្រង និងបានកត់ត្រានៅថ្ងៃនោះ។',
+  'Daily operator work': 'ការងារប្រតិបត្តិការប្រចាំថ្ងៃ',
+  'Queue, capture, and intake stay in one operator workspace.':
+    'ជួរ ការកត់ត្រា និងការទទួលសំណើ ស្ថិតនៅក្នុងកន្លែងធ្វើការប្រតិបត្តិការតែមួយ។',
+};
+
 const phraseTranslations: ReadonlyArray<readonly [string, string]> = [
   ['Work', 'ទិដ្ឋភាពទូទៅ'],
   ['overview', 'ទិដ្ឋភាពទូទៅ'],
@@ -3659,7 +3911,7 @@ function translateByPattern(value: string): string | null {
 }
 
 function translateValueFragment(value: string): string {
-  const direct = exactValueTranslations[value];
+  const direct = runtimeLiteralTranslations[value] ?? exactValueTranslations[value];
   if (direct) {
     return direct;
   }
@@ -3680,7 +3932,7 @@ function translateValue(key: TranslationKey, englishValue: string): string {
     return localizeKhmerProductWords(directKey);
   }
 
-  const directValue = exactValueTranslations[englishValue];
+  const directValue = runtimeLiteralTranslations[englishValue] ?? exactValueTranslations[englishValue];
   if (directValue) {
     return localizeKhmerProductWords(directValue);
   }
