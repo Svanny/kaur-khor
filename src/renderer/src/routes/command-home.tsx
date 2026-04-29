@@ -126,6 +126,7 @@ export function CommandHomeRoute() {
     tone: GridCardColorKey;
   }>;
   const visibleCommandActions = commandActions.filter((action) => action.isVisible);
+  const commandActionColumns = visibleCommandActions.length === 3 ? 3 : Math.min(2, visibleCommandActions.length);
 
   return (
     <WorkspacePage fitViewport className="gap-5">
@@ -164,7 +165,7 @@ export function CommandHomeRoute() {
         </div>
       </WorkspaceTitleCard>
 
-      <CenteredTileGrid columns={Math.min(2, visibleCommandActions.length)}>
+      <CenteredTileGrid columns={commandActionColumns}>
         {visibleCommandActions.map((action) => (
           <CommandAction
             key={action.label}

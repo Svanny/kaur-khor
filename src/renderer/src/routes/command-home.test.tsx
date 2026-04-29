@@ -109,4 +109,42 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Open Catalog/i })).toHaveAttribute('href', '/catalog');
     expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
   });
+
+  test('uses three columns when exactly three action cards are visible', () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            archived: false,
+            costPerUnit: 4,
+            description: 'SKU',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      latestRun: null,
+      observations: [{ observationId: 'obs-1' }],
+      orderBatches: [],
+      workspaceSummary: null,
+    });
+
+    renderRoute();
+
+    expect(screen.getByRole('link', { name: /Start Work/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Capture Update/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Open Catalog/i })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
+    const grid = document.querySelector('.grid.min-h-0.flex-1.place-items-center');
+    expect(grid).not.toBeNull();
+    expect(grid).toHaveStyle({ '--centered-tile-columns': '3' });
+  });
 });
