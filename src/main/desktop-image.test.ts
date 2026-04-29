@@ -65,4 +65,31 @@ describe('prepareDesktopImageUpload', () => {
     expect(sourceImage.resize).toHaveBeenCalled();
     expect(resizedImage.toJPEG).toHaveBeenCalled();
   });
+
+  it('normalizes WebP images to PNG for safe upload', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-desktop-image-'));
+    const imagePath = join(userDataPath, 'badge.webp');
+    const originalBytes = new Uint8Array(1_600_100).fill(7);
+    const resizedImage = {
+      toJPEG: vi.fn(() => new Uint8Array([9, 8, 7])),
+      toPNG: vi.fn(() => new Uint8Array([9, 8, 7, 6])),
+    };
+    const sourceImage = {
+      isEmpty: () => false,
+      getSize: () => ({ width: 3200, height: 2400 }),
+      resize: vi.fn(() => resizedImage),
+      toJPEG: vi.fn(() => originalBytes),
+      toPNG: vi.fn(() => originalBytes),
+    };
+
+    await writeFile(imagePath, originalBytes);
+    createFromPathMock.mockReturnValue(sourceImage);
+
+    const upload = await prepareDesktopImageUpload(imagePath);
+
+    expect(upload.filename).toBe('badge-telegram.png');
+    expect(Array.from(upload.bytes)).toEqual([9, 8, 7, 6]);
+    expect(sourceImage.resize).toHaveBeenCalled();
+    expect(resizedImage.toPNG).toHaveBeenCalled();
+  });
 });

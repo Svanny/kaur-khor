@@ -14,6 +14,7 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import { normalizeDesktopImage } from './desktop-image';
+import { storeDroppedImageHandler } from './store-dropped-image';
 import {
   finalizeAutomationPromotion,
   listAutomationConversations,
@@ -52,6 +53,7 @@ import {
   type DesktopClearCurrentDataResult,
   type DesktopLocalDataInfo,
   type DesktopPreferences,
+  type DesktopStoreDroppedImagePayload,
   type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
@@ -143,7 +145,7 @@ const SENA_READ_CACHE_MAX_PERSISTED_ENTRY_BYTES = 512_000;
 const DESKTOP_ASSET_DIRECTORY = 'assets';
 const DESKTOP_ASSET_PROTOCOL = 'banji-asset';
 const DESKTOP_ASSET_HOST = 'local';
-const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg'] as const;
+const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 let mainWindow: BrowserWindow | null = null;
@@ -1213,7 +1215,7 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
 
   const extension = extname(sourcePath).toLowerCase();
   if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
-    throw new Error('Please choose a PNG or JPEG image.');
+    throw new Error('Please choose a PNG, JPEG, or WebP image.');
   }
 
   const sourceStats = await stat(sourcePath).catch(() => null);
@@ -1237,6 +1239,9 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
   const targetPath = join(targetDirectory, `${randomUUID()}${normalizedImage.extension}`);
   await writeFile(targetPath, normalizedImage.bytes);
   return targetPath;
+}));
+ipcMain.handle(IPC_CHANNELS.systemStoreDroppedImage, benchmarkIpcHandle(IPC_CHANNELS.systemStoreDroppedImage, async (_event, payload: DesktopStoreDroppedImagePayload) => {
+  return storeDroppedImageHandler(payload, desktopAssetDirectoryPath());
 }));
 
 ipcMain.handle(IPC_CHANNELS.automationGetWorkspace, benchmarkIpcHandle(IPC_CHANNELS.automationGetWorkspace, async () => {

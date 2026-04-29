@@ -9,7 +9,7 @@ const DESKTOP_IMAGE_JPEG_QUALITY_STEPS = [88, 80, 72, 64, 56, 48] as const;
 
 function normalizeDesktopImageExtension(sourcePath: string) {
   const extension = extname(sourcePath).toLowerCase();
-  if (extension === '.png') {
+  if (extension === '.png' || extension === '.webp') {
     return '.png' as const;
   }
   if (extension === '.jpg' || extension === '.jpeg') {
@@ -40,7 +40,7 @@ function encodeDesktopImage(
 export function normalizeDesktopImage(sourcePath: string) {
   const targetExtension = normalizeDesktopImageExtension(sourcePath);
   if (!targetExtension) {
-    throw new Error('Please choose a PNG or JPEG image.');
+    throw new Error('Please choose a PNG, JPEG, or WebP image.');
   }
 
   const importedImage = nativeImage.createFromPath(sourcePath);

@@ -12,6 +12,7 @@ import {
   type AutomationResolveIntakePayload,
   type DesktopBridge,
   type DesktopPreferences,
+  type DesktopStoreDroppedImagePayload,
   type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
@@ -194,6 +195,8 @@ const desktopBridge: DesktopBridge = {
     revealPath: (path: string) => invokeWithBenchmark(IPC_CHANNELS.systemRevealPath, path),
     openExternalUrl: (url: string) => invokeWithBenchmark(IPC_CHANNELS.systemOpenExternalUrl, url),
     pickAndStoreImage: (): Promise<string | null> => invokeWithBenchmark(IPC_CHANNELS.systemPickAndStoreImage),
+    storeDroppedImage: (payload: DesktopStoreDroppedImagePayload): Promise<string | null> =>
+      invokeWithBenchmark(IPC_CHANNELS.systemStoreDroppedImage, payload),
   },
   sena: {
     getCatalog: (): Promise<SenaCatalog | null> => invokeWithBenchmark(IPC_CHANNELS.senaGetCatalog),

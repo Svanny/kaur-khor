@@ -210,6 +210,11 @@ export interface DesktopPreferencesBridge {
   save: (payload: Partial<DesktopPreferences>) => Promise<DesktopPreferences>;
 }
 
+export interface DesktopStoreDroppedImagePayload {
+  name: string;
+  data: ArrayBuffer;
+}
+
 export interface DesktopSystemBridge {
   getAppContext: () => Promise<DesktopAppContext>;
   getLocalDataInfo: () => Promise<DesktopLocalDataInfo>;
@@ -219,6 +224,7 @@ export interface DesktopSystemBridge {
   revealPath: (path: string) => Promise<void>;
   openExternalUrl: (url: string) => Promise<void>;
   pickAndStoreImage: () => Promise<string | null>;
+  storeDroppedImage: (payload: DesktopStoreDroppedImagePayload) => Promise<string | null>;
 }
 
 export interface DesktopBenchmarkBridge extends BanjiBenchmarkMetadata {
@@ -332,6 +338,7 @@ export const IPC_CHANNELS = {
   systemRevealPath: 'banji:system:reveal-path',
   systemOpenExternalUrl: 'banji:system:open-external-url',
   systemPickAndStoreImage: 'banji:system:pick-and-store-image',
+  systemStoreDroppedImage: 'banji:system:store-dropped-image',
   senaGetCatalog: 'banji:sena:get-catalog',
   senaGetObservationFingerprint: 'banji:sena:get-observation-fingerprint',
   senaGetStartupWorkspace: 'banji:sena:get-startup-workspace',
