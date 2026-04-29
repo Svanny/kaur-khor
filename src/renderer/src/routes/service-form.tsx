@@ -420,7 +420,7 @@ export function ServiceFormRoute() {
           </EditorField>
 
           <CatalogImageField
-            helper="Choose one picture for this service. banji will show it on supported item surfaces."
+            helper="Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces."
             imagePath={form.imagePath}
             label="Picture"
             name={form.name || 'Service image'}

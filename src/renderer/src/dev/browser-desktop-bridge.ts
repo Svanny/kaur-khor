@@ -1231,6 +1231,7 @@ function installBrowserDesktopBridge() {
       revealPath: async () => {},
       openExternalUrl: async () => {},
       pickAndStoreImage: async () => null,
+      storeDroppedImage: async () => '/tmp/browser-dropped-image.png',
     },
     preferences: {
       get: async () => clone(browserMockState.preferences),

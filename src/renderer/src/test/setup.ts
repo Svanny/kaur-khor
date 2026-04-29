@@ -71,6 +71,36 @@ Object.defineProperty(globalThis, 'sessionStorage', {
   value: sessionStorageMock,
 });
 
+class DataTransferMock {
+  #files: File[] = [];
+  get files(): FileList {
+    return this.#files as unknown as FileList;
+  }
+  items = {
+    add: (file: File) => {
+      this.#files.push(file);
+      return null;
+    },
+    [Symbol.iterator]: () => this.#files[Symbol.iterator](),
+  } as unknown as DataTransferItemList;
+}
+
+Object.defineProperty(globalThis, 'DataTransfer', {
+  configurable: true,
+  writable: true,
+  value: DataTransferMock,
+});
+
+if (typeof File !== 'undefined' && !File.prototype.arrayBuffer) {
+  File.prototype.arrayBuffer = function arrayBuffer() {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as ArrayBuffer);
+      reader.readAsArrayBuffer(this);
+    });
+  };
+}
+
 if (typeof window !== 'undefined') {
   Object.defineProperty(window, 'scrollTo', {
     configurable: true,

@@ -2,7 +2,24 @@ import { useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { EditorField } from './editor-form-primitives';
+
+const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const SUPPORTED_INGEST_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+function isSupportedImageType(type: string): boolean {
+  return SUPPORTED_INGEST_IMAGE_TYPES.has(type);
+}
+
+function hasSupportedImageExtension(name: string): boolean {
+  const normalizedName = name.toLowerCase();
+  return Array.from(SUPPORTED_INGEST_IMAGE_EXTENSIONS).some((extension) => normalizedName.endsWith(extension));
+}
+
+function isSupportedImageFile(file: File): boolean {
+  return isSupportedImageType(file.type) || hasSupportedImageExtension(file.name);
+}
 
 export function CatalogImageField({
   helper,
@@ -20,6 +37,7 @@ export function CatalogImageField({
   onChange: (value: string | null) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
 
   async function handleChooseImage() {
     setBusy(true);
@@ -33,9 +51,96 @@ export function CatalogImageField({
     }
   }
 
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+  }
+
+  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+
+    const files = Array.from(event.dataTransfer.files);
+    const imageFile = files.find((file) => isSupportedImageFile(file));
+    if (!imageFile) {
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const arrayBuffer = await imageFile.arrayBuffer();
+      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
+        name: imageFile.name,
+        data: arrayBuffer,
+      });
+      if (nextImagePath) {
+        onChange(nextImagePath);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
+    const files = Array.from(event.clipboardData.files);
+    let imageFile = files.find((file) => isSupportedImageFile(file));
+
+    if (!imageFile && event.clipboardData.items) {
+      for (const item of Array.from(event.clipboardData.items)) {
+        if (item.kind === 'file') {
+          const file = item.getAsFile();
+          if (file && (isSupportedImageType(item.type) || isSupportedImageFile(file))) {
+            imageFile = file;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!imageFile) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    setBusy(true);
+    try {
+      const arrayBuffer = await imageFile.arrayBuffer();
+      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
+        name: imageFile.name || 'clipboard-image.png',
+        data: arrayBuffer,
+      });
+      if (nextImagePath) {
+        onChange(nextImagePath);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <EditorField helper={helper} label={label}>
-      <div className="flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center">
+      <div
+        className={cn(
+          'flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center transition-colors',
+          dragActive && 'border-primary bg-primary/5',
+        )}
+        data-testid="catalog-image-dropzone"
+        tabIndex={0}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        onPaste={handlePaste}
+      >
         <ItemAvatar imagePath={imagePath} name={name} size="default" type={type} />
         <div className="grid gap-2">
           <div className="text-sm text-muted-foreground">

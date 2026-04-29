@@ -100,16 +100,20 @@ function findButtonByText(text: string) {
 
 describe('ServiceFormRoute', () => {
   const pickAndStoreImage = vi.fn();
+  const storeDroppedImage = vi.fn();
 
   beforeEach(() => {
     window.sessionStorage.clear();
     pickAndStoreImage.mockReset();
     pickAndStoreImage.mockResolvedValue('/tmp/service-image.png');
+    storeDroppedImage.mockReset();
+    storeDroppedImage.mockResolvedValue('/tmp/dropped-service.png');
     window.banjiDesktop = {
       ...(window.banjiDesktop ?? {}),
       system: {
         ...(window.banjiDesktop?.system ?? {}),
         pickAndStoreImage,
+        storeDroppedImage,
       },
     };
     preferencesHook.mockReturnValue({
@@ -254,6 +258,75 @@ describe('ServiceFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/service-image.png');
+  });
+
+  test('adds a service picture via drag and drop', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    const dropzone = screen.getByTestId('catalog-image-dropzone');
+    const file = new File(['fake-image'], 'dropped.png', { type: 'image/png' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    fireEvent.dragOver(dropzone);
+    const dropEvent = new MouseEvent('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(dropzone, dropEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/dropped-service.png');
+  });
+
+  test('adds a service picture via clipboard paste', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    const dropzone = screen.getByTestId('catalog-image-dropzone');
+    const file = new File(['fake-image'], 'pasted.png', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(dropzone, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/dropped-service.png');
   });
 
   test('replaces the new service route so back from the created detail page returns to catalog', async () => {
