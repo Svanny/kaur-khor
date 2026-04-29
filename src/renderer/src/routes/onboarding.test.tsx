@@ -92,10 +92,15 @@ describe('OnboardingRoute', () => {
     expect(screen.getByText('$')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Currency' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(await screen.findByText('Choose interface view')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('radio', { name: 'Minimal View' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Maximal View' })).toBeInTheDocument();
-    expect(screen.getByRole('radio', { name: 'Custom View' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Custom View' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -127,6 +132,7 @@ describe('OnboardingRoute', () => {
   it('saves the selected maximal onboarding preset', async () => {
     renderRoute();
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
     fireEvent.click(await screen.findByRole('radio', { name: 'Maximal View' }));
     fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
@@ -145,6 +151,51 @@ describe('OnboardingRoute', () => {
         showHeartbeatRibbons: true,
       }));
     });
+  });
+
+  it('returns to the preferences step when back is clicked on the interface step', async () => {
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    expect(await screen.findByRole('button', { name: 'Back' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(await screen.findByRole('combobox', { name: 'Language' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Currency' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Default View' })).not.toBeInTheDocument();
+  });
+
+  it('renders Khmer interface view cards for Khmer onboarding', async () => {
+    getPreferences.mockResolvedValue({
+      ...basePreferences,
+      language: 'km',
+    });
+
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('heading', { name: 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Choose interface view' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'ត្រឡប់ក្រោយ' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'បន្ត' })).toBeInTheDocument();
+    expect(await screen.findByRole('radio', { name: 'ទិដ្ឋភាពលំនាំដើម' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពសាមញ្ញ' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពពេញលេញ' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'ទិដ្ឋភាពផ្ទាល់ខ្លួន' })).not.toBeInTheDocument();
+  });
+
+  it('renders full-height onboarding wireframes without scaled-down previews', async () => {
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    for (const wireframe of screen.getAllByTestId('interface-view-wireframe')) {
+      expect(wireframe).not.toHaveAttribute('style');
+      expect(wireframe.firstElementChild).not.toHaveAttribute('style');
+    }
   });
 
   it('redirects completed users back to the main app', async () => {

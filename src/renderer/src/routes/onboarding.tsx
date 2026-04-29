@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS } from '@shared/ipc';
@@ -8,6 +8,7 @@ import {
   type InterfaceViewMode,
 } from '@shared/interface-view';
 import { ActionContinueIcon } from '@icons/actions';
+import { NavigationBackIcon } from '@icons/navigation';
 import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,15 +21,21 @@ const selectTriggerClassName =
 const onboardingCopyEnglishAnimationName = 'banji-onboarding-copy-english';
 const onboardingCopyKhmerAnimationName = 'banji-onboarding-copy-khmer';
 const onboardingCopyCycleMs = 9000;
+type OnboardingStep = 'preferences' | 'interface';
 
 function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
     Welcome: 'សូមស្វាគមន៍',
     'Set up banji': 'រៀបចំ បញ្ជី',
-    'Choose the basic language, currency, and interface view first. You can fine-tune individual controls later in Settings.':
-      'ជ្រើសរើសភាសា រូបិយប័ណ្ណ និងរបៀបបង្ហាញផ្ទៃមុខមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលប៊ូតុងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
+    'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.':
+      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលប៊ូតុងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
+    'Choose interface view': 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ',
+    'Pick how much guidance and status detail banji keeps visible in your workspace.':
+      'ជ្រើសរើសថាតើ បញ្ជី ត្រូវបង្ហាញការណែនាំ និងសេចក្តីលម្អិតស្ថានភាពច្រើនប៉ុណ្ណានៅក្នុងកន្លែងធ្វើការ។',
     Language: 'ភាសា',
     Currency: 'រូបិយប័ណ្ណ',
+    'Interface view': 'ទិដ្ឋភាពផ្ទៃមុខ',
+    Back: 'ត្រឡប់ក្រោយ',
     Continue: 'បន្ត',
   };
 
@@ -102,6 +109,18 @@ function CyclingOnboardingCopy({
   );
 }
 
+function LocalizedOnboardingCopy({
+  className,
+  copy,
+  language,
+}: {
+  className?: string;
+  copy: Record<AppLanguage, string>;
+  language: AppLanguage;
+}) {
+  return <span className={className}>{copy[language]}</span>;
+}
+
 export function OnboardingRoute() {
   const navigate = useNavigate();
   const {
@@ -114,17 +133,36 @@ export function OnboardingRoute() {
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>(language);
   const [selectedCurrency, setSelectedCurrency] = useState<AppCurrency>(currency);
   const [selectedViewMode, setSelectedViewMode] = useState<InterfaceViewMode>('default');
+  const [step, setStep] = useState<OnboardingStep>('preferences');
   const [isSaving, setIsSaving] = useState(false);
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
-    title: onboardingCopy('Set up banji'),
-    description: onboardingCopy(
-      'Choose the basic language, currency, and interface view first. You can fine-tune individual controls later in Settings.',
+    preferencesTitle: onboardingCopy('Set up banji'),
+    preferencesDescription: onboardingCopy(
+      'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.',
+    ),
+    interfaceTitle: onboardingCopy('Choose interface view'),
+    interfaceDescription: onboardingCopy(
+      'Pick how much guidance and status detail banji keeps visible in your workspace.',
     ),
     language: onboardingCopy('Language'),
     currency: onboardingCopy('Currency'),
+    interfaceView: onboardingCopy('Interface view'),
+    back: onboardingCopy('Back'),
     continue: onboardingCopy('Continue'),
   }), []);
+  const activeTitle = step === 'preferences' ? copy.preferencesTitle : copy.interfaceTitle;
+  const activeDescription = step === 'preferences' ? copy.preferencesDescription : copy.interfaceDescription;
+  const interfaceLanguage = selectedLanguage;
+
+  useEffect(() => {
+    if (!isHydrated || step !== 'preferences') {
+      return;
+    }
+
+    setSelectedLanguage(language);
+    setSelectedCurrency(currency);
+  }, [currency, isHydrated, language, step]);
 
   if (!isHydrated) {
     return (
@@ -146,6 +184,11 @@ export function OnboardingRoute() {
   }
 
   async function handleContinue() {
+    if (step === 'preferences') {
+      setStep('interface');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const selectedVisibility = getInterfaceVisibilityForPreset(
@@ -173,6 +216,10 @@ export function OnboardingRoute() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleBack() {
+    setStep('preferences');
   }
 
   return (
@@ -210,99 +257,151 @@ export function OnboardingRoute() {
             }
           }
         `}</style>
-        <p aria-label={copy.welcome.en} className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
-          <CyclingOnboardingCopy
-            className="h-[1.35rem]"
-            english={copy.welcome.en}
-            itemClassName="uppercase tracking-[0.24em]"
-            khmer={copy.welcome.km}
-          />
+        <p aria-label={step === 'preferences' ? copy.welcome.en : copy.welcome[interfaceLanguage]} className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
+          {step === 'preferences' ? (
+            <CyclingOnboardingCopy
+              className="h-[1.35rem]"
+              english={copy.welcome.en}
+              itemClassName="uppercase tracking-[0.24em]"
+              khmer={copy.welcome.km}
+            />
+          ) : (
+            <LocalizedOnboardingCopy
+              className="block h-[1.35rem]"
+              copy={copy.welcome}
+              language={interfaceLanguage}
+            />
+          )}
         </p>
-        <h1 aria-label={copy.title.en} className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">
-          <CyclingOnboardingCopy
-            className="h-[3.25rem] md:h-[3.6rem]"
-            english={copy.title.en}
-            itemClassName="text-balance"
-            khmer={copy.title.km}
-          />
+        <h1 aria-label={step === 'preferences' ? activeTitle.en : activeTitle[interfaceLanguage]} className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">
+          {step === 'preferences' ? (
+            <CyclingOnboardingCopy
+              className="h-[3.25rem] md:h-[3.6rem]"
+              english={activeTitle.en}
+              itemClassName="text-balance"
+              khmer={activeTitle.km}
+            />
+          ) : (
+            <LocalizedOnboardingCopy
+              className="block text-balance"
+              copy={activeTitle}
+              language={interfaceLanguage}
+            />
+          )}
         </h1>
-        <p aria-label={copy.description.en} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
-          <CyclingOnboardingCopy
-            className="h-[5.5rem] md:h-[4rem]"
-            english={copy.description.en}
-            itemClassName="items-start"
-            khmer={copy.description.km}
-          />
+        <p aria-label={step === 'preferences' ? activeDescription.en : activeDescription[interfaceLanguage]} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+          {step === 'preferences' ? (
+            <CyclingOnboardingCopy
+              className="h-[5.5rem] md:h-[4rem]"
+              english={activeDescription.en}
+              itemClassName="items-start"
+              khmer={activeDescription.km}
+            />
+          ) : (
+            <LocalizedOnboardingCopy
+              className="block"
+              copy={activeDescription}
+              language={interfaceLanguage}
+            />
+          )}
         </p>
 
-        <div className="mt-8 grid gap-5 md:grid-cols-2">
-          <div className="grid gap-2">
-            <label aria-label={copy.language.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-language">
-              <CyclingOnboardingCopy
-                className="h-[1.6rem]"
-                english={copy.language.en}
-                khmer={copy.language.km}
-              />
-            </label>
-            <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as AppLanguage)}>
-              <SelectTrigger id="onboarding-language" className={selectTriggerClassName} aria-label="Language">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en">
-                  <OptionPrefixLabel prefix="abc" label="English" />
-                </SelectItem>
-                <SelectItem value="km">
-                  <OptionPrefixLabel prefix="កខគ" label="Khmer" />
-                </SelectItem>
-              </SelectContent>
-            </Select>
+        {step === 'preferences' ? (
+          <div className="mt-8 grid gap-5 md:grid-cols-2">
+            <div className="grid gap-2">
+              <label aria-label={copy.language.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-language">
+                <CyclingOnboardingCopy
+                  className="h-[1.6rem]"
+                  english={copy.language.en}
+                  khmer={copy.language.km}
+                />
+              </label>
+              <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as AppLanguage)}>
+                <SelectTrigger id="onboarding-language" className={selectTriggerClassName} aria-label="Language">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="en">
+                    <OptionPrefixLabel prefix="abc" label="English" />
+                  </SelectItem>
+                  <SelectItem value="km">
+                    <OptionPrefixLabel prefix="កខគ" label="Khmer" />
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
+              <label aria-label={copy.currency.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-currency">
+                <CyclingOnboardingCopy
+                  className="h-[1.6rem]"
+                  english={copy.currency.en}
+                  khmer={copy.currency.km}
+                />
+              </label>
+              <Select value={selectedCurrency} onValueChange={(value) => setSelectedCurrency(value as AppCurrency)}>
+                <SelectTrigger id="onboarding-currency" className={selectTriggerClassName} aria-label="Currency">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="USD">
+                    <OptionPrefixLabel prefix="$" label="USD" />
+                  </SelectItem>
+                  <SelectItem value="KHR">
+                    <OptionPrefixLabel prefix="៛" label="KHR" />
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-
-          <div className="grid gap-2">
-            <label aria-label={copy.currency.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-currency">
-              <CyclingOnboardingCopy
-                className="h-[1.6rem]"
-                english={copy.currency.en}
-                khmer={copy.currency.km}
+        ) : (
+          <div className="mt-8 grid gap-3">
+            <p aria-label={copy.interfaceView[interfaceLanguage]} className="text-sm font-semibold text-foreground">
+              <LocalizedOnboardingCopy
+                className="block h-[1.6rem]"
+                copy={copy.interfaceView}
+                language={interfaceLanguage}
               />
-            </label>
-            <Select value={selectedCurrency} onValueChange={(value) => setSelectedCurrency(value as AppCurrency)}>
-              <SelectTrigger id="onboarding-currency" className={selectTriggerClassName} aria-label="Currency">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="USD">
-                  <OptionPrefixLabel prefix="$" label="USD" />
-                </SelectItem>
-                <SelectItem value="KHR">
-                  <OptionPrefixLabel prefix="៛" label="KHR" />
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            </p>
+            <InterfaceViewModeCards
+              displayViewMode={selectedViewMode}
+              language={selectedLanguage}
+              modes={['default', 'minimal', 'maximal']}
+              onDisplayViewModeChange={setSelectedViewMode}
+            />
           </div>
-        </div>
+        )}
 
-        <div className="mt-8 grid gap-3">
-          <p className="text-sm font-semibold text-foreground">Interface view</p>
-          <InterfaceViewModeCards
-            displayViewMode={selectedViewMode}
-            modes={['default', 'minimal', 'maximal', 'custom']}
-            onDisplayViewModeChange={setSelectedViewMode}
-          />
-        </div>
-
-        <div className="mt-8 flex items-center justify-end">
+        <div className="mt-8 flex items-center justify-between">
+          {step === 'interface' ? (
+            <Button
+              className="inline-grid w-fit min-w-0 grid-cols-[auto_auto] items-center gap-2 px-5"
+              disabled={isSaving}
+              type="button"
+              variant="outline"
+              aria-label={copy.back[interfaceLanguage]}
+              onClick={handleBack}
+            >
+              <NavigationBackIcon className="size-4" />
+              <LocalizedOnboardingCopy
+                className="block h-[1.35rem]"
+                copy={copy.back}
+                language={interfaceLanguage}
+              />
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button
             className="inline-grid w-fit min-w-0 grid-cols-[auto_auto] items-center gap-2 px-5"
             disabled={isSaving}
             type="button"
-            aria-label={isSaving ? 'Saving' : copy.continue.en}
+            aria-label={isSaving ? 'Saving' : step === 'preferences' ? copy.continue.en : copy.continue[interfaceLanguage]}
             onClick={() => void handleContinue()}
           >
             {isSaving ? (
               translateUiLiteral(selectedLanguage, 'Saving…')
-            ) : (
+            ) : step === 'preferences' ? (
               <>
                 <CyclingOnboardingCopy
                   className="h-[1.35rem]"
@@ -310,6 +409,15 @@ export function OnboardingRoute() {
                   itemClassName="justify-center"
                   khmer={copy.continue.km}
                   reserveWidthFor={[copy.continue.en, copy.continue.km]}
+                />
+                <ActionContinueIcon className="size-4" />
+              </>
+            ) : (
+              <>
+                <LocalizedOnboardingCopy
+                  className="block h-[1.35rem]"
+                  copy={copy.continue}
+                  language={interfaceLanguage}
                 />
                 <ActionContinueIcon className="size-4" />
               </>
