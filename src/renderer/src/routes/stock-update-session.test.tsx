@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
@@ -269,11 +270,12 @@ function renderRouteWithCatalog(
   );
 }
 
-function renderRoutedSession(nextObservations = observations) {
+function renderRoutedSession(nextObservations = observations, initialPath = RECORD_UPDATE_STOCK_COUNT_PATH) {
   inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
+  const routePath = initialPath.split('?')[0] ?? initialPath;
 
   return render(
-    <MemoryRouter initialEntries={[RECORD_UPDATE_STOCK_COUNT_PATH]}>
+    <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route
           element={
@@ -282,10 +284,11 @@ function renderRoutedSession(nextObservations = observations) {
               <StockUpdateSessionRoute />
             </>
           }
-          path={RECORD_UPDATE_STOCK_COUNT_PATH}
+          path={routePath}
         />
         <Route element={<div>Overview destination</div>} path="/" />
         <Route element={<div>Catalog destination</div>} path="/catalog" />
+        <Route element={<div>Help destination</div>} path="/settings/help" />
       </Routes>
     </MemoryRouter>,
   );
@@ -925,6 +928,37 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.queryByText(/If the customer pays, delivery is added/)).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Subtotal')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Total')).not.toBeInTheDocument();
+  });
+
+  it('asks before following a More help tooltip link with an in-progress record update', async () => {
+    const user = userEvent.setup();
+    renderRoutedSession(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Delivery/i);
+    const dialog = posMetadataDialog();
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Fee amount' }), { target: { value: '3' } });
+    await user.hover(within(dialog).getByRole('button', { name: 'Delivery fee help' }));
+    await user.click((await screen.findAllByRole('link', { name: 'More help for Delivery fee' }))[0]!);
+
+    const leaveDialog = screen.getByText('Leave record update?').closest('[role="dialog"]');
+    expect(leaveDialog).toBeInTheDocument();
+    fireEvent.click(within(leaveDialog as HTMLElement).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByText('Help destination')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: 'Fee amount' })).toHaveValue('3');
+
+    await user.hover(within(dialog).getByRole('button', { name: 'Delivery fee help' }));
+    await user.click((await screen.findAllByRole('link', { name: 'More help for Delivery fee' }))[0]!);
+    const confirmLeaveDialog = screen.getByText('Leave record update?').closest('[role="dialog"]');
+    fireEvent.click(within(confirmLeaveDialog as HTMLElement).getByRole('button', { name: 'Save draft and leave' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Help destination')).toBeInTheDocument();
+    });
+    expect(JSON.parse(window.localStorage.getItem(CUSTOMER_PENDING_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        deliveryFeeAmount: '3',
+      }),
+    );
   });
 
   it('autofills the latest matching delivery fee config for immediate sales', () => {

@@ -6,6 +6,42 @@ const DEFAULT_DISCARD_TITLE = 'Discard changes?';
 const DEFAULT_DISCARD_CONFIRM_LABEL = 'Discard changes';
 const DEFAULT_DISCARD_CANCEL_LABEL = 'Keep editing';
 
+export function resolveInternalNavigationPath(anchor: HTMLAnchorElement) {
+  const url = new URL(anchor.href, window.location.href);
+  if (url.origin !== window.location.origin) {
+    return null;
+  }
+  if (url.hash.startsWith('#/')) {
+    return url.hash.slice(1);
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function currentInternalNavigationPath() {
+  if (window.location.hash.startsWith('#/')) {
+    return window.location.hash.slice(1);
+  }
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+export function navigationAnchorFromClick(event: MouseEvent) {
+  const target = event.target;
+  if (target instanceof Element) {
+    const anchor = target.closest('a[href]');
+    if (anchor instanceof HTMLAnchorElement) {
+      return anchor;
+    }
+  }
+
+  for (const targetElement of event.composedPath()) {
+    if (targetElement instanceof HTMLAnchorElement) {
+      return targetElement;
+    }
+  }
+
+  return null;
+}
+
 export function useDiscardChangesConfirm({
   enabled,
   title = DEFAULT_DISCARD_TITLE,
@@ -97,24 +133,6 @@ export function useRouteLeaveConfirm({
   requestDiscardRef.current = requestDiscard;
 
   useEffect(() => {
-    function resolveTargetPath(anchor: HTMLAnchorElement) {
-      const url = new URL(anchor.href, window.location.href);
-      if (url.origin !== window.location.origin) {
-        return null;
-      }
-      if (url.hash.startsWith('#/')) {
-        return url.hash.slice(1);
-      }
-      return `${url.pathname}${url.search}${url.hash}`;
-    }
-
-    function currentBrowserPath() {
-      if (window.location.hash.startsWith('#/')) {
-        return window.location.hash.slice(1);
-      }
-      return `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    }
-
     function handleDocumentClick(event: MouseEvent) {
       if (event.defaultPrevented || event.button !== 0) {
         return;
@@ -123,17 +141,12 @@ export function useRouteLeaveConfirm({
         return;
       }
 
-      const target = event.target;
-      if (!(target instanceof Element)) {
+      const anchor = navigationAnchorFromClick(event);
+      if (!anchor) {
         return;
       }
 
-      const anchor = target.closest('a[href]');
-      if (!(anchor instanceof HTMLAnchorElement)) {
-        return;
-      }
-
-      const nextPath = resolveTargetPath(anchor);
+      const nextPath = resolveInternalNavigationPath(anchor);
       if (!nextPath || nextPath === currentPathRef.current) {
         return;
       }
@@ -151,7 +164,7 @@ export function useRouteLeaveConfirm({
       }
 
       const previousPath = currentPathRef.current;
-      const nextPath = currentBrowserPath();
+      const nextPath = currentInternalNavigationPath();
       if (nextPath === previousPath) {
         return;
       }

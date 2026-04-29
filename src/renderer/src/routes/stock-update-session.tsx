@@ -122,7 +122,12 @@ import { ServiceIdentityCell, SkuIdentityCell, SupplierFilter } from '@/componen
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
-import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
+import {
+  currentInternalNavigationPath,
+  navigationAnchorFromClick,
+  resolveInternalNavigationPath,
+  useDiscardChangesConfirm,
+} from '@/hooks/use-route-leave-confirm';
 import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -8253,24 +8258,6 @@ export function StockUpdateSessionRoute() {
   }
 
   useEffect(() => {
-    function resolveTargetPath(anchor: HTMLAnchorElement) {
-      const url = new URL(anchor.href, window.location.href);
-      if (url.origin !== window.location.origin) {
-        return null;
-      }
-      if (url.hash.startsWith('#/')) {
-        return url.hash.slice(1);
-      }
-      return `${url.pathname}${url.search}${url.hash}`;
-    }
-
-    function currentBrowserPath() {
-      if (window.location.hash.startsWith('#/')) {
-        return window.location.hash.slice(1);
-      }
-      return `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    }
-
     function queueNavigation(continueNavigation: () => void) {
       pendingNavigationRef.current = { continueNavigation };
       setLeaveDraftDialogOpen(true);
@@ -8284,18 +8271,13 @@ export function StockUpdateSessionRoute() {
         return;
       }
 
-      const target = event.target;
-      if (!(target instanceof Element)) {
-        return;
-      }
-
-      const anchor = target.closest('a[href]');
-      if (!(anchor instanceof HTMLAnchorElement)) {
+      const anchor = navigationAnchorFromClick(event);
+      if (!anchor) {
         return;
       }
 
       const currentPath = `${location.pathname}${location.search}${location.hash}`;
-      const nextPath = resolveTargetPath(anchor);
+      const nextPath = resolveInternalNavigationPath(anchor);
       if (!nextPath || nextPath === currentPath) {
         return;
       }
@@ -8310,7 +8292,7 @@ export function StockUpdateSessionRoute() {
       }
 
       const previousPath = `${location.pathname}${location.search}${location.hash}`;
-      const nextPath = currentBrowserPath();
+      const nextPath = currentInternalNavigationPath();
       if (nextPath === previousPath) {
         return;
       }

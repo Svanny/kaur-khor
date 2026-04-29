@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import * as senaCatalog from '@/lib/sena-catalog';
@@ -82,6 +83,7 @@ function renderWithProviders(
         <Routes>
           <Route element={element} path={path} />
           <Route element={<div>Catalog destination</div>} path="/catalog" />
+          <Route element={<div>Help destination</div>} path="/settings/help" />
           <Route
             element={
               <>
@@ -638,6 +640,28 @@ describe('SkuFormRoute', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  test('asks before following a More help tooltip link with unsaved SKU changes', async () => {
+    const user = userEvent.setup();
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    await user.hover(screen.getByRole('button', { name: 'Commercial setup help' }));
+    await user.click((await screen.findAllByRole('link', { name: 'More help for Commercial setup' }, { timeout: 3_000 }))[0]!);
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('SKU 1 Updated')).toBeInTheDocument();
+    expect(screen.queryByText('Help destination')).not.toBeInTheDocument();
+
+    await user.hover(screen.getByRole('button', { name: 'Commercial setup help' }));
+    await user.click((await screen.findAllByRole('link', { name: 'More help for Commercial setup' }, { timeout: 3_000 }))[0]!);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Help destination')).toBeInTheDocument();
     });
   });
 
