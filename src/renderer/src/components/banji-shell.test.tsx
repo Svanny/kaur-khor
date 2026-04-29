@@ -251,6 +251,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Advanced' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Local data' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
@@ -454,6 +455,31 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
+  });
+
+  test('hides the history settings item when history is unavailable', () => {
+    setViewport({ width: 1440, isMobile: false });
+    inventoryHook.mockReturnValue({
+      ...inventoryHook(),
+      latestRun: null,
+      observations: [],
+      workspaceSummary: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/interface']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings/*" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Preferences' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Interface' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
   });
 
   test('hides the automations navigation item when disabled', () => {

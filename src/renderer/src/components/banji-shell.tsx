@@ -346,6 +346,12 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const showGlobalLoadingScreen =
     isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
   const navigationAvailability = deriveNavigationAvailability(inventory);
+  const visibleSettingsGroups = SETTINGS_NAVIGATION_GROUPS.map((group) => ({
+    ...group,
+    sections: group.sections.filter(
+      (section) => section.id !== 'history' || navigationAvailability.hasHistory,
+    ),
+  })).filter((group) => group.sections.length > 0);
   const visibleAppSections = APP_SECTIONS.filter((section) =>
     section.availabilityKey
       ? navigationAvailability[section.availabilityKey]
@@ -461,7 +467,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                 </SidebarGroupContent>
               </SidebarGroup>
 
-              {SETTINGS_NAVIGATION_GROUPS.map((group) => (
+              {visibleSettingsGroups.map((group) => (
                 <SidebarGroup key={group.labelKey} className={sidebarSectionGroupClassName}>
                   <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t(group.labelKey)}</SidebarGroupLabel>
                   <SidebarGroupContent>
