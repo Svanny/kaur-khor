@@ -58,6 +58,15 @@ Read behavior:
 - `sena.getRecordUpdateContext()` returns latest stock, sales, order, receipt, and observation anchors for update flows.
 - `sena.listObservations()` remains available for compatibility and full export-style reads, but should not be used during startup.
 
+Write behavior:
+
+- The first saved observation anchors a new workspace but does not trigger SENA
+  analysis because the analysis engine requires at least two observations.
+- `sena.triggerRun` and `sena.retryRun` should mark failed runs as `failed`, not
+  leave stale `queued` rows behind.
+- Desktop-core command errors should preserve the request id after the command
+  envelope is decoded so Electron IPC callers reject promptly.
+
 Record Update now authors customer, supplier, and adjustment work as ticket
 events on observations. The old order-batch data remains a compatibility read
 model where needed, but new operational writes should preserve ticket identity,

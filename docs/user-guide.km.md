@@ -724,9 +724,10 @@ Smoothing controls whether បញ្ជី softens noisy SENA signals in Setting
 1. បើក Catalog ហើយបង្កើត SKUs ឬ services ដែលក្រុមលក់ពិត។
 2. បន្ថែម supplier, cost, price, lead-time, និង linked-SKU details នៅពេល fields ទាំងនោះប៉ះពាល់ការសម្រេចចិត្ត។
 3. បើក Work / Capture ហើយ save stock count ឬ order ពិតដំបូង។
-4. ត្រឡប់ទៅ Work ដើម្បីមើល supplier ឬ customer tasks ដែលត្រូវយកចិត្តទុកដាក់។
-5. បើក Insights / Pressure ដើម្បីយល់ demand, available capacity, pipeline support, confidence, និង next action។
-6. បើក Insights / Money នៅពេលត្រូវការ sales, gross profit, tied-up capital, ឬ leakage context។
+4. Save update ពិតទីពីរ នៅពេលមានពេល ឬសកម្មភាពគ្រប់គ្រាន់សម្រាប់ banji ប្រៀបធៀប intervals។
+5. ត្រឡប់ទៅ Work ដើម្បីមើល supplier ឬ customer tasks ដែលត្រូវយកចិត្តទុកដាក់។
+6. បើក Insights / Pressure ដើម្បីយល់ demand, available capacity, pipeline support, confidence, និង next action។
+7. បើក Insights / Money នៅពេលត្រូវការ sales, gross profit, tied-up capital, ឬ leakage context។
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis។
 

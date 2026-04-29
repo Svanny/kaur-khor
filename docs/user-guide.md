@@ -724,9 +724,10 @@ For a new workspace, the shortest useful path is:
 1. Open Catalog and create the SKUs or services the team actually sells.
 2. Add supplier, cost, price, lead-time, and linked-SKU details when those fields affect decisions.
 3. Open Work / Capture and save the first stock count or real order.
-4. Return to Work to see whether supplier or customer tasks need attention.
-5. Open Insights / Pressure to understand demand, available capacity, pipeline support, confidence, and next action.
-6. Open Insights / Money when you need sales, gross profit, tied-up capital, or leakage context.
+4. Save a second real update when enough time or activity has passed for banji to compare intervals.
+5. Return to Work to see whether supplier or customer tasks need attention.
+6. Open Insights / Pressure to understand demand, available capacity, pipeline support, confidence, and next action.
+7. Open Insights / Money when you need sales, gross profit, tied-up capital, or leakage context.
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis.
 

@@ -36,6 +36,13 @@ Routes that need observation history should request explicit pages through
 `sena.listObservationPage()`. Routes that only need "latest known value" anchors
 should use `sena.getRecordUpdateContext()`.
 
+SENA analysis requires at least two observations. The first saved observation in
+a new workspace is only the inventory anchor, so Record Update should not trigger
+a planning run until the second observation exists. If a run command does fail
+inside the desktop core, the response must keep the original request id so the
+main-process pending request rejects immediately instead of waiting for the
+long-running mutation timeout.
+
 Workspace summaries are stored in normalized hot SQLite tables for startup reads.
 Legacy JSON read models remain available for compatibility and detail-oriented
 surfaces.
