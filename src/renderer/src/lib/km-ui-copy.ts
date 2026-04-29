@@ -1791,7 +1791,10 @@ const exactValueTranslations: Record<string, string> = {
   'Collapse navigation': 'បង្រួមម៉ឺនុយ',
   'Retry workspace load': 'សាកល្បងផ្ទុកកន្លែងធ្វើការម្ដងទៀត',
   Work: 'ការងារ',
+  'Start Work': 'ចាប់ផ្តើមការងារ',
   Capture: 'កត់ត្រា',
+  'Open supplier, customer, and intake work that needs a decision.':
+    'បើកការងារអ្នកផ្គត់ផ្គង់ អតិថិជន និងការទទួលសំណើ ដែលត្រូវការសេចក្តីសម្រេច។',
   'Choose an update lane': 'ជ្រើសផ្លូវអាប់ដេត',
   'Choose the physical, customer, or supplier ticket flow that matches the work you are recording.':
     'ជ្រើសលំហូរសំបុត្រស្តុក អតិថិជន ឬអ្នកផ្គត់ផ្គង់ ដែលត្រូវនឹងការងារដែលអ្នកកំពុងកត់ត្រា។',

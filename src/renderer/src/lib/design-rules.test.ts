@@ -622,7 +622,7 @@ const helperCoverageAllowlist: Record<string, string> = {
   'routes/automations.tsx:649': 'legacy automation title card awaiting route-level helper copy',
   'routes/automations/exception-table.tsx:67': 'action column contains commands rather than business meaning',
   'routes/automations/intake-table.tsx:70': 'action column contains commands rather than business meaning',
-  'routes/command-home.tsx:94': 'legacy command-home title card awaiting route-level helper copy',
+  'routes/command-home.tsx:132': 'legacy command-home title card awaiting route-level helper copy',
   'routes/dashboard.tsx:671': 'legacy work title card awaiting route-level helper copy',
   'routes/dashboard.tsx:799': 'legacy dashboard work-table header awaiting helper copy',
   'routes/dashboard.tsx:800': 'legacy dashboard work-table header awaiting helper copy',

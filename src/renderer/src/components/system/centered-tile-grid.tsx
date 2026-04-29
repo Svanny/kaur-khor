@@ -27,7 +27,7 @@ export function CenteredTileGrid({
 
   return (
     <div
-      className={cn('grid min-h-0 flex-1 place-items-center p-[var(--centered-tile-padding)]', className)}
+      className={cn('grid min-h-0 flex-1 h-full content-center place-items-center p-[var(--centered-tile-padding)]', className)}
       style={
         {
           containerType: 'size',

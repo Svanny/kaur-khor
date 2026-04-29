@@ -20,6 +20,7 @@ import {
   buildRememberedInsightsHref,
   usePageStateMemoryVersion,
 } from '@/lib/page-state-memory';
+import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { translateUiLiteral } from '@/lib/translations';
@@ -29,14 +30,12 @@ import { buildOverviewModel } from './overview/view-model';
 
 function CommandAction({
   description,
-  disabled,
   icon: Icon,
   label,
   tone,
   to,
 }: {
   description: string;
-  disabled?: boolean;
   icon: IconComponent;
   label: string;
   tone: GridCardColorKey;
@@ -58,10 +57,6 @@ function CommandAction({
       </span>
     </LiquidGridCard>
   );
-
-  if (disabled) {
-    return <div aria-disabled="true" className="opacity-55">{content}</div>;
-  }
 
   return <Link className="block min-w-0 focus-visible:outline-none" to={to}>{content}</Link>;
 }
@@ -87,7 +82,50 @@ export function CommandHomeRoute() {
     orderBatches: inventory.orderBatches ?? [],
     workspaceSummary: inventory.workspaceSummary,
   });
-  const nextMove = overviewModel.tasks[0]?.actionLabel ?? translateUiLiteral(language, 'Continue Work');
+  const nextMove = overviewModel.tasks[0]?.actionLabel ?? translateUiLiteral(language, 'Start Work');
+  const navigationAvailability = deriveNavigationAvailability(inventory);
+  const commandActions = [
+    {
+      description: translateUiLiteral(language, 'Open supplier, customer, and intake work that needs a decision.'),
+      icon: NavigationWorkIcon,
+      isVisible: true,
+      label: translateUiLiteral(language, 'Start Work'),
+      to: buildRememberedInboxHref(),
+      tone: 'continue-work',
+    },
+    {
+      description: translateUiLiteral(language, 'Save a stock count, customer order, sale, supplier order, or custom event.'),
+      icon: ActionCreatePackageIcon,
+      isVisible: navigationAvailability.hasWorkCapture,
+      label: translateUiLiteral(language, 'Capture Update'),
+      to: '/work/capture',
+      tone: 'capture-update',
+    },
+    {
+      description: translateUiLiteral(language, 'Manage active and archived SKUs and services.'),
+      icon: NavigationCatalogIcon,
+      isVisible: navigationAvailability.hasCatalogTab,
+      label: translateUiLiteral(language, 'Open Catalog'),
+      to: buildRememberedCatalogHref(),
+      tone: 'open-catalog',
+    },
+    {
+      description: translateUiLiteral(language, 'Open pressure, money, or explanation workspaces.'),
+      icon: NavigationPerformanceIcon,
+      isVisible: navigationAvailability.hasInsights,
+      label: translateUiLiteral(language, 'Open Insights'),
+      to: buildRememberedInsightsHref(),
+      tone: 'open-insights',
+    },
+  ] satisfies Array<{
+    description: string;
+    icon: IconComponent;
+    isVisible: boolean;
+    label: string;
+    to: string;
+    tone: GridCardColorKey;
+  }>;
+  const visibleCommandActions = commandActions.filter((action) => action.isVisible);
 
   return (
     <WorkspacePage fitViewport className="gap-5">
@@ -126,37 +164,17 @@ export function CommandHomeRoute() {
         </div>
       </WorkspaceTitleCard>
 
-      <CenteredTileGrid>
-        <CommandAction
-          icon={NavigationWorkIcon}
-          label={translateUiLiteral(language, 'Continue Work')}
-          description={translateUiLiteral(language, 'Open supplier, customer, and intake work that needs a decision.')}
-          tone="continue-work"
-          to={buildRememberedInboxHref()}
-        />
-        <CommandAction
-          disabled={skuCount + serviceCount === 0}
-          icon={ActionCreatePackageIcon}
-          label={translateUiLiteral(language, 'Capture Update')}
-          description={translateUiLiteral(language, 'Save a stock count, customer order, sale, supplier order, or custom event.')}
-          tone="capture-update"
-          to="/work/capture"
-        />
-        <CommandAction
-          icon={NavigationCatalogIcon}
-          label={translateUiLiteral(language, 'Open Catalog')}
-          description={translateUiLiteral(language, 'Manage active and archived SKUs and services.')}
-          tone="open-catalog"
-          to={buildRememberedCatalogHref()}
-        />
-        <CommandAction
-          disabled={observationCount < 2}
-          icon={NavigationPerformanceIcon}
-          label={translateUiLiteral(language, 'Open Insights')}
-          description={translateUiLiteral(language, 'Open pressure, money, or explanation workspaces.')}
-          tone="open-insights"
-          to={buildRememberedInsightsHref()}
-        />
+      <CenteredTileGrid columns={Math.min(2, visibleCommandActions.length)}>
+        {visibleCommandActions.map((action) => (
+          <CommandAction
+            key={action.label}
+            description={action.description}
+            icon={action.icon}
+            label={action.label}
+            to={action.to}
+            tone={action.tone}
+          />
+        ))}
       </CenteredTileGrid>
     </WorkspacePage>
   );
