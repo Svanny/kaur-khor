@@ -25,7 +25,7 @@ describe('InterfaceViewModeCards', () => {
     expect(container.className).toContain('sm:grid-cols-[repeat(3,minmax(0,23rem))]');
   });
 
-  it('centers four modes in a 2x2 grid across breakpoints', () => {
+  it('centers four modes in a 1x4 grid at sm and above', () => {
     render(
       <InterfaceViewModeCards
         {...baseProps}
@@ -35,7 +35,6 @@ describe('InterfaceViewModeCards', () => {
     const container = screen.getByRole('radiogroup');
     expect(container.className).toContain('justify-center');
     expect(container.className).toContain('grid-cols-[minmax(0,23rem)]');
-    expect(container.className).toContain('sm:grid-cols-[repeat(2,minmax(0,23rem))]');
-    expect(container.className).not.toContain('xl:grid-cols-[repeat(4,minmax(0,23rem))]');
+    expect(container.className).toContain('sm:grid-cols-[repeat(4,minmax(0,23rem))]');
   });
 });

@@ -247,7 +247,7 @@ export function InterfaceViewModeCards({
     if (modes.length === 1) return 'grid-cols-[minmax(0,23rem)]';
     if (modes.length === 2) return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(2,minmax(0,23rem))]';
     if (modes.length === 3) return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(3,minmax(0,23rem))]';
-    return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(2,minmax(0,23rem))]';
+    return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(4,minmax(0,23rem))]';
   })();
 
   return (

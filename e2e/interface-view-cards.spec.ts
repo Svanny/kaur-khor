@@ -32,12 +32,12 @@ async function launchApp(dataDir?: string) {
 }
 
 test.describe('Interface view preset cards', () => {
-  test('Settings page presets are centered in a 2x2 layout', async ({}, testInfo) => {
+  test('Settings page presets are centered in a 1x4 layout at intermediate desktop width', async ({}, testInfo) => {
     await mkdir(testInfo.outputDir, { recursive: true });
     const app = await launchApp(testInfo.outputDir);
     try {
       const page = await app.firstWindow();
-      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.setViewportSize({ width: 1024, height: 800 });
       await page.waitForLoadState('domcontentloaded');
 
       // Skip onboarding so we can reach Settings
@@ -70,7 +70,7 @@ test.describe('Interface view preset cards', () => {
       const trackCount = styles.gridTemplateColumns.trim().split(/\s+/).length;
 
       expect(styles.justifyContent, 'grid should be horizontally centered').toBe('center');
-      expect(trackCount, 'grid should have 2 columns at this viewport').toBe(2);
+      expect(trackCount, 'grid should have 4 columns at this viewport').toBe(4);
     } finally {
       await app.close();
     }
