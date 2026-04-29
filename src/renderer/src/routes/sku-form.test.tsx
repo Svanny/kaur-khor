@@ -135,6 +135,12 @@ describe('SkuFormRoute', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     });
+    expect(screen.getByRole('button', { name: 'Details' })).toBeInTheDocument();
+    const heroActions = screen.getByRole('button', { name: 'Save changes' }).parentElement;
+    expect(within(heroActions as HTMLElement).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Details',
+      'Save changes',
+    ]);
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
     expect(screen.getByText('Name the SKU the way staff will search for it.')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Supplier' })).toHaveTextContent('Mekong Looms');
@@ -150,7 +156,7 @@ describe('SkuFormRoute', () => {
     });
   });
 
-  test('saves edit-mode changes and navigates to the SKU detail route', async () => {
+  test('saves edit-mode changes without navigating away from the editor', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -184,6 +190,15 @@ describe('SkuFormRoute', () => {
       soldAsProduct: true,
     });
     expect(savedCatalog.skus[0].leadTimeStdDaysHint).toBeCloseTo(1);
+
+    expect(screen.queryByText('SKU detail destination')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Edit SKU' })).toBeInTheDocument();
+  });
+
+  test('opens SKU details from the edit page details action', async () => {
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Details' }));
 
     await waitFor(() => {
       expect(screen.getByText('SKU detail destination')).toBeInTheDocument();

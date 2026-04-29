@@ -1,4 +1,4 @@
-import { ActionSaveIcon } from '@icons/actions';
+import { ActionEyeIcon, ActionSaveIcon } from '@icons/actions';
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
@@ -203,6 +203,31 @@ export function SkuFormRoute() {
     onDiscard: resetSkuDraft,
   });
 
+  const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
+  const currentOrigin =
+    location.state &&
+    typeof location.state === 'object' &&
+    'banjiNavigationOrigin' in location.state &&
+    typeof location.state.banjiNavigationOrigin === 'string'
+      ? location.state.banjiNavigationOrigin
+      : null;
+  const detailNavigationOrigin = currentOrigin ?? previousLocation ?? '/catalog';
+  const detailPath = editing ? `/catalog/skus/${normalizedBaseline.skuId}` : null;
+
+  function openDetails() {
+    if (!detailPath) {
+      return;
+    }
+    confirmLeave(() => {
+      void navigate(detailPath, {
+        state: {
+          ...detailNavigationState,
+          banjiNavigationOrigin: detailNavigationOrigin,
+        },
+      });
+    });
+  }
+
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (costPerUnitError) {
@@ -217,21 +242,15 @@ export function SkuFormRoute() {
         };
     const nextCatalog = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
     await upsertSenaCatalog(nextCatalog);
-    const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
-    const currentOrigin =
-      location.state &&
-      typeof location.state === 'object' &&
-      'banjiNavigationOrigin' in location.state &&
-      typeof location.state.banjiNavigationOrigin === 'string'
-        ? location.state.banjiNavigationOrigin
-        : null;
-    await navigate(`/catalog/skus/${nextSku.skuId}`, {
-      replace: true,
-      state: {
-        ...detailNavigationState,
-        banjiNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
-      },
-    });
+    if (!editing) {
+      await navigate(`/catalog/skus/${nextSku.skuId}`, {
+        replace: true,
+        state: {
+          ...detailNavigationState,
+          banjiNavigationOrigin: detailNavigationOrigin,
+        },
+      });
+    }
   }
 
   return (
@@ -240,6 +259,12 @@ export function SkuFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
+            {detailPath ? (
+              <Button type="button" variant="outline" onClick={openDetails}>
+                <ActionEyeIcon data-icon="inline-start" />
+                Details
+              </Button>
+            ) : null}
             <Button disabled={!hasUnsavedSkuChanges || isSaving || costPerUnitError != null} form={formId} type="submit">
               <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}

@@ -271,6 +271,8 @@ SKU details define the stock item's identity: name, supplier, description, and i
 
 You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting from the clipboard. PNG, JPEG, and WebP are accepted.
 
+Saving changes in the SKU editor keeps you on the editor so you can continue reviewing the draft. Use **Details** to leave the editor and open the SKU detail page. If you have unsaved changes, navigation links, including tooltip **More** links, ask before discarding the current draft.
+
 ### SKU Editor Planning {#catalog-sku-editor-planning}
 
 SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior when available; guesses should be conservative and revisited after receipts arrive.

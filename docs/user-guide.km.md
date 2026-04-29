@@ -271,6 +271,8 @@ SKU details define the stock item's identity: name, supplier, description, and i
 
 អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste ពី clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
 
+ការរក្សាទុកការផ្លាស់ប្តូរនៅក្នុង SKU editor នឹងរក្សាអ្នកនៅលើ editor ដើម្បីបន្តពិនិត្យ draft។ ប្រើ **Details** ដើម្បីចេញពី editor ហើយបើក SKU detail page។ បើមានការផ្លាស់ប្តូរមិនទាន់រក្សាទុក navigation links រួមទាំង tooltip **More** links នឹងសួរមុនពេលបោះបង់ draft បច្ចុប្បន្ន។
+
 ### ការរៀបចំផែនការទំនិញ {#catalog-sku-editor-planning}
 
 SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior នៅពេល available; guesses គួរ be conservative and revisited បន្ទាប់ពី receipts arrive.
