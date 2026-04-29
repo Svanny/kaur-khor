@@ -7,9 +7,11 @@ import { ItemAvatar } from '@/components/system/item-identity';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
-import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService, validateCatalogEntityId } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
@@ -440,17 +442,16 @@ export function ServiceFormRoute() {
             label={t('fieldPrice')}
             tooltip={t('catalogServiceEditorPriceTooltip')}
           >
-            <input
+            <CurrencyNumberInput
               className={editorInputClassName}
+              currency={currency}
               min="0"
               required
-              step={moneyInputStep(currency)}
-              type="number"
               value={displayMoneyFromUsd(form.price, currency, usdToKhrExchangeRate)}
               onChange={(event) =>
                 setForm((current) => ({
                   ...current,
-                  price: usdMoneyFromDisplay(Number(event.target.value), currency, usdToKhrExchangeRate),
+                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(event.target.value), currency, usdToKhrExchangeRate),
                 }))
               }
             />

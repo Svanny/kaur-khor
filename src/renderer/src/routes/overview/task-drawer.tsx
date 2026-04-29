@@ -17,6 +17,7 @@ import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -37,7 +38,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import {
   leadTimeVariabilityPlaceholderValue,
@@ -1008,12 +1009,11 @@ export function OverviewTaskDrawer({
                         description={t('overviewDrawerReceivedCostDescription')}
                         label={t('overviewDrawerReceivedCostLabel')}
                       >
-                        <Input
+                        <CurrencyNumberInput
                           aria-label={t('overviewDrawerReceivedCostLabel')}
                           className={actionSheetInputClassName}
+                          currency={currency}
                           min="0"
-                          step={moneyInputStep(currency)}
-                          type="number"
                           value={receivedCost}
                           onChange={(event) => {
                             markDraftEdited();

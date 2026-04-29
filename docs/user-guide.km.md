@@ -207,6 +207,8 @@ Catalog គឺជា source of truth សម្រាប់ SKU និង service
 
 Archive មិនមែន delete ទេ។ Archived items លាក់ពី active work ប៉ុន្តែនៅរក្សាទុកសម្រាប់ប្រវត្តិ ហើយអាច restore បាន។
 
+Money fields ក្នុង Catalog និង Capture បង្ហាញនិមិត្តសញ្ញារូបិយប័ណ្ណសកម្ម (`$` ឬ `៛`) នៅក្នុង input។ វាយតែចំនួនលេខប៉ុណ្ណោះ; សញ្ញាក្បៀស និងនិមិត្តសញ្ញារូបិយប័ណ្ណ គ្រាន់តែជាជំនួយបង្ហាញ ហើយ បញ្ជី រក្សាទុកតម្លៃខាងក្រោយតាមរូបិយប័ណ្ណ workspace ដែលបានជ្រើស។
+
 ### ធ្វើឥឡូវនេះ {#catalog-detail-act-now}
 
 Act now គឺជា the detail-page action summary for a SKU. វា condenses current demand, stock, supplier pipeline, and timing into a suggested next move. ប្រើវា as a starting point, then check the rail rationale and evidence មុនពេល committing to an order or catalog change.

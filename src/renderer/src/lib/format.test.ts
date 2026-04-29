@@ -4,13 +4,17 @@ import {
   formatCurrency,
   formatEditableDecimal,
   formatEditableMoneyFromUsd,
+  formatEditableNumberWithCommas,
+  parseEditableNumberWithCommas,
   sanitizeEditableWholeNumber,
+  sanitizeEditableNumberDraft,
   formatEditableWholeNumber,
   formatEditableMoney,
   formatQuantityForDisplay,
   formatWholeNumber,
   sanitizeWholeNumberForDisplay,
   usdMoneyFromDisplay,
+  currencyInputSymbol,
 } from './format';
 
 describe('format helpers', () => {
@@ -23,6 +27,8 @@ describe('format helpers', () => {
   it('converts USD-backed money for KHR display and inputs', () => {
     expect(formatCurrency(2, 'USD', 'en', 4000)).toBe('$2.00');
     expect(formatCurrency(2, 'KHR', 'en', 4000)).toBe('KHR 8,000');
+    expect(currencyInputSymbol('USD')).toBe('$');
+    expect(currencyInputSymbol('KHR')).toBe('៛');
     expect(displayMoneyFromUsd(2, 'KHR', 4100)).toBe(8200);
     expect(formatEditableMoneyFromUsd(2, 'KHR', 4000)).toBe('8000');
     expect(usdMoneyFromDisplay(8000, 'KHR', 4000)).toBe(2);
@@ -32,6 +38,22 @@ describe('format helpers', () => {
     expect(formatEditableDecimal(3.4567, 2)).toBe('3.46');
     expect(formatEditableDecimal(8.0, 2)).toBe('8');
     expect(formatEditableDecimal(1.25, 3)).toBe('1.25');
+  });
+
+  it('formats editable number drafts with live thousands separators', () => {
+    expect(formatEditableNumberWithCommas('1000')).toBe('1,000');
+    expect(formatEditableNumberWithCommas('1000000')).toBe('1,000,000');
+    expect(formatEditableNumberWithCommas('7960000.12345')).toBe('7,960,000.12345');
+    expect(formatEditableNumberWithCommas('12.')).toBe('12.');
+    expect(formatEditableNumberWithCommas('12.0')).toBe('12.0');
+    expect(formatEditableNumberWithCommas('')).toBe('');
+  });
+
+  it('parses and sanitizes editable number drafts', () => {
+    expect(parseEditableNumberWithCommas('7,960,000.12345')).toBe(7960000.12345);
+    expect(sanitizeEditableNumberDraft('7,960,000.12345')).toBe('7960000.12345');
+    expect(sanitizeEditableNumberDraft('12.34.56')).toBe('12.3456');
+    expect(sanitizeEditableNumberDraft('12.34', 'integer')).toBe('1234');
   });
 
   it('sanitizes display-only whole numbers consistently', () => {

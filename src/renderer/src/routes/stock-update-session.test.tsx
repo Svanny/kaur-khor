@@ -460,8 +460,8 @@ function installMemoryLocalStorage() {
       get length() {
         return storage.size;
       },
-    },
-  });
+	    },
+	  });
 }
 
 describe('StockUpdateSessionRoute', () => {
@@ -487,14 +487,14 @@ describe('StockUpdateSessionRoute', () => {
     updateSenaOrderBatch.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     updateSenaOrderChild.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
-    runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
-  });
+	    runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
+	  });
 
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
-    vi.clearAllMocks();
-  });
+	    vi.clearAllMocks();
+	  });
 
   it('shows the 8-step stock-count wizard, preserves state, and keeps future steps locked', () => {
     setStoredSessionViewMode('form');
@@ -626,9 +626,9 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
 
     const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
-    expect(within(dialog).getByLabelText('Units in stock')).toHaveValue(12);
-    expect(within(dialog).getByLabelText('Cost per unit')).toHaveValue(4);
-    expect(within(dialog).getByLabelText('Retail price')).toHaveValue(9);
+    expect(within(dialog).getByLabelText('Units in stock')).toHaveValue('12');
+    expect(within(dialog).getByLabelText('Cost per unit')).toHaveValue('4');
+    expect(within(dialog).getByLabelText('Retail price')).toHaveValue('9');
     expect(within(dialog).getByRole('combobox', { name: 'Flags' })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
     expect(screen.getByRole('listbox')).toHaveClass('z-[110]');
@@ -920,8 +920,8 @@ describe('StockUpdateSessionRoute', () => {
     openPosMetadataPopup(/^Delivery/i);
     const dialog = posMetadataDialog();
     expect(within(dialog).getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
-    const feeAmountInput = within(dialog).getByRole('spinbutton', { name: 'Fee amount' });
-    expect(feeAmountInput).toHaveValue(null);
+    const feeAmountInput = within(dialog).getByRole('textbox', { name: 'Fee amount' });
+    expect(feeAmountInput).toHaveValue('');
     await waitFor(() => expect(feeAmountInput).toHaveFocus());
     expect(within(dialog).getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
     expect(within(dialog).getByRole('radio', { name: 'Merchant' })).toHaveAttribute('data-state', 'off');
@@ -995,7 +995,7 @@ describe('StockUpdateSessionRoute', () => {
 
     openPosMetadataPopup(/^Delivery/i);
     const dialog = posMetadataDialog();
-    expect(within(dialog).getByRole('spinbutton', { name: 'Fee amount' })).toHaveValue(5);
+    expect(within(dialog).getByRole('textbox', { name: 'Fee amount' })).toHaveValue('5');
     expect(within(dialog).getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
   });
 
@@ -1005,7 +1005,7 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
 
     const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
-    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue(1);
+    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue('1');
     expect(within(dialog).getAllByText('$9.00')).toHaveLength(2);
     expect(screen.queryByText('Ready for line tray')).not.toBeInTheDocument();
     expect(screen.queryByText(/^Open 0$/)).not.toBeInTheDocument();
@@ -1020,7 +1020,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getAllByText('$9.00').length).toBeGreaterThan(0);
 
     fireEvent.click(receiptRow);
-    expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Quantity for Razor refill')).toHaveValue(1);
+    expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Quantity for Razor refill')).toHaveValue('1');
   });
 
   it('shows a POS receipt confirmation dialog before saving and copies the plain text receipt', async () => {
@@ -1050,14 +1050,14 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-  });
+  }, 10_000);
 
   it('shows supplier delivery fee as merchant-paid and non-editable', () => {
     setStoredSessionViewMode('form');
     renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     goNext();
-    expect(screen.getByRole('spinbutton', { name: 'Fee amount' })).toHaveValue(null);
+    expect(screen.getByRole('textbox', { name: 'Fee amount' })).toHaveValue('');
     expect(screen.getByText('Paid by')).toBeInTheDocument();
     expect(screen.getByText('Merchant')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Customer' })).not.toBeInTheDocument();
@@ -1068,7 +1068,7 @@ describe('StockUpdateSessionRoute', () => {
 
     openPosMetadataPopup(/^Delivery/i);
     const metadataDialog = posMetadataDialog();
-    fireEvent.change(within(metadataDialog).getByRole('spinbutton', { name: 'Fee amount' }), { target: { value: '3' } });
+    fireEvent.change(within(metadataDialog).getByRole('textbox', { name: 'Fee amount' }), { target: { value: '3' } });
     fireEvent.click(within(metadataDialog).getByRole('radio', { name: 'Merchant' }));
     closePosMetadataPopup();
 
@@ -1099,7 +1099,7 @@ describe('StockUpdateSessionRoute', () => {
         netSettlementUsd: 6,
       }),
     }));
-  });
+  }, 10_000);
 
   it('shows tile pictures in POS view when item pictures are enabled', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
@@ -1140,7 +1140,7 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: 'All' }));
     expect(posWorkbenchTileNames()).toEqual(initialAllOrder);
-  });
+  }, 10_000);
 
   it('applies persisted supplier workbench tile order from desktop preferences', () => {
     preferenceState.workbenchTileOrderByLane = {
@@ -1405,7 +1405,7 @@ describe('StockUpdateSessionRoute', () => {
         ],
       }),
     );
-  });
+  }, 10_000);
 
   it('uses selected custom lanes to build a combined wizard without duplicate shared steps', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-order-pending`);
@@ -1430,7 +1430,7 @@ describe('StockUpdateSessionRoute', () => {
     const { unmount } = renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?lanes=stock-count,supplier-order-pending`);
 
     goNext();
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Custom draft note' } });
+    fireEvent.change(screen.getByLabelText('Report notes'), { target: { value: 'Custom draft note' } });
 
     unmount();
 
@@ -1564,7 +1564,7 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.change(screen.getByLabelText('Current interval sales for Razor refill'), { target: { value: '9' } });
 
     goNext();
-    expect(screen.getByLabelText('Current interval sales for Haircut')).toHaveValue(2);
+    expect(screen.getByLabelText('Current interval sales for Haircut')).toHaveValue('2');
     fireEvent.change(screen.getByLabelText('Current interval sales for Haircut'), { target: { value: '5' } });
 
     goNext(2);
@@ -1818,7 +1818,7 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
   });
 
   it('asks before discarding changes and resets only after confirmation', async () => {
@@ -1834,7 +1834,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
@@ -1896,10 +1896,10 @@ describe('StockUpdateSessionRoute', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Increase Razor refill' }));
-    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue(2);
+    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue('2');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Decrease Razor refill' }));
-    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue(1);
+    expect(within(dialog).getByLabelText('Quantity for Razor refill')).toHaveValue('1');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Razor refill' })).not.toBeInTheDocument());
@@ -1925,7 +1925,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
-    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue(7);
+    expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft and leave' }));

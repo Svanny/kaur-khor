@@ -11,9 +11,11 @@ import { CheckboxRow } from '@/components/system/checkbox-row';
 import { SupplierField } from '@/components/system/supplier';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
-import { displayMoneyFromUsd, moneyInputStep, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import {
   leadTimeVariabilityPlaceholderValue,
   shouldShowLeadTimeVariabilityPlaceholder,
@@ -65,7 +67,7 @@ function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTime
 }
 
 function parseOptionalNumber(value: string) {
-  return value.trim() ? Number(value) : null;
+  return value.trim() ? parseEditableNumberWithCommas(value) : null;
 }
 
 function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
@@ -337,13 +339,12 @@ export function SkuFormRoute() {
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
               <EditorField error={costPerUnitError ?? undefined} helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
-                <input
+                <CurrencyNumberInput
                   aria-invalid={costPerUnitError ? 'true' : 'false'}
                   className={editorInputClassName}
+                  currency={currency}
                   min="0"
                   required
-                  step={moneyInputStep(currency)}
-                  type="number"
                   value={costPerUnitDraft}
                   onChange={(event) => {
                     const nextValue = event.target.value;
@@ -353,7 +354,7 @@ export function SkuFormRoute() {
                     }
                     setForm((current) => ({
                       ...current,
-                      costPerUnit: usdMoneyFromDisplay(Number(nextValue), currency, usdToKhrExchangeRate),
+                      costPerUnit: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
                     }));
                   }}
                 />
@@ -370,16 +371,15 @@ export function SkuFormRoute() {
                 helpHref="/settings/help#catalog-sku-editor-pricing"
                 tooltip={t('catalogSkuEditorRetailPriceTooltip')}
               >
-                <input
+                <CurrencyNumberInput
                   aria-disabled={!form.soldAsProduct}
                   className={cn(
                     editorInputClassName,
                     !form.soldAsProduct && 'cursor-not-allowed text-muted-foreground',
                   )}
+                  currency={currency}
                   min="0"
                   readOnly={!form.soldAsProduct}
-                  step={moneyInputStep(currency)}
-                  type="number"
                   value={productPriceDraft}
                   onClick={() => {
                     if (!form.soldAsProduct) {
@@ -402,7 +402,7 @@ export function SkuFormRoute() {
                       ...current,
                       productPrice:
                         nextValue.trim().length > 0
-                          ? usdMoneyFromDisplay(Number(nextValue), currency, usdToKhrExchangeRate)
+                          ? usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate)
                           : null,
                     }));
                   }}
@@ -446,7 +446,7 @@ export function SkuFormRoute() {
             label={t('fieldLeadTimeMeanDays')}
             tooltip={t('catalogSkuEditorLeadTimeMeanTooltip')}
           >
-            <input
+            <Input
               className={editorInputClassName}
               min="0"
               step="0.1"
@@ -465,7 +465,7 @@ export function SkuFormRoute() {
             helper={t('overviewDrawerUncertaintyDescription')}
             label={t('overviewDrawerUncertaintyLabel')}
           >
-            <input
+            <Input
               className={editorInputClassName}
               min="0"
               step="0.1"

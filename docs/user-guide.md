@@ -207,6 +207,8 @@ Use Catalog to:
 
 Archive is not delete. Archived items are hidden from active work but remain available historically and can be restored.
 
+Money fields in Catalog and Capture show the active currency symbol (`$` or `៛`) inside the input. Type only the number; commas and the symbol are display aids, and banji saves the underlying value in the selected workspace currency.
+
 ### Act Now {#catalog-detail-act-now}
 
 Act now is the detail-page action summary for a SKU. It condenses current demand, stock, supplier pipeline, and timing into a suggested next move. Use it as a starting point, then check the rail rationale and evidence before committing to an order or catalog change.

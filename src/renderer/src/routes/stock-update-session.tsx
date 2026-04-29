@@ -131,6 +131,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
@@ -138,7 +139,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
-import { displayMoneyFromUsd, formatCurrency, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, formatCurrency, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { leadTimeVariabilityPlaceholderValue } from '@/lib/lead-time-variability-select';
 import { translateLeadTimeVariabilityDescription, translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
@@ -3155,14 +3156,13 @@ function DeliveryFeeFields({
               />
             </span>
           </RecordUpdateFieldLabel>
-          <Input
+          <CurrencyNumberInput
             ref={amountInputRef}
             id={amountId}
             aria-label={amountLabel}
+            currency={currency}
             inputMode="decimal"
             min="0"
-            step={moneyInputStep(currency)}
-            type="number"
             value={amountValue}
             onChange={(event) => onAmountChange(event.target.value)}
           />
@@ -3631,13 +3631,12 @@ function StockCostStep(props: {
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentCost')}</RecordUpdateMobileLabel>
                         <div className="flex justify-start pr-3">
-                          <Input
+                          <CurrencyNumberInput
                             aria-label={t('stockUpdateCurrentCost')}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            currency={currency}
                             min="0"
                             placeholder={latestCostPlaceholder}
-                            step={moneyInputStep(currency)}
-                            type="number"
                             value={costChanged && row.costPerUnit != null ? displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate) : ''}
                             onChange={(event) =>
                               updateRow(row.skuId, {
@@ -3728,14 +3727,13 @@ function StockRetailPriceStep(props: {
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentRetailPrice')}</RecordUpdateMobileLabel>
                         <div className="flex justify-start pr-3">
-                          <Input
+                          <CurrencyNumberInput
                             aria-label={t('stockUpdateCurrentRetailPrice')}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
+                            currency={currency}
                             disabled={!sku?.soldAsProduct}
                             min="0"
                             placeholder={latestRetailPricePlaceholder}
-                            step={moneyInputStep(currency)}
-                            type="number"
                             value={retailPriceChanged && row.productPrice != null ? displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate) : ''}
                             onChange={(event) =>
                               updateRow(row.skuId, {
@@ -5185,13 +5183,12 @@ function ServiceSignalsStep({
                                   }))
                                 }
                               >
-                                <Input
+                                <CurrencyNumberInput
                                   aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
                                   className={flagControlClassName}
+                                  currency={currency}
                                   min="0"
                                   placeholder={t('stockUpdateNewPrice')}
-                                  step={moneyInputStep(currency)}
-                                  type="number"
                                   value={draft.price}
                                   onChange={(event) =>
                                     updateServiceSignalDraft(service.serviceId, (current) => ({
@@ -10475,13 +10472,12 @@ export function StockUpdateSessionRoute() {
                 </div>
                 <div className="grid gap-3">
                   <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-cost">{translateUiLiteral(language, 'Cost per unit')}</RecordUpdateFieldLabel>
-                  <Input
+                  <CurrencyNumberInput
                     aria-label={translateUiLiteral(language, 'Cost per unit')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                    currency={currency}
                     id="pos-stock-cost"
                     min="0"
-                    step={moneyInputStep(currency)}
-                    type="number"
                     value={
                       activePosStockCountRow.row.costPerUnit == null
                         ? ''
@@ -10509,13 +10505,12 @@ export function StockUpdateSessionRoute() {
                 {activePosStockCountRow.sku.soldAsProduct ? (
                   <div className="grid gap-3">
                     <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-price">{translateUiLiteral(language, 'Retail price')}</RecordUpdateFieldLabel>
-                    <Input
+                    <CurrencyNumberInput
                       aria-label={translateUiLiteral(language, 'Retail price')}
                       className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                      currency={currency}
                       id="pos-stock-price"
                       min="0"
-                      step={moneyInputStep(currency)}
-                      type="number"
                       value={
                         activePosStockCountRow.row.productPrice == null
                           ? ''

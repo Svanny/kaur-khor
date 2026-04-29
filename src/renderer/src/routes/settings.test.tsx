@@ -933,7 +933,7 @@ describe('SettingsRoute', () => {
     renderSettingsRoute();
 
     const exchangeRateInput = await screen.findByLabelText(/exchange rate for 1 usd in khr/i);
-    expect(exchangeRateInput).toHaveDisplayValue('4000');
+    expect(exchangeRateInput).toHaveDisplayValue('4,000');
 
     fireEvent.change(exchangeRateInput, { target: { value: '4100' } });
     fireEvent.click(firstSavePreferencesButton());

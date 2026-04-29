@@ -349,7 +349,7 @@ describe('ServiceFormRoute', () => {
     renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
 
     const [serviceIdInput, serviceNameInput] = screen.getAllByRole('textbox');
-    const [priceInput] = screen.getAllByRole('spinbutton');
+    const priceInput = screen.getByDisplayValue('0');
     fireEvent.change(serviceIdInput, { target: { value: 'service-new' } });
     fireEvent.change(serviceNameInput, { target: { value: 'Service New' } });
     fireEvent.change(priceInput, { target: { value: '12' } });
@@ -427,7 +427,7 @@ describe('ServiceFormRoute', () => {
 
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
-    fireEvent.change(screen.getByDisplayValue('96000'), { target: { value: '8000' } });
+    fireEvent.change(screen.getByDisplayValue('96,000'), { target: { value: '8000' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {

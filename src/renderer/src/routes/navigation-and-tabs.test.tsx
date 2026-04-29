@@ -363,7 +363,7 @@ describe('SENA routes', () => {
 
     expect(screen.getByText('Discard changes?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByLabelText('Approximate order quantity')).toHaveValue(22);
+    expect(screen.getByLabelText('Approximate order quantity')).toHaveValue('22');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));

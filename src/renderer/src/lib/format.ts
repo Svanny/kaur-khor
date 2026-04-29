@@ -63,6 +63,10 @@ export function currencyFractionDigits(currency: AppCurrency): number {
   return currency === 'KHR' ? 0 : 2;
 }
 
+export function currencyInputSymbol(currency: AppCurrency): string {
+  return currency === 'KHR' ? '៛' : '$';
+}
+
 export function displayMoneyFromUsd(
   value: number,
   currency: AppCurrency,
@@ -204,6 +208,51 @@ export function formatEditableDecimal(value: number, maximumFractionDigits: numb
 
 export function formatEditableMoney(value: number): string {
   return formatEditableDecimal(value, 2);
+}
+
+export type EditableNumberDraftMode = 'decimal' | 'integer';
+
+export function sanitizeEditableNumberDraft(
+  value: string,
+  mode: EditableNumberDraftMode = 'decimal',
+): string {
+  const withoutCommas = value.replace(/,/g, '');
+  let nextValue = '';
+  let hasDecimalPoint = false;
+
+  for (const character of withoutCommas) {
+    if (character >= '0' && character <= '9') {
+      nextValue += character;
+      continue;
+    }
+
+    if (mode === 'decimal' && character === '.' && !hasDecimalPoint) {
+      nextValue += character;
+      hasDecimalPoint = true;
+    }
+  }
+
+  return nextValue;
+}
+
+export function formatEditableNumberWithCommas(value: string): string {
+  if (!value.trim()) {
+    return '';
+  }
+
+  const sanitized = sanitizeEditableNumberDraft(value);
+  if (!sanitized) {
+    return '';
+  }
+
+  const [integerPart = '', decimalPart] = sanitized.split('.');
+  const groupedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  return decimalPart == null ? groupedInteger : `${groupedInteger}.${decimalPart}`;
+}
+
+export function parseEditableNumberWithCommas(value: string): number {
+  return Number(value.replace(/,/g, ''));
 }
 
 export function formatEditableMoneyFromUsd(

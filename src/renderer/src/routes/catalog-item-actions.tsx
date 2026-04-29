@@ -16,6 +16,7 @@ import {
 } from '@icons/actions';
 import { EntityTagsIcon } from '@icons/entities';
 import { Button } from '@/components/ui/button';
+import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -36,7 +37,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Textarea } from '@/components/ui/textarea';
 import { SupplierBadge } from '@/components/system/supplier';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { formatEditableMoneyFromUsd, moneyInputStep, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import {
   leadTimeVariabilityPlaceholderValue,
   shouldShowLeadTimeVariabilityPlaceholder,
@@ -541,12 +542,11 @@ export function SkuMutationActions({
                   />
                 </ActionSheetField>
                 <ActionSheetField label={t('catalogSenaSkuCostPerUnit')}>
-                  <Input
+                  <CurrencyNumberInput
                     aria-label={t('catalogSenaSkuCostPerUnit')}
                     className={actionSheetInputClassName}
+                    currency={currency}
                     min="0"
-                    step={moneyInputStep(currency)}
-                    type="number"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
                   />
@@ -556,12 +556,11 @@ export function SkuMutationActions({
 
             {mode === 'stock' && actionContext.soldAsProduct ? (
               <ActionSheetField label={t('catalogSenaSkuProductPrice')}>
-                <Input
+                <CurrencyNumberInput
                   aria-label={t('catalogSenaSkuProductPrice')}
                   className={actionSheetInputClassName}
+                  currency={currency}
                   min="0"
-                  step={moneyInputStep(currency)}
-                  type="number"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
                 />
@@ -647,12 +646,11 @@ export function SkuMutationActions({
 
             {mode === 'price' ? (
               <ActionSheetField label={t('catalogSenaSkuProductPrice')}>
-                <Input
+                <CurrencyNumberInput
                   aria-label={t('catalogSenaSkuProductPrice')}
                   className={actionSheetInputClassName}
+                  currency={currency}
                   min="0"
-                  step={moneyInputStep(currency)}
-                  type="number"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
                 />
@@ -1001,24 +999,22 @@ export function ServiceMutationActions({
                   />
                 </ActionSheetField>
                 <ActionSheetField label={translateUiLiteral(language, 'Cost per unit')}>
-                  <Input
+                  <CurrencyNumberInput
                     aria-label={translateUiLiteral(language, 'Cost per unit')}
                     className={actionSheetInputClassName}
+                    currency={currency}
                     min="0"
-                    step={moneyInputStep(currency)}
-                    type="number"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
                   />
                 </ActionSheetField>
                 {mode === 'stock' && actions.bottleneckSku?.soldAsProduct ? (
                   <ActionSheetField label={translateUiLiteral(language, 'Product price')}>
-                    <Input
+                    <CurrencyNumberInput
                       aria-label={translateUiLiteral(language, 'Product price')}
                       className={actionSheetInputClassName}
+                      currency={currency}
                       min="0"
-                      step={moneyInputStep(currency)}
-                      type="number"
                       value={productPrice}
                       onChange={(event) => setProductPrice(event.target.value)}
                     />
@@ -1043,12 +1039,11 @@ export function ServiceMutationActions({
 
             {mode === 'price' ? (
               <ActionSheetField label={translateUiLiteral(language, 'Service price')}>
-                <Input
+                <CurrencyNumberInput
                   aria-label={translateUiLiteral(language, 'Service price')}
                   className={actionSheetInputClassName}
+                  currency={currency}
                   min="0"
-                  step={moneyInputStep(currency)}
-                  type="number"
                   value={servicePrice}
                   onChange={(event) => setServicePrice(event.target.value)}
                 />

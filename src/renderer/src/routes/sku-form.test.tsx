@@ -11,6 +11,7 @@ import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuFormRoute } from './sku-form';
 
 const inventoryHook = vi.fn();
+const preferencesHook = vi.fn();
 
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
@@ -21,15 +22,7 @@ vi.mock('../state/inventory', () => ({
 }));
 
 vi.mock('../state/preferences', () => ({
-  usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
-    usdToKhrExchangeRate: 4000,
-    showExplanatoryTooltips: true,
-    showFloatingTitleActions: false,
-    showRightRailCards: true,
-    t: (key: string) => getTranslation('en', key as never),
-  }),
+  usePreferences: () => preferencesHook(),
 }));
 
 const sampleCatalog = {
@@ -109,6 +102,15 @@ describe('SkuFormRoute', () => {
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('en', key as never),
+    });
     pickAndStoreImage.mockReset();
     pickAndStoreImage.mockResolvedValue('/tmp/sku-image.png');
     storeDroppedImage.mockReset();
@@ -147,8 +149,8 @@ describe('SkuFormRoute', () => {
     expect(screen.getByText('Keep the current landed or replacement unit cost here.')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: /sell as product/i })).toBeChecked();
     expect(screen.queryByDisplayValue('sku-1')).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue('5')).toHaveValue(5);
-    expect(screen.getByDisplayValue('1')).toHaveValue(1);
+    expect(screen.getByDisplayValue('5')).toHaveValue('5');
+    expect(screen.getByDisplayValue('1')).toHaveValue('1');
     await waitFor(() => {
       expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent(
         leadTimeVariabilityLabel('normal'),
@@ -547,7 +549,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
     const [skuNameInput] = screen.getAllByRole('textbox');
-    const [costPerUnitInput] = screen.getAllByRole('spinbutton');
+    const costPerUnitInput = screen.getByDisplayValue('0');
     fireEvent.change(skuNameInput, { target: { value: 'SKU New' } });
     fireEvent.change(costPerUnitInput, { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
@@ -576,7 +578,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
     const [skuNameInput] = screen.getAllByRole('textbox');
-    const [costPerUnitInput] = screen.getAllByRole('spinbutton');
+    const costPerUnitInput = screen.getByDisplayValue('0');
     fireEvent.change(skuNameInput, { target: { value: 'Generated SKU' } });
     fireEvent.change(costPerUnitInput, { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
@@ -591,6 +593,56 @@ describe('SkuFormRoute', () => {
       name: 'Generated SKU',
     });
     createUniqueSkuId.mockRestore();
+  });
+
+  test('formats commercial number drafts with commas while saving numeric values', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costInput, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
+    expect(within(pricingPanel ?? document.body).getAllByText('$')).toHaveLength(2);
+    fireEvent.change(costInput, { target: { value: '7960000.12345' } });
+    fireEvent.change(priceInput, { target: { value: '8000000.98765' } });
+
+    expect(costInput).toHaveValue('7,960,000.12345');
+    expect(priceInput).toHaveValue('8,000,000.98765');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0]).toMatchObject({
+      costPerUnit: 7960000.12345,
+      productPrice: 8000000.98765,
+    });
+  });
+
+  test('shows riel symbols for commercial inputs in KHR mode', () => {
+    preferencesHook.mockReturnValue({
+      currency: 'KHR',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('en', key as never),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costInput, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
+    expect(within(pricingPanel ?? document.body).getAllByText('៛')).toHaveLength(2);
+    expect(costInput).toHaveValue('16,000');
+    expect(priceInput).toHaveValue('36,000');
   });
 
   test('saves a typed supplier name as normalized SKU metadata', async () => {
@@ -726,15 +778,15 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [costInput] = within(pricingPanel ?? document.body).getAllByRole('spinbutton');
+    const [costInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
     fireEvent.change(costInput, { target: { value: '' } });
-    expect(costInput).toHaveValue(null);
+    expect(costInput).toHaveValue('');
     expect(costInput).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
 
     fireEvent.change(costInput, { target: { value: '12' } });
-    expect(costInput).toHaveValue(12);
+    expect(costInput).toHaveValue('12');
     expect(costInput).toHaveAttribute('aria-invalid', 'false');
     expect(screen.queryByText('Enter a cost per unit before saving.')).not.toBeInTheDocument();
   });
@@ -758,7 +810,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [, priceInput] = within(pricingPanel ?? document.body).getAllByRole('spinbutton');
+    const [, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
     const enableHint = screen.getByText('To enter a selling price, click the Sell as product box below first.');
     const sellAsProductCheckbox = screen.getByRole('checkbox', { name: /sell as product/i });
     const sellAsProductRow = sellAsProductCheckbox.closest('[data-slot="checkbox-row"]');
@@ -779,7 +831,7 @@ describe('SkuFormRoute', () => {
     expect(priceInput).not.toHaveAttribute('readonly');
     expect(sellAsProductRow).not.toHaveClass('border-destructive/60');
     fireEvent.change(priceInput, { target: { value: '25' } });
-    expect(priceInput).toHaveValue(25);
+    expect(priceInput).toHaveValue('25');
   });
 
   test('removes the select variability placeholder after a real lead time variability is chosen', async () => {
