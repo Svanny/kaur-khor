@@ -160,10 +160,19 @@ Current system actions:
 - `restoreBackupSnapshot()`
 - `clearCurrentData()`
 - `revealPath(path)`
+- `pickAndStoreImage()`
+- `storeDroppedImage(payload)`
 
 The main IPC handlers for those actions live in [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts).
 
 The renderer reaches them through `window.banjiDesktop.system`, not through direct Node or filesystem access.
+
+Catalog image ingest currently follows two paths:
+
+- `pickAndStoreImage()` handles chooser-based imports for SKU and service editors.
+- `storeDroppedImage(payload)` handles drag-and-drop and clipboard-paste image imports for those same editors.
+
+Both paths accept PNG, JPEG, and WebP source files. WebP inputs are normalized to PNG before the final asset is written so renderer, local storage, and downstream upload behavior stay aligned.
 
 The automation workspace uses the `DesktopAutomationBridge` contract from
 [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it

@@ -243,6 +243,8 @@ Dependency impact shows which linked SKUs are limiting or supporting a service. 
 
 Service details define the stable identity of a service: ID, name, description, and image. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
 
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting from the clipboard. PNG, JPEG, and WebP are accepted.
+
 ### Linked SKUs {#catalog-service-editor-linked-skus}
 
 Linked SKUs define what stock a service consumes or depends on. This is the core setup for service capacity, bottleneck analysis, and automation availability. Use this section when a service appears available or blocked for the wrong reason.
@@ -266,6 +268,8 @@ SKU dependency impact shows which services rely on this SKU and how severely the
 ### SKU Editor Details {#catalog-sku-editor-details}
 
 SKU details define the stock item's identity: name, supplier, description, and image. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here when the wrong item appears in work or customer-facing surfaces.
+
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting from the clipboard. PNG, JPEG, and WebP are accepted.
 
 ### SKU Editor Planning {#catalog-sku-editor-planning}
 
