@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -207,7 +207,28 @@ describe('telegram automation connection setup', () => {
     const absolutePath = join(assetsDir, relativeName);
     await writeFile(absolutePath, new Uint8Array([137, 80, 78, 71]));
 
-    await expect(resolveTelegramPhotoPath(userDataPath, relativeName)).resolves.toBe(absolutePath);
+    await expect(resolveTelegramPhotoPath(userDataPath, relativeName)).resolves.toBe(await realpath(absolutePath));
+  });
+
+  it('rejects Telegram photo paths outside the managed assets directory', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-assets-'));
+
+    await expect(resolveTelegramPhotoPath(userDataPath, '/tmp/file.png')).rejects.toThrow(
+      'Telegram photo paths must point to a managed banji asset.',
+    );
+    await expect(resolveTelegramPhotoPath(userDataPath, '../outside.png')).rejects.toThrow(
+      'Telegram photo paths must point to a managed banji asset.',
+    );
+  });
+
+  it('allows canonical managed asset paths for Telegram photos', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-assets-'));
+    const assetsDir = join(userDataPath, 'assets');
+    await mkdir(assetsDir, { recursive: true });
+    const assetPath = join(assetsDir, 'cotton-scarf.png');
+    await writeFile(assetPath, new Uint8Array([137, 80, 78, 71]));
+
+    await expect(resolveTelegramPhotoPath(userDataPath, assetPath)).resolves.toBe(await realpath(assetPath));
   });
 
   it('does not poll Telegram while automations are disabled and resumes when re-enabled', async () => {

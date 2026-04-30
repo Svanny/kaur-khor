@@ -1,5 +1,5 @@
-import { access } from 'node:fs/promises';
-import { join } from 'node:path';
+import { realpath } from 'node:fs/promises';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import type { AppCurrency } from '@shared/inventory';
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import {
@@ -47,28 +47,37 @@ const TELEGRAM_BOT_COMMANDS = [
 
 export async function resolveTelegramPhotoPath(userDataPath: string, photoPath: string) {
   const trimmed = photoPath.trim();
-  if (!trimmed || /^https?:\/\//i.test(trimmed)) {
+  if (!trimmed) {
     return trimmed;
   }
 
-  const candidates = trimmed.startsWith('/')
-    ? [trimmed]
-    : [
-      join(userDataPath, 'assets', trimmed),
-      join(userDataPath, trimmed),
-      trimmed,
-    ];
-
-  for (const candidate of candidates) {
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {
-      continue;
-    }
+  if (/^https?:\/\//i.test(trimmed)) {
+    throw new Error('Telegram photo paths must point to a managed banji asset.');
   }
 
-  return candidates[0]!;
+  const assertManagedAssetPath = (candidatePath: string, rootPath: string) => {
+    const relativePath = relative(rootPath, candidatePath);
+    if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) {
+      throw new Error('Telegram photo paths must point to a managed banji asset.');
+    }
+  };
+
+  const assetsRoot = resolve(userDataPath, 'assets');
+  const candidate = isAbsolute(trimmed) ? resolve(trimmed) : resolve(assetsRoot, trimmed);
+  try {
+    const [canonicalAssetsRoot, canonicalCandidate] = await Promise.all([
+      realpath(assetsRoot),
+      realpath(candidate),
+    ]);
+    assertManagedAssetPath(canonicalCandidate, canonicalAssetsRoot);
+    return canonicalCandidate;
+  } catch (error) {
+    assertManagedAssetPath(candidate, assetsRoot);
+    if (error instanceof Error && ('code' in error) && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return candidate;
+    }
+    throw error;
+  }
 }
 
 function displayMoneyFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
