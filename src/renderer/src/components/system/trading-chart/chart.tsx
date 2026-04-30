@@ -200,8 +200,9 @@ interface OverlayFlagMarker {
 interface StackedOverlayFlagMarker extends OverlayFlagMarker {
   bottom: number;
 }
-interface RegimeIconCluster {
-  dominantRegime: string;
+interface OverlayIconCluster {
+  indicatorId: OverlayIndicatorId;
+  groupKey: string;
   count: number;
   firstIntervalIndex: number;
   lastIntervalIndex: number;
@@ -1340,19 +1341,29 @@ function histogramIndicatorLegendValue(
 export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): StackedOverlayFlagMarker[] {
   const grouped = new Map<string, OverlayFlagMarker[]>();
   for (const marker of markers) {
-    const key = `${marker.paneId}:${marker.intervalIndex}`;
+    const key = marker.paneId;
     const current = grouped.get(key) ?? [];
     current.push(marker);
     grouped.set(key, current);
   }
-  return [...grouped.values()].flatMap((group) =>
-    [...group]
+  return [...grouped.values()].flatMap((group) => {
+    const rows: OverlayFlagMarker[][] = [];
+    return [...group]
       .sort((left, right) => left.layerOrder - right.layerOrder || INDICATOR_ORDER.indexOf(left.indicatorId) - INDICATOR_ORDER.indexOf(right.indicatorId))
-      .map((marker, index) => ({
-        ...marker,
-        bottom: CHART_ICON_BOTTOM_INSET + index * (REGIME_ICON_SIZE + OVERLAY_FLAG_STACK_GAP),
-      })),
-  );
+      .map((marker) => {
+        const markerRight = marker.left + marker.width;
+        let rowIndex = rows.findIndex((row) => !row.some((placed) => marker.left < placed.left + placed.width + OVERLAY_FLAG_STACK_GAP && markerRight + OVERLAY_FLAG_STACK_GAP > placed.left));
+        if (rowIndex === -1) {
+          rowIndex = rows.length;
+          rows.push([]);
+        }
+        rows[rowIndex]!.push(marker);
+        return {
+          ...marker,
+          bottom: CHART_ICON_BOTTOM_INSET + rowIndex * (REGIME_ICON_SIZE + OVERLAY_FLAG_STACK_GAP),
+        };
+      });
+  });
 }
 
 function lineStyleValue(style: TradingChartIndicatorLineStyle | undefined) {
@@ -1724,36 +1735,33 @@ function cachedOverlayAnchorData(points: TradingChartPoint[]) {
   })));
 }
 
-function buildRegimeIconClusters(
-  visibleRegimePoints: TradingChartPoint[],
-  regimeIconPositions: Map<number, number>,
+export function buildOverlayIconClusters(
+  entries: Array<{
+    indicatorId: OverlayIndicatorId;
+    groupKey: string;
+    intervalIndex: number;
+    x: number;
+  }>,
 ) {
-  const positionedPoints = visibleRegimePoints
-    .map((point) => ({
-      point,
-      x: regimeIconPositions.get(point.intervalIndex),
-    }))
-    .filter((entry): entry is { point: TradingChartPoint; x: number } => entry.x != null)
-    .sort((left, right) => left.point.intervalIndex - right.point.intervalIndex);
+  const positionedEntries = [...entries].sort((left, right) =>
+    left.indicatorId.localeCompare(right.indicatorId) ||
+    left.intervalIndex - right.intervalIndex
+  );
 
-  const clusters: RegimeIconCluster[] = [];
+  const clusters: OverlayIconCluster[] = [];
 
-  for (const entry of positionedPoints) {
-    const regime = entry.point.dominantRegime;
-    if (!regime) {
-      continue;
-    }
-
+  for (const entry of positionedEntries) {
     const iconLeft = entry.x - REGIME_ICON_SIZE / 2;
     const iconRight = entry.x + REGIME_ICON_SIZE / 2;
     const previous = clusters.at(-1);
     const overlapsPrevious =
       previous &&
-      previous.dominantRegime === regime &&
+      previous.indicatorId === entry.indicatorId &&
+      previous.groupKey === entry.groupKey &&
       iconLeft <= previous.right + REGIME_CLUSTER_GAP;
 
     if (overlapsPrevious) {
-      previous.lastIntervalIndex = entry.point.intervalIndex;
+      previous.lastIntervalIndex = entry.intervalIndex;
       previous.count += 1;
       previous.left = Math.min(previous.left, iconLeft);
       previous.right = Math.max(previous.right, iconRight);
@@ -1762,10 +1770,11 @@ function buildRegimeIconClusters(
     }
 
     clusters.push({
-      dominantRegime: regime,
+      indicatorId: entry.indicatorId,
+      groupKey: entry.groupKey,
       count: 1,
-      firstIntervalIndex: entry.point.intervalIndex,
-      lastIntervalIndex: entry.point.intervalIndex,
+      firstIntervalIndex: entry.intervalIndex,
+      lastIntervalIndex: entry.intervalIndex,
       left: iconLeft,
       right: iconRight,
       center: entry.x,
@@ -1773,6 +1782,27 @@ function buildRegimeIconClusters(
   }
 
   return clusters;
+}
+
+function buildRegimeIconClusters(
+  visibleRegimePoints: TradingChartPoint[],
+  regimeIconPositions: Map<number, number>,
+) {
+  return buildOverlayIconClusters(
+    visibleRegimePoints
+      .map((point) => {
+        const x = regimeIconPositions.get(point.intervalIndex);
+        return point.dominantRegime && x != null
+          ? {
+            indicatorId: 'regime' as const,
+            groupKey: point.dominantRegime,
+            intervalIndex: point.intervalIndex,
+            x,
+          }
+          : null;
+      })
+      .filter((entry): entry is { indicatorId: 'regime'; groupKey: string; intervalIndex: number; x: number } => entry != null),
+  );
 }
 
 function buildStackedOverlayMarkers({
@@ -1786,7 +1816,7 @@ function buildStackedOverlayMarkers({
   showRegimeIcons,
 }: {
   chartModel: TradingChartModel;
-  clusters: RegimeIconCluster[];
+  clusters: OverlayIconCluster[];
   editableIndicatorSettings: TradingChartIndicatorSettings;
   language: 'en' | 'km';
   onSelectInterval: (index: number) => void;
@@ -1798,9 +1828,10 @@ function buildStackedOverlayMarkers({
 
   if (showRegimeIcons) {
     for (const cluster of clusters) {
-      const regimeKey = cluster.dominantRegime.toLowerCase();
+      const regime = cluster.groupKey;
+      const regimeKey = regime.toLowerCase();
       markers.push({
-        key: `${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${cluster.dominantRegime}`,
+        key: `regime:${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${regime}`,
         indicatorId: 'regime',
         paneId: regimePaneId,
         intervalIndex: cluster.lastIntervalIndex,
@@ -1808,9 +1839,9 @@ function buildStackedOverlayMarkers({
         left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
         width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
         color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
-        label: regimeClusterLabel(language, cluster.dominantRegime, cluster.count),
+        label: regimeClusterLabel(language, regime, cluster.count),
         onClick: () => onSelectInterval(cluster.lastIntervalIndex),
-        icon: getRegimeIcon(cluster.dominantRegime),
+        icon: getRegimeIcon(regime),
         clustered: cluster.count > 1,
       });
     }
@@ -1827,26 +1858,30 @@ function buildStackedOverlayMarkers({
       return;
     }
     const setting = editableIndicatorSettings[indicatorId];
-    for (const point of chartModel.points) {
-      if (!hasValue(point)) {
-        continue;
-      }
-      const x = regimeIconPositions.get(point.intervalIndex);
-      if (x == null) {
-        continue;
-      }
+    const clusters = buildOverlayIconClusters(
+      chartModel.points
+        .map((point) => {
+          const x = regimeIconPositions.get(point.intervalIndex);
+          return hasValue(point) && x != null
+            ? { indicatorId, groupKey: indicatorId, intervalIndex: point.intervalIndex, x }
+            : null;
+        })
+        .filter((entry): entry is { indicatorId: 'newOrderFlags' | 'newReceiptFlags'; groupKey: string; intervalIndex: number; x: number } => entry != null),
+    );
+    for (const cluster of clusters) {
       markers.push({
-        key: `${indicatorId}:${point.intervalIndex}`,
+        key: `${indicatorId}:${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}`,
         indicatorId,
         paneId: setting.paneId,
-        intervalIndex: point.intervalIndex,
+        intervalIndex: cluster.lastIntervalIndex,
         layerOrder: setting.layerOrder,
-        left: x - REGIME_ICON_SIZE / 2,
-        width: REGIME_ICON_SIZE,
+        left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
+        width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
         color: setting.color,
-        label,
-        onClick: () => onSelectInterval(point.intervalIndex),
+        label: cluster.count > 1 ? `${label}, ${cluster.count} intervals` : label,
+        onClick: () => onSelectInterval(cluster.lastIntervalIndex),
         icon: Icon,
+        clustered: cluster.count > 1,
       });
     }
   };
@@ -1898,14 +1933,15 @@ function buildRegimeBackgroundBands(
   });
 }
 
-function regimeIconClustersEqual(left: RegimeIconCluster[], right: RegimeIconCluster[]) {
+function regimeIconClustersEqual(left: OverlayIconCluster[], right: OverlayIconCluster[]) {
   if (left.length !== right.length) {
     return false;
   }
   return left.every((cluster, index) => {
     const other = right[index];
     return other != null &&
-      cluster.dominantRegime === other.dominantRegime &&
+      cluster.indicatorId === other.indicatorId &&
+      cluster.groupKey === other.groupKey &&
       cluster.count === other.count &&
       cluster.firstIntervalIndex === other.firstIntervalIndex &&
       cluster.lastIntervalIndex === other.lastIntervalIndex &&
@@ -2344,7 +2380,10 @@ function centeredSettingsPosition() {
 interface SkuTradingChartProps {
   chartModel: TradingChartModel;
   chartZoomResetToken: string | number;
+  additionalPaneMinRenderHeight?: number;
+  chartRenderHeight?: CSSProperties['height'];
   expanded?: boolean;
+  fillAvailableHeight?: boolean;
   hasOlderIntervals: boolean;
   isBusy: boolean;
   isVisuallyBusy?: boolean;
@@ -2361,6 +2400,7 @@ interface SkuTradingChartProps {
   onToggleExpand?: () => void;
   onVisibleDateRangeChange?: (range: ChartVisibleDateRange | null, options?: ChartLayoutPreferenceMergeOptions) => void;
   selectedIntervalIndex: number | null;
+  baseMinRenderHeight?: number;
   defaultIndicatorSettings: TradingChartIndicatorSettings;
   initialPaneHeights?: Record<string, number> | null;
   initialVisibleDateRange?: ChartVisibleDateRange | null;
@@ -2375,10 +2415,13 @@ interface SkuTradingChartProps {
 export function SkuTradingChart({
   chartModel: rawChartModel,
   chartZoomResetToken,
+  additionalPaneMinRenderHeight = CHART_ADDITIONAL_PANE_MIN_RENDER_HEIGHT,
   chartResolution = DEFAULT_CHART_RESOLUTION,
+  chartRenderHeight,
   customTimeframeRange = null,
   customChartResolution = null,
   expanded = false,
+  fillAvailableHeight = true,
   hasOlderIntervals,
   isBusy,
   isVisuallyBusy,
@@ -2395,6 +2438,7 @@ export function SkuTradingChart({
   onTimeframeChange,
   onVisibleDateRangeChange,
   selectedIntervalIndex,
+  baseMinRenderHeight = CHART_MIN_RENDER_HEIGHT,
   defaultIndicatorSettings,
   initialPaneHeights = null,
   initialVisibleDateRange = null,
@@ -2437,7 +2481,7 @@ export function SkuTradingChart({
   const viewportInteractionActiveRef = useRef(false);
   const viewportInteractionEndTimerRef = useRef<number | null>(null);
   const regimeIconPositionsRef = useRef<Map<number, number>>(new Map());
-  const clusteredRegimeIconsRef = useRef<RegimeIconCluster[]>([]);
+  const clusteredRegimeIconsRef = useRef<OverlayIconCluster[]>([]);
   const stackedOverlayMarkersRef = useRef<StackedOverlayFlagMarker[]>([]);
   const regimeBackgroundBandsRef = useRef<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [hoveredTime, setHoveredTime] = useState<Time | null>(null);
@@ -2457,7 +2501,7 @@ export function SkuTradingChart({
     dialogId: ChartSettingsDialogId;
     action: () => void;
   } | null>(null);
-  const [clusteredRegimeIcons, setClusteredRegimeIcons] = useState<RegimeIconCluster[]>([]);
+  const [clusteredRegimeIcons, setClusteredRegimeIcons] = useState<OverlayIconCluster[]>([]);
   const [paneLegendPositions, setPaneLegendPositions] = useState<Array<{ top: number; height: number }>>([]);
   const [stackedOverlayMarkers, setStackedOverlayMarkers] = useState<StackedOverlayFlagMarker[]>([]);
   const [plotAreaWidth, setPlotAreaWidth] = useState(0);
@@ -2558,6 +2602,10 @@ export function SkuTradingChart({
     [availabilityKey, structuralSettingsSignature],
   );
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
+  const minimumRenderHeight = baseMinRenderHeight + Math.max(0, activeAdditionalPaneCount) * additionalPaneMinRenderHeight;
+  const chartRenderStyle: CSSProperties = chartRenderHeight == null
+    ? { minHeight: minimumRenderHeight }
+    : { height: chartRenderHeight, minHeight: minimumRenderHeight };
   const regimeSetting = editableIndicatorSettings.regime;
   const regimeIndicatorEnabled = isEnabled(editableIndicatorSettings, chartModel.availability, 'regime');
   const showRegimeIcons = regimeIndicatorEnabled && regimeUsesIcons(regimeSetting.plotStyle);
@@ -2650,8 +2698,8 @@ export function SkuTradingChart({
   function finishPaneHeightSync(lockDuringSync: boolean, generation: number, retryCount = 0) {
     paneHeightUpdateFrameRef.current = null;
     const currentPaneCount = Math.max(0, paneLayout.length - 1);
-    const minimumRenderHeight = deriveTradingChartMinRenderHeight(currentPaneCount);
-    const totalHeight = Math.max(minimumRenderHeight, chartContainerRef.current?.clientHeight || minimumRenderHeight);
+    const currentMinimumRenderHeight = baseMinRenderHeight + Math.max(0, currentPaneCount) * additionalPaneMinRenderHeight;
+    const totalHeight = Math.max(currentMinimumRenderHeight, chartContainerRef.current?.clientHeight || currentMinimumRenderHeight);
     const paneIds = paneLayout.map((pane) => pane.id);
     applyPaneHeights(
       chartRef.current,
@@ -4102,7 +4150,7 @@ export function SkuTradingChart({
     )
     : null;
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+    <div className={cn('flex min-h-0 w-full min-w-0 flex-col gap-4', fillAvailableHeight ? 'flex-1' : 'flex-none')}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <DialogPrimitive.Root
@@ -4685,10 +4733,11 @@ export function SkuTradingChart({
       <div
         className={cn(
           'relative min-h-[420px] flex-1 rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
+          chartRenderHeight != null && 'shrink-0 flex-none',
           shouldDimChartWhileBusy && 'opacity-45',
         )}
         data-busy={showBusyState || undefined}
-        style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
+        style={chartRenderStyle}
       >
         {hasPoints ? (
           <>
@@ -4818,7 +4867,7 @@ export function SkuTradingChart({
             hideChartVisualsDuringRelayout && 'opacity-0',
           )}
           data-testid="sku-trading-chart"
-          style={{ minHeight: deriveTradingChartMinRenderHeight(activeAdditionalPaneCount) }}
+          style={chartRenderStyle}
         />
         {shouldDimChartWhileBusy ? (
           <div

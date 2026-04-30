@@ -307,6 +307,8 @@ The SKU operational ribbon គឺជា the compact metric strip below the hero.
 
 The trading chart ledger គឺជា the detail chart surface for SKU, service, or analysis signals. វា combines timeline controls, indicators, selected interval behavior, and saved evidence overlays. ប្រើវា នៅពេល you need to inspect how a headline changed over time.
 
+Dense overlay evidence ដូចជា supplier orders, receipts, ឬ repeated regime markers អាច cluster ជា timeline marker មួយ។ Select marker នោះ ដើម្បី inspect latest interval ក្នុង cluster នោះ។
+
 ## Insights
 
 Insights គឺជា entry point សម្រាប់ operating signals។ Subpages របស់វាគឺ Pressure, Money, និង Explain។ ប្រើ section នេះដើម្បីជ្រើស lens ដែលត្រូវនឹងសំណួរ៖ operational urgency, financial quality, ឬ evidence-level explanation។

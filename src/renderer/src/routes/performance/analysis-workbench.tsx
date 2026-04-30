@@ -2291,7 +2291,7 @@ function WorkbenchSurface({
   timeframe: AnalysisTimeframe;
 }) {
   return (
-    <div className={cn('grid w-full min-w-0 gap-6 flex-1')}>
+    <div className={cn('grid w-full min-w-0 flex-1 gap-6')}>
       <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
         chartLayoutPreferences={chartLayoutPreferences}
@@ -2622,7 +2622,7 @@ export function AnalysisWorkbench({
           className={cn(
             ANALYSIS_BOARD_CLASS_NAME,
             'flex flex-1 flex-col',
-            activeSection === 'workbench' ? 'overflow-hidden' : 'overflow-y-auto',
+            activeSection === 'workbench' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-y-auto',
           )}
           data-testid="insights-board-section"
           style={{

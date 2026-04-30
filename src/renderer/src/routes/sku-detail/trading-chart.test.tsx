@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  buildOverlayIconClusters,
   deriveTradingChartMinRenderHeight,
   paneHeightAllocation,
   shouldAutoCenterSelectedInterval,
@@ -320,6 +321,102 @@ function renderChart({
 }
 
 describe('SkuTradingChart settings', () => {
+  it('merges dense supplier order icons into clustered markers', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 1, x: 100 },
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 2, x: 116 },
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 3, x: 132 },
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual(expect.objectContaining({
+      indicatorId: 'newOrderFlags',
+      count: 3,
+      firstIntervalIndex: 1,
+      lastIntervalIndex: 3,
+    }));
+    expect(clusters[0]?.right).toBeGreaterThan(clusters[0]?.left ?? 0);
+  });
+
+  it('merges dense supplier receipt icons with the same collision rule', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'newReceiptFlags', groupKey: 'newReceiptFlags', intervalIndex: 4, x: 200 },
+      { indicatorId: 'newReceiptFlags', groupKey: 'newReceiptFlags', intervalIndex: 5, x: 218 },
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual(expect.objectContaining({
+      indicatorId: 'newReceiptFlags',
+      count: 2,
+      firstIntervalIndex: 4,
+      lastIntervalIndex: 5,
+    }));
+  });
+
+  it('keeps regime icon clusters split by dominant regime', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'regime', groupKey: 'normal', intervalIndex: 1, x: 100 },
+      { indicatorId: 'regime', groupKey: 'normal', intervalIndex: 2, x: 116 },
+      { indicatorId: 'regime', groupKey: 'spike', intervalIndex: 3, x: 132 },
+    ]);
+
+    expect(clusters.map((cluster) => ({
+      groupKey: cluster.groupKey,
+      count: cluster.count,
+      firstIntervalIndex: cluster.firstIntervalIndex,
+      lastIntervalIndex: cluster.lastIntervalIndex,
+    }))).toEqual([
+      { groupKey: 'normal', count: 2, firstIntervalIndex: 1, lastIntervalIndex: 2 },
+      { groupKey: 'spike', count: 1, firstIntervalIndex: 3, lastIntervalIndex: 3 },
+    ]);
+  });
+
+  it('does not merge non-contiguous runs of the same regime', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'regime', groupKey: 'normal', intervalIndex: 1, x: 100 },
+      { indicatorId: 'regime', groupKey: 'spike', intervalIndex: 2, x: 116 },
+      { indicatorId: 'regime', groupKey: 'normal', intervalIndex: 3, x: 132 },
+    ]);
+
+    expect(clusters.map((cluster) => ({
+      groupKey: cluster.groupKey,
+      count: cluster.count,
+      firstIntervalIndex: cluster.firstIntervalIndex,
+      lastIntervalIndex: cluster.lastIntervalIndex,
+    }))).toEqual([
+      { groupKey: 'normal', count: 1, firstIntervalIndex: 1, lastIntervalIndex: 1 },
+      { groupKey: 'spike', count: 1, firstIntervalIndex: 2, lastIntervalIndex: 2 },
+      { groupKey: 'normal', count: 1, firstIntervalIndex: 3, lastIntervalIndex: 3 },
+    ]);
+  });
+
+  it('does not merge different overlay indicators before stacking them by layer', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 1, x: 100 },
+      { indicatorId: 'newReceiptFlags', groupKey: 'newReceiptFlags', intervalIndex: 1, x: 100 },
+    ]);
+
+    expect(clusters.map((cluster) => cluster.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags']);
+
+    const markers = stackOverlayFlagMarkers(clusters.map((cluster) => ({
+      key: `${cluster.indicatorId}:${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}`,
+      indicatorId: cluster.indicatorId,
+      paneId: 'main',
+      intervalIndex: cluster.lastIntervalIndex,
+      layerOrder: cluster.indicatorId === 'newOrderFlags' ? 1 : 2,
+      left: cluster.left,
+      width: Math.max(28, cluster.right - cluster.left),
+      color: '#000',
+      label: cluster.indicatorId,
+      onClick: vi.fn(),
+      icon: vi.fn() as never,
+      clustered: cluster.count > 1,
+    })));
+
+    expect(markers.map((marker) => marker.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags']);
+    expect(markers.map((marker) => marker.bottom)).toEqual([6, 40]);
+  });
+
   it('stacks overlay flags by layer order inside same pane interval', () => {
     const markers = stackOverlayFlagMarkers([
       {

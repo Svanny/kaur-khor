@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
 import {
   DEFAULT_CHART_RESOLUTION,
@@ -63,11 +63,15 @@ function resolveTradingChartSettings(
 export function TradingChartLedger({
   chartLayoutPreferences = defaultChartLayoutPreferences(),
   chartModel,
+  additionalPaneMinRenderHeight,
+  baseMinRenderHeight,
+  chartRenderHeight,
   chartResolution = DEFAULT_CHART_RESOLUTION,
   chartZoomResetToken = 0,
   customChartResolution = null,
   customTimeframeRange = null,
   expanded = false,
+  fillAvailableHeight = true,
   hasOlderIntervals = false,
   isBusy = false,
   isVisuallyBusy,
@@ -90,11 +94,15 @@ export function TradingChartLedger({
 }: {
   chartLayoutPreferences: PersistedChartLayoutPreferences;
   chartModel: TradingChartModel;
+  additionalPaneMinRenderHeight?: number;
+  baseMinRenderHeight?: number;
+  chartRenderHeight?: CSSProperties['height'];
   chartResolution?: ChartResolutionOption;
   chartZoomResetToken?: string | number;
   customChartResolution?: ChartCustomResolution | null;
   customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
+  fillAvailableHeight?: boolean;
   hasOlderIntervals: boolean;
   isBusy?: boolean;
   isVisuallyBusy?: boolean;
@@ -206,15 +214,19 @@ export function TradingChartLedger({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-1">
+      <div className={cn('mt-5 flex w-full', fillAvailableHeight && 'flex-1')}>
         <SkuTradingChart
           chartModel={chartModel}
           chartResolution={chartResolution}
+          chartRenderHeight={chartRenderHeight}
           chartZoomResetToken={chartZoomResetToken}
+          additionalPaneMinRenderHeight={additionalPaneMinRenderHeight}
+          baseMinRenderHeight={baseMinRenderHeight}
           customChartResolution={customChartResolution}
           customTimeframeRange={customTimeframeRange}
           defaultIndicatorSettings={defaultIndicatorSettings}
           expanded={expanded}
+          fillAvailableHeight={fillAvailableHeight}
           hasOlderIntervals={hasOlderIntervals}
           indicatorSettings={indicatorSettings}
           initialPaneHeights={chartLayoutPreferences.paneHeights}

@@ -402,6 +402,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
+    expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-y-auto');
   });
 
   test('renders the shared ledger controls on the workbench surface', () => {
