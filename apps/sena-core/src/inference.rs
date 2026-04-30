@@ -1327,10 +1327,10 @@ fn step_particle(
     let sku_count = catalog.skus.len();
     let service_count = catalog.services.len();
 
-    let ranking_pressure =
-        (interval.service_rank_order.len() + interval.retail_rank_order.len()) as f64
-            + interval.exact_service_sales_by_service.len() as f64
-            + interval.exact_retail_sales_by_sku.len() as f64;
+    let ranking_pressure = (interval.service_rank_order.len() + interval.retail_rank_order.len())
+        as f64
+        + interval.exact_service_sales_by_service.len() as f64
+        + interval.exact_retail_sales_by_sku.len() as f64;
     let stockout_pressure =
         (interval.service_stockouts.len() + interval.retail_stockouts.len()) as f64;
     let price_pressure = mean(
@@ -1499,7 +1499,9 @@ fn step_particle(
             .exact_retail_sales_by_sku
             .get(sku.sku_id.as_str())
             .copied()
-            .unwrap_or_else(|| sample_count(retail_count_mean, retail_count_variance, &mut rng) as f64);
+            .unwrap_or_else(|| {
+                sample_count(retail_count_mean, retail_count_variance, &mut rng) as f64
+            });
 
         total_demand[sku_idx] = service_demand[sku_idx] + retail_demand[sku_idx];
 
@@ -1860,12 +1862,16 @@ fn normalize_intervals(
                 .map(|entry| (entry.service_id.clone(), entry.units_sold))
                 .collect::<Vec<_>>();
             ranked.sort_by(|left, right| {
-                right.1
+                right
+                    .1
                     .partial_cmp(&left.1)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| left.0.cmp(&right.0))
             });
-            ranked.into_iter().map(|(service_id, _)| service_id).collect()
+            ranked
+                .into_iter()
+                .map(|(service_id, _)| service_id)
+                .collect()
         };
         let retail_rank_order = if exact_retail_sales_by_sku.is_empty() {
             pair[1].input.retail_rankings.iter().cloned().collect()
@@ -1877,7 +1883,8 @@ fn normalize_intervals(
                 .map(|entry| (entry.sku_id.clone(), entry.units_sold))
                 .collect::<Vec<_>>();
             ranked.sort_by(|left, right| {
-                right.1
+                right
+                    .1
                     .partial_cmp(&left.1)
                     .unwrap_or(std::cmp::Ordering::Equal)
                     .then_with(|| left.0.cmp(&right.0))

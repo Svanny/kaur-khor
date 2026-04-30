@@ -634,13 +634,16 @@ pub struct SenaRecordUpdateContext {
     pub observation_fingerprint: SenaObservationFingerprint,
     pub latest_observed_at: Option<String>,
     pub latest_stock_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaStockSnapshot>>,
-    pub latest_retail_sale_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaRetailSalesSnapshot>>,
-    pub latest_service_sale_by_service: BTreeMap<String, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>,
+    pub latest_retail_sale_by_sku:
+        BTreeMap<String, SenaRecordUpdateAnchor<SenaRetailSalesSnapshot>>,
+    pub latest_service_sale_by_service:
+        BTreeMap<String, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>,
     pub latest_order_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
     pub latest_receipt_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
     pub open_tickets_by_family: SenaRecordUpdateOpenTickets,
     pub latest_tickets_by_id: BTreeMap<String, SenaRecordUpdateAnchor<SenaTicketSummary>>,
-    pub latest_delivery_fee_by_bucket: BTreeMap<String, SenaRecordUpdateAnchor<SenaDeliveryFeeMetadata>>,
+    pub latest_delivery_fee_by_bucket:
+        BTreeMap<String, SenaRecordUpdateAnchor<SenaDeliveryFeeMetadata>>,
     pub recent_activity: Vec<SenaRecordActivityEntry>,
 }
 
@@ -1135,7 +1138,11 @@ fn validate_delivery_fee_metadata(metadata: &SenaDeliveryFeeMetadata) -> Result<
             metadata.display_delivery_usd,
             false,
         ),
-        ("deliveryFee.displayTotalUsd", metadata.display_total_usd, false),
+        (
+            "deliveryFee.displayTotalUsd",
+            metadata.display_total_usd,
+            false,
+        ),
         (
             "deliveryFee.netSettlementUsd",
             metadata.net_settlement_usd,

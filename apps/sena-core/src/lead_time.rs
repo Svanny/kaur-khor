@@ -126,9 +126,7 @@ fn round_preset_std_days(value: f64) -> f64 {
         / 10.0
 }
 
-pub fn target_std_days_by_class(
-    mean_days: f64,
-) -> Vec<(SenaLeadTimeVariabilityClass, f64)> {
+pub fn target_std_days_by_class(mean_days: f64) -> Vec<(SenaLeadTimeVariabilityClass, f64)> {
     if !mean_days.is_finite() || mean_days < 0.0 {
         return Vec::new();
     }
@@ -194,8 +192,7 @@ mod tests {
 
     #[test]
     fn lead_time_range_lower_bound_is_zero() {
-        let (low, high) =
-            implied_range_from_mean_std(0.2, 0.5).expect("range should derive");
+        let (low, high) = implied_range_from_mean_std(0.2, 0.5).expect("range should derive");
         assert_eq!((low, high), (0.0, 0.7));
     }
 
