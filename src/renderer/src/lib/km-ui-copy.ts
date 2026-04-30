@@ -185,6 +185,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogItemEditorIdentifierErrorDuplicate:
     'លេខសម្គាល់នេះ កំពុងត្រូវបានប្រើដោយធាតុកាតាឡុកផ្សេងទៀត រួមទាំងធាតុដែលបានដាក់បណ្ណសារ។',
   catalogSkuEditorNameHelper: 'ដាក់ឈ្មោះ SKU តាមរបៀបដែលបុគ្គលិកនឹងស្វែងរកវា។',
+  catalogSkuEditorNameRequired: 'សូមបញ្ចូលឈ្មោះ SKU មុនពេលរក្សាទុក។',
   catalogSkuEditorDescriptionHelper:
     'ពិពណ៌នា SKU នេះ ដើម្បីឲ្យបុគ្គលិកអាចបែងចែកវាចេញពីធាតុស្រដៀងគ្នាបានរហ័ស។',
   catalogSkuEditorUnitsHelper: 'អាប់ដេតចំនួនស្តុកដែលបានរាប់ចុងក្រោយសម្រាប់ SKU នេះ។',
@@ -192,8 +193,12 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditorCostRequired: 'សូមបញ្ចូលថ្លៃដើមក្នុងមួយឯកតា មុនពេលរក្សាទុក។',
   catalogSkuEditorLeadTimeMeanHelper:
     'ពេលវេលាមកដល់ជាទូទៅពីអ្នកផ្គត់ផ្គង់ ដែល banji គួរប្រើ មុនពេលមានភស្តុតាងថ្មីជាងនេះ។',
+  catalogSkuEditorLeadTimeMeanRequired:
+    'សូមបញ្ចូលចំនួនថ្ងៃមធ្យមនៃពេលវេលាមកដល់ មុនពេលរក្សាទុក។',
   catalogSkuEditorLeadTimeStdHelper:
     'បង្ហាញថាពេលវេលាពីអ្នកផ្គត់ផ្គង់ ជាទូទៅប្រែប្រួលជុំវិញមធ្យមប៉ុន្មាន។',
+  catalogSkuEditorLeadTimeUncertaintyRequired:
+    'សូមបញ្ចូលថ្ងៃភាពមិនប្រាកដ ឬជ្រើសភាពប្រែប្រួលពេលវេលាមកដល់ មុនពេលរក្សាទុក។',
   catalogSkuEditorSellableHelper:
     'បើកជម្រើសនេះ នៅពេល SKU នេះត្រូវបានលក់ផ្ទាល់ ហើយត្រូវការតម្លៃលក់។',
   catalogSkuEditorPriceHelper: 'តម្លៃលក់ នឹងបង្ហាញតែពេល SKU នេះត្រូវបានលក់ផ្ទាល់ប៉ុណ្ណោះ។',
@@ -208,8 +213,10 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditorLeadTimeVariabilityHelper:
     'ជ្រើសថាពេលវេលាពីអ្នកផ្គត់ផ្គង់ ជាទូទៅប្រែប្រួលជុំវិញមធ្យមប៉ុន្មាន។',
   catalogServiceEditorNameHelper: 'ដាក់ឈ្មោះសេវាកម្ម តាមរបៀបដែលបុគ្គលិកអាចស្គាល់វាបានភ្លាម។',
+  catalogServiceEditorNameRequired: 'សូមបញ្ចូលឈ្មោះសេវាកម្ម មុនពេលរក្សាទុក។',
   catalogServiceEditorDescriptionHelper: 'ពិពណ៌នាថាសេវាកម្មនេះជាអ្វី ដើម្បីឲ្យកាតាឡុកមើលងាយស្រួល។',
   catalogServiceEditorPriceHelper: 'តម្លៃលក់ដែលបុគ្គលិក និងរបាយការណ៍គួរប្រើសម្រាប់សេវាកម្មនេះ។',
+  catalogServiceEditorPriceRequired: 'សូមបញ្ចូលតម្លៃសេវាកម្ម មុនពេលរក្សាទុក។',
   catalogServiceEditorLinkedSkusDescriptor:
     'ភ្ជាប់ SKU ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យ banji អាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
   catalogServiceEditorDetailsDescriptor:
@@ -1287,6 +1294,8 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
     'អាប់ដេតព័ត៌មាន SKU ដែលបញ្ជីប្រើសម្រាប់កាតាឡុក តម្លៃ និងផែនការ។',
   catalogSkuEditorSupplierHelper:
     'ជ្រើសអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់ ឬវាយឈ្មោះអ្នកផ្គត់ផ្គង់ថ្មី។',
+  catalogSkuEditorSupplierRequired:
+    'សូមជ្រើស ឬបញ្ចូលឈ្មោះអ្នកផ្គត់ផ្គង់ មុនពេលរក្សាទុក។',
   catalogSkuEditorSupplierPlaceholder: 'ជ្រើសអ្នកផ្គត់ផ្គង់របស់អ្នក...',
   catalogSkuPlanningInputsTitle: 'ព័ត៌មានបញ្ចូលសម្រាប់ផែនការ',
   catalogSkuPlanningInputsDescription:

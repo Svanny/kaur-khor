@@ -96,6 +96,22 @@ function findButtonByText(text: string) {
   return screen.getAllByRole('button').find((button) => button.textContent?.includes(text)) as HTMLButtonElement;
 }
 
+function fillNewSkuRequiredFields(name: string) {
+  const [skuNameInput] = screen.getAllByRole('textbox');
+  const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+  const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+  const planningPanel = screen.getByRole('heading', { level: 2, name: 'Planning inputs' }).closest('[data-slot="card"]');
+  const [leadTimeMeanInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+
+  fireEvent.change(skuNameInput, { target: { value: name } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+  fireEvent.click(screen.getByRole('option', { name: 'Mekong Looms' }));
+  fireEvent.change(costPerUnitInput, { target: { value: '12' } });
+  fireEvent.change(leadTimeMeanInput, { target: { value: '5' } });
+  fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
+  fireEvent.click(screen.getByRole('option', { name: leadTimeVariabilityLabel('normal') }));
+}
+
 describe('SkuFormRoute', () => {
   const pickAndStoreImage = vi.fn();
   const storeDroppedImage = vi.fn();
@@ -283,6 +299,37 @@ describe('SkuFormRoute', () => {
     const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
     fireEvent(dropzone, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/dropped-sku.png');
+  });
+
+  test('adds a sku picture via page-level clipboard paste', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const file = new File(['fake-image'], 'page-pasted.png', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(document, pasteEvent);
 
     await waitFor(() => {
       expect(storeDroppedImage).toHaveBeenCalledTimes(1);
@@ -548,10 +595,7 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
-    const [skuNameInput] = screen.getAllByRole('textbox');
-    const costPerUnitInput = screen.getByDisplayValue('0');
-    fireEvent.change(skuNameInput, { target: { value: 'SKU New' } });
-    fireEvent.change(costPerUnitInput, { target: { value: '12' } });
+    fillNewSkuRequiredFields('SKU New');
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     await waitFor(() => {
@@ -577,10 +621,7 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
 
-    const [skuNameInput] = screen.getAllByRole('textbox');
-    const costPerUnitInput = screen.getByDisplayValue('0');
-    fireEvent.change(skuNameInput, { target: { value: 'Generated SKU' } });
-    fireEvent.change(costPerUnitInput, { target: { value: '12' } });
+    fillNewSkuRequiredFields('Generated SKU');
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     await waitFor(() => {
@@ -595,6 +636,57 @@ describe('SkuFormRoute', () => {
     createUniqueSkuId.mockRestore();
   });
 
+  test('keeps new SKU cost blank and explains missing required fields on create', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    expect(costPerUnitInput).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a SKU name before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Choose or enter a supplier before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
+    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(2);
+  });
+
+  test('blocks edit save when required SKU fields are cleared', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    const planningPanel = screen.getByRole('heading', { level: 2, name: 'Planning inputs' }).closest('[data-slot="card"]');
+    const [leadTimeMeanInput, uncertaintyInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: '' } });
+    fireEvent.change(costPerUnitInput, { target: { value: '' } });
+    fireEvent.change(leadTimeMeanInput, { target: { value: '' } });
+    fireEvent.change(uncertaintyInput, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a SKU name before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
+    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(2);
+  });
+
   test('formats commercial number drafts with commas while saving numeric values', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -606,8 +698,9 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [costInput, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
-    expect(within(pricingPanel ?? document.body).getAllByText('$')).toHaveLength(2);
+    const pricingScope = (pricingPanel ?? document.body) as HTMLElement;
+    const [costInput, priceInput] = within(pricingScope).getAllByRole('textbox');
+    expect(within(pricingScope).getAllByText('$')).toHaveLength(2);
     fireEvent.change(costInput, { target: { value: '7960000.12345' } });
     fireEvent.change(priceInput, { target: { value: '8000000.98765' } });
 
@@ -639,8 +732,9 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [costInput, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
-    expect(within(pricingPanel ?? document.body).getAllByText('៛')).toHaveLength(2);
+    const pricingScope = (pricingPanel ?? document.body) as HTMLElement;
+    const [costInput, priceInput] = within(pricingScope).getAllByRole('textbox');
+    expect(within(pricingScope).getAllByText('៛')).toHaveLength(2);
     expect(costInput).toHaveValue('16,000');
     expect(priceInput).toHaveValue('36,000');
   });
@@ -778,12 +872,12 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [costInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
+    const [costInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
     fireEvent.change(costInput, { target: { value: '' } });
     expect(costInput).toHaveValue('');
     expect(costInput).toHaveAttribute('aria-invalid', 'true');
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled();
 
     fireEvent.change(costInput, { target: { value: '12' } });
     expect(costInput).toHaveValue('12');
@@ -810,7 +904,7 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [, priceInput] = within(pricingPanel ?? document.body).getAllByRole('textbox');
+    const [, priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
     const enableHint = screen.getByText('To enter a selling price, click the Sell as product box below first.');
     const sellAsProductCheckbox = screen.getByRole('checkbox', { name: /sell as product/i });
     const sellAsProductRow = sellAsProductCheckbox.closest('[data-slot="checkbox-row"]');

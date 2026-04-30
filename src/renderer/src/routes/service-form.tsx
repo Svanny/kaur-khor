@@ -8,17 +8,15 @@ import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { emptySenaCatalog, linkedSkuIdsForService, upsertSenaService, validateCatalogEntityId } from '@/lib/sena-catalog';
+import { createUniqueServiceId, emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
-import { catalogItemIdErrorMessage } from './catalog-id-validation';
 import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { DetailHeroWireframe } from './loading-wireframes';
@@ -43,12 +41,18 @@ function normalizeSearchValue(value: string) {
 
 function normalizedServiceDirtySnapshot(service: SenaService) {
   return {
-    ...service,
-    serviceId: service.serviceId.trim(),
     name: service.name.trim(),
     description: service.description.trim(),
     imagePath: service.imagePath?.trim() || null,
+    price: service.price,
   };
+}
+
+function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  if (amount == null) {
+    return '';
+  }
+  return String(displayMoneyFromUsd(amount, currency, usdToKhrExchangeRate));
 }
 
 function getSkuSearchScore(sku: { skuId: string; name: string; description: string }, query: string) {
@@ -218,10 +222,12 @@ export function ServiceFormRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const { serviceId } = useParams();
-  const { catalog, isLoading, isSaving, renameCatalogEntity, upsertSenaCatalog } = useInventory();
+  const { catalog, isLoading, isSaving, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
+  const [servicePriceDraft, setServicePriceDraft] = useState('');
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSkuSearch = useDeferredValue(skuSearch);
@@ -239,12 +245,14 @@ export function ServiceFormRoute() {
   useEffect(() => {
     if (existingService && catalog) {
       setForm(existingService);
+      setServicePriceDraft(moneyDraftFromUsd(existingService.price, currency, usdToKhrExchangeRate));
       setSelectedSkuIds(baselineSelectedSkuIds);
     } else if (!editing) {
       setForm(emptyService(''));
+      setServicePriceDraft('');
       setSelectedSkuIds([]);
     }
-  }, [baselineSelectedSkuIds, catalog, editing, existingService]);
+  }, [baselineSelectedSkuIds, catalog, currency, editing, existingService, usdToKhrExchangeRate]);
 
   const normalizedDraft = useMemo(
     () => ({
@@ -264,20 +272,27 @@ export function ServiceFormRoute() {
     () => normalizedServiceDirtySnapshot(normalizedBaseline),
     [normalizedBaseline],
   );
-  const idError = useMemo(
-    () =>
-      catalogItemIdErrorMessage(
-        t,
-        validateCatalogEntityId(catalog, 'service', form.serviceId, editing ? normalizedBaseline.serviceId : null),
-      ),
-    [catalog, editing, form.serviceId, normalizedBaseline.serviceId, t],
-  );
+  const baselineServicePriceDraft = editing
+    ? moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate)
+    : '';
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
+    servicePriceDraft !== baselineServicePriceDraft ||
     JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...baselineSelectedSkuIds].sort());
+  const serviceValidationErrors = {
+    name: !form.name.trim() ? t('catalogServiceEditorNameRequired') : null,
+    price: !servicePriceDraft.trim() ? t('catalogServiceEditorPriceRequired') : null,
+  };
+  const hasServiceValidationErrors = Object.values(serviceValidationErrors).some(Boolean);
+  const visibleServiceValidationErrors = saveAttempted ? serviceValidationErrors : {
+    ...serviceValidationErrors,
+    price: serviceValidationErrors.price,
+  };
   function resetServiceDraft() {
     setForm(normalizedBaseline);
+    setServicePriceDraft(moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate));
     setSelectedSkuIds(baselineSelectedSkuIds);
+    setSaveAttempted(false);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -288,21 +303,16 @@ export function ServiceFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (idError) {
+    setSaveAttempted(true);
+    if (hasServiceValidationErrors) {
       return;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
-    if (editing && normalizedBaseline.serviceId !== normalizedDraft.serviceId) {
-      await renameCatalogEntity({
-        entityType: 'service',
-        previousId: normalizedBaseline.serviceId,
-        nextService: normalizedDraft,
-        skuIds: selectedSkuIds,
-      });
-    } else {
-      const nextCatalog = upsertSenaService(baseCatalog, normalizedDraft, selectedSkuIds, normalizedBaseline.serviceId);
-      await upsertSenaCatalog(nextCatalog);
-    }
+    const nextService = editing
+      ? { ...normalizedDraft, serviceId: normalizedBaseline.serviceId }
+      : { ...normalizedDraft, serviceId: createUniqueServiceId(baseCatalog) };
+    const nextCatalog = upsertSenaService(baseCatalog, nextService, selectedSkuIds, normalizedBaseline.serviceId);
+    await upsertSenaCatalog(nextCatalog);
     const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
     const currentOrigin =
       location.state &&
@@ -311,7 +321,7 @@ export function ServiceFormRoute() {
       typeof location.state.banjiNavigationOrigin === 'string'
         ? location.state.banjiNavigationOrigin
         : null;
-    await navigate(`/catalog/services/${normalizedDraft.serviceId}`, {
+    await navigate(`/catalog/services/${nextService.serviceId}`, {
       replace: true,
       state: {
         ...detailNavigationState,
@@ -342,9 +352,9 @@ export function ServiceFormRoute() {
       .map(({ sku }) => sku);
   }, [catalog?.skus, deferredSkuSearch]);
 
-  const detectedSkuCountLabel = useMemo(
-    () => `${filteredSkus.length} ${t('serviceEditorLinkedSkusDetected')}`,
-    [filteredSkus.length, t],
+  const selectedSkuCountLabel = useMemo(
+    () => `${selectedSkuIds.length} ${t('serviceEditorLinkedSkusSelected')}`,
+    [selectedSkuIds.length, t],
   );
 
   if (isLoading && !catalog) {
@@ -357,7 +367,7 @@ export function ServiceFormRoute() {
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
-            <Button disabled={!hasUnsavedServiceChanges || isSaving || idError != null} form={formId} type="submit">
+            <Button disabled={(editing && !hasUnsavedServiceChanges) || isSaving} form={formId} type="submit">
               <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
@@ -370,6 +380,7 @@ export function ServiceFormRoute() {
       <form
         className="grid gap-6"
         id={formId}
+        noValidate
         onSubmit={(event) => void handleSubmit(event)}
       >
         <WorkspacePanel
@@ -377,36 +388,20 @@ export function ServiceFormRoute() {
           descriptor={t('catalogServiceEditorDetailsDescriptor')}
           title={<SectionTitle helpHref="/settings/help#catalog-service-editor-details" title={t('editorDetailsTitle')} tooltip={t('catalogServiceEditorDetailsTooltip')} />}
         >
-          <div className="grid items-start gap-4 md:grid-cols-2">
-            <EditorField
-              error={idError ?? undefined}
-              helper={editing ? t('catalogServiceEditorIdentifierDescription') : t('catalogServiceEditorIdentifierHelper')}
-              helpHref="/settings/help#catalog-service-editor-details"
-              label={t('fieldId')}
-              tooltip={t('catalogServiceEditorDetailsTooltip')}
-            >
-              <input
-                aria-invalid={idError ? 'true' : 'false'}
-                className={editorInputClassName}
-                required
-                value={form.serviceId}
-                onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}
-              />
-            </EditorField>
-            <EditorField
-              helper={t('catalogServiceEditorNameHelper')}
-              helpHref="/settings/help#catalog-service-editor-details"
-              label={t('fieldName')}
-              tooltip={t('catalogServiceEditorDetailsTooltip')}
-            >
-              <input
-                className={editorInputClassName}
-                required
-                value={form.name}
-                onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-              />
-            </EditorField>
-          </div>
+          <EditorField
+            error={visibleServiceValidationErrors.name ?? undefined}
+            helper={t('catalogServiceEditorNameHelper')}
+            helpHref="/settings/help#catalog-service-editor-details"
+            label={t('fieldName')}
+            tooltip={t('catalogServiceEditorDetailsTooltip')}
+          >
+            <input
+              className={editorInputClassName}
+              required
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+            />
+          </EditorField>
 
           <EditorField
             helper={t('catalogServiceEditorDescriptionHelper')}
@@ -437,6 +432,7 @@ export function ServiceFormRoute() {
           title={<SectionTitle helpHref="/settings/help#catalog-service-editor-pricing" title={t('editorPricingTitle')} tooltip={t('catalogServiceEditorPricingTooltip')} />}
         >
           <EditorField
+            error={visibleServiceValidationErrors.price ?? undefined}
             helper={t('catalogServiceEditorPriceHelper')}
             helpHref="/settings/help#catalog-service-editor-pricing"
             label={t('fieldPrice')}
@@ -447,13 +443,18 @@ export function ServiceFormRoute() {
               currency={currency}
               min="0"
               required
-              value={displayMoneyFromUsd(form.price, currency, usdToKhrExchangeRate)}
-              onChange={(event) =>
+              value={servicePriceDraft}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setServicePriceDraft(nextValue);
+                if (!nextValue.trim()) {
+                  return;
+                }
                 setForm((current) => ({
                   ...current,
-                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(event.target.value), currency, usdToKhrExchangeRate),
-                }))
-              }
+                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
+                }));
+              }}
             />
           </EditorField>
         </WorkspacePanel>
@@ -474,7 +475,7 @@ export function ServiceFormRoute() {
 
           <div className="inline-flex w-fit items-center rounded-full border border-border/60 bg-muted/15 px-4 py-2">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-              {detectedSkuCountLabel}
+              {selectedSkuCountLabel}
             </p>
           </div>
 

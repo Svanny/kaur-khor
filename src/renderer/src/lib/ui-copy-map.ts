@@ -442,6 +442,7 @@ export const enUiCopyV1 = {
   catalogSkuEditorDescription:
     'Change the core catalog fields for this SKU and save them to the local workspace.',
   catalogSkuEditorNameHelper: 'Name the SKU the way staff will search for it.',
+  catalogSkuEditorNameRequired: 'Enter a SKU name before saving.',
   catalogSkuEditorDescriptionHelper:
     'Describe the SKU so staff can quickly tell it apart from similar items.',
   catalogSkuEditorUnitsHelper:
@@ -452,8 +453,12 @@ export const enUiCopyV1 = {
     'Enter a cost per unit before saving.',
   catalogSkuEditorLeadTimeMeanHelper:
     'Typical supplier lead time banji should use before newer evidence arrives.',
+  catalogSkuEditorLeadTimeMeanRequired:
+    'Enter the lead time mean days before saving.',
   catalogSkuEditorLeadTimeStdHelper:
     'How much the supplier timing usually moves around the average.',
+  catalogSkuEditorLeadTimeUncertaintyRequired:
+    'Enter uncertainty days or choose a lead time variability before saving.',
   catalogSkuEditorSellableHelper:
     'Turn this on when the SKU is sold directly and needs a retail price.',
   catalogSkuEditorPriceHelper:
@@ -462,10 +467,13 @@ export const enUiCopyV1 = {
   catalogServiceEditorDescription:
     'Change the service details and linked SKUs in the local workspace.',
   catalogServiceEditorNameHelper: 'Name the service the way staff will recognize it.',
+  catalogServiceEditorNameRequired: 'Enter a service name before saving.',
   catalogServiceEditorDescriptionHelper:
     'Describe what the service is so the catalog stays easy to scan.',
   catalogServiceEditorPriceHelper:
     'Selling price staff and reporting should use for this service.',
+  catalogServiceEditorPriceRequired:
+    'Enter a service price before saving.',
   catalogServiceEditorLinkedSkusDescriptor:
     'Link the SKUs this service consumes so banji can track coverage and blockers.',
   operationsTitle: 'Logs',
@@ -980,6 +988,8 @@ export const enUiCopyV1 = {
     'Set the SKU name and internal description banji will use across the app.',
   catalogSkuEditorSupplierHelper:
     'Choose an existing supplier or type a new supplier name.',
+  catalogSkuEditorSupplierRequired:
+    'Choose or enter a supplier before saving.',
   catalogSkuEditorSupplierPlaceholder: 'Choose your supplier...',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:

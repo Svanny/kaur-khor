@@ -1,6 +1,7 @@
 import type { SenaCatalog } from '@shared/sena';
 import { vi } from 'vitest';
 import {
+  createUniqueServiceId,
   createUniqueSkuId,
   hasCatalogEntityIdConflict,
   matchesServiceSupplier,
@@ -197,6 +198,17 @@ describe('sena catalog helpers', () => {
       .mockReturnValueOnce('sku-generated-unique');
 
     expect(createUniqueSkuId(sampleCatalog, createId)).toBe('sku-generated-unique');
+    expect(createId).toHaveBeenCalledTimes(3);
+  });
+
+  it('creates a unique opaque service id and retries collisions', () => {
+    const createId = vi
+      .fn<(prefix: 'service') => string>()
+      .mockReturnValueOnce('service-1')
+      .mockReturnValueOnce('sku-1')
+      .mockReturnValueOnce('service-generated-unique');
+
+    expect(createUniqueServiceId(sampleCatalog, createId)).toBe('service-generated-unique');
     expect(createId).toHaveBeenCalledTimes(3);
   });
 

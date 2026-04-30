@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,29 @@ function isSupportedImageFile(file: File): boolean {
   return isSupportedImageType(file.type) || hasSupportedImageExtension(file.name);
 }
 
+function findClipboardImageFile(clipboardData: DataTransfer): File | null {
+  const files = Array.from(clipboardData.files);
+  const imageFile = files.find((file) => isSupportedImageFile(file));
+  if (imageFile) {
+    return imageFile;
+  }
+
+  if (!clipboardData.items) {
+    return null;
+  }
+
+  for (const item of Array.from(clipboardData.items)) {
+    if (item.kind === 'file') {
+      const file = item.getAsFile();
+      if (file && (isSupportedImageType(item.type) || isSupportedImageFile(file))) {
+        return file;
+      }
+    }
+  }
+
+  return null;
+}
+
 export function CatalogImageField({
   helper,
   imagePath,
@@ -38,6 +61,43 @@ export function CatalogImageField({
 }) {
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+
+  async function storeImageFile(imageFile: File) {
+    setBusy(true);
+    try {
+      const arrayBuffer = await imageFile.arrayBuffer();
+      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
+        name: imageFile.name || 'clipboard-image.png',
+        data: arrayBuffer,
+      });
+      if (nextImagePath) {
+        onChange(nextImagePath);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    function handleDocumentPaste(event: ClipboardEvent) {
+      const clipboardData = event.clipboardData;
+      if (!clipboardData) {
+        return;
+      }
+
+      const imageFile = findClipboardImageFile(clipboardData);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      void storeImageFile(imageFile);
+    }
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  });
 
   async function handleChooseImage() {
     setBusy(true);
@@ -74,37 +134,11 @@ export function CatalogImageField({
       return;
     }
 
-    setBusy(true);
-    try {
-      const arrayBuffer = await imageFile.arrayBuffer();
-      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
-        name: imageFile.name,
-        data: arrayBuffer,
-      });
-      if (nextImagePath) {
-        onChange(nextImagePath);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await storeImageFile(imageFile);
   }
 
   async function handlePaste(event: React.ClipboardEvent<HTMLDivElement>) {
-    const files = Array.from(event.clipboardData.files);
-    let imageFile = files.find((file) => isSupportedImageFile(file));
-
-    if (!imageFile && event.clipboardData.items) {
-      for (const item of Array.from(event.clipboardData.items)) {
-        if (item.kind === 'file') {
-          const file = item.getAsFile();
-          if (file && (isSupportedImageType(item.type) || isSupportedImageFile(file))) {
-            imageFile = file;
-            break;
-          }
-        }
-      }
-    }
-
+    const imageFile = findClipboardImageFile(event.clipboardData);
     if (!imageFile) {
       return;
     }
@@ -112,19 +146,7 @@ export function CatalogImageField({
     event.preventDefault();
     event.stopPropagation();
 
-    setBusy(true);
-    try {
-      const arrayBuffer = await imageFile.arrayBuffer();
-      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
-        name: imageFile.name || 'clipboard-image.png',
-        data: arrayBuffer,
-      });
-      if (nextImagePath) {
-        onChange(nextImagePath);
-      }
-    } finally {
-      setBusy(false);
-    }
+    await storeImageFile(imageFile);
   }
 
   return (

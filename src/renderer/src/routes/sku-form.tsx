@@ -115,6 +115,7 @@ export function SkuFormRoute() {
   const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeDraftMode>(() =>
     deriveLeadTimeDraftMode(initialExistingSku ?? emptySku(skuId)),
   );
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const formId = 'sku-editor-form';
   const existingSku = useMemo(
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -131,7 +132,7 @@ export function SkuFormRoute() {
       setLeadTimeDraftMode(deriveLeadTimeDraftMode(existingSku));
     } else if (!editing) {
       setForm(emptySku(''));
-      setCostPerUnitDraft(moneyDraftFromUsd(emptySku('').costPerUnit, currency, usdToKhrExchangeRate));
+      setCostPerUnitDraft('');
       setProductPriceDraft('');
       setLeadTimeStdDaysDraft('');
       setLeadTimeVariability('');
@@ -188,8 +189,27 @@ export function SkuFormRoute() {
     () => normalizedSkuDirtySnapshot(normalizedBaseline, baselineLeadTimeVariability),
     [baselineLeadTimeVariability, normalizedBaseline],
   );
-  const costPerUnitError = !costPerUnitDraft.trim() ? t('catalogSkuEditorCostRequired') : null;
-  const hasUnsavedSkuChanges = JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot);
+  const baselineCostPerUnitDraft = editing
+    ? moneyDraftFromUsd(normalizedBaseline.costPerUnit, currency, usdToKhrExchangeRate)
+    : '';
+  const skuValidationErrors = {
+    name: !form.name.trim() ? t('catalogSkuEditorNameRequired') : null,
+    supplier: !form.supplierName?.trim() ? t('catalogSkuEditorSupplierRequired') : null,
+    costPerUnit: !costPerUnitDraft.trim() ? t('catalogSkuEditorCostRequired') : null,
+    leadTimeMeanDays: form.leadTimeMeanDaysHint == null ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
+    leadTimeUncertainty:
+      !leadTimeStdDaysDraft.trim() && !leadTimeVariability
+        ? t('catalogSkuEditorLeadTimeUncertaintyRequired')
+        : null,
+  };
+  const hasSkuValidationErrors = Object.values(skuValidationErrors).some(Boolean);
+  const visibleSkuValidationErrors = saveAttempted ? skuValidationErrors : {
+    ...skuValidationErrors,
+    costPerUnit: skuValidationErrors.costPerUnit,
+  };
+  const hasUnsavedSkuChanges =
+    JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
+    costPerUnitDraft !== baselineCostPerUnitDraft;
   function resetSkuDraft() {
     setForm(normalizedBaseline);
     setCostPerUnitDraft(moneyDraftFromUsd(normalizedBaseline.costPerUnit, currency, usdToKhrExchangeRate));
@@ -197,6 +217,7 @@ export function SkuFormRoute() {
     setLeadTimeStdDaysDraft(stdDaysDraftFromValue(normalizedBaseline.leadTimeStdDaysHint));
     setLeadTimeVariability(baselineLeadTimeVariability);
     setLeadTimeDraftMode(deriveLeadTimeDraftMode(normalizedBaseline));
+    setSaveAttempted(false);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -232,7 +253,8 @@ export function SkuFormRoute() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (costPerUnitError) {
+    setSaveAttempted(true);
+    if (hasSkuValidationErrors) {
       return;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -267,7 +289,7 @@ export function SkuFormRoute() {
                 Details
               </Button>
             ) : null}
-            <Button disabled={!hasUnsavedSkuChanges || isSaving || costPerUnitError != null} form={formId} type="submit">
+            <Button disabled={(editing && !hasUnsavedSkuChanges) || isSaving} form={formId} type="submit">
               <ActionSaveIcon data-icon="inline-start" />
               {editing ? t('saveDraft') : t('createEntry')}
             </Button>
@@ -280,6 +302,7 @@ export function SkuFormRoute() {
       <form
         className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]"
         id={formId}
+        noValidate
         onSubmit={(event) => void handleSubmit(event)}
       >
         <div className="grid min-w-0 gap-6">
@@ -295,7 +318,11 @@ export function SkuFormRoute() {
             }
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <EditorField helper={t('catalogSkuEditorNameHelper')} label={t('fieldName')}>
+              <EditorField
+                error={visibleSkuValidationErrors.name ?? undefined}
+                helper={t('catalogSkuEditorNameHelper')}
+                label={t('fieldName')}
+              >
                 <input
                   className={editorInputClassName}
                   required
@@ -303,7 +330,11 @@ export function SkuFormRoute() {
                   onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
                 />
               </EditorField>
-              <EditorField helper={t('catalogSkuEditorSupplierHelper')} label={t('fieldSupplier')}>
+              <EditorField
+                error={visibleSkuValidationErrors.supplier ?? undefined}
+                helper={t('catalogSkuEditorSupplierHelper')}
+                label={t('fieldSupplier')}
+              >
                 <SupplierField
                   catalog={catalog}
                   inputClassName={editorInputClassName}
@@ -338,9 +369,13 @@ export function SkuFormRoute() {
             title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-pricing" title={t('editorPricingTitle')} tooltip={t('catalogSkuEditorPricingTooltip')} />}
           >
             <div className="grid items-start gap-4 md:grid-cols-2">
-              <EditorField error={costPerUnitError ?? undefined} helper={t('catalogSkuEditorCostHelper')} label={t('fieldCostPerUnit')}>
+              <EditorField
+                error={visibleSkuValidationErrors.costPerUnit ?? undefined}
+                helper={t('catalogSkuEditorCostHelper')}
+                label={t('fieldCostPerUnit')}
+              >
                 <CurrencyNumberInput
-                  aria-invalid={costPerUnitError ? 'true' : 'false'}
+                  aria-invalid={visibleSkuValidationErrors.costPerUnit ? 'true' : 'false'}
                   className={editorInputClassName}
                   currency={currency}
                   min="0"
@@ -441,6 +476,7 @@ export function SkuFormRoute() {
           title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-planning" title={t('catalogSkuPlanningInputsTitle')} tooltip={t('catalogSkuEditorPlanningTooltip')} />}
         >
           <EditorField
+            error={visibleSkuValidationErrors.leadTimeMeanDays ?? undefined}
             helper={t('catalogSkuEditorLeadTimeMeanHelper')}
             helpHref="/settings/help#catalog-sku-editor-planning"
             label={t('fieldLeadTimeMeanDays')}
@@ -462,6 +498,7 @@ export function SkuFormRoute() {
           </EditorField>
 
           <EditorField
+            error={visibleSkuValidationErrors.leadTimeUncertainty ?? undefined}
             helper={t('overviewDrawerUncertaintyDescription')}
             label={t('overviewDrawerUncertaintyLabel')}
           >
@@ -479,6 +516,7 @@ export function SkuFormRoute() {
           </EditorField>
 
           <EditorField
+            error={visibleSkuValidationErrors.leadTimeUncertainty ?? undefined}
             helper={t('catalogSkuEditorLeadTimeVariabilityHelper')}
             helpHref="/settings/help#catalog-sku-editor-planning"
             hint={t('catalogSkuEditorLeadTimeVariabilityHint')}

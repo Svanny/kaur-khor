@@ -212,6 +212,19 @@ export function createUniqueSkuId(
   return nextId;
 }
 
+export function createUniqueServiceId(
+  catalog: SenaCatalog | null | undefined,
+  createId: (prefix: 'service') => string = createOpaqueInventoryId,
+) {
+  let nextId = createId('service');
+
+  while (hasCatalogEntityIdConflict(catalog, 'service', nextId)) {
+    nextId = createId('service');
+  }
+
+  return nextId;
+}
+
 export function hasCatalogEntityIdConflict(
   catalog: SenaCatalog | null | undefined,
   entityType: SenaCatalogEntityType,

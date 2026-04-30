@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
+import * as senaCatalog from '@/lib/sena-catalog';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { ServiceFormRoute } from './service-form';
@@ -98,6 +99,15 @@ function findButtonByText(text: string) {
   return screen.getAllByRole('button').find((button) => button.textContent?.includes(text)) as HTMLButtonElement;
 }
 
+function fillNewServiceRequiredFields(name: string) {
+  const [serviceNameInput] = screen.getAllByRole('textbox');
+  const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+  const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+
+  fireEvent.change(serviceNameInput, { target: { value: name } });
+  fireEvent.change(priceInput, { target: { value: '12' } });
+}
+
 describe('ServiceFormRoute', () => {
   const pickAndStoreImage = vi.fn();
   const storeDroppedImage = vi.fn();
@@ -158,10 +168,10 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Linked SKUs' })).toBeInTheDocument();
     expect(screen.getByText('Name the service the way staff will recognize it.')).toBeInTheDocument();
     expect(screen.getByText('Choose every SKU normally consumed when this service is sold.')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('service-1')).toBeEnabled();
+    expect(screen.queryByDisplayValue('service-1')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search linked SKUs by name or description…')).toBeInTheDocument();
-    expect(screen.getByText('2 Linked SKUs detected')).toBeInTheDocument();
+    expect(screen.getByText('1 linked SKUs selected')).toBeInTheDocument();
     expect(screen.getByTestId('linked-sku-grid')).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'SKU 1' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'SKU 2' })).not.toBeChecked();
@@ -175,7 +185,7 @@ describe('ServiceFormRoute', () => {
       target: { value: 'Silk scarf' },
     });
 
-    expect(screen.getByText('1 Linked SKUs detected')).toBeInTheDocument();
+    expect(screen.getByText('1 linked SKUs selected')).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'SKU 1' })).not.toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: 'SKU 2' })).toBeInTheDocument();
   });
@@ -187,6 +197,7 @@ describe('ServiceFormRoute', () => {
     fireEvent.click(within(linkedSkuGrid).getByText('SKU 2').closest('[data-sku-tile="true"]') as HTMLElement);
 
     expect(screen.getByRole('checkbox', { name: 'SKU 2' })).toBeChecked();
+    expect(screen.getByText('2 linked SKUs selected')).toBeInTheDocument();
   });
 
   test('saves edit-mode changes and navigates to the service detail route', async () => {
@@ -348,11 +359,7 @@ describe('ServiceFormRoute', () => {
 
     renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
 
-    const [serviceIdInput, serviceNameInput] = screen.getAllByRole('textbox');
-    const priceInput = screen.getByDisplayValue('0');
-    fireEvent.change(serviceIdInput, { target: { value: 'service-new' } });
-    fireEvent.change(serviceNameInput, { target: { value: 'Service New' } });
-    fireEvent.change(priceInput, { target: { value: '12' } });
+    fillNewServiceRequiredFields('Service New');
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     await waitFor(() => {
@@ -367,44 +374,74 @@ describe('ServiceFormRoute', () => {
     });
   });
 
-  test('renames the service id through the coordinated rename mutation', async () => {
-    const renameCatalogEntity = vi.fn(async () => sampleCatalog);
+  test('generates a unique service id when creating a new service', async () => {
+    const createUniqueServiceId = vi.spyOn(senaCatalog, 'createUniqueServiceId').mockReturnValue('service-generated');
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       isLoading: false,
       isSaving: false,
-      renameCatalogEntity,
-      upsertSenaCatalog: vi.fn(async (payload) => payload),
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
     });
 
-    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
 
-    fireEvent.change(screen.getByDisplayValue('service-1'), { target: { value: 'service-1-renamed' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    fillNewServiceRequiredFields('Generated Service');
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     await waitFor(() => {
-      expect(renameCatalogEntity).toHaveBeenCalledWith({
-        entityType: 'service',
-        previousId: 'service-1',
-        nextService: expect.objectContaining({ serviceId: 'service-1-renamed' }),
-        skuIds: ['sku-1'],
-      });
+      expect(createUniqueServiceId).toHaveBeenCalledWith(sampleCatalog);
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
     });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services.at(-1)).toMatchObject({
+      serviceId: 'service-generated',
+      name: 'Generated Service',
+    });
+    createUniqueServiceId.mockRestore();
   });
 
-  test('blocks duplicate active and archived ids while editing', () => {
+  test('keeps new service price blank and explains missing required fields on create', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    expect(priceInput).toHaveValue('');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a service name before saving.')).toBeInTheDocument();
+    expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
+  });
+
+  test('blocks edit save when service price is cleared', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
     renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
-    fireEvent.change(screen.getByDisplayValue('service-1'), { target: { value: 'sku-1' } });
-    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(priceInput, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
-    fireEvent.change(screen.getByDisplayValue('sku-1'), { target: { value: 'sku-2' } });
-    expect(screen.getByText('This identifier is already used by another catalog item, including archived items.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-
-    fireEvent.change(screen.getByDisplayValue('sku-2'), { target: { value: 'service-1' } });
-    expect(screen.queryByText('This identifier is already used by another catalog item, including archived items.')).not.toBeInTheDocument();
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
   });
 
   test('accepts KHR price input while saving USD internally', async () => {
