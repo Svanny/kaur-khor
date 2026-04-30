@@ -106,7 +106,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).toHaveClass('border-[#0D9488]/35', 'bg-[#0D9488]/12');
   });
 
-  it('opens the immediate sale prompt without an edit-update action', () => {
+  it('opens a new immediate sale directly when no draft exists', () => {
     render(
       <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
@@ -115,12 +115,8 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Immediate Sale' }));
 
-    const dialog = screen.getByRole('dialog');
-    expect(dialog).toHaveTextContent('What do you want to do?');
-    expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
-    expect(within(dialog).queryByRole('button', { name: 'Edit/Update' })).not.toBeInTheDocument();
-    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
+    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/immediate-sale?ticketMode=new')[0]).toBeInTheDocument();
   });
 
   it('resumes a saved immediate sale draft from the hub prompt', () => {
@@ -204,9 +200,22 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
+  it('opens a new customer order directly when no draft or editable ticket exists', () => {
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
+
+    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
+  });
+
   it('warns before starting a new ticket when that lane has a saved draft', () => {
     const customerPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-pending')!;
-    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1}');
+    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1,"notes":"customer called"}');
 
     render(
       <MemoryRouter initialEntries={['/work/capture']}>
@@ -222,7 +231,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getByText('Delete saved draft?')).toBeInTheDocument();
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
     expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
-    expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBe('{"version":1}');
+    expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBe('{"version":1,"notes":"customer called"}');
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
 
@@ -233,7 +242,7 @@ describe('RecordUpdateHubRoute', () => {
 
   it('resumes a saved customer order draft from the hub prompt without forcing ticket mode navigation', () => {
     const customerPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-pending')!;
-    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1}');
+    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1,"notes":"customer called"}');
 
     render(
       <MemoryRouter initialEntries={['/work/capture']}>
@@ -295,7 +304,7 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
   });
 
-  it('disables edit-update in the hub prompt when no editable supplier receipts or orders exist', () => {
+  it('opens a new supplier order directly when no draft or editable order exists', () => {
     render(
       <MemoryRouter initialEntries={['/work/capture']}>
         <HubRouteTestShell />
@@ -304,16 +313,15 @@ describe('RecordUpdateHubRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
 
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' })).toBeDisabled();
-    expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
+    expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+    expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=new')[0]).toBeInTheDocument();
   });
 
   it('shows Draft saved only on cards with a saved draft for that update lane', () => {
     const stockCountLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'stock-count')!;
     const customerPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-pending')!;
-    window.localStorage.setItem(stockCountLane.draftStorageKey, '{"version":1}');
-    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1}');
+    window.localStorage.setItem(stockCountLane.draftStorageKey, '{"version":1,"notes":"counted shelf"}');
+    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1,"notes":"customer called"}');
 
     render(
       <MemoryRouter>
@@ -325,6 +333,24 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getByRole('button', { name: 'Customer Order' })).toHaveTextContent('Draft saved');
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).not.toHaveTextContent('Draft saved');
     expect(screen.getByRole('button', { name: 'Supplier Order' })).not.toHaveTextContent('Draft saved');
+  });
+
+  it('does not show Draft saved for mode-only ticket drafts left by a clean entry prompt', () => {
+    const customerPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-pending')!;
+    const supplierPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'supplier-order-pending')!;
+    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1,"customerTicketMode":"new"}');
+    window.localStorage.setItem(supplierPendingLane.draftStorageKey, '{"version":1,"supplierTicketMode":"new"}');
+
+    render(
+      <MemoryRouter>
+        <RecordUpdateHubRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Customer Order' })).not.toHaveTextContent('Draft saved');
+    expect(screen.getByRole('button', { name: 'Supplier Order' })).not.toHaveTextContent('Draft saved');
+    expect(window.localStorage.getItem(customerPendingLane.draftStorageKey)).toBeNull();
+    expect(window.localStorage.getItem(supplierPendingLane.draftStorageKey)).toBeNull();
   });
 
   it('keeps a hidden draft pill placeholder on cards without a saved draft', () => {

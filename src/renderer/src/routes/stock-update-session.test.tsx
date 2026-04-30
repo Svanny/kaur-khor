@@ -37,6 +37,7 @@ const preferenceState = {
 };
 const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:stock-count:v1';
 const CUSTOMER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:customer-order-pending:v1';
+const SUPPLIER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:supplier-order-pending:v1';
 const CUSTOM_DRAFT_STORAGE_KEY = 'banji:record-update:draft:custom:v1';
 const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
 
@@ -1828,6 +1829,22 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(window.localStorage.getItem(CUSTOMER_PENDING_DRAFT_STORAGE_KEY)).not.toBeNull();
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('does not save an empty customer ticket draft after choosing new ticket mode', () => {
+    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    unmount();
+
+    expect(window.localStorage.getItem(CUSTOMER_PENDING_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('does not save an empty supplier ticket draft after choosing new ticket mode', () => {
+    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    unmount();
+
+    expect(window.localStorage.getItem(SUPPLIER_PENDING_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
   it('asks before replacing a live in-memory draft with an edit session', async () => {

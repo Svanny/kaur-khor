@@ -118,6 +118,73 @@ const VISIBLE_HUB_CARDS: RecordUpdateHubCard[] = [
 ];
 const hubCardByLaneId = new Map(RECORD_UPDATE_HUB_CARDS.map((card) => [card.laneId, card]));
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasNonEmptyString(value: unknown) {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function hasObjectEntries(value: unknown) {
+  return isObjectRecord(value) && Object.keys(value).length > 0;
+}
+
+function hasArrayEntries(value: unknown) {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function hasMeaningfulTicketDraftValue(draft: Record<string, unknown>) {
+  return (
+    hasNonEmptyString(draft.notes) ||
+    hasNonEmptyString(draft.recordOrderExpectedArrivalDate) ||
+    hasNonEmptyString(draft.recordOrderLeadTimeMeanDays) ||
+    hasNonEmptyString(draft.recordOrderLeadTimeVariability) ||
+    hasNonEmptyString(draft.recordReceiptReceivedDate) ||
+    hasNonEmptyString(draft.deliveryFeeAmount) ||
+    hasObjectEntries(draft.retailSalesDrafts) ||
+    hasObjectEntries(draft.serviceSalesDrafts) ||
+    hasObjectEntries(draft.skuSignalDrafts) ||
+    hasObjectEntries(draft.serviceSignalDrafts) ||
+    hasNonEmptyString(draft.regimeHint) ||
+    hasArrayEntries(draft.serviceRankings) ||
+    hasArrayEntries(draft.retailRankings) ||
+    hasObjectEntries(draft.refundStockReturnDrafts) ||
+    (
+      isObjectRecord(draft.customerIdentity) &&
+      (
+        hasNonEmptyString(draft.customerIdentity.channel) ||
+        hasNonEmptyString(draft.customerIdentity.customChannel) ||
+        hasNonEmptyString(draft.customerIdentity.customerName) ||
+        hasNonEmptyString(draft.customerIdentity.phone)
+      )
+    )
+  );
+}
+
+function isSavedDraftMeaningful(rawDraft: string, laneId: RecordUpdateLaneId) {
+  try {
+    const parsed = JSON.parse(rawDraft) as unknown;
+    if (!isObjectRecord(parsed) || parsed.version !== 1) {
+      return false;
+    }
+    if (laneId !== 'customer-order-pending' && laneId !== 'supplier-order-pending') {
+      return true;
+    }
+    return hasMeaningfulTicketDraftValue(parsed);
+  } catch {
+    return false;
+  }
+}
+
+function hasMultipleTicketEntryActions({
+  canEdit,
+  canResumeDraft,
+  showEdit,
+}: Pick<TicketEntryPromptState, 'canEdit' | 'canResumeDraft' | 'showEdit'>) {
+  return canResumeDraft || (showEdit && canEdit);
+}
+
 function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
   if (
     typeof window === 'undefined' ||
@@ -128,7 +195,18 @@ function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
   }
   const draftStorageKey = draftStorageKeyByLaneId.get(laneId);
   try {
-    return draftStorageKey ? window.localStorage.getItem(draftStorageKey) !== null : false;
+    if (!draftStorageKey) {
+      return false;
+    }
+    const rawDraft = window.localStorage.getItem(draftStorageKey);
+    if (!rawDraft) {
+      return false;
+    }
+    if (isSavedDraftMeaningful(rawDraft, laneId)) {
+      return true;
+    }
+    window.localStorage.removeItem(draftStorageKey);
+    return false;
   } catch {
     return false;
   }
@@ -414,7 +492,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
       return;
     }
     if (card.laneId === 'customer-order-pending') {
-      setTicketEntryPrompt({
+      const promptState: TicketEntryPromptState = {
         canEdit: canEditCustomerTicket,
         canResumeDraft: hasDraftSavedForLane(card.laneId),
         family: 'customer',
@@ -423,11 +501,16 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         mode: 'actions',
         options: customerTicketOptions,
         showEdit: true,
-      });
+      };
+      if (!hasMultipleTicketEntryActions(promptState)) {
+        navigate(`${promptState.href}?ticketMode=new`);
+        return;
+      }
+      setTicketEntryPrompt(promptState);
       return;
     }
     if (card.laneId === 'customer-order-completed') {
-      setTicketEntryPrompt({
+      const promptState: TicketEntryPromptState = {
         canEdit: false,
         canResumeDraft: hasDraftSavedForLane(card.laneId),
         family: 'customer',
@@ -436,11 +519,16 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         mode: 'actions',
         options: [],
         showEdit: false,
-      });
+      };
+      if (!hasMultipleTicketEntryActions(promptState)) {
+        navigate(`${promptState.href}?ticketMode=new`);
+        return;
+      }
+      setTicketEntryPrompt(promptState);
       return;
     }
     if (card.laneId === 'supplier-order-pending') {
-      setTicketEntryPrompt({
+      const promptState: TicketEntryPromptState = {
         canEdit: canEditSupplierTicket,
         canResumeDraft: hasDraftSavedForLane(card.laneId),
         family: 'supplier',
@@ -449,7 +537,12 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         mode: 'actions',
         options: supplierTicketOptions,
         showEdit: true,
-      });
+      };
+      if (!hasMultipleTicketEntryActions(promptState)) {
+        navigate(`${promptState.href}?ticketMode=new`);
+        return;
+      }
+      setTicketEntryPrompt(promptState);
     }
   }
 

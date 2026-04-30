@@ -182,10 +182,13 @@ async function benchmarkSupplierReceiptSave(
     await editButton.click();
     await launched.page.locator('[role="dialog"] button').filter({ hasText: /Siem Reap Rattan|browser-batch-1/i }).first().click();
   } else {
-    await launched.page.getByRole('button', { name: 'New', exact: true }).click();
-    const replaceDraftDialog = launched.page.getByRole('dialog').filter({ hasText: 'Delete saved draft?' });
-    if (await replaceDraftDialog.isVisible().catch(() => false)) {
-      await replaceDraftDialog.getByRole('button', { name: 'Delete draft and start new', exact: true }).click();
+    const newButton = launched.page.getByRole('button', { name: 'New', exact: true });
+    if (await newButton.isVisible().catch(() => false)) {
+      await newButton.click();
+      const replaceDraftDialog = launched.page.getByRole('dialog').filter({ hasText: 'Delete saved draft?' });
+      if (await replaceDraftDialog.isVisible().catch(() => false)) {
+        await replaceDraftDialog.getByRole('button', { name: 'Delete draft and start new', exact: true }).click();
+      }
     }
   }
   await waitForRecordUpdateReady(launched, previousCount);

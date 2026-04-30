@@ -1832,11 +1832,6 @@ function hasMeaningfulStockUpdateChanges({
     regimeHint !== '' ||
     serviceRankings.length > 0 ||
     retailRankings.length > 0 ||
-    customerTicketMode !== null ||
-    supplierTicketMode !== null ||
-    selectedCustomerTicketId !== null ||
-    selectedSupplierTicketId !== null ||
-    supplierTicketUpdateAction !== 'revise_order' ||
     customerIdentity.channel.trim() !== '' ||
     customerIdentity.customChannel.trim() !== '' ||
     customerIdentity.customerName.trim() !== '' ||
@@ -5511,6 +5506,7 @@ export function StockUpdateSessionRoute() {
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
+  const postSaveRerunTimeoutRef = useRef<number | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
   const posDeliveryFeeInputRef = useRef<HTMLInputElement | null>(null);
   const posReviewCancelButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -6506,6 +6502,15 @@ export function StockUpdateSessionRoute() {
       skipNextDraftPersistRef.current = false;
     }
   }, [draftState, hasMeaningfulChanges]);
+
+  useEffect(() => {
+    return () => {
+      if (postSaveRerunTimeoutRef.current != null) {
+        window.clearTimeout(postSaveRerunTimeoutRef.current);
+        postSaveRerunTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const previous = previousMoneyPreferencesRef.current;
@@ -8200,17 +8205,22 @@ export function StockUpdateSessionRoute() {
     if (!shouldSchedulePostSaveRerun) {
       return;
     }
+    if (postSaveRerunTimeoutRef.current != null) {
+      window.clearTimeout(postSaveRerunTimeoutRef.current);
+      postSaveRerunTimeoutRef.current = null;
+    }
     const schedulePostSaveRerun = () => {
+      postSaveRerunTimeoutRef.current = null;
       const currentRoute = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
       if (currentRoute.startsWith('/work/capture')) {
-        window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
+        postSaveRerunTimeoutRef.current = window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
         return;
       }
       void triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }).catch((nextError: unknown) => {
         console.error('[record-update] failed to rerun SENA after save', nextError);
       });
     };
-    window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
+    postSaveRerunTimeoutRef.current = window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
