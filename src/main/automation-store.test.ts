@@ -161,10 +161,10 @@ function expectFreshWizardSendRetiresPreviousWizard(
     job.kind === 'send' && job.storesWizardMessage,
   );
   expect(freshWizardIndex).toBeGreaterThanOrEqual(0);
-  expect(result.outboundJobs.slice(0, freshWizardIndex).some((job) =>
+ expect(result.outboundJobs.slice(0, freshWizardIndex).some((job) =>
     job.kind === 'edit_reply_markup' &&
     job.messageId === messageId &&
-    job.replyMarkup.inline_keyboard.length === 0,
+    job.replyMarkup?.inline_keyboard.length === 0,
   ), JSON.stringify(result.outboundJobs, null, 2)).toBe(true);
 }
 
@@ -555,7 +555,8 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    const catalogText = catalogResult.outboundJobs.find((job) => job.kind === 'send' && job.storesWizardMessage)?.text ?? '';
+    const catalogJob = catalogResult.outboundJobs.find((job) => job.kind === 'send' && job.storesWizardMessage);
+    const catalogText = catalogJob?.kind === 'send' ? catalogJob.text : '';
     expect(catalogText).not.toContain('Available');
     expect(catalogText).not.toContain('Unavailable');
 
@@ -586,7 +587,8 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    const itemText = itemResult.outboundJobs.find((job) => job.kind === 'send' && job.storesWizardMessage)?.text ?? '';
+    const itemJob = itemResult.outboundJobs.find((job) => job.kind === 'send' && job.storesWizardMessage);
+    const itemText = itemJob?.kind === 'send' ? itemJob.text : '';
     expect(itemText).not.toContain('Available');
     expect(itemText).not.toContain('Unavailable');
     const itemPhotoCaption = itemResult.outboundJobs.find((job) => job.kind === 'send_photo')?.caption ?? '';

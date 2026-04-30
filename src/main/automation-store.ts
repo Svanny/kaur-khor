@@ -687,7 +687,8 @@ function filterIntakes(intakes: AutomationOrderIntake[], payload?: AutomationLis
   const filteredByTicket = payload?.ticketId
     ? filteredByConversation.filter((intake) => intake.promotedTicketId === payload.ticketId)
     : filteredByConversation;
-  if (!payload?.q?.trim()) {
+  const query = payload?.q?.trim();
+  if (!query) {
     return filteredByTicket;
   }
   return filteredByTicket.filter((intake) =>
@@ -700,7 +701,7 @@ function filterIntakes(intakes: AutomationOrderIntake[], payload?: AutomationLis
         ...intake.lines.map((line) => line.requestedLabel),
         ...intake.lines.map((line) => line.resolvedLabel),
       ],
-      payload.q,
+      query,
     ),
   );
 }

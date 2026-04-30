@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi, type MockedFunction } from 'vitest';
 import {
   loadAutomationCatalog,
   loadAutomationObservations,
@@ -10,8 +10,10 @@ import {
 } from './automation-read-context';
 
 function createDeps() {
-  const loadCachedSenaRead = vi.fn<AutomationReadContextDeps['loadCachedSenaRead']>((_key, loader) => loader());
-  const invoke = vi.fn<AutomationReadContextDeps['invoke']>();
+  const loadCachedSenaRead = vi.fn(async <T,>(_key: string, loader: () => Promise<T>): Promise<T> =>
+    loader(),
+  ) as MockedFunction<AutomationReadContextDeps['loadCachedSenaRead']>;
+  const invoke = vi.fn() as MockedFunction<AutomationReadContextDeps['invoke']>;
 
   return {
     deps: {
