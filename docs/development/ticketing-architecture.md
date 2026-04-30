@@ -93,6 +93,12 @@ queue when Inbox opens.
 Do not reintroduce the legacy batch-action prompt. Inbox task actions should
 open or update one ticket-backed work item at a time.
 
+Supplier task drawer actions must keep the backing supplier order child in step
+with the ticket/observation history they append. If a task has a
+`childOrderId`, order placement, ETA updates, and receipt saves should update
+that child or batch state before appending the matching observation event. Tasks
+without a backing child may continue through the observation-only path.
+
 ## Downstream Projections
 
 SKU detail should expose ticket state as supporting evidence, not as a new
@@ -123,8 +129,9 @@ channel-only order model.
 
 Record-update, History, queue drawers, detail rails, and automation review should
 share the compact `sena.getRecordUpdateContext()` read path for ticket and
-activity state. The context is backed by `sena_record_update_anchor_hot` rows and
-must not scan full observation payloads on normal reads.
+activity state. Latest-state anchors are backed by
+`sena_record_update_anchor_hot` rows and must not scan full observation payloads
+on normal reads.
 
 The compact context carries:
 
@@ -133,6 +140,11 @@ The compact context carries:
 - open customer and supplier ticket summaries
 - latest delivery-fee metadata by bucket
 - bounded recent record activity entries for shared history/evidence rendering
+
+The bounded recent activity entries are append-style and may include multiple
+recent revisions for the same ticket or entity. Do not derive user-visible
+history solely from latest hot anchors; anchors answer current state, while
+recent activity answers what changed.
 
 Renderer surfaces should use `src/renderer/src/lib/record-activity.ts` for
 read-side ticket options, customer link directories, delivery-fee defaults, and
