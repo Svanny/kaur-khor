@@ -21,7 +21,11 @@ sequenceDiagram
   loop each hub lane
     Bench->>Hub: open lane card
     alt ticket-backed lane
-      Hub->>Wizard: choose New or Edit/Update
+      alt meaningful draft or editable ticket exists
+        Hub->>Wizard: choose Resume, New, or Edit/Update
+      else no meaningful draft or editable ticket
+        Hub->>Wizard: open New ticket mode directly
+      end
     else stock count lane
       Hub->>Wizard: open lane directly
     end
@@ -59,5 +63,6 @@ sequenceDiagram
   Bench->>Metrics: record benchmark.phase.measurement_end
   Bench->>Metrics: close app and persist record-update summary
 
-  Note over Hub,Wizard: Customer and supplier order lanes ask New versus Edit/Update before continuing.
+  Note over Hub,Wizard: Customer and supplier order lanes skip the prompt when New is the only meaningful action.
+  Note over Hub: Mode-only ticket placeholders are not treated as saved drafts.
   Note over Core,Store: Mutations write ticket events and bump read generation so subsequent reads refresh.

@@ -65,6 +65,8 @@ Sidebar មានគោលដៅសំខាន់តែប៉ុន្មាន
 - **Help** នៅក្នុង Settings `/settings/help`។
 - **Automation intake** នៅក្នុង Work; exposure នៅក្នុង Catalog; Telegram connection នៅក្នុង Settings។
 
+នៅពេលចូល Settings ពី route ផ្សេងក្នុង app, **Back to app** ត្រឡប់ទៅ route ដើមនោះ រួមទាំង query filters មិនមែនតែងតែទៅ Home ទេ។
+
 URL top-level ចាស់ៗមិនគាំទ្រទៀតទេ។
 
 ## Home
@@ -91,6 +93,8 @@ Queue គឺជា decision surface សម្រាប់ supplier និង cus
 ## Capture
 
 Capture គឺជា update-authoring workflow នៅក្នុង Work។ វាបម្លែងព្រឹត្តិការណ៍ពិតទៅជា local evidence ដែល queue, Catalog detail, Pressure, Money, Explain, និង History អាចអានពេលក្រោយ។ ប្រើ Capture នៅពេល stock, orders, receipts, prices, flags, rankings, notes, ឬ delivery details ផ្លាស់ប្តូរ។
+
+សម្រាប់ ticket-backed lanes, បញ្ជី បើកលំហូរ new ticket ដោយផ្ទាល់ នៅពេលគ្មាន meaningful saved draft ឬ editable ticket។ វាសួរ resume, start new, ឬ edit/update តែនៅពេលជម្រើសនោះប៉ះពាល់ការងារពិត។ Mode-only placeholders ត្រូវបានលុប មិនបង្ហាញជា saved drafts ទេ។
 
 ### ថ្លៃដឹកជញ្ជូន {#record-update-delivery-fee}
 
@@ -243,9 +247,9 @@ Dependency impact បង្ហាញ which linked SKUs គឺជា limiting or 
 
 ### ព័ត៌មានលម្អិតកម្មវិធីកែសេវាកម្ម {#catalog-service-editor-details}
 
-Service details define the stable identity of a service: ID, name, description, and image. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear មុនពេល linking SKUs or exposing the service.
+Service details define the stable identity of a service: name, description, and image. បញ្ជី បង្កើត internal service ID នៅពេលបង្កើត service ថ្មី ហើយរក្សាវាឲ្យ stable បន្ទាប់ពីនោះ។ These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear មុនពេល linking SKUs or exposing the service.
 
-អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste ពី clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
+អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
 
 ### ទំនិញដែលភ្ជាប់ {#catalog-service-editor-linked-skus}
 
@@ -253,7 +257,7 @@ Linked SKUs define what stock a service consumes or depends on. ផ្នែក�
 
 ### ការកំណត់តម្លៃសេវាកម្ម {#catalog-service-editor-pricing}
 
-Service pricing គឺជា the customer-facing price for one service delivery. វា feeds Money, automation quotes, service detail, and customer tickets. Update it នៅពេល the sell price changes; use Record Update for observed price-change evidence if you need history.
+Service pricing គឺជា the customer-facing price for one service delivery. វាជា required មុនពេល create ឬ save service ហើយ feeds Money, automation quotes, service detail, and customer tickets. Update it នៅពេល the sell price changes; use Record Update for observed price-change evidence if you need history.
 
 ### ខ្សែពេលភស្តុតាងសេវាកម្ម {#catalog-service-evidence-timeline}
 
@@ -269,19 +273,19 @@ SKU dependency impact បង្ហាញ which services rely on this SKU and how
 
 ### ព័ត៌មានលម្អិតកម្មវិធីកែទំនិញ {#catalog-sku-editor-details}
 
-SKU details define the stock item's identity: name, supplier, description, and image. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here នៅពេល the wrong item appears in work or customer-facing surfaces.
+SKU details define the stock item's identity: name, supplier, description, and image. Name និង supplier ជា required មុនពេល create ឬ save SKU។ These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here នៅពេល the wrong item appears in work or customer-facing surfaces.
 
-អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste ពី clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
+អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
 
 ការរក្សាទុកការផ្លាស់ប្តូរនៅក្នុង SKU editor នឹងរក្សាអ្នកនៅលើ editor ដើម្បីបន្តពិនិត្យ draft។ ប្រើ **Details** ដើម្បីចេញពី editor ហើយបើក SKU detail page។ បើមានការផ្លាស់ប្តូរមិនទាន់រក្សាទុក navigation links រួមទាំង tooltip **More** links នឹងសួរមុនពេលបោះបង់ draft បច្ចុប្បន្ន។
 
 ### ការរៀបចំផែនការទំនិញ {#catalog-sku-editor-planning}
 
-SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior នៅពេល available; guesses គួរ be conservative and revisited បន្ទាប់ពី receipts arrive.
+SKU planning inputs describe lead-time expectations and variability for replenishment. Lead-time mean និង uncertainty days ឬ variability preset ជា required មុនពេល create ឬ save SKU។ They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior នៅពេល available; guesses គួរ be conservative and revisited បន្ទាប់ពី receipts arrive.
 
 ### ការកំណត់តម្លៃទំនិញ {#catalog-sku-editor-pricing}
 
-SKU pricing includes unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current នៅពេល supplier cost or sell price changes.
+SKU pricing includes required unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current នៅពេល supplier cost or sell price changes.
 
 ### លក់ជាទំនិញ {#catalog-sku-editor-sell-as-product}
 
@@ -306,6 +310,8 @@ The trading chart ledger គឺជា the detail chart surface for SKU, service,
 ## Insights
 
 Insights គឺជា entry point សម្រាប់ operating signals។ Subpages របស់វាគឺ Pressure, Money, និង Explain។ ប្រើ section នេះដើម្បីជ្រើស lens ដែលត្រូវនឹងសំណួរ៖ operational urgency, financial quality, ឬ evidence-level explanation។
+
+នៅពេល custom time range កំពុង active នៅក្នុង Pressure, Money, ឬ Explain-adjacent views, range menu បង្ហាញ custom range edit button។ Edit button លាក់នៅពេល preset range active ដើម្បីកុំឲ្យ menu បង្ហាញថាមាន custom range រួចហើយ។
 
 ## Pressure
 

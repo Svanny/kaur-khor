@@ -43,11 +43,14 @@ sequenceDiagram
   Bench->>Metrics: record nav.* duration
   Bench->>Shell: continue route loop
 
-  Bench->>Shell: return to dashboard
+  Bench->>Shell: open Settings, then Back to app
+  Shell->>Router: restore originating app route from navigation state
+  Router->>Metrics: wait route.insights.explain.ready
   Bench->>Route: open recent receipt task drawer
   Route->>Metrics: record interaction.open_task_drawer_ms
   Bench->>Metrics: close app and persist navigation.summary.json
 
   Note over Router,Route: Ready events wait for preferences, inventory loading, and route-specific stable UI.
+  Note over Shell,Router: Settings carries the prior app location so Back to app returns to that route instead of Home.
   Note over Main,Core: Identical read-only commands are globally coalesced before worker selection.
   Note over Store: Navigation should use route-scoped reads, not startup-wide observation hydration.

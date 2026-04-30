@@ -65,6 +65,8 @@ Moved destinations remain reachable:
 - **Help** lives in Settings at `/settings/help`.
 - **Automation intake** lives in Work; automation exposure lives in Catalog; Telegram connection lives in Settings.
 
+When you enter Settings from another app route, **Back to app** returns to that originating route, including its query filters, instead of always returning to Home.
+
 Old top-level URLs are no longer supported.
 
 ## Home
@@ -91,6 +93,8 @@ Queue is the decision surface for supplier and customer work. It is where operat
 ## Capture
 
 Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Catalog detail, Pressure, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
+
+For ticket-backed lanes, banji opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
 
 ### Delivery Fee {#record-update-delivery-fee}
 
@@ -243,9 +247,9 @@ Dependency impact shows which linked SKUs are limiting or supporting a service. 
 
 ### Service Editor Details {#catalog-service-editor-details}
 
-Service details define the stable identity of a service: ID, name, description, and image. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
+Service details define the stable identity of a service: name, description, and image. banji generates the internal service ID when a new service is created and keeps it stable after that. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
 
-You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting from the clipboard. PNG, JPEG, and WebP are accepted.
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image from the page or field clipboard. PNG, JPEG, and WebP are accepted.
 
 ### Linked SKUs {#catalog-service-editor-linked-skus}
 
@@ -253,7 +257,7 @@ Linked SKUs define what stock a service consumes or depends on. This is the core
 
 ### Service Editor Pricing {#catalog-service-editor-pricing}
 
-Service pricing is the customer-facing price for one service delivery. It feeds Money, automation quotes, service detail, and customer tickets. Update it when the sell price changes; use Record Update for observed price-change evidence if you need history.
+Service pricing is the customer-facing price for one service delivery. It is required before creating or saving a service and feeds Money, automation quotes, service detail, and customer tickets. Update it when the sell price changes; use Record Update for observed price-change evidence if you need history.
 
 ### Service Evidence Timeline {#catalog-service-evidence-timeline}
 
@@ -269,19 +273,19 @@ SKU dependency impact shows which services rely on this SKU and how severely the
 
 ### SKU Editor Details {#catalog-sku-editor-details}
 
-SKU details define the stock item's identity: name, supplier, description, and image. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here when the wrong item appears in work or customer-facing surfaces.
+SKU details define the stock item's identity: name, supplier, description, and image. Name and supplier are required before creating or saving a SKU. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here when the wrong item appears in work or customer-facing surfaces.
 
-You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting from the clipboard. PNG, JPEG, and WebP are accepted.
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image from the page or field clipboard. PNG, JPEG, and WebP are accepted.
 
 Saving changes in the SKU editor keeps you on the editor so you can continue reviewing the draft. Use **Details** to leave the editor and open the SKU detail page. If you have unsaved changes, navigation links, including tooltip **More** links, ask before discarding the current draft.
 
 ### SKU Editor Planning {#catalog-sku-editor-planning}
 
-SKU planning inputs describe lead-time expectations and variability for replenishment. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior when available; guesses should be conservative and revisited after receipts arrive.
+SKU planning inputs describe lead-time expectations and variability for replenishment. Lead-time mean and either uncertainty days or a variability preset are required before creating or saving a SKU. They guide reorder timing, pressure, and Explain lead-time risk. Use measured supplier behavior when available; guesses should be conservative and revisited after receipts arrive.
 
 ### SKU Editor Pricing {#catalog-sku-editor-pricing}
 
-SKU pricing includes unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current when supplier cost or sell price changes.
+SKU pricing includes required unit cost and optional customer-facing product price. Cost affects margin and capital calculations; product price affects retail sale, automation quote, and Money views. Keep both current when supplier cost or sell price changes.
 
 ### Sell As Product {#catalog-sku-editor-sell-as-product}
 
@@ -306,6 +310,8 @@ The trading chart ledger is the detail chart surface for SKU, service, or analys
 ## Insights
 
 Insights is the entry point for operating signals. Its subpages are Pressure, Money, and Explain. Use this section to choose which lens fits the question: operational urgency, financial quality, or evidence-level explanation.
+
+When a custom time range is active in Pressure, Money, or Explain-adjacent views, the range menu shows the custom range edit button. The edit button stays hidden while a preset range is active so opening the menu does not imply a custom range already exists.
 
 ## Pressure
 
