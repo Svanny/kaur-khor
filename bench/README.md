@@ -50,11 +50,12 @@ Run every scenario against the Power User fixture and retain Playwright traces:
 BANJI_BENCHMARK_FIXTURE_SIZE=power-user BANJI_BENCHMARK_TRACE=1 pnpm bench --repeat-each=1
 ```
 
-The terminal runner and the in-app benchmark runner share the same harness:
-both build first when requested, run `playwright.bench.config.ts`, seed the
-selected fixture before launch, and write scenario summaries from the same
-persisted event stream. Keep new benchmark options wired through both
-`scripts/run-benchmarks.mjs` and `src/main/benchmark-runner.ts` before changing
+The terminal runner and the in-app benchmark runner share the same scenario
+metadata and harness: both build first when requested, run
+`playwright.bench.config.ts`, seed the selected fixture before launch, and write
+scenario summaries from the same persisted event stream. Keep new benchmark
+options wired through both `scripts/run-benchmarks.mjs`,
+`src/main/benchmark-runner.ts`, and the shared scenario metadata before changing
 scenario behavior.
 
 Each run writes:
@@ -62,8 +63,9 @@ Each run writes:
 - `events.jsonl`: Electron-side event stream from renderer, preload, main, and Playwright
 - `core-events-<role>-<index>-<pid>.jsonl`: Rust core events from the writer and read workers, kept in per-worker files to avoid concurrent append interleaving
 - `<scenario>.summary.json`: duration summaries and slowest IPC/core entries
-- Playwright artifacts under `bench-results/playwright-artifacts`; trace-enabled runs
-  also write `playwright-trace.zip` inside each scenario output directory
+- Playwright artifacts under the active run directory, for example
+  `bench-results/<runId>/playwright-artifacts`; trace-enabled runs also write
+  `playwright-trace.zip` inside each scenario output directory
 
 Startup summaries track the compact startup architecture. The old startup target
 for `ipc.sena_get_workspace_summary_ms` has been replaced by
@@ -78,12 +80,15 @@ Compare two result directories:
 pnpm bench:compare bench-results/<baseline> bench-results/<candidate>
 ```
 
-The benchmark data directory is isolated per run. The benchmark seed helper and
-the development boot path now share the same generated-history seeding script.
-Benchmark runs still prepare the workspace first, then launch Banji with dev
-seeding disabled so the measured startup path uses the prepared fixture instead
-of reseeding during startup. Scenario summaries now isolate setup from measured
-interaction windows using `benchmark.phase.seed_end`,
+The benchmark data directory and GUI runner output directory are isolated per
+run. GUI runs set `BANJI_BENCHMARK_OUTPUT_DIR` to `bench-results/<runId>` so
+summary and event collection cannot mix artifacts from another active or prior
+run. The benchmark seed helper and the development boot path now share the same
+generated-history seeding script. Benchmark runs still prepare the workspace
+first, then launch Banji with dev seeding disabled so the measured startup path
+uses the prepared fixture instead of reseeding during startup. Scenario
+summaries now isolate setup from measured interaction windows using
+`benchmark.phase.seed_end`,
 `benchmark.phase.measurement_start`, and `benchmark.phase.measurement_end`
 markers.
 
@@ -97,8 +102,9 @@ scenario setup. Bench helpers now force a minimum exposed-row and intake-row
 count before timing starts. If required rows are absent, the Playwright scenario
 fails immediately instead of emitting target rows with `missing` status.
 
-Interaction timers now wait on in-process benchmark events instead of persisted
-JSONL polling. Scenario summaries include harness truth metrics:
+Interaction timers use the in-process benchmark event bridge where possible,
+with the persisted JSONL helper kept as a compatibility wrapper for scenarios
+that still need cumulative event counts across launches. Scenario summaries include harness truth metrics:
 `harness.ready_latency_p95_ms`, `harness.measurement_duration_p95_ms`, and
 `harness.overhead_p95_ms`.
 

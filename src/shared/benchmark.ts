@@ -191,16 +191,17 @@ export interface BanjiBenchmarkRunnerBridge {
 }
 
 export const BANJI_BENCHMARK_SCENARIOS: Array<{
+  file: string;
   id: BanjiBenchmarkScenarioId;
   label: string;
   script: string;
 }> = [
-  { id: 'startup', label: 'Startup', script: 'bench:startup' },
-  { id: 'navigation', label: 'Navigation', script: 'bench:navigation' },
-  { id: 'work', label: 'Work', script: 'bench:work' },
-  { id: 'capture', label: 'Capture', script: 'bench:capture' },
-  { id: 'detail-pages', label: 'Detail pages', script: 'bench:detail-pages' },
-  { id: 'stability', label: 'Stability', script: 'bench:stability' },
+  { file: 'bench/scenarios/startup.bench.ts', id: 'startup', label: 'Startup', script: 'bench:startup' },
+  { file: 'bench/scenarios/navigation.bench.ts', id: 'navigation', label: 'Navigation', script: 'bench:navigation' },
+  { file: 'bench/scenarios/work.bench.ts', id: 'work', label: 'Work', script: 'bench:work' },
+  { file: 'bench/scenarios/capture.bench.ts', id: 'capture', label: 'Capture', script: 'bench:capture' },
+  { file: 'bench/scenarios/detail-pages.bench.ts', id: 'detail-pages', label: 'Detail pages', script: 'bench:detail-pages' },
+  { file: 'bench/scenarios/stability.bench.ts', id: 'stability', label: 'Stability', script: 'bench:stability' },
 ];
 
 export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [

@@ -36,20 +36,45 @@ const D3_CDN_URL = 'https://d3js.org/d3.v7.min.js';
 const D3_FLAMEGRAPH_CSS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.css';
 const D3_FLAMEGRAPH_JS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.min.js';
 
-const SCENARIO_FILE_BY_ID: Record<BanjiBenchmarkScenarioId, string> = {
-  startup: 'bench/scenarios/startup.bench.ts',
-  navigation: 'bench/scenarios/navigation.bench.ts',
-  work: 'bench/scenarios/work.bench.ts',
-  capture: 'bench/scenarios/capture.bench.ts',
-  'detail-pages': 'bench/scenarios/detail-pages.bench.ts',
-  stability: 'bench/scenarios/stability.bench.ts',
-};
+export const SCENARIO_FILE_BY_ID = Object.fromEntries(
+  BANJI_BENCHMARK_SCENARIOS.map((scenario) => [scenario.id, scenario.file]),
+) as Record<BanjiBenchmarkScenarioId, string>;
 
 type ActiveBenchmarkRun = {
   children: Set<ChildProcessWithoutNullStreams>;
   record: BanjiBenchmarkRunRecord;
   cancelled: boolean;
 };
+
+export function benchmarkOutputDirectoryForRun(resultsDirectory: string, runId: string) {
+  return join(resultsDirectory, safeRunId(runId));
+}
+
+export function benchmarkChildSpawnOptions(projectRoot: string, env: NodeJS.ProcessEnv) {
+  return {
+    cwd: projectRoot,
+    detached: process.platform !== 'win32',
+    env,
+    stdio: 'pipe' as const,
+  };
+}
+
+export function terminateBenchmarkChild(child: Pick<ChildProcessWithoutNullStreams, 'kill' | 'pid' | 'killed'>) {
+  if (child.killed) {
+    return;
+  }
+
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, 'SIGTERM');
+      return;
+    } catch {
+      // Fall back to the direct child if the process group is already gone.
+    }
+  }
+
+  child.kill('SIGTERM');
+}
 
 interface FlamegraphNode {
   name: string;
@@ -438,7 +463,7 @@ export function registerBenchmarkRunnerIpc({
 
   async function collectSummaries(record: BanjiBenchmarkRunRecord): Promise<BanjiBenchmarkScenarioSummary[]> {
     const startedMs = new Date(record.startedAt).getTime();
-    const files = await walkFiles(resultsDirectory);
+    const files = await walkFiles(record.outputDirectory);
     const summaries = await Promise.all(
       files
         .filter((file) => file.endsWith('.summary.json'))
@@ -468,7 +493,7 @@ export function registerBenchmarkRunnerIpc({
     }
     const startedMs = new Date(record.startedAt).getTime();
     const completedMs = record.completedAt ? new Date(record.completedAt).getTime() : Number.POSITIVE_INFINITY;
-    const files = await walkFiles(resultsDirectory);
+    const files = await walkFiles(record.outputDirectory);
     const summaryFiles = files.filter((file) => file.endsWith(`${scenario}.summary.json`));
     const bundles = await Promise.all(
       summaryFiles.map(async (summaryFile) => {
@@ -559,9 +584,7 @@ export function registerBenchmarkRunnerIpc({
   ) {
     await setRunStatus(run, 'running', `${command} ${args.join(' ')}`);
     const child = spawn(command, args, {
-      cwd: projectRoot,
-      env,
-      stdio: 'pipe',
+      ...benchmarkChildSpawnOptions(projectRoot, env),
     });
     run.children.add(child);
 
@@ -614,9 +637,9 @@ export function registerBenchmarkRunnerIpc({
     const repeatLabel = run.record.repeatCount > 1
       ? `repeat ${repeatIndex + 1}/${run.record.repeatCount}`
       : 'repeat 1/1';
-    const reportDirectory = join(resultsDirectory, 'playwright-reports');
+    const reportDirectory = join(run.record.outputDirectory, 'playwright-reports');
     const artifactsDirectory = join(
-      resultsDirectory,
+      run.record.outputDirectory,
       'playwright-artifacts',
       `${run.record.runId}-${scenario}-repeat-${repeatIndex + 1}`,
     );
@@ -660,6 +683,7 @@ export function registerBenchmarkRunnerIpc({
     const env = {
       ...process.env,
       BANJI_DESKTOP_CORE_BINARY: process.env.BANJI_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
+      BANJI_BENCHMARK_OUTPUT_DIR: record.outputDirectory,
       BANJI_BENCHMARK_TRACE: record.traceEnabled ? '1' : '0',
       BANJI_BENCHMARK_FIXTURE_SIZE: record.fixtureSize,
     };
@@ -767,6 +791,7 @@ export function registerBenchmarkRunnerIpc({
 
     const normalizedOptions = normalizeRunOptions(options);
     const runId = `gui-${Date.now()}`;
+    const outputDirectory = benchmarkOutputDirectoryForRun(resultsDirectory, runId);
     const record: BanjiBenchmarkRunRecord = {
       runId,
       scenarios: normalizedOptions.scenarios,
@@ -777,7 +802,7 @@ export function registerBenchmarkRunnerIpc({
       traceEnabled: normalizedOptions.traceEnabled,
       repeatCount: normalizedOptions.repeatCount,
       buildBeforeRun: normalizedOptions.buildBeforeRun,
-      outputDirectory: resultsDirectory,
+      outputDirectory,
       exitCode: null,
       summaries: [],
       stdoutTail: [],
@@ -795,7 +820,7 @@ export function registerBenchmarkRunnerIpc({
     if (activeRun && activeRun.record.runId === runId) {
       activeRun.cancelled = true;
       for (const child of activeRun.children) {
-        child.kill('SIGTERM');
+        terminateBenchmarkChild(child);
       }
       await setRunStatus(activeRun, 'cancelled', 'Benchmark cancellation requested.');
       return activeRun.record;
