@@ -393,8 +393,9 @@ function TicketEntryPromptDialog({
 
 export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const { language } = usePreferences();
-  const { orderBatches, recordUpdateContext } = useInventory();
+  const { loadWorkSupportData, orderBatches, recordUpdateContext } = useInventory();
   const navigate = useNavigate();
+  const [supportDataRequested, setSupportDataRequested] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [confirmNewDiscardDraftOpen, setConfirmNewDiscardDraftOpen] = useState(false);
   const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
@@ -446,6 +447,17 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
   useEffect(() => {
     writeRecordUpdateSessionViewMode('pos');
   }, []);
+
+  useEffect(() => {
+    if (supportDataRequested || typeof loadWorkSupportData !== 'function') {
+      return;
+    }
+    setSupportDataRequested(true);
+    void loadWorkSupportData().catch((error) => {
+      setSupportDataRequested(false);
+      console.warn('[record-update-hub] work support data load failed', error);
+    });
+  }, [loadWorkSupportData, supportDataRequested]);
 
   function toggleCustomLane(laneId: BaseRecordUpdateLaneId) {
     setSelectedCustomLaneIds((current) =>

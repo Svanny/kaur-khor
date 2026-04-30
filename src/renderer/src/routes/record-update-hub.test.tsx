@@ -62,6 +62,7 @@ function recordUpdateContextFromObservations(observations: SenaObservationRecord
 function inventoryState(overrides: Record<string, unknown> = {}) {
   const observations = (overrides.observations ?? []) as SenaObservationRecord[];
   return {
+    loadWorkSupportData: vi.fn(async () => null),
     observations: [],
     orderBatches: [],
     recordUpdateContext: recordUpdateContextFromObservations(observations),
@@ -131,6 +132,19 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getByText(/Choose the physical, customer, or supplier ticket flow/i)).toBeInTheDocument();
     expect(screen.queryByText('Coming soon')).not.toBeInTheDocument();
     expect(screen.queryByText('Available now')).not.toBeInTheDocument();
+  });
+
+  it('requests Work support data when the capture hub is opened cold', async () => {
+    const loadWorkSupportData = vi.fn(async () => null);
+    inventoryHook.mockReturnValue(inventoryState({ loadWorkSupportData }));
+
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    expect(loadWorkSupportData).toHaveBeenCalledWith();
   });
 
   it('uses the semantic danger tint for the immediate sale card', () => {

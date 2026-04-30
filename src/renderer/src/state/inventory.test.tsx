@@ -258,6 +258,9 @@ function TestHarness() {
       <button type="button" onClick={() => void inventory.triggerSenaRun()}>
         trigger run
       </button>
+      <button type="button" onClick={() => void inventory.loadWorkSupportData({ includeObservations: true })}>
+        load work support
+      </button>
     </div>
   );
 }
@@ -443,6 +446,29 @@ describe('InventoryProvider', () => {
     expect(window.banjiDesktop.sena.getDiagnostics).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.getRecordUpdateContext).not.toHaveBeenCalled();
     expect(window.banjiDesktop.sena.listOrderBatches).not.toHaveBeenCalled();
+    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
+  });
+
+  it('loads route-driven Work support data without full startup hydration', async () => {
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+    expect(screen.getByTestId('observation-count').textContent).toBe('0');
+
+    fireEvent.click(screen.getByText('load work support'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('observation-count').textContent).toBe('1');
+      expect(window.banjiDesktop.sena.getRecordUpdateContext).toHaveBeenCalledTimes(1);
+      expect(window.banjiDesktop.sena.listOrderBatches).toHaveBeenCalledTimes(1);
+      expect(window.banjiDesktop.sena.listObservationPage).toHaveBeenCalledWith({ limit: 20 });
+    });
     expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
   });
 

@@ -118,6 +118,8 @@ When an intake is promoted:
 - the operational write lands in the main SENA workspace, not only in the JSON
   automation store
 - the customer can be notified back through Telegram
+- the active renderer session refreshes Work support data so queue tasks and
+  recent activity reflect the promoted ticket without a full app reload
 
 If you change how intake rows turn into ticket events, update this page and
 [`docs/development/ticketing-architecture.md`](/Users/svanny/banji/docs/development/ticketing-architecture.md)

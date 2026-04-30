@@ -160,6 +160,7 @@ function inventoryState(overrides: Record<string, unknown> = {}) {
     isLoading: false,
     isSaving: false,
     latestRun: null,
+    loadWorkSupportData: vi.fn(async () => null),
     observations,
     orderBatches: [],
     runWorkspacePreparation,
@@ -1616,9 +1617,8 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.queryByText('Current Units')).not.toBeInTheDocument();
   });
 
-  it('submits only changed stock rows and still schedules the SENA run', async () => {
+  it('submits only changed stock rows and reruns SENA before leaving', async () => {
     setStoredSessionViewMode('form');
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
     renderRoute();
 
     goToStockStep();
@@ -1647,14 +1647,8 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation.mock.calls[0]![0].stockSnapshot).not.toEqual(
       expect.arrayContaining([expect.objectContaining({ skuId: 'sku-2' })]),
     );
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5_000);
-    for (const result of setTimeoutSpy.mock.results) {
-      if (typeof result.value === 'number') {
-        window.clearTimeout(result.value);
-      }
-    }
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
-    setTimeoutSpy.mockRestore();
   });
 
   it('hydrates edit mode from a saved observation and saves through update', async () => {
@@ -1743,11 +1737,10 @@ describe('StockUpdateSessionRoute', () => {
     setTimeoutSpy.mockRestore();
   });
 
-  it('resets the session immediately after saving and schedules the rerun in the background', async () => {
+  it('reruns SENA before leaving the capture route after saving', async () => {
     setStoredSessionViewMode('form');
     const rerun = deferredPromise<void>();
     triggerSenaRun.mockReturnValueOnce(rerun.promise);
-    const setTimeoutSpy = vi.spyOn(window, 'setTimeout');
 
     renderRoutedSession();
 
@@ -1759,15 +1752,14 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 5_000);
-    window.clearTimeout(setTimeoutSpy.mock.results[0]?.value as number);
+    expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
+    expect(screen.queryByText('Overview destination')).not.toBeInTheDocument();
+
+    rerun.resolve(undefined);
 
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
-
-    rerun.resolve(undefined);
-    setTimeoutSpy.mockRestore();
   });
 
   it('keeps a partial historical stock snapshot when saving an edit', async () => {

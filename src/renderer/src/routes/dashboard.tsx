@@ -377,7 +377,7 @@ function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFil
 
 export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const inventory = useInventoryState();
-  const { loadSenaOrderBatches, loadSenaSkuDetail } = useInventoryActions();
+  const { loadSenaSkuDetail, loadWorkSupportData } = useInventoryActions();
   const automation = useAutomation();
   const {
     language,
@@ -427,23 +427,18 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   }
 
   useEffect(() => {
-    if (
-      typeof loadSenaOrderBatches !== 'function'
-      ||
-      requestedOrderBatchesRef.current
-      || (inventory.orderBatches?.length ?? 0) > 0
-    ) {
+    if (typeof loadWorkSupportData !== 'function' || requestedOrderBatchesRef.current) {
       return undefined;
     }
     requestedOrderBatchesRef.current = true;
     const cancel = scheduleDeferredBackgroundTask(() => {
-      void loadSenaOrderBatches().catch((error) => {
+      void loadWorkSupportData({ includeObservations: true }).catch((error) => {
         requestedOrderBatchesRef.current = false;
-        console.warn('[dashboard] order batches load failed', error);
+        console.warn('[dashboard] work support data load failed', error);
       });
     });
     return cancel;
-  }, [inventory.orderBatches?.length, loadSenaOrderBatches]);
+  }, [loadWorkSupportData]);
 
   useEffect(() => {
     const skuIds = orderedDashboardSkuDetailIds(inventory.workspaceSummary);

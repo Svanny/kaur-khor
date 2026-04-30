@@ -435,7 +435,7 @@ export function OverviewTaskDrawer({
   task: OverviewSkuTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
+  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun, updateSenaOrderChild } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
@@ -738,6 +738,35 @@ export function OverviewTaskDrawer({
       if (!hasStructuredObservationSignal(senaPayload)) {
         onOpenChange(false);
         return true;
+      }
+      if (activeTask.childOrderId && (mode === 'ordered_waiting' || mode === 'eta_changed')) {
+        const quantity = orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null;
+        await updateSenaOrderChild({
+          childOrderId: activeTask.childOrderId,
+          appendSupplierNote: notes.trim() || null,
+          overrides: {
+            expectedArrivalAt: dateInputToIsoDate(expectedArrivalDate),
+            orderedQuantity: quantity,
+            placementTimestamp: observedAtIso,
+          },
+          status: mode === 'eta_changed' ? 'follow_up' : 'awaiting_receipt',
+        });
+      }
+      if (activeTask.childOrderId && mode === 'goods_received') {
+        const receivedUnits = Number(receivedQuantity);
+        const nextCost = receivedCost
+          ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
+          : activeTask.costPerUnit;
+        await updateSenaOrderChild({
+          childOrderId: activeTask.childOrderId,
+          appendSupplierNote: notes.trim() || null,
+          overrides: {
+            costPerUnit: nextCost,
+            receivedQuantity: receivedUnits,
+            receiptTimestamp: observedAtIso,
+          },
+          status: 'received',
+        });
       }
       await ingestSenaObservation(senaPayload);
       finalizeSuccessfulDrawerSave({

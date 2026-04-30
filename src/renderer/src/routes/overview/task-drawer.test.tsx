@@ -232,6 +232,7 @@ describe('OverviewTaskDrawer', () => {
       ingestSenaObservation: vi.fn(async (payload: unknown) => payload),
       runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
       isSaving: false,
     });
   });
@@ -247,6 +248,7 @@ describe('OverviewTaskDrawer', () => {
             resolveTriggerRun = resolve;
           }),
       ),
+      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
       isSaving: false,
     });
 
@@ -303,6 +305,45 @@ describe('OverviewTaskDrawer', () => {
         ],
       }));
     });
+  });
+
+  test('updates the backing order child before saving a supplier receipt task', async () => {
+    const updateSenaOrderChild = vi.fn(async (payload: unknown) => payload);
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      updateSenaOrderChild,
+      isSaving: false,
+    });
+
+    render(
+      <OverviewTaskDrawer
+        mode="goods_received"
+        open
+        task={{ ...sampleTask, batchOrderId: 'batch-1', childOrderId: 'child-1' }}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Received quantity'), { target: { value: '24' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
+
+    await waitFor(() => {
+      expect(updateSenaOrderChild).toHaveBeenCalledWith(expect.objectContaining({
+        childOrderId: 'child-1',
+        overrides: expect.objectContaining({
+          receivedQuantity: 24,
+        }),
+        status: 'received',
+      }));
+      expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
+    });
+    expect(updateSenaOrderChild.mock.invocationCallOrder[0]).toBeLessThan(
+      ingestSenaObservation.mock.invocationCallOrder[0],
+    );
   });
 
   test('derives uncertainty days from the selected variability class when saving an order update', async () => {

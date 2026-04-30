@@ -180,6 +180,7 @@ vi.mock('../state/inventory', () => ({
   useInventoryActions: () => ({
     loadSenaOrderBatches: inventoryHook().loadSenaOrderBatches,
     loadSenaSkuDetail: inventoryHook().loadSenaSkuDetail,
+    loadWorkSupportData: inventoryHook().loadWorkSupportData,
   }),
   useInventoryState: () => inventoryHook(),
 }));
@@ -570,6 +571,7 @@ describe('DashboardRoute', () => {
       observations: sampleObservations,
       workspaceSummary: sampleWorkspaceSummary,
       loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
       ingestSenaObservation: vi.fn(async (payload) => payload),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
       isSaving: false,
@@ -615,6 +617,28 @@ describe('DashboardRoute', () => {
       expect(screen.queryAllByRole('button', { name: 'Record Supplier order' })).toHaveLength(0);
       expect(screen.queryAllByRole('button', { name: 'Update ETA' })).toHaveLength(0);
       expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
+    });
+  });
+
+  test('requests Work support data on cold queue entry', async () => {
+    const loadWorkSupportData = vi.fn(async () => null);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: [],
+      orderBatches: [],
+      recordUpdateContext: null,
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData,
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/work/queue');
+
+    await waitFor(() => {
+      expect(loadWorkSupportData).toHaveBeenCalledWith({ includeObservations: true });
     });
   });
 

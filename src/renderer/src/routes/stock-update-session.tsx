@@ -936,7 +936,6 @@ const BASE_RECORD_UPDATE_LANE_ORDER: BaseRecordUpdateLaneId[] = [
   'customer-order-completed',
   'supplier-order-pending',
 ];
-const POST_SAVE_RERUN_DELAY_MS = 5_000;
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 const REPORT_NOTE_PLACEHOLDER_KEYS = [
   'stockUpdateNotesPlaceholderShiftContext',
@@ -5493,8 +5492,7 @@ export function StockUpdateSessionRoute() {
     createSenaOrderBatch,
     ingestSenaObservation,
     isSaving,
-    loadSenaOrderBatches,
-    loadSenaRecordUpdateContext,
+    loadWorkSupportData,
     observations,
     orderBatches,
     recordUpdateContext,
@@ -5566,12 +5564,10 @@ export function StockUpdateSessionRoute() {
   const latestAt = latestObservationAt(observations);
   const incomingEditSession = useMemo(() => readRecordUpdateEditSession(location.state), [location.state]);
   const initialObservedAtRef = useRef(localDateTimeInputValue(null));
-  const requestedOrderBatchesRef = useRef(false);
-  const requestedRecordUpdateContextRef = useRef(false);
+  const requestedWorkSupportDataRef = useRef(false);
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
-  const postSaveRerunTimeoutRef = useRef<number | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
   const posDeliveryFeeInputRef = useRef<HTMLInputElement | null>(null);
   const posReviewCancelButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -5619,30 +5615,15 @@ export function StockUpdateSessionRoute() {
   );
 
   useEffect(() => {
-    if (typeof loadSenaRecordUpdateContext !== 'function' || requestedRecordUpdateContextRef.current) {
+    if (typeof loadWorkSupportData !== 'function' || requestedWorkSupportDataRef.current) {
       return;
     }
-    requestedRecordUpdateContextRef.current = true;
-    void loadSenaRecordUpdateContext().catch((error) => {
-      requestedRecordUpdateContextRef.current = false;
-      console.warn('[stock-update] record update context load failed', error);
+    requestedWorkSupportDataRef.current = true;
+    void loadWorkSupportData({ includeObservations: true }).catch((error) => {
+      requestedWorkSupportDataRef.current = false;
+      console.warn('[stock-update] work support data load failed', error);
     });
-  }, [loadSenaRecordUpdateContext]);
-
-  useEffect(() => {
-    if (
-      typeof loadSenaOrderBatches !== 'function'
-      || requestedOrderBatchesRef.current
-      || (orderBatches?.length ?? 0) > 0
-    ) {
-      return;
-    }
-    requestedOrderBatchesRef.current = true;
-    void loadSenaOrderBatches().catch((error) => {
-      requestedOrderBatchesRef.current = false;
-      console.warn('[stock-update] order batches load failed', error);
-    });
-  }, [loadSenaOrderBatches, orderBatches.length]);
+  }, [loadWorkSupportData]);
 
   useEffect(() => {
     const scopedIds =
@@ -6577,15 +6558,6 @@ export function StockUpdateSessionRoute() {
       skipNextDraftPersistRef.current = false;
     }
   }, [draftState, hasMeaningfulChanges]);
-
-  useEffect(() => {
-    return () => {
-      if (postSaveRerunTimeoutRef.current != null) {
-        window.clearTimeout(postSaveRerunTimeoutRef.current);
-        postSaveRerunTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     const previous = previousMoneyPreferencesRef.current;
@@ -8271,31 +8243,19 @@ export function StockUpdateSessionRoute() {
       return false;
     }
 
+    if (shouldSchedulePostSaveRerun) {
+      try {
+        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      } catch (nextError) {
+        console.error('[record-update] failed to rerun SENA after save', nextError);
+      }
+    }
     skipNextDraftPersistRef.current = true;
     removeStockUpdateDraft(draftStorageKey);
     setHasSavedDraft(false);
     setDraftWasRestored(false);
     resetRecordUpdateState();
     navigate('/', { replace: true, state: null });
-    if (!shouldSchedulePostSaveRerun) {
-      return true;
-    }
-    if (postSaveRerunTimeoutRef.current != null) {
-      window.clearTimeout(postSaveRerunTimeoutRef.current);
-      postSaveRerunTimeoutRef.current = null;
-    }
-    const schedulePostSaveRerun = () => {
-      postSaveRerunTimeoutRef.current = null;
-      const currentRoute = window.location.hash.replace(/^#/, '') || window.location.pathname || '/';
-      if (currentRoute.startsWith('/work/capture')) {
-        postSaveRerunTimeoutRef.current = window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
-        return;
-      }
-      void triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }).catch((nextError: unknown) => {
-        console.error('[record-update] failed to rerun SENA after save', nextError);
-      });
-    };
-    postSaveRerunTimeoutRef.current = window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
     return true;
   }
 

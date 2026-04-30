@@ -81,6 +81,15 @@ type SenaDetailLoadOptions = {
   limit?: number;
   strategy?: SenaDetailLoadStrategy;
 };
+type WorkSupportDataOptions = {
+  includeObservations?: boolean;
+  observationLimit?: number;
+};
+type WorkSupportDataResult = {
+  observationPage: SenaObservationPage | null;
+  orderBatches: SenaOrderBatchRecord[];
+  recordUpdateContext: SenaRecordUpdateContext;
+};
 
 type SenaMetaCache = {
   catalogHash: string | null;
@@ -131,6 +140,7 @@ export interface InventoryContextValue {
   listSenaObservations: () => Promise<SenaObservationRecord[]>;
   loadSenaObservations: () => Promise<SenaObservationRecord[]>;
   listSenaObservationPage: (payload?: SenaObservationPageRequest) => Promise<SenaObservationPage>;
+  loadWorkSupportData: (options?: WorkSupportDataOptions) => Promise<WorkSupportDataResult>;
   loadSenaRecordUpdateContext: () => Promise<SenaRecordUpdateContext>;
   listSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
   loadSenaOrderBatches: (payload?: SenaOrderLookupPayload) => Promise<SenaOrderBatchRecord[]>;
@@ -887,6 +897,37 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           });
         }
         return page;
+      },
+      loadWorkSupportData: async (options) => {
+        const includeObservations = options?.includeObservations ?? false;
+        const observationLimit = options?.observationLimit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
+        const observationRequest = { limit: observationLimit } satisfies SenaObservationPageRequest;
+        const [recordUpdateContext, orderBatches, observationPage] = await Promise.all([
+          loadWithCache('sena:record-update-context', () => window.banjiDesktop.sena.getRecordUpdateContext()),
+          loadWithCache('sena:order-batches:{}', () => window.banjiDesktop.sena.listOrderBatches()),
+          includeObservations
+            ? loadWithCache(`sena:observation-page:${JSON.stringify(observationRequest)}`, () =>
+                window.banjiDesktop.sena.listObservationPage(observationRequest),
+              )
+            : Promise.resolve(null),
+        ]);
+        const observations = observationPage?.observations ?? stateRef.current.observations;
+        setStatePartial({
+          observationFingerprint: recordUpdateContext.observationFingerprint,
+          observations,
+          orderBatches,
+          recordUpdateContext,
+          reports: includeObservations ? deriveProjectedReports(observations) : stateRef.current.reports,
+          snapshot: includeObservations
+            ? deriveProjectedSnapshot(stateRef.current.catalog, observations, stateRef.current.workspaceSummary)
+            : stateRef.current.snapshot,
+        });
+        readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
+        return {
+          observationPage,
+          orderBatches,
+          recordUpdateContext,
+        };
       },
       loadSenaRecordUpdateContext: async () => {
         const recordUpdateContext = await loadWithCache('sena:record-update-context', () =>

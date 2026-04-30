@@ -24,8 +24,9 @@ import type {
   AutomationReadConversationPayload,
   AutomationReadIntakePayload,
   AutomationResolveIntakePayload,
-  PromoteAutomationIntakePayload,
 } from '@shared/ipc';
+import type { PromoteAutomationIntakePayload } from '@shared/automation';
+import { useInventoryActions } from './inventory';
 
 export interface AutomationContextValue {
   connection: AutomationChannelConnection | null;
@@ -55,7 +56,7 @@ export interface AutomationContextValue {
 const AutomationContext = createContext<AutomationContextValue | null>(null);
 const automationUnavailableErrorMessage = 'Automations is unavailable in this environment.';
 
-async function rejectUnavailableAutomation() {
+async function rejectUnavailableAutomation(): Promise<never> {
   throw new Error(automationUnavailableErrorMessage);
 }
 
@@ -95,6 +96,7 @@ function emptyState() {
 
 export function AutomationProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
+  const { loadWorkSupportData } = useInventoryActions();
 
   const setStatePartial = useCallback((patch: Partial<typeof state>) => {
     setState((current) => ({ ...current, ...patch }));
@@ -214,12 +216,15 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     setStatePartial({ isSaving: true, error: null });
     try {
       const result = await window.banjiDesktop.automation.promoteIntake(payload);
-      await reload();
+      await Promise.all([
+        reload(),
+        loadWorkSupportData({ includeObservations: true }),
+      ]);
       return result;
     } finally {
       setStatePartial({ isSaving: false });
     }
-  }, [reload, setStatePartial]);
+  }, [loadWorkSupportData, reload, setStatePartial]);
 
   const testTelegramConnection = useCallback(async () => {
     if (!window.banjiDesktop.automation) {

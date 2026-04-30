@@ -58,6 +58,11 @@ Read behavior:
 - `sena.getRecordUpdateContext()` returns latest stock, sales, order, receipt, and observation anchors for update flows.
 - `sena.listObservations()` remains available for compatibility and full export-style reads, but should not be used during startup.
 
+Work routes should request their own bounded support data after startup. The
+renderer inventory action `loadWorkSupportData()` is the shared entrypoint for
+queue, capture, and Record Update session surfaces that need record context,
+order batches, and optionally a recent observation page.
+
 Write behavior:
 
 - The first saved observation anchors a new workspace but does not trigger SENA
@@ -95,6 +100,11 @@ Automation promotion still writes operational history into the main SENA
 workspace through ticket and commercial events. The JSON automation store is the
 staging layer for channel-facing state, not a replacement for the canonical
 inventory workspace.
+
+After promotion, renderer automation flows should refresh both automation state
+and the inventory-side Work support data. This keeps promoted tickets,
+customer/supplier task aggregates, and recent history aligned inside the same
+Work session.
 
 ## Backup Snapshot Model
 

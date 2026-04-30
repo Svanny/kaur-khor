@@ -36,6 +36,14 @@ Routes that need observation history should request explicit pages through
 `sena.listObservationPage()`. Routes that only need "latest known value" anchors
 should use `sena.getRecordUpdateContext()`.
 
+Work surfaces are route-scoped support-read users. `/work/queue`,
+`/work/capture`, and Record Update session routes should call the renderer
+inventory support loader instead of relying on startup hydration. That loader
+combines `sena.getRecordUpdateContext()`, `sena.listOrderBatches()`, and a
+bounded `sena.listObservationPage()` when the route needs history-derived
+tasks. Do not move this fanout back into `InventoryProvider.reload()` or
+startup readiness.
+
 SENA analysis requires at least two observations. The first saved observation in
 a new workspace is only the inventory anchor, so Record Update should not trigger
 a planning run until the second observation exists. If a run command does fail
@@ -52,6 +60,11 @@ Ticket-backed operational updates are stored on observations as structured
 analysis, and financial projections. They should remain distinct from legacy
 order-signal and order-batch compatibility reads so new operational facts keep a
 stable ticket identity and event revision trail.
+
+Compact record activity is append-style over bounded recent observation payloads
+and ticket events. Latest anchors remain backed by normalized hot rows, but
+user-visible history should not be derived only from one latest anchor per
+ticket or entity.
 
 SENA checkpoints are stored as compressed payload files under
 `sena-checkpoints/`, with SQLite rows holding metadata such as codec, path, byte
