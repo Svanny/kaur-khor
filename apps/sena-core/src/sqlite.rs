@@ -258,6 +258,12 @@ impl SqliteSenaRepository {
     }
 }
 
+fn confined_checkpoint_payload_path(checkpoint_root: &Path, payload_path: &str) -> Option<PathBuf> {
+    let root = fs::canonicalize(checkpoint_root).ok()?;
+    let path = fs::canonicalize(payload_path).ok()?;
+    path.starts_with(root).then_some(path)
+}
+
 fn safe_path_segment(value: &str) -> String {
     value
         .chars()
@@ -1242,71 +1248,82 @@ fn load_all_batches(connection: &Connection, owner_sub: &str) -> Result<Vec<Sena
 #[async_trait(?Send)]
 impl SenaRepository for SqliteSenaRepository {
     async fn clear_owner(&self, owner_sub: &str) -> Result<()> {
-        let connection = self
+        let checkpoint_root = self.checkpoint_root();
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
+        let transaction = connection.transaction()?;
         let checkpoint_paths = {
-            let mut stmt = connection.prepare(
+            let mut stmt = transaction.prepare(
                 "SELECT payload_path FROM sena_analysis_checkpoint WHERE owner_sub = ?1",
             )?;
             let rows = stmt.query_map(params![owner_sub], |row| row.get::<_, Option<String>>(0))?;
             let mut paths = Vec::new();
             for row in rows {
                 if let Some(path) = row? {
-                    paths.push(path);
+                    if let Some(confined_path) =
+                        confined_checkpoint_payload_path(&checkpoint_root, &path)
+                    {
+                        paths.push(confined_path);
+                    }
                 }
             }
             paths
         };
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_analysis_checkpoint WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_preprocessed_cache WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_service_detail WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_sku_detail WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_read_model WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_sku_summary_hot WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_workspace_summary_hot WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_run WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_observation WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_order_child_lookup WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
             "DELETE FROM sena_order_batch WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
-        connection.execute(
+        transaction.execute(
+            "DELETE FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
+            params![owner_sub],
+        )?;
+        transaction.execute(
             "DELETE FROM sena_catalog WHERE owner_sub = ?1",
             params![owner_sub],
         )?;
+        transaction.commit()?;
         for path in checkpoint_paths {
             let _ = fs::remove_file(path);
         }
@@ -2282,7 +2299,12 @@ impl SenaRepository for SqliteSenaRepository {
         for row in rows {
             let (payload_json, payload_codec, payload_path) = row?;
             if payload_codec.as_deref() == Some("zstd") {
-                let path = payload_path.ok_or_else(|| anyhow!("checkpoint payload path missing"))?;
+                let path =
+                    payload_path.ok_or_else(|| anyhow!("checkpoint payload path missing"))?;
+                let Some(path) = confined_checkpoint_payload_path(&self.checkpoint_root(), &path)
+                else {
+                    continue;
+                };
                 let compressed = fs::read(path)?;
                 let raw = zstd::decode_all(&compressed[..])?;
                 checkpoints.push(serde_json::from_slice(&raw)?);
@@ -2374,7 +2396,11 @@ impl SenaRepository for SqliteSenaRepository {
             let mut paths = Vec::new();
             for row in rows {
                 if let Some(path) = row? {
-                    paths.push(path);
+                    if let Some(confined_path) =
+                        confined_checkpoint_payload_path(&self.checkpoint_root(), &path)
+                    {
+                        paths.push(confined_path);
+                    }
                 }
             }
             paths
@@ -2586,6 +2612,7 @@ mod tests {
     use rusqlite::params;
     use std::{
         env,
+        fs,
         path::PathBuf,
         time::{SystemTime, UNIX_EPOCH},
     };
@@ -2888,6 +2915,111 @@ mod tests {
         assert_eq!(
             metadata.observation_prefix_fingerprint,
             checkpoints[0].metadata.observation_prefix_fingerprint
+        );
+    }
+
+    #[test]
+    fn checkpoint_payload_paths_are_confined_to_checkpoint_root() {
+        let path = temp_store_path("checkpoint-confinement");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let checkpoint_root = repo.checkpoint_root();
+        fs::create_dir_all(&checkpoint_root).expect("checkpoint root should be created");
+        let outside_path = path.with_extension("outside-payload");
+        fs::write(&outside_path, b"outside checkpoint payload")
+            .expect("outside payload should write");
+        let linked_outside_path = checkpoint_root.join("linked-outside-payload");
+        let _ = fs::remove_file(&linked_outside_path);
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside_path, &linked_outside_path)
+            .expect("outside payload symlink should be created");
+        #[cfg(windows)]
+        std::os::windows::fs::symlink_file(&outside_path, &linked_outside_path)
+            .expect("outside payload symlink should be created");
+
+        {
+            let connection = repo
+                .connection
+                .lock()
+                .expect("sqlite lock should be available");
+            connection
+                .execute(
+                    r#"
+                    INSERT INTO sena_analysis_checkpoint (
+                      owner_sub,
+                      algorithm_version,
+                      catalog_fingerprint,
+                      observation_count,
+                      completed_interval_count,
+                      observation_prefix_fingerprint,
+                      payload_json,
+                      payload_codec,
+                      payload_path,
+                      payload_bytes,
+                      updated_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                    "#,
+                    params![
+                        "owner",
+                        "sena-analysis-v3",
+                        "catalog",
+                        1_i64,
+                        0_i64,
+                        "prefix",
+                        "",
+                        "zstd",
+                        outside_path.to_string_lossy().as_ref(),
+                        26_i64,
+                        "2026-04-01T00:00:00Z",
+                    ],
+                )
+                .expect("malicious checkpoint row should insert");
+            connection
+                .execute(
+                    r#"
+                    INSERT INTO sena_analysis_checkpoint (
+                      owner_sub,
+                      algorithm_version,
+                      catalog_fingerprint,
+                      observation_count,
+                      completed_interval_count,
+                      observation_prefix_fingerprint,
+                      payload_json,
+                      payload_codec,
+                      payload_path,
+                      payload_bytes,
+                      updated_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+                    "#,
+                    params![
+                        "owner",
+                        "sena-analysis-v3",
+                        "catalog",
+                        1_i64,
+                        1_i64,
+                        "prefix",
+                        "",
+                        "zstd",
+                        linked_outside_path.to_string_lossy().as_ref(),
+                        26_i64,
+                        "2026-04-01T00:00:00Z",
+                    ],
+                )
+                .expect("symlink checkpoint row should insert");
+        }
+
+        let checkpoints =
+            block_on(repo.list_analysis_checkpoints("owner", "sena-analysis-v3", "catalog"))
+                .expect("out-of-root checkpoint path should be skipped");
+        assert!(checkpoints.is_empty());
+        assert!(
+            outside_path.is_file(),
+            "listing checkpoints should not read or remove outside payloads"
+        );
+
+        block_on(repo.clear_owner("owner")).expect("owner should clear");
+        assert!(
+            outside_path.is_file(),
+            "clear_owner should not delete out-of-root checkpoint payloads"
         );
     }
 
@@ -3327,6 +3459,49 @@ mod tests {
                 .units_in_stock,
             12.0
         );
+    }
+
+    #[test]
+    fn clear_owner_removes_record_update_anchors() {
+        let path = temp_store_path("clear-owner-record-update-anchors");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 12.0).input),
+        )
+        .expect("observation should insert");
+
+        let before_clear = block_on(repo.get_record_update_context("owner"))
+            .expect("context should load before clear");
+        assert!(before_clear.latest_stock_by_sku.contains_key("sku-1"));
+
+        block_on(repo.clear_owner("owner")).expect("owner should clear");
+
+        {
+            let connection = repo
+                .connection
+                .lock()
+                .expect("sqlite lock should be available");
+            let anchor_count: i64 = connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
+                    params!["owner"],
+                    |row| row.get(0),
+                )
+                .expect("anchor count should load");
+            assert_eq!(anchor_count, 0);
+        }
+
+        let after_clear = block_on(repo.get_record_update_context("owner"))
+            .expect("context should load after clear");
+        assert_eq!(after_clear.observation_fingerprint.count, 0);
+        assert!(after_clear.latest_stock_by_sku.is_empty());
+        assert!(after_clear.latest_retail_sale_by_sku.is_empty());
+        assert!(after_clear.latest_service_sale_by_service.is_empty());
+        assert!(after_clear.latest_order_by_sku.is_empty());
+        assert!(after_clear.latest_receipt_by_sku.is_empty());
+        assert!(after_clear.latest_tickets_by_id.is_empty());
+        assert!(after_clear.latest_delivery_fee_by_bucket.is_empty());
+        assert!(after_clear.recent_activity.is_empty());
     }
 
     #[test]
