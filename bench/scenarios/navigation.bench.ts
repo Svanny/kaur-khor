@@ -85,8 +85,8 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
 
     await clickSidebarNavigationAndMeasureDuration(launched, {
       label: 'Back to app',
-      readyEvent: 'route.home.ready',
-      route: '/',
+      readyEvent: 'route.insights.explain.ready',
+      route: '/insights/explain',
       category: 'navigation',
     });
     await markBenchmarkMeasurementEnd(launched, { workflow: 'navigation', ok: true });

@@ -21,7 +21,7 @@ const CYCLE_SECTIONS: Array<{
   { label: 'Catalog', path: '/catalog', readyEvent: 'route.catalog.ready' },
   { label: 'Insights', metricName: 'nav.work_to_insights_ms', path: '/insights/pressure', readyEvent: 'route.insights.pressure.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
-  { label: 'Back to app', path: '/', readyEvent: 'route.home.ready' },
+  { label: 'Back to app', path: '/insights/explain', readyEvent: 'route.insights.explain.ready' },
 ];
 
 async function switchInsightsMode(

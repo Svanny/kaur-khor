@@ -1,13 +1,19 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { PAGE_STATE_MEMORY_STORAGE_KEY } from '@/lib/page-state-memory';
+import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { BanjiShell } from './banji-shell';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 const applyDisplayViewMode = vi.fn();
 const markUnlockedNavItemSeen = vi.fn(async () => {});
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}${location.hash}`}</div>;
+}
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -281,6 +287,48 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
+  });
+
+  test('returns from settings to the originating app route', async () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/catalog?q=scarf&view=skus']}>
+        <NavigationHistoryProvider>
+          <BanjiShell>
+            <Routes>
+              <Route
+                element={(
+                  <div>
+                    Catalog screen
+                    <LocationProbe />
+                  </div>
+                )}
+                path="/catalog"
+              />
+              <Route element={<div>Settings screen</div>} path="/settings/*" />
+            </Routes>
+          </BanjiShell>
+        </NavigationHistoryProvider>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog?q=scarf&view=skus');
+
+    fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Settings screen')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Back to app' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
+    });
+
+    fireEvent.click(screen.getByRole('link', { name: 'Back to app' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+      expect(screen.getByTestId('location')).toHaveTextContent('/catalog?q=scarf&view=skus');
+    });
   });
 
   test('keeps archived catalog in the app rail', () => {

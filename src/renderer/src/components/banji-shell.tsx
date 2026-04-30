@@ -44,7 +44,7 @@ import {
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { SIDEBAR_NAVIGATION_SOURCE } from '@/state/navigation-history';
+import { buildBanjiNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
 import { ActionRefreshIcon } from '@icons/actions';
@@ -159,6 +159,7 @@ const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
 
 function SidebarSectionMenu({
   language,
+  location,
   sections,
   pathname,
   showSidebarText,
@@ -167,6 +168,7 @@ function SidebarSectionMenu({
   t,
 }: {
   language: 'en' | 'km';
+  location: ReturnType<typeof useLocation>;
   sections: ShellSectionConfig[];
   pathname: string;
   showSidebarText: boolean;
@@ -181,6 +183,12 @@ function SidebarSectionMenu({
         const newLabel = translateUiLiteral(language, 'New!');
         const isActive = section.matches(pathname);
         const isNew = isSectionNew(section);
+        const state = section.id === 'settings'
+          ? {
+            ...buildBanjiNavigationState(location),
+            banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+          }
+          : { banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE };
 
         return (
           <SidebarMenuItem key={section.destination} className="group/menu-item">
@@ -196,7 +204,7 @@ function SidebarSectionMenu({
               <NavLink
                 aria-label={label}
                 className="group-data-[collapsible=icon]:justify-center"
-                state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                state={state}
                 to={buildRememberedPageHref(section.destination)}
                 onClick={onNavigate}
               >
@@ -297,6 +305,9 @@ function SettingsBackToAppMenuItem({
   onNavigate: () => void;
 }) {
   const label = translateUiLiteral(language, 'Back to app');
+  const { canGoBack, goBack, previousLocation } = useNavigationHistory();
+  const fallbackHref = buildRememberedPageHref('/');
+  const href = previousLocation ?? fallbackHref;
 
   return (
     <SidebarMenuButton
@@ -308,8 +319,16 @@ function SettingsBackToAppMenuItem({
         aria-label={label}
         className="group-data-[collapsible=icon]:justify-center"
         state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
-        to={buildRememberedPageHref('/')}
-        onClick={onNavigate}
+        to={href}
+        onClick={(event) => {
+          onNavigate();
+          if (!canGoBack) {
+            return;
+          }
+
+          event.preventDefault();
+          goBack();
+        }}
       >
         <NavigationBackIcon className="size-4" />
         {showSidebarText ? <span>{label}</span> : null}
@@ -489,6 +508,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <SidebarSectionMenu
+                      location={location}
                       pathname={location.pathname}
                       sections={visibleAppSections}
                       language={language}
@@ -539,7 +559,10 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                       <NavLink
                         aria-label={t(SETTINGS_SECTION.labelKey)}
                         className="group-data-[collapsible=icon]:justify-center"
-                        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                        state={{
+                          ...buildBanjiNavigationState(location),
+                          banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+                        }}
                         to={buildRememberedPageHref(SETTINGS_SECTION.destination)}
                         onClick={handleSidebarNavigation}
                       >
