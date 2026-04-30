@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -227,6 +227,24 @@ describe('catalog item action sheets', () => {
     expect(screen.getByRole('menuitem', { name: 'Updated Price' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Leave detail page?');
+    expect(dialog).toHaveTextContent('This will leave the detail page and open a targeted capture session.');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Delete draft and start new' })).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Continue to capture' })).toHaveAttribute(
+      'data-variant',
+      'default',
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog/skus/sku-1');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/catalog/skus/sku-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Continue to capture' }));
     expect(screen.getByTestId('location')).toHaveTextContent(
       '/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new',
     );
@@ -274,9 +292,21 @@ describe('catalog item action sheets', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete saved draft?');
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Delete saved draft?');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete draft and start new' })).toHaveAttribute(
+      'data-variant',
+      'destructive-outline',
+    );
+    expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toHaveAttribute('data-variant', 'default');
+    expect(within(dialog).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Delete draft and start new',
+      'Cancel',
+      'Resume draft',
+    ]);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Resume draft' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resume draft' }));
     expect(window.localStorage.getItem('banji:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
     expect(screen.getByTestId('location')).toHaveTextContent('/work/capture/supplier-order');
   });

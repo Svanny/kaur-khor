@@ -2998,10 +2998,14 @@ const exactValueTranslations: Record<string, string> = {
   'Keep draft': 'រក្សាសេចក្តីព្រាង',
   'Delete draft and start new': 'លុបសេចក្តីព្រាង ហើយចាប់ផ្តើមថ្មី',
   'Resume draft': 'បន្តសេចក្តីព្រាង',
+  'Continue to capture': 'បន្តទៅការកត់ត្រា',
   'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.':
     'លំហូរកត់ត្រានេះមានសេចក្តីព្រាងដែលបានរក្សាទុក។ បន្តសេចក្តីព្រាងដើម្បីរក្សាវា ឬលុបវាមុនចាប់ផ្តើមការកត់ត្រាគោលដៅនេះ។',
+  'This will leave the detail page and open a targeted capture session.':
+    'វានឹងចាកចេញពីទំព័រលម្អិត ហើយបើកវគ្គកត់ត្រាគោលដៅ។',
   'Starting a new update will permanently delete the saved draft for this lane. Resume the draft instead if you want to keep it.':
     'ការចាប់ផ្តើមការអាប់ដេតថ្មី នឹងលុបសេចក្តីព្រាងដែលបានរក្សាទុកសម្រាប់ផ្លូវនេះជារៀងរហូត។ បន្តសេចក្តីព្រាងវិញ ប្រសិនបើអ្នកចង់រក្សាវាទុក។',
+  'Leave detail page?': 'ចាកចេញពីទំព័រលម្អិតឬ?',
   'Delete saved draft?': 'លុបសេចក្តីព្រាងដែលបានរក្សាទុក?',
   Changed: 'បានផ្លាស់ប្តូរ',
   Qty: 'ចំនួន',

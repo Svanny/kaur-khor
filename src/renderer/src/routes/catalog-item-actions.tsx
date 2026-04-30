@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
@@ -9,9 +9,7 @@ import {
 import {
   ActionAddBadgeIcon,
   ActionClipboardAddIcon,
-  ActionCloseIcon,
   ActionCreatePackageIcon,
-  ActionDeleteIcon,
   ActionEditIcon,
   ActionOpenExternalIcon,
   ActionReceiveInventoryIcon,
@@ -35,6 +33,7 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { SupplierBadge } from '@/components/system/supplier';
+import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import {
   derivedStdDaysDraft,
   LeadTimeVariabilityField,
@@ -140,29 +139,6 @@ export function buildLeadTimeHintFromInputs({
   };
 }
 
-interface ActionButtonProps {
-  children: ReactNode;
-  className?: string;
-  disabled?: boolean;
-  disabledReason?: string;
-  onClick?: () => void;
-  type?: 'button' | 'submit' | 'reset';
-  variant?: 'default' | 'outline' | 'ghost';
-}
-
-interface CaptureActionButtonProps {
-  action: CaptureSessionAction;
-  children: ReactNode;
-  className?: string;
-  disabled?: boolean;
-  disabledReason?: string;
-  icon: IconComponent;
-  menuItem?: boolean;
-  targetId: string;
-  targetType: CaptureSessionTargetType;
-  variant?: 'default' | 'outline' | 'ghost';
-}
-
 interface RecordCaptureAction {
   action: CaptureSessionAction;
   disabled?: boolean;
@@ -173,34 +149,7 @@ interface RecordCaptureAction {
   targetType: CaptureSessionTargetType;
 }
 
-function ActionButton({
-  children,
-  className,
-  disabled = false,
-  disabledReason,
-  onClick,
-  type = 'button',
-  variant = 'outline',
-}: ActionButtonProps) {
-  if (!disabled || !disabledReason) {
-    return (
-      <Button className={className} disabled={disabled} size="sm" type={type} variant={variant} onClick={onClick}>
-        {children}
-      </Button>
-    );
-  }
-
-  return (
-    <span
-      aria-disabled="true"
-      className={cn(buttonVariants({ size: 'sm', variant }), 'pointer-events-none opacity-50', className)}
-      role="button"
-      title={disabledReason}
-    >
-      {children}
-    </span>
-  );
-}
+type CaptureConfirmPrompt = 'saved-draft' | 'leave-page';
 
 function hasSavedCaptureDraft(draftStorageKey: string | null) {
   if (!draftStorageKey || typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
@@ -216,110 +165,36 @@ function removeSavedCaptureDraft(draftStorageKey: string | null) {
   window.localStorage.removeItem(draftStorageKey);
 }
 
-function CaptureActionButton({
-  action,
-  children,
-  className,
-  disabled = false,
-  disabledReason,
-  icon: Icon,
-  menuItem = false,
-  targetId,
-  targetType,
-  variant = 'outline',
-}: CaptureActionButtonProps) {
-  const navigate = useNavigate();
-  const { language } = usePreferences();
-  const [confirmDiscardDraftOpen, setConfirmDiscardDraftOpen] = useState(false);
-  const href = buildCaptureSessionHref({ action, targetId, targetType });
-  const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action));
-
-  function openCaptureSession({ deleteDraft }: { deleteDraft: boolean }) {
-    if (deleteDraft) {
-      removeSavedCaptureDraft(draftStorageKey);
-    }
-    setConfirmDiscardDraftOpen(false);
-    navigate(href);
-  }
-
-  function handleClick() {
-    if (disabled) {
-      return;
-    }
-    if (hasSavedCaptureDraft(draftStorageKey)) {
-      setConfirmDiscardDraftOpen(true);
-      return;
-    }
-    openCaptureSession({ deleteDraft: false });
-  }
-
+function CaptureConfirmDialog({
+  language,
+  open,
+  prompt,
+  onCancel,
+  onConfirm,
+  onDeleteDraft,
+}: {
+  language: AppLanguage;
+  open: boolean;
+  prompt: CaptureConfirmPrompt | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onDeleteDraft: () => void;
+}) {
+  const hasDraftConfirmPrompt = prompt === 'saved-draft';
   return (
-    <>
-      {menuItem ? (
-        <button
-          aria-disabled={disabled ? 'true' : undefined}
-          className={cn(
-            'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50',
-            className,
-          )}
-          disabled={disabled}
-          role="menuitem"
-          title={disabled ? disabledReason : undefined}
-          type="button"
-          onClick={handleClick}
-        >
-          <Icon className="size-4" />
-          {children}
-        </button>
-      ) : (
-        <ActionButton
-          className={className}
-          disabled={disabled}
-          disabledReason={disabledReason}
-          type="button"
-          variant={variant}
-          onClick={handleClick}
-        >
-          <Icon className="size-4" />
-          {children}
-        </ActionButton>
-      )}
-      {confirmDiscardDraftOpen ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
-          role="presentation"
-          onClick={() => setConfirmDiscardDraftOpen(false)}
-        >
-          <div
-            aria-modal="true"
-            className="w-full max-w-md rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">
-              {translateUiLiteral(language, 'Delete saved draft?')}
-            </p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, 'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.')}
-            </p>
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="ghost" onClick={() => setConfirmDiscardDraftOpen(false)}>
-                <ActionCloseIcon className="size-4" />
-                {translateUiLiteral(language, 'Cancel')}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => openCaptureSession({ deleteDraft: false })}>
-                <ActionReceiveInventoryIcon className="size-4" />
-                {translateUiLiteral(language, 'Resume draft')}
-              </Button>
-              <Button type="button" variant="destructive" onClick={() => openCaptureSession({ deleteDraft: true })}>
-                <ActionDeleteIcon className="size-4" />
-                {translateUiLiteral(language, 'Delete draft and start new')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
+    <ConfirmActionDialog
+      cancelLabel={translateUiLiteral(language, 'Cancel')}
+      confirmIcon={hasDraftConfirmPrompt ? <ActionReceiveInventoryIcon /> : <ActionClipboardAddIcon />}
+      confirmLabel={translateUiLiteral(language, hasDraftConfirmPrompt ? 'Resume draft' : 'Continue to capture')}
+      confirmVariant="default"
+      destructiveActionLabel={hasDraftConfirmPrompt ? translateUiLiteral(language, 'Delete draft and start new') : undefined}
+      description={translateUiLiteral(language, hasDraftConfirmPrompt ? 'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.' : 'This will leave the detail page and open a targeted capture session.')}
+      open={open}
+      title={translateUiLiteral(language, hasDraftConfirmPrompt ? 'Delete saved draft?' : 'Leave detail page?')}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      onDestructiveAction={hasDraftConfirmPrompt ? onDeleteDraft : undefined}
+    />
   );
 }
 
@@ -332,40 +207,86 @@ function RecordCaptureActionMenu({
   className?: string;
   language: AppLanguage;
 }) {
+  const navigate = useNavigate();
+  const [confirmPrompt, setConfirmPrompt] = useState<CaptureConfirmPrompt | null>(null);
+  const [pendingAction, setPendingAction] = useState<RecordCaptureAction | null>(null);
+
+  function requestCaptureSession(action: RecordCaptureAction, closeMenu: () => void) {
+    if (action.disabled) {
+      return;
+    }
+    const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action.action));
+    setPendingAction(action);
+    setConfirmPrompt(hasSavedCaptureDraft(draftStorageKey) ? 'saved-draft' : 'leave-page');
+    closeMenu();
+  }
+
+  function openPendingCaptureSession({ deleteDraft }: { deleteDraft: boolean }) {
+    if (!pendingAction) {
+      setConfirmPrompt(null);
+      return;
+    }
+    const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(pendingAction.action));
+    if (deleteDraft) {
+      removeSavedCaptureDraft(draftStorageKey);
+    }
+    setConfirmPrompt(null);
+    setPendingAction(null);
+    navigate(buildCaptureSessionHref({
+      action: pendingAction.action,
+      targetId: pendingAction.targetId,
+      targetType: pendingAction.targetType,
+    }));
+  }
+
   return (
-    <AnchoredMenu
-      align="left"
-      className="w-64 p-1"
-      label={translateUiLiteral(language, 'Record')}
-      triggerClassName={className}
-      triggerIcon={
-        <span className="inline-flex items-center gap-2">
-          <ActionClipboardAddIcon className="size-4" />
-          {translateUiLiteral(language, 'Record')}
-          <NavigationExpandIcon className="size-4" />
-        </span>
-      }
-      triggerSize="sm"
-    >
-      {() => (
-        <div className="grid gap-1">
-          {actions.map((action) => (
-            <CaptureActionButton
-              key={`${action.action}:${action.targetType}:${action.targetId}`}
-              action={action.action}
-              disabled={action.disabled}
-              disabledReason={action.disabledReason}
-              icon={action.icon}
-              menuItem
-              targetId={action.targetId}
-              targetType={action.targetType}
-            >
-              {action.label}
-            </CaptureActionButton>
-          ))}
-        </div>
-      )}
-    </AnchoredMenu>
+    <>
+      <AnchoredMenu
+        align="left"
+        className="w-64 p-1"
+        label={translateUiLiteral(language, 'Record')}
+        triggerClassName={className}
+        triggerIcon={
+          <span className="inline-flex items-center gap-2">
+            <ActionClipboardAddIcon className="size-4" />
+            {translateUiLiteral(language, 'Record')}
+            <NavigationExpandIcon className="size-4" />
+          </span>
+        }
+        triggerSize="sm"
+      >
+        {(closeMenu) => (
+          <div className="grid gap-1">
+            {actions.map((action) => {
+              const Icon = action.icon;
+              return (
+                <button
+                  key={`${action.action}:${action.targetType}:${action.targetId}`}
+                  aria-disabled={action.disabled ? 'true' : undefined}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+                  disabled={action.disabled}
+                  role="menuitem"
+                  title={action.disabled ? action.disabledReason : undefined}
+                  type="button"
+                  onClick={() => requestCaptureSession(action, closeMenu)}
+                >
+                  <Icon className="size-4" />
+                  {action.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </AnchoredMenu>
+      <CaptureConfirmDialog
+        language={language}
+        open={confirmPrompt != null}
+        prompt={confirmPrompt}
+        onCancel={() => setConfirmPrompt(null)}
+        onConfirm={() => openPendingCaptureSession({ deleteDraft: false })}
+        onDeleteDraft={() => openPendingCaptureSession({ deleteDraft: true })}
+      />
+    </>
   );
 }
 
