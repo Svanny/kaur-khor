@@ -487,6 +487,26 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
   });
 
+  test('blocks edit save when service price draft is negative', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        services: [{ ...sampleCatalog.services[0], price: -24 }],
+      },
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
   test('accepts KHR price input while saving USD internally', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     preferencesHook.mockReturnValue({

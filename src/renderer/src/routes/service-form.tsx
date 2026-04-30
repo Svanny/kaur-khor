@@ -56,6 +56,22 @@ function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdTo
   return String(displayMoneyFromUsd(amount, currency, usdToKhrExchangeRate));
 }
 
+function parseNonNegativeMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!/^\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^\d+(?:\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+  const displayValue = parseEditableNumberWithCommas(trimmed);
+  if (!Number.isFinite(displayValue) || displayValue < 0) {
+    return null;
+  }
+  const usdValue = usdMoneyFromDisplay(displayValue, currency, usdToKhrExchangeRate);
+  return Number.isFinite(usdValue) && usdValue >= 0 ? usdValue : null;
+}
+
 function getSkuSearchScore(sku: { skuId: string; name: string; description: string }, query: string) {
   const normalizedQuery = normalizeSearchValue(query);
   if (!normalizedQuery) {
@@ -282,13 +298,18 @@ export function ServiceFormRoute() {
   const baselineServicePriceDraft = editing
     ? moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate)
     : '';
+  const parsedServicePriceDraft = parseNonNegativeMoneyDraft(servicePriceDraft, currency, usdToKhrExchangeRate);
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
     servicePriceDraft !== baselineServicePriceDraft ||
     JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...localSavedSkuIds].sort());
   const serviceValidationErrors = {
     name: !form.name.trim() ? t('catalogServiceEditorNameRequired') : null,
-    price: !servicePriceDraft.trim() ? t('catalogServiceEditorPriceRequired') : null,
+    price: !servicePriceDraft.trim()
+      ? t('catalogServiceEditorPriceRequired')
+      : parsedServicePriceDraft == null
+        ? 'Enter a non-negative finite service price before saving.'
+        : null,
   };
   const hasServiceValidationErrors = Object.values(serviceValidationErrors).some(Boolean);
   const visibleServiceValidationErrors = saveAttempted ? serviceValidationErrors : {

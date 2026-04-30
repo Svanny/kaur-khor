@@ -68,6 +68,22 @@ function parseOptionalNumber(value: string) {
   return value.trim() ? parseEditableNumberWithCommas(value) : null;
 }
 
+function parseNonNegativeMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!/^\d{1,3}(?:,\d{3})*(?:\.\d+)?$|^\d+(?:\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+  const displayValue = parseEditableNumberWithCommas(trimmed);
+  if (!Number.isFinite(displayValue) || displayValue < 0) {
+    return null;
+  }
+  const usdValue = usdMoneyFromDisplay(displayValue, currency, usdToKhrExchangeRate);
+  return Number.isFinite(usdValue) && usdValue >= 0 ? usdValue : null;
+}
+
 function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
   if (amount == null) {
     return '';
@@ -186,10 +202,22 @@ export function SkuFormRoute() {
   const baselineCostPerUnitDraft = editing
     ? moneyDraftFromUsd(normalizedBaseline.costPerUnit, currency, usdToKhrExchangeRate)
     : '';
+  const parsedCostPerUnitDraft = parseNonNegativeMoneyDraft(costPerUnitDraft, currency, usdToKhrExchangeRate);
+  const parsedProductPriceDraft = productPriceDraft.trim()
+    ? parseNonNegativeMoneyDraft(productPriceDraft, currency, usdToKhrExchangeRate)
+    : null;
   const skuValidationErrors = {
     name: !form.name.trim() ? t('catalogSkuEditorNameRequired') : null,
     supplier: !form.supplierName?.trim() ? t('catalogSkuEditorSupplierRequired') : null,
-    costPerUnit: !costPerUnitDraft.trim() ? t('catalogSkuEditorCostRequired') : null,
+    costPerUnit: !costPerUnitDraft.trim()
+      ? t('catalogSkuEditorCostRequired')
+      : parsedCostPerUnitDraft == null
+        ? 'Enter a non-negative finite cost before saving.'
+        : null,
+    productPrice:
+      form.soldAsProduct && productPriceDraft.trim() && parsedProductPriceDraft == null
+        ? 'Enter a non-negative finite selling price before saving.'
+        : null,
     leadTimeMeanDays: form.leadTimeMeanDaysHint == null ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
     leadTimeUncertainty:
       !leadTimeStdDaysDraft.trim() && !leadTimeVariability

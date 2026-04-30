@@ -859,6 +859,44 @@ describe('SkuFormRoute', () => {
     expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(1);
   });
 
+  test('blocks edit save when SKU cost draft is negative', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        skus: [{ ...sampleCatalog.skus[0], costPerUnit: -4 }],
+      },
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
+  test('blocks edit save when SKU product price draft is negative', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        skus: [{ ...sampleCatalog.skus[0], productPrice: -9 }],
+      },
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
   test('formats commercial number drafts with commas while saving numeric values', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({

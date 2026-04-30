@@ -350,6 +350,27 @@ function parseMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchang
   return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
 }
 
+function parseNonNegativeNumberDraft(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function parseNonNegativeMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
+  const displayValue = parseNonNegativeNumberDraft(value);
+  if (displayValue == null) {
+    return null;
+  }
+  const usdValue = usdMoneyFromDisplay(displayValue, currency, usdToKhrExchangeRate);
+  return Number.isFinite(usdValue) && usdValue >= 0 ? usdValue : null;
+}
+
 function useControllableMode<TMode extends string>(
   controlledMode: TMode | null | undefined,
   onModeChange: ((mode: TMode | null) => void) | undefined,
@@ -517,6 +538,29 @@ export function SkuMutationActions({
       return false;
     }
 
+    const parsedUnitsInStock = parseNonNegativeNumberDraft(unitsInStock);
+    const parsedCostPerUnit = parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate);
+    const parsedProductPrice = productPrice.trim()
+      ? parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate)
+      : null;
+    const parsedApproximateOrderQuantity = parseNonNegativeNumberDraft(approximateOrderQuantity);
+    const parsedApproximateReceiptQuantity = parseNonNegativeNumberDraft(approximateReceiptQuantity);
+    if (
+      (modeValue === 'stock' &&
+        (parsedUnitsInStock == null ||
+          parsedCostPerUnit == null ||
+          (actionContext.soldAsProduct && productPrice.trim() && parsedProductPrice == null))) ||
+      (modeValue === 'order' && parsedApproximateOrderQuantity == null) ||
+      (modeValue === 'receipt' &&
+        (parsedUnitsInStock == null ||
+          parsedApproximateReceiptQuantity == null ||
+          (costPerUnit.trim() && parsedCostPerUnit == null))) ||
+      (modeValue === 'price' && (!actionContext.soldAsProduct || parsedProductPrice == null))
+    ) {
+      setError('Enter non-negative finite quantities and prices before saving.');
+      return false;
+    }
+
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
@@ -525,9 +569,9 @@ export function SkuMutationActions({
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
-          unitsInStock: Number(unitsInStock),
-          costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
-          productPrice: actionContext.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
+          unitsInStock: parsedUnitsInStock!,
+          costPerUnit: parsedCostPerUnit!,
+          productPrice: actionContext.soldAsProduct && parsedProductPrice != null ? parsedProductPrice : null,
         },
       ];
     }
@@ -538,7 +582,7 @@ export function SkuMutationActions({
           skuId,
           orderPlaced: true,
           receiptArrived: false,
-          approximateOrderQuantity: Number(approximateOrderQuantity),
+          approximateOrderQuantity: parsedApproximateOrderQuantity!,
           approximateReceiptQuantity: null,
         },
       ];
@@ -557,8 +601,8 @@ export function SkuMutationActions({
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
-          unitsInStock: Number(unitsInStock),
-          costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actionContext.costPerUnit,
+          unitsInStock: parsedUnitsInStock!,
+          costPerUnit: parsedCostPerUnit ?? actionContext.costPerUnit,
         },
       ];
       senaPayload.orderSignals = [
@@ -567,13 +611,13 @@ export function SkuMutationActions({
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
-          approximateReceiptQuantity: Number(approximateReceiptQuantity),
+          approximateReceiptQuantity: parsedApproximateReceiptQuantity!,
         },
       ];
     }
 
     if (modeValue === 'price') {
-      senaPayload.retailPrices = [{ skuId, price: parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) }];
+      senaPayload.retailPrices = [{ skuId, price: parsedProductPrice! }];
     }
 
     try {
@@ -597,10 +641,19 @@ export function SkuMutationActions({
     isSaving ||
     mode == null ||
     !observedAt ||
-    (mode === 'stock' && (!unitsInStock || !costPerUnit)) ||
-    (mode === 'order' && !approximateOrderQuantity) ||
-    (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
-    (mode === 'price' && (!actionContext.soldAsProduct || !productPrice));
+    (mode === 'stock' &&
+      (parseNonNegativeNumberDraft(unitsInStock) == null ||
+        parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) == null ||
+        (actionContext.soldAsProduct &&
+          productPrice.trim() &&
+          parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate) == null))) ||
+    (mode === 'order' && parseNonNegativeNumberDraft(approximateOrderQuantity) == null) ||
+    (mode === 'receipt' &&
+      (parseNonNegativeNumberDraft(approximateReceiptQuantity) == null ||
+        parseNonNegativeNumberDraft(unitsInStock) == null ||
+        (costPerUnit.trim() && parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) == null))) ||
+    (mode === 'price' &&
+      (!actionContext.soldAsProduct || parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate) == null));
   const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
   const hasUnsavedSheetChanges =
     mode != null &&
@@ -1012,6 +1065,28 @@ export function ServiceMutationActions({
       return false;
     }
 
+    const parsedUnitsInStock = parseNonNegativeNumberDraft(unitsInStock);
+    const parsedCostPerUnit = parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate);
+    const parsedProductPrice = productPrice.trim()
+      ? parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate)
+      : null;
+    const parsedApproximateReceiptQuantity = parseNonNegativeNumberDraft(approximateReceiptQuantity);
+    const parsedServicePrice = parseNonNegativeMoneyDraft(servicePrice, currency, usdToKhrExchangeRate);
+    if (
+      (modeValue === 'stock' &&
+        (parsedUnitsInStock == null ||
+          parsedCostPerUnit == null ||
+          (actions.bottleneckSku?.soldAsProduct && productPrice.trim() && parsedProductPrice == null))) ||
+      (modeValue === 'receipt' &&
+        (parsedUnitsInStock == null ||
+          parsedApproximateReceiptQuantity == null ||
+          (costPerUnit.trim() && parsedCostPerUnit == null))) ||
+      (modeValue === 'price' && parsedServicePrice == null)
+    ) {
+      setError('Enter non-negative finite quantities and prices before saving.');
+      return false;
+    }
+
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
@@ -1024,10 +1099,10 @@ export function ServiceMutationActions({
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
-          unitsInStock: Number(unitsInStock),
-          costPerUnit: parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate),
+          unitsInStock: parsedUnitsInStock!,
+          costPerUnit: parsedCostPerUnit!,
           productPrice:
-            actions.bottleneckSku.soldAsProduct && productPrice !== '' ? parseMoneyDraft(productPrice, currency, usdToKhrExchangeRate) : null,
+            actions.bottleneckSku.soldAsProduct && parsedProductPrice != null ? parsedProductPrice : null,
         },
       ];
     }
@@ -1040,8 +1115,8 @@ export function ServiceMutationActions({
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
-          unitsInStock: Number(unitsInStock),
-          costPerUnit: costPerUnit ? parseMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) : actions.bottleneckSku.costPerUnit,
+          unitsInStock: parsedUnitsInStock!,
+          costPerUnit: parsedCostPerUnit ?? actions.bottleneckSku.costPerUnit,
         },
       ];
       senaPayload.orderSignals = [
@@ -1050,13 +1125,13 @@ export function ServiceMutationActions({
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
-          approximateReceiptQuantity: Number(approximateReceiptQuantity),
+          approximateReceiptQuantity: parsedApproximateReceiptQuantity!,
         },
       ];
     }
 
     if (modeValue === 'price') {
-      senaPayload.servicePrices = [{ serviceId: actions.servicePrice.serviceId, price: parseMoneyDraft(servicePrice, currency, usdToKhrExchangeRate) }];
+      senaPayload.servicePrices = [{ serviceId: actions.servicePrice.serviceId, price: parsedServicePrice! }];
     }
 
     try {
@@ -1082,9 +1157,17 @@ export function ServiceMutationActions({
     mode == null ||
     !observedAt ||
     ((mode === 'stock' || mode === 'receipt') && bottleneckUnavailable) ||
-    (mode === 'stock' && (!unitsInStock || !costPerUnit)) ||
-    (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
-    (mode === 'price' && !servicePrice);
+    (mode === 'stock' &&
+      (parseNonNegativeNumberDraft(unitsInStock) == null ||
+        parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) == null ||
+        (actions.bottleneckSku?.soldAsProduct &&
+          productPrice.trim() &&
+          parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate) == null))) ||
+    (mode === 'receipt' &&
+      (parseNonNegativeNumberDraft(approximateReceiptQuantity) == null ||
+        parseNonNegativeNumberDraft(unitsInStock) == null ||
+        (costPerUnit.trim() && parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) == null))) ||
+    (mode === 'price' && parseNonNegativeMoneyDraft(servicePrice, currency, usdToKhrExchangeRate) == null);
   const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
   const hasUnsavedSheetChanges =
     mode != null &&

@@ -26,6 +26,26 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 describe('catalog item action sheets', () => {
+  const skuActionContext = {
+    currentStock: 12,
+    costPerUnit: 4,
+    leadTimeVariability: null,
+    latestObservationAt: '2026-04-02T00:00:00Z',
+    productPrice: 9,
+    recommendedOrderQuantity: 6,
+    reorderRecommendation: {
+      compactLabel: 'Order 6',
+      likelyRangeLabel: 'Likely range 5-7',
+      needProbabilityLabel: '91% need probability',
+      optionalOrderLabel: null,
+      quietLabel: 'Quiet',
+      recommendationIssued: true,
+      recommendedOrderLabel: 'Order 6',
+      recommendedUnits: 6,
+    },
+    soldAsProduct: true,
+  } as const;
+
   beforeEach(() => {
     window.localStorage.clear();
     inventoryHook.mockReturnValue({
@@ -143,6 +163,122 @@ describe('catalog item action sheets', () => {
     await waitFor(() => {
       expect(handleModeChange).toHaveBeenCalledWith(null);
     });
+  });
+
+  test('blocks invalid SKU stock quantities and prices before submit', () => {
+    const ingestSenaObservation = vi.fn();
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="stock"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Units in stock' }), { target: { value: '.' } });
+
+    const saveButton = screen.getByRole('button', { name: 'Save and refresh' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('blocks invalid SKU order quantities before submit', () => {
+    const ingestSenaObservation = vi.fn();
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="order"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Approximate order quantity' }), { target: { value: '.' } });
+
+    const saveButton = screen.getByRole('button', { name: 'Save and refresh' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('blocks invalid SKU receipt quantities before submit', () => {
+    const ingestSenaObservation = vi.fn();
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="receipt"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Approximate receipt quantity' }), { target: { value: '.' } });
+
+    const saveButton = screen.getByRole('button', { name: 'Save and refresh' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('blocks invalid SKU price updates before submit', () => {
+    const ingestSenaObservation = vi.fn();
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      isSaving: false,
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="price"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Product price' }), { target: { value: '.' } });
+
+    const saveButton = screen.getByRole('button', { name: 'Save and refresh' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
   test('opens the controlled service sheet and clears mode on close', async () => {
