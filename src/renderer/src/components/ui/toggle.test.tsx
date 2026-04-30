@@ -11,6 +11,17 @@ describe('Toggle', () => {
 
     expect(screen.getByRole('button', { name: 'Standalone toggle' }).className).toContain(pillHoverClassName);
   });
+
+  test('uses a white selected pill surface', () => {
+    render(
+      <Toggle aria-label="Standalone toggle" pressed>
+        Standalone
+      </Toggle>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Standalone toggle' }).className).toContain('aria-pressed:bg-white');
+    expect(screen.getByRole('button', { name: 'Standalone toggle' }).className).toContain('aria-pressed:hover:bg-white');
+  });
 });
 
 describe('ToggleGroupItem', () => {
@@ -25,6 +36,20 @@ describe('ToggleGroupItem', () => {
     );
 
     expect(screen.getByRole('radio', { name: 'All' }).className).toContain(pillHoverClassName);
+  });
+
+  test('uses a white selected pill surface', () => {
+    render(
+      <ToggleGroup aria-label="Scope" type="single" value="all">
+        <ToggleGroupItem value="all">
+          <EntityLayersIcon data-icon="inline-start" />
+          All
+        </ToggleGroupItem>
+      </ToggleGroup>,
+    );
+
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('data-[state=on]:bg-white');
+    expect(screen.getByRole('radio', { name: 'All' }).className).toContain('data-[state=on]:hover:bg-white');
   });
 
   test('renders inline icons for visible-label toggle pills', () => {
