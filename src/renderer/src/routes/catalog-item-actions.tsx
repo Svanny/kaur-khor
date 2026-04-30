@@ -15,7 +15,7 @@ import {
   ActionSaveIcon,
 } from '@icons/actions';
 import { EntityTagsIcon } from '@icons/entities';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import {
@@ -33,7 +33,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import { SupplierBadge } from '@/components/system/supplier';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
@@ -137,8 +136,6 @@ function ActionButton({
   type = 'button',
   variant = 'outline',
 }: ActionButtonProps) {
-  const [tooltipOpen, setTooltipOpen] = useState(false);
-
   if (!disabled || !disabledReason) {
     return (
       <Button className={className} disabled={disabled} size="sm" type={type} variant={variant} onClick={onClick}>
@@ -148,39 +145,14 @@ function ActionButton({
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip open={tooltipOpen}>
-        <TooltipTrigger asChild>
-          <span
-            aria-label={disabledReason}
-            className={cn('block', className)}
-            role="button"
-            tabIndex={0}
-            onBlur={() => setTooltipOpen(false)}
-            onClick={() => setTooltipOpen(true)}
-            onFocus={() => setTooltipOpen(true)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                setTooltipOpen(true);
-              }
-              if (event.key === 'Escape') {
-                setTooltipOpen(false);
-              }
-            }}
-            onMouseLeave={() => setTooltipOpen(false)}
-            onPointerEnter={() => setTooltipOpen(true)}
-          >
-            <Button className="pointer-events-none w-full justify-start" disabled size="sm" type={type} variant={variant}>
-              {children}
-            </Button>
-          </span>
-        </TooltipTrigger>
-        <TooltipContent side="left" sideOffset={8}>
-          {disabledReason}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <span
+      aria-disabled="true"
+      className={cn(buttonVariants({ size: 'sm', variant }), 'pointer-events-none opacity-50', className)}
+      role="button"
+      title={disabledReason}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -901,12 +873,16 @@ export function ServiceMutationActions({
       {showActionButtons ? (
         <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
           {showPrimarySkuButton ? (
-            <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'default'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link to={actions.primarySkuHref}>
-                <ActionOpenExternalIcon className="size-4" />
-                {translateUiLiteral(language, 'Open bottleneck SKU')}
-              </Link>
-            </Button>
+            <Link
+              className={cn(
+                buttonVariants({ size: 'sm', variant: layout === 'menu' ? 'ghost' : 'default' }),
+                layout === 'menu' ? 'w-full justify-start' : undefined,
+              )}
+              to={actions.primarySkuHref}
+            >
+              <ActionOpenExternalIcon className="size-4" />
+              {translateUiLiteral(language, 'Open bottleneck SKU')}
+            </Link>
           ) : null}
           <ActionButton
             className={layout === 'menu' ? 'w-full justify-start' : undefined}
@@ -935,12 +911,17 @@ export function ServiceMutationActions({
             {translateUiLiteral(language, 'Update price')}
           </ActionButton>
           {showEditButton ? (
-            <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to={actions.editServiceHref}>
-                <ActionEditIcon className="size-4" />
-                {translateUiLiteral(language, 'Edit service')}
-              </Link>
-            </Button>
+            <Link
+              className={cn(
+                buttonVariants({ size: 'sm', variant: layout === 'menu' ? 'ghost' : 'outline' }),
+                layout === 'menu' ? 'w-full justify-start' : undefined,
+              )}
+              state={buildBanjiNavigationState(location, '/catalog')}
+              to={actions.editServiceHref}
+            >
+              <ActionEditIcon className="size-4" />
+              {translateUiLiteral(language, 'Edit service')}
+            </Link>
           ) : null}
         </div>
       ) : null}

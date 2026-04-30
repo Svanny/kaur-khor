@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import { getRegimeIcon } from '@icons/domain';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import { translateRegimeLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
@@ -92,12 +92,14 @@ export function ServiceDetailRightRail({
             <p>{contributor.inboundLabel}</p>
             {contributor.restockGuidance ? <p>{contributor.restockGuidance}</p> : null}
           </div>
-          <Button asChild className="mt-4 w-full">
-            <Link state={buildBanjiNavigationState(location, '/catalog')} to={contributor.openSkuHref}>
-              <ActionOpenExternalIcon className="size-4" />
-              {t('catalogServiceOpenSkuDetailAction')}
-            </Link>
-          </Button>
+          <Link
+            className={`${buttonVariants()} mt-4 w-full`}
+            state={buildBanjiNavigationState(location, '/catalog')}
+            to={contributor.openSkuHref}
+          >
+            <ActionOpenExternalIcon className="size-4" />
+            {t('catalogServiceOpenSkuDetailAction')}
+          </Link>
         </RailBlock>
       ) : null}
 

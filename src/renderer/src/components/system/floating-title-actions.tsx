@@ -9,7 +9,7 @@ export function useFloatingTitleActions(enabled: boolean) {
   const [visible, setVisible] = useState(false);
 
   const anchorRef = useCallback((node: HTMLElement | null) => {
-    setAnchorElement(node);
+    setAnchorElement((current) => (current === node ? current : node));
   }, []);
 
   useEffect(() => {
@@ -19,20 +19,17 @@ export function useFloatingTitleActions(enabled: boolean) {
     }
 
     const updateVisibility = () => {
-      setVisible(anchorElement.getBoundingClientRect().bottom <= 0);
+      const nextVisible = anchorElement.getBoundingClientRect().bottom <= 0;
+      setVisible((current) => (current === nextVisible ? current : nextVisible));
     };
 
     updateVisibility();
     window.addEventListener('scroll', updateVisibility, { passive: true });
     window.addEventListener('resize', updateVisibility);
 
-    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateVisibility) : null;
-    resizeObserver?.observe(anchorElement);
-
     return () => {
       window.removeEventListener('scroll', updateVisibility);
       window.removeEventListener('resize', updateVisibility);
-      resizeObserver?.disconnect();
     };
   }, [anchorElement, enabled]);
 

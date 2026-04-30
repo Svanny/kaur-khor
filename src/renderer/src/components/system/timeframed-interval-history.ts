@@ -9,6 +9,7 @@ import {
   type ChartTimeframe,
 } from '@/components/system/chart-timeframe';
 import type { IntervalPageEnvelope } from '@/components/system/interval-history';
+import { traceRenderer } from '@/lib/trace';
 
 export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPageEnvelope<TDetail>>({
   fetchInitialPage,
@@ -25,6 +26,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   timeframe,
   timeframeBoundaryOverride,
   timeframeCacheKey,
+  traceScope = 'timeframed-interval-history',
 }: {
   fetchInitialPage: (limit?: number) => Promise<TPage | null>;
   fetchOlderPage: (beforeIntervalIndex: number, limit?: number) => Promise<TPage | null>;
@@ -40,6 +42,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   timeframe: ChartTimeframe;
   timeframeBoundaryOverride?: Date | null;
   timeframeCacheKey?: string;
+  traceScope?: string;
 }) {
   const [page, setPage] = useState<TPage | null>(initialPage);
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
@@ -65,6 +68,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
   const mergeDetailsRef = useRef(mergeDetails);
   const onPruneTransitionRef = useRef(onPruneTransition);
   const seedInitialPageRef = useRef(seedInitialPage);
+  const timeframeBoundaryOverrideTime = timeframeBoundaryOverride?.getTime() ?? null;
 
   useEffect(() => {
     fetchInitialPageRef.current = fetchInitialPage;
@@ -130,6 +134,12 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     targetCacheKey: string,
     targetBoundaryOverride?: Date | null,
   ) => {
+    traceRenderer(traceScope, 'hydrate start', {
+      requestId,
+      targetBoundaryOverride: targetBoundaryOverride?.toISOString() ?? null,
+      targetCacheKey,
+      targetTimeframe,
+    });
     const isCurrentRequest = () => hydrationRequestIdRef.current === requestId;
     const recentLimit = RECENT_TIMEFRAME_MIN_REPORTS;
     const initialLimit = targetCacheKey === 'Recent' ? recentLimit : INTERVAL_PAGE_SIZE;
@@ -143,10 +153,22 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
         ?? (seededPage !== undefined ? seededPage : await fetchInitialPageRef.current(recentLimit))
       : await fetchInitialPageRef.current(INTERVAL_PAGE_SIZE);
     if (!isCurrentRequest()) {
+      traceRenderer(traceScope, 'hydrate cancelled before initial page', {
+        requestId,
+        targetCacheKey,
+        targetTimeframe,
+      });
       return null;
     }
     timeframeCacheRef.current[targetCacheKey] = nextPage;
     setPage(nextPage);
+    traceRenderer(traceScope, 'hydrate initial page resolved', {
+      hasOlder: nextPage?.hasOlder ?? null,
+      loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
+      requestId,
+      targetCacheKey,
+      targetTimeframe,
+    });
 
     if (!nextPage) {
       setTimeframeHydrationProgress(null);
@@ -183,6 +205,11 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
             limit: INTERVAL_LOAD_BATCH_SIZE,
           });
           if (!isCurrentRequest()) {
+            traceRenderer(traceScope, 'hydrate cancelled during sequential batch', {
+              requestId,
+              targetCacheKey,
+              targetTimeframe,
+            });
             return null;
           }
           nextPage = nextBatch.page;
@@ -210,31 +237,65 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
             total: requestedBatchCount,
           });
         }
+        traceRenderer(traceScope, 'hydrate loading older batch', {
+          estimatedBatchCount,
+          loadedIntervalCount,
+          requestId,
+          requestedBatchCount,
+          targetCacheKey,
+          targetTimeframe,
+        });
         const nextBatch = await loadOlderBatch({
           currentPage: nextPage,
           limit: INTERVAL_LOAD_BATCH_SIZE * requestedBatchCount,
         });
         if (!isCurrentRequest()) {
+          traceRenderer(traceScope, 'hydrate cancelled during batch', {
+            requestId,
+            targetCacheKey,
+            targetTimeframe,
+          });
           return null;
         }
         nextPage = nextBatch.page;
-          timeframeCacheRef.current[targetCacheKey] = nextPage;
-          setPage(nextPage);
+        timeframeCacheRef.current[targetCacheKey] = nextPage;
+        setPage(nextPage);
       }
     }
 
     if (!isCurrentRequest()) {
+      traceRenderer(traceScope, 'hydrate cancelled before completion', {
+        requestId,
+        targetCacheKey,
+        targetTimeframe,
+      });
       return null;
     }
     setTimeframeHydrationProgress(null);
     setResolvedTimeframe(targetTimeframe);
     setResolvedTimeframeCacheKey(targetCacheKey);
+    traceRenderer(traceScope, 'hydrate complete', {
+      hasOlder: nextPage?.hasOlder ?? null,
+      loadedIntervalCount: getLoadedIntervalCountRef.current(nextPage),
+      requestId,
+      targetCacheKey,
+      targetTimeframe,
+    });
     return nextPage;
-  }, [hydrateTimeframeSequentially, initialPage, intervalCount, latestObservedAt, loadOlderBatch]);
+  }, [hydrateTimeframeSequentially, initialPage, intervalCount, latestObservedAt, loadOlderBatch, traceScope]);
 
   useEffect(() => {
     let active = true;
     const activeCacheKey = timeframeCacheKey ?? timeframe;
+    traceRenderer(traceScope, 'effect evaluate timeframe', {
+      activeCacheKey,
+      initialLatestIntervalIndex: initialPage?.latestIntervalIndex ?? null,
+      latestObservedAt,
+      previousTimeframe: previousTimeframeRef.current,
+      timeframe,
+      timeframeBoundaryOverride: timeframeBoundaryOverride?.toISOString() ?? null,
+      timeframeBoundaryOverrideTime,
+    });
 
     if (
       !timeframeBoundaryOverride &&
@@ -248,6 +309,12 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
       timeframeCacheRef.current = {
         Recent: timeframeCacheRef.current.Recent ?? initialPage,
       };
+      traceRenderer(traceScope, 'prune timeframe transition cache', {
+        activeCacheKey,
+        latestObservedAt,
+        previousTimeframe: previousTimeframeRef.current,
+        timeframe,
+      });
       setPage(null);
       setTimeframeHydrationProgress(null);
       setResolvedTimeframe(null);
@@ -270,6 +337,11 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
       })
       : false;
     if (cachedPage && cachedPageSatisfiesTimeframe) {
+      traceRenderer(traceScope, 'using cached timeframe page', {
+        activeCacheKey,
+        loadedIntervalCount: getLoadedIntervalCountRef.current(cachedPage),
+        timeframe,
+      });
       setIsHydratingDetails(false);
       setTimeframeHydrationProgress(null);
       setPage(cachedPage);
@@ -283,6 +355,12 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     setIsHydratingDetails(true);
     const requestId = hydrationRequestIdRef.current + 1;
     hydrationRequestIdRef.current = requestId;
+    traceRenderer(traceScope, 'queue hydrate request', {
+      activeCacheKey,
+      requestId,
+      timeframe,
+      timeframeBoundaryOverride: timeframeBoundaryOverride?.toISOString() ?? null,
+    });
     void hydrateTimeframe(timeframe, requestId, activeCacheKey, timeframeBoundaryOverride).finally(() => {
       if (active) {
         setIsHydratingDetails(false);
@@ -292,8 +370,14 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     return () => {
       active = false;
       hydrationRequestIdRef.current += 1;
+      traceRenderer(traceScope, 'cleanup hydrate request', {
+        activeCacheKey,
+        nextRequestId: hydrationRequestIdRef.current,
+        requestId,
+        timeframe,
+      });
     };
-  }, [hydrateTimeframe, initialPage, latestObservedAt, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
+  }, [hydrateTimeframe, initialPage, latestObservedAt, timeframe, timeframeBoundaryOverrideTime, timeframeCacheKey, traceScope]);
 
   const loadOlder = useCallback(async (limit = INTERVAL_LOAD_BATCH_SIZE) => {
     const currentPage = pageRef.current;
@@ -333,7 +417,7 @@ export function useTimeframedIntervalHistory<TDetail, TPage extends IntervalPage
     } finally {
       setIsHydratingDetails(false);
     }
-  }, [hydrateTimeframe, timeframe, timeframeBoundaryOverride, timeframeCacheKey]);
+  }, [hydrateTimeframe, timeframe, timeframeBoundaryOverrideTime, timeframeCacheKey]);
 
   return {
     detail: page?.detail ?? null,

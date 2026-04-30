@@ -14,6 +14,7 @@ import {
   type PersistedChartLayoutPreferences,
 } from '@/lib/chart-layout-preferences';
 import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
+import { traceRenderer } from '@/lib/trace';
 
 export type TradingChartHydrationProgress = { current: number; total: number } | null;
 const DEFAULT_CHART_BUSY_HOLD_MS = 450;
@@ -27,11 +28,11 @@ export function useHeldTradingChartBusy(isBusy: boolean, holdMs = DEFAULT_CHART_
 
   useEffect(() => {
     if (isBusy) {
-      setHeldBusy(true);
+      setHeldBusy((current) => (current ? current : true));
       return undefined;
     }
     const timer = window.setTimeout(() => {
-      setHeldBusy(false);
+      setHeldBusy((current) => (current ? false : current));
     }, holdMs);
     return () => window.clearTimeout(timer);
   }, [holdMs, isBusy]);
@@ -44,11 +45,13 @@ export function useTradingChartController({
   onTimeframeChange,
   subjectId,
   subtype,
+  traceScope = 'trading-chart-controller',
 }: {
   initialTimeframe?: ChartTimeframe;
   onTimeframeChange?: (timeframe: ChartTimeframe) => void;
   subjectId: string;
   subtype: ChartSettingsSubtype;
+  traceScope?: string;
 }) {
   const initialChartLayoutPreferences = useMemo(
     () => resolveEntityChartLayoutPreferences(subtype, subjectId),
@@ -81,6 +84,15 @@ export function useTradingChartController({
     const nextPreferences = initialTimeframe && initialChartLayoutPreferences.timeframe !== initialTimeframe
       ? { ...initialChartLayoutPreferences, timeframe: initialTimeframe }
       : initialChartLayoutPreferences;
+    traceRenderer(traceScope, 'reset subject preferences', {
+      chartResolution: nextPreferences.chartResolution,
+      customTimeframeRange: nextPreferences.customTimeframeRange,
+      initialTimeframe,
+      subjectId,
+      subtype,
+      timeframe: nextPreferences.timeframe,
+      visibleDateRange: nextPreferences.visibleDateRange,
+    });
     setChartLayoutPreferences(nextPreferences);
     setTimeframe(nextPreferences.timeframe);
     setCustomTimeframeRange(initialChartLayoutPreferences.customTimeframeRange);
@@ -93,7 +105,7 @@ export function useTradingChartController({
     setChartZoomResetToken(0);
     setOlderLoadProgress(null);
     setPendingTimeframe(null);
-  }, [initialChartLayoutPreferences]);
+  }, [initialChartLayoutPreferences, initialTimeframe, subjectId, subtype, traceScope]);
 
   useEffect(() => {
     if (!initialTimeframe || initialTimeframe === timeframe) {
@@ -114,6 +126,13 @@ export function useTradingChartController({
   }, [chartLayoutPreferences, subjectId, subtype]);
 
   const handleTimeframeChange = useCallback((nextTimeframe: ChartTimeframe) => {
+    traceRenderer(traceScope, 'timeframe change requested', {
+      currentTimeframe: timeframe,
+      customTimeframeRange,
+      nextTimeframe,
+      subjectId,
+      subtype,
+    });
     if (nextTimeframe === timeframe) {
       if (customTimeframeRange == null) {
         return;
@@ -136,9 +155,16 @@ export function useTradingChartController({
       visibleDateRange: null,
     }));
     setChartZoomResetToken((current) => current + 1);
-  }, [customTimeframeRange, onTimeframeChange, timeframe]);
+  }, [customTimeframeRange, onTimeframeChange, subjectId, subtype, timeframe, traceScope]);
 
   const handleCustomTimeframeChange = useCallback((nextRange: ChartCustomTimeframeRange | null) => {
+    traceRenderer(traceScope, 'custom timeframe change requested', {
+      currentCustomTimeframeRange: customTimeframeRange,
+      nextRange,
+      subjectId,
+      subtype,
+      timeframe,
+    });
     setOlderLoadProgress(null);
     if (nextRange) {
       setPendingCustomTimeframeRange(nextRange);
@@ -159,7 +185,7 @@ export function useTradingChartController({
       return;
     }
     setChartZoomResetToken((current) => current + 1);
-  }, [timeframe]);
+  }, [customTimeframeRange, subjectId, subtype, timeframe, traceScope]);
 
   const handleChartResolutionChange = useCallback((
     nextResolution: ChartResolutionOption,
@@ -179,8 +205,24 @@ export function useTradingChartController({
     next: Partial<PersistedChartLayoutPreferences>,
     options?: ChartLayoutPreferenceMergeOptions,
   ) => {
+    traceRenderer(traceScope, 'layout preference change requested', {
+      next,
+      options,
+      subjectId,
+      subtype,
+      timeframe,
+    });
     setChartLayoutPreferences((current) => {
       const { preferences, promotedCustomTimeframeRange } = mergeChartLayoutPreferencesWithViewportSync(current, next, timeframe, options);
+      traceRenderer(traceScope, 'layout preference merge result', {
+        changed: !chartLayoutPreferencesEqual(current, preferences),
+        currentCustomTimeframeRange: current.customTimeframeRange,
+        nextCustomTimeframeRange: preferences.customTimeframeRange,
+        promotedCustomTimeframeRange,
+        subjectId,
+        subtype,
+        timeframe,
+      });
       if (Object.prototype.hasOwnProperty.call(next, 'customTimeframeRange')) {
         setCustomTimeframeRange(preferences.customTimeframeRange);
         setCustomTimeframeRequiresHydration(preferences.customTimeframeRange != null);
@@ -201,7 +243,7 @@ export function useTradingChartController({
       }
       return chartLayoutPreferencesEqual(current, preferences) ? current : preferences;
     });
-  }, [timeframe]);
+  }, [subjectId, subtype, timeframe, traceScope]);
 
   const handleResetCharts = useCallback(async (resetHydratedDetails: () => Promise<unknown> | unknown) => {
     setOlderLoadProgress(null);
@@ -220,14 +262,29 @@ export function useTradingChartController({
     resolvedTimeframe?: ChartTimeframe | null;
     timeframeHydrationProgress: TradingChartHydrationProgress;
   }) => {
+    traceRenderer(traceScope, 'settle pending timeframe', {
+      customTimeframeHydrationStarted,
+      customTimeframeRange,
+      customTimeframeRequiresHydration,
+      isHydratingDetails,
+      pendingCustomTimeframeHydrationStarted,
+      pendingCustomTimeframeRange,
+      pendingTimeframe,
+      resolvedTimeframe,
+      resolvedTimeframeCacheKey,
+      subjectId,
+      subtype,
+      timeframe,
+      timeframeHydrationProgress,
+    });
     if (customTimeframeRequiresHydration && customTimeframeRange) {
       const hydrationCacheKey = customTimeframeCacheKey(customTimeframeRange);
       if (isHydratingDetails || timeframeHydrationProgress != null) {
-        setCustomTimeframeHydrationStarted(true);
+        setCustomTimeframeHydrationStarted((current) => (current ? current : true));
       } else if (customTimeframeHydrationStarted || resolvedTimeframeCacheKey === hydrationCacheKey) {
         const nextRange = customTimeframeRange;
-        setCustomTimeframeRequiresHydration(false);
-        setCustomTimeframeHydrationStarted(false);
+        setCustomTimeframeRequiresHydration((current) => (current ? false : current));
+        setCustomTimeframeHydrationStarted((current) => (current ? false : current));
         setChartLayoutPreferences((current) => ({
           ...current,
           customTimeframeRange: nextRange,
@@ -239,18 +296,18 @@ export function useTradingChartController({
     if (pendingCustomTimeframeRange) {
       const pendingCustomTimeframeCacheKey = customTimeframeCacheKey(pendingCustomTimeframeRange);
       if (isHydratingDetails || timeframeHydrationProgress != null) {
-        setPendingCustomTimeframeHydrationStarted(true);
+        setPendingCustomTimeframeHydrationStarted((current) => (current ? current : true));
       } else if (pendingCustomTimeframeHydrationStarted || resolvedTimeframeCacheKey === pendingCustomTimeframeCacheKey) {
         const nextRange = pendingCustomTimeframeRange;
         setCustomTimeframeRange(nextRange);
-        setCustomTimeframeRequiresHydration(false);
+        setCustomTimeframeRequiresHydration((current) => (current ? false : current));
         setChartLayoutPreferences((current) => ({
           ...current,
           customTimeframeRange: nextRange,
           visibleDateRange: nextRange,
         }));
         setPendingCustomTimeframeRange(null);
-        setPendingCustomTimeframeHydrationStarted(false);
+        setPendingCustomTimeframeHydrationStarted((current) => (current ? false : current));
         setChartZoomResetToken((current) => current + 1);
       }
     }
@@ -267,11 +324,18 @@ export function useTradingChartController({
     pendingCustomTimeframeHydrationStarted,
     pendingCustomTimeframeRange,
     pendingTimeframe,
+    subjectId,
+    subtype,
     timeframe,
+    traceScope,
   ]);
 
   const hydrationCustomTimeframeRange =
     pendingCustomTimeframeRange ?? (customTimeframeRequiresHydration ? customTimeframeRange : null);
+  const timeframeBoundaryOverride = useMemo(
+    () => hydrationCustomTimeframeRange ? new Date(hydrationCustomTimeframeRange.startAt) : undefined,
+    [hydrationCustomTimeframeRange?.startAt],
+  );
 
   return {
     chartLayoutPreferences,
@@ -290,7 +354,7 @@ export function useTradingChartController({
     setOlderLoadProgress,
     settlePendingTimeframe,
     timeframe,
-    timeframeBoundaryOverride: hydrationCustomTimeframeRange ? new Date(hydrationCustomTimeframeRange.startAt) : undefined,
+    timeframeBoundaryOverride,
     timeframeCacheKey: customTimeframeCacheKey(hydrationCustomTimeframeRange),
   };
 }

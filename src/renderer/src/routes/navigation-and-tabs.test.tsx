@@ -555,21 +555,22 @@ describe('SENA routes', () => {
       const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
       expect(serviceRow).not.toBeNull();
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      const serviceLogReceiptButton = screen.getByRole('button', { name: 'Log receipt' });
-      expect(serviceLogReceiptButton).toBeDisabled();
-      expect(screen.getByRole('button', { name: 'Record stock' })).toBeDisabled();
+      const serviceLogReceiptButton = screen.getByText('Log receipt').closest('[role="button"]');
+      const serviceRecordStockButton = screen.getByText('Record stock').closest('[role="button"]');
+      expect(serviceLogReceiptButton).toHaveAttribute('aria-disabled', 'true');
+      expect(serviceRecordStockButton).toHaveAttribute('aria-disabled', 'true');
     });
 
     await waitFor(() => {
       expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     });
 
-    const disabledLogReceiptButton = screen.getByRole('button', { name: 'Log receipt' });
-    fireEvent.click(disabledLogReceiptButton.parentElement as HTMLElement);
-
-    await waitFor(() => {
-      expect(screen.getByRole('tooltip', { name: 'No linked SKU is limiting this service right now.' })).toBeInTheDocument();
-    });
+    const disabledLogReceiptButton = screen.getByText('Log receipt').closest('[role="button"]');
+    expect(disabledLogReceiptButton).toHaveAttribute('title', 'No linked SKU is limiting this service right now.');
+    expect(screen.getByText('Record stock').closest('[role="button"]')).toHaveAttribute(
+      'title',
+      'No linked SKU is limiting this service right now.',
+    );
   });
 
   test('loads service detail actions lazily when the catalog menu opens', async () => {
@@ -664,6 +665,14 @@ describe('SENA routes', () => {
     expect(screen.getByText('Record stock')).toBeInTheDocument();
     expect(screen.getByText('Update price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
+  });
+
+  test('renders missing service detail without resetting selection in a loop', async () => {
+    renderWithProviders('/catalog/services/service-missing', <ServiceDetailRoute />, '/catalog/services/:serviceId');
+
+    await waitFor(() => {
+      expect(screen.getByText('Service not found')).toBeInTheDocument();
+    });
   });
 
   test('shows the shared service chart controls on the detail ledger', async () => {
@@ -786,7 +795,7 @@ describe('SENA routes', () => {
       expect(screen.getByText('Log receipt')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Log receipt' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Record stock' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Log receipt' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('button', { name: 'Record stock' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

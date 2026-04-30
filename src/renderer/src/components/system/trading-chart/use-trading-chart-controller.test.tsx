@@ -226,6 +226,33 @@ describe('useTradingChartController', () => {
     });
   });
 
+  it('keeps the custom timeframe boundary override stable across rerenders', async () => {
+    let latest: TradingChartController | null = null;
+    const range: ChartCustomTimeframeRange = {
+      startAt: '2026-02-01T00:00:00.000Z',
+      endAt: '2026-03-01T00:00:00.000Z',
+    };
+    writeEntityChartLayoutPreferences('service', 'service-1', makePreferences({
+      customTimeframeRange: range,
+      visibleDateRange: null,
+    }));
+    const Recorder = controllerRecorder({
+      onChange: (controller) => {
+        latest = controller;
+      },
+      subjectId: 'service-1',
+      subtype: 'service',
+    });
+    const { rerender } = render(<Recorder />);
+
+    const firstBoundary = latest?.timeframeBoundaryOverride;
+    expect(firstBoundary?.toISOString()).toBe(range.startAt);
+
+    rerender(<Recorder />);
+
+    expect(latest?.timeframeBoundaryOverride).toBe(firstBoundary);
+  });
+
   it('applies a selected custom range after hydration completes', async () => {
     let latest: TradingChartController | null = null;
     const range: ChartCustomTimeframeRange = {

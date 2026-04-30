@@ -320,4 +320,38 @@ describe('useTimeframedIntervalHistory', () => {
     await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('40'));
     expect(fetchOlderPage).toHaveBeenCalledWith(20, 20);
   });
+
+  test('does not restart hydration when an equivalent boundary date is recreated', async () => {
+    const fetchInitialPage = vi.fn(async () => makePage(20, 20, 20));
+    const fetchOlderPage = vi.fn(async () => makePage(0, 20, 0));
+
+    const { rerender } = render(
+      <Harness
+        fetchInitialPage={fetchInitialPage}
+        fetchOlderPage={fetchOlderPage}
+        intervalCount={60}
+        latestObservedAt="2026-03-21T00:00:00.000Z"
+        timeframe="MAX"
+        timeframeBoundaryOverride={new Date('2026-02-01T00:00:00.000Z')}
+        timeframeCacheKey="Custom:2026-02-01:2026-03-21"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('resolved-timeframe')).toHaveTextContent('MAX'));
+
+    rerender(
+      <Harness
+        fetchInitialPage={fetchInitialPage}
+        fetchOlderPage={fetchOlderPage}
+        intervalCount={60}
+        latestObservedAt="2026-03-21T00:00:00.000Z"
+        timeframe="MAX"
+        timeframeBoundaryOverride={new Date('2026-02-01T00:00:00.000Z')}
+        timeframeCacheKey="Custom:2026-02-01:2026-03-21"
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('resolved-timeframe')).toHaveTextContent('MAX'));
+    expect(fetchInitialPage).toHaveBeenCalledTimes(1);
+  });
 });

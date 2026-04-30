@@ -34,7 +34,7 @@ export function SkuPageHero({
                 <h1 className="truncate text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h1>
               </div>
             </div>
-            {actions ? (
+            {actions && !visible ? (
               <div className={`flex flex-wrap items-center justify-start gap-2 lg:justify-end ${headerActionSurfaceClassName}`}>
                 {actions}
               </div>
