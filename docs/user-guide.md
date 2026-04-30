@@ -108,6 +108,10 @@ Notes capture operator context that structured fields cannot express. They are u
 
 Observed at is the timestamp for when the real-world event happened. It can differ from the time you enter it. Use the actual event time when backfilling counts, receipts, or orders so timelines and analysis intervals stay accurate.
 
+Supplier expected-arrival and receipt dates are calendar dates. When you edit a
+legacy supplier order or receipt, banji keeps the selected calendar day stable
+instead of shifting it through UTC conversion.
+
 ### Ranking Details {#record-update-ranking-details}
 
 Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. Use it only when the ranking reflects what happened, not as a general preference list.
@@ -315,6 +319,10 @@ Insights is the entry point for operating signals. Its subpages are Pressure, Mo
 
 When a custom time range is active in Pressure, Money, or Explain-adjacent views, the range menu shows the custom range edit button. The edit button stays hidden while a preset range is active so opening the menu does not imply a custom range already exists.
 
+When compare mode is on, a custom range can also carry a manually selected
+previous period. Pressure and Money use that previous period for comparison
+instead of always auto-shifting by the current range length.
+
 ## Pressure
 
 Pressure is the operational urgency subpage. It compares demand, available capacity, supplier pipeline, timing, confidence, and price/margin context so operators can decide what needs attention now. Use Pressure for prioritization before editing records or placing supplier work.
@@ -474,6 +482,9 @@ Recent margin shifts show items whose profit behavior changed in the selected wi
 ### Telegram Attribution {#money-telegram-attribution}
 
 Telegram attribution shows money linked to automation-driven customer intake when that path is available. It helps separate manual sales from automation-assisted work. Use it to judge whether customer automation is producing useful revenue or just noise.
+
+When Money is filtered to a custom range, Telegram attribution uses the same
+custom date window as the rest of the Money view.
 
 ## Explain
 

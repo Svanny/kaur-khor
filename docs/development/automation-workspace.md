@@ -86,6 +86,9 @@ The transport layer is responsible for:
   enabled
 - storing conversation and wizard message references
 - sending customer notifications after ticket promotion or ticket-status changes
+- sending exposed SKU/service photos only from managed local assets under the
+  desktop `userData` asset root; arbitrary filesystem paths and URLs are not
+  valid Telegram photo payloads
 
 If you change the command surface or bot lifecycle, update this page and keep
 the connection-card UI and IPC contract aligned.

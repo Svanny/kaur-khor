@@ -108,6 +108,8 @@ Notes capture operator context that structured fields cannot express. They គ�
 
 Observed at គឺជា the timestamp for នៅពេល the real-world event happened. វា can differ from the time you enter it. Use the actual event time នៅពេល backfilling counts, receipts, or orders so timelines and analysis intervals stay accurate.
 
+កាលបរិច្ឆេទ expected-arrival និង receipt របស់ supplier គឺជា calendar dates។ នៅពេល edit legacy supplier order ឬ receipt, បញ្ជី រក្សា selected calendar day ឲ្យ stable ដោយមិន shift តាម UTC conversion។
+
 ### ព័ត៌មានលម្អិតលំដាប់ {#record-update-ranking-details}
 
 Ranking details explain an optional ordered list, such as top services or retail items. The order becomes evidence about relative demand or operator judgment. ប្រើវា only នៅពេល the ranking reflects what happened, not as a general preference list.
@@ -315,6 +317,8 @@ Insights គឺជា entry point សម្រាប់ operating signals។ Sub
 
 នៅពេល custom time range កំពុង active នៅក្នុង Pressure, Money, ឬ Explain-adjacent views, range menu បង្ហាញ custom range edit button។ Edit button លាក់នៅពេល preset range active ដើម្បីកុំឲ្យ menu បង្ហាញថាមាន custom range រួចហើយ។
 
+នៅពេល compare mode កំពុង on, custom range អាចមាន manually selected previous period ផងដែរ។ Pressure និង Money ប្រើ previous period នោះសម្រាប់ comparison ជំនួសការប្ដូរតាមប្រវែង current range ដោយស្វ័យប្រវត្តិ។
+
 ## Pressure
 
 Pressure គឺជា operational urgency subpage។ វាប្រៀបធៀប demand, available capacity, supplier pipeline, timing, confidence, និង price/margin context ដើម្បីជួយ operator សម្រេចថាអ្វីត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ។ ប្រើ Pressure សម្រាប់ prioritization មុន edit records ឬ place supplier work។
@@ -474,6 +478,8 @@ Recent margin shifts show items whose profit behavior changed in the selected wi
 ### ការភ្ជាប់ប្រភពតេឡេក្រាម {#money-telegram-attribution}
 
 Telegram attribution បង្ហាញ money linked to automation-driven customer intake នៅពេល that path គឺជា available. វា helps separate manual sales from automation-assisted work. ប្រើវា to judge whether customer automation គឺជា producing useful revenue or just noise.
+
+នៅពេល Money ត្រូវបាន filter ទៅ custom range, Telegram attribution ប្រើ custom date window ដូចគ្នានឹង Money view ផ្សេងៗ។
 
 ## Explain
 

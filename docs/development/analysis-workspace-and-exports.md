@@ -79,6 +79,12 @@ SENA checkpoints are stored as compressed payload files under
 `sena-checkpoints/`, with SQLite rows holding metadata such as codec, path, byte
 size, owner, algorithm version, and catalog fingerprint.
 
+Checkpoint payload paths read from SQLite are treated as untrusted local data.
+Before a checkpoint is read or deleted, the Rust repository canonicalizes the
+path and verifies that it remains under the active `sena-checkpoints/` root.
+Rows that point outside that root, including symlink escapes, are skipped rather
+than read or removed.
+
 ## Settings Surface
 
 The Settings route is the main contributor-facing screen for workspace-level maintenance. It currently combines:
@@ -137,6 +143,11 @@ The planning-data export collects a wider workspace snapshot:
 - latest run
 
 The Excel export writes one sheet per section. The CSV export writes title-delimited sections into one file. The JSON export emits a structured object with the raw payloads.
+
+CSV export cells that begin with spreadsheet formula prefixes (`=`, `+`, `-`,
+or `@`) are prefixed with a single quote before normal CSV quoting. This keeps
+operator-entered names, notes, and payload fields from being interpreted as
+formulas when opened in spreadsheet tools.
 
 ## Contributor Notes
 

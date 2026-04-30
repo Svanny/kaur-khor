@@ -160,10 +160,12 @@ Restore flow:
 1. The main process opens a file/directory chooser rooted at the backup directory.
 2. The selected snapshot must contain `snapshot-manifest.json`.
 3. The app stops the managed core before restoring files.
-4. A safety snapshot with the reason `before-restore` is created from the current workspace state.
-5. Current top-level workspace files/directories are deleted.
-6. Snapshot files are copied back into the active data directory.
-7. SENA read cache is invalidated.
+4. Restore file reads and copies start only after the managed core has stopped,
+   so SQLite files are not replaced while the runtime still has them open.
+5. A safety snapshot with the reason `before-restore` is created from the current workspace state.
+6. Current top-level workspace files/directories are deleted.
+7. Snapshot files are copied back into the active data directory.
+8. SENA read cache is invalidated.
 
 Clear-data flow:
 
@@ -209,6 +211,11 @@ header before normalization, and are rejected if they exceed 20 MB, 12000 px on
 either side, or 40 megapixels. WebP inputs are normalized to PNG before the final
 asset is written so renderer, local storage, and downstream upload behavior stay
 aligned.
+
+Downstream Telegram photo sends may only read image files that resolve under the
+managed `assets/` directory for the current `userData` root. Absolute paths,
+relative traversal, URLs, and symlink escapes outside that directory are rejected
+before the Telegram API client can read file bytes.
 
 The automation workspace uses the `DesktopAutomationBridge` contract from
 [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it

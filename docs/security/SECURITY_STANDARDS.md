@@ -17,6 +17,10 @@ This document defines the mandatory secure-by-default controls for the banji loc
   - rejection of control characters and bidi controls
   - bounded length limits
 - Text must be normalized before persistence.
+- Decimal and money fields must reject JavaScript-only numeric syntaxes such as
+  exponent and hexadecimal literals unless the UI explicitly models them.
+- CSV exports must neutralize spreadsheet formula-leading cells before writing
+  user-controlled values.
 - Source of truth: [`src/renderer/src/lib/validation.ts`](/Users/svanny/banji/src/renderer/src/lib/validation.ts)
 
 ### 2) Identifier Security
@@ -38,11 +42,16 @@ This document defines the mandatory secure-by-default controls for the banji loc
 - `nodeIntegration` must remain disabled.
 - Preload must expose a narrow `contextBridge` API instead of direct Node access in the renderer.
 - Renderer HTML must not load remote scripts.
+- Generated HTML artifacts opened from local tooling must not load remote
+  script or stylesheet origins.
 
 ### 5) Local Data and Future Extension Controls
 
 - Store any future secrets only in OS-backed secure storage.
 - Keep local backup/export behavior explicit and user-triggered.
+- Confine local file reads, deletes, and uploads to canonicalized approved
+  roots. Database-stored paths and renderer-supplied paths are untrusted until
+  checked against those roots.
 - Validate any future IPC or network boundary with explicit request/response schemas.
 - Treat remote content, sync, and remote code execution as opt-in additions, not default app behavior.
 
