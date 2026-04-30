@@ -67,6 +67,14 @@ Write behavior:
 
 - The first saved observation anchors a new workspace but does not trigger SENA
   analysis because the analysis engine requires at least two observations.
+- Observation update and delete mutations rebuild Record Update anchor rows in
+  the same SQLite transaction as the observation change. If anchor rebuild fails,
+  the observation mutation must roll back rather than leaving saved history and
+  hot anchor rows out of sync.
+- Order-batch create/update/split commands validate semantic payloads before
+  persistence. Blank SKU ids, non-finite or negative numeric fields, non-RFC3339
+  timestamps, and received quantities greater than ordered quantities are
+  rejected at the store boundary.
 - `sena.triggerRun` and `sena.retryRun` should mark failed runs as `failed`, not
   leave stale `queued` rows behind.
 - Desktop-core command errors should preserve the request id after the command

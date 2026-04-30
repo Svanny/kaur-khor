@@ -1020,7 +1020,10 @@ fn observation_fingerprint_locked(
     })
 }
 
-fn merge_order_fields(base: &SenaOrderFieldValues, overrides: &SenaOrderFieldValues) -> SenaOrderFieldValues {
+fn merge_order_fields(
+    base: &SenaOrderFieldValues,
+    overrides: &SenaOrderFieldValues,
+) -> SenaOrderFieldValues {
     SenaOrderFieldValues {
         supplier_name: overrides
             .supplier_name
@@ -1056,20 +1059,162 @@ fn merge_order_fields(base: &SenaOrderFieldValues, overrides: &SenaOrderFieldVal
     }
 }
 
+fn validate_optional_non_negative_finite(context: &str, value: Option<f64>) -> Result<()> {
+    if let Some(value) = value {
+        if !value.is_finite() || value < 0.0 {
+            return Err(anyhow!("{context} must be a finite non-negative number"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_optional_finite(context: &str, value: Option<f64>) -> Result<()> {
+    if let Some(value) = value {
+        if !value.is_finite() {
+            return Err(anyhow!("{context} must be finite"));
+        }
+    }
+    Ok(())
+}
+
+fn validate_optional_rfc3339(context: &str, value: &Option<String>) -> Result<()> {
+    if let Some(value) = value {
+        if value.trim().is_empty() {
+            return Err(anyhow!("{context} must not be blank"));
+        }
+        OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+            .map_err(|_| anyhow!("{context} must be an RFC3339 timestamp"))?;
+    }
+    Ok(())
+}
+
+fn validate_delivery_fee(
+    context: &str,
+    value: &crate::types::SenaDeliveryFeeMetadata,
+) -> Result<()> {
+    validate_optional_non_negative_finite(&format!("{context}.feeUsd"), value.fee_usd)?;
+    validate_optional_non_negative_finite(&format!("{context}.subtotalUsd"), value.subtotal_usd)?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.displayDeliveryUsd"),
+        value.display_delivery_usd,
+    )?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.displayTotalUsd"),
+        value.display_total_usd,
+    )?;
+    validate_optional_finite(
+        &format!("{context}.netSettlementUsd"),
+        value.net_settlement_usd,
+    )?;
+    Ok(())
+}
+
+fn validate_order_fields(context: &str, fields: &SenaOrderFieldValues) -> Result<()> {
+    validate_optional_non_negative_finite(
+        &format!("{context}.orderedQuantity"),
+        fields.ordered_quantity,
+    )?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.receivedQuantity"),
+        fields.received_quantity,
+    )?;
+    validate_optional_non_negative_finite(&format!("{context}.costPerUnit"), fields.cost_per_unit)?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.leadTimeDaysHint"),
+        fields.lead_time_days_hint,
+    )?;
+    validate_optional_rfc3339(
+        &format!("{context}.expectedArrivalAt"),
+        &fields.expected_arrival_at,
+    )?;
+    validate_optional_rfc3339(
+        &format!("{context}.placementTimestamp"),
+        &fields.placement_timestamp,
+    )?;
+    validate_optional_rfc3339(
+        &format!("{context}.receiptTimestamp"),
+        &fields.receipt_timestamp,
+    )?;
+    if let Some(delivery_fee) = &fields.delivery_fee {
+        validate_delivery_fee(&format!("{context}.deliveryFee"), delivery_fee)?;
+    }
+    if let (Some(ordered), Some(received)) = (fields.ordered_quantity, fields.received_quantity) {
+        if received > ordered {
+            return Err(anyhow!(
+                "{context}.receivedQuantity cannot exceed orderedQuantity"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_order_batch_record(batch: &SenaOrderBatchRecord) -> Result<()> {
+    if batch.children.is_empty() {
+        return Err(anyhow!("order batch requires at least one child"));
+    }
+    validate_order_fields("orderBatch.shared", &batch.shared)?;
+    for child in &batch.children {
+        if child.sku_id.trim().is_empty() {
+            return Err(anyhow!("order child skuId must not be blank"));
+        }
+        validate_order_fields("orderChild.overrides", &child.overrides)?;
+        validate_order_fields("orderChild.effective", &child.effective)?;
+    }
+    Ok(())
+}
+
+fn validate_create_order_batch_payload(payload: &SenaCreateOrderBatchPayload) -> Result<()> {
+    if payload.children.is_empty() {
+        return Err(anyhow!("order batch requires at least one child"));
+    }
+    validate_order_fields("orderBatch.shared", &payload.shared)?;
+    for child in &payload.children {
+        if child.sku_id.trim().is_empty() {
+            return Err(anyhow!("order child skuId must not be blank"));
+        }
+        if let Some(overrides) = &child.overrides {
+            validate_order_fields("orderChild.overrides", overrides)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_update_order_batch_payload(payload: &SenaUpdateOrderBatchPayload) -> Result<()> {
+    if payload.batch_order_id.trim().is_empty() {
+        return Err(anyhow!("batchOrderId must not be blank"));
+    }
+    if let Some(shared) = &payload.shared {
+        validate_order_fields("orderBatch.shared", shared)?;
+    }
+    Ok(())
+}
+
+fn validate_update_order_child_payload(payload: &SenaUpdateOrderChildPayload) -> Result<()> {
+    if payload.child_order_id.trim().is_empty() {
+        return Err(anyhow!("childOrderId must not be blank"));
+    }
+    if let Some(sku_id) = &payload.sku_id {
+        if sku_id.trim().is_empty() {
+            return Err(anyhow!("order child skuId must not be blank"));
+        }
+    }
+    if let Some(overrides) = &payload.overrides {
+        validate_order_fields("orderChild.overrides", overrides)?;
+    }
+    Ok(())
+}
+
 fn order_child_status_for_fields(fields: &SenaOrderFieldValues) -> SenaOrderChildStatus {
     if fields.receipt_timestamp.is_some()
-        || fields
-            .received_quantity
-            .is_some_and(|value| value > 0.0)
+        || fields.received_quantity.is_some_and(|value| value > 0.0)
     {
         return SenaOrderChildStatus::Received;
     }
     if fields.expected_arrival_at.is_some() {
         if let Some(expected) = &fields.expected_arrival_at {
-            if let Ok(date) = OffsetDateTime::parse(
-                expected,
-                &time::format_description::well_known::Rfc3339,
-            ) {
+            if let Ok(date) =
+                OffsetDateTime::parse(expected, &time::format_description::well_known::Rfc3339)
+            {
                 if date < OffsetDateTime::now_utc() {
                     return SenaOrderChildStatus::FollowUp;
                 }
@@ -1090,16 +1235,16 @@ fn order_batch_status(children: &[SenaOrderChildRecord]) -> SenaOrderBatchStatus
     {
         return SenaOrderBatchStatus::Reviewed;
     }
-    if children
-        .iter()
-        .all(|child| child.status == SenaOrderChildStatus::Received || child.status == SenaOrderChildStatus::Reviewed)
-    {
+    if children.iter().all(|child| {
+        child.status == SenaOrderChildStatus::Received
+            || child.status == SenaOrderChildStatus::Reviewed
+    }) {
         return SenaOrderBatchStatus::Received;
     }
-    if children
-        .iter()
-        .any(|child| child.status == SenaOrderChildStatus::Received || child.status == SenaOrderChildStatus::Reviewed)
-    {
+    if children.iter().any(|child| {
+        child.status == SenaOrderChildStatus::Received
+            || child.status == SenaOrderChildStatus::Reviewed
+    }) {
         return SenaOrderBatchStatus::PartialReceipt;
     }
     if children
@@ -1148,8 +1293,12 @@ fn unique_suffix() -> String {
 
 fn order_timestamp_parts(now: &str) -> (String, String, String, String) {
     if let Ok(format) = parse_time_format("[year]/[month]/[day]/[hour][minute][second]") {
-        if let Ok(parsed) = OffsetDateTime::parse(now, &time::format_description::well_known::Rfc3339) {
-            let formatted = parsed.format(&format).unwrap_or_else(|_| "1970/01/01/000000".to_string());
+        if let Ok(parsed) =
+            OffsetDateTime::parse(now, &time::format_description::well_known::Rfc3339)
+        {
+            let formatted = parsed
+                .format(&format)
+                .unwrap_or_else(|_| "1970/01/01/000000".to_string());
             let mut parts = formatted.split('/');
             let year = parts.next().unwrap_or("1970").to_string();
             let month = parts.next().unwrap_or("01").to_string();
@@ -1158,7 +1307,12 @@ fn order_timestamp_parts(now: &str) -> (String, String, String, String) {
             return (year, month, day, time);
         }
     }
-    ("1970".to_string(), "01".to_string(), "01".to_string(), "000000".to_string())
+    (
+        "1970".to_string(),
+        "01".to_string(),
+        "01".to_string(),
+        "000000".to_string(),
+    )
 }
 
 fn build_batch_order_id(now: &str, supplier_name: Option<&str>) -> String {
@@ -1402,11 +1556,12 @@ impl SenaRepository for SqliteSenaRepository {
         observation_id: &str,
         observation: &SenaObservationInput,
     ) -> Result<SenaObservationRecord> {
-        let connection = self
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        let updated = connection.execute(
+        let transaction = connection.transaction()?;
+        let updated = transaction.execute(
             r#"
             UPDATE sena_observation
             SET observed_at = ?3, payload = ?4
@@ -1422,7 +1577,8 @@ impl SenaRepository for SqliteSenaRepository {
         if updated == 0 {
             return Err(anyhow!("observation not found"));
         }
-        rebuild_record_update_anchors_locked(&connection, owner_sub)?;
+        rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        transaction.commit()?;
         Ok(SenaObservationRecord {
             observation_id: observation_id.to_string(),
             owner_sub: owner_sub.to_string(),
@@ -1431,18 +1587,20 @@ impl SenaRepository for SqliteSenaRepository {
     }
 
     async fn delete_observation(&self, owner_sub: &str, observation_id: &str) -> Result<()> {
-        let connection = self
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        let deleted = connection.execute(
+        let transaction = connection.transaction()?;
+        let deleted = transaction.execute(
             "DELETE FROM sena_observation WHERE observation_id = ?1 AND owner_sub = ?2",
             params![observation_id, owner_sub],
         )?;
         if deleted == 0 {
             return Err(anyhow!("observation not found"));
         }
-        rebuild_record_update_anchors_locked(&connection, owner_sub)?;
+        rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        transaction.commit()?;
         Ok(())
     }
 
@@ -1483,8 +1641,9 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
-        let query = if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
-            r#"
+        let query =
+            if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
+                r#"
             SELECT observation_id, observed_at, payload
             FROM sena_observation
             WHERE owner_sub = ?1
@@ -1492,23 +1651,23 @@ impl SenaRepository for SqliteSenaRepository {
             ORDER BY observed_at DESC, observation_id DESC
             LIMIT ?4
             "#
-        } else if request.before_observed_at.is_some() {
-            r#"
+            } else if request.before_observed_at.is_some() {
+                r#"
             SELECT observation_id, observed_at, payload
             FROM sena_observation
             WHERE owner_sub = ?1 AND observed_at < ?2
             ORDER BY observed_at DESC, observation_id DESC
             LIMIT ?4
             "#
-        } else {
-            r#"
+            } else {
+                r#"
             SELECT observation_id, observed_at, payload
             FROM sena_observation
             WHERE owner_sub = ?1
             ORDER BY observed_at DESC, observation_id DESC
             LIMIT ?4
             "#
-        };
+            };
         let mut stmt = connection.prepare(query)?;
         let requested_rows = (limit + 1) as i64;
         let row_mapper = |row: &rusqlite::Row<'_>| {
@@ -1518,32 +1677,38 @@ impl SenaRepository for SqliteSenaRepository {
                 row.get::<_, String>(2)?,
             ))
         };
-        let rows = if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
-            stmt.query_map(
-                params![
-                    owner_sub,
-                    request.before_observed_at.as_deref(),
-                    request.before_observation_id.as_deref(),
-                    requested_rows,
-                ],
-                row_mapper,
-            )?
-        } else if request.before_observed_at.is_some() {
-            stmt.query_map(
-                params![
-                    owner_sub,
-                    request.before_observed_at.as_deref(),
-                    rusqlite::types::Null,
-                    requested_rows,
-                ],
-                row_mapper,
-            )?
-        } else {
-            stmt.query_map(
-                params![owner_sub, rusqlite::types::Null, rusqlite::types::Null, requested_rows],
-                row_mapper,
-            )?
-        };
+        let rows =
+            if request.before_observed_at.is_some() && request.before_observation_id.is_some() {
+                stmt.query_map(
+                    params![
+                        owner_sub,
+                        request.before_observed_at.as_deref(),
+                        request.before_observation_id.as_deref(),
+                        requested_rows,
+                    ],
+                    row_mapper,
+                )?
+            } else if request.before_observed_at.is_some() {
+                stmt.query_map(
+                    params![
+                        owner_sub,
+                        request.before_observed_at.as_deref(),
+                        rusqlite::types::Null,
+                        requested_rows,
+                    ],
+                    row_mapper,
+                )?
+            } else {
+                stmt.query_map(
+                    params![
+                        owner_sub,
+                        rusqlite::types::Null,
+                        rusqlite::types::Null,
+                        requested_rows
+                    ],
+                    row_mapper,
+                )?
+            };
         let mut raw_rows = Vec::new();
         for row in rows {
             raw_rows.push(row?);
@@ -1632,53 +1797,74 @@ impl SenaRepository for SqliteSenaRepository {
             let (anchor_kind, entity_id, observation_id, observed_at, payload) = row?;
             match anchor_kind.as_str() {
                 "stock" => {
-                    latest_stock_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_stock_by_sku.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 "retail_sale" => {
-                    latest_retail_sale_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_retail_sale_by_sku.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 "service_sale" => {
-                    latest_service_sale_by_service.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_service_sale_by_service.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 "order" => {
-                    latest_order_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_order_by_sku.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 "receipt" => {
-                    latest_receipt_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_receipt_by_sku.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 "ticket" => {
-                    latest_tickets_by_id.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str::<SenaTicketSummary>(&payload)?,
-                    });
+                    latest_tickets_by_id.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str::<SenaTicketSummary>(&payload)?,
+                        },
+                    );
                 }
                 "delivery_fee" => {
-                    latest_delivery_fee_by_bucket.insert(entity_id.clone(), SenaRecordUpdateAnchor {
-                        observation_id: observation_id.clone(),
-                        observed_at: observed_at.clone(),
-                        value: serde_json::from_str(&payload)?,
-                    });
+                    latest_delivery_fee_by_bucket.insert(
+                        entity_id.clone(),
+                        SenaRecordUpdateAnchor {
+                            observation_id: observation_id.clone(),
+                            observed_at: observed_at.clone(),
+                            value: serde_json::from_str(&payload)?,
+                        },
+                    );
                 }
                 _ => {}
             }
@@ -1758,7 +1944,11 @@ impl SenaRepository for SqliteSenaRepository {
                     }
                 }
                 if let Some(child_order_id) = &filters.child_order_id {
-                    if !batch.children.iter().any(|child| &child.child_order_id == child_order_id) {
+                    if !batch
+                        .children
+                        .iter()
+                        .any(|child| &child.child_order_id == child_order_id)
+                    {
                         return false;
                     }
                 }
@@ -1778,11 +1968,15 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         payload: &SenaCreateOrderBatchPayload,
     ) -> Result<SenaOrderBatchRecord> {
-        if payload.children.is_empty() {
-            return Err(anyhow!("order batch requires at least one child"));
-        }
+        validate_create_order_batch_payload(payload)?;
         let now = now_rfc3339();
-        let batch_order_id = build_batch_order_id(&now, payload.supplier_name.as_deref().or(payload.shared.supplier_name.as_deref()));
+        let batch_order_id = build_batch_order_id(
+            &now,
+            payload
+                .supplier_name
+                .as_deref()
+                .or(payload.shared.supplier_name.as_deref()),
+        );
         let shared = SenaOrderFieldValues {
             supplier_name: payload
                 .supplier_name
@@ -1817,6 +2011,7 @@ impl SenaRepository for SqliteSenaRepository {
                 .collect(),
         };
         refresh_batch(&mut batch);
+        validate_order_batch_record(&batch)?;
         let connection = self
             .connection
             .lock()
@@ -1830,6 +2025,7 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         payload: &SenaUpdateOrderBatchPayload,
     ) -> Result<SenaOrderBatchRecord> {
+        validate_update_order_batch_payload(payload)?;
         let connection = self
             .connection
             .lock()
@@ -1857,6 +2053,7 @@ impl SenaRepository for SqliteSenaRepository {
         if let Some(status) = payload.status {
             batch.status = status;
         }
+        validate_order_batch_record(&batch)?;
         persist_batch(&connection, &batch)?;
         Ok(batch)
     }
@@ -1866,6 +2063,7 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         payload: &SenaUpdateOrderChildPayload,
     ) -> Result<SenaOrderBatchRecord> {
+        validate_update_order_child_payload(payload)?;
         let connection = self
             .connection
             .lock()
@@ -1873,7 +2071,10 @@ impl SenaRepository for SqliteSenaRepository {
         let mut batch = load_all_batches(&connection, owner_sub)?
             .into_iter()
             .find(|batch| {
-                batch.children.iter().any(|child| child.child_order_id == payload.child_order_id)
+                batch
+                    .children
+                    .iter()
+                    .any(|child| child.child_order_id == payload.child_order_id)
             })
             .ok_or_else(|| anyhow!("order child not found"))?;
         let now = now_rfc3339();
@@ -1915,6 +2116,7 @@ impl SenaRepository for SqliteSenaRepository {
             child.status = status;
             batch.status = order_batch_status(&batch.children);
         }
+        validate_order_batch_record(&batch)?;
         persist_batch(&connection, &batch)?;
         Ok(batch)
     }
@@ -1924,6 +2126,9 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         payload: &SenaSplitOrderChildPayload,
     ) -> Result<SenaOrderBatchRecord> {
+        if payload.child_order_id.trim().is_empty() {
+            return Err(anyhow!("childOrderId must not be blank"));
+        }
         let connection = self
             .connection
             .lock()
@@ -1932,7 +2137,10 @@ impl SenaRepository for SqliteSenaRepository {
         let source_index = batches
             .iter()
             .position(|batch| {
-                batch.children.iter().any(|child| child.child_order_id == payload.child_order_id)
+                batch
+                    .children
+                    .iter()
+                    .any(|child| child.child_order_id == payload.child_order_id)
             })
             .ok_or_else(|| anyhow!("order child not found"))?;
         let mut source = batches.remove(source_index);
@@ -1954,6 +2162,7 @@ impl SenaRepository for SqliteSenaRepository {
         } else {
             source.updated_at = now_rfc3339();
             refresh_batch(&mut source);
+            validate_order_batch_record(&source)?;
             persist_batch(&connection, &source)?;
         }
         let now = now_rfc3339();
@@ -1978,6 +2187,7 @@ impl SenaRepository for SqliteSenaRepository {
             }],
         };
         refresh_batch(&mut new_batch);
+        validate_order_batch_record(&new_batch)?;
         persist_batch(&connection, &new_batch)?;
         Ok(new_batch)
     }
@@ -2593,26 +2803,24 @@ fn parse_run_status(value: &str) -> SenaRunStatus {
 #[cfg(test)]
 mod tests {
     use super::SqliteSenaRepository;
+    use crate::lead_time::SenaLeadTimeVariabilityClass;
+    use crate::types::{
+        SenaDeliveryFeeBucket, SenaDeliveryFeeMetadata, SenaDeliveryFeePayer, SenaTicketEvent,
+        SenaTicketEventType, SenaTicketFamily, SenaTicketLifecycle, SenaTicketLine,
+        SenaTicketPartyMetadata, SenaTicketStage,
+    };
     use crate::{
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
-        service::SenaRepository, PreprocessedWorkspace, SenaCatalog,
-        SenaCreateOrderBatchPayload, SenaLeadTimeHint, SenaObservationInput,
-        SenaObservationPageRequest, SenaObservationRecord, SenaOrderFieldValues,
-        SenaOrderSignal, SenaService, SenaServicePriceObservation,
+        service::SenaRepository, PreprocessedWorkspace, SenaCatalog, SenaCreateOrderBatchPayload,
+        SenaLeadTimeHint, SenaObservationInput, SenaObservationPageRequest, SenaObservationRecord,
+        SenaOrderFieldValues, SenaOrderSignal, SenaService, SenaServicePriceObservation,
         SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload, SenaStockSnapshot,
         SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
     };
-    use crate::lead_time::SenaLeadTimeVariabilityClass;
-    use crate::types::{
-        SenaDeliveryFeeBucket, SenaDeliveryFeeMetadata, SenaDeliveryFeePayer,
-        SenaTicketEvent, SenaTicketEventType, SenaTicketFamily, SenaTicketLifecycle,
-        SenaTicketLine, SenaTicketPartyMetadata, SenaTicketStage,
-    };
     use futures::executor::block_on;
-    use rusqlite::params;
+    use rusqlite::{params, OptionalExtension};
     use std::{
-        env,
-        fs,
+        env, fs,
         path::PathBuf,
         time::{SystemTime, UNIX_EPOCH},
     };
@@ -2714,7 +2922,11 @@ mod tests {
         }
     }
 
-    fn supplier_ticket_event(ticket_id: &str, observed_at: &str, lifecycle: SenaTicketLifecycle) -> SenaTicketEvent {
+    fn supplier_ticket_event(
+        ticket_id: &str,
+        observed_at: &str,
+        lifecycle: SenaTicketLifecycle,
+    ) -> SenaTicketEvent {
         SenaTicketEvent {
             ticket_id: ticket_id.to_string(),
             ticket_family: SenaTicketFamily::Supplier,
@@ -2747,7 +2959,11 @@ mod tests {
                 entity_id: "sku-1".to_string(),
                 quantity_delta: None,
                 ordered_quantity: Some(4.0),
-                received_quantity: if lifecycle == SenaTicketLifecycle::Resolved { Some(4.0) } else { None },
+                received_quantity: if lifecycle == SenaTicketLifecycle::Resolved {
+                    Some(4.0)
+                } else {
+                    None
+                },
                 promised_at: None,
                 expected_arrival_at: None,
                 unit_cost: Some(2.0),
@@ -2788,6 +3004,24 @@ mod tests {
                 ],
             )
             .expect("observation should insert");
+    }
+
+    fn raw_observation_payload(
+        repo: &SqliteSenaRepository,
+        observation_id: &str,
+    ) -> Option<String> {
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        connection
+            .query_row(
+                "SELECT payload FROM sena_observation WHERE observation_id = ?1",
+                params![observation_id],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .expect("payload lookup should succeed")
     }
 
     fn sample_preprocessed_workspace() -> (
@@ -2886,14 +3120,12 @@ mod tests {
         };
         assert_eq!(codec.as_deref(), Some("zstd"));
         assert!(payload_json.is_empty());
-        assert!(
-            std::path::Path::new(
-                payload_path
-                    .as_deref()
-                    .expect("checkpoint payload path should be stored")
-            )
-            .is_file()
-        );
+        assert!(std::path::Path::new(
+            payload_path
+                .as_deref()
+                .expect("checkpoint payload path should be stored")
+        )
+        .is_file());
         assert_eq!(
             checkpoints[0].metadata.completed_interval_count,
             first
@@ -3027,29 +3259,73 @@ mod tests {
     fn observations_can_be_updated_and_deleted() {
         let path = temp_store_path("observation-mutations");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
-        let inserted = block_on(repo.insert_observation(
-            "owner",
-            &observation("2026-04-01T00:00:00Z", 14.0).input,
-        ))
+        let inserted = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
         .expect("observation should insert");
 
         let mut updated_input = inserted.input.clone();
         updated_input.notes = Some("edited".to_string());
         updated_input.observed_at = "2026-04-02T00:00:00Z".to_string();
 
-        let updated = block_on(repo.update_observation("owner", &inserted.observation_id, &updated_input))
-            .expect("observation should update");
+        let updated =
+            block_on(repo.update_observation("owner", &inserted.observation_id, &updated_input))
+                .expect("observation should update");
         assert_eq!(updated.observation_id, inserted.observation_id);
         assert_eq!(updated.input.notes.as_deref(), Some("edited"));
 
-        let observations = block_on(repo.list_observations("owner")).expect("observations should load");
+        let observations =
+            block_on(repo.list_observations("owner")).expect("observations should load");
         assert_eq!(observations.len(), 1);
         assert_eq!(observations[0].input.observed_at, "2026-04-02T00:00:00Z");
 
         block_on(repo.delete_observation("owner", &inserted.observation_id))
             .expect("observation should delete");
-        let remaining = block_on(repo.list_observations("owner")).expect("observations should load");
+        let remaining =
+            block_on(repo.list_observations("owner")).expect("observations should load");
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn observation_mutations_roll_back_when_anchor_rebuild_fails() {
+        let path = temp_store_path("observation-mutation-atomicity");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let valid = block_on(
+            repo.insert_observation("owner", &observation("2026-04-02T00:00:00Z", 14.0).input),
+        )
+        .expect("valid observation should insert");
+        let original_payload = raw_observation_payload(&repo, &valid.observation_id)
+            .expect("valid payload should exist");
+
+        {
+            let connection = repo
+                .connection
+                .lock()
+                .expect("sqlite lock should be available");
+            connection
+                .execute(
+                    "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
+                    params!["corrupt-observation", "owner", "2026-04-01T00:00:00Z", "{not-json"],
+                )
+                .expect("corrupt legacy row should insert");
+        }
+
+        let mut updated = valid.input.clone();
+        updated.notes = Some("edited".to_string());
+        block_on(repo.update_observation("owner", &valid.observation_id, &updated))
+            .expect_err("anchor rebuild failure should reject update");
+        assert_eq!(
+            raw_observation_payload(&repo, &valid.observation_id).as_deref(),
+            Some(original_payload.as_str()),
+            "failed anchor rebuild should roll back the observation update",
+        );
+
+        block_on(repo.delete_observation("owner", &valid.observation_id))
+            .expect_err("anchor rebuild failure should reject delete");
+        assert!(
+            raw_observation_payload(&repo, &valid.observation_id).is_some(),
+            "failed anchor rebuild should roll back the observation delete",
+        );
     }
 
     #[test]
@@ -3060,7 +3336,8 @@ mod tests {
         insert_observation_with_id(&repo, "obs-b", "2026-04-01T00:00:00Z", 14.0);
         insert_observation_with_id(&repo, "obs-a", "2026-04-01T00:00:00Z", 12.0);
 
-        let observations = block_on(repo.list_observations("owner")).expect("observations should load");
+        let observations =
+            block_on(repo.list_observations("owner")).expect("observations should load");
 
         assert_eq!(
             observations
@@ -3169,8 +3446,8 @@ mod tests {
         let path = temp_store_path("observation-page");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
 
-        let empty = block_on(repo.list_observation_page("owner", None))
-            .expect("empty page should load");
+        let empty =
+            block_on(repo.list_observation_page("owner", None)).expect("empty page should load");
         assert!(empty.observations.is_empty());
         assert!(!empty.has_older);
         assert_eq!(empty.total_count, 0);
@@ -3213,15 +3490,17 @@ mod tests {
         ))
         .expect("next page should load");
         assert_eq!(
-            next
-                .observations
+            next.observations
                 .iter()
                 .map(|observation| observation.observation_id.as_str())
                 .collect::<Vec<_>>(),
             vec!["obs-b", "obs-c"]
         );
         assert!(!next.has_older);
-        assert_eq!(next.latest_observed_at.as_deref(), Some("2026-04-03T00:00:00Z"));
+        assert_eq!(
+            next.latest_observed_at.as_deref(),
+            Some("2026-04-03T00:00:00Z")
+        );
     }
 
     #[test]
@@ -3234,7 +3513,8 @@ mod tests {
             sku_id: "sku-1".to_string(),
             units_sold: 2.0,
         }];
-        block_on(repo.insert_observation("owner", &older)).expect("older observation should insert");
+        block_on(repo.insert_observation("owner", &older))
+            .expect("older observation should insert");
 
         let mut latest = observation("2026-04-02T00:00:00Z", 5.0).input;
         latest.service_sales_snapshot = vec![crate::types::SenaServiceSalesSnapshot {
@@ -3256,12 +3536,16 @@ mod tests {
             "2026-04-02T03:00:00Z",
             SenaTicketLifecycle::Open,
         )];
-        block_on(repo.insert_observation("owner", &latest)).expect("latest observation should insert");
+        block_on(repo.insert_observation("owner", &latest))
+            .expect("latest observation should insert");
 
         let context = block_on(repo.get_record_update_context("owner"))
             .expect("record update context should load");
         assert_eq!(context.observation_fingerprint.count, 2);
-        assert_eq!(context.latest_observed_at.as_deref(), Some("2026-04-02T00:00:00Z"));
+        assert_eq!(
+            context.latest_observed_at.as_deref(),
+            Some("2026-04-02T00:00:00Z")
+        );
         assert_eq!(
             context
                 .latest_stock_by_sku
@@ -3325,8 +3609,10 @@ mod tests {
         assert!(context
             .recent_activity
             .iter()
-            .any(|entry| entry.activity_type == crate::types::SenaRecordActivityType::Ticket
-                && entry.ticket_id.as_deref() == Some("ticket-supplier-1")));
+            .any(
+                |entry| entry.activity_type == crate::types::SenaRecordActivityType::Ticket
+                    && entry.ticket_id.as_deref() == Some("ticket-supplier-1")
+            ));
     }
 
     #[test]
@@ -3375,8 +3661,12 @@ mod tests {
             })
             .map(|entry| entry.activity_id.clone())
             .collect::<Vec<_>>();
-        assert!(ticket_revisions.iter().any(|id| id.ends_with(":ticket:ticket-supplier-1:1")));
-        assert!(ticket_revisions.iter().any(|id| id.ends_with(":ticket:ticket-supplier-1:2")));
+        assert!(ticket_revisions
+            .iter()
+            .any(|id| id.ends_with(":ticket:ticket-supplier-1:1")));
+        assert!(ticket_revisions
+            .iter()
+            .any(|id| id.ends_with(":ticket:ticket-supplier-1:2")));
     }
 
     #[test]
@@ -3430,10 +3720,9 @@ mod tests {
     fn record_update_context_reads_anchor_rows_without_observation_payload_scan() {
         let path = temp_store_path("record-update-anchor-read");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
-        let record = block_on(repo.insert_observation(
-            "owner",
-            &observation("2026-04-01T00:00:00Z", 12.0).input,
-        ))
+        let record = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 12.0).input),
+        )
         .expect("observation should insert");
         {
             let connection = repo
@@ -3508,15 +3797,13 @@ mod tests {
     fn record_update_anchors_rebuild_after_update_and_delete() {
         let path = temp_store_path("record-update-anchor-maintenance");
         let repo = SqliteSenaRepository::open(&path).expect("repo should open");
-        let older = block_on(repo.insert_observation(
-            "owner",
-            &observation("2026-04-01T00:00:00Z", 8.0).input,
-        ))
+        let older = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 8.0).input),
+        )
         .expect("older observation should insert");
-        let latest = block_on(repo.insert_observation(
-            "owner",
-            &observation("2026-04-02T00:00:00Z", 5.0).input,
-        ))
+        let latest = block_on(
+            repo.insert_observation("owner", &observation("2026-04-02T00:00:00Z", 5.0).input),
+        )
         .expect("latest observation should insert");
 
         block_on(repo.delete_observation("owner", &latest.observation_id))
@@ -3673,11 +3960,23 @@ mod tests {
         assert_eq!(merged.ordered_quantity, Some(4.0));
         assert_eq!(merged.received_quantity, Some(3.0));
         assert_eq!(merged.cost_per_unit, Some(2.5));
-        assert_eq!(merged.expected_arrival_at.as_deref(), Some("2026-04-20T00:00:00Z"));
-        assert_eq!(merged.placement_timestamp.as_deref(), Some("2026-04-12T00:00:00Z"));
-        assert_eq!(merged.receipt_timestamp.as_deref(), Some("2026-04-13T00:00:00Z"));
+        assert_eq!(
+            merged.expected_arrival_at.as_deref(),
+            Some("2026-04-20T00:00:00Z")
+        );
+        assert_eq!(
+            merged.placement_timestamp.as_deref(),
+            Some("2026-04-12T00:00:00Z")
+        );
+        assert_eq!(
+            merged.receipt_timestamp.as_deref(),
+            Some("2026-04-13T00:00:00Z")
+        );
         assert_eq!(merged.lead_time_days_hint, Some(5.0));
-        assert_eq!(merged.lead_time_variability, Some(SenaLeadTimeVariabilityClass::Wide));
+        assert_eq!(
+            merged.lead_time_variability,
+            Some(SenaLeadTimeVariabilityClass::Wide)
+        );
         assert_eq!(
             merged.delivery_fee,
             Some(SenaDeliveryFeeMetadata {
@@ -3735,9 +4034,102 @@ mod tests {
 
         assert!(batch.batch_order_id.starts_with("orders/"));
         assert_eq!(batch.children.len(), 2);
-        assert!(batch.children.iter().all(|child| child.child_order_id.starts_with(&batch.batch_order_id)));
-        assert_eq!(batch.children[0].effective.supplier_note.as_deref(), Some("batch note"));
+        assert!(batch
+            .children
+            .iter()
+            .all(|child| child.child_order_id.starts_with(&batch.batch_order_id)));
+        assert_eq!(
+            batch.children[0].effective.supplier_note.as_deref(),
+            Some("batch note")
+        );
         assert_eq!(batch.children[0].effective.ordered_quantity, Some(10.0));
+    }
+
+    #[test]
+    fn order_batches_reject_semantically_invalid_payloads() {
+        let path = temp_store_path("order-validation");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let blank_sku_error = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues::default(),
+                children: vec![crate::types::SenaOrderBatchCreateChildInput {
+                    sku_id: " ".to_string(),
+                    overrides: None,
+                }],
+            },
+        ))
+        .expect_err("blank sku id should be rejected");
+        assert!(blank_sku_error.to_string().contains("skuId"));
+
+        let impossible_quantity_error = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues::default(),
+                children: vec![crate::types::SenaOrderBatchCreateChildInput {
+                    sku_id: "shirt".to_string(),
+                    overrides: Some(SenaOrderFieldValues {
+                        ordered_quantity: Some(3.0),
+                        received_quantity: Some(4.0),
+                        ..Default::default()
+                    }),
+                }],
+            },
+        ))
+        .expect_err("received quantity above ordered quantity should be rejected");
+        assert!(impossible_quantity_error
+            .to_string()
+            .contains("receivedQuantity"));
+
+        let bad_timestamp_error = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues {
+                    expected_arrival_at: Some("tomorrow".to_string()),
+                    ..Default::default()
+                },
+                children: vec![crate::types::SenaOrderBatchCreateChildInput {
+                    sku_id: "shirt".to_string(),
+                    overrides: None,
+                }],
+            },
+        ))
+        .expect_err("non-rfc3339 timestamps should be rejected");
+        assert!(bad_timestamp_error.to_string().contains("RFC3339"));
+
+        let valid = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues::default(),
+                children: vec![crate::types::SenaOrderBatchCreateChildInput {
+                    sku_id: "shirt".to_string(),
+                    overrides: None,
+                }],
+            },
+        ))
+        .expect("valid order batch should create");
+        let child_id = valid.children[0].child_order_id.clone();
+
+        let invalid_update_error = block_on(repo.update_order_child(
+            "owner",
+            &SenaUpdateOrderChildPayload {
+                child_order_id: child_id,
+                sku_id: None,
+                overrides: Some(SenaOrderFieldValues {
+                    cost_per_unit: Some(f64::NAN),
+                    ..Default::default()
+                }),
+                status: None,
+                append_supplier_note: None,
+            },
+        ))
+        .expect_err("non-finite child updates should be rejected");
+        assert!(invalid_update_error.to_string().contains("finite"));
     }
 
     #[test]
@@ -3786,7 +4178,11 @@ mod tests {
             },
         ))
         .expect("order batch should update");
-        assert!(updated_batch.children.iter().all(|child| child.effective.supplier_note.as_deref() == Some("shared update")));
+        assert!(updated_batch.children.iter().all(|child| child
+            .effective
+            .supplier_note
+            .as_deref()
+            == Some("shared update")));
 
         let child_id = updated_batch.children[0].child_order_id.clone();
         let child_updated = block_on(repo.update_order_child(
@@ -3809,16 +4205,24 @@ mod tests {
             .iter()
             .find(|child| child.child_order_id == child_id)
             .expect("updated child should exist");
-        assert_eq!(changed_child.status, crate::types::SenaOrderChildStatus::Received);
+        assert_eq!(
+            changed_child.status,
+            crate::types::SenaOrderChildStatus::Received
+        );
         assert_eq!(changed_child.effective.received_quantity, Some(5.0));
 
         let split_batch = block_on(repo.split_order_child(
             "owner",
-            &SenaSplitOrderChildPayload { child_order_id: child_id },
+            &SenaSplitOrderChildPayload {
+                child_order_id: child_id,
+            },
         ))
         .expect("child should split");
         assert_ne!(split_batch.batch_order_id, batch.batch_order_id);
         assert_eq!(split_batch.children.len(), 1);
-        assert_eq!(split_batch.children[0].effective.received_quantity, Some(5.0));
+        assert_eq!(
+            split_batch.children[0].effective.received_quantity,
+            Some(5.0)
+        );
     }
 }
