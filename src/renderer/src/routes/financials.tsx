@@ -748,17 +748,19 @@ export function FinancialsRoute() {
                       <SelectItem value={option} className="pr-14">
                         <span>{translateUiLiteral(language, 'Custom')}</span>
                       </SelectItem>
-                      <button
-                        type="button"
-                        className="absolute right-8 top-1/2 -translate-y-1/2 z-10 cursor-pointer p-1 rounded-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        aria-label={translateUiLiteral(language, 'Open custom date range dialog')}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setCustomDialogOpen(true);
-                        }}
-                      >
-                        <ActionEyeIcon className="size-4" />
-                      </button>
+                      {range === 'custom' ? (
+                        <button
+                          type="button"
+                          className="absolute right-8 top-1/2 -translate-y-1/2 z-10 cursor-pointer p-1 rounded-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          aria-label={translateUiLiteral(language, 'Open custom date range dialog')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCustomDialogOpen(true);
+                          }}
+                        >
+                          <ActionEyeIcon className="size-4" />
+                        </button>
+                      ) : null}
                     </div>
                   ) : (
                     <SelectItem key={option} value={option}>

@@ -46,15 +46,22 @@ function onboardingCopy(englishText: string) {
 }
 
 function OptionPrefixLabel({
+  fixedPrefixWidth = false,
   prefix,
   label,
 }: {
+  fixedPrefixWidth?: boolean;
   prefix: string;
   label: string;
 }) {
   return (
     <span className="inline-flex items-center gap-3">
-      <span className="w-9 shrink-0 text-left font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+      <span
+        className={cn(
+          'font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground',
+          fixedPrefixWidth ? 'w-4 shrink-0 text-left' : null,
+        )}
+      >
         {prefix}
       </span>
       <span>{label}</span>
@@ -345,10 +352,10 @@ export function OnboardingRoute() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="USD">
-                    <OptionPrefixLabel prefix="$" label="USD" />
+                    <OptionPrefixLabel fixedPrefixWidth prefix="$" label="USD" />
                   </SelectItem>
                   <SelectItem value="KHR">
-                    <OptionPrefixLabel prefix="៛" label="KHR" />
+                    <OptionPrefixLabel fixedPrefixWidth prefix="៛" label="KHR" />
                   </SelectItem>
                 </SelectContent>
               </Select>

@@ -871,6 +871,16 @@ describe('PerformanceRoute', () => {
 
     fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
     expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open custom date range dialog' })).not.toBeInTheDocument();
+  });
+
+  test('shows custom timeframe edit button after a custom range is active', async () => {
+    renderRoute('/performance?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
+
+    fireEvent.click(screen.getByRole('combobox', { name: /Select performance time range/i }));
+
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open custom date range dialog' })).toBeInTheDocument();
   });
 
   test('opens custom timeframe dialog when custom is selected and clears back to 30d', async () => {
