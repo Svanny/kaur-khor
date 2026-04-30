@@ -1,0 +1,8 @@
+[
+  { "file": "bench/scenarios/startup.bench.ts", "id": "startup", "label": "Startup", "script": "bench:startup" },
+  { "file": "bench/scenarios/navigation.bench.ts", "id": "navigation", "label": "Navigation", "script": "bench:navigation" },
+  { "file": "bench/scenarios/work.bench.ts", "id": "work", "label": "Work", "script": "bench:work" },
+  { "file": "bench/scenarios/capture.bench.ts", "id": "capture", "label": "Capture", "script": "bench:capture" },
+  { "file": "bench/scenarios/detail-pages.bench.ts", "id": "detail-pages", "label": "Detail pages", "script": "bench:detail-pages" },
+  { "file": "bench/scenarios/stability.bench.ts", "id": "stability", "label": "Stability", "script": "bench:stability" }
+]

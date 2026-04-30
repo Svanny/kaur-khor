@@ -5,8 +5,52 @@ import { resolve } from 'node:path';
 
 delete process.env.NO_COLOR;
 
-const scenarioArgs = process.argv.slice(2);
+const playwrightArgs = process.argv.slice(2);
 const runStartedAt = Date.now();
+const managedScenarios = JSON.parse(await readFile(resolve('src/shared/benchmark-scenarios.json'), 'utf8'));
+const managedScenarioFiles = managedScenarios.map((scenario) => scenario.file);
+const managedScenarioByFile = new Map(managedScenarios.map((scenario) => [scenario.file, scenario]));
+const managedScenarioByBasename = new Map(managedScenarios.map((scenario) => [scenario.file.split('/').at(-1), scenario]));
+
+function isScenarioArg(arg) {
+  return arg.endsWith('.bench.ts') || arg.includes('bench/scenarios/');
+}
+
+function normalizeScenarioArg(arg) {
+  return arg.replaceAll('\\', '/').replace(/^\.\//, '');
+}
+
+function scenarioForArg(arg) {
+  const normalized = normalizeScenarioArg(arg);
+  return managedScenarioByFile.get(normalized) ?? managedScenarioByBasename.get(normalized.split('/').at(-1));
+}
+
+function requestedScenariosForArgs(args) {
+  const explicitScenarios = args.filter(isScenarioArg);
+  if (explicitScenarios.length === 0) {
+    return managedScenarios;
+  }
+  return explicitScenarios
+    .map(scenarioForArg)
+    .filter(Boolean);
+}
+
+function playwrightScenarioArgs(args) {
+  if (args.filter(isScenarioArg).length > 0) {
+    return args;
+  }
+  return [...managedScenarioFiles, ...args];
+}
+
+if (playwrightArgs.includes('--list-managed-scenarios')) {
+  for (const file of managedScenarioFiles) {
+    console.log(file);
+  }
+  process.exit(0);
+}
+
+const requestedScenarioIds = requestedScenariosForArgs(playwrightArgs).map((scenario) => scenario.id);
+const testArgs = playwrightScenarioArgs(playwrightArgs);
 
 async function walkFiles(directory) {
   const entries = await readdir(directory, { withFileTypes: true }).catch(() => []);
@@ -39,20 +83,46 @@ async function readFreshSummaries() {
   return summaries.filter(Boolean);
 }
 
-function targetStatusCounts(summaries) {
+function targetStatusCounts(summaries, requestedScenarioIds) {
   const targets = summaries.flatMap((summary) => summary.targets ?? []);
+  const summarizedScenarios = new Set(summaries.map((summary) => summary.scenario));
+  const missingScenarios = requestedScenarioIds.filter((scenario) => !summarizedScenarios.has(scenario));
+  const zeroTargetSummaries = summaries.filter((summary) => (summary.targets ?? []).length === 0).length;
   return {
     pass: targets.filter((target) => target.status === 'pass').length,
     watch: targets.filter((target) => target.status === 'watch').length,
     fail: targets.filter((target) => target.status === 'fail').length,
     missing: targets.filter((target) => target.status === 'missing').length,
+    total: targets.length,
+    summaries: summaries.length,
+    missingScenarios,
+    zeroTargetSummaries,
   };
 }
 
-function printTargetStatusSummary(summaries) {
-  const counts = targetStatusCounts(summaries);
-  if (counts.fail > 0 || counts.missing > 0) {
+function printTargetStatusSummary(summaries, requestedScenarioIds) {
+  const counts = targetStatusCounts(summaries, requestedScenarioIds);
+  if (
+    counts.summaries === 0 ||
+    counts.total === 0 ||
+    counts.fail > 0 ||
+    counts.missing > 0 ||
+    counts.missingScenarios.length > 0 ||
+    counts.zeroTargetSummaries > 0
+  ) {
     console.error(`[benchmark] target failure: ${counts.fail} failed, ${counts.missing} missing, ${counts.watch} watch, ${counts.pass} pass.`);
+    if (counts.summaries === 0) {
+      console.error('[benchmark] no fresh benchmark summaries were collected.');
+    }
+    if (counts.total === 0) {
+      console.error('[benchmark] no benchmark targets were collected.');
+    }
+    for (const scenario of counts.missingScenarios) {
+      console.error(`[benchmark] missing summary: ${scenario}`);
+    }
+    if (counts.zeroTargetSummaries > 0) {
+      console.error(`[benchmark] ${counts.zeroTargetSummaries} summary file${counts.zeroTargetSummaries === 1 ? '' : 's'} had zero targets.`);
+    }
     for (const summary of summaries) {
       for (const target of summary.targets ?? []) {
         if (target.status === 'fail' || target.status === 'missing') {
@@ -104,7 +174,7 @@ if (testEnv.NO_COLOR) {
   delete testEnv.NO_COLOR;
 }
 
-const test = spawn('pnpm', ['exec', 'playwright', 'test', '-c', 'playwright.bench.config.ts', ...scenarioArgs], {
+const test = spawn('pnpm', ['exec', 'playwright', 'test', '-c', 'playwright.bench.config.ts', ...testArgs], {
   env: {
     ...testEnv,
   },
@@ -115,4 +185,4 @@ if (testCode !== 0) {
   process.exit(testCode ?? 1);
 }
 const summaries = await readFreshSummaries();
-process.exit(printTargetStatusSummary(summaries));
+process.exit(printTargetStatusSummary(summaries, requestedScenarioIds));

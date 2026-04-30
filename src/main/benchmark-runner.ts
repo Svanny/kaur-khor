@@ -32,9 +32,6 @@ import { settleBenchmarkTasksSequentially } from './benchmark-runner-scheduling'
 const MAX_TAIL_LINES = 200;
 const RUN_RECORD_DIRECTORY = 'gui-runs';
 const FLAMEGRAPH_DIRECTORY = 'flamegraphs';
-const D3_CDN_URL = 'https://d3js.org/d3.v7.min.js';
-const D3_FLAMEGRAPH_CSS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.css';
-const D3_FLAMEGRAPH_JS_URL = 'https://cdn.jsdelivr.net/npm/d3-flame-graph@4.1.3/dist/d3-flamegraph.min.js';
 
 export const SCENARIO_FILE_BY_ID = Object.fromEntries(
   BANJI_BENCHMARK_SCENARIOS.map((scenario) => [scenario.id, scenario.file]),
@@ -76,7 +73,7 @@ export function terminateBenchmarkChild(child: Pick<ChildProcessWithoutNullStrea
   child.kill('SIGTERM');
 }
 
-interface FlamegraphNode {
+export interface FlamegraphNode {
   name: string;
   value: number;
   children?: FlamegraphNode[];
@@ -163,17 +160,19 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
-function escapeScriptJson(value: unknown) {
-  return JSON.stringify(value)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-}
-
 function formatMs(value: number) {
   return `${Math.round(value)} ms`;
+}
+
+function flamegraphPercent(value: number, total: number) {
+  if (!Number.isFinite(value) || !Number.isFinite(total) || total <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, (value / total) * 100));
+}
+
+function flamegraphHue(depth: number) {
+  return [203, 168, 28, 338, 252, 145][depth % 6];
 }
 
 function eventDuration(event: BanjiBenchmarkEvent) {
@@ -275,7 +274,27 @@ function buildScenarioFlamegraphData(bundle: ScenarioEventBundle, label: string)
   } satisfies FlamegraphNode;
 }
 
-function buildFlamegraphHtml({
+function renderStaticFlamegraphNode(node: FlamegraphNode, total: number, depth = 0): string {
+  const percent = flamegraphPercent(node.value, total);
+  const hue = flamegraphHue(depth);
+  const children = node.children ?? [];
+  const childMarkup = children
+    .map((child) => renderStaticFlamegraphNode(child, total, depth + 1))
+    .join('');
+  const summary = `
+    <summary>
+      <span class="node-indent" style="width: ${depth * 18}px"></span>
+      <span class="node-bar" style="width: ${percent.toFixed(3)}%; --node-hue: ${hue};"></span>
+      <span class="node-label">${escapeHtml(node.name)}</span>
+      <span class="node-value">${escapeHtml(formatMs(node.value))} - ${percent.toFixed(1)}%</span>
+    </summary>`;
+  if (childMarkup.length === 0) {
+    return `<details class="flame-node leaf" open>${summary}</details>`;
+  }
+  return `<details class="flame-node" open>${summary}<div class="children">${childMarkup}</div></details>`;
+}
+
+export function buildFlamegraphHtml({
   data,
   record,
   scenario,
@@ -291,7 +310,6 @@ function buildFlamegraphHtml({
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
-  <link rel="stylesheet" href="${D3_FLAMEGRAPH_CSS_URL}">
   <style>
     :root {
       color-scheme: light;
@@ -333,9 +351,59 @@ function buildFlamegraphHtml({
     #chart {
       min-width: 1280px;
     }
-    .d3-flame-graph rect {
-      rx: 2px;
-      ry: 2px;
+    .flame-node {
+      display: block;
+      color: #111827;
+    }
+    .flame-node summary {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      min-height: 32px;
+      gap: 12px;
+      list-style: none;
+      white-space: nowrap;
+    }
+    .flame-node summary::-webkit-details-marker {
+      display: none;
+    }
+    .node-indent {
+      grid-column: 1;
+      grid-row: 1;
+      height: 1px;
+    }
+    .node-bar {
+      grid-column: 2 / 4;
+      grid-row: 1;
+      min-width: 2px;
+      height: 26px;
+      border: 1px solid hsl(var(--node-hue) 70% 36%);
+      border-radius: 4px;
+      background: hsl(var(--node-hue) 82% 72%);
+    }
+    .node-label {
+      grid-column: 2;
+      grid-row: 1;
+      overflow: hidden;
+      padding-left: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      text-overflow: ellipsis;
+      z-index: 1;
+    }
+    .node-value {
+      grid-column: 3;
+      grid-row: 1;
+      padding-right: 10px;
+      color: #0f172a;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      z-index: 1;
+    }
+    .children {
+      display: grid;
+      gap: 2px;
     }
   </style>
 </head>
@@ -344,28 +412,12 @@ function buildFlamegraphHtml({
     <section class="meta">
       <h1>${escapeHtml(title)}</h1>
       <p>Generated from persisted Banji benchmark events for one scope only: <strong>${escapeHtml(scenario)}</strong>. Fixture: ${escapeHtml(record.fixtureSize)}. Repeat count: ${record.repeatCount}. When repeats exist, this artifact uses the worst-case repeat by longest observed timeline.</p>
-      <p>This uses d3-flame-graph from jsDelivr and D3 from d3js.org. Values come from benchmark event durations and derived target metrics; this is not a sampled CPU profiler capture.</p>
+      <p>This self-contained static flame graph uses benchmark event durations and derived target metrics; it is not a sampled CPU profiler capture.</p>
     </section>
     <section class="chart-shell">
-      <div id="chart"></div>
+      <div id="chart">${renderStaticFlamegraphNode(data, data.value)}</div>
     </section>
   </main>
-  <script src="${D3_CDN_URL}"></script>
-  <script src="${D3_FLAMEGRAPH_JS_URL}"></script>
-  <script>
-    const data = ${escapeScriptJson(data)};
-    const chart = flamegraph()
-      .width(1280)
-      .cellHeight(28)
-      .transitionDuration(0)
-      .sort(false)
-      .inverted(true)
-      .label((node) => node.data.name);
-
-    d3.select("#chart")
-      .datum(data)
-      .call(chart);
-  </script>
 </body>
 </html>
 `;
@@ -712,21 +764,21 @@ export function registerBenchmarkRunnerIpc({
         }
       }
       const summaries = await collectSummaries(record);
-      const targetStatus = benchmarkRunStatusForTargets(summaries);
-      const counts = benchmarkTargetStatusCounts(summaries);
+      const targetStatus = benchmarkRunStatusForTargets(summaries, record.scenarios);
+      const counts = benchmarkTargetStatusCounts(summaries, record.scenarios);
       await setRunStatus(
         run,
         targetStatus,
         targetStatus === 'warning'
           ? `Benchmark run completed with ${counts.watch} watch target${counts.watch === 1 ? '' : 's'}.`
           : targetStatus === 'failed'
-            ? `Benchmark run completed with ${counts.fail} failed and ${counts.missing} missing target${counts.fail + counts.missing === 1 ? '' : 's'}.`
+            ? `Benchmark run completed with ${counts.fail} failed, ${counts.missing} missing, ${counts.missingScenarios} missing scenario, and ${counts.zeroTargetSummaries} zero-target summary issue${counts.fail + counts.missing + counts.missingScenarios + counts.zeroTargetSummaries === 1 ? '' : 's'}.`
             : 'Benchmark run completed with all targets passing.',
         {
           summaries,
           exitCode: targetStatus === 'failed' ? 1 : 0,
           error: targetStatus === 'failed'
-            ? `Benchmark targets failed or were missing: ${counts.fail} failed, ${counts.missing} missing.`
+            ? `Benchmark targets failed or were missing: ${counts.fail} failed, ${counts.missing} missing, ${counts.missingScenarios} missing scenario, ${counts.zeroTargetSummaries} zero-target summary.`
             : null,
         },
       );

@@ -9,6 +9,16 @@ Run the full local suite:
 pnpm bench
 ```
 
+By default this runs only the managed scenario list in
+`src/shared/benchmark-scenarios.json`; ad hoc diagnostic files under
+`bench/scenarios` are ignored unless passed explicitly.
+
+List the managed default scenario files without building or launching:
+
+```bash
+node ./scripts/run-benchmarks.mjs --list-managed-scenarios
+```
+
 Run a focused scenario:
 
 ```bash

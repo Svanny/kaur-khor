@@ -18,6 +18,7 @@ pass() {
 MAIN_ENTRY="src/main/index.ts"
 PRELOAD_ENTRY="src/preload/index.ts"
 RENDERER_HTML="src/renderer/index.html"
+BENCHMARK_RUNNER="src/main/benchmark-runner.ts"
 
 if grep -q "preload: join(__dirname, '../preload/index.mjs')" "$MAIN_ENTRY"; then
   pass "Electron main process uses the dedicated preload bridge"
@@ -47,6 +48,12 @@ if grep -qiE '<script[^>]+src="https?://' "$RENDERER_HTML"; then
   fail "Renderer HTML must not load remote scripts"
 else
   pass "Renderer HTML avoids remote script origins"
+fi
+
+if grep -qiE '<(script|link)[^>]+(src|href)="https?://' "$BENCHMARK_RUNNER" || grep -qiE 'https://(d3js\.org|cdn\.jsdelivr\.net)/' "$BENCHMARK_RUNNER"; then
+  fail "Generated flamegraph artifacts must not load remote script or style origins"
+else
+  pass "Generated flamegraph artifacts avoid remote script and style origins"
 fi
 
 if [[ "$findings" -gt 0 ]]; then

@@ -6,6 +6,7 @@ import { BANJI_BENCHMARK_SCENARIOS } from '@shared/benchmark';
 import {
   benchmarkChildSpawnOptions,
   benchmarkOutputDirectoryForRun,
+  buildFlamegraphHtml,
   SCENARIO_FILE_BY_ID,
   terminateBenchmarkChild,
 } from './benchmark-runner';
@@ -49,5 +50,45 @@ describe('benchmark runner helpers', () => {
     }
 
     killProcess.mockRestore();
+  });
+
+  it('generates self-contained flamegraph HTML without remote asset URLs', () => {
+    const html = buildFlamegraphHtml({
+      data: {
+        name: 'startup flame graph - gui-test',
+        value: 125,
+        children: [
+          {
+            name: 'startup repeat - observed 125 ms',
+            value: 125,
+            children: [{ name: 'renderer/startup: ready - 125 ms', value: 125 }],
+          },
+        ],
+      },
+      record: {
+        runId: 'gui-test',
+        scenarios: ['startup'],
+        status: 'passed',
+        startedAt: '2026-04-30T00:00:00.000Z',
+        completedAt: '2026-04-30T00:01:00.000Z',
+        fixtureSize: 'power-user',
+        traceEnabled: false,
+        repeatCount: 1,
+        buildBeforeRun: false,
+        outputDirectory: '/tmp/banji/bench-results/gui-test',
+        exitCode: 0,
+        summaries: [],
+        stdoutTail: [],
+        stderrTail: [],
+        error: null,
+      },
+      scenario: 'startup',
+    });
+
+    expect(html).not.toMatch(/<(?:script|link)[^>]+(?:src|href)="https?:\/\//i);
+    expect(html).not.toMatch(/https:\/\/(?:d3js\.org|cdn\.jsdelivr\.net)\//i);
+    expect(html).not.toContain('d3-flame-graph');
+    expect(html).toContain('This self-contained static flame graph');
+    expect(html).toContain('renderer/startup: ready - 125 ms');
   });
 });

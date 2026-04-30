@@ -189,4 +189,64 @@ describe('benchmark targets', () => {
     });
     expect(benchmarkRunStatusForTargets(summaries)).toBe('warning');
   });
+
+  it('fails benchmark status when no summaries were collected', () => {
+    expect(benchmarkTargetStatusCounts([], ['startup'])).toMatchObject({
+      summaries: 0,
+      total: 0,
+      missingScenarios: 1,
+    });
+    expect(benchmarkRunStatusForTargets([], ['startup'])).toBe('failed');
+  });
+
+  it('fails benchmark status when a requested scenario summary is missing', () => {
+    const summaries: BanjiBenchmarkScenarioSummary[] = [
+      {
+        scenario: 'startup',
+        runId: 'run-1',
+        generatedAt: '2026-04-18T16:32:10.000Z',
+        metrics: {},
+        slowestCore: [],
+        slowestIpc: [],
+        targets: evaluateBenchmarkTargets({
+          'startup.app_to_workspace_ready_ms': 2000,
+          'startup.warm_workspace_ready_ms': 1200,
+          'ipc.system_get_app_context_ms': 35,
+          'ipc.sena_get_startup_workspace_ms': 40,
+          'backend.core.interactive_queue_wait_p95_ms': 0,
+          'backend.core.read_pool_queue_wait_p95_ms': 0,
+          'backend.core.setup_queue_wait_p95_ms': 0,
+        }, 'startup'),
+      },
+    ];
+
+    expect(benchmarkTargetStatusCounts(summaries, ['startup', 'navigation'])).toMatchObject({
+      summaries: 1,
+      missingScenarios: 1,
+      zeroTargetSummaries: 0,
+    });
+    expect(benchmarkRunStatusForTargets(summaries, ['startup', 'navigation'])).toBe('failed');
+  });
+
+  it('fails benchmark status when a collected summary has zero targets', () => {
+    const summaries: BanjiBenchmarkScenarioSummary[] = [
+      {
+        scenario: 'startup',
+        runId: 'run-1',
+        generatedAt: '2026-04-18T16:32:10.000Z',
+        metrics: {},
+        slowestCore: [],
+        slowestIpc: [],
+        targets: [],
+      },
+    ];
+
+    expect(benchmarkTargetStatusCounts(summaries, ['startup'])).toMatchObject({
+      summaries: 1,
+      total: 0,
+      missingScenarios: 0,
+      zeroTargetSummaries: 1,
+    });
+    expect(benchmarkRunStatusForTargets(summaries, ['startup'])).toBe('failed');
+  });
 });

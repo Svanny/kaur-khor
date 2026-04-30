@@ -1,3 +1,5 @@
+import benchmarkScenarios from './benchmark-scenarios.json';
+
 export type BanjiBenchmarkLayer = 'renderer' | 'main' | 'preload' | 'core' | 'playwright';
 
 export type BanjiBenchmarkCategory =
@@ -190,19 +192,12 @@ export interface BanjiBenchmarkRunnerBridge {
   onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => () => void;
 }
 
-export const BANJI_BENCHMARK_SCENARIOS: Array<{
+export const BANJI_BENCHMARK_SCENARIOS = benchmarkScenarios as Array<{
   file: string;
   id: BanjiBenchmarkScenarioId;
   label: string;
   script: string;
-}> = [
-  { file: 'bench/scenarios/startup.bench.ts', id: 'startup', label: 'Startup', script: 'bench:startup' },
-  { file: 'bench/scenarios/navigation.bench.ts', id: 'navigation', label: 'Navigation', script: 'bench:navigation' },
-  { file: 'bench/scenarios/work.bench.ts', id: 'work', label: 'Work', script: 'bench:work' },
-  { file: 'bench/scenarios/capture.bench.ts', id: 'capture', label: 'Capture', script: 'bench:capture' },
-  { file: 'bench/scenarios/detail-pages.bench.ts', id: 'detail-pages', label: 'Detail pages', script: 'bench:detail-pages' },
-  { file: 'bench/scenarios/stability.bench.ts', id: 'stability', label: 'Stability', script: 'bench:stability' },
-];
+}>;
 
 export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
   {
@@ -708,19 +703,39 @@ export function evaluateBenchmarkTargets(
   });
 }
 
-export function benchmarkTargetStatusCounts(summaries: BanjiBenchmarkScenarioSummary[]) {
+export function benchmarkTargetStatusCounts(
+  summaries: BanjiBenchmarkScenarioSummary[],
+  requestedScenarios: BanjiBenchmarkScenarioId[] = [],
+) {
   const targets = summaries.flatMap((summary) => summary.targets ?? []);
+  const summarizedScenarios = new Set(summaries.map((summary) => summary.scenario));
+  const missingScenarios = requestedScenarios.filter((scenario) => !summarizedScenarios.has(scenario));
+  const zeroTargetSummaries = summaries.filter((summary) => (summary.targets ?? []).length === 0).length;
   return {
     pass: targets.filter((target) => target.status === 'pass').length,
     watch: targets.filter((target) => target.status === 'watch').length,
     fail: targets.filter((target) => target.status === 'fail').length,
     missing: targets.filter((target) => target.status === 'missing').length,
+    total: targets.length,
+    summaries: summaries.length,
+    missingScenarios: missingScenarios.length,
+    zeroTargetSummaries,
   };
 }
 
-export function benchmarkRunStatusForTargets(summaries: BanjiBenchmarkScenarioSummary[]): BanjiBenchmarkRunStatus {
-  const counts = benchmarkTargetStatusCounts(summaries);
-  if (counts.fail > 0 || counts.missing > 0) {
+export function benchmarkRunStatusForTargets(
+  summaries: BanjiBenchmarkScenarioSummary[],
+  requestedScenarios: BanjiBenchmarkScenarioId[] = [],
+): BanjiBenchmarkRunStatus {
+  const counts = benchmarkTargetStatusCounts(summaries, requestedScenarios);
+  if (
+    counts.summaries === 0 ||
+    counts.total === 0 ||
+    counts.fail > 0 ||
+    counts.missing > 0 ||
+    counts.missingScenarios > 0 ||
+    counts.zeroTargetSummaries > 0
+  ) {
     return 'failed';
   }
   if (counts.watch > 0) {

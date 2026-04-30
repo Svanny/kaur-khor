@@ -6,6 +6,7 @@ const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const preloadSource = readFileSync(new URL('../preload/index.ts', import.meta.url), 'utf8');
 const rendererHtml = readFileSync(new URL('../renderer/index.html', import.meta.url), 'utf8');
 const windowActivationSource = readFileSync(new URL('./window-activation.ts', import.meta.url), 'utf8');
+const benchmarkRunnerSource = readFileSync(new URL('./benchmark-runner.ts', import.meta.url), 'utf8');
 
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
@@ -113,5 +114,10 @@ describe('desktop runtime security contract', () => {
 
   it('does not load remote scripts from the renderer html shell', () => {
     expect(rendererHtml).not.toMatch(/<script[^>]+src="https?:\/\//i);
+  });
+
+  it('keeps generated flamegraph artifacts free of remote script and style origins', () => {
+    expect(benchmarkRunnerSource).not.toMatch(/<(?:script|link)[^>]+(?:src|href)="https?:\/\//i);
+    expect(benchmarkRunnerSource).not.toMatch(/https:\/\/(?:d3js\.org|cdn\.jsdelivr\.net)\//i);
   });
 });
