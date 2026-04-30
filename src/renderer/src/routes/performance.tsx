@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dialog';
 import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { ActionEyeIcon, ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
 import {
@@ -36,6 +36,7 @@ import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { buildRememberedInboxHref } from '@/lib/page-state-memory';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import {
   buildPerformanceSearchParams,
@@ -377,6 +378,7 @@ export function PerformanceRoute() {
   const {
     currency,
     language,
+    showAnalysisPage,
     showHeartbeatRibbons = true,
     showPerformanceCompareToggle,
     showPerformanceTimelineCard,
@@ -501,6 +503,10 @@ export function PerformanceRoute() {
     scope,
   });
 
+  if (!showAnalysisPage) {
+    return <Navigate replace to="/" />;
+  }
+
   if (!visibleCatalog || (visibleCatalog.skus.length === 0 && visibleCatalog.services.length === 0)) {
     return (
       <WorkspacePage>
@@ -528,7 +534,7 @@ export function PerformanceRoute() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">
+                <Link to={buildRememberedInboxHref()}>
                   <NavigationDashboardIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Open Work')}
                 </Link>

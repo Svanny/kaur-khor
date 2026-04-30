@@ -277,6 +277,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
     showExplanatoryTooltips,
     showFloatingTitleActions,
     showAutomationsPage,
+    showAnalysisPage,
     showRightRailCards,
     t,
   } = usePreferences();
@@ -299,6 +300,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
         showExplanatoryTooltips,
         showFloatingTitleActions,
         showAutomationsPage,
+        showAnalysisPage,
         showRightRailCards,
         t: (key) => t(key as never),
       }).map((command) => ({
@@ -318,6 +320,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showAutomationsPage,
+      showAnalysisPage,
       showRightRailCards,
       t,
     ],

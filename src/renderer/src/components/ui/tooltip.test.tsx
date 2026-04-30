@@ -1,9 +1,18 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { beforeEach, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './tooltip';
+
+const mockLanguage = vi.hoisted(() => ({ value: 'en' as 'en' | 'km' }));
+
+vi.mock('@/state/preferences', () => ({
+  usePreferences: () => ({
+    language: mockLanguage.value,
+  }),
+}));
 
 function LocationProbe() {
   const location = useLocation();
@@ -11,6 +20,10 @@ function LocationProbe() {
 }
 
 describe('TooltipContent', () => {
+  beforeEach(() => {
+    mockLanguage.value = 'en';
+  });
+
   test('renders generic tooltip content even when optional help text is hidden', async () => {
     render(
       <DescriptionTextVisibilityProvider visible={false}>
@@ -65,6 +78,31 @@ describe('TooltipContent', () => {
     const moreLink = screen.getAllByRole('link', { name: 'More help for Pressure' })[0];
     expect(moreLink).toHaveAttribute('href', '/settings/help#pressure-move-now');
     expect(moreLink.querySelector('svg')).toBeInTheDocument();
+  });
+
+  test('localizes helper tooltip actions in Khmer', async () => {
+    const user = userEvent.setup();
+    mockLanguage.value = 'km';
+
+    render(
+      <MemoryRouter>
+        <DescriptionTextVisibilityProvider visible>
+          <HelpTooltip
+            content="សេចក្តីពន្យល់"
+            helpHref="/settings/help#pressure-move-now"
+            label="សម្ពាធ"
+          />
+        </DescriptionTextVisibilityProvider>
+      </MemoryRouter>,
+    );
+
+    await user.hover(screen.getByRole('button', { name: 'ជំនួយសម្រាប់ សម្ពាធ' }));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('ច្រើន');
+    expect(screen.getAllByRole('link', { name: 'ជំនួយបន្ថែមសម្រាប់ សម្ពាធ' })[0]).toHaveAttribute(
+      'href',
+      '/settings/help#pressure-move-now',
+    );
   });
 
   test('navigates More links through the router instead of falling back home', async () => {

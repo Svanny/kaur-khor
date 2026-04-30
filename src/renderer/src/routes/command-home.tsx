@@ -63,7 +63,7 @@ function CommandAction({
 
 export function CommandHomeRoute() {
   const inventory = useInventory();
-  const { language } = usePreferences();
+  const { language, showAnalysisPage } = usePreferences();
   usePageStateMemoryVersion();
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const skuCount = catalog?.skus.filter((sku) => !sku.archived).length ?? 0;
@@ -112,7 +112,7 @@ export function CommandHomeRoute() {
     {
       description: translateUiLiteral(language, 'Open pressure, money, or explanation workspaces.'),
       icon: NavigationPerformanceIcon,
-      isVisible: navigationAvailability.hasInsights,
+      isVisible: showAnalysisPage && navigationAvailability.hasInsights,
       label: translateUiLiteral(language, 'Open Insights'),
       to: buildRememberedInsightsHref(),
       tone: 'open-insights',

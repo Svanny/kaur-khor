@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dialog';
 import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { ActionEyeIcon, ActionOpenExternalIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
 import {
@@ -48,6 +48,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { buildRememberedInboxHref } from '@/lib/page-state-memory';
 import { buildFinancialsSearchParams, readFinancialsRouteState } from '@/lib/navigation-state';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
@@ -467,6 +468,7 @@ export function FinancialsRoute() {
   const {
     currency,
     language,
+    showAnalysisPage,
     showHeartbeatRibbons = true,
     showPerformanceCompareToggle,
     showRightRailCards,
@@ -629,6 +631,10 @@ export function FinancialsRoute() {
     scope,
   });
 
+  if (!showAnalysisPage) {
+    return <Navigate replace to="/" />;
+  }
+
   if (inventory.isLoading && !visibleCatalog) {
     return <FinancialsLoadingState />;
   }
@@ -660,7 +666,7 @@ export function FinancialsRoute() {
                 </Link>
               </Button>
               <Button asChild variant="outline">
-                <Link to="/">
+                <Link to={buildRememberedInboxHref()}>
                   <NavigationDashboardIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Open Work')}
                 </Link>

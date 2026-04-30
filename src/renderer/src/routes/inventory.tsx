@@ -328,7 +328,7 @@ export function InventoryRoute() {
   const inventory = useInventory();
   const { catalog, observations, reports, snapshot, workspaceSummary } = inventory;
   const location = useLocation();
-  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, showAutomationsPage, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const catalogRouteState = readCatalogRouteState(searchParams);
   const [pendingArchive, setPendingArchive] = useState<{
@@ -377,7 +377,7 @@ export function InventoryRoute() {
   if (catalogRouteState.status === 'archived') {
     return <ArchiveRoute />;
   }
-  if (catalogRouteState.section === 'automation') {
+  if (catalogRouteState.section === 'automation' && showAutomationsPage) {
     return <AutomationsRoute forcedSection="catalog" />;
   }
 

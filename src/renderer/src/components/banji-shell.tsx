@@ -44,7 +44,7 @@ import {
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
+import { buildBanjiNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/banji-logo.svg';
 import { ActionRefreshIcon } from '@icons/actions';
@@ -249,12 +249,14 @@ function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'e
 }
 
 function SettingsSidebarMenu({
+  location,
   sections,
   pathname,
   showSidebarText,
   onNavigate,
   t,
 }: {
+  location: ReturnType<typeof useLocation>;
   sections: SettingsSectionConfig[];
   pathname: string;
   showSidebarText: boolean;
@@ -280,7 +282,7 @@ function SettingsSidebarMenu({
               <NavLink
                 aria-label={label}
                 className="group-data-[collapsible=icon]:justify-center"
-                state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+                state={buildSidebarNavigationState(location)}
                 to={buildRememberedPageHref(section.path)}
                 onClick={onNavigate}
               >
@@ -491,6 +493,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t(group.labelKey)}</SidebarGroupLabel>
                   <SidebarGroupContent>
                     <SettingsSidebarMenu
+                      location={location}
                       pathname={location.pathname}
                       sections={group.sections}
                       showSidebarText={showSidebarText}
@@ -532,6 +535,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
               ) : null}
               {isSettingsRoute && SETTINGS_HELP_SECTION ? (
                 <SettingsSidebarMenu
+                  location={location}
                   pathname={location.pathname}
                   sections={[SETTINGS_HELP_SECTION]}
                   showSidebarText={showSidebarText}
@@ -541,6 +545,7 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
               ) : null}
               {isSettingsRoute && SETTINGS_CREDITS_SECTION ? (
                 <SettingsSidebarMenu
+                  location={location}
                   pathname={location.pathname}
                   sections={[SETTINGS_CREDITS_SECTION]}
                   showSidebarText={showSidebarText}

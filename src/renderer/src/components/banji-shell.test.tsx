@@ -323,6 +323,12 @@ describe('BanjiShell', () => {
       expect(screen.getByRole('link', { name: 'Back to app' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
     });
 
+    fireEvent.click(screen.getByRole('link', { name: 'Preferences' }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Back to app' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
+    });
+
     fireEvent.click(screen.getByRole('link', { name: 'Back to app' }));
 
     await waitFor(() => {

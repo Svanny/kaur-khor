@@ -97,6 +97,21 @@ export function buildBanjiNavigationState(
   };
 }
 
+export function buildSidebarNavigationState(
+  location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search' | 'state'>,
+  fallbackTo?: string | null,
+): BanjiNavigationState {
+  const currentState = readBanjiNavigationState(location.state);
+  const existingOrigin = currentState.banjiNavigationOrigin ?? null;
+  const existingFallback = currentState.banjiNavigationFallback ?? null;
+
+  return {
+    banjiNavigationFallback: existingFallback ?? fallbackTo ?? nestedFallbackForPath(location.pathname),
+    banjiNavigationOrigin: existingOrigin,
+    banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+  };
+}
+
 function isSidebarNavigation(location: ReturnType<typeof useLocation>) {
   return readBanjiNavigationState(location.state).banjiNavigationSource === SIDEBAR_NAVIGATION_SOURCE;
 }

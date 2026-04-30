@@ -37,6 +37,7 @@ describe('CommandHomeRoute', () => {
     });
     preferencesHook.mockReturnValue({
       language: 'en',
+      showAnalysisPage: true,
     });
     buildOverviewModel.mockReturnValue({
       tasks: [],
@@ -108,6 +109,42 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Capture Update/i })).toHaveAttribute('href', '/work/capture');
     expect(screen.getByRole('link', { name: /Open Catalog/i })).toHaveAttribute('href', '/catalog');
     expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
+  });
+
+  test('hides insights when the analysis page is disabled', () => {
+    preferencesHook.mockReturnValue({
+      language: 'en',
+      showAnalysisPage: false,
+    });
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            archived: false,
+            costPerUnit: 4,
+            description: 'SKU',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      latestRun: null,
+      observations: [{ observationId: 'obs-1' }, { observationId: 'obs-2' }],
+      orderBatches: [],
+      workspaceSummary: null,
+    });
+
+    renderRoute();
+
+    expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
   });
 
   test('uses three columns when exactly three action cards are visible', () => {

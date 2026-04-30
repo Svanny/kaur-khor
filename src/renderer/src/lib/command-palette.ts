@@ -1291,7 +1291,6 @@ export function buildCommandDescriptors({
       showExplanatoryTooltips,
       showFloatingTitleActions,
       showAutomationsPage,
-      showAnalysisPage,
       showRightRailCards,
       t,
     }),

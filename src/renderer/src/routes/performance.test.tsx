@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { getTranslation } from '@/lib/translations';
@@ -436,6 +436,7 @@ function createInventoryState(overrides: Record<string, unknown> = {}) {
 describe('PerformanceRoute', () => {
   beforeEach(() => {
     preferenceState.language = 'en';
+    preferenceState.showAnalysisPage = true;
     preferenceState.showHeartbeatRibbons = true;
     preferenceState.showRightRailCards = true;
     preferenceState.showPerformanceCompareToggle = true;
@@ -447,6 +448,17 @@ describe('PerformanceRoute', () => {
     return render(
       <MemoryRouter initialEntries={[initialEntry]}>
         <PerformanceRoute />
+      </MemoryRouter>,
+    );
+  }
+
+  function renderRoutedPerformance(initialEntry = '/performance') {
+    return render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route element={<div>Home fallback</div>} path="/" />
+          <Route element={<PerformanceRoute />} path="/performance" />
+        </Routes>
       </MemoryRouter>,
     );
   }
@@ -630,6 +642,24 @@ describe('PerformanceRoute', () => {
     expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(screen.queryByText('Explain needs a catalog first')).not.toBeInTheDocument();
     expect(screen.queryByText('Explain needs your first update')).not.toBeInTheDocument();
+  });
+
+  test('redirects performance when insights are disabled', () => {
+    preferenceState.showAnalysisPage = false;
+
+    renderRoutedPerformance();
+
+    expect(screen.getByText('Home fallback')).toBeInTheDocument();
+  });
+
+  test('links empty performance workspace recovery to the work queue', () => {
+    inventoryHook.mockReturnValue(createInventoryState({
+      workspaceSummary: null,
+    }));
+
+    renderRoute();
+
+    expect(screen.getByRole('link', { name: /Open Work/i })).toHaveAttribute('href', '/work/queue');
   });
 
   test('renders the analysis empty-state create first SKU CTA with an icon', () => {

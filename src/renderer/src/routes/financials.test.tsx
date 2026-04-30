@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
 import { FinancialsRoute } from './financials';
@@ -9,6 +9,7 @@ const optionalAutomationHook = vi.fn();
 const preferenceState = {
   currency: 'USD',
   language: 'en',
+  showAnalysisPage: true,
   showHeartbeatRibbons: true,
   showPerformanceCompareToggle: true,
   showRightRailCards: true,
@@ -238,6 +239,7 @@ function createInventoryState(overrides: Record<string, unknown> = {}) {
 describe('FinancialsRoute', () => {
   beforeEach(() => {
     preferenceState.language = 'en';
+    preferenceState.showAnalysisPage = true;
     preferenceState.showHeartbeatRibbons = true;
     preferenceState.showPerformanceCompareToggle = true;
     preferenceState.showRightRailCards = true;
@@ -311,6 +313,17 @@ describe('FinancialsRoute', () => {
     );
   }
 
+  function renderRoutedFinancials(initialEntry = '/financials') {
+    return render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route element={<div>Home fallback</div>} path="/" />
+          <Route element={<FinancialsRoute />} path="/financials" />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
   test('renders a statement-first financial surface', () => {
     renderRoute();
 
@@ -326,6 +339,24 @@ describe('FinancialsRoute', () => {
     expect(screen.getByRole('heading', { name: 'Economic contributors' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Money quality bands' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Move now' })).not.toBeInTheDocument();
+  });
+
+  test('redirects financials when insights are disabled', () => {
+    preferenceState.showAnalysisPage = false;
+
+    renderRoutedFinancials();
+
+    expect(screen.getByText('Home fallback')).toBeInTheDocument();
+  });
+
+  test('links empty financial workspace recovery to the work queue', () => {
+    inventoryHook.mockReturnValue(createInventoryState({
+      workspaceSummary: null,
+    }));
+
+    renderRoute();
+
+    expect(screen.getByRole('link', { name: /Open Work/i })).toHaveAttribute('href', '/work/queue');
   });
 
   test('renders icons inside financial toggle pills', () => {
