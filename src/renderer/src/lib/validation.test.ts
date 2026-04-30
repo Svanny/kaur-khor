@@ -2,6 +2,7 @@ import {
   limits,
   normalizeText,
   validateNonNegativeDecimal,
+  validatePositiveDecimal,
   validateRequiredText,
 } from './validation';
 
@@ -20,5 +21,18 @@ describe('validation helpers', () => {
     expect(validateNonNegativeDecimal('1000000001', limits.monetaryAmountMax)).toBe('too-large');
     expect(validateNonNegativeDecimal('0', limits.monetaryAmountMax)).toBeNull();
     expect(validateNonNegativeDecimal('10.5', limits.inventoryUnitsMax)).toBeNull();
+  });
+
+  it('rejects non-decimal numeric syntax', () => {
+    for (const value of ['0x10', '1e3', '+1', '-1', '.5', '1.', '1.2.3']) {
+      expect(validateNonNegativeDecimal(value, limits.inventoryUnitsMax)).toBe('invalid');
+      expect(validatePositiveDecimal(value, limits.inventoryUnitsMax)).toBe('invalid');
+    }
+  });
+
+  it('preserves ordinary decimal validation behavior', () => {
+    expect(validateNonNegativeDecimal('000.50', limits.inventoryUnitsMax)).toBeNull();
+    expect(validatePositiveDecimal('0', limits.inventoryUnitsMax)).toBe('invalid');
+    expect(validatePositiveDecimal('0.01', limits.inventoryUnitsMax)).toBeNull();
   });
 });

@@ -62,7 +62,8 @@ function toCsv(rows: Array<Record<string, unknown>>) {
   }
   const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
   const escapeCsvCell = (value: unknown) => {
-    const text = serializeCell(value);
+    const serialized = serializeCell(value);
+    const text = /^[=+\-@]/.test(serialized) ? `'${serialized}` : serialized;
     return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   return [

@@ -2,13 +2,23 @@ export type SessionViewMode = 'pos' | 'form';
 
 export const DEFAULT_SESSION_VIEW_MODE: SessionViewMode = 'pos';
 
-function canUseBrowserStorage() {
-  return (
-    typeof window !== 'undefined' &&
-    Boolean(window.localStorage) &&
-    typeof window.localStorage.getItem === 'function' &&
-    typeof window.localStorage.setItem === 'function'
-  );
+function getBrowserStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const storage = window.localStorage;
+    if (
+      !storage ||
+      typeof storage.getItem !== 'function' ||
+      typeof storage.setItem !== 'function'
+    ) {
+      return null;
+    }
+    return storage;
+  } catch {
+    return null;
+  }
 }
 
 function isSessionViewMode(value: unknown): value is SessionViewMode {
@@ -20,16 +30,26 @@ export function recordUpdateSessionViewStorageKey() {
 }
 
 export function readRecordUpdateSessionViewMode(): SessionViewMode {
-  if (!canUseBrowserStorage()) {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return DEFAULT_SESSION_VIEW_MODE;
   }
-  const value = window.localStorage.getItem(recordUpdateSessionViewStorageKey());
-  return isSessionViewMode(value) ? value : DEFAULT_SESSION_VIEW_MODE;
+  try {
+    const value = storage.getItem(recordUpdateSessionViewStorageKey());
+    return isSessionViewMode(value) ? value : DEFAULT_SESSION_VIEW_MODE;
+  } catch {
+    return DEFAULT_SESSION_VIEW_MODE;
+  }
 }
 
 export function writeRecordUpdateSessionViewMode(mode: SessionViewMode) {
-  if (!canUseBrowserStorage()) {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return;
   }
-  window.localStorage.setItem(recordUpdateSessionViewStorageKey(), mode);
+  try {
+    storage.setItem(recordUpdateSessionViewStorageKey(), mode);
+  } catch {
+    // Ignore unavailable storage and keep the in-memory default behavior.
+  }
 }

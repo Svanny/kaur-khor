@@ -4,6 +4,19 @@ import { exportLogsAction, exportPlanningDataAction } from './settings-workspace
 const t = (key: string, variables?: Record<string, string | number | null | undefined>) =>
   variables?.format ? `${key}:${variables.format}` : key;
 
+async function exportedBlobText() {
+  const blob = vi.mocked(URL.createObjectURL).mock.calls.at(-1)?.[0] as Blob | undefined;
+  if (!blob) {
+    throw new Error('Expected an exported blob');
+  }
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result)));
+    reader.addEventListener('error', () => reject(reader.error));
+    reader.readAsText(blob);
+  });
+}
+
 describe('settings workspace actions', () => {
   beforeEach(() => {
     vi.stubGlobal('URL', {
@@ -67,5 +80,52 @@ describe('settings workspace actions', () => {
     expect(window.banjiDesktop.sena.getDiagnostics).toHaveBeenCalledTimes(1);
     expect(window.banjiDesktop.sena.getRunStatus).toHaveBeenCalledWith({ runId: 'run-1' });
     expect(click).not.toHaveBeenCalled();
+  });
+
+  it('prefixes formula-leading CSV cells while preserving CSV quoting', async () => {
+    window.banjiDesktop.sena.getCatalog = vi.fn(async () => ({
+      skus: [
+        {
+          skuId: 'sku-1',
+          name: '=SUM(1,2)',
+          notes: '+1',
+          payload: '-1',
+        },
+        {
+          skuId: 'sku-2',
+          name: '@foo',
+        },
+      ],
+      services: [],
+      bundles: [],
+      sharingMask: [],
+    })) as never;
+    window.banjiDesktop.sena.listObservations = vi.fn(async () => [
+      {
+        observationId: 'obs-1',
+        ownerSub: 'owner-1',
+        input: {
+          observedAt: '2026-04-30T00:00:00.000Z',
+          stockSnapshot: [],
+          serviceRankings: [],
+          retailRankings: [],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [],
+          servicePrices: [],
+          retailPrices: [],
+          leadTimeHints: [],
+          notes: '@foo',
+        },
+      },
+    ]) as never;
+
+    await exportPlanningDataAction('csv', t as never);
+
+    const csv = await exportedBlobText();
+    expect(csv).toContain(`"'=SUM(1,2)"`);
+    expect(csv).toContain("'+1");
+    expect(csv).toContain("'-1");
+    expect(csv).toContain("'@foo");
   });
 });

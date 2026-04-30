@@ -1,5 +1,6 @@
 const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
 const BIDI_CONTROL_CHARS = /[\u202A-\u202E\u2066-\u2069]/;
+const DECIMAL_NUMBER = /^\d+(?:\.\d+)?$/;
 
 export const limits = {
   skuNameMaxLength: 80,
@@ -47,6 +48,9 @@ export function validateNonNegativeDecimal(value: string, maxValue: number): str
   if (!raw) {
     return 'required';
   }
+  if (!DECIMAL_NUMBER.test(raw)) {
+    return 'invalid';
+  }
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0) {
     return 'invalid';
@@ -61,6 +65,9 @@ export function validatePositiveDecimal(value: string, maxValue: number): string
   const raw = value.trim();
   if (!raw) {
     return 'required';
+  }
+  if (!DECIMAL_NUMBER.test(raw)) {
+    return 'invalid';
   }
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) {
