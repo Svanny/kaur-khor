@@ -164,6 +164,7 @@ interface ServiceFinancialRow {
 }
 
 type FinancialEntityRow = SkuFinancialRow | ServiceFinancialRow;
+type CustomWindowRange = { startAt: string; endAt: string };
 
 function literal(language: AppLanguage, englishTemplate: string, variables?: Record<string, string | number | null | undefined>) {
   return translateUiLiteral(language, englishTemplate, variables);
@@ -189,19 +190,45 @@ function windowLabel(range: FinancialsRange, language: AppLanguage, customRange:
   return literal(language, 'last {days}d', { days: daysForRange(range) });
 }
 
+function latestObservationObservedAt(observations: SenaObservationRecord[]) {
+  return observations.reduce<string | null>((latest, observation) => {
+    const observedAt = observation.input.observedAt;
+    const observedTime = new Date(observedAt).getTime();
+    if (!Number.isFinite(observedTime)) {
+      return latest;
+    }
+    if (!latest) {
+      return observedAt;
+    }
+    return observedTime > new Date(latest).getTime() ? observedAt : latest;
+  }, null);
+}
+
 function lastUpdatedAt(workspaceSummary: SenaWorkspaceSummary | null, observations: SenaObservationRecord[]) {
-  return workspaceSummary?.latestObservedAt ?? observations[0]?.input.observedAt ?? null;
+  const summaryObservedAt = workspaceSummary?.latestObservedAt ?? null;
+  const latestObservationAt = latestObservationObservedAt(observations);
+  if (!summaryObservedAt) {
+    return latestObservationAt;
+  }
+  if (!latestObservationAt) {
+    return summaryObservedAt;
+  }
+  return new Date(latestObservationAt).getTime() > new Date(summaryObservedAt).getTime()
+    ? latestObservationAt
+    : summaryObservedAt;
 }
 
 function filterObservationsForWindow({
   endAt,
   observations,
   offsetDays = 0,
+  startAt = null,
   windowDays,
 }: {
   endAt: string | null;
   observations: SenaObservationRecord[];
   offsetDays?: number;
+  startAt?: string | null;
   windowDays: number;
 }) {
   if (!endAt) {
@@ -209,7 +236,10 @@ function filterObservationsForWindow({
   }
 
   const endTime = new Date(endAt).getTime() - offsetDays * 24 * 60 * 60 * 1000;
-  const startTime = endTime - windowDays * 24 * 60 * 60 * 1000;
+  const parsedStartTime = startAt ? new Date(startAt).getTime() : Number.NaN;
+  const startTime = Number.isFinite(parsedStartTime)
+    ? parsedStartTime
+    : endTime - windowDays * 24 * 60 * 60 * 1000;
 
   return observations.filter((observation) => {
     const observedAt = new Date(observation.input.observedAt).getTime();
@@ -891,6 +921,7 @@ export function deriveFinancialsViewModel({
   range,
   workspaceSummary,
   customRange,
+  previousCustomRange,
 }: {
   catalog: SenaCatalog;
   compareMode: boolean;
@@ -905,7 +936,8 @@ export function deriveFinancialsViewModel({
   skuDetailsById: Record<string, SenaSkuDetail | null>;
   range: FinancialsRange;
   workspaceSummary: SenaWorkspaceSummary | null;
-  customRange: { startAt: string; endAt: string } | null;
+  customRange: CustomWindowRange | null;
+  previousCustomRange?: CustomWindowRange | null;
 }): FinancialsViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
   let rangeDays: number;
@@ -926,13 +958,18 @@ export function deriveFinancialsViewModel({
   const recentObservations = filterObservationsForWindow({ observations, endAt: activeWindowEndAt, windowDays: rangeDays });
   const previousObservations = filterObservationsForWindow({
     observations,
-    endAt: activeWindowEndAt,
-    offsetDays: rangeDays,
-    windowDays: rangeDays,
+    endAt: range === 'custom' && previousCustomRange ? previousCustomRange.endAt : activeWindowEndAt,
+    offsetDays: range === 'custom' && previousCustomRange ? 0 : rangeDays,
+    startAt: range === 'custom' && previousCustomRange ? previousCustomRange.startAt : null,
+    windowDays: range === 'custom' && previousCustomRange
+      ? daysBetween(previousCustomRange.startAt, previousCustomRange.endAt)
+      : rangeDays,
   });
-  const previousSnapshotAt = observedAt
-    ? new Date(new Date(observedAt).getTime() - rangeDays * 24 * 60 * 60 * 1000).toISOString()
-    : null;
+  const previousSnapshotAt = range === 'custom' && previousCustomRange
+    ? previousCustomRange.endAt
+    : observedAt
+      ? new Date(new Date(observedAt).getTime() - rangeDays * 24 * 60 * 60 * 1000).toISOString()
+      : null;
   const previousStockSnapshot = latestObservationWithStockBefore(observations, previousSnapshotAt);
   const currentTotals = deriveWindowTotals({
     catalog,

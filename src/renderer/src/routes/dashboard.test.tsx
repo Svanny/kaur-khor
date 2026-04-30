@@ -1066,6 +1066,23 @@ describe('DashboardRoute', () => {
     });
   });
 
+  test('opens supplier task deep-links before clearing task route state', async () => {
+    const { container } = renderRouteWithLocation('/?task=sku-1&taskMode=not_ordered');
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+    });
+
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?task=sku-1&taskMode=not_ordered');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).toBeNull();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
+    });
+  });
+
   test('ignores legacy grouped batch preferences without writing popup state to the route', async () => {
     preferenceState.taskBatchUpdatePreferences = {
       ...preferenceState.taskBatchUpdatePreferences,

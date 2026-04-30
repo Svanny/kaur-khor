@@ -42,6 +42,7 @@ const ROUTE_LOCAL_READY_NAMES = new Set([
   'insights.explain',
   'insights.money',
   'insights.pressure',
+  'automations',
   'service-detail',
   'work',
   'work.intake',

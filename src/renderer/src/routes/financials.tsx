@@ -488,6 +488,7 @@ export function FinancialsRoute() {
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const requestedOrderBatchesRef = useRef(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [manualPreviousCustomRange, setManualPreviousCustomRange] = useState<{ startAt: string; endAt: string } | null>(null);
 
   const currentCustomRange = routeState.range === 'custom' && routeState.customRangeStart && routeState.customRangeEnd
     ? { startAt: routeState.customRangeStart, endAt: routeState.customRangeEnd }
@@ -495,12 +496,13 @@ export function FinancialsRoute() {
 
   const previousCustomRange = useMemo(() => {
     if (!currentCustomRange) return null;
+    if (manualPreviousCustomRange) return manualPreviousCustomRange;
     const days = daysBetween(currentCustomRange.startAt, currentCustomRange.endAt);
     return {
       startAt: shiftDateByDays(currentCustomRange.startAt, -days),
       endAt: shiftDateByDays(currentCustomRange.endAt, -days),
     };
-  }, [currentCustomRange]);
+  }, [currentCustomRange, manualPreviousCustomRange]);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -585,15 +587,18 @@ export function FinancialsRoute() {
       skuDetailsById,
       workspaceSummary: inventory.workspaceSummary,
       customRange: currentCustomRange,
+      previousCustomRange,
     });
   }, [
     compareMode,
     currency,
+    currentCustomRange,
     inventory.diagnostics,
     inventory.observations,
     inventory.orderBatches,
     inventory.workspaceSummary,
     language,
+    previousCustomRange,
     range,
     scope,
     serviceDetailsById,
@@ -603,8 +608,19 @@ export function FinancialsRoute() {
   ]);
   const telegramWindowSummary = useMemo(() => {
     const windowDays = rangeDaysForFinancials(range);
+    const customStartTime = range === 'custom' && currentCustomRange ? new Date(currentCustomRange.startAt).getTime() : Number.NaN;
+    const customEndTime = range === 'custom' && currentCustomRange ? new Date(currentCustomRange.endAt).getTime() : Number.NaN;
     const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
-    const intakesInRange = automation.intakes.filter((intake) => new Date(intake.updatedAt).getTime() >= cutoff);
+    const intakesInRange = automation.intakes.filter((intake) => {
+      const updatedAt = new Date(intake.updatedAt).getTime();
+      if (!Number.isFinite(updatedAt)) {
+        return false;
+      }
+      if (Number.isFinite(customStartTime) && Number.isFinite(customEndTime)) {
+        return updatedAt >= customStartTime && updatedAt <= customEndTime;
+      }
+      return updatedAt >= cutoff;
+    });
     const openQuotedValue = intakesInRange
       .filter((intake) => intake.status === 'new' || intake.status === 'needs_review' || intake.status === 'quoted' || intake.status === 'ticketed')
       .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
@@ -622,7 +638,7 @@ export function FinancialsRoute() {
       realizedValueLabel: formatCurrency(realizedValue, currency, language, usdToKhrExchangeRate),
       ticketedCount: intakesInRange.filter((intake) => intake.status === 'ticketed' || intake.status === 'completed').length,
     };
-  }, [automation.intakes, currency, language, range, usdToKhrExchangeRate]);
+  }, [automation.intakes, currency, currentCustomRange, language, range, usdToKhrExchangeRate]);
 
   useBenchmarkRouteReady('insights.money', !inventory.isLoading && (!visibleCatalog || model != null), {
     compareMode,
@@ -714,6 +730,7 @@ export function FinancialsRoute() {
                   setCustomDialogOpen(true);
                   return;
                 }
+                setManualPreviousCustomRange(null);
                 updateRouteState({ range: nextValue as FinancialsRange, customRangeStart: null, customRangeEnd: null });
               }}
             >
@@ -789,6 +806,7 @@ export function FinancialsRoute() {
               previousEnd={previousCustomRange?.endAt ?? null}
               compareMode={compareMode}
               onApply={(currentStart, currentEnd, previousStart, previousEnd) => {
+                setManualPreviousCustomRange(previousStart && previousEnd ? { startAt: previousStart, endAt: previousEnd } : null);
                 updateRouteState({
                   range: 'custom',
                   customRangeStart: currentStart,
@@ -797,6 +815,7 @@ export function FinancialsRoute() {
               }}
               onClear={() => {
                 setCustomDialogOpen(false);
+                setManualPreviousCustomRange(null);
                 updateRouteState({ range: '30d', customRangeStart: null, customRangeEnd: null });
               }}
             />

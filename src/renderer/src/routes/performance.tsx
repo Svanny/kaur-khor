@@ -399,6 +399,7 @@ export function PerformanceRoute() {
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
+  const [manualPreviousCustomRange, setManualPreviousCustomRange] = useState<{ startAt: string; endAt: string } | null>(null);
 
   const currentCustomRange = routeState.range === 'custom' && routeState.customRangeStart && routeState.customRangeEnd
     ? { startAt: routeState.customRangeStart, endAt: routeState.customRangeEnd }
@@ -406,12 +407,13 @@ export function PerformanceRoute() {
 
   const previousCustomRange = useMemo(() => {
     if (!currentCustomRange) return null;
+    if (manualPreviousCustomRange) return manualPreviousCustomRange;
     const days = daysBetween(currentCustomRange.startAt, currentCustomRange.endAt);
     return {
       startAt: shiftDateByDays(currentCustomRange.startAt, -days),
       endAt: shiftDateByDays(currentCustomRange.endAt, -days),
     };
-  }, [currentCustomRange]);
+  }, [currentCustomRange, manualPreviousCustomRange]);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -466,15 +468,18 @@ export function PerformanceRoute() {
       timeRange,
       workspaceSummary: inventory.workspaceSummary,
       customRange: currentCustomRange,
+      previousCustomRange,
     });
   }, [
     currency,
     compareMode,
+    currentCustomRange,
     visibleCatalog,
     inventory.diagnostics,
     inventory.observations,
     inventory.workspaceSummary,
     language,
+    previousCustomRange,
     scope,
     serviceDetailsById,
     skuDetailsById,
@@ -582,6 +587,7 @@ export function PerformanceRoute() {
                   setCustomDialogOpen(true);
                   return;
                 }
+                setManualPreviousCustomRange(null);
                 updateRouteState({ range: nextValue as PerformanceTimeRange, customRangeStart: null, customRangeEnd: null });
               }}
             >
@@ -650,6 +656,7 @@ export function PerformanceRoute() {
               previousEnd={previousCustomRange?.endAt ?? null}
               compareMode={compareMode}
               onApply={(currentStart, currentEnd, previousStart, previousEnd) => {
+                setManualPreviousCustomRange(previousStart && previousEnd ? { startAt: previousStart, endAt: previousEnd } : null);
                 updateRouteState({
                   range: 'custom',
                   customRangeStart: currentStart,
@@ -658,6 +665,7 @@ export function PerformanceRoute() {
               }}
               onClear={() => {
                 setCustomDialogOpen(false);
+                setManualPreviousCustomRange(null);
                 updateRouteState({ range: '30d', customRangeStart: null, customRangeEnd: null });
               }}
             />

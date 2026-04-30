@@ -239,6 +239,101 @@ describe('derivePerformanceViewModel', () => {
     expect(model.boardRows[0]?.changeScore).toBeGreaterThanOrEqual(model.boardRows.at(-1)?.changeScore ?? 0);
   });
 
+  test('uses manually selected previous custom bounds for compare windows', () => {
+    const customObservations = [
+      {
+        input: {
+          leadTimeHints: [],
+          notes: null,
+          observedAt: '2026-01-10T08:00:00.000Z',
+          orderSignals: [],
+          retailPrices: [],
+          retailRankings: ['sku-shampoo'],
+          servicePrices: [],
+          serviceRankings: ['service-color'],
+          serviceStockouts: [],
+          stockSnapshot: [],
+          retailStockouts: [],
+        },
+        observationId: 'custom-current',
+        ownerSub: 'desktop-owner',
+      },
+      {
+        input: {
+          leadTimeHints: [],
+          notes: null,
+          observedAt: '2025-11-02T08:00:00.000Z',
+          orderSignals: [],
+          retailPrices: [],
+          retailRankings: ['sku-razor'],
+          servicePrices: [],
+          serviceRankings: ['service-haircut'],
+          serviceStockouts: [],
+          stockSnapshot: [],
+          retailStockouts: [],
+        },
+        observationId: 'manual-previous',
+        ownerSub: 'desktop-owner',
+      },
+    ];
+
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: true,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: customObservations,
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: 'custom',
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-01-10T08:00:00.000Z' },
+      customRange: {
+        startAt: '2026-01-10T00:00:00.000Z',
+        endAt: '2026-01-10T23:59:59.999Z',
+      },
+      previousCustomRange: {
+        startAt: '2025-11-01T00:00:00.000Z',
+        endAt: '2025-11-03T23:59:59.999Z',
+      },
+    });
+
+    expect(model.previousWindowLabel).toBe('prior custom period');
+    expect(model.ribbon.find((metric) => metric.key === 'demand')?.trendSignal?.splitIndex).toBeGreaterThan(0);
+    expect(model.boardRows.some((row) => (row.demandTrendSignal?.splitIndex ?? 0) > 0)).toBe(true);
+  });
+
+  test('anchors windows to the latest observation when workspace summary is missing or stale', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        {
+          ...observations[1],
+          input: { ...observations[1].input, observedAt: '2026-04-01T08:00:00.000Z' },
+          observationId: 'older-first',
+        },
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: '2026-04-10T08:00:00.000Z' },
+          observationId: 'latest-second',
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: '7d',
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-02T08:00:00.000Z' },
+    });
+
+    expect(model.lastUpdatedLabel).toContain('Apr 10');
+    expect(model.confidence.evidenceLabel).toContain('Apr 10');
+  });
+
   test('keeps overdue pipeline summaries working with localized labels', () => {
     const model = derivePerformanceViewModel({
       catalog,

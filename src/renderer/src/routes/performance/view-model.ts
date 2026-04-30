@@ -33,6 +33,7 @@ export type PerformanceTimeRange = '7d' | '30d' | '90d' | 'custom';
 
 type TrendTone = 'up' | 'flat' | 'down';
 type BusinessStatus = 'push' | 'unblock' | 'review' | 'clear' | 'steady';
+type CustomWindowRange = { startAt: string; endAt: string };
 
 export interface PerformanceTrendSignal {
   label: string;
@@ -239,11 +240,13 @@ function filterObservationsForWindow({
   observations,
   endAt,
   offsetDays = 0,
+  startAt = null,
   windowDays,
 }: {
   observations: SenaObservationRecord[];
   endAt: string | null;
   offsetDays?: number;
+  startAt?: string | null;
   windowDays: number;
 }) {
   if (!endAt) {
@@ -256,7 +259,10 @@ function filterObservationsForWindow({
   }
 
   const windowEnd = endTime - offsetDays * 24 * 60 * 60 * 1000;
-  const windowStart = windowEnd - windowDays * 24 * 60 * 60 * 1000;
+  const parsedStartTime = startAt ? new Date(startAt).getTime() : Number.NaN;
+  const windowStart = Number.isFinite(parsedStartTime)
+    ? parsedStartTime
+    : windowEnd - windowDays * 24 * 60 * 60 * 1000;
 
   return observations.filter((observation) => {
     const observedTime = new Date(observation.input.observedAt).getTime();
@@ -974,8 +980,32 @@ function toBoardRow(
   };
 }
 
+function latestObservationObservedAt(observations: SenaObservationRecord[]) {
+  return observations.reduce<string | null>((latest, observation) => {
+    const observedAt = observation.input.observedAt;
+    const observedTime = new Date(observedAt).getTime();
+    if (!Number.isFinite(observedTime)) {
+      return latest;
+    }
+    if (!latest) {
+      return observedAt;
+    }
+    return observedTime > new Date(latest).getTime() ? observedAt : latest;
+  }, null);
+}
+
 function lastUpdatedAt(workspaceSummary: SenaWorkspaceSummary | null, observations: SenaObservationRecord[]) {
-  return workspaceSummary?.latestObservedAt ?? observations[0]?.input.observedAt ?? null;
+  const summaryObservedAt = workspaceSummary?.latestObservedAt ?? null;
+  const latestObservationAt = latestObservationObservedAt(observations);
+  if (!summaryObservedAt) {
+    return latestObservationAt;
+  }
+  if (!latestObservationAt) {
+    return summaryObservedAt;
+  }
+  return new Date(latestObservationAt).getTime() > new Date(summaryObservedAt).getTime()
+    ? latestObservationAt
+    : summaryObservedAt;
 }
 
 function actionForRow(
@@ -1167,6 +1197,7 @@ export function derivePerformanceViewModel({
   timeRange,
   workspaceSummary,
   customRange,
+  previousCustomRange,
 }: {
   catalog: SenaCatalog;
   compareMode: boolean;
@@ -1180,7 +1211,8 @@ export function derivePerformanceViewModel({
   skuDetailsById: Record<string, SenaSkuDetail | null>;
   timeRange: PerformanceTimeRange;
   workspaceSummary: SenaWorkspaceSummary | null;
-  customRange: { startAt: string; endAt: string } | null;
+  customRange: CustomWindowRange | null;
+  previousCustomRange?: CustomWindowRange | null;
 }): PerformanceViewModel {
   const observedAt = lastUpdatedAt(workspaceSummary, observations);
   let rangeDays: number;
@@ -1205,9 +1237,12 @@ export function derivePerformanceViewModel({
   });
   const previousObservations = filterObservationsForWindow({
     observations,
-    endAt: activeWindowEndAt,
-    offsetDays: rangeDays,
-    windowDays: rangeDays,
+    endAt: timeRange === 'custom' && previousCustomRange ? previousCustomRange.endAt : activeWindowEndAt,
+    offsetDays: timeRange === 'custom' && previousCustomRange ? 0 : rangeDays,
+    startAt: timeRange === 'custom' && previousCustomRange ? previousCustomRange.startAt : null,
+    windowDays: timeRange === 'custom' && previousCustomRange
+      ? daysBetween(previousCustomRange.startAt, previousCustomRange.endAt)
+      : rangeDays,
   });
   const customerSkuSnapshots = buildSkuCommercialSnapshots({ observations, rangeDays, endAt: activeWindowEndAt });
   const customerServiceSnapshots = buildServiceCommercialSnapshots({ catalog, observations, rangeDays, endAt: activeWindowEndAt });

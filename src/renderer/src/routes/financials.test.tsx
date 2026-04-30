@@ -463,6 +463,74 @@ describe('FinancialsRoute', () => {
     expect(screen.getByText(/Timeframe: Custom/i)).toBeInTheDocument();
   });
 
+  test('filters Telegram attribution by active custom date range', () => {
+    optionalAutomationHook.mockReturnValue({
+      connection: null,
+      conversations: [],
+      exposures: [],
+      intakes: [
+        {
+          intakeId: 'inside-custom',
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          status: 'ticketed',
+          parseConfidence: 'high',
+          customerDisplayName: 'Inside custom',
+          customerHandle: '@inside',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 24,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 24,
+          createdAt: '2026-04-16T07:30:00.000Z',
+          updatedAt: '2026-04-16T07:30:00.000Z',
+          promotedTicketId: 'ticket-1',
+          lines: [],
+        },
+        {
+          intakeId: 'outside-custom',
+          conversationId: 'conversation-2',
+          channel: 'telegram',
+          status: 'ticketed',
+          parseConfidence: 'high',
+          customerDisplayName: 'Outside custom',
+          customerHandle: '@outside',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 99,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 99,
+          createdAt: '2026-04-01T07:30:00.000Z',
+          updatedAt: '2026-04-01T07:30:00.000Z',
+          promotedTicketId: 'ticket-2',
+          lines: [],
+        },
+      ],
+      metrics: null,
+      error: null,
+      isLoading: false,
+      isSaving: false,
+      reload: vi.fn(),
+      loadWorkspace: vi.fn(),
+      saveConnection: vi.fn(),
+      patchExposureRow: vi.fn(),
+      readConversation: vi.fn(),
+      listIntakes: vi.fn(),
+      readIntake: vi.fn(),
+      resolveIntake: vi.fn(),
+      promoteIntake: vi.fn(),
+      testTelegramConnection: vi.fn(),
+    });
+
+    renderRoute('/financials?range=custom&customStart=2026-04-16T00%3A00%3A00.000Z&customEnd=2026-04-16T23%3A59%3A59.999Z');
+
+    expect(screen.getByText(/Open quoted Telegram value/i)).toHaveTextContent('$24.00');
+    expect(screen.getByText(/Ticketed Telegram intake/i)).toHaveTextContent('1');
+    expect(screen.queryByText(/\$123.00/)).not.toBeInTheDocument();
+  });
+
   test('summarizes Telegram attribution in the right rail', () => {
     renderRoute();
 

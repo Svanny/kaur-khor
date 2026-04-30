@@ -416,6 +416,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const [isHydratingDetails, setIsHydratingDetails] = useState(false);
   const [selectedTaskRequest, setSelectedTaskRequest] = useState<{
     mode: OverviewTaskDrawerMode | null;
+    routeLinked?: boolean;
     taskId: string;
   } | null>(null);
   const [selectedAutomationIntakeId, setSelectedAutomationIntakeId] = useState<string | null>(null);
@@ -601,10 +602,15 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   );
 
   useEffect(() => {
-    if (routeState.taskId) {
-      updateRouteState({ taskId: null, taskMode: null }, true);
+    if (overviewScope !== 'supplier' || !routeState.taskId) {
+      return;
     }
-  }, [routeState.taskId]);
+    setSelectedTaskRequest((current) =>
+      current?.taskId === routeState.taskId && current.mode === routeState.taskMode && current.routeLinked
+        ? current
+        : { taskId: routeState.taskId!, mode: routeState.taskMode, routeLinked: true },
+    );
+  }, [overviewScope, routeState.taskId, routeState.taskMode]);
 
   useEffect(() => {
     if (overviewScope !== 'customer' || !routeState.customerTaskId) {
@@ -621,6 +627,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   useEffect(() => {
     if (selectedTaskRequest && !selectedTask) {
       setSelectedTaskRequest(null);
+      if (selectedTaskRequest.routeLinked) {
+        updateRouteState({ taskId: null, taskMode: null }, true);
+      }
     }
   }, [selectedTask, selectedTaskRequest]);
 
@@ -1276,7 +1285,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
 
             <section className="mt-auto flex justify-center px-5 py-5">
               <Button asChild variant="outline">
-                <Link to="/settings/history">
+                <Link state={buildBanjiNavigationState(location)} to="/settings/history">
                   <ActionOpenExternalIcon className="size-4" />
                   {translateUiLiteral(language, 'Open logs')}
                 </Link>
@@ -1301,6 +1310,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
             onOpenChange={(open) => {
               if (!open) {
                 setSelectedTaskRequest(null);
+                if (routeState.taskId) {
+                  updateRouteState({ taskId: null, taskMode: null }, true);
+                }
               }
             }}
           />
