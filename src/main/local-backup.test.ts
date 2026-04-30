@@ -99,6 +99,42 @@ describe('desktop local backup snapshots', () => {
     await expect(readFile(join(restored.safetySnapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('new-sqlite');
   });
 
+  it('does not prune the selected snapshot while creating the restore safety snapshot', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-restore-prune-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'old-sqlite', 'utf8');
+    await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
+
+    const selectedSnapshot = await createDesktopBackupSnapshot({
+      maxSnapshots: 30,
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    for (let index = 1; index <= 24; index += 1) {
+      await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), `new-sqlite-${index}`, 'utf8');
+      await createDesktopBackupSnapshot({
+        maxSnapshots: 30,
+        now: () => new Date(`2026-04-10T10:${String(index).padStart(2, '0')}:00.000Z`),
+        reason: 'sena-ingest-observation',
+        trigger: 'automatic',
+        userDataPath,
+      });
+    }
+
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
+
+    const restored = await restoreDesktopBackupSnapshot({
+      selectedPath: selectedSnapshot.snapshotPath,
+      userDataPath,
+    });
+
+    expect(restored.restoredSnapshotPath).toBe(selectedSnapshot.snapshotPath);
+    await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('old-sqlite');
+    await expect(readFile(join(selectedSnapshot.snapshotPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
+  });
+
   it('captures SQLite sidecar files in the snapshot directory', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-wal-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');

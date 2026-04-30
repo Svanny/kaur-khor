@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, screen, session, shell } from 'electron';
+import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, join } from 'node:path';
@@ -169,11 +170,15 @@ registerBenchmarkRunnerIpc({
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
 const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
-const PREFERRED_BASELINE_ZOOM_LEVEL = -1;
+const PREFERRED_BASELINE_ZOOM_LEVEL = 0;
 const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
 const ZOOM_LEVEL_STEP = 0.5;
 const MIN_WINDOW_ZOOM_LEVEL = -3;
 const MAX_WINDOW_ZOOM_LEVEL = 3;
+
+function restoreSnapshotDialogProperties(): Electron.OpenDialogOptions['properties'] {
+  return process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openDirectory'];
+}
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
 const windowZoomLevels = new WeakMap<BrowserWindow, number>();
@@ -788,6 +793,24 @@ function installMacDockIcon() {
   }
 }
 
+async function installReactDevToolsForDevelopment() {
+  if (app.isPackaged || !process.env.ELECTRON_RENDERER_URL) {
+    return;
+  }
+
+  try {
+    const extension = await installExtension(REACT_DEVELOPER_TOOLS, {
+      session: session.defaultSession,
+    });
+    console.log(`[main] Installed ${extension.name}.`);
+  } catch (error) {
+    console.warn(
+      '[main] React Developer Tools could not be installed.',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 function setFocusedWindowToActualSize() {
   // banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
@@ -973,6 +996,7 @@ async function createMainWindow() {
 
 async function boot() {
   installMacDockIcon();
+  await installReactDevToolsForDevelopment();
 
   const prewarmManagedCore = async () => {
     const endPrewarm = startBenchmarkSpan({
@@ -1146,7 +1170,8 @@ ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, benchmarkIpcHandle(IPC_
   const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
     buttonLabel: 'Restore snapshot',
     defaultPath: desktopBackupDirectoryPath(desktopDataPath),
-    properties: ['openDirectory', 'openFile'],
+    message: 'Choose a snapshot folder. You can also select a file inside a snapshot.',
+    properties: restoreSnapshotDialogProperties(),
     title: 'Choose a saved snapshot to restore',
   });
   if (selection.canceled || selection.filePaths.length === 0) {

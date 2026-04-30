@@ -83,6 +83,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "30.5.1",
     "electron-builder": "^26.0.12",
+    "electron-devtools-installer": "^4.0.0",
     "electron-vite": "^5.0.0",
     "jsdom": "^27.2.0",
     "markmap-cli": "^0.18.12",

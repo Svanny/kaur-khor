@@ -9,6 +9,7 @@ import type {
 interface CreateDesktopBackupSnapshotOptions {
   maxSnapshots?: number;
   now?: () => Date;
+  preserveSnapshotPaths?: string[];
   reason?: string;
   trigger: 'manual' | 'automatic';
   userDataPath: string;
@@ -80,12 +81,14 @@ async function listRestorableSnapshotFiles(snapshotPath: string, fileOps: FileOp
     .sort((left, right) => left.localeCompare(right));
 }
 
-async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number) {
+async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number, preserveSnapshotPaths: string[] = []) {
   const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
+  const preservedSnapshotNames = new Set(preserveSnapshotPaths.map((snapshotPath) => basename(snapshotPath)));
   const entries = await fs.readdir(backupDirectoryPath, { withFileTypes: true }).catch(() => []);
   const snapshotDirectories = entries
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
+    .filter((entryName) => !preservedSnapshotNames.has(entryName))
     .sort((left, right) => right.localeCompare(left));
 
   for (const snapshotName of snapshotDirectories.slice(maxSnapshots)) {
@@ -177,6 +180,7 @@ export async function restoreWorkspaceFiles(
 async function createDesktopBackupSnapshotUnchecked({
   maxSnapshots = DEFAULT_MAX_BACKUP_SNAPSHOTS,
   now = () => new Date(),
+  preserveSnapshotPaths,
   reason,
   trigger,
   userDataPath,
@@ -207,7 +211,7 @@ async function createDesktopBackupSnapshotUnchecked({
     ),
     'utf8',
   );
-  await pruneOldSnapshots(userDataPath, maxSnapshots);
+  await pruneOldSnapshots(userDataPath, maxSnapshots, preserveSnapshotPaths);
 
   return {
     createdAt,
@@ -269,6 +273,7 @@ export async function restoreDesktopBackupSnapshot({
     }
 
     const safetySnapshot = await createDesktopBackupSnapshotUnchecked({
+      preserveSnapshotPaths: [snapshotPath],
       reason: 'before-restore',
       trigger: 'manual',
       userDataPath,

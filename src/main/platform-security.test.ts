@@ -16,7 +16,7 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('nodeIntegration: false');
     expect(mainSource).toContain('zoomFactor: PREFERRED_BASELINE_ZOOM_FACTOR,');
     expect(mainSource).toContain('screen.getPrimaryDisplay().workArea');
-    expect(mainSource).toContain('const PREFERRED_BASELINE_ZOOM_LEVEL = -1;');
+    expect(mainSource).toContain('const PREFERRED_BASELINE_ZOOM_LEVEL = 0;');
     expect(mainSource).toContain('const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;');
     expect(mainSource).toContain('const ZOOM_LEVEL_STEP = 0.5;');
     expect(mainSource).toContain('const windowZoomLevels = new WeakMap<BrowserWindow, number>();');
@@ -77,6 +77,17 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('session.defaultSession.webRequest.onHeadersReceived');
     expect(mainSource).toContain("'Content-Security-Policy': [policy]");
     expect(mainSource).not.toContain('unsafe-eval');
+  });
+
+  it('loads React DevTools only for the development renderer session', () => {
+    expect(mainSource).toContain("import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';");
+    expect(mainSource).toContain('async function installReactDevToolsForDevelopment()');
+    expect(mainSource).toContain('if (app.isPackaged || !process.env.ELECTRON_RENDERER_URL) {');
+    expect(mainSource).toContain('await installExtension(REACT_DEVELOPER_TOOLS, {');
+    expect(mainSource).toContain('session: session.defaultSession,');
+    expect(mainSource.indexOf('await installReactDevToolsForDevelopment();')).toBeLessThan(
+      mainSource.indexOf('await createMainWindow();'),
+    );
   });
 
   it('exposes a named preload bridge through contextBridge', () => {
