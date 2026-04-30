@@ -642,8 +642,8 @@ function buildAutomationMetrics(intakes: AutomationOrderIntake[], exposures: Aut
     ordersToday: todayIntakes.length,
     needsReview: intakes.filter((intake) => intake.status === 'needs_review' || intake.status === 'failed').length,
     quotedToday: todayIntakes.filter((intake) => intake.status === 'quoted').length,
-    ticketedToday: todayIntakes.filter((intake) => intake.status === 'ticketed').length,
-    completedToday: todayIntakes.filter((intake) => intake.status === 'completed').length,
+    ticketedToday: intakes.filter((intake) => intake.status === 'ticketed' && intake.updatedAt >= todayFloor).length,
+    completedToday: intakes.filter((intake) => intake.status === 'completed' && intake.updatedAt >= todayFloor).length,
     exposedSellables: exposures.filter((row) => row.exposed).length,
   };
 }

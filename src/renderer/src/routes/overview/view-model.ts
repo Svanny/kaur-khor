@@ -4,6 +4,7 @@ import type {
   SenaLeadTimeVariabilityClass,
   SenaObservationRecord,
   SenaOrderBatchRecord,
+  SenaRecordUpdateContext,
   SenaSkuDetail,
   SenaSkuSummary,
   SenaWorkspaceSummary,
@@ -79,6 +80,7 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   supplierName: string | null;
   batchOrderId: string | null;
   childOrderId: string | null;
+  supplierTicketId: string | null;
   batchChildCount: number;
   state: Exclude<OverviewTaskFilter, 'all'>;
   stateLabel: string;
@@ -349,6 +351,48 @@ function latestOrderContext(orderBatches: SenaOrderBatchRecord[], skuId: string)
     child,
     effective: child.effective,
   };
+}
+
+function resolveSupplierTicketIdForOrderContext({
+  observations,
+  orderContext,
+  recordUpdateContext,
+  skuId,
+  supplierName,
+}: {
+  observations: SenaObservationRecord[];
+  orderContext: ReturnType<typeof latestOrderContext>;
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  skuId: string;
+  supplierName: string | null;
+}) {
+  const placementTimestamp = orderContext?.effective.placementTimestamp;
+  if (!placementTimestamp) {
+    return null;
+  }
+
+  const matchingTicketIds = new Set<string>();
+  for (const observation of observations) {
+    for (const event of observation.input.ticketEvents ?? []) {
+      if (
+        event.ticketFamily === 'supplier' &&
+        event.occurredAt === placementTimestamp &&
+        event.lines.some((line) => line.entityType === 'sku' && line.entityId === skuId) &&
+        (!supplierName || !event.party?.supplierName || event.party.supplierName === supplierName)
+      ) {
+        matchingTicketIds.add(event.ticketId);
+      }
+    }
+  }
+
+  if (matchingTicketIds.size === 0) {
+    return null;
+  }
+
+  const openMatch = recordUpdateContext?.openTicketsByFamily.supplier.find((ticket) =>
+    matchingTicketIds.has(ticket.ticketId),
+  );
+  return openMatch?.ticketId ?? matchingTicketIds.values().next().value ?? null;
 }
 
 function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
@@ -689,6 +733,7 @@ function buildTask({
   language,
   observations,
   orderBatches,
+  recordUpdateContext,
   summary,
   workspaceLatestObservedAt,
 }: {
@@ -697,6 +742,7 @@ function buildTask({
   language: AppLanguage;
   observations: SenaObservationRecord[];
   orderBatches: SenaOrderBatchRecord[];
+  recordUpdateContext?: SenaRecordUpdateContext | null;
   summary: SenaSkuSummary;
   workspaceLatestObservedAt: string | null;
 }) {
@@ -707,6 +753,14 @@ function buildTask({
 
   const observationSignals = summarizeObservations(observations, summary.skuId);
   const orderContext = latestOrderContext(orderBatches, summary.skuId);
+  const supplierName = sku.supplierName?.trim() || null;
+  const supplierTicketId = resolveSupplierTicketIdForOrderContext({
+    observations,
+    orderContext,
+    recordUpdateContext,
+    skuId: summary.skuId,
+    supplierName,
+  });
   const latestOrderAt = orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt;
   const latestReceiptAt = orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
   const receiptWindow = receiptWindowSummary({
@@ -721,7 +775,7 @@ function buildTask({
           case 'reviewed':
             return null;
           case 'received':
-            return 'received_today' as const;
+            return isSameLocalDay(latestReceiptAt) ? ('received_today' as const) : null;
           case 'follow_up':
             return 'follow_up_today' as const;
           case 'awaiting_receipt':
@@ -781,9 +835,10 @@ function buildTask({
     skuId: summary.skuId,
     skuName: sku.name,
     imagePath: sku.imagePath?.trim() || null,
-    supplierName: sku.supplierName?.trim() || null,
+    supplierName,
     batchOrderId: orderContext?.batch.batchOrderId ?? null,
     childOrderId: orderContext?.child.childOrderId ?? null,
+    supplierTicketId,
     batchChildCount: orderContext?.batch.children.length ?? 0,
     state,
     stateLabel: taskStateLabel(state, language),
@@ -974,6 +1029,7 @@ export function buildOverviewModel({
   language,
   observations,
   orderBatches,
+  recordUpdateContext,
   staleUpdateReminderSnoozeUntil,
   workspaceSummary,
 }: {
@@ -983,6 +1039,7 @@ export function buildOverviewModel({
   language: AppLanguage;
   observations: SenaObservationRecord[];
   orderBatches: SenaOrderBatchRecord[];
+  recordUpdateContext?: SenaRecordUpdateContext | null;
   staleUpdateReminderSnoozeUntil?: string | null;
   workspaceSummary: SenaWorkspaceSummary | null;
 }): OverviewModel {
@@ -1023,6 +1080,7 @@ export function buildOverviewModel({
         language,
         observations,
         orderBatches,
+        recordUpdateContext,
         summary,
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),

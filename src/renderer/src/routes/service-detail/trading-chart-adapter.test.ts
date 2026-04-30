@@ -49,4 +49,25 @@ describe('deriveServiceTradingChartModel', () => {
     expect(chartModel.availability.demandMinusAvailableCapacity).toBe(true);
     expect(chartModel.availability.regime).toBe(true);
   });
+
+  test('uses the interval start when end is missing', () => {
+    const model = {
+      intervals: [
+        {
+          intervalIndex: 1,
+          startAt: '2026-04-02T00:00:00.000Z',
+          endAt: null,
+          label: 'Interval 2',
+          priceValue: null,
+          demandValue: 0,
+          sellableValue: 0,
+          regimeKey: null,
+        },
+      ],
+    } as unknown as ServiceDetailViewModel;
+
+    expect(deriveServiceTradingChartModel(model).points[0]?.time).toBe(
+      Math.floor(new Date('2026-04-02T00:00:00.000Z').getTime() / 1000),
+    );
+  });
 });

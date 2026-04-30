@@ -2,6 +2,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
 import { createContext, useContext, useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SenaRecordUpdateContext, SenaTicketSummary } from '@shared/sena';
 import { getTranslation } from '@/lib/translations';
 import { OverviewTaskDrawer } from './task-drawer';
 import type { OverviewSkuTask } from './view-model';
@@ -181,6 +182,11 @@ const sampleTask: OverviewSkuTask = {
   heartbeat: ['Likely on hand 25-42', '53D cover'],
   nextSteps: ['banji will log the receipt and update stock.'],
   linkedServiceNames: ['Comboo'],
+  supplierName: 'Mekong Looms',
+  batchOrderId: null,
+  childOrderId: null,
+  supplierTicketId: null,
+  batchChildCount: 0,
   currentStock: 36,
   costPerUnit: 3,
   productPrice: 8,
@@ -224,6 +230,63 @@ const orderWaitingTask: OverviewSkuTask = {
   defaultDrawerMode: 'ordered_waiting',
   expectedArrivalDate: '2026-04-14',
   suggestedOrderQuantity: 12,
+};
+
+function recordUpdateContextWithSupplierTickets(tickets: SenaTicketSummary[]): SenaRecordUpdateContext {
+  const latestObservedAt = tickets[0]?.occurredAt ?? '2026-04-09T09:59:00.000Z';
+  return {
+    observationFingerprint: { count: tickets.length, latestObservedAt, latestObservationId: 'obs-ticket' },
+    latestObservedAt,
+    latestStockBySku: {},
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+    openTicketsByFamily: { customer: [], supplier: tickets },
+    latestTicketsById: Object.fromEntries(tickets.map((ticket) => [
+      ticket.ticketId,
+      {
+        observationId: 'obs-ticket',
+        observedAt: ticket.occurredAt,
+        value: ticket,
+      },
+    ])),
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
+  };
+}
+
+function recordUpdateContextWithSupplierTicket(ticket: SenaTicketSummary): SenaRecordUpdateContext {
+  return recordUpdateContextWithSupplierTickets([ticket]);
+}
+
+const supplierTicket: SenaTicketSummary = {
+  ticketId: 'supplier-ticket-1',
+  ticketFamily: 'supplier',
+  lifecycle: 'open',
+  stage: 'ordered_waiting',
+  revision: 3,
+  eventType: 'created',
+  occurredAt: '2026-04-09T09:59:00.000Z',
+  nextTouchAt: '2026-04-14T05:00:00.000Z',
+  party: {
+    role: 'supplier',
+    supplierName: 'Mekong Looms',
+  },
+  lines: [{
+    entityType: 'sku',
+    entityId: 'sku-3',
+    orderedQuantity: 8,
+    receivedQuantity: null,
+    expectedArrivalAt: '2026-04-14T05:00:00.000Z',
+  }],
+  note: null,
+};
+
+const sameEtaSupplierTicket: SenaTicketSummary = {
+  ...supplierTicket,
+  ticketId: 'supplier-ticket-same-eta',
+  revision: 8,
 };
 
 describe('OverviewTaskDrawer', () => {
@@ -312,6 +375,7 @@ describe('OverviewTaskDrawer', () => {
     const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
     inventoryHook.mockReturnValue({
       ingestSenaObservation,
+      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
       runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
       updateSenaOrderChild,
@@ -344,6 +408,148 @@ describe('OverviewTaskDrawer', () => {
     expect(updateSenaOrderChild.mock.invocationCallOrder[0]).toBeLessThan(
       ingestSenaObservation.mock.invocationCallOrder[0],
     );
+  });
+
+  test('reuses the existing supplier ticket identity when saving an ETA update', async () => {
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
+      isSaving: false,
+    });
+
+    render(
+      <OverviewTaskDrawer
+        mode="eta_changed"
+        open
+        task={{
+          ...orderWaitingTask,
+          defaultDrawerMode: 'eta_changed',
+          childOrderId: 'child-1',
+          recentOrderQuantity: 8,
+        }}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Expected arrival date'), { target: { value: '2026-04-16' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        ticketEvents: [
+          expect.objectContaining({
+            eventType: 'eta_updated',
+            revision: 4,
+            ticketId: 'supplier-ticket-1',
+          }),
+        ],
+      }));
+    });
+  });
+
+  test('uses the task supplier ticket id when multiple open tickets share sku supplier and ETA', async () => {
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([supplierTicket, sameEtaSupplierTicket]),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
+      isSaving: false,
+    });
+
+    render(
+      <OverviewTaskDrawer
+        mode="eta_changed"
+        open
+        task={{
+          ...orderWaitingTask,
+          defaultDrawerMode: 'eta_changed',
+          childOrderId: 'child-2',
+          supplierTicketId: 'supplier-ticket-same-eta',
+          expectedArrivalDate: '2026-04-14',
+          recentOrderQuantity: 5,
+        }}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Expected arrival date'), { target: { value: '2026-04-17' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        ticketEvents: [
+          expect.objectContaining({
+            revision: 9,
+            ticketId: 'supplier-ticket-same-eta',
+          }),
+        ],
+      }));
+    });
+  });
+
+  test('preserves the existing supplier order quantity when an ETA update leaves quantity empty', async () => {
+    const updateSenaOrderChild = vi.fn(async (payload: unknown) => payload);
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      updateSenaOrderChild,
+      isSaving: false,
+    });
+
+    render(
+      <OverviewTaskDrawer
+        mode="eta_changed"
+        open
+        task={{
+          ...orderWaitingTask,
+          defaultDrawerMode: 'eta_changed',
+          childOrderId: 'child-1',
+          recentOrderQuantity: 8,
+          suggestedOrderQuantity: 12,
+        }}
+        onModeChange={vi.fn()}
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText('Ordered quantity'), { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Expected arrival date'), { target: { value: '2026-04-16' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+
+    await waitFor(() => {
+      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        orderSignals: [
+          expect.objectContaining({
+            approximateOrderQuantity: 8,
+          }),
+        ],
+        ticketEvents: [
+          expect.objectContaining({
+            lines: [
+              expect.objectContaining({
+                orderedQuantity: 8,
+              }),
+            ],
+          }),
+        ],
+      }));
+      expect(updateSenaOrderChild).toHaveBeenCalledWith(expect.objectContaining({
+        overrides: expect.objectContaining({
+          orderedQuantity: 8,
+        }),
+      }));
+    });
   });
 
   test('derives uncertainty days from the selected variability class when saving an order update', async () => {

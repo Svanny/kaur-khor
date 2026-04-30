@@ -99,6 +99,14 @@ with the ticket/observation history they append. If a task has a
 that child or batch state before appending the matching observation event. Tasks
 without a backing child may continue through the observation-only path.
 
+When an Inbox drawer or Capture route updates an existing supplier order, it
+must preserve the real supplier ticket identity and increment from the latest
+known ticket revision. Prefer `recordUpdateContext.latestTicketsById` when the
+route already carries a ticket id; otherwise match open supplier tickets by SKU,
+supplier, and expected arrival date before creating a new ticket id. Leaving the
+quantity field blank during an ETA-only update should preserve the existing
+order quantity rather than falling back to a fresh recommendation.
+
 ## Downstream Projections
 
 SKU detail should expose ticket state as supporting evidence, not as a new
@@ -140,6 +148,11 @@ The compact context carries:
 - open customer and supplier ticket summaries
 - latest delivery-fee metadata by bucket
 - bounded recent record activity entries for shared history/evidence rendering
+
+Observation reads are chronologically ascending with an observation-id
+tie-breaker. Keep that ordering stable so same-timestamp ticket and observation
+events project deterministically across Rust, main-process caches, and renderer
+history surfaces.
 
 The bounded recent activity entries are append-style and may include multiple
 recent revisions for the same ticket or entity. Do not derive user-visible

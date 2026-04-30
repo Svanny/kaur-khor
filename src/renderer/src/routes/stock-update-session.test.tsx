@@ -708,7 +708,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(skuDialog).getByLabelText('Retail price')).toHaveClass('ring-2');
 
     unmount();
-    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?targetAction=service-price&targetType=service&targetId=service-1&lanes=stock-count`);
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?targetAction=service-price&targetType=service&targetId=service-1`);
 
     await waitFor(() => {
       expect(screen.getByLabelText('Price if changed for Haircut')).toHaveClass('ring-2');
@@ -1383,6 +1383,133 @@ describe('StockUpdateSessionRoute', () => {
       expect(screen.getByText('Select the existing ticket you want to update.')).toBeInTheDocument();
     });
   });
+
+  it('resolves child-order routes to the real supplier ticket identity when saving ticket events', async () => {
+    setStoredSessionViewMode('form');
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [],
+            supplier: [{
+              ticketId: 'supplier-ticket-real',
+              ticketFamily: 'supplier',
+              lifecycle: 'open',
+              stage: 'ordered_waiting',
+              revision: 3,
+              eventType: 'created',
+              occurredAt: '2026-04-03T12:00:00.000Z',
+              nextTouchAt: '2026-04-10T12:00:00.000Z',
+              party: {
+                role: 'supplier',
+                supplierName: 'Mekong Looms',
+              },
+              lines: [{
+                entityType: 'sku',
+                entityId: 'sku-1',
+                orderedQuantity: 8,
+                receivedQuantity: null,
+                expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+              }],
+              note: null,
+            }],
+          },
+          latestTicketsById: {
+            'supplier-ticket-real': {
+              observationId: 'obs-ticket',
+              observedAt: '2026-04-03T12:00:00.000Z',
+              value: {
+                ticketId: 'supplier-ticket-real',
+                ticketFamily: 'supplier',
+                lifecycle: 'open',
+                stage: 'ordered_waiting',
+                revision: 3,
+                eventType: 'created',
+                occurredAt: '2026-04-03T12:00:00.000Z',
+                nextTouchAt: '2026-04-10T12:00:00.000Z',
+                party: {
+                  role: 'supplier',
+                  supplierName: 'Mekong Looms',
+                },
+                lines: [{
+                  entityType: 'sku',
+                  entityId: 'sku-1',
+                  orderedQuantity: 8,
+                  receivedQuantity: null,
+                  expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+                }],
+                note: null,
+              },
+            },
+          },
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+        orderBatches: [
+          {
+            batchOrderId: 'batch-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'open',
+            createdAt: '2026-04-03T12:00:00.000Z',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+              supplierNote: '',
+            },
+            children: [
+              {
+                childOrderId: 'child-1',
+                skuId: 'sku-1',
+                status: 'open',
+                updatedAt: '2026-04-03T12:00:00.000Z',
+                effective: {
+                  orderedQuantity: 8,
+                  receivedQuantity: 0,
+                  expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+                  leadTimeDaysHint: 6,
+                  leadTimeVariability: 'tight',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&childOrderId=child-1`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    goNext(2);
+    fireEvent.change(screen.getByLabelText('Current order for Razor refill'), { target: { value: '9' } });
+    goNext();
+    goNext();
+    chooseOptionalStepNo();
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      ticketEvents: [
+        expect.objectContaining({
+          revision: 4,
+          ticketId: 'supplier-ticket-real',
+        }),
+      ],
+    }));
+  }, 10_000);
 
   it('disables edit-update when no existing supplier tickets are available', () => {
     renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);

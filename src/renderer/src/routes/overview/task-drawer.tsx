@@ -1,5 +1,5 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import type { SenaLeadTimeVariabilityClass, SenaTicketEvent, SenaTicketEventType, SenaTicketStage } from '@shared/sena';
+import type { SenaLeadTimeVariabilityClass, SenaRecordUpdateContext, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import {
   deriveLeadTimeFromStdDays,
   deriveLeadTimeFromVariabilityClass,
@@ -132,6 +132,8 @@ function supplierTicketEventFromDrawer({
   receivedCost,
   skuId,
   supplierName,
+  ticketId,
+  revision,
 }: {
   eventType: SenaTicketEventType;
   expectedArrivalDate: string;
@@ -143,23 +145,19 @@ function supplierTicketEventFromDrawer({
   receivedCost: number | null;
   skuId: string;
   supplierName: string | null;
+  ticketId: string;
+  revision: number;
 }): SenaTicketEvent {
   const stage: SenaTicketStage =
     mode === 'goods_received'
       ? 'received'
       : 'ordered_waiting';
-  const ticketId = makeTicketId({
-    eventType,
-    family: 'supplier',
-    lines: [{ entityType: 'sku', entityId: skuId }],
-    observedAt,
-  });
   return {
     ticketId,
     ticketFamily: 'supplier',
     lifecycle,
     stage,
-    revision: 1,
+    revision,
     eventType,
     occurredAt: observedAt,
     nextTouchAt: mode === 'goods_received' ? null : dateInputToIsoDate(expectedArrivalDate),
@@ -177,6 +175,75 @@ function supplierTicketEventFromDrawer({
       note,
     }],
     note,
+  };
+}
+
+function dateKey(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) {
+    return value.slice(0, 10) || null;
+  }
+  return new Date(time).toISOString().slice(0, 10);
+}
+
+function supplierTicketMatchesDrawerContext(ticket: SenaTicketSummary, task: OverviewSkuTask) {
+  if (!ticket.lines.some((line) => line.entityType === 'sku' && line.entityId === task.skuId)) {
+    return false;
+  }
+  if (task.supplierName && ticket.party?.supplierName && ticket.party.supplierName !== task.supplierName) {
+    return false;
+  }
+
+  const taskExpectedDate = dateKey(task.expectedArrivalDate);
+  if (!taskExpectedDate) {
+    return true;
+  }
+
+  return ticket.lines.some((line) => dateKey(line.expectedArrivalAt) === taskExpectedDate)
+    || dateKey(ticket.nextTouchAt) === taskExpectedDate;
+}
+
+function supplierTicketIdentityForDrawer({
+  eventType,
+  observedAt,
+  recordUpdateContext,
+  task,
+}: {
+  eventType: SenaTicketEventType;
+  observedAt: string;
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  task: OverviewSkuTask;
+}) {
+  if (task.supplierTicketId) {
+    const latestTicket = recordUpdateContext?.latestTicketsById[task.supplierTicketId]?.value;
+    return {
+      ticketId: task.supplierTicketId,
+      revision: (latestTicket?.revision ?? 0) + 1,
+    };
+  }
+
+  const existingTicket = recordUpdateContext?.openTicketsByFamily.supplier.find((ticket) =>
+    supplierTicketMatchesDrawerContext(ticket, task),
+  ) ?? null;
+  if (existingTicket) {
+    const latestRevision = recordUpdateContext?.latestTicketsById[existingTicket.ticketId]?.value.revision ?? existingTicket.revision;
+    return {
+      ticketId: existingTicket.ticketId,
+      revision: latestRevision + 1,
+    };
+  }
+
+  return {
+    ticketId: makeTicketId({
+      eventType,
+      family: 'supplier',
+      lines: [{ entityType: 'sku', entityId: task.skuId }],
+      observedAt,
+    }),
+    revision: 1,
   };
 }
 
@@ -435,7 +502,7 @@ export function OverviewTaskDrawer({
   task: OverviewSkuTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun, updateSenaOrderChild } = useInventory();
+  const { ingestSenaObservation, isSaving, recordUpdateContext, runWorkspacePreparation, triggerSenaRun, updateSenaOrderChild } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
@@ -484,7 +551,7 @@ export function OverviewTaskDrawer({
     setError(null);
     setInitializedTaskId(task.id);
     return () => window.cancelAnimationFrame(frameId);
-  }, [currency, task?.id, usdToKhrExchangeRate]);
+  }, [task?.id]);
 
   useEffect(() => {
     setDismissedAfterSave(false);
@@ -662,7 +729,19 @@ export function OverviewTaskDrawer({
       notes: notes.trim() || null,
     });
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
-      const quantity = orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null;
+      const quantity = orderedQuantity ? Number(orderedQuantity) : (activeTask.recentOrderQuantity ?? (activeTask.suggestedOrderQuantity || null));
+      const eventType: SenaTicketEventType =
+        mode === 'eta_changed'
+          ? 'eta_updated'
+          : activeTask.childOrderId
+            ? 'revised'
+            : 'created';
+      const ticketIdentity = supplierTicketIdentityForDrawer({
+        eventType,
+        observedAt: observedAtIso,
+        recordUpdateContext,
+        task: activeTask,
+      });
       senaPayload.orderSignals = [
         {
           skuId: activeTask.skuId,
@@ -674,7 +753,7 @@ export function OverviewTaskDrawer({
       ];
       senaPayload.ticketEvents = [
         supplierTicketEventFromDrawer({
-          eventType: mode === 'eta_changed' ? 'eta_updated' : 'created',
+          eventType,
           expectedArrivalDate,
           lifecycle: 'open',
           mode,
@@ -684,6 +763,7 @@ export function OverviewTaskDrawer({
           receivedCost: null,
           skuId: activeTask.skuId,
           supplierName: activeTask.supplierName,
+          ...ticketIdentity,
         }),
       ];
       senaPayload.leadTimeHints = leadTimeHintFromTaskInputs({
@@ -702,6 +782,12 @@ export function OverviewTaskDrawer({
       const nextCost = receivedCost
         ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
         : activeTask.costPerUnit;
+      const ticketIdentity = supplierTicketIdentityForDrawer({
+        eventType: 'fully_received',
+        observedAt: observedAtIso,
+        recordUpdateContext,
+        task: activeTask,
+      });
       senaPayload.stockSnapshot = [
         {
           ...baselineSnapshot,
@@ -730,6 +816,7 @@ export function OverviewTaskDrawer({
           receivedCost: nextCost,
           skuId: activeTask.skuId,
           supplierName: activeTask.supplierName,
+          ...ticketIdentity,
         }),
       ];
     }
@@ -740,7 +827,7 @@ export function OverviewTaskDrawer({
         return true;
       }
       if (activeTask.childOrderId && (mode === 'ordered_waiting' || mode === 'eta_changed')) {
-        const quantity = orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null;
+        const quantity = orderedQuantity ? Number(orderedQuantity) : (activeTask.recentOrderQuantity ?? (activeTask.suggestedOrderQuantity || null));
         await updateSenaOrderChild({
           childOrderId: activeTask.childOrderId,
           appendSupplierNote: notes.trim() || null,
@@ -848,10 +935,8 @@ export function OverviewTaskDrawer({
       >
         {discardConfirmDialog}
         <div
-          aria-label={translateUiLiteral(language, 'Resize drawer')}
+          aria-hidden="true"
           className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
-          role="separator"
-          tabIndex={-1}
           onPointerDown={startDrawerResize}
         />
 

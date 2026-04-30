@@ -1435,7 +1435,7 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let mut stmt = connection.prepare(
-            "SELECT observation_id, payload FROM sena_observation WHERE owner_sub = ?1 ORDER BY observed_at ASC",
+            "SELECT observation_id, payload FROM sena_observation WHERE owner_sub = ?1 ORDER BY observed_at ASC, observation_id ASC",
         )?;
         let rows = stmt.query_map(params![owner_sub], |row| {
             let observation_id: String = row.get(0)?;
@@ -2918,6 +2918,25 @@ mod tests {
             .expect("observation should delete");
         let remaining = block_on(repo.list_observations("owner")).expect("observations should load");
         assert!(remaining.is_empty());
+    }
+
+    #[test]
+    fn observations_with_duplicate_timestamps_have_stable_order() {
+        let path = temp_store_path("duplicate-observation-order");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        insert_observation_with_id(&repo, "obs-b", "2026-04-01T00:00:00Z", 14.0);
+        insert_observation_with_id(&repo, "obs-a", "2026-04-01T00:00:00Z", 12.0);
+
+        let observations = block_on(repo.list_observations("owner")).expect("observations should load");
+
+        assert_eq!(
+            observations
+                .iter()
+                .map(|observation| observation.observation_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-a", "obs-b"]
+        );
     }
 
     #[test]

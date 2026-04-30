@@ -1032,6 +1032,59 @@ describe('SKU detail SENA helpers', () => {
     expect(screen.getByLabelText('Chart timeframe')).toBeInTheDocument();
   });
 
+  test('recomputes the route model harness when order batches change', () => {
+    function RouteModelHarness({ orderBatches }: { orderBatches: SenaOrderBatchRecord[] }) {
+      const model = React.useMemo(() =>
+        deriveSenaSkuDetailViewModel({
+          currency: 'USD',
+          diagnostics,
+          observations,
+          linkedServiceDetails: [],
+          orderBatches,
+          selectedIntervalIndex: 0,
+          skuId: 'sku-1',
+          snapshot,
+          detail,
+          uiState: 'ready',
+          workspaceSummary: workspace,
+          language: 'en',
+        }), [orderBatches]);
+      return <div>{model.heartbeat.pipelineLabel}</div>;
+    }
+
+    const orderBatch = {
+      batchOrderId: 'batch-1',
+      children: [
+        {
+          childOrderId: 'child-1',
+          createdAt: '2026-03-27T09:00:00Z',
+          effective: {
+            orderedQuantity: 8,
+          },
+          inheritedFromBatch: true,
+          overrides: {},
+          skuId: 'sku-1',
+          status: 'awaiting_receipt',
+          updatedAt: '2026-03-27T09:00:00Z',
+        },
+      ],
+      createdAt: '2026-03-27T09:00:00Z',
+      ownerSub: 'desktop-owner',
+      shared: {},
+      status: 'awaiting_receipt',
+      supplierName: null,
+      updatedAt: '2026-03-27T09:00:00Z',
+    } as SenaOrderBatchRecord;
+
+    const view = render(<RouteModelHarness orderBatches={[]} />);
+
+    expect(screen.getByText('0 orders on the way')).toBeInTheDocument();
+
+    view.rerender(<RouteModelHarness orderBatches={[orderBatch]} />);
+
+    expect(screen.getByText('1 order on the way')).toBeInTheDocument();
+  });
+
   test('renders reorder point as a color-coded chart legend row', async () => {
     inventoryHook.mockReturnValue({
       snapshot,

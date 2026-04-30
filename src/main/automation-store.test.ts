@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
@@ -281,6 +281,100 @@ describe('automation telegram ingestion', () => {
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes[0]?.status).toBe('needs_review');
     expect(workspace.intakes[0]?.lines[0]?.ambiguityReason).toBe('item_not_found');
+  });
+
+  it('counts ticketed and completed metrics from updatedAt day boundaries', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      telegramUpdateCursor: null,
+      connection: {
+        channel: 'telegram',
+        status: 'disconnected',
+        hasBotToken: false,
+        botDisplayName: null,
+        botUsername: null,
+        externalLink: null,
+        connectedAt: null,
+        pausedAt: null,
+        lastWebhookAt: null,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+      },
+      exposureRules: [],
+      conversations: [],
+      messages: [],
+      customerPreferences: [],
+      wizardSessions: [],
+      intakes: [
+        {
+          intakeId: 'ticketed-today',
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          status: 'ticketed',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: yesterday.toISOString(),
+          updatedAt: today.toISOString(),
+          promotedTicketId: 'ticket-1',
+          lines: [],
+        },
+        {
+          intakeId: 'completed-today',
+          conversationId: 'conv-2',
+          channel: 'telegram',
+          status: 'completed',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: yesterday.toISOString(),
+          updatedAt: today.toISOString(),
+          promotedTicketId: 'ticket-2',
+          lines: [],
+        },
+        {
+          intakeId: 'ticketed-yesterday',
+          conversationId: 'conv-3',
+          channel: 'telegram',
+          status: 'ticketed',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: yesterday.toISOString(),
+          updatedAt: yesterday.toISOString(),
+          promotedTicketId: 'ticket-3',
+          lines: [],
+        },
+      ],
+    }), 'utf8');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(workspace.metrics.ticketedToday).toBe(1);
+    expect(workspace.metrics.completedToday).toBe(1);
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {

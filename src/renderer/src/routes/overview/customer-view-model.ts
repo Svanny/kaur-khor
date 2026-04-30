@@ -9,6 +9,7 @@ import {
   observationCommercialSummary,
 } from '@/lib/commercial-flow';
 import {
+  buildCaptureSessionHref,
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   type OverviewTaskAction,
@@ -273,6 +274,9 @@ export function buildCustomerOverviewModel({
   const daySnapshots = filterObservationsForDays(observations, 1);
   const dayEvents = daySnapshots.flatMap((observation) => observation.input.commercialEvents ?? []);
   const daySummary = observationCommercialSummary(dayEvents);
+  const customerCanceledToday = dayEvents
+    .filter((event) => event.party === 'customer' && event.stage === 'pending' && event.quantityDelta < 0)
+    .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
   const tasks: OverviewCustomerTask[] = [];
 
   for (const sku of catalog.skus.filter((entry) => !entry.archived && entry.soldAsProduct)) {
@@ -287,10 +291,12 @@ export function buildCustomerOverviewModel({
       .filter((event) => event.party === 'customer' && event.entityType === 'sku' && event.entityId === sku.skuId && event.stage === 'pending' && event.quantityDelta < 0)
       .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
     const state: OverviewCustomerTask['state'] =
-      completedToday > 0 || canceledToday > 0
-        ? 'closed'
-        : snapshot.blockedPendingQuantity > 0
+      snapshot.pendingQuantity > 0
+        ? snapshot.blockedPendingQuantity > 0
           ? 'review'
+          : 'open'
+        : completedToday > 0 || canceledToday > 0
+          ? 'closed'
           : 'open';
     if (snapshot.pendingQuantity <= 0 && completedToday <= 0 && canceledToday <= 0) {
       continue;
@@ -365,10 +371,12 @@ export function buildCustomerOverviewModel({
       .filter((event) => event.party === 'customer' && event.entityType === 'service' && event.entityId === service.serviceId && event.stage === 'pending' && event.quantityDelta < 0)
       .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
     const state: OverviewCustomerTask['state'] =
-      completedToday > 0 || canceledToday > 0
-        ? 'closed'
-        : snapshot.blockedPendingQuantity > 0
+      snapshot.pendingQuantity > 0
+        ? snapshot.blockedPendingQuantity > 0
           ? 'review'
+          : 'open'
+        : completedToday > 0 || canceledToday > 0
+          ? 'closed'
           : 'open';
     if (snapshot.pendingQuantity <= 0 && completedToday <= 0 && canceledToday <= 0) {
       continue;
@@ -386,7 +394,10 @@ export function buildCustomerOverviewModel({
           : state === 'review'
             ? literal(language, 'Open pending')
             : literal(language, 'Mark completed'),
-      href: state === 'closed' && completedToday > 0 ? RECORD_UPDATE_CUSTOMER_COMPLETED_PATH : RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+      href:
+        state === 'closed' && completedToday > 0
+          ? buildCaptureSessionHref({ action: 'customer-order', targetId: service.serviceId, targetType: 'service' })
+          : buildCaptureSessionHref({ action: 'customer-order', targetId: service.serviceId, targetType: 'service' }),
       pendingQuantity: snapshot.pendingQuantity,
       completedToday,
       canceledToday,
@@ -451,8 +462,8 @@ export function buildCustomerOverviewModel({
       {
         id: 'customer-canceled',
         text: literal(language, '{count} customer cancellation change{suffix} landed today', {
-          count: daySummary.customerPending,
-          suffix: daySummary.customerPending === 1 ? '' : 's',
+          count: customerCanceledToday,
+          suffix: customerCanceledToday === 1 ? '' : 's',
         }),
       },
     ],

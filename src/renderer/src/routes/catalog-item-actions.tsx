@@ -92,11 +92,34 @@ export interface ServiceMutationActionsProps {
   catalogEntityName?: string;
 }
 
-function initialObservedAt(value: string | null) {
-  if (value) {
-    return new Date(value).toISOString().slice(0, 16);
+function padLocalDatePart(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+export function formatDatetimeLocalValue(value: string | Date) {
+  const date = value instanceof Date ? value : new Date(value);
+  return [
+    date.getFullYear(),
+    padLocalDatePart(date.getMonth() + 1),
+    padLocalDatePart(date.getDate()),
+  ].join('-') + `T${padLocalDatePart(date.getHours())}:${padLocalDatePart(date.getMinutes())}`;
+}
+
+export function parseDatetimeLocalIso(value: string) {
+  if (!value.trim()) {
+    return null;
   }
-  return new Date().toISOString().slice(0, 16);
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
+function initialObservedAt(value: string | null) {
+  return formatDatetimeLocalValue(value ?? new Date());
 }
 
 export function buildLeadTimeHintFromInputs({
@@ -488,7 +511,12 @@ export function SkuMutationActions({
 
   async function submit(modeValue: SkuActionMode) {
     setError(null);
-    const observedAtIso = new Date(observedAt).toISOString();
+    const observedAtIso = parseDatetimeLocalIso(observedAt);
+    if (!observedAtIso) {
+      setError('Observed at is required.');
+      return false;
+    }
+
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
@@ -568,10 +596,12 @@ export function SkuMutationActions({
   const submitDisabled =
     isSaving ||
     mode == null ||
+    !observedAt ||
     (mode === 'stock' && (!unitsInStock || !costPerUnit)) ||
     (mode === 'order' && !approximateOrderQuantity) ||
     (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
     (mode === 'price' && (!actionContext.soldAsProduct || !productPrice));
+  const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
   const hasUnsavedSheetChanges =
     mode != null &&
     JSON.stringify(skuActionDraftSnapshot(mode)) !== JSON.stringify(skuActionBaselineSnapshot(mode));
@@ -683,7 +713,7 @@ export function SkuMutationActions({
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-5 px-8 py-7">
-            <ActionSheetField label={t('catalogSenaSkuObservedAt')}>
+            <ActionSheetField error={observedAtError} label={t('catalogSenaSkuObservedAt')}>
               <Input
                 aria-label={t('catalogSenaSkuObservedAt')}
                 className={actionSheetInputClassName}
@@ -976,7 +1006,12 @@ export function ServiceMutationActions({
 
   async function submit(modeValue: ServiceActionMode) {
     setError(null);
-    const observedAtIso = new Date(observedAt).toISOString();
+    const observedAtIso = parseDatetimeLocalIso(observedAt);
+    if (!observedAtIso) {
+      setError('Observed at is required.');
+      return false;
+    }
+
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
@@ -1045,10 +1080,12 @@ export function ServiceMutationActions({
   const submitDisabled =
     isSaving ||
     mode == null ||
+    !observedAt ||
     ((mode === 'stock' || mode === 'receipt') && bottleneckUnavailable) ||
     (mode === 'stock' && (!unitsInStock || !costPerUnit)) ||
     (mode === 'receipt' && (!approximateReceiptQuantity || !unitsInStock)) ||
     (mode === 'price' && !servicePrice);
+  const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
   const hasUnsavedSheetChanges =
     mode != null &&
     JSON.stringify(serviceActionDraftSnapshot(mode)) !== JSON.stringify(serviceActionBaselineSnapshot(mode));
@@ -1153,7 +1190,7 @@ export function ServiceMutationActions({
                 mode === 'stock'
                   ? translateUiLiteral(language, 'Record stock')
                   : mode === 'receipt'
-                    ? translateUiLiteral(language, 'Record Customer order')
+                    ? translateUiLiteral(language, 'Record receipt')
                     : translateUiLiteral(language, 'Update price'),
                 layout,
                 catalogEntityName,
@@ -1173,7 +1210,7 @@ export function ServiceMutationActions({
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-5 px-8 py-7">
-            <ActionSheetField label={translateUiLiteral(language, 'Observed at')}>
+            <ActionSheetField error={observedAtError} label={translateUiLiteral(language, 'Observed at')}>
               <Input
                 aria-label={translateUiLiteral(language, 'Observed at')}
                 className={actionSheetInputClassName}

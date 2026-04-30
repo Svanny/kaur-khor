@@ -74,6 +74,7 @@ import {
   buildCustomerOverviewModel,
   shouldShowCustomerTask,
   type OverviewCustomerFilter,
+  type OverviewCustomerTask,
 } from './overview/customer-view-model';
 
 const overviewQueueTableLayout = createHeaderedTableLayout({
@@ -367,6 +368,26 @@ function matchesOverviewQuery(task: OverviewTask, query: string, scope: Overview
   return parts.join(' ').toLowerCase().includes(normalized);
 }
 
+function matchesCustomerOverviewQuery(task: OverviewCustomerTask, query: string) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  return [
+    task.label,
+    task.stateLabel,
+    task.actionLabel,
+    task.whyNow,
+    task.whyDetail,
+    task.sourceLabel,
+    task.summary,
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(normalized);
+}
+
 function matchesOverviewSupplier(task: OverviewTask, supplierFilter: SupplierFilterValue) {
   if (!isOverviewSkuTask(task) || supplierFilter === 'all') {
     return true;
@@ -508,6 +529,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     language,
     observations: inventory.observations,
     orderBatches: inventory.orderBatches ?? [],
+    recordUpdateContext: inventory.recordUpdateContext,
     staleUpdateReminderSnoozeUntil: overviewStaleUpdateReminderSnoozeUntil,
     workspaceSummary: inventory.workspaceSummary,
   }), [
@@ -515,6 +537,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     inventory.catalog,
     inventory.observations,
     inventory.orderBatches,
+    inventory.recordUpdateContext,
     inventory.workspaceSummary,
     language,
     overviewStaleUpdateReminderSnoozeUntil,
@@ -542,8 +565,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     [activeFilter, scopedTasks],
   );
   const visibleCustomerTasks = useMemo(
-    () => customerModel.tasks.filter((task) => shouldShowCustomerTask(task, customerFilter)),
-    [customerFilter, customerModel.tasks],
+    () => customerModel.tasks.filter((task) =>
+      shouldShowCustomerTask(task, customerFilter) && matchesCustomerOverviewQuery(task, deferredQuery),
+    ),
+    [customerFilter, customerModel.tasks, deferredQuery],
   );
   const selectedTask = useMemo(
     () => selectedTaskRequest

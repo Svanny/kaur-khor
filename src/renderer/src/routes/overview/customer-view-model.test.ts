@@ -9,6 +9,120 @@ const emptyCatalog = {
 } as const;
 
 describe('buildCustomerOverviewModel', () => {
+  test('keeps aggregate customer rows open when completed work lands alongside pending quantity', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'Cotton pads',
+            description: '',
+            costPerUnit: 2,
+            soldAsProduct: true,
+            productPrice: 5,
+          },
+        ],
+      } as never,
+      language: 'en',
+      observations: [
+        {
+          observationId: 'obs-today',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T10:00:00.000Z',
+            stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 2, productPrice: 5 }],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [],
+            retailPrices: [],
+            leadTimeHints: [],
+            commercialEvents: [
+              {
+                party: 'customer',
+                entityType: 'sku',
+                entityId: 'sku-1',
+                stage: 'pending',
+                quantityDelta: 3,
+              },
+              {
+                party: 'customer',
+                entityType: 'sku',
+                entityId: 'sku-1',
+                stage: 'realized',
+                quantityDelta: 1,
+              },
+            ],
+            notes: null,
+          },
+        },
+      ] as never,
+    });
+
+    expect(model.tasks.find((task) => task.id === 'customer:sku:sku-1')).toMatchObject({
+      completedToday: 1,
+      pendingQuantity: 3,
+      state: 'open',
+      stateLabel: 'Open',
+    });
+  });
+
+  test('routes completed service rows to pending fulfillment review instead of immediate sale', () => {
+    const model = buildCustomerOverviewModel({
+      catalog: {
+        ...emptyCatalog,
+        services: [
+          {
+            serviceId: 'service-1',
+            name: 'Hair wash',
+            description: '',
+            price: 8,
+          },
+        ],
+        sharingMask: [],
+      } as never,
+      language: 'en',
+      observations: [
+        {
+          observationId: 'obs-today',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T10:00:00.000Z',
+            stockSnapshot: [],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [],
+            retailPrices: [],
+            leadTimeHints: [],
+            commercialEvents: [
+              {
+                party: 'customer',
+                entityType: 'service',
+                entityId: 'service-1',
+                stage: 'realized',
+                quantityDelta: 1,
+              },
+            ],
+            notes: null,
+          },
+        },
+      ] as never,
+    });
+
+    const task = model.tasks.find((entry) => entry.id === 'customer:service:service-1');
+    expect(task).toMatchObject({
+      actionLabel: 'Review completion',
+      href: '/work/capture/customer-order?targetAction=customer-order&targetType=service&targetId=service-1&ticketMode=new',
+    });
+    expect(task?.href).not.toBe('/work/capture/immediate-sale');
+  });
+
   test('adds Telegram intake rows to the customer queue with intake-aware states and source metadata', () => {
     const model = buildCustomerOverviewModel({
       automationIntakes: [

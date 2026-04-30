@@ -266,7 +266,7 @@ function SkuDetailScreen() {
       workspaceSummary: bootstrap.workspaceSummary,
       language,
     });
-  }, [bootstrap, currency, inventory.catalog?.skus, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
+  }, [bootstrap, currency, inventory.catalog?.skus, inventory.orderBatches, language, pagedDetail, selectedIntervalIndex, skuId, snapshotSku, usdToKhrExchangeRate]);
   const catalogSku = inventory.catalog?.skus.find((sku) => sku.skuId === skuId) ?? null;
 
   if (!bootstrap && (inventory.isLoading || isRefreshing)) {

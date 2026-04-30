@@ -930,7 +930,9 @@ impl SenaObservationInput {
             || self.regime_hint.is_some()
             || !self.adjustment_signals.is_empty()
             || !self.commercial_events.is_empty()
+            || !self.ticket_events.is_empty()
             || !self.recipe_usage_hints.is_empty()
+            || self.delivery_fee.is_some()
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1323,6 +1325,69 @@ mod tests {
               "adjustmentSignals": [{"skuId": "sku-1", "quantityDelta": -1, "reason": "write_off"}],
               "recipeUsageHints": [],
               "notes": "Signal-only sparse update"
+            }"#,
+        )
+        .expect("observation should parse");
+
+        observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_accepts_ticket_only_payload() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [],
+              "ticketEvents": [{
+                "ticketId": "ticket:customer:1",
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": "pending",
+                "revision": 1,
+                "eventType": "created",
+                "occurredAt": "2026-04-03T00:00:00Z",
+                "nextTouchAt": null,
+                "party": {
+                  "role": "customer",
+                  "channelKey": "walk-in",
+                  "channelLabel": "Walk-in",
+                  "customerName": "Dara",
+                  "customerNameKey": "dara",
+                  "phone": null,
+                  "phoneKey": null
+                },
+                "lines": [{
+                  "entityType": "sku",
+                  "entityId": "sku-1",
+                  "quantityDelta": 2
+                }],
+                "deliveryFee": null,
+                "note": null
+              }],
+              "notes": null
+            }"#,
+        )
+        .expect("observation should parse");
+
+        observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_accepts_delivery_fee_only_payload() {
+        let observation = serde_json::from_str::<SenaObservationInput>(
+            r#"{
+              "observedAt": "2026-04-03T00:00:00Z",
+              "stockSnapshot": [],
+              "deliveryFee": {
+                "feeUsd": 2.5,
+                "payer": "customer",
+                "bucket": "customer_order",
+                "subtotalUsd": 25,
+                "displayDeliveryUsd": 2.5,
+                "displayTotalUsd": 27.5,
+                "netSettlementUsd": 27.5
+              },
+              "notes": null
             }"#,
         )
         .expect("observation should parse");

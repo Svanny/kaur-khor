@@ -2,7 +2,13 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { buildLeadTimeHintFromInputs, ServiceMutationActions, SkuMutationActions } from './catalog-item-actions';
+import {
+  buildLeadTimeHintFromInputs,
+  formatDatetimeLocalValue,
+  parseDatetimeLocalIso,
+  ServiceMutationActions,
+  SkuMutationActions,
+} from './catalog-item-actions';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
@@ -90,6 +96,14 @@ describe('catalog item action sheets', () => {
     });
   });
 
+  test('round-trips observed timestamps through datetime-local values', () => {
+    const sourceIso = '2026-04-02T09:30:00+07:00';
+    const localValue = formatDatetimeLocalValue(sourceIso);
+
+    expect(parseDatetimeLocalIso(localValue)).toBe(new Date(sourceIso).toISOString());
+    expect(parseDatetimeLocalIso('')).toBeNull();
+  });
+
   test('opens the controlled SKU sheet and clears mode on close', async () => {
     const handleModeChange = vi.fn();
 
@@ -169,6 +183,40 @@ describe('catalog item action sheets', () => {
     await waitFor(() => {
       expect(handleModeChange).toHaveBeenCalledWith(null);
     });
+  });
+
+  test('labels service receipt mode as a receipt action', () => {
+    render(
+      <MemoryRouter>
+        <ServiceMutationActions
+          actions={{
+            bottleneckSku: {
+              costPerUnit: 4,
+              name: 'SKU 1',
+              productPrice: 9,
+              skuId: 'sku-1',
+              soldAsProduct: true,
+              unitsInStock: 12,
+            },
+            editServiceHref: '/catalog/services/service-1/edit',
+            latestObservedAt: '2026-04-02T00:00:00Z',
+            noBottleneckHint: 'No bottleneck',
+            primarySkuHref: '/catalog/skus/sku-1',
+            servicePrice: {
+              currentPrice: 18,
+              serviceId: 'service-1',
+              serviceName: 'Service 1',
+            },
+          }}
+          mode="receipt"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Record receipt');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Record Customer order');
   });
 
   function LocationProbe() {

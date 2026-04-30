@@ -18,7 +18,7 @@ function syntheticTimestamp(order: number) {
 }
 
 function orderedTimestamp(interval: ServiceDetailViewModel['intervals'][number], order: number) {
-  return (parseTimestampSeconds(interval.endAt) ?? parseTimestampSeconds(interval.endAt) ?? syntheticTimestamp(order)) as UTCTimestamp;
+  return (parseTimestampSeconds(interval.endAt) ?? parseTimestampSeconds(interval.startAt) ?? syntheticTimestamp(order)) as UTCTimestamp;
 }
 
 export function deriveServiceTradingChartModel(model: ServiceDetailViewModel): TradingChartModel {

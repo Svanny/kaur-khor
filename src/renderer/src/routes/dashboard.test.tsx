@@ -777,6 +777,62 @@ describe('DashboardRoute', () => {
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
   });
 
+  test('filters customer queue rows with the shared search box', async () => {
+    const user = userEvent.setup();
+    automationHook.mockReturnValue({
+      intakes: [
+        {
+          intakeId: 'intake-dara',
+          conversationId: 'conv-dara',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: 'Dara',
+          customerHandle: '@dara',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 12,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 12,
+          createdAt: '2026-04-03T10:00:00.000Z',
+          updatedAt: '2026-04-03T11:00:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+        {
+          intakeId: 'intake-malis',
+          conversationId: 'conv-malis',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: 'Malis',
+          customerHandle: '@malis',
+          phone: null,
+          notes: null,
+          quotedSubtotal: 8,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 8,
+          createdAt: '2026-04-03T10:00:00.000Z',
+          updatedAt: '2026-04-03T11:00:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+      ],
+    });
+
+    renderRoute();
+
+    await user.click(screen.getByRole('radio', { name: 'Customer' }));
+    await user.type(screen.getByPlaceholderText('Search name or description…'), 'dara');
+
+    await waitFor(() => {
+      expect(screen.getByText('Dara')).toBeInTheDocument();
+      expect(screen.queryByText('Malis')).not.toBeInTheDocument();
+    });
+  });
+
   test('deep-links into customer workflow and highlights a Telegram intake task', async () => {
     automationHook.mockReturnValue({
       intakes: [

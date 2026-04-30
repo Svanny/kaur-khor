@@ -75,12 +75,16 @@ import type {
   SenaDeliveryFeePayer,
   SenaLeadTimeVariabilityClass,
   SenaObservationInput,
+  SenaOrderBatchRecord,
+  SenaOrderChildRecord,
+  SenaRecordUpdateContext,
   SenaObservationRegimeHint,
   SenaStockSnapshot,
   SenaTicketEvent,
   SenaTicketEventType,
   SenaTicketLifecycle,
   SenaTicketStage,
+  SenaTicketSummary,
 } from '@shared/sena';
 import type { AppLanguage, InventorySnapshot, RankingEntry, RankingEntryType, SistOverview } from '@shared/inventory';
 import {
@@ -6738,10 +6742,88 @@ export function StockUpdateSessionRoute() {
     });
   }
 
+  function ticketDateKey(value: string | null | undefined) {
+    if (!value) {
+      return null;
+    }
+    const time = new Date(value).getTime();
+    if (Number.isNaN(time)) {
+      return value.slice(0, 10) || null;
+    }
+    return new Date(time).toISOString().slice(0, 10);
+  }
+
+  function supplierTicketMatchesSelection({
+    lines,
+    selectedBatch,
+    selectedChildren,
+    ticket,
+  }: {
+    lines: SenaTicketEvent['lines'];
+    selectedBatch: SenaOrderBatchRecord | null;
+    selectedChildren: SenaOrderChildRecord[];
+    ticket: SenaTicketSummary;
+  }) {
+    const lineSkuIds = new Set(
+      lines
+        .filter((line) => line.entityType === 'sku')
+        .map((line) => line.entityId),
+    );
+    if (lineSkuIds.size > 0 && !ticket.lines.some((line) => line.entityType === 'sku' && lineSkuIds.has(line.entityId))) {
+      return false;
+    }
+    if (selectedBatch?.supplierName && ticket.party?.supplierName && selectedBatch.supplierName !== ticket.party.supplierName) {
+      return false;
+    }
+
+    const expectedDates = [
+      ...selectedChildren.map((child) => child.effective.expectedArrivalAt),
+      selectedBatch?.shared.expectedArrivalAt,
+    ]
+      .map(ticketDateKey)
+      .filter(Boolean);
+    if (expectedDates.length === 0) {
+      return true;
+    }
+
+    return ticket.lines.some((line) => expectedDates.includes(ticketDateKey(line.expectedArrivalAt)))
+      || expectedDates.includes(ticketDateKey(ticket.nextTouchAt));
+  }
+
+  function resolveSupplierTicketIdForSelection({
+    fallbackEventType,
+    lines,
+    observedAtValue,
+  }: {
+    fallbackEventType: SenaTicketEventType;
+    lines: SenaTicketEvent['lines'];
+    observedAtValue: string;
+  }) {
+    if (selectedSupplierTicketId && recordUpdateContext?.latestTicketsById[selectedSupplierTicketId]) {
+      return selectedSupplierTicketId;
+    }
+
+    const existingTicket = recordUpdateContext?.openTicketsByFamily.supplier.find((ticket) =>
+      supplierTicketMatchesSelection({
+        lines,
+        selectedBatch: selectedOrderBatch,
+        selectedChildren: selectedOrderChildren,
+        ticket,
+      }),
+    ) ?? null;
+    if (existingTicket) {
+      return existingTicket.ticketId;
+    }
+
+    return makeTicketId({ eventType: fallbackEventType, family: 'supplier', lines, observedAt: observedAtValue });
+  }
+
   function finalizeTicketPayload(payload: SenaObservationInput) {
     const observedAtValue = payload.observedAt || observedAtIso || new Date().toISOString();
     const nextTicketEvents: SenaTicketEvent[] = [...(payload.ticketEvents ?? [])];
     payload.deliveryFee = activeDeliveryFeeMetadata;
+    const nextTicketRevision = (ticketId: string | null) =>
+      ticketId ? (recordUpdateContext?.latestTicketsById[ticketId]?.value.revision ?? 0) + 1 : 1;
 
     if (isCustomerPendingLane) {
       const lines = ticketLinesFromCommercialEvents(payload, 'customer');
@@ -6759,7 +6841,7 @@ export function StockUpdateSessionRoute() {
           ticketFamily: 'customer',
           lifecycle,
           stage,
-          revision: selectedCustomerTicketId ? 2 : 1,
+          revision: nextTicketRevision(selectedCustomerTicketId),
           eventType,
           occurredAt: observedAtValue,
           nextTouchAt: null,
@@ -6825,12 +6907,17 @@ export function StockUpdateSessionRoute() {
               : eventType === 'canceled'
                 ? 'ordered_waiting'
                 : 'ordered_waiting';
+        const supplierTicketId = resolveSupplierTicketIdForSelection({
+          fallbackEventType: eventType,
+          lines,
+          observedAtValue,
+        });
         nextTicketEvents.push({
-          ticketId: selectedSupplierTicketId ?? makeTicketId({ eventType, family: 'supplier', lines, observedAt: observedAtValue }),
+          ticketId: supplierTicketId,
           ticketFamily: 'supplier',
           lifecycle,
           stage,
-          revision: selectedSupplierTicketId ? 2 : 1,
+          revision: nextTicketRevision(supplierTicketId),
           eventType,
           occurredAt: observedAtValue,
           nextTouchAt: recordOrderExpectedArrivalDate ? dateInputToIso(recordOrderExpectedArrivalDate) : null,
