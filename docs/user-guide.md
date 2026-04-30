@@ -739,6 +739,14 @@ For a new workspace, the shortest useful path is:
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis.
 
+When you edit an existing SKU or service in Catalog, changes to operational
+variables are saved into history as well as the catalog. SKU cost, SKU retail
+price, SKU lead-time mean or uncertainty, and service price changes become
+observations so Explain, Money, Pressure, and History can trace when those
+assumptions changed. Name, description, picture, supplier, linked-SKU, archive,
+and new-item setup edits remain catalog setup unless one of those variables also
+changes.
+
 ## Glossary
 
 ### Terms {#glossary-terms}

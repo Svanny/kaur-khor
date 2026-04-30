@@ -61,6 +61,15 @@ analysis, and financial projections. They should remain distinct from legacy
 order-signal and order-batch compatibility reads so new operational facts keep a
 stable ticket identity and event revision trail.
 
+Catalog editor saves update current catalog defaults. When an existing SKU or
+service variable changes, the renderer also appends a narrow observation so
+history and analysis can see the change: SKU cost writes a stock snapshot with
+the latest known units, SKU retail price writes a retail price signal, SKU
+lead-time mean or uncertainty writes a lead-time hint, and service price writes
+a service price signal. Name, description, image, supplier, linked-SKU, archive,
+and create-new-item saves remain catalog-only unless one of those variable
+fields also changes.
+
 Compact record activity is append-style over bounded recent observation payloads
 and ticket events. Latest anchors remain backed by normalized hot rows, but
 user-visible history should not be derived only from one latest anchor per

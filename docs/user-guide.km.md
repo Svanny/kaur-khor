@@ -739,6 +739,14 @@ Smoothing controls whether បញ្ជី softens noisy SENA signals in Setting
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis។
 
+ពេលកែ SKU ឬ service ដែលមានស្រាប់ក្នុង Catalog ការផ្លាស់ប្តូរ variable
+សំខាន់ៗនឹងត្រូវរក្សាទុកក្នុង history ផង និង catalog ផង។ ការ​ផ្លាស់ប្តូរ
+SKU cost, SKU retail price, SKU lead-time mean ឬ uncertainty, និង service price
+នឹងក្លាយជា observations ដើម្បីឱ្យ Explain, Money, Pressure, និង History អាច
+trace ថា assumptions ទាំងនោះផ្លាស់ប្តូរពេលណា។ ការកែ name, description,
+picture, supplier, linked-SKU, archive, និង new-item setup នៅតែជា catalog setup
+ប៉ុណ្ណោះ លុះត្រាតែ variable មួយក្នុងចំណោមនេះក៏ផ្លាស់ប្តូរផងដែរ។
+
 ## Glossary
 
 ### ពាក្យសំខាន់ៗ {#glossary-terms}
