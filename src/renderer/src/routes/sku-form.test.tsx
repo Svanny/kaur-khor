@@ -248,6 +248,24 @@ describe('SkuFormRoute', () => {
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/sku-image.png');
   });
 
+  test('shows a field error when choosing a sku picture fails', async () => {
+    pickAndStoreImage.mockRejectedValueOnce(new Error('Image storage failed'));
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.click(findButtonByText('Choose image'));
+
+    await waitFor(() => {
+      expect(screen.getByText('Image storage failed')).toBeInTheDocument();
+    });
+    expect(findButtonByText('Choose image')).toBeInTheDocument();
+  });
+
   test('adds a sku picture via drag and drop', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -279,6 +297,31 @@ describe('SkuFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/dropped-sku.png');
+  });
+
+  test('shows a field error when dropping a sku picture fails', async () => {
+    storeDroppedImage.mockRejectedValueOnce(new Error('Dropped image failed'));
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const dropzone = screen.getByTestId('catalog-image-dropzone');
+    const file = new File(['fake-image'], 'dropped.png', { type: 'image/png' });
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(file);
+    fireEvent.dragOver(dropzone);
+    const dropEvent = new MouseEvent('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(dropEvent, 'dataTransfer', { value: dataTransfer });
+    fireEvent(dropzone, dropEvent);
+
+    await waitFor(() => {
+      expect(screen.getByText('Dropped image failed')).toBeInTheDocument();
+    });
+    expect(findButtonByText('Choose image')).toBeInTheDocument();
   });
 
   test('adds a sku picture via clipboard paste', async () => {
@@ -313,7 +356,35 @@ describe('SkuFormRoute', () => {
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/dropped-sku.png');
   });
 
-  test('adds a sku picture via page-level clipboard paste', async () => {
+  test('sends MIME type for extensionless pasted image files', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const dropzone = screen.getByTestId('catalog-image-dropzone');
+    const file = new File(['fake-image'], 'clipboard-image', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(dropzone, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+    });
+
+    expect(storeDroppedImage.mock.calls[0]?.[0]).toMatchObject({
+      name: 'clipboard-image',
+      type: 'image/png',
+    });
+  });
+
+  test('does not hijack page-level clipboard image paste outside the image field', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -330,18 +401,9 @@ describe('SkuFormRoute', () => {
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
     fireEvent(document, pasteEvent);
 
-    await waitFor(() => {
-      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
-      expect(findButtonByText('Replace image')).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-
-    await waitFor(() => {
-      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
-    });
-
-    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/dropped-sku.png');
+    expect(storeDroppedImage).not.toHaveBeenCalled();
+    expect(pasteEvent.defaultPrevented).toBe(false);
+    expect(findButtonByText('Choose image')).toBeInTheDocument();
   });
 
   test('adds a sku picture via clipboard paste using items fallback', async () => {

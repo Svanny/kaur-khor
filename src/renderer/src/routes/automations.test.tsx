@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AutomationContextValue } from '@/state/automation';
-import { AutomationsRoute } from './automations';
+import { AutomationsRoute, buildTelegramOpenUrl } from './automations';
 
 const automationHook = vi.fn<() => AutomationContextValue>();
 const inventoryHook = vi.fn();
@@ -61,9 +61,9 @@ vi.mock('./automations/recent-activity-rail', () => ({
   RecentAutomationActivityRail: () => <div>Recent automation activity</div>,
 }));
 
-function renderRoute() {
+function renderRoute(initialEntry = '/automations') {
   return render(
-    <MemoryRouter initialEntries={['/automations']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <AutomationsRoute />
     </MemoryRouter>,
   );
@@ -249,6 +249,18 @@ describe('AutomationsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open bot' }));
 
     expect(openExternalUrl).toHaveBeenCalledWith('tg://resolve?domain=configured_bot');
+  });
+
+  it('builds the Telegram app link from the current bot username draft', () => {
+    expect(buildTelegramOpenUrl('@draft_bot', 'https://t.me/configured_bot')).toBe(
+      'tg://resolve?domain=draft_bot',
+    );
+  });
+
+  it('falls back to a valid Telegram link when the username is invalid', () => {
+    expect(buildTelegramOpenUrl('bad/user', 'https://t.me/fallback_bot')).toBe(
+      'tg://resolve?domain=fallback_bot',
+    );
   });
 
   it('shows a success popup, unlocks automations, and scrolls to the top after saving telegram settings', async () => {

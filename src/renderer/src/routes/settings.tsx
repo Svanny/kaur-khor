@@ -1042,6 +1042,8 @@ function LocalWorkspaceDataPage({
   setSenaExportFormat: (value: ExportFormat) => void;
   t: TranslateFn;
 }) {
+  const localDataOperationInFlight = backupInFlight || restoreInFlight;
+
   return (
     <WorkspacePanel>
       {localDataInfo ? (
@@ -1064,7 +1066,7 @@ function LocalWorkspaceDataPage({
           />
           <WorkspaceActionRow>
             <Button
-              disabled={backupInFlight}
+              disabled={localDataOperationInFlight}
               type="button"
               variant="outline"
               onClick={() => void handleCreateBackupSnapshot()}
@@ -1073,7 +1075,7 @@ function LocalWorkspaceDataPage({
               {backupInFlight ? t('settingsBackupSnapshotCreating') : t('settingsBackupSnapshotAction')}
             </Button>
             <Button
-              disabled={restoreInFlight}
+              disabled={localDataOperationInFlight}
               type="button"
               variant="outline"
               onClick={() => void handleRestoreSnapshot()}

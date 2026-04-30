@@ -132,12 +132,12 @@ function relativeTime(value: string | null) {
   return `${Math.max(1, Math.round(hours / 24))}d ago`;
 }
 
-function buildTelegramOpenUrl(
+export function buildTelegramOpenUrl(
   botUsername: string | null | undefined,
   externalLink: string | null | undefined,
 ) {
   const normalizedUsername = botUsername?.trim().replace(/^@/, '');
-  if (normalizedUsername) {
+  if (normalizedUsername && /^[A-Za-z0-9_]{5,32}$/.test(normalizedUsername)) {
     return `tg://resolve?domain=${encodeURIComponent(normalizedUsername)}`;
   }
 
@@ -148,8 +148,12 @@ function buildTelegramOpenUrl(
 
   try {
     const parsed = new URL(normalizedLink);
-    if ((parsed.hostname === 't.me' || parsed.hostname === 'telegram.me') && parsed.pathname.length > 1) {
-      return `tg://resolve?domain=${encodeURIComponent(parsed.pathname.slice(1).replace(/^@/, ''))}`;
+    const usernameFromPath = parsed.pathname.slice(1).replace(/^@/, '');
+    if (
+      (parsed.hostname === 't.me' || parsed.hostname === 'telegram.me') &&
+      /^[A-Za-z0-9_]{5,32}$/.test(usernameFromPath)
+    ) {
+      return `tg://resolve?domain=${encodeURIComponent(usernameFromPath)}`;
     }
   } catch {
     return null;
@@ -567,7 +571,7 @@ export function AutomationsRoute({
   const showExceptionsSection = section === 'exceptions';
   const connectionStatus = connection?.status ?? 'disconnected';
   const isDisconnected = connectionStatus === 'disconnected';
-  const openBotUrl = buildTelegramOpenUrl(connection?.botUsername ?? botUsername, connection?.externalLink ?? externalLink);
+  const openBotUrl = buildTelegramOpenUrl(botUsername, externalLink);
   const exposureFilterOptions = [
     { icon: EntityLayersIcon, label: 'All', value: 'all' },
     { icon: EntityPreviewIcon, label: 'Exposed', value: 'exposed' },

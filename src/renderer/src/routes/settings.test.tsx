@@ -1412,6 +1412,29 @@ describe('SettingsRoute', () => {
     ).toBeInTheDocument();
   });
 
+  it('blocks overlapping local backup and restore operations', async () => {
+    let finishBackup!: (value: Awaited<ReturnType<typeof createBackupSnapshot>>) => void;
+    createBackupSnapshot.mockReturnValueOnce(new Promise((resolve) => {
+      finishBackup = resolve;
+    }));
+    renderSettingsRoute('/settings/local-data');
+
+    fireEvent.click(await screen.findByRole('button', { name: /create backup snapshot/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /creating snapshot/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /restore saved snapshot/i })).toBeDisabled();
+    });
+
+    finishBackup({
+      createdAt: '2026-04-10T10:00:00.000Z',
+      fileCount: 3,
+      snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      trigger: 'manual',
+    });
+    await screen.findByText('Created a local backup snapshot at /tmp/banji/backup-snapshots/manual-snapshot.');
+  });
+
   it('restores a saved snapshot from local workspace data settings', async () => {
     renderSettingsRoute('/settings/local-data');
 

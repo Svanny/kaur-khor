@@ -90,6 +90,22 @@ describe('desktop runtime security contract', () => {
     );
   });
 
+  it('blocks renderer-created windows and top-level external navigation', () => {
+    expect(mainSource).toContain("import { installMainWindowNavigationGuards } from './navigation-guards';");
+    expect(mainSource).toContain('installMainWindowNavigationGuards(mainWindow);');
+    const navigationGuardSource = readFileSync(new URL('./navigation-guards.ts', import.meta.url), 'utf8');
+    expect(navigationGuardSource).toContain('webContents.setWindowOpenHandler');
+    expect(navigationGuardSource).toContain("webContents.on('will-navigate'");
+    expect(navigationGuardSource).toContain("return { action: 'deny' };");
+    expect(navigationGuardSource).toContain('normalizeAllowedExternalUrl(targetUrl)');
+    expect(navigationGuardSource).toContain('event.preventDefault();');
+  });
+
+  it('limits renderer file reveal requests to local workspace paths', () => {
+    expect(mainSource).toContain("import { normalizeAllowedLocalDataPath } from './local-path-access';");
+    expect(mainSource).toContain('normalizeAllowedLocalDataPath(targetPath, [desktopDataPath])');
+  });
+
   it('exposes a named preload bridge through contextBridge', () => {
     expect(preloadSource).toContain("contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge)");
     expect(preloadSource).toContain('ipcRenderer.invoke');

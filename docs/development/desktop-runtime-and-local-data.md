@@ -114,9 +114,9 @@ Snapshot behavior:
 
 - snapshots are stored under `backup-snapshots/`
 - each snapshot is a directory, not a single archive file
-- each snapshot includes the current top-level workspace files plus `snapshot-manifest.json`
+- each snapshot includes the current top-level workspace files/directories plus `snapshot-manifest.json`
 - snapshot names include the timestamp, trigger type, and an optional slugified reason
-- `.tmp` files are excluded from snapshots
+- `.tmp` files and internal `.banji-*` scratch paths are excluded from snapshots
 - old snapshots are pruned after the configured maximum count
 
 Manifest fields currently written:
@@ -156,7 +156,7 @@ Restore flow:
 2. The selected snapshot must contain `snapshot-manifest.json`.
 3. The app stops the managed core before restoring files.
 4. A safety snapshot with the reason `before-restore` is created from the current workspace state.
-5. Current top-level workspace files are deleted.
+5. Current top-level workspace files/directories are deleted.
 6. Snapshot files are copied back into the active data directory.
 7. SENA read cache is invalidated.
 
@@ -164,7 +164,7 @@ Clear-data flow:
 
 1. The app stops the managed core.
 2. A safety snapshot with the reason `before-clear` is created.
-3. Current top-level workspace files are removed.
+3. Current top-level workspace files/directories are removed.
 4. The result reports the number of cleared files and the safety snapshot metadata.
 
 ## Renderer Access Points
@@ -179,6 +179,7 @@ Current system actions:
 - `restoreBackupSnapshot()`
 - `clearCurrentData()`
 - `revealPath(path)`
+- `openExternalUrl(url)`
 - `pickAndStoreImage()`
 - `storeDroppedImage(payload)`
 
@@ -186,12 +187,23 @@ The main IPC handlers for those actions live in [`src/main/index.ts`](/Users/sva
 
 The renderer reaches them through `window.banjiDesktop.system`, not through direct Node or filesystem access.
 
+`revealPath(path)` is constrained to approved local data roots. `openExternalUrl(url)`
+normalizes and allow-lists external schemes before handing the URL to Electron,
+and main-window navigation guards deny renderer-created windows plus top-level
+external navigation. Renderer surfaces that need an external URL should call the
+desktop bridge instead of rendering a raw external anchor.
+
 Catalog image ingest currently follows two paths:
 
 - `pickAndStoreImage()` handles chooser-based imports for SKU and service editors.
 - `storeDroppedImage(payload)` handles drag-and-drop and clipboard-paste image imports for those same editors.
 
-Both paths accept PNG, JPEG, and WebP source files. WebP inputs are normalized to PNG before the final asset is written so renderer, local storage, and downstream upload behavior stay aligned.
+Both paths accept PNG, JPEG, and WebP source files. Drag/drop and clipboard
+payloads include the browser MIME type when available, are sniffed by file
+header before normalization, and are rejected if they exceed 20 MB, 12000 px on
+either side, or 40 megapixels. WebP inputs are normalized to PNG before the final
+asset is written so renderer, local storage, and downstream upload behavior stay
+aligned.
 
 The automation workspace uses the `DesktopAutomationBridge` contract from
 [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it
@@ -218,6 +230,8 @@ Current automation actions:
 ## Contributor Notes
 
 - If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-backup.test.ts`](/Users/svanny/banji/src/main/local-backup.test.ts).
+- If you change external URL, local path, or navigation guard policy, update
+  this page and the related tests in [`src/main/platform-security.test.ts`](/Users/svanny/banji/src/main/platform-security.test.ts).
 - If you add or rename IPC fields, update [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) first and keep renderer/main behavior aligned.
 - If you change automation persistence shape or bridge methods, update this page and keep [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts), [`src/preload/index.ts`](/Users/svanny/banji/src/preload/index.ts), and [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) aligned.
 - If a workspace mutation becomes destructive or high-risk, prefer routing it through the existing automatic snapshot path instead of inventing a separate safety mechanism.

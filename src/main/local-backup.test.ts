@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -10,6 +10,7 @@ import {
   desktopBackupDirectoryPath,
   restoreWorkspaceFiles,
   restoreDesktopBackupSnapshot,
+  clearCurrentDesktopData,
 } from './local-backup';
 
 describe('desktop local backup snapshots', () => {
@@ -150,6 +151,43 @@ describe('desktop local backup snapshots', () => {
 
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-wal'), 'utf8')).resolves.toBe('wal-data');
     await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3-shm'), 'utf8')).resolves.toBe('shm-data');
+  });
+
+  it('captures and restores nested workspace directories', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-nested-'));
+    await mkdir(join(userDataPath, 'sena-checkpoints', 'sku-1'), { recursive: true });
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+    await writeFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'checkpoint-v1', 'utf8');
+
+    const snapshot = await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'settings',
+      trigger: 'manual',
+      userDataPath,
+    });
+
+    await writeFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'checkpoint-v2', 'utf8');
+
+    await restoreDesktopBackupSnapshot({
+      selectedPath: snapshot.snapshotPath,
+      userDataPath,
+    });
+
+    await expect(readFile(join(snapshot.snapshotPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'utf8')).resolves.toBe('checkpoint-v1');
+    await expect(readFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'utf8')).resolves.toBe('checkpoint-v1');
+  });
+
+  it('clears nested workspace directories after creating a safety snapshot', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-clear-nested-'));
+    await mkdir(join(userDataPath, 'sena-checkpoints', 'sku-1'), { recursive: true });
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+    await writeFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'checkpoint-v1', 'utf8');
+
+    const cleared = await clearCurrentDesktopData(userDataPath);
+
+    expect(cleared.clearedFileCount).toBe(2);
+    await expect(readdir(join(userDataPath, 'sena-checkpoints'))).rejects.toThrow();
+    await expect(readFile(join(cleared.safetySnapshot.snapshotPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'utf8')).resolves.toBe('checkpoint-v1');
   });
 
   it('restores the original workspace files if writing the snapshot back fails', async () => {

@@ -34,7 +34,7 @@ const DEFAULT_AUTOMATIC_SNAPSHOT_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_BACKUP_SNAPSHOTS = 24;
 const backupQueues = new Map<string, Promise<unknown>>();
 const lastAutomaticSnapshotAt = new Map<string, number>();
-type FileOps = Pick<typeof fs, 'copyFile' | 'mkdir' | 'readdir' | 'readFile' | 'rename' | 'rm' | 'stat' | 'writeFile'>;
+type FileOps = Pick<typeof fs, 'copyFile' | 'cp' | 'mkdir' | 'readdir' | 'readFile' | 'rename' | 'rm' | 'stat' | 'writeFile'>;
 
 export function desktopBackupDirectoryPath(userDataPath: string) {
   return join(userDataPath, BACKUP_DIRECTORY_NAME);
@@ -61,8 +61,9 @@ async function listSnapshotSourceFiles(userDataPath: string, fileOps: FileOps = 
   const entries = await fileOps.readdir(userDataPath, { withFileTypes: true });
   return entries
     .filter((entry) =>
-      entry.isFile()
+      (entry.isFile() || entry.isDirectory())
       && entry.name !== BACKUP_DIRECTORY_NAME
+      && !entry.name.startsWith('.banji-')
       && !entry.name.endsWith('.tmp'),
     )
     .map((entry) => join(userDataPath, entry.name))
@@ -73,7 +74,7 @@ async function listRestorableSnapshotFiles(snapshotPath: string, fileOps: FileOp
   const entries = await fileOps.readdir(snapshotPath, { withFileTypes: true });
   return entries
     .filter((entry) =>
-      entry.isFile()
+      (entry.isFile() || entry.isDirectory())
       && entry.name !== SNAPSHOT_MANIFEST_FILENAME
       && !entry.name.endsWith('.tmp'),
     )
@@ -122,7 +123,13 @@ async function removePaths(paths: string[], fileOps: FileOps = fs) {
 async function copyFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
   await fileOps.mkdir(directoryPath, { recursive: true });
   for (const sourcePath of sourceFiles) {
-    await fileOps.copyFile(sourcePath, join(directoryPath, basename(sourcePath)));
+    const targetPath = join(directoryPath, basename(sourcePath));
+    const sourceStats = await fileOps.stat(sourcePath);
+    if (sourceStats.isDirectory()) {
+      await fileOps.cp(sourcePath, targetPath, { recursive: true });
+      continue;
+    }
+    await fileOps.copyFile(sourcePath, targetPath);
   }
 }
 

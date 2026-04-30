@@ -212,6 +212,7 @@ export interface DesktopPreferencesBridge {
 
 export interface DesktopStoreDroppedImagePayload {
   name: string;
+  type?: string;
   data: ArrayBuffer;
 }
 

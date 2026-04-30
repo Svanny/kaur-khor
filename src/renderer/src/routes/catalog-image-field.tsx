@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,10 @@ function hasSupportedImageExtension(name: string): boolean {
 
 function isSupportedImageFile(file: File): boolean {
   return isSupportedImageType(file.type) || hasSupportedImageExtension(file.name);
+}
+
+function imageIngestErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Could not store this image.';
 }
 
 function findClipboardImageFile(clipboardData: DataTransfer): File | null {
@@ -61,51 +65,38 @@ export function CatalogImageField({
 }) {
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function storeImageFile(imageFile: File) {
     setBusy(true);
+    setError(null);
     try {
       const arrayBuffer = await imageFile.arrayBuffer();
       const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
         name: imageFile.name || 'clipboard-image.png',
+        type: imageFile.type,
         data: arrayBuffer,
       });
       if (nextImagePath) {
         onChange(nextImagePath);
       }
+    } catch (nextError) {
+      setError(imageIngestErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
   }
 
-  useEffect(() => {
-    function handleDocumentPaste(event: ClipboardEvent) {
-      const clipboardData = event.clipboardData;
-      if (!clipboardData) {
-        return;
-      }
-
-      const imageFile = findClipboardImageFile(clipboardData);
-      if (!imageFile) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-      void storeImageFile(imageFile);
-    }
-
-    document.addEventListener('paste', handleDocumentPaste);
-    return () => document.removeEventListener('paste', handleDocumentPaste);
-  });
-
   async function handleChooseImage() {
     setBusy(true);
+    setError(null);
     try {
       const nextImagePath = await window.banjiDesktop.system.pickAndStoreImage();
       if (nextImagePath) {
         onChange(nextImagePath);
       }
+    } catch (nextError) {
+      setError(imageIngestErrorMessage(nextError));
     } finally {
       setBusy(false);
     }
@@ -150,7 +141,7 @@ export function CatalogImageField({
   }
 
   return (
-    <EditorField helper={helper} label={label}>
+    <EditorField error={error ?? undefined} helper={helper} label={label}>
       <div
         className={cn(
           'flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center transition-colors',

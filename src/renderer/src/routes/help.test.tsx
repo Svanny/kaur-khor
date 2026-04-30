@@ -1,10 +1,15 @@
 import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { HelpRoute } from './help';
 
 const preferencesHook = vi.fn();
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location">{`${location.pathname}${location.search}${location.hash}`}</div>;
+}
 
 function translationsFor(language: 'en' | 'km') {
   if (language === 'km') {
@@ -109,6 +114,14 @@ describe('HelpRoute', () => {
     vi.useRealTimers();
     mockPreferences();
     window.history.replaceState(null, '', '/');
+    Object.defineProperty(window, 'banjiDesktop', {
+      configurable: true,
+      value: {
+        system: {
+          openExternalUrl: vi.fn().mockResolvedValue(undefined),
+        },
+      },
+    });
   });
 
   test('filters help sections from the page search bar', () => {
@@ -208,7 +221,7 @@ describe('HelpRoute', () => {
     expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument();
   });
 
-  test('opens the Khmer repository copy when Khmer is active', () => {
+  test('opens the Khmer repository copy through the desktop URL bridge when Khmer is active', () => {
     mockPreferences('km');
 
     render(
@@ -217,8 +230,9 @@ describe('HelpRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ' })).toHaveAttribute(
-      'href',
+    fireEvent.click(screen.getByRole('button', { name: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ' }));
+
+    expect(window.banjiDesktop.system.openExternalUrl).toHaveBeenCalledWith(
       'https://github.com/Svanny/banji/blob/main/docs/user-guide.km.md',
     );
   });
@@ -249,14 +263,17 @@ describe('HelpRoute', () => {
 
     render(
       <MemoryRouter initialEntries={['/help']}>
-        <HelpRoute />
+        <>
+          <HelpRoute />
+          <LocationProbe />
+        </>
       </MemoryRouter>,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
 
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
-    expect(window.location.href).toContain('/#settings');
+    expect(screen.getByTestId('location')).toHaveTextContent('/help#settings');
   });
 
   test('scrolls directly to a subsection before starting the More-link flash', () => {

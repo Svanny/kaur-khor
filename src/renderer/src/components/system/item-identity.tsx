@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 type ItemIdentityType = 'sku' | 'service';
 type ItemIdentitySize = 'compact' | 'default' | 'hero';
 type ItemIdentityAlign = 'start' | 'center';
+const assetImageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
 function imageModeClassName(
   mode: ReturnType<typeof usePreferences>['itemImageMode'],
@@ -47,8 +48,13 @@ function filePathToUrl(imagePath: string) {
   }
 
   const normalizedPath = trimmed.replace(/\\/g, '/');
-  const assetName = normalizedPath.split('/').pop();
+  const pathParts = normalizedPath.split('/').filter(Boolean);
+  const assetName = pathParts.at(-1);
   if (!assetName) {
+    return null;
+  }
+  const extension = assetName.includes('.') ? `.${assetName.split('.').pop()?.toLowerCase()}` : '';
+  if (!assetImageExtensions.has(extension)) {
     return null;
   }
 

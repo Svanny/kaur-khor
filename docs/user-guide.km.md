@@ -249,7 +249,7 @@ Dependency impact បង្ហាញ which linked SKUs គឺជា limiting or 
 
 Service details define the stable identity of a service: name, description, and image. បញ្ជី បង្កើត internal service ID នៅពេលបង្កើត service ថ្មី ហើយរក្សាវាឲ្យ stable បន្ទាប់ពីនោះ។ These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear មុនពេល linking SKUs or exposing the service.
 
-អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
+អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។ Image ដែល drag ឬ paste ត្រូវមានទំហំ 20 MB ឬតូចជាងនេះ, មិនលើស 12000 px ក្នុងមួយជ្រុង, និងមិនលើស 40 megapixels។
 
 ### ទំនិញដែលភ្ជាប់ {#catalog-service-editor-linked-skus}
 
@@ -275,7 +275,7 @@ SKU dependency impact បង្ហាញ which services rely on this SKU and how
 
 SKU details define the stock item's identity: name, supplier, description, and image. Name និង supplier ជា required មុនពេល create ឬ save SKU។ These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here នៅពេល the wrong item appears in work or customer-facing surfaces.
 
-អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។
+អ្នកអាច add ឬ replace image ដោយ choose file, drag file ទៅលើ picture field, ឬ paste image ពី page ឬ field clipboard។ PNG, JPEG, និង WebP ត្រូវបានទទួលយក។ Image ដែល drag ឬ paste ត្រូវមានទំហំ 20 MB ឬតូចជាងនេះ, មិនលើស 12000 px ក្នុងមួយជ្រុង, និងមិនលើស 40 megapixels។
 
 ការរក្សាទុកការផ្លាស់ប្តូរនៅក្នុង SKU editor នឹងរក្សាអ្នកនៅលើ editor ដើម្បីបន្តពិនិត្យ draft។ ប្រើ **Details** ដើម្បីចេញពី editor ហើយបើក SKU detail page។ បើមានការផ្លាស់ប្តូរមិនទាន់រក្សាទុក navigation links រួមទាំង tooltip **More** links នឹងសួរមុនពេលបោះបង់ draft បច្ចុប្បន្ន។
 

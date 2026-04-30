@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { IconComponent } from '@icons';
 import { ActionContinueIcon, ActionCreatePackageIcon, ActionOpenExternalIcon, ActionSearchOffIcon } from '@icons/actions';
 import { EntityComparisonIcon, EntityEvidenceIcon, EntitySkuIcon, EntityTagsIcon } from '@icons/entities';
@@ -99,6 +99,7 @@ function groupHelpBlocks(blocks: HelpBlock[]) {
 
 export function HelpRoute() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { language, t } = usePreferences();
   const [query, setQuery] = useState('');
   const [highlightedSubsectionId, setHighlightedSubsectionId] = useState<string | null>(null);
@@ -129,7 +130,11 @@ export function HelpRoute() {
     }
 
     target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}#${sectionId}`);
+    navigate({
+      hash: `#${sectionId}`,
+      pathname: location.pathname,
+      search: location.search,
+    }, { replace: true });
   }
 
   useEffect(() => {
@@ -394,15 +399,16 @@ export function HelpRoute() {
             title={t('helpMoreTitle')}
             descriptor={t('helpMoreDescriptor')}
           >
-            <a
+            <button
               className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
-              href={repositoryGuideHref}
-              rel="noreferrer"
-              target="_blank"
+              type="button"
+              onClick={() => {
+                void window.banjiDesktop.system.openExternalUrl(repositoryGuideHref);
+              }}
             >
               {t('helpOpenRepositoryCopy')}
               <ActionOpenExternalIcon className="size-4" />
-            </a>
+            </button>
           </WorkspacePanel>
         </div>
       </div>

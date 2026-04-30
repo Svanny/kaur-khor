@@ -15,6 +15,9 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import { normalizeDesktopImage } from './desktop-image';
+import { normalizeAllowedExternalUrl } from './external-url';
+import { normalizeAllowedLocalDataPath } from './local-path-access';
+import { installMainWindowNavigationGuards } from './navigation-guards';
 import { storeDroppedImageHandler } from './store-dropped-image';
 import {
   finalizeAutomationPromotion,
@@ -965,6 +968,7 @@ async function createMainWindow() {
   });
   endCreate({ ok: true });
 
+  installMainWindowNavigationGuards(mainWindow);
   installPreferredWindowZoomBehavior(mainWindow);
 
   const endLoad = startBenchmarkSpan({
@@ -1194,11 +1198,7 @@ ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, benchmarkIpcHandle(IPC_CHANN
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
-  if (typeof targetPath !== 'string' || targetPath.trim().length === 0) {
-    throw new Error('A local path is required.');
-  }
-
-  const normalizedPath = targetPath.trim();
+  const normalizedPath = normalizeAllowedLocalDataPath(targetPath, [desktopDataPath]);
   const targetStats = await stat(normalizedPath).catch(() => null);
   if (targetStats?.isDirectory()) {
     const openError = await shell.openPath(normalizedPath);
@@ -1211,11 +1211,7 @@ ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.sy
   shell.showItemInFolder(normalizedPath);
 }));
 ipcMain.handle(IPC_CHANNELS.systemOpenExternalUrl, benchmarkIpcHandle(IPC_CHANNELS.systemOpenExternalUrl, async (_event, targetUrl: string) => {
-  if (typeof targetUrl !== 'string' || targetUrl.trim().length === 0) {
-    throw new Error('A URL is required.');
-  }
-
-  await shell.openExternal(targetUrl.trim());
+  await shell.openExternal(normalizeAllowedExternalUrl(targetUrl));
 }));
 ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
   const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
