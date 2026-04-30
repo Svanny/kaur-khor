@@ -65,6 +65,10 @@ describe('automation read context loaders', () => {
       latestServiceSaleByService: {},
       latestOrderBySku: {},
       latestReceiptBySku: {},
+      openTicketsByFamily: { customer: [], supplier: [] },
+      latestTicketsById: {},
+      latestDeliveryFeeByBucket: {},
+      recentActivity: [],
     };
     invoke.mockResolvedValueOnce(recordUpdateContext);
 
@@ -91,6 +95,10 @@ describe('automation read context loaders', () => {
       latestServiceSaleByService: {},
       latestOrderBySku: {},
       latestReceiptBySku: {},
+      openTicketsByFamily: { customer: [], supplier: [] },
+      latestTicketsById: {},
+      latestDeliveryFeeByBucket: {},
+      recentActivity: [],
     };
     invoke
       .mockResolvedValueOnce(catalog)

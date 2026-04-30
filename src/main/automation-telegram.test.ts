@@ -80,6 +80,10 @@ const context = {
     latestServiceSaleByService: {},
     latestOrderBySku: {},
     latestReceiptBySku: {},
+    openTicketsByFamily: { customer: [], supplier: [] },
+    latestTicketsById: {},
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
   },
   observations: [
     {

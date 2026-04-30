@@ -569,6 +569,67 @@ pub struct SenaRecordUpdateAnchor<T> {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct SenaTicketSummary {
+    pub ticket_id: String,
+    pub ticket_family: SenaTicketFamily,
+    pub lifecycle: SenaTicketLifecycle,
+    pub stage: SenaTicketStage,
+    pub revision: i32,
+    pub event_type: SenaTicketEventType,
+    pub occurred_at: String,
+    #[serde(default)]
+    pub next_touch_at: Option<String>,
+    #[serde(default)]
+    pub party: Option<SenaTicketPartyMetadata>,
+    pub lines: Vec<SenaTicketLine>,
+    #[serde(default)]
+    pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRecordUpdateOpenTickets {
+    pub customer: Vec<SenaTicketSummary>,
+    pub supplier: Vec<SenaTicketSummary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaRecordActivityType {
+    Stock,
+    RetailSale,
+    ServiceSale,
+    Order,
+    Receipt,
+    Ticket,
+    DeliveryFee,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaRecordActivityEntry {
+    pub activity_id: String,
+    pub activity_type: SenaRecordActivityType,
+    pub observation_id: String,
+    pub observed_at: String,
+    pub entity_id: String,
+    #[serde(default)]
+    pub ticket_id: Option<String>,
+    #[serde(default)]
+    pub ticket_family: Option<SenaTicketFamily>,
+    #[serde(default)]
+    pub lifecycle: Option<SenaTicketLifecycle>,
+    #[serde(default)]
+    pub event_type: Option<SenaTicketEventType>,
+    pub summary: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SenaRecordUpdateContext {
     pub observation_fingerprint: SenaObservationFingerprint,
     pub latest_observed_at: Option<String>,
@@ -577,6 +638,10 @@ pub struct SenaRecordUpdateContext {
     pub latest_service_sale_by_service: BTreeMap<String, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>,
     pub latest_order_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
     pub latest_receipt_by_sku: BTreeMap<String, SenaRecordUpdateAnchor<SenaOrderSignal>>,
+    pub open_tickets_by_family: SenaRecordUpdateOpenTickets,
+    pub latest_tickets_by_id: BTreeMap<String, SenaRecordUpdateAnchor<SenaTicketSummary>>,
+    pub latest_delivery_fee_by_bucket: BTreeMap<String, SenaRecordUpdateAnchor<SenaDeliveryFeeMetadata>>,
+    pub recent_activity: Vec<SenaRecordActivityEntry>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]

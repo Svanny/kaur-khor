@@ -96,6 +96,9 @@ function recordUpdateContext(observations: SenaObservationRecord[]): SenaRecordU
   const latestServiceSaleByService: SenaRecordUpdateContext['latestServiceSaleByService'] = {};
   const latestOrderBySku: SenaRecordUpdateContext['latestOrderBySku'] = {};
   const latestReceiptBySku: SenaRecordUpdateContext['latestReceiptBySku'] = {};
+  const latestTicketsById: SenaRecordUpdateContext['latestTicketsById'] = {};
+  const latestDeliveryFeeByBucket: SenaRecordUpdateContext['latestDeliveryFeeByBucket'] = {};
+  const recentActivity: SenaRecordUpdateContext['recentActivity'] = [];
 
   for (const observation of sorted) {
     for (const snapshot of observation.input.stockSnapshot) {
@@ -125,9 +128,65 @@ function recordUpdateContext(observations: SenaObservationRecord[]): SenaRecordU
         };
       }
     }
+    if (observation.input.deliveryFee) {
+      latestDeliveryFeeByBucket[observation.input.deliveryFee.bucket] ??= recordUpdateAnchor(observation, observation.input.deliveryFee);
+      recentActivity.push({
+        activityId: `${observation.observationId}:delivery-fee:${observation.input.deliveryFee.bucket}`,
+        activityType: 'delivery_fee',
+        entityId: observation.input.deliveryFee.bucket,
+        observationId: observation.observationId,
+        observedAt: observation.input.observedAt,
+        summary: 'Delivery fee captured',
+      });
+    }
+    for (const event of observation.input.ticketEvents ?? []) {
+      const summary = {
+        ticketId: event.ticketId,
+        ticketFamily: event.ticketFamily,
+        lifecycle: event.lifecycle,
+        stage: event.stage,
+        revision: event.revision,
+        eventType: event.eventType,
+        occurredAt: event.occurredAt,
+        nextTouchAt: event.nextTouchAt,
+        party: event.party,
+        lines: event.lines,
+        deliveryFee: event.deliveryFee,
+        note: event.note,
+      };
+      latestTicketsById[event.ticketId] ??= {
+        observationId: observation.observationId,
+        observedAt: event.occurredAt,
+        value: summary,
+      };
+      recentActivity.push({
+        activityId: `${observation.observationId}:ticket:${event.ticketId}:${event.revision}`,
+        activityType: 'ticket',
+        entityId: event.ticketId,
+        eventType: event.eventType,
+        lifecycle: event.lifecycle,
+        observationId: observation.observationId,
+        observedAt: event.occurredAt,
+        summary: `${event.ticketFamily === 'customer' ? 'Customer' : event.ticketFamily === 'supplier' ? 'Supplier' : 'Adjustment'} ticket updated`,
+        ticketFamily: event.ticketFamily,
+        ticketId: event.ticketId,
+        detail: event.note,
+      });
+      if (event.deliveryFee) {
+        latestDeliveryFeeByBucket[event.deliveryFee.bucket] ??= {
+          observationId: observation.observationId,
+          observedAt: event.occurredAt,
+          value: event.deliveryFee,
+        };
+      }
+    }
   }
 
   const fingerprint = observationFingerprint(observations);
+  const openTicketSummaries = Object.values(latestTicketsById)
+    .map((anchor) => anchor.value)
+    .filter((ticket) => ticket.lifecycle === 'open')
+    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || right.ticketId.localeCompare(left.ticketId));
   return {
     observationFingerprint: fingerprint,
     latestObservedAt: fingerprint.latestObservedAt,
@@ -136,6 +195,15 @@ function recordUpdateContext(observations: SenaObservationRecord[]): SenaRecordU
     latestServiceSaleByService,
     latestOrderBySku,
     latestReceiptBySku,
+    openTicketsByFamily: {
+      customer: openTicketSummaries.filter((ticket) => ticket.ticketFamily === 'customer'),
+      supplier: openTicketSummaries.filter((ticket) => ticket.ticketFamily === 'supplier'),
+    },
+    latestTicketsById,
+    latestDeliveryFeeByBucket,
+    recentActivity: recentActivity
+      .sort((left, right) => right.observedAt.localeCompare(left.observedAt) || right.activityId.localeCompare(left.activityId))
+      .slice(0, 24),
   };
 }
 

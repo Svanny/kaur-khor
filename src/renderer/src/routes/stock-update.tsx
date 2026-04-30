@@ -11,6 +11,7 @@ import type { IconComponent } from '@icons';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { SearchInput } from '@/components/system/search-input';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
@@ -18,12 +19,12 @@ import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard }
 import { Button } from '@/components/ui/button';
 import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
 import {
   buildOperationsSearchParams,
   readOperationsRouteState,
 } from '@/lib/navigation-state';
+import { observationRecordActivityEntries } from '@/lib/record-activity';
 import { filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
 import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
@@ -580,6 +581,7 @@ function ObservationCard({
   onDelete: () => void;
   onEdit: () => void;
 }) {
+  const activityEntries = useMemo(() => observationRecordActivityEntries(observation, language), [language, observation]);
   return (
     <div className="rounded-[1.25rem] border border-border/70 bg-background/70 p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -593,6 +595,18 @@ function ObservationCard({
           </p>
           {observation.input.notes ? (
             <p className="mt-2 text-sm text-muted-foreground">{observation.input.notes}</p>
+          ) : null}
+          {activityEntries.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {activityEntries.slice(0, 5).map((entry) => (
+                <span
+                  key={entry.activityId}
+                  className="rounded-full border border-border/70 bg-background/80 px-2.5 py-1 text-xs text-muted-foreground"
+                >
+                  {entry.summary}{entry.detail ? ` · ${entry.detail}` : ''}
+                </span>
+              ))}
+            </div>
           ) : null}
         </div>
         <WorkspaceActionRow className="shrink-0 gap-2">
@@ -628,6 +642,11 @@ export function StockUpdateRoute() {
   const scope = routeState.scope as ObservationScope;
   const routeView = routeState.view as ObservationView;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
+  const observationScopeOptions = [
+    { icon: EntityLayersIcon, label: t('operationsFilterEverything'), value: 'all' },
+    { icon: EntitySkuIcon, label: t('filterSku'), value: 'skus' },
+    { icon: EntityServiceIcon, label: t('filterService'), value: 'services' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: ObservationScope }>;
   const view = showLogsViewToggle ? routeView : 'all';
   const [yearOffset, setYearOffset] = useState(0);
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
@@ -808,31 +827,12 @@ export function StockUpdateRoute() {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <ToggleGroup
-            aria-label={t('searchItems')}
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            spacing={1}
-            type="single"
+          <ResponsiveToggleFilter
+            ariaLabel={t('searchItems')}
+            options={observationScopeOptions}
             value={scope}
-            onValueChange={(nextValue) => {
-              if (nextValue) {
-                updateRouteState({ scope: nextValue as ObservationScope });
-              }
-            }}
-          >
-            <ToggleGroupItem value="all">
-              <EntityLayersIcon data-icon="inline-start" />
-              {t('operationsFilterEverything')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="skus">
-              <EntitySkuIcon data-icon="inline-start" />
-              {t('filterSku')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="services">
-              <EntityServiceIcon data-icon="inline-start" />
-              {t('filterService')}
-            </ToggleGroupItem>
-          </ToggleGroup>
+            onValueChange={(nextValue) => updateRouteState({ scope: nextValue })}
+          />
           <SupplierFilter
             catalog={baseCatalog}
             className={compactFilterControlClassName}

@@ -6,9 +6,11 @@ use crate::{
         SenaDiagnostics, SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
         SenaObservationPageCursor, SenaObservationPageRequest, SenaObservationRecord,
         SenaOrderBatchRecord, SenaOrderBatchStatus, SenaOrderChildRecord, SenaOrderChildStatus,
-        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRecordUpdateAnchor,
-        SenaRecordUpdateContext, SenaRunStatus, SenaServiceDetail, SenaSkuDetail,
-        SenaSkuSummary, SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload,
+        SenaOrderFieldValues, SenaOrderLookupPayload, SenaRecordActivityEntry,
+        SenaRecordActivityType, SenaRecordUpdateAnchor, SenaRecordUpdateContext,
+        SenaRecordUpdateOpenTickets, SenaRunStatus, SenaServiceDetail, SenaSkuDetail,
+        SenaSkuSummary, SenaSplitOrderChildPayload, SenaTicketEvent, SenaTicketFamily,
+        SenaTicketLifecycle, SenaTicketSummary, SenaUpdateOrderBatchPayload,
         SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
     },
     PreprocessedWorkspace, SenaAnalysisCheckpoint,
@@ -353,6 +355,152 @@ fn upsert_record_update_anchor_locked<T: Serialize>(
     Ok(())
 }
 
+fn delivery_fee_bucket_key(bucket: &crate::types::SenaDeliveryFeeBucket) -> &'static str {
+    match bucket {
+        crate::types::SenaDeliveryFeeBucket::Supplier => "supplier",
+        crate::types::SenaDeliveryFeeBucket::CustomerOrder => "customer_order",
+        crate::types::SenaDeliveryFeeBucket::ImmediateSale => "immediate_sale",
+    }
+}
+
+fn ticket_family_label(family: &SenaTicketFamily) -> &'static str {
+    match family {
+        SenaTicketFamily::Customer => "Customer",
+        SenaTicketFamily::Supplier => "Supplier",
+        SenaTicketFamily::Adjustment => "Adjustment",
+    }
+}
+
+fn ticket_summary_from_event(event: &SenaTicketEvent) -> SenaTicketSummary {
+    SenaTicketSummary {
+        ticket_id: event.ticket_id.clone(),
+        ticket_family: event.ticket_family,
+        lifecycle: event.lifecycle,
+        stage: event.stage,
+        revision: event.revision,
+        event_type: event.event_type,
+        occurred_at: event.occurred_at.clone(),
+        next_touch_at: event.next_touch_at.clone(),
+        party: event.party.clone(),
+        lines: event.lines.clone(),
+        delivery_fee: event.delivery_fee.clone(),
+        note: event.note.clone(),
+    }
+}
+
+fn record_activity_from_anchor(
+    anchor_kind: &str,
+    entity_id: &str,
+    observation_id: &str,
+    observed_at: &str,
+    payload: &str,
+) -> Result<Option<SenaRecordActivityEntry>> {
+    let entry = match anchor_kind {
+        "stock" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:stock:{entity_id}"),
+            activity_type: SenaRecordActivityType::Stock,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Stock counted".to_string(),
+            detail: None,
+        }),
+        "retail_sale" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:retail-sale:{entity_id}"),
+            activity_type: SenaRecordActivityType::RetailSale,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Retail sale captured".to_string(),
+            detail: None,
+        }),
+        "service_sale" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:service-sale:{entity_id}"),
+            activity_type: SenaRecordActivityType::ServiceSale,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Service sale captured".to_string(),
+            detail: None,
+        }),
+        "order" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:order:{entity_id}"),
+            activity_type: SenaRecordActivityType::Order,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Order signal captured".to_string(),
+            detail: None,
+        }),
+        "receipt" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:receipt:{entity_id}"),
+            activity_type: SenaRecordActivityType::Receipt,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Receipt signal captured".to_string(),
+            detail: None,
+        }),
+        "ticket" => {
+            let ticket: SenaTicketSummary = serde_json::from_str(payload)?;
+            Some(SenaRecordActivityEntry {
+                activity_id: format!(
+                    "{observation_id}:ticket:{}:{}",
+                    ticket.ticket_id, ticket.revision
+                ),
+                activity_type: SenaRecordActivityType::Ticket,
+                observation_id: observation_id.to_string(),
+                observed_at: observed_at.to_string(),
+                entity_id: entity_id.to_string(),
+                ticket_id: Some(ticket.ticket_id.clone()),
+                ticket_family: Some(ticket.ticket_family),
+                lifecycle: Some(ticket.lifecycle),
+                event_type: Some(ticket.event_type),
+                summary: format!(
+                    "{} ticket updated",
+                    ticket_family_label(&ticket.ticket_family)
+                ),
+                detail: ticket.note.clone(),
+            })
+        }
+        "delivery_fee" => Some(SenaRecordActivityEntry {
+            activity_id: format!("{observation_id}:delivery-fee:{entity_id}"),
+            activity_type: SenaRecordActivityType::DeliveryFee,
+            observation_id: observation_id.to_string(),
+            observed_at: observed_at.to_string(),
+            entity_id: entity_id.to_string(),
+            ticket_id: None,
+            ticket_family: None,
+            lifecycle: None,
+            event_type: None,
+            summary: "Delivery fee captured".to_string(),
+            detail: None,
+        }),
+        _ => None,
+    };
+    Ok(entry)
+}
+
 fn upsert_record_update_anchors_for_observation_locked(
     connection: &Connection,
     owner_sub: &str,
@@ -430,6 +578,43 @@ fn upsert_record_update_anchors_for_observation_locked(
                 observation_id,
                 observed_at,
                 signal,
+                updated_at,
+            )?;
+        }
+    }
+    if let Some(delivery_fee) = &input.delivery_fee {
+        upsert_record_update_anchor_locked(
+            connection,
+            owner_sub,
+            "delivery_fee",
+            delivery_fee_bucket_key(&delivery_fee.bucket),
+            observation_id,
+            &input.observed_at,
+            delivery_fee,
+            updated_at,
+        )?;
+    }
+    for event in &input.ticket_events {
+        let summary = ticket_summary_from_event(event);
+        upsert_record_update_anchor_locked(
+            connection,
+            owner_sub,
+            "ticket",
+            &event.ticket_id,
+            observation_id,
+            &event.occurred_at,
+            &summary,
+            updated_at,
+        )?;
+        if let Some(delivery_fee) = &event.delivery_fee {
+            upsert_record_update_anchor_locked(
+                connection,
+                owner_sub,
+                "delivery_fee",
+                delivery_fee_bucket_key(&delivery_fee.bucket),
+                observation_id,
+                &event.occurred_at,
+                delivery_fee,
                 updated_at,
             )?;
         }
@@ -1245,6 +1430,9 @@ impl SenaRepository for SqliteSenaRepository {
         let mut latest_service_sale_by_service = BTreeMap::new();
         let mut latest_order_by_sku = BTreeMap::new();
         let mut latest_receipt_by_sku = BTreeMap::new();
+        let mut latest_tickets_by_id = BTreeMap::new();
+        let mut latest_delivery_fee_by_bucket = BTreeMap::new();
+        let mut recent_activity = Vec::new();
 
         let anchor_count: i64 = connection.query_row(
             "SELECT COUNT(*) FROM sena_record_update_anchor_hot WHERE owner_sub = ?1",
@@ -1276,43 +1464,155 @@ impl SenaRepository for SqliteSenaRepository {
             let (anchor_kind, entity_id, observation_id, observed_at, payload) = row?;
             match anchor_kind.as_str() {
                 "stock" => {
-                    latest_stock_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
-                        observation_id,
-                        observed_at,
+                    latest_stock_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
                         value: serde_json::from_str(&payload)?,
                     });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
                 }
                 "retail_sale" => {
-                    latest_retail_sale_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
-                        observation_id,
-                        observed_at,
+                    latest_retail_sale_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
                         value: serde_json::from_str(&payload)?,
                     });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
                 }
                 "service_sale" => {
-                    latest_service_sale_by_service.insert(entity_id, SenaRecordUpdateAnchor {
-                        observation_id,
-                        observed_at,
+                    latest_service_sale_by_service.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
                         value: serde_json::from_str(&payload)?,
                     });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
                 }
                 "order" => {
-                    latest_order_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
-                        observation_id,
-                        observed_at,
+                    latest_order_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
                         value: serde_json::from_str(&payload)?,
                     });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
                 }
                 "receipt" => {
-                    latest_receipt_by_sku.insert(entity_id, SenaRecordUpdateAnchor {
-                        observation_id,
-                        observed_at,
+                    latest_receipt_by_sku.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
                         value: serde_json::from_str(&payload)?,
                     });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
+                }
+                "ticket" => {
+                    latest_tickets_by_id.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
+                        value: serde_json::from_str::<SenaTicketSummary>(&payload)?,
+                    });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
+                }
+                "delivery_fee" => {
+                    latest_delivery_fee_by_bucket.insert(entity_id.clone(), SenaRecordUpdateAnchor {
+                        observation_id: observation_id.clone(),
+                        observed_at: observed_at.clone(),
+                        value: serde_json::from_str(&payload)?,
+                    });
+                    if let Some(activity) = record_activity_from_anchor(
+                        &anchor_kind,
+                        &entity_id,
+                        &observation_id,
+                        &observed_at,
+                        &payload,
+                    )? {
+                        recent_activity.push(activity);
+                    }
                 }
                 _ => {}
             }
         }
+        recent_activity.sort_by(|left, right| {
+            right
+                .observed_at
+                .cmp(&left.observed_at)
+                .then_with(|| right.activity_id.cmp(&left.activity_id))
+        });
+        recent_activity.truncate(24);
+        let mut customer_tickets = latest_tickets_by_id
+            .values()
+            .filter(|anchor| {
+                anchor.value.ticket_family == SenaTicketFamily::Customer
+                    && anchor.value.lifecycle == SenaTicketLifecycle::Open
+            })
+            .map(|anchor| anchor.value.clone())
+            .collect::<Vec<_>>();
+        let mut supplier_tickets = latest_tickets_by_id
+            .values()
+            .filter(|anchor| {
+                anchor.value.ticket_family == SenaTicketFamily::Supplier
+                    && anchor.value.lifecycle == SenaTicketLifecycle::Open
+            })
+            .map(|anchor| anchor.value.clone())
+            .collect::<Vec<_>>();
+        customer_tickets.sort_by(|left, right| {
+            right
+                .occurred_at
+                .cmp(&left.occurred_at)
+                .then_with(|| right.ticket_id.cmp(&left.ticket_id))
+        });
+        supplier_tickets.sort_by(|left, right| {
+            right
+                .occurred_at
+                .cmp(&left.occurred_at)
+                .then_with(|| right.ticket_id.cmp(&left.ticket_id))
+        });
         Ok(SenaRecordUpdateContext {
             latest_observed_at: observation_fingerprint.latest_observed_at.clone(),
             observation_fingerprint,
@@ -1321,6 +1621,13 @@ impl SenaRepository for SqliteSenaRepository {
             latest_service_sale_by_service,
             latest_order_by_sku,
             latest_receipt_by_sku,
+            open_tickets_by_family: SenaRecordUpdateOpenTickets {
+                customer: customer_tickets,
+                supplier: supplier_tickets,
+            },
+            latest_tickets_by_id,
+            latest_delivery_fee_by_bucket,
+            recent_activity,
         })
     }
 
@@ -2190,6 +2497,8 @@ mod tests {
     use crate::lead_time::SenaLeadTimeVariabilityClass;
     use crate::types::{
         SenaDeliveryFeeBucket, SenaDeliveryFeeMetadata, SenaDeliveryFeePayer,
+        SenaTicketEvent, SenaTicketEventType, SenaTicketFamily, SenaTicketLifecycle,
+        SenaTicketLine, SenaTicketPartyMetadata, SenaTicketStage,
     };
     use futures::executor::block_on;
     use rusqlite::params;
@@ -2293,6 +2602,58 @@ mod tests {
                 recipe_usage_hints: Vec::new(),
                 notes: None,
             },
+        }
+    }
+
+    fn supplier_ticket_event(ticket_id: &str, observed_at: &str, lifecycle: SenaTicketLifecycle) -> SenaTicketEvent {
+        SenaTicketEvent {
+            ticket_id: ticket_id.to_string(),
+            ticket_family: SenaTicketFamily::Supplier,
+            lifecycle,
+            stage: if lifecycle == SenaTicketLifecycle::Resolved {
+                SenaTicketStage::Received
+            } else {
+                SenaTicketStage::OrderedWaiting
+            },
+            revision: 1,
+            event_type: if lifecycle == SenaTicketLifecycle::Resolved {
+                SenaTicketEventType::FullyReceived
+            } else {
+                SenaTicketEventType::Created
+            },
+            occurred_at: observed_at.to_string(),
+            next_touch_at: None,
+            party: Some(SenaTicketPartyMetadata {
+                role: "supplier".to_string(),
+                channel_key: None,
+                channel_label: None,
+                customer_name: None,
+                customer_name_key: None,
+                phone: None,
+                phone_key: None,
+                supplier_name: Some("Mekong Looms".to_string()),
+            }),
+            lines: vec![SenaTicketLine {
+                entity_type: crate::types::SenaCommercialEntityType::Sku,
+                entity_id: "sku-1".to_string(),
+                quantity_delta: None,
+                ordered_quantity: Some(4.0),
+                received_quantity: if lifecycle == SenaTicketLifecycle::Resolved { Some(4.0) } else { None },
+                promised_at: None,
+                expected_arrival_at: None,
+                unit_cost: Some(2.0),
+                note: None,
+            }],
+            delivery_fee: Some(SenaDeliveryFeeMetadata {
+                fee_usd: Some(1.25),
+                payer: SenaDeliveryFeePayer::Merchant,
+                bucket: SenaDeliveryFeeBucket::Supplier,
+                subtotal_usd: Some(8.0),
+                display_delivery_usd: Some(1.25),
+                display_total_usd: Some(9.25),
+                net_settlement_usd: Some(9.25),
+            }),
+            note: Some("Supplier ticket note".to_string()),
         }
     }
 
@@ -2657,6 +3018,11 @@ mod tests {
             receipt_timestamp: Some("2026-04-02T02:00:00Z".to_string()),
             lead_time_days_hint: None,
         }];
+        latest.ticket_events = vec![supplier_ticket_event(
+            "ticket-supplier-1",
+            "2026-04-02T03:00:00Z",
+            SenaTicketLifecycle::Open,
+        )];
         block_on(repo.insert_observation("owner", &latest)).expect("latest observation should insert");
 
         let context = block_on(repo.get_record_update_context("owner"))
@@ -2706,6 +3072,28 @@ mod tests {
                 .observed_at,
             "2026-04-02T02:00:00Z"
         );
+        let ticket = context
+            .latest_tickets_by_id
+            .get("ticket-supplier-1")
+            .expect("ticket anchor should exist");
+        assert_eq!(ticket.observed_at, "2026-04-02T03:00:00Z");
+        assert_eq!(ticket.value.lines[0].entity_id, "sku-1");
+        assert_eq!(context.open_tickets_by_family.supplier.len(), 1);
+        assert_eq!(context.open_tickets_by_family.customer.len(), 0);
+        assert_eq!(
+            context
+                .latest_delivery_fee_by_bucket
+                .get("supplier")
+                .expect("supplier delivery fee anchor should exist")
+                .value
+                .fee_usd,
+            Some(1.25)
+        );
+        assert!(context
+            .recent_activity
+            .iter()
+            .any(|entry| entry.activity_type == crate::types::SenaRecordActivityType::Ticket
+                && entry.ticket_id.as_deref() == Some("ticket-supplier-1")));
     }
 
     #[test]

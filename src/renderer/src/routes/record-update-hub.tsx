@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { formatPhoneForDisplay } from '@shared/phone';
 import {
   ActionAddBadgeIcon,
   ActionCloseIcon,
@@ -31,7 +30,7 @@ import {
   type RecordUpdateLaneId,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
-import { latestTicketEvents, ticketLabel } from '@/lib/ticketing';
+import { recordTicketOptions, openTicketSummaries } from '@/lib/record-activity';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
@@ -394,54 +393,34 @@ function TicketEntryPromptDialog({
 
 export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const { language } = usePreferences();
-  const { observations, orderBatches } = useInventory();
+  const { orderBatches, recordUpdateContext } = useInventory();
   const navigate = useNavigate();
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [confirmNewDiscardDraftOpen, setConfirmNewDiscardDraftOpen] = useState(false);
   const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
   const [selectedCustomLaneIds, setSelectedCustomLaneIds] = useState<BaseRecordUpdateLaneId[]>([]);
   const baseCustomLanes = useMemo(() => BASE_RECORD_UPDATE_LANES, []);
-  const ticketEvents = useMemo(() => latestTicketEvents(observations), [observations]);
   const canEditCustomerTicket = useMemo(
-    () => ticketEvents.some((event) => event.ticketFamily === 'customer' && event.lifecycle === 'open'),
-    [ticketEvents],
+    () => openTicketSummaries(recordUpdateContext, 'customer').length > 0,
+    [recordUpdateContext],
   );
   const canEditSupplierTicket = useMemo(
     () =>
-      ticketEvents.some((event) => event.ticketFamily === 'supplier' && event.lifecycle === 'open')
+      openTicketSummaries(recordUpdateContext, 'supplier').length > 0
       || orderBatches.some((batch) => batch.status !== 'received' && batch.status !== 'reviewed'),
-    [orderBatches, ticketEvents],
+    [orderBatches, recordUpdateContext],
   );
   const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    const seen = new Set<string>();
-    return ticketEvents.flatMap((event) => {
-      if (event.ticketFamily !== 'customer' || event.lifecycle !== 'open' || seen.has(event.ticketId)) {
-        return [];
-      }
-      seen.add(event.ticketId);
-      const channel = event.party?.channelLabel ?? event.party?.channelKey ?? 'No channel';
-      return [{
-        id: event.ticketId,
-        label: ticketLabel(event),
-        description: `${channel} · ${event.lines.length} item${event.lines.length === 1 ? '' : 's'}`,
-        metadata: event.party?.phone ? formatPhoneForDisplay(event.party.phone) : event.note ?? event.occurredAt,
-        queryParam: 'ticketId',
-      }];
-    });
-  }, [ticketEvents]);
+    return recordTicketOptions(recordUpdateContext, 'customer').map((option) => ({
+      ...option,
+      queryParam: 'ticketId',
+    }));
+  }, [recordUpdateContext]);
   const supplierTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    const fromTicketEvents = ticketEvents.flatMap((event) => {
-      if (event.ticketFamily !== 'supplier' || event.lifecycle !== 'open') {
-        return [];
-      }
-      return [{
-        id: event.ticketId,
-        label: ticketLabel(event),
-        description: event.party?.supplierName ?? event.stage,
-        metadata: event.lines.map((line) => `${line.entityId}${line.orderedQuantity ? ` · ${line.orderedQuantity}u` : ''}`).join(', '),
-        queryParam: 'ticketId' as const,
-      }];
-    });
+    const fromTicketEvents = recordTicketOptions(recordUpdateContext, 'supplier').map((option) => ({
+      ...option,
+      queryParam: 'ticketId' as const,
+    }));
     const fromLegacyBatches = orderBatches.flatMap((batch) => {
       if (batch.status === 'received' || batch.status === 'reviewed') {
         return [];
@@ -462,7 +441,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
       seen.add(`${option.queryParam}:${option.id}`);
       return true;
     });
-  }, [orderBatches, ticketEvents]);
+  }, [orderBatches, recordUpdateContext]);
 
   useEffect(() => {
     writeRecordUpdateSessionViewMode('pos');

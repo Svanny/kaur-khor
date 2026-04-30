@@ -139,6 +139,10 @@ const sampleRecordUpdateContext: SenaRecordUpdateContext = {
   latestServiceSaleByService: {},
   latestOrderBySku: {},
   latestReceiptBySku: {},
+  openTicketsByFamily: { customer: [], supplier: [] },
+  latestTicketsById: {},
+  latestDeliveryFeeByBucket: {},
+  recentActivity: [],
 };
 
 const emptyRecordUpdateContext: SenaRecordUpdateContext = {
@@ -149,6 +153,10 @@ const emptyRecordUpdateContext: SenaRecordUpdateContext = {
   latestServiceSaleByService: {},
   latestOrderBySku: {},
   latestReceiptBySku: {},
+  openTicketsByFamily: { customer: [], supplier: [] },
+  latestTicketsById: {},
+  latestDeliveryFeeByBucket: {},
+  recentActivity: [],
 };
 
 const sampleRun: SenaAnalysisRunRecord = {

@@ -362,6 +362,49 @@ export interface SenaRecordUpdateAnchor<T> {
   value: T;
 }
 
+export interface SenaTicketSummary {
+  ticketId: string;
+  ticketFamily: SenaTicketFamily;
+  lifecycle: SenaTicketLifecycle;
+  stage: SenaTicketStage;
+  revision: number;
+  eventType: SenaTicketEventType;
+  occurredAt: string;
+  nextTouchAt?: string | null;
+  party?: SenaTicketPartyMetadata | null;
+  lines: SenaTicketLine[];
+  deliveryFee?: SenaDeliveryFeeMetadata | null;
+  note?: string | null;
+}
+
+export interface SenaRecordUpdateOpenTickets {
+  customer: SenaTicketSummary[];
+  supplier: SenaTicketSummary[];
+}
+
+export type SenaRecordActivityType =
+  | 'stock'
+  | 'retail_sale'
+  | 'service_sale'
+  | 'order'
+  | 'receipt'
+  | 'ticket'
+  | 'delivery_fee';
+
+export interface SenaRecordActivityEntry {
+  activityId: string;
+  activityType: SenaRecordActivityType;
+  observationId: string;
+  observedAt: string;
+  entityId: string;
+  ticketId?: string | null;
+  ticketFamily?: SenaTicketFamily | null;
+  lifecycle?: SenaTicketLifecycle | null;
+  eventType?: SenaTicketEventType | null;
+  summary: string;
+  detail?: string | null;
+}
+
 export interface SenaRecordUpdateContext {
   observationFingerprint: SenaObservationFingerprint;
   latestObservedAt: string | null;
@@ -370,6 +413,10 @@ export interface SenaRecordUpdateContext {
   latestServiceSaleByService: Record<string, SenaRecordUpdateAnchor<SenaServiceSalesSnapshot>>;
   latestOrderBySku: Record<string, SenaRecordUpdateAnchor<SenaOrderSignal>>;
   latestReceiptBySku: Record<string, SenaRecordUpdateAnchor<SenaOrderSignal>>;
+  openTicketsByFamily: SenaRecordUpdateOpenTickets;
+  latestTicketsById: Record<string, SenaRecordUpdateAnchor<SenaTicketSummary>>;
+  latestDeliveryFeeByBucket: Partial<Record<SenaDeliveryFeeBucket, SenaRecordUpdateAnchor<SenaDeliveryFeeMetadata>>>;
+  recentActivity: SenaRecordActivityEntry[];
 }
 
 export interface SenaObservationUpdatePayload {

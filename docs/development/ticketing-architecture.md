@@ -119,6 +119,26 @@ Automation intake promotion is another downstream writer. Promoted Telegram
 orders should create customer-family ticket history instead of a separate
 channel-only order model.
 
+## Compact Record Activity Context
+
+Record-update, History, queue drawers, detail rails, and automation review should
+share the compact `sena.getRecordUpdateContext()` read path for ticket and
+activity state. The context is backed by `sena_record_update_anchor_hot` rows and
+must not scan full observation payloads on normal reads.
+
+The compact context carries:
+
+- latest stock, sale, order, and receipt anchors by entity
+- latest ticket summaries by ticket id
+- open customer and supplier ticket summaries
+- latest delivery-fee metadata by bucket
+- bounded recent record activity entries for shared history/evidence rendering
+
+Renderer surfaces should use `src/renderer/src/lib/record-activity.ts` for
+read-side ticket options, customer link directories, delivery-fee defaults, and
+activity cards. `SenaTicketEvent.lines` is the canonical line field; do not
+reintroduce legacy `lineItems` readers.
+
 ## Tests and Verification
 
 When changing ticket authoring or projection behavior, prefer focused tests near

@@ -10,6 +10,7 @@ import {
 } from '@/lib/record-update-routes';
 import { recordUpdateSessionViewStorageKey } from '@/lib/record-update-session-view';
 import { RecordUpdateHubRoute } from './record-update-hub';
+import type { SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
 
 const inventoryHook = vi.fn();
 
@@ -24,10 +25,46 @@ vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
 
+function recordUpdateContextFromObservations(observations: SenaObservationRecord[]): SenaRecordUpdateContext {
+  const tickets = observations.flatMap((observation) =>
+    (observation.input.ticketEvents ?? []).map((event) => ({
+      observationId: observation.observationId,
+      observedAt: event.occurredAt,
+      value: {
+        ...event,
+        revision: event.revision ?? 1,
+        lines: event.lines ?? [],
+      },
+    })),
+  );
+  return {
+    observationFingerprint: {
+      count: observations.length,
+      latestObservedAt: observations[0]?.input.observedAt ?? null,
+      latestObservationId: observations[0]?.observationId ?? null,
+    },
+    latestObservedAt: observations[0]?.input.observedAt ?? null,
+    latestStockBySku: {},
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+    openTicketsByFamily: {
+      customer: tickets.map((ticket) => ticket.value).filter((ticket) => ticket.ticketFamily === 'customer' && ticket.lifecycle === 'open'),
+      supplier: tickets.map((ticket) => ticket.value).filter((ticket) => ticket.ticketFamily === 'supplier' && ticket.lifecycle === 'open'),
+    },
+    latestTicketsById: Object.fromEntries(tickets.map((ticket) => [ticket.value.ticketId, ticket])),
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
+  };
+}
+
 function inventoryState(overrides: Record<string, unknown> = {}) {
+  const observations = (overrides.observations ?? []) as SenaObservationRecord[];
   return {
     observations: [],
     orderBatches: [],
+    recordUpdateContext: recordUpdateContextFromObservations(observations),
     ...overrides,
   };
 }
