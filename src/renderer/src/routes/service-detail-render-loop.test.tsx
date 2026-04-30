@@ -217,4 +217,126 @@ describe('Service detail render loop regression', () => {
       consoleError.mockRestore();
     }
   });
+
+  test('does not restart service loading when inventory state references are recreated', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const loadSenaServiceDetail = vi.fn(async () => ({
+      serviceId: 'service-1',
+      activityMean: 3,
+      activityIntervalLow: 2,
+      activityIntervalHigh: 4,
+      bottleneckProbability: 0.3,
+      contributors: [
+        {
+          skuId: 'sku-1',
+          usageProbability: 0.85,
+          bottleneckProbability: 0.3,
+        },
+      ],
+      regimeTimeline: [
+        {
+          intervalIndex: 0,
+          startAt: '2026-04-01T00:00:00Z',
+          endAt: '2026-04-01T23:59:00Z',
+          dominantRegime: 'normal',
+          regimeProbabilities: { normal: 1 },
+        },
+      ],
+    }));
+    const listStockReports = vi.fn(async () => []);
+    const loadInventorySnapshot = vi.fn(async () => inventoryHook().snapshot);
+
+    inventoryHook.mockImplementation(() => ({
+      catalog: {
+        ...sampleCatalog,
+        skus: [...sampleCatalog.skus],
+        services: [...sampleCatalog.services],
+        sharingMask: [...sampleCatalog.sharingMask],
+      },
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: null,
+      observations: [],
+      reports: [],
+      snapshot: {
+        skus: [
+          {
+            skuId: 'sku-1',
+            name: 'SKU 1',
+            description: 'Cotton tee',
+            unitsInStock: 12,
+            costPerUnit: 4,
+            soldAsProduct: true,
+            productPrice: 9,
+            leadTimeMeanDays: 5,
+            leadTimeStdDays: 1,
+          },
+        ],
+        services: [
+          {
+            serviceId: 'service-1',
+            name: 'Service 1',
+            description: 'Service',
+            price: 15,
+            skuIds: ['sku-1'],
+          },
+        ],
+        ranking: [],
+        sist: {
+          status: { state: 'ready', updatedAt: '2026-04-02T00:00:00Z', reportCount: 1, confidence: 'medium', reason: null },
+          settings: { targetServiceLevel: 0.95, forecastHorizonDays: 14, particleCount: 512, smoothingWindowReports: 90 },
+          asOf: '2026-04-02T00:00:00Z',
+          topRegime: 'normal',
+          pendingReorderCount: 1,
+          highRiskSkuIds: ['sku-1'],
+          skuInsights: [],
+        },
+      },
+      workspaceSummary: {
+        ownerSub: 'desktop-owner',
+        runId: 'run-1',
+        latestObservedAt: '2026-04-02T00:00:00Z',
+        skuCount: 1,
+        serviceCount: 1,
+        intervalCount: 1,
+        pendingReorderCount: 1,
+        topRegime: 'normal',
+        highRiskSkuIds: ['sku-1'],
+        skuSummaries: [],
+      },
+      clearSenaServiceDetailCache: vi.fn(),
+      listStockReports,
+      loadInventorySnapshot,
+      loadSenaServiceDetail,
+      reload: vi.fn(),
+    }));
+
+    try {
+      render(
+        <StrictMode>
+          <MemoryRouter initialEntries={['/catalog/services/service-1']}>
+            <NavigationHistoryProvider>
+              <BanjiShell>
+                <Routes>
+                  <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
+                </Routes>
+              </BanjiShell>
+            </NavigationHistoryProvider>
+          </MemoryRouter>
+        </StrictMode>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /Ledger for Service 1/ })).toBeInTheDocument();
+      });
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+
+      expect(loadSenaServiceDetail.mock.calls.length).toBeLessThanOrEqual(4);
+      expect(consoleError.mock.calls.flat().join('\n')).not.toContain('Maximum update depth exceeded');
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });

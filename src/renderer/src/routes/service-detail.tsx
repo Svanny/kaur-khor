@@ -128,6 +128,12 @@ export function ServiceDetailRoute() {
     { scope: `service:${serviceId}` },
   );
   const initialDetailRequestRef = useRef<Promise<SenaServiceDetailPage | null> | null>(null);
+  const listStockReportsRef = useRef(listStockReports);
+  const loadInventorySnapshotRef = useRef(loadInventorySnapshot);
+  const loadSenaServiceDetailRef = useRef(loadSenaServiceDetail);
+  const projectedSnapshotRef = useRef<InventorySnapshot | null>(null);
+  const reportsRef = useRef(reports);
+  const snapshotRef = useRef(snapshot);
   const chartController = useTradingChartController({
     subjectId: serviceId,
     subtype: 'service',
@@ -135,6 +141,10 @@ export function ServiceDetailRoute() {
   });
   const isLedgerExpanded = chartSearchValue(searchParams) === 'expanded';
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
+  const detailCacheFreshnessFingerprint = useMemo(
+    () => deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
+    [workspaceSummary?.latestObservedAt, workspaceSummary?.runId],
+  );
   const cachedRecentDetailPage = useMemo(
     () =>
       typeof window === 'undefined'
@@ -143,11 +153,11 @@ export function ServiceDetailRoute() {
           beforeIntervalIndex: null,
           entityId: serviceId,
           entityType: 'service',
-          freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
+          freshnessFingerprint: detailCacheFreshnessFingerprint,
           limit: INTERVAL_PAGE_SIZE,
           storage: window.localStorage,
         }),
-    [serviceId, workspaceSummary],
+    [detailCacheFreshnessFingerprint, serviceId],
   );
 
   function setLedgerExpanded(nextExpanded: boolean, replace = false) {
@@ -189,19 +199,35 @@ export function ServiceDetailRoute() {
         }
       : null);
 
+  useEffect(() => {
+    listStockReportsRef.current = listStockReports;
+    loadInventorySnapshotRef.current = loadInventorySnapshot;
+    loadSenaServiceDetailRef.current = loadSenaServiceDetail;
+    projectedSnapshotRef.current = projectedSnapshot;
+    reportsRef.current = reports;
+    snapshotRef.current = snapshot;
+  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, projectedSnapshot, reports, snapshot]);
+
   const fetchPageData = useCallback(async () => {
+    const currentProjectedSnapshot = projectedSnapshotRef.current;
+    const currentReports = reportsRef.current;
+    const currentSnapshot = snapshotRef.current;
     traceRenderer('service-detail', 'fetch page data start', {
-      hasProjectedSnapshot: Boolean(projectedSnapshot),
-      hasSnapshot: Boolean(snapshot),
-      reportCount: reports.length,
+      hasProjectedSnapshot: Boolean(currentProjectedSnapshot),
+      hasSnapshot: Boolean(currentSnapshot),
+      reportCount: currentReports.length,
       serviceId,
     });
-    const detailRequest = loadSenaServiceDetail(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null);
+    const detailRequest = loadSenaServiceDetailRef.current(serviceId, { limit: INTERVAL_PAGE_SIZE }).catch(() => null);
     initialDetailRequestRef.current = detailRequest;
     const [nextDetail, nextSnapshot, nextReports] = await Promise.all([
       detailRequest,
-      snapshot ? Promise.resolve(snapshot) : projectedSnapshot ? Promise.resolve(projectedSnapshot) : loadInventorySnapshot(),
-      reports.length > 0 ? Promise.resolve(reports) : listStockReports().catch(() => []),
+      currentSnapshot
+        ? Promise.resolve(currentSnapshot)
+        : currentProjectedSnapshot
+          ? Promise.resolve(currentProjectedSnapshot)
+          : loadInventorySnapshotRef.current(),
+      currentReports.length > 0 ? Promise.resolve(currentReports) : listStockReportsRef.current().catch(() => []),
     ]);
     const normalizedDetail = normalizeServiceDetailPage(nextDetail);
     traceRenderer('service-detail', 'fetch page data complete', {
@@ -218,7 +244,7 @@ export function ServiceDetailRoute() {
       nextReports,
       nextSnapshot: nextSnapshot ?? null,
     };
-  }, [listStockReports, loadInventorySnapshot, loadSenaServiceDetail, projectedSnapshot, reports, serviceId, snapshot]);
+  }, [serviceId]);
 
   const refreshPage = useCallback(async () => {
     setError(null);
