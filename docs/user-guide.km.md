@@ -649,6 +649,8 @@ Smoothing controls how strongly the run softens noisy observations. More smoothi
 
 Automations គ្រប់គ្រង configuration និង customer-facing exposure សម្រាប់ automation។ ប្រើវាដើម្បីគ្រប់គ្រង Telegram connection, សម្រេចថា sellables ណាដែល bot អាច offer, និងរក្សា customer-facing catalog data ឱ្យរួចរាល់។ Intake review មាន Help section ដាច់ដោយឡែក ព្រោះវាជា Work subpage មិនមែនត្រឹម configuration panel ទេ។
 
+Automations ប្រើភាសា app សម្រាប់ controls និង messages របស់ operator។ Telegram text, handles, SKU names, service names, និង notes របស់ customer នៅដូចដែលបានបញ្ចូល។
+
 ### ទិដ្ឋភាពសង្ខេប {#automation-overview}
 
 Automation tables ប្រើពាក្យទាំងនេះ៖

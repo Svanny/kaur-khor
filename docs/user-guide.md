@@ -654,6 +654,8 @@ Smoothing controls how strongly the run softens noisy observations. More smoothi
 
 Automations covers configuration and customer-facing exposure for automation. Use it to manage the Telegram connection, decide what sellables the bot may offer, and keep customer-facing catalog data ready. Intake review has its own Help section because it is a Work subpage, not just a configuration panel.
 
+Automations follows the app language for operator-facing controls and messages. Customer Telegram text, handles, SKU names, service names, and notes stay as entered.
+
 ### Overview {#automation-overview}
 
 Automation tables use these concepts:

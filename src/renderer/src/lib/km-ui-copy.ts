@@ -3159,6 +3159,59 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Try a broader search or switch filters to inspect the archive ledger.':
     'សាកស្វែងរកទូលំទូលាយជាងនេះ ឬប្តូរតម្រង ដើម្បីពិនិត្យបញ្ជីបណ្ណសារ។',
   'Automated Telegram Bot': 'បូតតេលេក្រាមស្វ័យប្រវត្តិ',
+  'Search automations': 'ស្វែងរកស្វ័យប្រវត្តិកម្ម',
+  'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.':
+    'បង្ហាញធាតុដែលអនុម័តទៅតេលេក្រាម បំលែងសារទៅជាសំបុត្រការងារអតិថិជន ហើយរក្សាបញ្ជីជាប្រភពពិតសម្រាប់តម្លៃ និងការបំពេញការបញ្ជាទិញ។',
+  Overview: 'ទិដ្ឋភាពទូទៅ',
+  'Live intake': 'សំណើផ្ទាល់',
+  'Needs review': 'ត្រូវពិនិត្យ',
+  'Select automation section': 'ជ្រើសផ្នែកស្វ័យប្រវត្តិកម្ម',
+  'Select intake view': 'ជ្រើសទិដ្ឋភាពសំណើ',
+  'Exposed sellables': 'ធាតុលក់ដែលបានបង្ហាញ',
+  'Telegram settings not saved': 'ការកំណត់តេលេក្រាមមិនត្រូវបានរក្សាទុក',
+  'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.':
+    'រក្សាទុក token បូតតេលេក្រាមជាមុនសិន។ បញ្ជីនឹងចាក់សោ Automations នៅ Configuration រហូតដល់ token ត្រូវបានរក្សាទុក។',
+  'banji could not confirm a saved Telegram bot token. Save the token, then try again.':
+    'បញ្ជីមិនអាចបញ្ជាក់ថា token បូតតេលេក្រាមត្រូវបានរក្សាទុកទេ។ រក្សាទុក token រួចសាកម្ដងទៀត។',
+  'Telegram settings saved': 'ការកំណត់តេលេក្រាមត្រូវបានរក្សាទុក',
+  'banji stored the Telegram bot configuration and reopened Automations on the Overview tab.':
+    'បញ្ជីបានរក្សាទុកការកំណត់បូតតេលេក្រាម ហើយបើក Automations វិញនៅផ្ទាំង Overview។',
+  'banji could not save the Telegram configuration.':
+    'បញ្ជីមិនអាចរក្សាទុកការកំណត់តេលេក្រាមបានទេ។',
+  'Disconnect Telegram bot?': 'ផ្តាច់បូតតេលេក្រាមឬ?',
+  'Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banji tickets will stay in banji.':
+    'សំណើតេលេក្រាមនឹងឈប់រហូតដល់អ្នកភ្ជាប់បូតម្ដងទៀត។ ការសន្ទនា កំណត់ត្រាសំណើ និងសំបុត្រការងារបញ្ជីដែលបានបំលែងរួច នឹងនៅក្នុងបញ្ជីដដែល។',
+  'Automations needs attention': 'Automations ត្រូវការការយកចិត្តទុកដាក់',
+  'Connect bot': 'ភ្ជាប់បូត',
+  'Disconnect bot': 'ផ្តាច់បូត',
+  'Resume intake': 'បន្តទទួលសំណើ',
+  'Pause intake': 'ផ្អាកទទួលសំណើ',
+  'Test message': 'សាកល្បងសារ',
+  'Open bot': 'បើកបូត',
+  OK: 'យល់ព្រម',
+  Retry: 'សាកម្ដងទៀត',
+  'All types': 'ប្រភេទទាំងអស់',
+  Exposed: 'បានបង្ហាញ',
+  Hidden: 'បានលាក់',
+  'Need review': 'ត្រូវពិនិត្យ',
+  Ticketed: 'មានសំបុត្រការងារ',
+  Canceled: 'បានលុបចោល',
+  'All issues': 'បញ្ហាទាំងអស់',
+  'Item not found': 'រកធាតុមិនឃើញ',
+  'Quantity ambiguous': 'បរិមាណមិនច្បាស់',
+  'Parser failed': 'ការបកស្រាយបរាជ័យ',
+  'All confidence': 'កម្រិតទុកចិត្តទាំងអស់',
+  'Unavailable sellables are still exposed': 'ធាតុលក់ដែលមិនមាន នៅតែត្រូវបានបង្ហាញ',
+  '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.':
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន 1 មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុង Catalog ហើយលាក់វារហូតដល់រួចរាល់។',
+  '{count} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.':
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន {count} មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុង Catalog ហើយលាក់វារហូតដល់រួចរាល់។',
+  'Review exposed sellables': 'ពិនិត្យធាតុលក់ដែលបានបង្ហាញ',
+  'Recent automation activity': 'សកម្មភាពស្វ័យប្រវត្តិកម្មថ្មីៗ',
+  Coverage: 'ការគ្របដណ្តប់',
+  'Telegram activity has not started today.': 'សកម្មភាពតេលេក្រាមមិនទាន់ចាប់ផ្តើមថ្ងៃនេះទេ។',
+  'Expose at least one sellable to start Telegram coverage.':
+    'បង្ហាញធាតុលក់យ៉ាងហោចណាស់មួយ ដើម្បីចាប់ផ្តើមការគ្របដណ្តប់តេលេក្រាម។',
   'Telegram intake counts for today.': 'ចំនួនសំណើតេលេក្រាមសម្រាប់ថ្ងៃនេះ។',
   'The latest Telegram intake and promotion movement.':
     'សំណើតេលេក្រាម និងចលនាផ្សព្វផ្សាយចុងក្រោយ។',
@@ -3168,10 +3221,80 @@ const runtimeLiteralTranslations: Record<string, string> = {
     'កំណត់ការភ្ជាប់បូតតេលេក្រាម ហើយរក្សាបញ្ជីជាប្រភពពិតសម្រាប់តម្លៃ សំបុត្រការងារ និងការបំពេញការបញ្ជាទិញ។',
   'Choose exactly which customer-facing SKUs and services the bot may offer.':
     'ជ្រើសអេសខេយូ និងសេវាកម្មសម្រាប់អតិថិជន ដែលបូតអាចបង្ហាញបាន។',
+  Configuration: 'ការកំណត់រចនាសម្ព័ន្ធ',
+  'Search sellables, aliases, or suppliers...':
+    'ស្វែងរកធាតុលក់ ឈ្មោះហៅក្រៅ ឬអ្នកផ្គត់ផ្គង់...',
+  'Filter exposed sellables': 'តម្រងធាតុលក់ដែលបានបង្ហាញ',
+  'Filter exposed sellable types': 'តម្រងប្រភេទធាតុលក់ដែលបានបង្ហាញ',
+  'Sellables exposed to Telegram': 'ធាតុលក់ដែលបង្ហាញទៅតេលេក្រាម',
+  'No sellables are exposed yet. Expose at least one service or sellable SKU to let Telegram accept orders.':
+    'មិនទាន់មានធាតុលក់ត្រូវបានបង្ហាញទេ។ បង្ហាញសេវាកម្ម ឬ SKU ដែលអាចលក់បានយ៉ាងហោចណាស់មួយ ដើម្បីឱ្យតេលេក្រាមទទួលការបញ្ជាទិញ។',
+  'No Telegram sellables in this view': 'មិនមានធាតុលក់តេលេក្រាមក្នុងទិដ្ឋភាពនេះទេ',
   'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.':
     'សំណើតេលេក្រាមថ្មីៗកំពុងរង់ចាំការពិនិត្យ ការបញ្ជាក់ ឬការបំលែងទៅជាសំបុត្រការងារក្នុងបញ្ជី។',
+  'Search customers, handles, notes, or intake lines...':
+    'ស្វែងរកអតិថិជន handle កំណត់ចំណាំ ឬបន្ទាត់សំណើ...',
+  'Filter intake': 'តម្រងសំណើ',
+  'No Telegram intake matches this view.': 'មិនមានសំណើតេលេក្រាមណាត្រូវនឹងទិដ្ឋភាពនេះទេ។',
+  'No Telegram intake': 'មិនមានសំណើតេលេក្រាម',
   'Messages that banji could not safely convert into clean customer order intake.':
     'សារដែលបញ្ជីមិនអាចបំលែងដោយសុវត្ថិភាពទៅជាសំណើបញ្ជាទិញអតិថិជនស្អាតបាន។',
+  'Search customers, issues, notes, or intake lines...':
+    'ស្វែងរកអតិថិជន បញ្ហា កំណត់ចំណាំ ឬបន្ទាត់សំណើ...',
+  'Filter exception issues': 'តម្រងប្រភេទបញ្ហាដែលត្រូវពិនិត្យ',
+  'Filter exception confidence': 'តម្រងកម្រិតទុកចិត្តនៃបញ្ហា',
+  'No review items are waiting right now.': 'មិនមានធាតុពិនិត្យកំពុងរង់ចាំឥឡូវនេះទេ។',
+  'No review backlog': 'មិនមានការងារពិនិត្យនៅសល់',
+  'Create customer ticket': 'បង្កើតសំបុត្រការងារអតិថិជន',
+  'Append to existing customer ticket': 'បន្ថែមទៅសំបុត្រការងារអតិថិជនដែលមានស្រាប់',
+  'Append to existing ticket': 'បន្ថែមទៅសំបុត្រការងារដែលមានស្រាប់',
+  'Keep in review': 'រក្សាទុកក្នុងការពិនិត្យ',
+  'Cancel intake': 'លុបចោលសំណើ',
+  'Every line must resolve to a priced sellable before banj can create a customer ticket.':
+    'រាល់បន្ទាត់ត្រូវភ្ជាប់ទៅធាតុដែលអាចលក់បាន និងមានតម្លៃ មុនពេលបញ្ជីបង្កើតសំបុត្រការងារអតិថិជន។',
+  'Choose a customer ticket before appending Telegram intake.':
+    'ជ្រើសសំបុត្រការងារអតិថិជន មុននឹងបន្ថែមសំណើតេលេក្រាម។',
+  'Telegram intake': 'សំណើតេលេក្រាម',
+  'Review Telegram order intake before banj turns it into customer ticket truth.':
+    'ពិនិត្យសំណើបញ្ជាទិញពីតេលេក្រាម មុនពេលបញ្ជីបំលែងវាទៅជាសំបុត្រការងារអតិថិជន។',
+  'What came in': 'អ្វីដែលបានចូលមក',
+  'Telegram customer': 'អតិថិជនតេលេក្រាម',
+  'No Telegram handle captured': 'មិនមាន Telegram handle ត្រូវបានចាប់យក',
+  Phone: 'ទូរស័ព្ទ',
+  'No phone captured': 'មិនមានលេខទូរស័ព្ទត្រូវបានចាប់យក',
+  '{confidence} confidence': 'កម្រិតទុកចិត្ត {confidence}',
+  'Raw incoming text': 'អត្ថបទចូលដើម',
+  'Loading latest Telegram message...': 'កំពុងផ្ទុកសារតេលេក្រាមចុងក្រោយ...',
+  'No Telegram message captured yet.': 'មិនទាន់មានសារតេលេក្រាមត្រូវបានចាប់យកទេ។',
+  'Requested: {label}': 'បានស្នើ៖ {label}',
+  'Qty {quantity}': 'បរិមាណ {quantity}',
+  'Quantity unresolved': 'បរិមាណមិនទាន់ដោះស្រាយ',
+  'Pending line total': 'សរុបបន្ទាត់កំពុងរង់ចាំ',
+  'No unit price': 'មិនមានតម្លៃក្នុងមួយឯកតា',
+  '{price} each': '{price} ក្នុងមួយឯកតា',
+  'Issue: {issue}': 'បញ្ហា៖ {issue}',
+  'Quoted subtotal': 'សរុបរងដែលបានដកស្រង់តម្លៃ',
+  'Quoted total': 'សរុបដែលបានដកស្រង់តម្លៃ',
+  Pending: 'កំពុងរង់ចាំ',
+  'No intake selected.': 'មិនមានសំណើត្រូវបានជ្រើសទេ។',
+  'What do you want to do?': 'តើអ្នកចង់ធ្វើអ្វី?',
+  'Existing customer ticket id': 'លេខសម្គាល់សំបុត្រការងារអតិថិជនដែលមានស្រាប់',
+  'Customer name override': 'ជំនួសឈ្មោះអតិថិជន',
+  'Phone override': 'ជំនួសលេខទូរស័ព្ទ',
+  'Operator note': 'កំណត់ចំណាំប្រតិបត្តិករ',
+  'What banj will do next': 'អ្វីដែលបញ្ជីនឹងធ្វើបន្ទាប់',
+  'banj will write a customer-side ticket event instead of creating a parallel Telegram order system.':
+    'បញ្ជីនឹងសរសេរព្រឹត្តិការណ៍សំបុត្រការងារខាងអតិថិជន ជំនួសឱ្យការបង្កើតប្រព័ន្ធបញ្ជាទិញតេលេក្រាមដាច់ដោយឡែក។',
+  'banj will write customer commercial events that flow into Overview, Record Update, and Financials.':
+    'បញ្ជីនឹងសរសេរព្រឹត្តិការណ៍ពាណិជ្ជកម្មអតិថិជន ដែលហូរចូល Overview, Record Update, និង Financials។',
+  'banj will attach Telegram channel metadata to the customer ticket party.':
+    'បញ្ជីនឹងភ្ជាប់ metadata ឆានែលតេលេក្រាមទៅភាគីសំបុត្រការងារអតិថិជន។',
+  'banj will keep this intake out of supplier workflows and raw stock-count truth.':
+    'បញ្ជីនឹងរក្សាសំណើនេះឱ្យនៅក្រៅលំហូរការងារអ្នកផ្គត់ផ្គង់ និងការរាប់ស្តុកដើម។',
+  'This intake can promote into a customer ticket.':
+    'សំណើនេះអាចបំលែងទៅជាសំបុត្រការងារអតិថិជនបាន។',
+  'Resolve every line and compute a quote before banj can promote this intake.':
+    'ដោះស្រាយរាល់បន្ទាត់ និងគណនាតម្លៃសិន មុនពេលបញ្ជីអាចបំលែងសំណើនេះ។',
   'Save a stock count, customer order, sale, supplier order, or custom event.':
     'រក្សាទុកការរាប់ស្តុក ការបញ្ជាទិញអតិថិជន ការលក់ ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ឬព្រឹត្តិការណ៍ផ្ទាល់ខ្លួន។',
   'Capture Update': 'កត់ត្រាការអាប់ដេត',

@@ -208,6 +208,25 @@ describe('AutomationsRoute', () => {
     expect(screen.getByText('Connection')).toBeInTheDocument();
   });
 
+  it('localizes automation route chrome and filters when Khmer is active', () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      showAutomationsPage: true,
+      usdToKhrExchangeRate: 4000,
+      t: (key: string) => (key === 'navAutomations' ? 'ស្វ័យប្រវត្តិកម្ម' : key),
+    });
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderRoute('/automations?section=intake');
+
+    expect(screen.getByRole('searchbox', { name: 'ស្វែងរកស្វ័យប្រវត្តិកម្ម' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /សំណើផ្ទាល់/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'ត្រូវពិនិត្យ' })).toBeInTheDocument();
+    expect(screen.queryByText('Search automations')).not.toBeInTheDocument();
+    expect(screen.queryByText('No Telegram intake')).not.toBeInTheDocument();
+  });
+
   it('warns in overview when unavailable sellables are still exposed to Telegram', () => {
     automationHook.mockReturnValue(makeAutomationState(true, {
       exposures: [

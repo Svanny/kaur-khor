@@ -64,6 +64,18 @@ section route state when adding filters or deep links.
 If automation is hidden by the interface preset or switch, route users back to
 the remembered Work queue state rather than exposing a dead Intake tab.
 
+## Localization Contract
+
+Automation chrome, filters, banners, confirmation dialogs, and intake-review
+drawer copy must go through the shared translation layer. Do not add
+operator-facing English literals directly to `automations.tsx` or
+`automations/intake-drawer.tsx` without adding the matching Khmer copy and a
+focused renderer assertion.
+
+The route keeps customer-provided Telegram text, handles, SKU names, service
+names, and operator-entered notes untranslated. Those values are data, not UI
+copy.
+
 ## Telegram Contract
 
 Telegram is currently the only supported automation channel.

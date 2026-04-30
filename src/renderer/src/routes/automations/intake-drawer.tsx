@@ -9,6 +9,7 @@ import type {
   AutomationResolveIntakePayload,
   PromoteAutomationIntakePayload,
 } from '@shared/ipc';
+import type { AppLanguage } from '@shared/inventory';
 import { formatPhoneForDisplay, normalizePhoneNumber } from '@shared/phone';
 import { ActionClipboardAddIcon, ActionCloseIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
@@ -26,6 +27,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { statusPillClassName } from '@/lib/state-tones';
+import { translateUiLiteral } from '@/lib/translations';
 import {
   ActionSheetField,
   actionSheetInputClassName,
@@ -34,12 +36,14 @@ import {
 
 type DrawerAction = 'create_ticket' | 'append_ticket' | 'needs_review' | 'canceled';
 
-const drawerActionOptions = [
-  { value: 'create_ticket', label: 'Create customer ticket', icon: ActionClipboardAddIcon },
-  { value: 'append_ticket', label: 'Append to existing customer ticket', icon: ActionOpenExternalIcon },
-  { value: 'needs_review', label: 'Keep in review', icon: StatusWarningIcon },
-  { value: 'canceled', label: 'Cancel intake', icon: ActionCloseIcon },
-] satisfies Array<{ value: DrawerAction; label: string; icon: ComponentType<{ className?: string }> }>;
+function drawerActionOptions(language: AppLanguage) {
+  return [
+    { value: 'create_ticket', label: translateUiLiteral(language, 'Create customer ticket'), icon: ActionClipboardAddIcon },
+    { value: 'append_ticket', label: translateUiLiteral(language, 'Append to existing customer ticket'), icon: ActionOpenExternalIcon },
+    { value: 'needs_review', label: translateUiLiteral(language, 'Keep in review'), icon: StatusWarningIcon },
+    { value: 'canceled', label: translateUiLiteral(language, 'Cancel intake'), icon: ActionCloseIcon },
+  ] satisfies Array<{ value: DrawerAction; label: string; icon: ComponentType<{ className?: string }> }>;
+}
 
 function drawerCanvasClassName() {
   return 'rounded-[1.8rem] border border-border/70 bg-white/84 px-6 py-6 shadow-[0_1px_0_rgba(255,255,255,0.9)]';
@@ -100,6 +104,7 @@ export function AutomationIntakeDrawer({
   conversationId,
   intake,
   isSaving,
+  language,
   open,
   onClose,
   onPromote,
@@ -109,6 +114,7 @@ export function AutomationIntakeDrawer({
   conversationId: string | null;
   intake: AutomationOrderIntake | null;
   isSaving: boolean;
+  language: AppLanguage;
   open: boolean;
   onClose: () => void;
   onPromote: (payload: PromoteAutomationIntakePayload) => Promise<PromoteAutomationIntakeResult>;
@@ -184,6 +190,8 @@ export function AutomationIntakeDrawer({
 
   const inboundMessage = useMemo(() => lastInboundMessage(messages), [messages]);
   const promotionAllowed = canPromote(intake);
+  const actionOptions = useMemo(() => drawerActionOptions(language), [language]);
+  const literal = (value: string) => translateUiLiteral(language, value);
 
   async function handleSubmit() {
     if (!intake) {
@@ -210,11 +218,11 @@ export function AutomationIntakeDrawer({
         return;
       }
       if (!promotionAllowed) {
-        setError('Every line must resolve to a priced sellable before banj can create a customer ticket.');
+        setError(literal('Every line must resolve to a priced sellable before banj can create a customer ticket.'));
         return;
       }
       if (action === 'append_ticket' && !appendTicketId.trim()) {
-        setError('Choose a customer ticket before appending Telegram intake.');
+        setError(literal('Choose a customer ticket before appending Telegram intake.'));
         return;
       }
       await onPromote({
@@ -235,12 +243,12 @@ export function AutomationIntakeDrawer({
 
   const submitLabel =
     action === 'append_ticket'
-      ? 'Append to existing ticket'
+      ? literal('Append to existing ticket')
       : action === 'needs_review'
-        ? 'Keep in review'
+        ? literal('Keep in review')
         : action === 'canceled'
-          ? 'Cancel intake'
-          : 'Create customer ticket';
+          ? literal('Cancel intake')
+          : literal('Create customer ticket');
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
@@ -248,14 +256,14 @@ export function AutomationIntakeDrawer({
         <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">Telegram intake</SheetTitle>
+              <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{literal('Telegram intake')}</SheetTitle>
               <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
-                Review Telegram order intake before banj turns it into customer ticket truth.
+                {literal('Review Telegram order intake before banj turns it into customer ticket truth.')}
               </SheetDescription>
             </div>
             <SheetClose className="mt-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
               <ActionCloseIcon className="size-5" />
-              <span className="sr-only">Close</span>
+              <span className="sr-only">{literal('Close')}</span>
             </SheetClose>
           </div>
         </SheetHeader>
@@ -264,34 +272,34 @@ export function AutomationIntakeDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-8 py-6 pb-44">
             <section className={drawerCanvasClassName()}>
-              <DrawerBand title="What came in">
+              <DrawerBand title={literal('What came in')}>
             {intake ? (
               <div className="grid gap-4">
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>Customer</p>
+                    <p className={sectionTitleClassName()}>{literal('Customer')}</p>
                     <div className="mt-2">
-                    <p className="text-sm font-medium text-foreground">{intake.customerDisplayName ?? 'Telegram customer'}</p>
-                    <p className="text-sm text-muted-foreground">{intake.customerHandle ?? 'No Telegram handle captured'}</p>
+                    <p className="text-sm font-medium text-foreground">{intake.customerDisplayName ?? literal('Telegram customer')}</p>
+                    <p className="text-sm text-muted-foreground">{intake.customerHandle ?? literal('No Telegram handle captured')}</p>
                     </div>
                   </div>
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>Phone</p>
+                    <p className={sectionTitleClassName()}>{literal('Phone')}</p>
                     <div className="mt-2">
                     <p className="text-sm font-medium text-foreground">
-                      {intake.phone ? formatPhoneForDisplay(intake.phone) : 'No phone captured'}
+                      {intake.phone ? formatPhoneForDisplay(intake.phone) : literal('No phone captured')}
                     </p>
                     <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(confidenceTone(intake))}`}>
-                      {intake.parseConfidence.toUpperCase()} confidence
+                      {translateUiLiteral(language, '{confidence} confidence', { confidence: intake.parseConfidence.toUpperCase() })}
                     </span>
                     </div>
                   </div>
                 </div>
 
                     <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                      <p className={sectionTitleClassName()}>Raw incoming text</p>
+                      <p className={sectionTitleClassName()}>{literal('Raw incoming text')}</p>
                       <p className="mt-2 text-sm leading-6 text-foreground">
-                        {inboundMessage?.rawText ?? (isLoadingConversation ? 'Loading latest Telegram message…' : 'No Telegram message captured yet.')}
+                        {inboundMessage?.rawText ?? (isLoadingConversation ? literal('Loading latest Telegram message...') : literal('No Telegram message captured yet.'))}
                       </p>
                     </div>
 
@@ -302,21 +310,23 @@ export function AutomationIntakeDrawer({
                             <div>
                               <p className="font-medium text-foreground">{line.resolvedLabel ?? line.requestedLabel}</p>
                               <p className="mt-1 text-sm text-muted-foreground">
-                                Requested: {line.requestedLabel}
-                                {line.quantity != null ? ` · Qty ${line.quantity}` : ' · Quantity unresolved'}
+                                {translateUiLiteral(language, 'Requested: {label}', { label: line.requestedLabel })}
+                                {line.quantity != null
+                                  ? ` · ${translateUiLiteral(language, 'Qty {quantity}', { quantity: line.quantity })}`
+                                  : ` · ${literal('Quantity unresolved')}`}
                               </p>
                             </div>
                             <div className="text-right">
                               <p className="font-medium text-foreground">
-                                {line.lineTotal == null ? 'Pending line total' : `$${line.lineTotal.toFixed(2)}`}
+                                {line.lineTotal == null ? literal('Pending line total') : `$${line.lineTotal.toFixed(2)}`}
                               </p>
                               <p className="mt-1 text-sm text-muted-foreground">
-                                {line.unitPrice == null ? 'No unit price' : `$${line.unitPrice.toFixed(2)} each`}
+                                {line.unitPrice == null ? literal('No unit price') : translateUiLiteral(language, '{price} each', { price: `$${line.unitPrice.toFixed(2)}` })}
                               </p>
                             </div>
                           </div>
                           {line.ambiguityReason ? (
-                            <p className="mt-3 text-sm text-amber-700">Issue: {line.ambiguityReason.replaceAll('_', ' ')}</p>
+                            <p className="mt-3 text-sm text-amber-700">{translateUiLiteral(language, 'Issue: {issue}', { issue: line.ambiguityReason.replaceAll('_', ' ') })}</p>
                           ) : null}
                         </div>
                       ))}
@@ -324,15 +334,15 @@ export function AutomationIntakeDrawer({
 
                 <div className="grid gap-2 sm:grid-cols-3">
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>Quoted subtotal</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedSubtotal == null ? 'Pending' : `$${intake.quotedSubtotal.toFixed(2)}`}</p>
+                    <p className={sectionTitleClassName()}>{literal('Quoted subtotal')}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedSubtotal == null ? literal('Pending') : `$${intake.quotedSubtotal.toFixed(2)}`}</p>
                   </div>
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>Quoted total</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedTotal == null ? 'Pending' : `$${intake.quotedTotal.toFixed(2)}`}</p>
+                    <p className={sectionTitleClassName()}>{literal('Quoted total')}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedTotal == null ? literal('Pending') : `$${intake.quotedTotal.toFixed(2)}`}</p>
                   </div>
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>Source</p>
+                    <p className={sectionTitleClassName()}>{literal('Source')}</p>
                     <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName('info')}`}>
                       Telegram
                     </span>
@@ -340,13 +350,13 @@ export function AutomationIntakeDrawer({
                 </div>
               </div>
             ) : (
-              <p className="mt-4 text-sm text-muted-foreground">No intake selected.</p>
+              <p className="mt-4 text-sm text-muted-foreground">{literal('No intake selected.')}</p>
             )}
               </DrawerBand>
 
-              <DrawerBand title="What do you want to do?">
+              <DrawerBand title={literal('What do you want to do?')}>
             <div className="grid gap-3 sm:grid-cols-2">
-              {drawerActionOptions.map((option) => {
+              {actionOptions.map((option) => {
                 const OptionIcon = option.icon;
                 return (
                   <Button
@@ -366,36 +376,36 @@ export function AutomationIntakeDrawer({
 
             <div className="mt-5 grid gap-5">
               {action === 'append_ticket' ? (
-                <ActionSheetField label="Existing customer ticket id">
+                <ActionSheetField label={literal('Existing customer ticket id')}>
                   <Input
                     className={actionSheetInputClassName}
-                    placeholder="Existing customer ticket id"
+                    placeholder={literal('Existing customer ticket id')}
                     value={appendTicketId}
                     onChange={(event) => setAppendTicketId(event.target.value)}
                   />
                 </ActionSheetField>
               ) : null}
-              <ActionSheetField label="Customer name override">
+              <ActionSheetField label={literal('Customer name override')}>
                 <Input
                   className={actionSheetInputClassName}
-                  placeholder="Customer name override"
+                  placeholder={literal('Customer name override')}
                   value={customerNameOverride}
                   onChange={(event) => setCustomerNameOverride(event.target.value)}
                 />
               </ActionSheetField>
-              <ActionSheetField label="Phone override">
+              <ActionSheetField label={literal('Phone override')}>
                 <Input
                   className={actionSheetInputClassName}
-                  placeholder="Phone override"
+                  placeholder={literal('Phone override')}
                   value={phoneOverride}
                   onChange={(event) => setPhoneOverride(event.target.value)}
                   onBlur={() => setPhoneOverride(normalizePhoneNumber(phoneOverride))}
                 />
               </ActionSheetField>
-              <ActionSheetField label="Operator note">
+              <ActionSheetField label={literal('Operator note')}>
                 <Textarea
                   className={cn('min-h-28', actionSheetTextareaClassName)}
-                  placeholder="Operator note"
+                  placeholder={literal('Operator note')}
                   value={operatorNote}
                   onChange={(event) => setOperatorNote(event.target.value)}
                 />
@@ -403,13 +413,13 @@ export function AutomationIntakeDrawer({
             </div>
               </DrawerBand>
 
-              <DrawerBand title="What banj will do next">
+              <DrawerBand title={literal('What banj will do next')}>
             <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
               <div className="grid gap-3">
-              <p>banj will write a customer-side ticket event instead of creating a parallel Telegram order system.</p>
-              <p>banj will write customer commercial events that flow into Overview, Record Update, and Financials.</p>
-              <p>banj will attach Telegram channel metadata to the customer ticket party.</p>
-              <p>banj will keep this intake out of supplier workflows and raw stock-count truth.</p>
+              <p>{literal('banj will write a customer-side ticket event instead of creating a parallel Telegram order system.')}</p>
+              <p>{literal('banj will write customer commercial events that flow into Overview, Record Update, and Financials.')}</p>
+              <p>{literal('banj will attach Telegram channel metadata to the customer ticket party.')}</p>
+              <p>{literal('banj will keep this intake out of supplier workflows and raw stock-count truth.')}</p>
               </div>
             </div>
               </DrawerBand>
@@ -431,14 +441,14 @@ export function AutomationIntakeDrawer({
               <p className="text-sm font-medium text-foreground">{submitLabel}</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {promotionAllowed
-                  ? 'This intake can promote into a customer ticket.'
-                  : 'Resolve every line and compute a quote before banj can promote this intake.'}
+                  ? literal('This intake can promote into a customer ticket.')
+                  : literal('Resolve every line and compute a quote before banj can promote this intake.')}
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">
               <Button type="button" variant="outline" onClick={onClose}>
                 <ActionCloseIcon className="size-4" />
-                Close
+                {literal('Close')}
               </Button>
               <Button
                 disabled={isSaving || !intake || ((action === 'create_ticket' || action === 'append_ticket') && !promotionAllowed)}

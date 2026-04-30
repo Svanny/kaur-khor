@@ -224,18 +224,18 @@ function OverviewColumn({
   );
 }
 
-function AutomationTabs() {
+function AutomationTabs({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
   const tabOptions = [
-    { value: 'overview', label: 'Overview', icon: <NavigationDashboardIcon className="size-4" /> },
-    { value: 'catalog', label: 'Catalog', icon: <NavigationCatalogIcon className="size-4" /> },
-    { value: 'intake', label: 'Live intake', icon: <StatusSendIcon className="size-4" /> },
-    { value: 'exceptions', label: 'Needs review', icon: <StatusWarningIcon className="size-4" /> },
-    { value: 'settings', label: 'Settings', icon: <NavigationSettingsIcon className="size-4" /> },
+    { value: 'overview', label: translateUiLiteral(language, 'Overview'), icon: <NavigationDashboardIcon className="size-4" /> },
+    { value: 'catalog', label: translateUiLiteral(language, 'Catalog'), icon: <NavigationCatalogIcon className="size-4" /> },
+    { value: 'intake', label: translateUiLiteral(language, 'Live intake'), icon: <StatusSendIcon className="size-4" /> },
+    { value: 'exceptions', label: translateUiLiteral(language, 'Needs review'), icon: <StatusWarningIcon className="size-4" /> },
+    { value: 'settings', label: translateUiLiteral(language, 'Settings'), icon: <NavigationSettingsIcon className="size-4" /> },
   ] satisfies Array<{ value: typeof automationSectionValues[number]; label: string; icon: React.ReactNode }>;
 
   return (
     <div className="relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6">
-      <ChromeTabsList aria-label="Select automation section" className="min-w-max">
+      <ChromeTabsList aria-label={translateUiLiteral(language, 'Select automation section')} className="min-w-max">
         {tabOptions.map((option) => (
           <ChromeTabsTrigger key={option.value} leading={option.icon} value={option.value}>
             {option.label}
@@ -246,15 +246,15 @@ function AutomationTabs() {
   );
 }
 
-function IntakeViewTabs() {
+function IntakeViewTabs({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
   return (
     <div className="relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6">
-      <ChromeTabsList aria-label="Select intake view" className="min-w-max">
+      <ChromeTabsList aria-label={translateUiLiteral(language, 'Select intake view')} className="min-w-max">
         <ChromeTabsTrigger leading={<StatusSendIcon className="size-4" />} value="intake">
-          Live intake
+          {translateUiLiteral(language, 'Live intake')}
         </ChromeTabsTrigger>
         <ChromeTabsTrigger leading={<EntityPreviewIcon className="size-4" />} value="exposed">
-          Exposed sellables
+          {translateUiLiteral(language, 'Exposed sellables')}
         </ChromeTabsTrigger>
       </ChromeTabsList>
     </div>
@@ -477,7 +477,7 @@ export function AutomationsRoute({
     return (
       <div className="w-full max-w-xl">
         <SearchInput
-          ariaLabel="Search automations"
+          ariaLabel={translateUiLiteral(language, 'Search automations')}
           placeholder={placeholder}
           value={routeState.q ?? ''}
           onChange={(event) => updateRouteState({ q: event.target.value || null })}
@@ -513,8 +513,8 @@ export function AutomationsRoute({
   async function handleSubmitTelegramSettings() {
     if (!botToken.trim() && !connection?.hasBotToken) {
       setSaveResultDialog({
-        title: 'Telegram settings not saved',
-        description: 'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.',
+        title: translateUiLiteral(language, 'Telegram settings not saved'),
+        description: translateUiLiteral(language, 'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.'),
         tone: 'error',
       });
       return;
@@ -531,8 +531,8 @@ export function AutomationsRoute({
 
       if (!nextConnection.hasBotToken) {
         setSaveResultDialog({
-          title: 'Telegram settings not saved',
-          description: 'banji could not confirm a saved Telegram bot token. Save the token, then try again.',
+          title: translateUiLiteral(language, 'Telegram settings not saved'),
+          description: translateUiLiteral(language, 'banji could not confirm a saved Telegram bot token. Save the token, then try again.'),
           tone: 'error',
         });
         return;
@@ -549,14 +549,14 @@ export function AutomationsRoute({
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setSaveResultDialog({
-        title: 'Telegram settings saved',
-        description: 'banji stored the Telegram bot configuration and reopened Automations on the Overview tab.',
+        title: translateUiLiteral(language, 'Telegram settings saved'),
+        description: translateUiLiteral(language, 'banji stored the Telegram bot configuration and reopened Automations on the Overview tab.'),
         tone: 'success',
       });
     } catch (error) {
       setSaveResultDialog({
-        title: 'Telegram settings not saved',
-        description: error instanceof Error ? error.message : 'banji could not save the Telegram configuration.',
+        title: translateUiLiteral(language, 'Telegram settings not saved'),
+        description: error instanceof Error ? error.message : translateUiLiteral(language, 'banji could not save the Telegram configuration.'),
         tone: 'error',
       });
     }
@@ -573,14 +573,14 @@ export function AutomationsRoute({
   const isDisconnected = connectionStatus === 'disconnected';
   const openBotUrl = buildTelegramOpenUrl(botUsername, externalLink);
   const exposureFilterOptions = [
-    { icon: EntityLayersIcon, label: 'All', value: 'all' },
-    { icon: EntityPreviewIcon, label: 'Exposed', value: 'exposed' },
-    { icon: StatusUnavailableIcon, label: 'Hidden', value: 'hidden' },
+    { icon: EntityLayersIcon, label: translateUiLiteral(language, 'All'), value: 'all' },
+    { icon: EntityPreviewIcon, label: translateUiLiteral(language, 'Exposed'), value: 'exposed' },
+    { icon: StatusUnavailableIcon, label: translateUiLiteral(language, 'Hidden'), value: 'hidden' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: AutomationExposureValue }>;
   const exposureTypeFilterOptions = [
-    { icon: EntityTagsIcon, label: 'All types', value: 'all' },
-    { icon: EntityServiceIcon, label: 'Services', value: 'service' },
-    { icon: EntitySkuIcon, label: 'SKUs', value: 'sku' },
+    { icon: EntityTagsIcon, label: translateUiLiteral(language, 'All types'), value: 'all' },
+    { icon: EntityServiceIcon, label: translateUiLiteral(language, 'Services'), value: 'service' },
+    { icon: EntitySkuIcon, label: translateUiLiteral(language, 'SKUs'), value: 'sku' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: ExposureTypeFilter }>;
   const intakeFilterOptions = automationIntakeFilterValues.map((value) => ({
     icon: value === 'all'
@@ -597,31 +597,31 @@ export function AutomationsRoute({
                 ? ActionCloseIcon
                 : ActionClipboardAddIcon,
     label: value === 'all'
-      ? 'All'
+      ? translateUiLiteral(language, 'All')
       : value === 'needs_review'
-        ? 'Need review'
+        ? translateUiLiteral(language, 'Need review')
         : value === 'ticketed'
-          ? 'Ticketed'
+          ? translateUiLiteral(language, 'Ticketed')
           : value === 'quoted'
-            ? 'Quoted'
+            ? translateUiLiteral(language, 'Quoted')
             : value === 'completed'
-              ? 'Completed'
+              ? translateUiLiteral(language, 'Completed')
               : value === 'canceled'
-                ? 'Canceled'
-                : 'New',
+                ? translateUiLiteral(language, 'Canceled')
+                : translateUiLiteral(language, 'New'),
     value,
   })) satisfies Array<{ icon: IconComponent; label: string; value: AutomationIntakeFilterValue }>;
   const issueFilterOptions = [
-    { icon: StatusWarningIcon, label: 'All issues', value: 'all' },
-    { icon: ActionSearchOffIcon, label: 'Item not found', value: 'item_not_found' },
-    { icon: StatusHelpIcon, label: 'Quantity ambiguous', value: 'quantity_ambiguous' },
-    { icon: EntityEvidenceIcon, label: 'Parser failed', value: 'parser_failed' },
+    { icon: StatusWarningIcon, label: translateUiLiteral(language, 'All issues'), value: 'all' },
+    { icon: ActionSearchOffIcon, label: translateUiLiteral(language, 'Item not found'), value: 'item_not_found' },
+    { icon: StatusHelpIcon, label: translateUiLiteral(language, 'Quantity ambiguous'), value: 'quantity_ambiguous' },
+    { icon: EntityEvidenceIcon, label: translateUiLiteral(language, 'Parser failed'), value: 'parser_failed' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: ExceptionIssueFilter }>;
   const confidenceFilterOptions = [
-    { icon: StatusGaugeIcon, label: 'All confidence', value: 'all' },
-    { icon: ActionConfirmIcon, label: 'High', value: 'high' },
-    { icon: StatusHelpIcon, label: 'Medium', value: 'medium' },
-    { icon: StatusWarningIcon, label: 'Low', value: 'low' },
+    { icon: StatusGaugeIcon, label: translateUiLiteral(language, 'All confidence'), value: 'all' },
+    { icon: ActionConfirmIcon, label: translateUiLiteral(language, 'High'), value: 'high' },
+    { icon: StatusHelpIcon, label: translateUiLiteral(language, 'Medium'), value: 'medium' },
+    { icon: StatusWarningIcon, label: translateUiLiteral(language, 'Low'), value: 'low' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: ExceptionConfidenceFilter }>;
 
   const titleActions = (
@@ -641,7 +641,7 @@ export function AutomationsRoute({
         }}
       >
         {isDisconnected ? <NavigationAutomationIcon className="size-4" /> : <ActionDeleteIcon className="size-4" />}
-        {isDisconnected ? 'Connect bot' : 'Disconnect bot'}
+        {isDisconnected ? translateUiLiteral(language, 'Connect bot') : translateUiLiteral(language, 'Disconnect bot')}
       </Button>
       <Button
         className={compactActionButtonClassName}
@@ -652,7 +652,7 @@ export function AutomationsRoute({
         onClick={() => { void handleSaveConnection(connection?.status === 'paused' ? 'connected' : 'paused'); }}
       >
         {connection?.status === 'paused' ? <ActionResumeIcon className="size-4" /> : <ActionPauseIcon className="size-4" />}
-        {connection?.status === 'paused' ? 'Resume intake' : 'Pause intake'}
+        {connection?.status === 'paused' ? translateUiLiteral(language, 'Resume intake') : translateUiLiteral(language, 'Pause intake')}
       </Button>
       <Button
         className={compactActionButtonClassName}
@@ -663,7 +663,7 @@ export function AutomationsRoute({
         onClick={() => { void testTelegramConnection(); }}
       >
         <StatusSendIcon className="size-4" />
-        Test message
+        {translateUiLiteral(language, 'Test message')}
       </Button>
       {openBotUrl ? (
         <Button
@@ -674,12 +674,12 @@ export function AutomationsRoute({
           onClick={() => { void window.banjiDesktop.system.openExternalUrl(openBotUrl); }}
         >
           <ActionOpenExternalIcon className="size-4" />
-          Open bot
+          {translateUiLiteral(language, 'Open bot')}
         </Button>
       ) : (
         <Button className={compactActionButtonClassName} disabled size="sm" type="button" variant="outline">
           <ActionOpenExternalIcon className="size-4" />
-          Open bot
+          {translateUiLiteral(language, 'Open bot')}
         </Button>
       )}
     </WorkspaceActionRow>
@@ -695,7 +695,7 @@ export function AutomationsRoute({
               <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
             </span>
           }
-          descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
+          descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.')}
         />
       </WorkspacePage>
     );
@@ -712,7 +712,7 @@ export function AutomationsRoute({
             <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
           </span>
         }
-        descriptor="Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth."
+        descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.')}
       >
         {hasSavedTelegramConfiguration && model ? (
           <MetricRibbon
@@ -729,17 +729,17 @@ export function AutomationsRoute({
       </WorkspaceTitleCard>
 
       <ConfirmActionDialog
-        confirmLabel="Disconnect bot"
-        description="Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banji tickets will stay in banji."
+        confirmLabel={translateUiLiteral(language, 'Disconnect bot')}
+        description={translateUiLiteral(language, 'Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banji tickets will stay in banji.')}
         isSubmitting={isSaving}
         open={disconnectDialogOpen}
-        title="Disconnect Telegram bot?"
+        title={translateUiLiteral(language, 'Disconnect Telegram bot?')}
         onCancel={() => setDisconnectDialogOpen(false)}
         onConfirm={() => { void handleConfirmDisconnect(); }}
       />
 
       <ConfirmActionDialog
-        confirmLabel="OK"
+        confirmLabel={translateUiLiteral(language, 'OK')}
         confirmVariant="default"
         description={saveResultDialog?.description}
         hideCancel
@@ -753,12 +753,12 @@ export function AutomationsRoute({
       {error ? (
         <WorkspaceBanner
           description={error}
-          title="Automations needs attention"
+          title={translateUiLiteral(language, 'Automations needs attention')}
           tone="destructive"
           action={(
             <Button size="sm" type="button" variant="outline" onClick={() => { void reload(); }}>
               <ActionRefreshIcon className="size-4" />
-              Retry
+              {translateUiLiteral(language, 'Retry')}
             </Button>
           )}
         />
@@ -775,7 +775,7 @@ export function AutomationsRoute({
           }
         }}
       >
-        {hasSavedTelegramConfiguration && forcedSection === 'intake' ? <IntakeViewTabs /> : hasSavedTelegramConfiguration && !forcedSection ? <AutomationTabs /> : null}
+        {hasSavedTelegramConfiguration && forcedSection === 'intake' ? <IntakeViewTabs language={language} /> : hasSavedTelegramConfiguration && !forcedSection ? <AutomationTabs language={language} /> : null}
 
         <div
           className="grid min-w-0 gap-6"
@@ -790,32 +790,32 @@ export function AutomationsRoute({
               {unavailableExposedCount > 0 ? (
                 <WorkspaceBanner
                   tone="warning"
-                  title="Unavailable sellables are still exposed"
+                  title={translateUiLiteral(language, 'Unavailable sellables are still exposed')}
                   description={
                     unavailableExposedCount === 1
-                      ? '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.'
-                      : `${unavailableExposedCount} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.`
+                      ? translateUiLiteral(language, '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.')
+                      : translateUiLiteral(language, '{count} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.', { count: unavailableExposedCount })
                   }
                   action={(
                     <Button size="sm" type="button" variant="outline" onClick={() => updateRouteState({ section: 'catalog', exposure: 'exposed' })}>
                       <EntityPreviewIcon className="size-4" />
-                      Review exposed sellables
+                      {translateUiLiteral(language, 'Review exposed sellables')}
                     </Button>
                   )}
                 />
               ) : null}
               <section className={PERFORMANCE_HEADER_SURFACE_CLASS_NAME}>
                 <div className="grid divide-y divide-border/60 xl:grid-cols-3 xl:divide-x xl:divide-y-0">
-                  <OverviewColumn title="Today" tooltip={translateUiLiteral(language, 'Telegram intake counts for today.')}>
-                    <RailRows emptyLabel="Telegram activity has not started today." rows={model?.today ?? []} />
+                  <OverviewColumn title={translateUiLiteral(language, 'Today')} tooltip={translateUiLiteral(language, 'Telegram intake counts for today.')}>
+                    <RailRows emptyLabel={translateUiLiteral(language, 'Telegram activity has not started today.')} rows={model?.today ?? []} />
                   </OverviewColumn>
 
-                  <OverviewColumn title="Recent automation activity" tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
+                  <OverviewColumn title={translateUiLiteral(language, 'Recent automation activity')} tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
                     <RecentAutomationActivityRail rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} />
                   </OverviewColumn>
 
-                  <OverviewColumn title="Coverage" tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
-                    <RailRows emptyLabel="Expose at least one sellable to start Telegram coverage." rows={model?.coverage ?? []} />
+                  <OverviewColumn title={translateUiLiteral(language, 'Coverage')} tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
+                    <RailRows emptyLabel={translateUiLiteral(language, 'Expose at least one sellable to start Telegram coverage.')} rows={model?.coverage ?? []} />
                   </OverviewColumn>
                 </div>
               </section>
@@ -826,7 +826,7 @@ export function AutomationsRoute({
             <PerformanceSectionShell
               descriptor={<AutomationConfigurationTutorial />}
               helpHref="/settings/help#automation-configuration"
-              title="Configuration"
+              title={translateUiLiteral(language, 'Configuration')}
               tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.')}
             >
               <AutomationConnectionCard
@@ -847,26 +847,26 @@ export function AutomationsRoute({
 
           {showCatalogSection ? (
             <PerformanceSectionShell
-              descriptor="Choose exactly which customer-facing SKUs and services the bot may offer."
+              descriptor={translateUiLiteral(language, 'Choose exactly which customer-facing SKUs and services the bot may offer.')}
               helpHref="/settings/help#automation-sellables-exposed"
               headerControls={(
                 <CardControlRow>
-                  {searchControl('Search sellables, aliases, or suppliers…')}
+                  {searchControl(translateUiLiteral(language, 'Search sellables, aliases, or suppliers...'))}
                   <ResponsiveToggleFilter
-                    ariaLabel="Filter exposed sellables"
+                    ariaLabel={translateUiLiteral(language, 'Filter exposed sellables')}
                     options={exposureFilterOptions}
                     value={routeState.exposure}
                     onValueChange={(value) => updateRouteState({ exposure: value })}
                   />
                   <ResponsiveToggleFilter
-                    ariaLabel="Filter exposed sellable types"
+                    ariaLabel={translateUiLiteral(language, 'Filter exposed sellable types')}
                     options={exposureTypeFilterOptions}
                     value={exposureTypeFilter}
                     onValueChange={setExposureTypeFilter}
                   />
                 </CardControlRow>
               )}
-              title="Sellables exposed to Telegram"
+              title={translateUiLiteral(language, 'Sellables exposed to Telegram')}
               tooltip={translateUiLiteral(language, 'Choose exactly which customer-facing SKUs and services the bot may offer.')}
             >
               {visibleExposureRows.length > 0 ? (
@@ -889,8 +889,8 @@ export function AutomationsRoute({
                 />
               ) : (
                 <AutomationEmptyState
-                  body="No sellables are exposed yet. Expose at least one service or sellable SKU to let Telegram accept orders."
-                  title="No Telegram sellables in this view"
+                  body={translateUiLiteral(language, 'No sellables are exposed yet. Expose at least one service or sellable SKU to let Telegram accept orders.')}
+                  title={translateUiLiteral(language, 'No Telegram sellables in this view')}
                 />
               )}
             </PerformanceSectionShell>
@@ -898,28 +898,28 @@ export function AutomationsRoute({
 
           {showIntakeSection ? (
             <PerformanceSectionShell
-              descriptor="Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets."
+              descriptor={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
               helpHref="/settings/help#automation-live-intake"
               headerControls={(
                 <CardControlRow>
-                  {searchControl('Search customers, handles, notes, or intake lines…')}
+                  {searchControl(translateUiLiteral(language, 'Search customers, handles, notes, or intake lines...'))}
                   <ResponsiveToggleFilter
-                    ariaLabel="Filter intake"
+                    ariaLabel={translateUiLiteral(language, 'Filter intake')}
                     options={intakeFilterOptions}
                     value={routeState.intakeFilter}
                     onValueChange={(value) => updateRouteState({ intakeFilter: value })}
                   />
                 </CardControlRow>
               )}
-              title="Live intake"
+              title={translateUiLiteral(language, 'Live intake')}
               tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
             >
               {visibleIntakeRows.length > 0 ? (
                 <AutomationIntakeTable rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
-                  body="No Telegram intake matches this view."
-                  title="No Telegram intake"
+                  body={translateUiLiteral(language, 'No Telegram intake matches this view.')}
+                  title={translateUiLiteral(language, 'No Telegram intake')}
                 />
               )}
             </PerformanceSectionShell>
@@ -927,34 +927,34 @@ export function AutomationsRoute({
 
           {showExceptionsSection ? (
             <PerformanceSectionShell
-              descriptor="Messages that banji could not safely convert into clean customer order intake."
+              descriptor={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
               helpHref="/settings/help#automation-needs-review"
               headerControls={(
                 <CardControlRow>
-                  {searchControl('Search customers, issues, notes, or intake lines…')}
+                  {searchControl(translateUiLiteral(language, 'Search customers, issues, notes, or intake lines...'))}
                   <ResponsiveToggleFilter
-                    ariaLabel="Filter exception issues"
+                    ariaLabel={translateUiLiteral(language, 'Filter exception issues')}
                     options={issueFilterOptions}
                     value={issueFilter}
                     onValueChange={setIssueFilter}
                   />
                   <ResponsiveToggleFilter
-                    ariaLabel="Filter exception confidence"
+                    ariaLabel={translateUiLiteral(language, 'Filter exception confidence')}
                     options={confidenceFilterOptions}
                     value={confidenceFilter}
                     onValueChange={setConfidenceFilter}
                   />
                 </CardControlRow>
               )}
-              title="Needs review"
+              title={translateUiLiteral(language, 'Needs review')}
               tooltip={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
             >
               {visibleExceptionRows.length > 0 ? (
                 <AutomationExceptionTable rows={visibleExceptionRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
-                  body="No review items are waiting right now."
-                  title="No review backlog"
+                  body={translateUiLiteral(language, 'No review items are waiting right now.')}
+                  title={translateUiLiteral(language, 'No review backlog')}
                 />
               )}
             </PerformanceSectionShell>
@@ -966,6 +966,7 @@ export function AutomationsRoute({
         conversationId={selectedIntakeRequest?.conversationId ?? null}
         intake={selectedIntake}
         isSaving={isSaving}
+        language={language}
         open={selectedIntake != null}
         onClose={() => setSelectedIntakeRequest(null)}
         onPromote={promoteIntake}
