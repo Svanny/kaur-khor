@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS } from '@shared/ipc';
@@ -142,6 +142,7 @@ export function OnboardingRoute() {
   const [selectedViewMode, setSelectedViewMode] = useState<InterfaceViewMode>('default');
   const [step, setStep] = useState<OnboardingStep>('preferences');
   const [isSaving, setIsSaving] = useState(false);
+  const seededPreferencesRef = useRef(false);
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     preferencesTitle: onboardingCopy('Set up banji'),
@@ -163,13 +164,14 @@ export function OnboardingRoute() {
   const interfaceLanguage = selectedLanguage;
 
   useEffect(() => {
-    if (!isHydrated || step !== 'preferences') {
+    if (!isHydrated || seededPreferencesRef.current) {
       return;
     }
 
     setSelectedLanguage(language);
     setSelectedCurrency(currency);
-  }, [currency, isHydrated, language, step]);
+    seededPreferencesRef.current = true;
+  }, [currency, isHydrated, language]);
 
   if (!isHydrated) {
     return (

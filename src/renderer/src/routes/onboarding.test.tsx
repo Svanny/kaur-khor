@@ -167,6 +167,22 @@ describe('OnboardingRoute', () => {
     expect(screen.queryByRole('radio', { name: 'Default View' })).not.toBeInTheDocument();
   });
 
+  it('preserves unsaved language and currency selections when returning from interface setup', async () => {
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Language' }));
+    fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'Currency' }));
+    fireEvent.click(screen.getByRole('option', { name: /KHR/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'ត្រឡប់ក្រោយ' }));
+
+    expect(savePreferences).not.toHaveBeenCalled();
+    expect(await screen.findByRole('combobox', { name: 'Language' })).toHaveTextContent('Khmer');
+    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('KHR');
+  });
+
   it('renders Khmer interface view cards for Khmer onboarding', async () => {
     getPreferences.mockResolvedValue({
       ...basePreferences,
