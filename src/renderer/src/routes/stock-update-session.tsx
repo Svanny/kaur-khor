@@ -1033,18 +1033,23 @@ function dateTimeInputToIso(value: string) {
   return date.toISOString();
 }
 
-function dateInputValue(value: string | null) {
+export function dateInputValue(value: string | null) {
   if (!value) {
     return '';
   }
-  const date = new Date(value);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? new Date(`${value}T00:00:00`)
+    : new Date(value);
   if (Number.isNaN(date.getTime())) {
     return '';
   }
-  return date.toISOString().slice(0, 10);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
-function dateInputToIso(value: string) {
+export function dateInputToIso(value: string) {
   if (!value) {
     return null;
   }
@@ -1207,14 +1212,21 @@ function serviceDisplayPriceChanged(
   return baseline == null || price !== baseline;
 }
 
-function canUseBrowserStorage() {
-  return (
-    typeof window !== 'undefined' &&
-    Boolean(window.localStorage) &&
-    typeof window.localStorage.getItem === 'function' &&
-    typeof window.localStorage.setItem === 'function' &&
-    typeof window.localStorage.removeItem === 'function'
-  );
+function getBrowserStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const storage = window.localStorage;
+    return storage &&
+      typeof storage.getItem === 'function' &&
+      typeof storage.setItem === 'function' &&
+      typeof storage.removeItem === 'function'
+      ? storage
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -1572,11 +1584,17 @@ function RecordUpdateFilterRow({
 }
 
 function readStockUpdateDraft(draftStorageKey: string) {
-  if (!canUseBrowserStorage()) {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return null;
   }
 
-  const rawDraft = window.localStorage.getItem(draftStorageKey);
+  let rawDraft: string | null;
+  try {
+    rawDraft = storage.getItem(draftStorageKey);
+  } catch {
+    return null;
+  }
   if (!rawDraft) {
     return null;
   }
@@ -1584,12 +1602,20 @@ function readStockUpdateDraft(draftStorageKey: string) {
   try {
     const parsed = JSON.parse(rawDraft) as unknown;
     if (!isObjectRecord(parsed) || parsed.version !== 1) {
-      window.localStorage.removeItem(draftStorageKey);
+      try {
+        storage.removeItem(draftStorageKey);
+      } catch {
+        // Ignore storage cleanup failures; the bad draft was already rejected.
+      }
       return null;
     }
     return parsed;
   } catch {
-    window.localStorage.removeItem(draftStorageKey);
+    try {
+      storage.removeItem(draftStorageKey);
+    } catch {
+      // Ignore storage cleanup failures; the bad draft was already rejected.
+    }
     return null;
   }
 }
@@ -1599,8 +1625,13 @@ function hasStoredStockUpdateDraft(draftStorageKey: string) {
 }
 
 function removeStockUpdateDraft(draftStorageKey: string) {
-  if (canUseBrowserStorage()) {
-    window.localStorage.removeItem(draftStorageKey);
+  const storage = getBrowserStorage();
+  if (storage) {
+    try {
+      storage.removeItem(draftStorageKey);
+    } catch {
+      // Draft cleanup is best-effort when browser storage is unavailable.
+    }
   }
 }
 
@@ -1920,15 +1951,20 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
 }
 
 function writeStockUpdateDraft(state: StockUpdateDraftState, draftStorageKey: string) {
-  if (!canUseBrowserStorage() || !state.catalog) {
+  const storage = getBrowserStorage();
+  if (!storage || !state.catalog) {
     return false;
   }
   if (!hasMeaningfulStockUpdateChanges(state)) {
     removeStockUpdateDraft(draftStorageKey);
     return false;
   }
-  window.localStorage.setItem(draftStorageKey, JSON.stringify(buildStockUpdateDraft(state)));
-  return true;
+  try {
+    storage.setItem(draftStorageKey, JSON.stringify(buildStockUpdateDraft(state)));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function buildFullObservationPayload({
@@ -5597,27 +5633,6 @@ export function StockUpdateSessionRoute() {
   const [persistedServiceSalesRowOrder, setPersistedServiceSalesRowOrder] = useState(() => readStockRowOrder(serviceSalesRowOrderStorageKey));
   const [workbenchTileOrderDraftByLane, setWorkbenchTileOrderDraftByLane] = useState(workbenchTileOrderByLane);
   const [rows, setRows] = useState(() => buildInitialRows(catalog, observations));
-  const selectedOrderBatch = useMemo(
-    () =>
-      orderBatches.find((batch) =>
-        routeBatchOrderId
-          ? batch.batchOrderId === routeBatchOrderId
-          : routeChildOrderId
-            ? batch.children.some((child) => child.childOrderId === routeChildOrderId)
-            : false,
-      ) ?? null,
-    [orderBatches, routeBatchOrderId, routeChildOrderId],
-  );
-  const selectedOrderChildren = useMemo(
-    () =>
-      selectedOrderBatch == null
-        ? []
-        : routeChildOrderId
-          ? selectedOrderBatch.children.filter((child) => child.childOrderId === routeChildOrderId)
-          : selectedOrderBatch.children,
-    [routeChildOrderId, selectedOrderBatch],
-  );
-
   useEffect(() => {
     if (typeof loadWorkSupportData !== 'function' || requestedWorkSupportDataRef.current) {
       return;
@@ -5628,16 +5643,6 @@ export function StockUpdateSessionRoute() {
       console.warn('[stock-update] work support data load failed', error);
     });
   }, [loadWorkSupportData]);
-
-  useEffect(() => {
-    const scopedIds =
-      initialSkuIds ??
-      (selectedOrderChildren.length > 0 ? new Set(selectedOrderChildren.map((child) => child.skuId)) : null);
-    if (scopedIds && catalog) {
-      const filtered = buildInitialRows(catalog, observations).filter((row) => scopedIds.has(row.skuId));
-      setRows(applyStockRowOrder(filtered, readStockRowOrder(stockRowOrderStorageKey)));
-    }
-  }, [initialSkuIds, catalog, observations, selectedOrderChildren, stockRowOrderStorageKey]);
 
   const [retailSalesChoice, setRetailSalesChoice] = useState<OptionalStockStepChoice>('unset');
   const [serviceSalesChoice, setServiceSalesChoice] = useState<OptionalStockStepChoice>('unset');
@@ -5708,6 +5713,64 @@ export function StockUpdateSessionRoute() {
   const captureTargetFlashTimeoutRef = useRef<number | null>(null);
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
   const workingCatalog = editSession ? catalog : visibleCatalog;
+  const selectedLegacySupplierOrderTarget = useMemo(() => {
+    const selectedId = selectedSupplierTicketId;
+    const routeBatchMatch = routeBatchOrderId
+      ? orderBatches.find((batch) => batch.batchOrderId === routeBatchOrderId) ?? null
+      : null;
+    if (routeBatchMatch) {
+      return { batchOrderId: routeBatchMatch.batchOrderId, childOrderId: routeChildOrderId };
+    }
+
+    if (routeChildOrderId) {
+      const childBatch = orderBatches.find((batch) =>
+        batch.children.some((child) => child.childOrderId === routeChildOrderId),
+      ) ?? null;
+      if (childBatch) {
+        return { batchOrderId: childBatch.batchOrderId, childOrderId: routeChildOrderId };
+      }
+    }
+
+    if (selectedId) {
+      const batchMatch = orderBatches.find((batch) => batch.batchOrderId === selectedId) ?? null;
+      if (batchMatch) {
+        return { batchOrderId: batchMatch.batchOrderId, childOrderId: null };
+      }
+      const childBatch = orderBatches.find((batch) =>
+        batch.children.some((child) => child.childOrderId === selectedId),
+      ) ?? null;
+      if (childBatch) {
+        return { batchOrderId: childBatch.batchOrderId, childOrderId: selectedId };
+      }
+    }
+
+    return { batchOrderId: null, childOrderId: null };
+  }, [orderBatches, routeBatchOrderId, routeChildOrderId, selectedSupplierTicketId]);
+  const selectedOrderBatch = useMemo(
+    () =>
+      selectedLegacySupplierOrderTarget.batchOrderId
+        ? orderBatches.find((batch) => batch.batchOrderId === selectedLegacySupplierOrderTarget.batchOrderId) ?? null
+        : null,
+    [orderBatches, selectedLegacySupplierOrderTarget.batchOrderId],
+  );
+  const selectedOrderChildren = useMemo(
+    () =>
+      selectedOrderBatch == null
+        ? []
+        : selectedLegacySupplierOrderTarget.childOrderId
+          ? selectedOrderBatch.children.filter((child) => child.childOrderId === selectedLegacySupplierOrderTarget.childOrderId)
+          : selectedOrderBatch.children,
+    [selectedLegacySupplierOrderTarget.childOrderId, selectedOrderBatch],
+  );
+  useEffect(() => {
+    const scopedIds =
+      initialSkuIds ??
+      (selectedOrderChildren.length > 0 ? new Set(selectedOrderChildren.map((child) => child.skuId)) : null);
+    if (scopedIds && catalog) {
+      const filtered = buildInitialRows(catalog, observations).filter((row) => scopedIds.has(row.skuId));
+      setRows(applyStockRowOrder(filtered, readStockRowOrder(stockRowOrderStorageKey)));
+    }
+  }, [initialSkuIds, catalog, observations, selectedOrderChildren, stockRowOrderStorageKey]);
   useEffect(() => {
     setWorkbenchTileOrderDraftByLane(workbenchTileOrderByLane);
   }, [workbenchTileOrderByLane]);
@@ -8233,27 +8296,39 @@ export function StockUpdateSessionRoute() {
           leadTimeVariability: recordOrderLeadTimeVariability || null,
           deliveryFee: activeDeliveryFeeMetadata,
         };
-        if (selectedOrderBatch && routeBatchOrderId) {
-          if (routeChildOrderId) {
+        if (selectedOrderBatch && selectedLegacySupplierOrderTarget.batchOrderId) {
+          if (selectedLegacySupplierOrderTarget.childOrderId) {
             const selectedChild = selectedOrderChildren[0] ?? null;
             const draft = selectedChild ? visibleSkuSignalDrafts[selectedChild.skuId] : null;
             await updateSenaOrderBatch({
-              batchOrderId: routeBatchOrderId,
+              batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
               supplierName: selectedOrderBatch.supplierName,
               shared: sharedFields,
             });
             await updateSenaOrderChild({
-              childOrderId: routeChildOrderId,
+              childOrderId: selectedLegacySupplierOrderTarget.childOrderId,
               overrides: {
                 orderedQuantity: draft?.orderedQuantity ? Number(draft.orderedQuantity) : null,
               },
             });
           } else {
             await updateSenaOrderBatch({
-              batchOrderId: routeBatchOrderId,
+              batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
               supplierName: selectedOrderBatch.supplierName,
               shared: sharedFields,
             });
+            for (const child of selectedOrderChildren) {
+              const draft = visibleSkuSignalDrafts[child.skuId];
+              if (!draft) {
+                continue;
+              }
+              await updateSenaOrderChild({
+                childOrderId: child.childOrderId,
+                overrides: {
+                  orderedQuantity: draft.orderedQuantity ? Number(draft.orderedQuantity) : null,
+                },
+              });
+            }
           }
         } else {
           const orderedEntries = Object.entries(visibleSkuSignalDrafts)
@@ -8287,10 +8362,10 @@ export function StockUpdateSessionRoute() {
           }
         }
       }
-      if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && routeBatchOrderId) {
+      if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && selectedLegacySupplierOrderTarget.batchOrderId) {
         const targetChildren = selectedOrderChildren.length > 0 ? selectedOrderChildren : [];
         await updateSenaOrderBatch({
-          batchOrderId: routeBatchOrderId,
+          batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
           supplierName: selectedOrderBatch?.supplierName ?? null,
           shared: {
             deliveryFee: activeDeliveryFeeMetadata,
@@ -8309,7 +8384,7 @@ export function StockUpdateSessionRoute() {
           });
         }
       }
-      if (lane.id === 'stock-count' && routeBatchOrderId) {
+      if (lane.id === 'stock-count' && selectedLegacySupplierOrderTarget.batchOrderId) {
         for (const child of selectedOrderChildren) {
           await updateSenaOrderChild({
             childOrderId: child.childOrderId,

@@ -18,7 +18,7 @@ import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { buildDeliveryFeeMetadata } from '@/lib/ticketing';
 import { getTranslation } from '@/lib/translations';
 import { buildStockRowOrderStorageKey } from './stock-row-order';
-import { StockUpdateSessionRoute } from './stock-update-session';
+import { dateInputToIso, dateInputValue, StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
 const createSenaOrderBatch = vi.fn();
@@ -1339,7 +1339,11 @@ describe('StockUpdateSessionRoute', () => {
       }),
     );
 
-    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit`);
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
 
     expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
@@ -1965,6 +1969,119 @@ describe('StockUpdateSessionRoute', () => {
     expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
       { skuId: 'sku-2', unitsInStock: 6, costPerUnit: 2, productPrice: null },
     ]);
+  });
+
+  it('round-trips date-only inputs as local calendar dates', () => {
+    const isoValue = dateInputToIso('2026-04-10');
+
+    expect(isoValue).not.toBeNull();
+    expect(dateInputValue(isoValue)).toBe('2026-04-10');
+  });
+
+  it('updates a legacy supplier batch selected from the edit picker instead of creating a new batch', async () => {
+    setStoredSessionViewMode('form');
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        orderBatches: [
+          {
+            batchOrderId: 'batch-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'open',
+            createdAt: '2026-04-03T12:00:00.000Z',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+              supplierNote: '',
+            },
+            children: [
+              {
+                childOrderId: 'child-1',
+                skuId: 'sku-1',
+                status: 'open',
+                updatedAt: '2026-04-03T12:00:00.000Z',
+                effective: {
+                  orderedQuantity: 8,
+                  receivedQuantity: 0,
+                  expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+                  leadTimeDaysHint: 6,
+                  leadTimeVariability: 'tight',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Mekong Looms/i }));
+    goNext(2);
+    fireEvent.change(screen.getByLabelText('Current order for Razor refill'), { target: { value: '9' } });
+    goNext();
+    goNext();
+    chooseOptionalStepNo();
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(updateSenaOrderBatch).toHaveBeenCalledTimes(1));
+    expect(updateSenaOrderBatch).toHaveBeenCalledWith(expect.objectContaining({ batchOrderId: 'batch-1' }));
+    expect(updateSenaOrderChild).toHaveBeenCalledWith({
+      childOrderId: 'child-1',
+      overrides: {
+        orderedQuantity: 9,
+      },
+    });
+    expect(createSenaOrderBatch).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it('ignores unavailable draft storage without crashing the session', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      renderRoute();
+      expect(screen.getAllByRole('button', { name: /Observed at/i })[0]).toHaveAttribute('aria-current', 'step');
+    } finally {
+      installMemoryLocalStorage();
+    }
+  });
+
+  it('ignores draft storage getItem and setItem failures', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        clear: vi.fn(),
+        getItem: () => {
+          throw new Error('read blocked');
+        },
+        removeItem: vi.fn(),
+        setItem: () => {
+          throw new Error('write blocked');
+        },
+      },
+    });
+
+    const { unmount } = renderRoute();
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.change(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Units in stock'), {
+      target: { value: '7' },
+    });
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Done' }));
+
+    expect(() => unmount()).not.toThrow();
+    installMemoryLocalStorage();
   });
 
   it('asks before replacing a saved local draft with an edit session', async () => {

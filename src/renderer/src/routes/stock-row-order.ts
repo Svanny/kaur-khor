@@ -59,21 +59,34 @@ export function reorderStockRows<Row extends StockRowIdentity>(
   return arrayMove(rows, oldIndex, newIndex);
 }
 
-function canUseBrowserStorage() {
-  return (
-    typeof window !== 'undefined' &&
-    typeof window.localStorage !== 'undefined' &&
-    typeof window.localStorage.getItem === 'function' &&
-    typeof window.localStorage.setItem === 'function'
-  );
+function getBrowserStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    const storage = window.localStorage;
+    return storage &&
+      typeof storage.getItem === 'function' &&
+      typeof storage.setItem === 'function'
+      ? storage
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function readStockRowOrder(storageKey: string) {
-  if (!canUseBrowserStorage()) {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return [];
   }
 
-  const rawValue = window.localStorage.getItem(storageKey);
+  let rawValue: string | null;
+  try {
+    rawValue = storage.getItem(storageKey);
+  } catch {
+    return [];
+  }
   if (!rawValue) {
     return [];
   }
@@ -86,9 +99,14 @@ export function readStockRowOrder(storageKey: string) {
 }
 
 export function writeStockRowOrder(storageKey: string, orderedSkuIds: string[]) {
-  if (!canUseBrowserStorage()) {
+  const storage = getBrowserStorage();
+  if (!storage) {
     return;
   }
 
-  window.localStorage.setItem(storageKey, JSON.stringify(sanitizeStockRowOrder(orderedSkuIds)));
+  try {
+    storage.setItem(storageKey, JSON.stringify(sanitizeStockRowOrder(orderedSkuIds)));
+  } catch {
+    // Persisted row order is a convenience preference; failures should not block updates.
+  }
 }

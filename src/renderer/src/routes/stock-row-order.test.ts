@@ -59,4 +59,33 @@ describe('stock-row-order', () => {
 
     expect(readStockRowOrder(storageKey)).toEqual(['sku-2', 'sku-1']);
   });
+
+  it('ignores unavailable browser storage while reading and writing row order', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    expect(readStockRowOrder(buildStockRowOrderStorageKey('stock-count'))).toEqual([]);
+    expect(() => writeStockRowOrder(buildStockRowOrderStorageKey('stock-count'), ['sku-1'])).not.toThrow();
+  });
+
+  it('ignores row-order storage operation failures', () => {
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => {
+          throw new Error('read blocked');
+        },
+        setItem: () => {
+          throw new Error('write blocked');
+        },
+      },
+    });
+
+    expect(readStockRowOrder(buildStockRowOrderStorageKey('stock-count'))).toEqual([]);
+    expect(() => writeStockRowOrder(buildStockRowOrderStorageKey('stock-count'), ['sku-1'])).not.toThrow();
+  });
 });
