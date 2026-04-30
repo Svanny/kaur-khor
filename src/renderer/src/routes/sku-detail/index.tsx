@@ -17,6 +17,7 @@ import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
+import { detailPanelGridClassName } from '../detail-panels';
 import { SkuDetailActions } from './actions';
 import { bootstrapSkuDetail, buildSkuDetailBootstrapPreview, type BootstrapSkuDetailResult } from './bootstrap';
 import { SkuDetailEvidence } from './evidence';
@@ -303,6 +304,10 @@ function SkuDetailScreen() {
     return null;
   }
 
+  const lowerDetailPanelCount =
+    (model.dependencyImpact.length > 0 ? 1 : 0) +
+    (model.evidence.length > 0 ? 1 : 0);
+
   return (
     <WorkspacePage>
       {!isLedgerExpanded ? (
@@ -377,10 +382,12 @@ function SkuDetailScreen() {
                 />
               )}
             </div>
-            <div className="grid gap-6 xl:grid-cols-2">
-              <SkuDetailExposure rows={model.dependencyImpact} />
-              <SkuDetailEvidence evidence={model.evidence} />
-            </div>
+            {lowerDetailPanelCount > 0 ? (
+              <div className={detailPanelGridClassName(lowerDetailPanelCount)}>
+                <SkuDetailExposure rows={model.dependencyImpact} />
+                <SkuDetailEvidence evidence={model.evidence} />
+              </div>
+            ) : null}
           </div>
           {showRightRailCards ? <SkuDetailRightRail model={model} /> : null}
         </div>

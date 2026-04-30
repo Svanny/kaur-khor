@@ -317,6 +317,7 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
+          <Route element={<div>Capture route</div>} path="/work/capture/*" />
         </Routes>
       </NavigationHistoryProvider>
     </MemoryRouter>,
@@ -806,11 +807,11 @@ describe('SKU detail SENA helpers', () => {
               stage: 'ordered_waiting',
               revision: 1,
               occurredAt: '2026-03-27T09:00:00Z',
-              lineItems: [
+              lines: [
                 {
                   entityType: 'sku',
                   entityId: 'sku-1',
-                  quantity: 12,
+                  orderedQuantity: 12,
                 },
               ],
             },
@@ -832,7 +833,7 @@ describe('SKU detail SENA helpers', () => {
     );
   });
 
-  test('ignores legacy ticket events without line items', () => {
+  test('ignores ticket events without matching lines', () => {
     const ticketedObservations: SenaObservationRecord[] = [
       {
         ...observations[0]!,
@@ -847,6 +848,7 @@ describe('SKU detail SENA helpers', () => {
               stage: 'ordered_waiting',
               revision: 1,
               occurredAt: '2026-03-27T09:00:00Z',
+              lines: [],
             } as NonNullable<SenaObservationRecord['input']['ticketEvents']>[number],
           ],
         },
@@ -1319,10 +1321,10 @@ describe('SKU detail route', () => {
     });
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
-    expect(screen.getByText('Record stock')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
   });
 
-  test('renders the log order sheet with banji field primitives and shared select trigger', async () => {
+  test('routes supplier order action into capture', async () => {
     inventoryHook.mockReturnValue({
       snapshot,
       reports: [report],
@@ -1356,19 +1358,15 @@ describe('SKU detail route', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('Record stock')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Log order'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-
-    expect(screen.getByDisplayValue('15')).toBeInTheDocument();
-    expect(screen.getAllByText('Recommended range 10-18 units. Order likelihood 78%.').length).toBeGreaterThan(0);
-    expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toBeInTheDocument();
-    expect(document.querySelector('select')).toBeNull();
   });
 
   test('shows the loading state instead of not-found while a sku detail bootstrap is in flight', async () => {

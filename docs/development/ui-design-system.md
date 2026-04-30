@@ -15,6 +15,8 @@ Use the shared icon modules under `src/icons` and mark inline button icons with 
 
 Icon-only and graphical controls are allowed only when the control has no visible text label and provides an accessible label such as `aria-label`. Do not use icon-only controls to avoid this rule for normal action buttons.
 
+Pagination endpoint buttons labeled First and Last are the only visible-label button exception. Keep the adjacent Previous and Next pagination controls icon-only with accessible labels, but do not add inline icons to the First and Last text buttons.
+
 ## Destructive Button Rule
 
 Every destructive button must use destructive UI treatment. If the action deletes, removes, discards, destroys, erases, or clears current data, the button must render with a destructive variant instead of neutral `default`, `outline`, or `ghost` treatment.
@@ -33,7 +35,7 @@ Scope pills, filter pills, status pills, confidence pills, and workbench pills a
 
 If a toggle uses custom tile content, the tile still needs a visible icon adjacent to the text treatment. Do not ship text-only toggle pills.
 
-The regression gate is `src/renderer/src/lib/design-rules.test.ts`. It scans renderer source and fails when a visible-label `button`, shared `Button`, or non-timeframe visible-label `ToggleGroupItem` lacks an icon descendant, and when a destructive button lacks destructive treatment. Do not add allowlists for new debt.
+The regression gate is `src/renderer/src/lib/design-rules.test.ts`. It scans renderer source and fails when a visible-label `button`, shared `Button`, or non-timeframe visible-label `ToggleGroupItem` lacks an icon descendant, except for First and Last pagination endpoint buttons, and when a destructive button lacks destructive treatment. Do not add allowlists for new debt.
 
 ## Centered Command Tile Grid Rule
 

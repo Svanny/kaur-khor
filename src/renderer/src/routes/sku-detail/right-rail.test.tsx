@@ -49,7 +49,7 @@ describe('SkuDetailRightRail', () => {
           reason: 'Review the next observation.',
         },
       },
-    } as SenaSkuDetailViewModel;
+    } as unknown as SenaSkuDetailViewModel;
 
     render(<SkuDetailRightRail model={model} />);
 
@@ -61,5 +61,52 @@ describe('SkuDetailRightRail', () => {
     expect(screen.getByText('Service demand led this interval')).toBeInTheDocument();
     expect(screen.getByText('Service')).toBeInTheDocument();
     expect(screen.getByText('Retail')).toBeInTheDocument();
+  });
+
+  test('hides right rail cards backed only by empty arrays', () => {
+    const model = {
+      identity: {
+        supplierName: 'Mekong Looms',
+      },
+      actionContext: {
+        latestObservationAt: null,
+      },
+      rail: {
+        customerDemand: {
+          summary: [],
+        },
+        actNow: {
+          headline: 'Monitor',
+          quantityBand: 'No order quantity recommended',
+          rationale: ['Recommended range 0-0 units'],
+        },
+        selectedIntervalSummary: {
+          headline: 'Service demand led this interval',
+          label: 'Mar 24-Apr 7',
+          dominantRegime: 'correction',
+          serviceDemand: '50',
+          retailDemand: '0',
+          receipts: '0.02',
+          adjustments: '101',
+          notes: ['Receipts 0.02 · adjustments 101.'],
+        },
+        openPipeline: {
+          summary: [],
+          events: [],
+        },
+        nextTouch: {
+          dateLabel: 'Apr 8',
+          reason: 'Review the next observation.',
+        },
+      },
+    } as unknown as SenaSkuDetailViewModel;
+
+    render(<SkuDetailRightRail model={model} />);
+
+    expect(screen.queryByText('Customer demand')).not.toBeInTheDocument();
+    expect(screen.queryByText('Incoming stock')).not.toBeInTheDocument();
+    expect(screen.getByText('Next step')).toBeInTheDocument();
+    expect(screen.getByText('Selected period')).toBeInTheDocument();
+    expect(screen.getByText('Next check')).toBeInTheDocument();
   });
 });

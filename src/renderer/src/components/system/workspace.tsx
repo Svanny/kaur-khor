@@ -193,6 +193,7 @@ export function WorkspacePanel({
   footer,
   forceDescription = false,
   helperExemptReason,
+  hideWhenEmpty = false,
   style,
 }: {
   title?: ReactNode;
@@ -206,6 +207,7 @@ export function WorkspacePanel({
   footer?: ReactNode;
   forceDescription?: boolean;
   helperExemptReason?: string;
+  hideWhenEmpty?: boolean;
   style?: CSSProperties;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
@@ -216,6 +218,11 @@ export function WorkspacePanel({
   const showHint = hasDescriptionText(hint, descriptionVisible);
   const hasHeader = Boolean(title || showDescription || action);
   const hasContent = children != null;
+  const hasFooter = footer != null;
+
+  if (hideWhenEmpty && !hasContent && !hasFooter) {
+    return null;
+  }
 
   return (
     <Card
@@ -240,7 +247,7 @@ export function WorkspacePanel({
           {showHint ? <DescriptionText as="div" className="-mt-2 text-sm text-muted-foreground">{hint}</DescriptionText> : null}
         </CardContent>
       ) : null}
-      {footer ? <CardFooter className="border-t border-border/60">{footer}</CardFooter> : null}
+      {hasFooter ? <CardFooter className="border-t border-border/60">{footer}</CardFooter> : null}
     </Card>
   );
 }

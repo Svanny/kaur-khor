@@ -2217,7 +2217,7 @@ function ChartSettingsLeavePrompt({
       <div
         aria-label={translateUiLiteral(language, 'Apply chart changes')}
         aria-modal="true"
-        className="w-full max-w-md rounded-[1.5rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        className="w-full max-w-2xl rounded-[1.5rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
@@ -2227,16 +2227,16 @@ function ChartSettingsLeavePrompt({
             {translateUiLiteral(language, 'You have staged chart setting changes. Apply them before leaving, discard them, or keep editing.')}
           </p>
         </div>
-        <div className="mt-6 flex items-center justify-end gap-2">
-          <Button className="h-11 px-4" type="button" variant="ghost" onClick={onKeepEditing}>
-            <ActionUndoIcon data-icon="inline-start" />
-            {translateUiLiteral(language, 'Keep editing')}
-          </Button>
-          <Button className="h-11 px-4" type="button" variant="destructive-outline" onClick={onDiscard}>
+        <div className="mt-6 grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3">
+          <Button className="h-11 min-w-0 justify-self-start px-4" type="button" variant="destructive-outline" onClick={onDiscard}>
             <ActionDeleteIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Discard changes')}
           </Button>
-          <Button className="h-11 px-4" type="button" onClick={onApply}>
+          <Button className="h-11 min-w-0 justify-self-end px-4" type="button" variant="ghost" onClick={onKeepEditing}>
+            <ActionUndoIcon data-icon="inline-start" />
+            {translateUiLiteral(language, 'Keep editing')}
+          </Button>
+          <Button className="h-11 min-w-0 justify-self-end px-4" type="button" onClick={onApply}>
             <ActionConfirmIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Apply changes')}
           </Button>

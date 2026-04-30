@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ActionResetIcon } from '@icons/actions';
+import type { IconComponent } from '@icons';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierFilter } from '@/components/system/supplier';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
@@ -9,7 +11,6 @@ import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController, type TradingChartController } from '@/components/system/trading-chart';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
@@ -118,6 +119,11 @@ function AnalysisContentInner({
   timeframeHydrationProgress,
 }: AnalysisContentInnerProps) {
   const { t, showHeartbeatRibbons } = usePreferences();
+  const analysisScopeOptions = [
+    { icon: EntityLayersIcon, label: t('analysisRouteScopeAll'), value: 'all' },
+    { icon: EntityServiceIcon, label: t('analysisRouteScopeServices'), value: 'services' },
+    { icon: EntitySkuIcon, label: t('analysisRouteScopeSkus'), value: 'skus' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: AnalysisScope }>;
   const [isRunningAnalysis, setIsRunningAnalysis] = useState(false);
   const [expandedLedgerSelection, setExpandedLedgerSelection] = useState<AnalysisSelection>({ type: 'overview' });
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
@@ -224,31 +230,13 @@ function AnalysisContentInner({
         actions={(
           <WorkspaceActionRow className="justify-end">
             {section === 'fragility' ? null : (
-              <ToggleGroup
-                aria-label={t('analysisRouteScopeAria')}
-                className="rounded-full"
-                spacing={1}
-                type="single"
+              <ResponsiveToggleFilter
+                ariaLabel={t('analysisRouteScopeAria')}
+                toggleClassName="rounded-full"
+                options={analysisScopeOptions}
                 value={scope}
-                onValueChange={(nextValue) => {
-                  if (nextValue) {
-                    setScope(nextValue as AnalysisScope);
-                  }
-                }}
-              >
-                <ToggleGroupItem value="all">
-                  <EntityLayersIcon data-icon="inline-start" />
-                  {t('analysisRouteScopeAll')}
-                </ToggleGroupItem>
-                <ToggleGroupItem value="services">
-                  <EntityServiceIcon data-icon="inline-start" />
-                  {t('analysisRouteScopeServices')}
-                </ToggleGroupItem>
-                <ToggleGroupItem value="skus">
-                  <EntitySkuIcon data-icon="inline-start" />
-                  {t('analysisRouteScopeSkus')}
-                </ToggleGroupItem>
-                </ToggleGroup>
+                onValueChange={setScope}
+              />
             )}
             <SupplierFilter
               catalog={baseCatalog}

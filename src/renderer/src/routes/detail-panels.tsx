@@ -9,6 +9,10 @@ import { SectionTitle } from './sku-detail/section-heading';
 const DEFAULT_MEASURED_PANEL_MAX_BODY_HEIGHT = 360;
 const DEFAULT_MEASURED_PANEL_FALLBACK_ROWS = 3;
 
+export function detailPanelGridClassName(visiblePanelCount: number) {
+  return cn('grid gap-6', visiblePanelCount > 1 && 'xl:grid-cols-2');
+}
+
 function minHeightStyle(value: number) {
   return value > 0 ? { minHeight: `${Math.ceil(value)}px` } : undefined;
 }
@@ -87,7 +91,6 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(0)}
         >
-          <NavigationPreviousIcon data-icon="inline-start" className="mr-1 inline size-4" />
           {resolvedFirstLabel}
         </button>
         <button
@@ -97,7 +100,6 @@ export function PagedPanelNavigation({
           type="button"
           onClick={() => setPageIndex(pageCount - 1)}
         >
-          <NavigationNextIcon data-icon="inline-start" className="mr-1 inline size-4" />
           {resolvedLastLabel}
         </button>
         <button
@@ -115,7 +117,7 @@ export function PagedPanelNavigation({
   );
 }
 
-export function MeasuredPagedDetailPanel<T>({
+function MeasuredPagedDetailPanelContent<T>({
   fallbackRows = DEFAULT_MEASURED_PANEL_FALLBACK_ROWS,
   items,
   listTestId,
@@ -232,7 +234,24 @@ export function MeasuredPagedDetailPanel<T>({
   );
 }
 
-export function PagedEvidenceTimelinePanel<T>({
+export function MeasuredPagedDetailPanel<T>(props: {
+  fallbackRows?: number;
+  items: T[];
+  listTestId?: string;
+  maxBodyHeight?: number;
+  renderItem: (item: T) => ReactNode;
+  helpHref: string;
+  title: string;
+  tooltip: string;
+}) {
+  if (props.items.length === 0) {
+    return null;
+  }
+
+  return <MeasuredPagedDetailPanelContent {...props} />;
+}
+
+function PagedEvidenceTimelinePanelContent<T>({
   emptyState,
   items,
   pageSize = 5,
@@ -283,4 +302,20 @@ export function PagedEvidenceTimelinePanel<T>({
       ) : null}
     </PanelFrame>
   );
+}
+
+export function PagedEvidenceTimelinePanel<T>(props: {
+  emptyState?: ReactNode;
+  items: T[];
+  pageSize?: number;
+  renderItem: (item: T) => ReactNode;
+  helpHref: string;
+  title: string;
+  tooltip: string;
+}) {
+  if (props.items.length === 0 && props.emptyState == null) {
+    return null;
+  }
+
+  return <PagedEvidenceTimelinePanelContent {...props} />;
 }

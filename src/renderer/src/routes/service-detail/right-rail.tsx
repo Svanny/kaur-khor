@@ -57,6 +57,9 @@ export function ServiceDetailRightRail({
   const interval = selectedInterval(model, selection);
   const SelectedRegimeIcon = interval ? getRegimeIcon(interval.regimeKey) : null;
   const selectedRegimeLabel = interval ? interval.dominantRegime : null;
+  const customerCommitments = model.rail.customerCommitments ?? [];
+  const bottleneckStack = model.rail.bottleneckStack;
+  const recoveryPath = model.rail.recoveryPath;
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -71,15 +74,17 @@ export function ServiceDetailRightRail({
         </div>
       </RailBlock>
 
-      <RailBlock title={translateUiLiteral(language, 'Customer commitments')}>
-        <div className="grid gap-2">
-          {(model.rail.customerCommitments ?? []).map((line) => (
-            <p key={line} className="text-sm leading-6 text-muted-foreground">
-              {line}
-            </p>
-          ))}
-        </div>
-      </RailBlock>
+      {customerCommitments.length > 0 ? (
+        <RailBlock title={translateUiLiteral(language, 'Customer commitments')}>
+          <div className="grid gap-2">
+            {customerCommitments.map((line) => (
+              <p key={line} className="text-sm leading-6 text-muted-foreground">
+                {line}
+              </p>
+            ))}
+          </div>
+        </RailBlock>
+      ) : null}
 
       {contributor ? (
         <RailBlock title={t('catalogServiceRailSelectedContributorTitle')}>
@@ -125,28 +130,32 @@ export function ServiceDetailRightRail({
         </RailBlock>
       ) : null}
 
-      <RailBlock title={t('catalogServiceRailBottleneckStackTitle')}>
-        <div className="divide-y divide-border/60">
-          {model.rail.bottleneckStack.map((entry, index) => (
-            <div key={entry.skuId} className="py-3 first:pt-0 last:pb-0">
-              <p className="text-sm font-medium text-foreground">
-                {index + 1}. {entry.label}
-              </p>
-              <p className="mt-1 text-sm text-muted-foreground">{entry.role}</p>
-            </div>
-          ))}
-        </div>
-      </RailBlock>
+      {bottleneckStack.length > 0 ? (
+        <RailBlock title={t('catalogServiceRailBottleneckStackTitle')}>
+          <div className="divide-y divide-border/60">
+            {bottleneckStack.map((entry, index) => (
+              <div key={entry.skuId} className="py-3 first:pt-0 last:pb-0">
+                <p className="text-sm font-medium text-foreground">
+                  {index + 1}. {entry.label}
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{entry.role}</p>
+              </div>
+            ))}
+          </div>
+        </RailBlock>
+      ) : null}
 
-      <RailBlock title={t('catalogServiceRailRecoveryPathTitle')}>
-        <div className="grid gap-2">
-          {model.rail.recoveryPath.map((line) => (
-            <p key={line} className="text-sm leading-6 text-muted-foreground">
-              {line}
-            </p>
-          ))}
-        </div>
-      </RailBlock>
+      {recoveryPath.length > 0 ? (
+        <RailBlock title={t('catalogServiceRailRecoveryPathTitle')}>
+          <div className="grid gap-2">
+            {recoveryPath.map((line) => (
+              <p key={line} className="text-sm leading-6 text-muted-foreground">
+                {line}
+              </p>
+            ))}
+          </div>
+        </RailBlock>
+      ) : null}
 
       <RailBlock title={t('catalogServiceRailNextTouchTitle')}>
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>

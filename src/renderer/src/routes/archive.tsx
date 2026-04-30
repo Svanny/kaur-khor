@@ -1,10 +1,12 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
+import type { IconComponent } from '@icons';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SearchInput } from '@/components/system/search-input';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import {
@@ -15,7 +17,6 @@ import {
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { matchesCatalogQuery } from '@/lib/catalog';
 import {
   buildArchiveSearchParams,
@@ -73,6 +74,11 @@ export function ArchiveRoute() {
   );
   const showSkus = view !== 'services';
   const showServices = view !== 'skus';
+  const archiveFilterOptions = [
+    { icon: EntityLayersIcon, label: translateUiLiteral(language, 'All'), value: 'all' },
+    { icon: EntitySkuIcon, label: t('filterSku'), value: 'skus' },
+    { icon: EntityServiceIcon, label: t('filterService'), value: 'services' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: ArchiveViewValue }>;
   const hasResults =
     (showSkus && archivedSkus.length > 0) ||
     (showServices && archivedServices.length > 0);
@@ -150,34 +156,16 @@ export function ArchiveRoute() {
               }}
             />
           </div>
-          <ToggleGroup
-            aria-label={translateUiLiteral(language, 'Filter archive items')}
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            spacing={1}
-            type="single"
+          <ResponsiveToggleFilter
+            ariaLabel={translateUiLiteral(language, 'Filter archive items')}
+            options={archiveFilterOptions}
             value={view}
             onValueChange={(nextView) => {
-              if (!nextView) {
-                return;
-              }
               setSearchParams(
-                updateArchiveSearchParams(searchParams, { view: nextView as ArchiveViewValue }),
+                updateArchiveSearchParams(searchParams, { view: nextView }),
               );
             }}
-          >
-            <ToggleGroupItem value="all">
-              <EntityLayersIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'All')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="skus">
-              <EntitySkuIcon data-icon="inline-start" />
-              {t('filterSku')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="services">
-              <EntityServiceIcon data-icon="inline-start" />
-              {t('filterService')}
-            </ToggleGroupItem>
-          </ToggleGroup>
+          />
           <SupplierFilter
             catalog={inventory.catalog}
             className={compactFilterControlClassName}
@@ -265,7 +253,6 @@ export function ArchiveRoute() {
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-foreground">{service.name}</p>
-                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">{service.serviceId}</p>
                     <p className="text-sm text-muted-foreground">{service.description || translateUiLiteral(language, 'No description')}</p>
                   </div>
                   <Button

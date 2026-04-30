@@ -3,6 +3,7 @@ import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dial
 import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ActionEyeIcon, ActionOpenExternalIcon, ActionRefreshIcon } from '@icons/actions';
+import type { IconComponent } from '@icons';
 import {
   EntityComparisonIcon,
   EntityLayersIcon,
@@ -18,6 +19,7 @@ import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard }
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
@@ -33,7 +35,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { CompactSparkline } from '@/components/ui/compact-sparkline';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import {
@@ -387,6 +388,11 @@ export function PerformanceRoute() {
   const routeState = readPerformanceRouteState(searchParams);
   const timeRange = routeState.range as PerformanceTimeRange;
   const scope = routeState.scope as PerformanceScope;
+  const performanceScopeOptions = [
+    { icon: EntityLayersIcon, label: t('performanceRouteScopeAll'), value: 'all' },
+    { icon: EntityServiceIcon, label: t('performanceRouteScopeServices'), value: 'services' },
+    { icon: EntitySkuIcon, label: t('performanceRouteScopeSkus'), value: 'skus' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: PerformanceScope }>;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const compareMode = showPerformanceCompareToggle ? routeState.compare : false;
   const demandCapacityBoardLayout = compareMode ? demandCapacityBoardCompareLayout : demandCapacityBoardNormalLayout;
@@ -546,31 +552,13 @@ export function PerformanceRoute() {
         descriptor={t('performanceRouteDescriptor')}
         actions={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <ToggleGroup
-              aria-label={translateUiLiteral(language, 'Select performance scope')}
-              className="rounded-full"
-              spacing={1}
-              type="single"
+            <ResponsiveToggleFilter
+              ariaLabel={translateUiLiteral(language, 'Select performance scope')}
+              toggleClassName="rounded-full"
+              options={performanceScopeOptions}
               value={scope}
-              onValueChange={(nextValue) => {
-                if (nextValue) {
-                  updateRouteState({ scope: nextValue as PerformanceScope });
-                }
-              }}
-            >
-              <ToggleGroupItem value="all">
-                <EntityLayersIcon data-icon="inline-start" />
-                {t('performanceRouteScopeAll')}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="services">
-                <EntityServiceIcon data-icon="inline-start" />
-                {t('performanceRouteScopeServices')}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="skus">
-                <EntitySkuIcon data-icon="inline-start" />
-                {t('performanceRouteScopeSkus')}
-              </ToggleGroupItem>
-            </ToggleGroup>
+              onValueChange={(nextValue) => updateRouteState({ scope: nextValue })}
+            />
 
             <SupplierFilter
               catalog={baseCatalog}

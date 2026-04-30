@@ -17,6 +17,27 @@ const preferenceState = {
   showRightRailCards: true,
 };
 
+function mockResponsiveToggleWidths({ availableWidth, contentWidth }: { availableWidth: number; contentWidth: number }) {
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+    configurable: true,
+    get() {
+      if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter-measure') {
+        return contentWidth;
+      }
+      return availableWidth;
+    },
+  });
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+    configurable: true,
+    get() {
+      if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter-measure') {
+        return contentWidth;
+      }
+      return availableWidth;
+    },
+  });
+}
+
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
   useInventoryActions: () => inventoryHook(),
@@ -63,6 +84,7 @@ const sampleCatalog = {
 describe('SENA routes', () => {
   beforeEach(() => {
     preferenceState.showRightRailCards = true;
+    mockResponsiveToggleWidths({ availableWidth: 1024, contentWidth: 240 });
     inventoryHook.mockReturnValue({
       snapshot: {
         skus: [
@@ -252,6 +274,7 @@ describe('SENA routes', () => {
         <NavigationHistoryProvider>
           <Routes>
             <Route element={element} path={path} />
+            <Route element={<div>Capture route</div>} path="/work/capture/*" />
           </Routes>
         </NavigationHistoryProvider>
       </MemoryRouter>,
@@ -286,6 +309,55 @@ describe('SENA routes', () => {
     expect(screen.getByText('1 linked SKUs · price $15.00')).toBeInTheDocument();
   });
 
+  test('turns the catalog filter pills into a dropdown when they would scroll', async () => {
+    mockResponsiveToggleWidths({ availableWidth: 160, contentWidth: 320 });
+
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(screen.getByText('Offered Selections')).toBeInTheDocument();
+    });
+
+    const filter = screen.getByRole('combobox', { name: 'Search and segment' });
+    expect(filter).toHaveTextContent('Filter:');
+    expect(filter).toHaveTextContent('All');
+    expect(filter.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByRole('radio', { name: 'All' })).not.toBeInTheDocument();
+  });
+
+  test('hides raw catalog entity ids from visible catalog rows', async () => {
+    const baseState = inventoryHook();
+    inventoryHook.mockReturnValue({
+      ...baseState,
+      catalog: {
+        ...sampleCatalog,
+        skus: [
+          {
+            ...sampleCatalog.skus[0],
+            name: 'Market tote',
+            skuId: 'SKU-001',
+          },
+        ],
+        services: [
+          {
+            ...sampleCatalog.services[0],
+            name: 'Market Tote Add-On',
+            serviceId: 'SERVICE-001',
+          },
+        ],
+        sharingMask: [{ enabled: true, serviceId: 'SERVICE-001', skuId: 'SKU-001', usageProbability: null }],
+      },
+    });
+
+    renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
+    await waitFor(() => {
+      expect(screen.getByRole('link', { name: 'Market Tote Add-On' })).toBeInTheDocument();
+    });
+
+    expect(screen.getByText('Market tote')).toBeInTheDocument();
+    expect(screen.queryByText('SKU-001')).not.toBeInTheDocument();
+    expect(screen.queryByText('SERVICE-001')).not.toBeInTheDocument();
+  });
+
   test('renders the catalog wireframe while the catalog is still loading', () => {
     const baseState = inventoryHook();
     inventoryHook.mockReturnValue({
@@ -313,9 +385,13 @@ describe('SENA routes', () => {
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
 
-    expect(screen.getByRole('button', { name: 'Record stock' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Log order' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Log receipt' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Immediate Sale' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log receipt' })).not.toBeInTheDocument();
   });
 
   test('does not preload service detail while rendering the catalog route', async () => {
@@ -332,13 +408,12 @@ describe('SENA routes', () => {
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Log order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('Log order for SKU 1')).toBeInTheDocument();
 
     expect(screen.queryByText('Incoming stock')).not.toBeInTheDocument();
     expect(screen.queryByText('Next check')).not.toBeInTheDocument();
@@ -346,31 +421,30 @@ describe('SENA routes', () => {
     expect(screen.queryByRole('heading', { name: /Ledger for SKU 1/ })).not.toBeInTheDocument();
   });
 
-  test('asks before closing a dirty SKU action sheet', async () => {
+  test('asks before replacing a saved supplier capture draft', async () => {
+    window.localStorage.setItem('banji:record-update:draft:supplier-order-pending:v1', '{"version":1}');
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Log order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+
+    expect(screen.getByText('Delete saved draft?')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Capture route')).not.toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Approximate order quantity')).toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-
-    fireEvent.change(screen.getByLabelText('Approximate order quantity'), { target: { value: '22' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByLabelText('Approximate order quantity')).toHaveValue('22');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('Approximate order quantity')).not.toBeInTheDocument();
-    });
+    expect(window.localStorage.getItem('banji:record-update:draft:supplier-order-pending:v1')).toBeNull();
   });
 
   test('opens the service action flow in catalog without showing the inline detail rail', async () => {
@@ -381,16 +455,15 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(screen.getByRole('button', { name: 'Update price' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Update price' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Updated Price' }));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('Update price for Service 1')).toBeInTheDocument();
 
     expect(screen.queryByText('What could restore service')).not.toBeInTheDocument();
     expect(screen.queryByText('Main blockers')).not.toBeInTheDocument();
@@ -398,7 +471,7 @@ describe('SENA routes', () => {
     expect(screen.queryByRole('heading', { name: /Ledger for Service 1/ })).not.toBeInTheDocument();
   });
 
-  test('asks before closing a dirty service action sheet', async () => {
+  test('routes service customer actions into capture', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
     const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
@@ -406,27 +479,14 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(screen.getByRole('button', { name: 'Update price' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Update price' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Customer Order' }));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '18' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-
-    expect(screen.getByText('Discard changes?')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByDisplayValue('18')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
-
-    await waitFor(() => {
-      expect(screen.queryByText('Update price for Service 1')).not.toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
   });
 
@@ -503,7 +563,8 @@ describe('SENA routes', () => {
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
     expect(unsellableRow).not.toBeNull();
     fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
-    expect(screen.queryByRole('button', { name: 'Update price' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.queryByRole('menuitem', { name: 'Updated Price' })).not.toBeInTheDocument();
   });
 
   test('disables catalog service stock mutations when no active bottleneck exists', async () => {
@@ -551,13 +612,15 @@ describe('SENA routes', () => {
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
+
     await waitFor(() => {
-      const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
-      expect(serviceRow).not.toBeNull();
-      fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      const serviceLogReceiptButton = screen.getByText('Log receipt').closest('[role="button"]');
-      const serviceRecordStockButton = screen.getByText('Record stock').closest('[role="button"]');
-      expect(serviceLogReceiptButton).toHaveAttribute('aria-disabled', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+      const serviceCustomerOrderButton = screen.getByText('Customer Order').closest('button,[role="button"]');
+      const serviceRecordStockButton = screen.getByText('Stock Count').closest('button,[role="button"]');
+      expect(serviceCustomerOrderButton).not.toHaveAttribute('aria-disabled', 'true');
       expect(serviceRecordStockButton).toHaveAttribute('aria-disabled', 'true');
     });
 
@@ -565,9 +628,7 @@ describe('SENA routes', () => {
       expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     });
 
-    const disabledLogReceiptButton = screen.getByText('Log receipt').closest('[role="button"]');
-    expect(disabledLogReceiptButton).toHaveAttribute('title', 'No linked SKU is limiting this service right now.');
-    expect(screen.getByText('Record stock').closest('[role="button"]')).toHaveAttribute(
+    expect(screen.getByText('Stock Count').closest('button,[role="button"]')).toHaveAttribute(
       'title',
       'No linked SKU is limiting this service right now.',
     );
@@ -661,9 +722,12 @@ describe('SENA routes', () => {
 
     expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1', expect.objectContaining({ limit: INTERVAL_PAGE_SIZE }));
     expect(screen.getByText('Linked SKU impact')).toBeInTheDocument();
-    expect(screen.getByText('Log receipt')).toBeInTheDocument();
-    expect(screen.getByText('Record stock')).toBeInTheDocument();
-    expect(screen.getByText('Update price')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.getByText('Customer Order')).toBeInTheDocument();
+    expect(screen.getByText('Immediate Sale')).toBeInTheDocument();
+    expect(screen.getByText('Stock Count')).toBeInTheDocument();
+    expect(screen.getByText('Updated Price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
   });
 
@@ -725,48 +789,33 @@ describe('SENA routes', () => {
     expect(screen.queryByText('Next check')).not.toBeInTheDocument();
   });
 
-  test('opens service receipt sheet with bottleneck SKU context', async () => {
+  test('routes service immediate sale to capture', async () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByText('Log receipt')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText('Log receipt'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Immediate Sale' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Approximate receipt quantity')).toBeInTheDocument();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-
-    expect(screen.getByDisplayValue('12')).toBeInTheDocument();
   });
 
-  test('submits service price updates through existing observation flows', async () => {
+  test('routes service price updates through capture', async () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByText('Update price')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
     });
 
-    const context = inventoryHook();
-    fireEvent.click(screen.getByText('Update price'));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Updated Price' }));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('15')).toBeInTheDocument();
-    });
-
-    fireEvent.change(screen.getByDisplayValue('15'), { target: { value: '18' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh view' }));
-
-    await waitFor(() => {
-      expect(context.ingestSenaObservation).toHaveBeenCalledWith(
-        expect.objectContaining({
-          stockSnapshot: [],
-          servicePrices: [{ serviceId: 'service-1', price: 18 }],
-        }),
-      );
-      expect(context.runWorkspacePreparation).toHaveBeenCalledTimes(1);
-      expect(context.triggerSenaRun).toHaveBeenCalled();
+      expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
   });
 
@@ -792,10 +841,11 @@ describe('SENA routes', () => {
     renderWithProviders('/catalog/services/service-1', <ServiceDetailRoute />, '/catalog/services/:serviceId');
 
     await waitFor(() => {
-      expect(screen.getByText('Log receipt')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Log receipt' })).toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('button', { name: 'Record stock' })).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.getByRole('menuitem', { name: 'Customer Order' })).not.toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

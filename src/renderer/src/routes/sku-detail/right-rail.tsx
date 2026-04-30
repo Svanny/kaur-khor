@@ -38,6 +38,9 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
   const { language, t } = usePreferences();
   const SelectedRegimeIcon = getRegimeIcon(model.rail.selectedIntervalSummary.dominantRegime);
   const selectedRegimeLabel = translateRegimeLabel(language, model.rail.selectedIntervalSummary.dominantRegime);
+  const customerDemandSummary = model.rail.customerDemand?.summary ?? [];
+  const openPipelineSummary = model.rail.openPipeline.summary;
+  const openPipelineEvents = model.rail.openPipeline.events;
 
   return (
     <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
@@ -45,13 +48,15 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         <SupplierBadge showEmpty supplierName={model.identity.supplierName} />
       </RailBlock>
 
-      <RailBlock helpHref="/settings/help#catalog-detail-customer-demand" title={translateUiLiteral(language, 'Customer demand')} tooltip={translateUiLiteral(language, 'Open customer commitments and realized customer flow linked to this SKU.')}>
-        <div className="grid gap-1">
-          {(model.rail.customerDemand?.summary ?? []).map((line) => (
-            <p key={line} className="text-sm text-muted-foreground">{line}</p>
-          ))}
-        </div>
-      </RailBlock>
+      {customerDemandSummary.length > 0 ? (
+        <RailBlock helpHref="/settings/help#catalog-detail-customer-demand" title={translateUiLiteral(language, 'Customer demand')} tooltip={translateUiLiteral(language, 'Open customer commitments and realized customer flow linked to this SKU.')}>
+          <div className="grid gap-1">
+            {customerDemandSummary.map((line) => (
+              <p key={line} className="text-sm text-muted-foreground">{line}</p>
+            ))}
+          </div>
+        </RailBlock>
+      ) : null}
 
       <RailBlock helpHref="/settings/help#catalog-detail-act-now" title={t('catalogSenaSkuActNow')} tooltip={t('catalogSenaSkuActNowTooltip')}>
         <p className="text-2xl font-semibold tracking-[-0.03em] text-foreground">{model.rail.actNow.headline}</p>
@@ -85,25 +90,27 @@ export function SkuDetailRightRail({ model }: { model: SenaSkuDetailViewModel })
         />
       </RailBlock>
 
-      <RailBlock helpHref="/settings/help#catalog-detail-open-pipeline" title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>
-        <div className="grid gap-1">
-          {model.rail.openPipeline.summary.map((line) => (
-            <p key={line} className="text-sm text-muted-foreground">{line}</p>
-          ))}
-        </div>
-        <div className="mt-4 divide-y divide-border/60">
-          {model.rail.openPipeline.events.length > 0 ? (
-            model.rail.openPipeline.events.map((event) => (
-              <div key={event.key} className="py-3 first:pt-0 last:pb-0">
-                <p className="text-sm font-medium text-foreground">{event.timestamp}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{event.state} · {event.quantity}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-sm text-muted-foreground">{t('catalogSenaSkuOpenPipelineEmpty')}</p>
-          )}
-        </div>
-      </RailBlock>
+      {openPipelineSummary.length > 0 || openPipelineEvents.length > 0 ? (
+        <RailBlock helpHref="/settings/help#catalog-detail-open-pipeline" title={t('catalogSenaSkuOpenPipeline')} tooltip={t('catalogSenaSkuOpenPipelineTooltip')}>
+          <div className="grid gap-1">
+            {openPipelineSummary.map((line) => (
+              <p key={line} className="text-sm text-muted-foreground">{line}</p>
+            ))}
+          </div>
+          <div className="mt-4 divide-y divide-border/60">
+            {openPipelineEvents.length > 0 ? (
+              openPipelineEvents.map((event) => (
+                <div key={event.key} className="py-3 first:pt-0 last:pb-0">
+                  <p className="text-sm font-medium text-foreground">{event.timestamp}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{event.state} · {event.quantity}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('catalogSenaSkuOpenPipelineEmpty')}</p>
+            )}
+          </div>
+        </RailBlock>
+      ) : null}
 
       <RailBlock helpHref="/settings/help#catalog-detail-next-touch" title={t('catalogSenaSkuNextTouch')} tooltip={t('catalogSenaSkuNextTouchTooltip')}>
         <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">{model.rail.nextTouch.dateLabel}</p>

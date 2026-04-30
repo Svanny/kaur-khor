@@ -25,6 +25,7 @@ import {
   WorkspacePage,
   WorkspaceTitleCard,
 } from '@/components/system/workspace';
+import type { IconComponent } from '@icons';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -41,10 +42,10 @@ import {
 } from '@/components/system/headered-table';
 import { SearchInput } from '@/components/system/search-input';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
 import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
@@ -400,6 +401,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const requestedOrderBatchesRef = useRef(false);
   const routeState = readOverviewRouteState(searchParams);
   const overviewScope = routeState.workflow;
+  const overviewScopeOptions = [
+    { icon: EntityCustomerIcon, label: translateUiLiteral(language, 'Customer'), value: 'customer' },
+    { icon: EntityTransitIcon, label: translateUiLiteral(language, 'Supplier'), value: 'supplier' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: OverviewWorkflowScope }>;
   const customerFilter = routeState.customerFilter;
   const searchScope = routeState.scope;
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
@@ -686,33 +691,20 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
-            <ToggleGroup
-              aria-label={translateUiLiteral(language, 'Select overview ticket family')}
-              className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-              spacing={1}
-              type="single"
+            <ResponsiveToggleFilter
+              ariaLabel={translateUiLiteral(language, 'Select overview ticket family')}
+              options={overviewScopeOptions}
               value={overviewScope}
               onValueChange={(nextValue) => {
-                if (nextValue) {
-                  updateRouteState({
-                    workflow: nextValue as OverviewWorkflowScope,
-                    customerFilter: nextValue === 'customer' ? customerFilter : 'all',
-                    customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
-                    taskId: nextValue === 'supplier' ? routeState.taskId : null,
-                    taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
-                  });
-                }
+                updateRouteState({
+                  workflow: nextValue,
+                  customerFilter: nextValue === 'customer' ? customerFilter : 'all',
+                  customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
+                  taskId: nextValue === 'supplier' ? routeState.taskId : null,
+                  taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
+                });
               }}
-            >
-              <ToggleGroupItem value="customer">
-                <EntityCustomerIcon data-icon="inline-start" />
-                {translateUiLiteral(language, 'Customer')}
-              </ToggleGroupItem>
-              <ToggleGroupItem value="supplier">
-                <EntityTransitIcon data-icon="inline-start" />
-                {translateUiLiteral(language, 'Supplier')}
-              </ToggleGroupItem>
-            </ToggleGroup>
+            />
             <SupplierFilter
               catalog={inventory.catalog}
               className={compactFilterControlClassName}

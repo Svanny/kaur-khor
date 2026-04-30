@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import type { AutomationExposureRow, AutomationOrderIntake } from '@shared/automation';
+import type { IconComponent } from '@icons';
 import {
   ActionClipboardAddIcon,
   ActionCloseIcon,
@@ -39,12 +40,13 @@ import {
 import { compactActionButtonClassName } from '@/components/system/compact-controls';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { RouteBackButton } from '@/components/system/page-navigation';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
+  type AutomationExposureValue,
   automationIntakeFilterValues,
   automationSectionValues,
   buildAutomationSearchParams,
@@ -566,6 +568,57 @@ export function AutomationsRoute({
   const connectionStatus = connection?.status ?? 'disconnected';
   const isDisconnected = connectionStatus === 'disconnected';
   const openBotUrl = buildTelegramOpenUrl(connection?.botUsername ?? botUsername, connection?.externalLink ?? externalLink);
+  const exposureFilterOptions = [
+    { icon: EntityLayersIcon, label: 'All', value: 'all' },
+    { icon: EntityPreviewIcon, label: 'Exposed', value: 'exposed' },
+    { icon: StatusUnavailableIcon, label: 'Hidden', value: 'hidden' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: AutomationExposureValue }>;
+  const exposureTypeFilterOptions = [
+    { icon: EntityTagsIcon, label: 'All types', value: 'all' },
+    { icon: EntityServiceIcon, label: 'Services', value: 'service' },
+    { icon: EntitySkuIcon, label: 'SKUs', value: 'sku' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: ExposureTypeFilter }>;
+  const intakeFilterOptions = automationIntakeFilterValues.map((value) => ({
+    icon: value === 'all'
+      ? NavigationListIcon
+      : value === 'needs_review'
+        ? StatusWarningIcon
+        : value === 'ticketed'
+          ? StatusReadyIcon
+          : value === 'quoted'
+            ? NavigationTaskListIcon
+            : value === 'completed'
+              ? ActionConfirmIcon
+              : value === 'canceled'
+                ? ActionCloseIcon
+                : ActionClipboardAddIcon,
+    label: value === 'all'
+      ? 'All'
+      : value === 'needs_review'
+        ? 'Need review'
+        : value === 'ticketed'
+          ? 'Ticketed'
+          : value === 'quoted'
+            ? 'Quoted'
+            : value === 'completed'
+              ? 'Completed'
+              : value === 'canceled'
+                ? 'Canceled'
+                : 'New',
+    value,
+  })) satisfies Array<{ icon: IconComponent; label: string; value: AutomationIntakeFilterValue }>;
+  const issueFilterOptions = [
+    { icon: StatusWarningIcon, label: 'All issues', value: 'all' },
+    { icon: ActionSearchOffIcon, label: 'Item not found', value: 'item_not_found' },
+    { icon: StatusHelpIcon, label: 'Quantity ambiguous', value: 'quantity_ambiguous' },
+    { icon: EntityEvidenceIcon, label: 'Parser failed', value: 'parser_failed' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: ExceptionIssueFilter }>;
+  const confidenceFilterOptions = [
+    { icon: StatusGaugeIcon, label: 'All confidence', value: 'all' },
+    { icon: ActionConfirmIcon, label: 'High', value: 'high' },
+    { icon: StatusHelpIcon, label: 'Medium', value: 'medium' },
+    { icon: StatusWarningIcon, label: 'Low', value: 'low' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: ExceptionConfidenceFilter }>;
 
   const titleActions = (
     <WorkspaceActionRow>
@@ -795,54 +848,18 @@ export function AutomationsRoute({
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search sellables, aliases, or suppliers…')}
-                  <ToggleGroup
-                    className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-                    spacing={1}
-                    type="single"
+                  <ResponsiveToggleFilter
+                    ariaLabel="Filter exposed sellables"
+                    options={exposureFilterOptions}
                     value={routeState.exposure}
-                    onValueChange={(value) => {
-                      if (value) {
-                        updateRouteState({ exposure: value as typeof routeState.exposure });
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="all">
-                      <EntityLayersIcon className="size-4" />
-                      All
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="exposed">
-                      <EntityPreviewIcon className="size-4" />
-                      Exposed
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="hidden">
-                      <StatusUnavailableIcon className="size-4" />
-                      Hidden
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                  <ToggleGroup
-                    className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-                    spacing={1}
-                    type="single"
+                    onValueChange={(value) => updateRouteState({ exposure: value })}
+                  />
+                  <ResponsiveToggleFilter
+                    ariaLabel="Filter exposed sellable types"
+                    options={exposureTypeFilterOptions}
                     value={exposureTypeFilter}
-                    onValueChange={(value) => {
-                      if (value) {
-                        setExposureTypeFilter(value as ExposureTypeFilter);
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="all">
-                      <EntityTagsIcon className="size-4" />
-                      All types
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="service">
-                      <EntityServiceIcon className="size-4" />
-                      Services
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="sku">
-                      <EntitySkuIcon className="size-4" />
-                      SKUs
-                    </ToggleGroupItem>
-                  </ToggleGroup>
+                    onValueChange={setExposureTypeFilter}
+                  />
                 </CardControlRow>
               )}
               title="Sellables exposed to Telegram"
@@ -882,48 +899,12 @@ export function AutomationsRoute({
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, handles, notes, or intake lines…')}
-                  <ToggleGroup
-                    className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-                    spacing={1}
-                    type="single"
+                  <ResponsiveToggleFilter
+                    ariaLabel="Filter intake"
+                    options={intakeFilterOptions}
                     value={routeState.intakeFilter}
-                    onValueChange={(value) => {
-                      if (value) {
-                        updateRouteState({ intakeFilter: value as AutomationIntakeFilterValue });
-                      }
-                    }}
-                  >
-                    {automationIntakeFilterValues.map((value) => (
-                      <ToggleGroupItem key={value} value={value}>
-                        {value === 'all'
-                          ? <NavigationListIcon className="size-4" />
-                          : value === 'needs_review'
-                            ? <StatusWarningIcon className="size-4" />
-                            : value === 'ticketed'
-                              ? <StatusReadyIcon className="size-4" />
-                              : value === 'quoted'
-                                ? <NavigationTaskListIcon className="size-4" />
-                                : value === 'completed'
-                                  ? <ActionConfirmIcon className="size-4" />
-                                  : value === 'canceled'
-                                    ? <ActionCloseIcon className="size-4" />
-                                    : <ActionClipboardAddIcon className="size-4" />}
-                        {value === 'all'
-                          ? 'All'
-                          : value === 'needs_review'
-                            ? 'Need review'
-                            : value === 'ticketed'
-                              ? 'Ticketed'
-                              : value === 'quoted'
-                                ? 'Quoted'
-                                : value === 'completed'
-                                  ? 'Completed'
-                                  : value === 'canceled'
-                                    ? 'Canceled'
-                                    : 'New'}
-                      </ToggleGroupItem>
-                    ))}
-                  </ToggleGroup>
+                    onValueChange={(value) => updateRouteState({ intakeFilter: value })}
+                  />
                 </CardControlRow>
               )}
               title="Live intake"
@@ -947,62 +928,18 @@ export function AutomationsRoute({
               headerControls={(
                 <CardControlRow>
                   {searchControl('Search customers, issues, notes, or intake lines…')}
-                  <ToggleGroup
-                    className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-                    spacing={1}
-                    type="single"
+                  <ResponsiveToggleFilter
+                    ariaLabel="Filter exception issues"
+                    options={issueFilterOptions}
                     value={issueFilter}
-                    onValueChange={(value) => {
-                      if (value) {
-                        setIssueFilter(value as ExceptionIssueFilter);
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="all">
-                      <StatusWarningIcon className="size-4" />
-                      All issues
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="item_not_found">
-                      <ActionSearchOffIcon className="size-4" />
-                      Item not found
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="quantity_ambiguous">
-                      <StatusHelpIcon className="size-4" />
-                      Quantity ambiguous
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="parser_failed">
-                      <EntityEvidenceIcon className="size-4" />
-                      Parser failed
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                  <ToggleGroup
-                    className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-                    spacing={1}
-                    type="single"
+                    onValueChange={setIssueFilter}
+                  />
+                  <ResponsiveToggleFilter
+                    ariaLabel="Filter exception confidence"
+                    options={confidenceFilterOptions}
                     value={confidenceFilter}
-                    onValueChange={(value) => {
-                      if (value) {
-                        setConfidenceFilter(value as ExceptionConfidenceFilter);
-                      }
-                    }}
-                  >
-                    <ToggleGroupItem value="all">
-                      <StatusGaugeIcon className="size-4" />
-                      All confidence
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="high">
-                      <ActionConfirmIcon className="size-4" />
-                      High
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="medium">
-                      <StatusHelpIcon className="size-4" />
-                      Medium
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="low">
-                      <StatusWarningIcon className="size-4" />
-                      Low
-                    </ToggleGroupItem>
-                  </ToggleGroup>
+                    onValueChange={setConfidenceFilter}
+                  />
                 </CardControlRow>
               )}
               title="Needs review"

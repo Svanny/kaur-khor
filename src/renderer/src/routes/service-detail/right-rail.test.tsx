@@ -56,11 +56,35 @@ function renderRightRail(selection: ServiceInspectorSelection) {
         reason: 'Review the next observation.',
       },
     },
-  } as ServiceDetailViewModel;
+  } as unknown as ServiceDetailViewModel;
 
   render(
     <MemoryRouter>
       <ServiceDetailRightRail model={model} selection={selection} />
+    </MemoryRouter>,
+  );
+}
+
+function renderSparseRightRail() {
+  const model = {
+    contributors: [],
+    intervals: [],
+    rail: {
+      overviewTitle: 'Monitor',
+      overviewReason: ['No order quantity recommended.'],
+      customerCommitments: [],
+      bottleneckStack: [],
+      recoveryPath: [],
+      nextTouch: {
+        dateLabel: 'Apr 8',
+        reason: 'Review the next observation.',
+      },
+    },
+  } as unknown as ServiceDetailViewModel;
+
+  render(
+    <MemoryRouter>
+      <ServiceDetailRightRail model={model} selection={{ type: 'overview' }} />
     </MemoryRouter>,
   );
 }
@@ -84,5 +108,15 @@ describe('ServiceDetailRightRail', () => {
     expect(screen.getByText('Demand steady')).toBeInTheDocument();
     expect(screen.getByText('Can deliver')).toBeInTheDocument();
     expect(screen.getByText('Main blocker')).toBeInTheDocument();
+  });
+
+  test('hides right rail cards backed only by empty arrays', () => {
+    renderSparseRightRail();
+
+    expect(screen.queryByText('Customer commitments')).not.toBeInTheDocument();
+    expect(screen.queryByText('Main blockers')).not.toBeInTheDocument();
+    expect(screen.queryByText('What could restore service')).not.toBeInTheDocument();
+    expect(screen.getByText('Next step')).toBeInTheDocument();
+    expect(screen.getByText('Next check')).toBeInTheDocument();
   });
 });

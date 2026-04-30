@@ -434,11 +434,11 @@ export function extractEvidence(observations: SenaObservationRecord[], skuId: st
         });
       }
       for (const event of observation.input.ticketEvents?.filter((entry) =>
-        (entry.lineItems ?? []).some((line) => line.entityType === 'sku' && line.entityId === skuId),
+        entry.lines.some((line) => line.entityType === 'sku' && line.entityId === skuId),
       ) ?? []) {
-        const matchedQuantity = (event.lineItems ?? [])
+        const matchedQuantity = event.lines
           .filter((line) => line.entityType === 'sku' && line.entityId === skuId)
-          .reduce((total, line) => total + Math.abs(line.quantity), 0);
+          .reduce((total, line) => total + Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 0), 0);
         const title = (() => {
           switch (event.eventType) {
             case 'fulfilled_immediate':

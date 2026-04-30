@@ -5,6 +5,7 @@ import {
   ActionEditPencilIcon,
   ActionSearchOffIcon,
 } from '@icons/actions';
+import type { IconComponent } from '@icons';
 import { NewServiceIcon } from '@icons/custom';
 import {
   EntityLayersIcon,
@@ -18,6 +19,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -31,7 +33,6 @@ import {
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
@@ -347,6 +348,11 @@ export function InventoryRoute() {
   const query = searchParams.get('q') ?? '';
   const supplierFilter = supplierFilterValueForQuery(searchParams.get('supplier'));
   const view = readCatalogView(searchParams);
+  const catalogFilterOptions = [
+    { icon: EntityLayersIcon, label: translateUiLiteral(language, 'All'), value: 'all' },
+    { icon: EntitySkuIcon, label: t('filterSku'), value: 'skus' },
+    { icon: EntityServiceIcon, label: t('filterService'), value: 'services' },
+  ] satisfies Array<{ icon: IconComponent; label: string; value: CatalogView }>;
   const filteredSkus = useMemo(
     () =>
       visibleCatalog?.skus.filter((sku) =>
@@ -470,34 +476,16 @@ export function InventoryRoute() {
               }}
             />
           </div>
-          <ToggleGroup
-            aria-label={t('searchItems')}
-            className="inline-flex max-w-full justify-start overflow-x-auto rounded-2xl"
-            spacing={1}
-            type="single"
+          <ResponsiveToggleFilter
+            ariaLabel={t('searchItems')}
+            options={catalogFilterOptions}
             value={view}
             onValueChange={(nextView) => {
-              if (!nextView) {
-                return;
-              }
               setSearchParams(
-                updateCatalogSearchParams(searchParams, { view: nextView as CatalogView }),
+                updateCatalogSearchParams(searchParams, { view: nextView }),
               );
             }}
-          >
-            <ToggleGroupItem value="all">
-              <EntityLayersIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'All')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="skus">
-              <EntitySkuIcon data-icon="inline-start" />
-              {t('filterSku')}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="services">
-              <EntityServiceIcon data-icon="inline-start" />
-              {t('filterService')}
-            </ToggleGroupItem>
-          </ToggleGroup>
+          />
           <SupplierFilter
             catalog={catalog}
             className={compactFilterControlClassName}
@@ -694,9 +682,6 @@ export function InventoryRoute() {
                           className="min-w-0"
                           description={
                             <>
-                              <span className="mt-1 block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                                {service.serviceId}
-                              </span>
                               <span>{service.description || translateUiLiteral(language, 'No description')}</span>
                             </>
                           }

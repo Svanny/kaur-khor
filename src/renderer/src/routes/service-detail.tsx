@@ -23,6 +23,7 @@ import { traceRenderer } from '@/lib/trace';
 import { usePreferences } from '@/state/preferences';
 import { useInventoryActions, useInventoryState } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from './loading-wireframes';
+import { detailPanelGridClassName } from './detail-panels';
 import { ServiceDependencyImpact } from './service-detail/dependency-impact';
 import { ServiceEvidenceTimeline } from './service-detail/evidence';
 import { ServiceDetailActions } from './service-detail/actions';
@@ -473,7 +474,7 @@ export function ServiceDetailRoute() {
   }
 
   if (!model && (isLoading || !activeSnapshot)) {
-    const loadingTitle = service?.name ?? catalogService?.name ?? serviceId ?? t('catalogServiceDetailTitle');
+    const loadingTitle = service?.name ?? catalogService?.name ?? t('catalogServiceDetailTitle');
     return (
       <WorkspacePage>
         <ServiceDetailLoadingState
@@ -500,6 +501,10 @@ export function ServiceDetailRoute() {
       </WorkspacePage>
     );
   }
+
+  const lowerDetailPanelCount =
+    (model.dependencyImpact.length > 0 ? 1 : 0) +
+    1;
 
   return (
     <WorkspacePage>
@@ -564,7 +569,7 @@ export function ServiceDetailRoute() {
                 />
               )}
             </div>
-            <div className="grid gap-6 xl:grid-cols-2">
+            <div className={detailPanelGridClassName(lowerDetailPanelCount)}>
               <ServiceDependencyImpact rows={model.dependencyImpact} />
               <ServiceEvidenceTimeline evidence={model.evidence} />
             </div>

@@ -50,6 +50,18 @@ describe('WorkspacePanel', () => {
     expect(container.querySelector('[data-slot="card-header"]')).toBeNull();
   });
 
+  test('keeps header-only panels visible by default', () => {
+    render(<WorkspacePanel title="Panel title" />);
+
+    expect(screen.getByText('Panel title')).toBeInTheDocument();
+  });
+
+  test('hides header-only panels when empty hiding is enabled', () => {
+    const { container } = render(<WorkspacePanel hideWhenEmpty title="Panel title" />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
   test('renders description content when forceDescription is enabled', () => {
     render(
       <WorkspacePanel
