@@ -283,7 +283,6 @@ describe('OverviewTaskDrawer', () => {
   test('derives variability class from a typed uncertainty value when saving an order update', async () => {
     render(
       <OverviewTaskDrawer
-        mode="ordered_waiting"
         open
         task={orderWaitingTask}
         onModeChange={vi.fn()}
@@ -291,7 +290,7 @@ describe('OverviewTaskDrawer', () => {
       />,
     );
 
-    fireEvent.change(await screen.findByLabelText('Uncertainty ± days'), { target: { value: '3' } });
+    fireEvent.change(await screen.findByLabelText('Custom uncertainty ± days'), { target: { value: '3' } });
     fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
 
@@ -309,7 +308,6 @@ describe('OverviewTaskDrawer', () => {
   test('derives uncertainty days from the selected variability class when saving an order update', async () => {
     render(
       <OverviewTaskDrawer
-        mode="ordered_waiting"
         open
         task={orderWaitingTask}
         onModeChange={vi.fn()}
@@ -317,7 +315,7 @@ describe('OverviewTaskDrawer', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('option', { name: 'Wide' }));
+    fireEvent.click(await screen.findByRole('option', { name: /Wide/ }));
     fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
 
@@ -325,8 +323,8 @@ describe('OverviewTaskDrawer', () => {
       expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
         leadTimeHints: [
           expect.objectContaining({
-            highDays: 7.25,
-            lowDays: 2.75,
+            highDays: 7.3,
+            lowDays: 2.7,
             variabilityClass: 'wide',
           }),
         ],

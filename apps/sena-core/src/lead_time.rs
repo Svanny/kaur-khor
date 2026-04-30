@@ -1,7 +1,16 @@
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 
-pub const LEAD_TIME_FLOOR_DAYS: f64 = 0.5;
+pub const LEAD_TIME_FLOOR_DAYS: f64 = 0.0;
+const LEAD_TIME_CLASS_MEAN_FLOOR_DAYS: f64 = 0.5;
+const LEAD_TIME_PRESET_DISPLAY_STEP_DAYS: f64 = 0.1;
+const LEAD_TIME_VARIABILITY_CLASS_ORDER: [SenaLeadTimeVariabilityClass; 5] = [
+    SenaLeadTimeVariabilityClass::VeryTight,
+    SenaLeadTimeVariabilityClass::Tight,
+    SenaLeadTimeVariabilityClass::Normal,
+    SenaLeadTimeVariabilityClass::Wide,
+    SenaLeadTimeVariabilityClass::VeryWide,
+];
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -63,6 +72,9 @@ pub fn relative_width_from_range(low_days: f64, high_days: f64) -> Option<f64> {
         return None;
     }
     let midpoint = ((high_days + low_days) / 2.0).max(LEAD_TIME_FLOOR_DAYS);
+    if midpoint <= 0.0 {
+        return Some(0.0);
+    }
     Some((high_days - low_days) / midpoint)
 }
 
@@ -99,15 +111,53 @@ pub fn derive_relative_width(low_days: Option<f64>, high_days: Option<f64>) -> O
 }
 
 pub fn target_std_days(mean_days: f64, variability_class: SenaLeadTimeVariabilityClass) -> f64 {
-    let mean_days = mean_days.max(LEAD_TIME_FLOOR_DAYS);
-    (variability_class.center_relative_width() * mean_days / 2.0).clamp(0.3, 7.0)
+    target_std_days_by_class(mean_days)
+        .into_iter()
+        .find(|(class, _)| *class == variability_class)
+        .map(|(_, std_days)| std_days)
+        .unwrap_or(0.0)
+}
+
+fn round_preset_std_days(value: f64) -> f64 {
+    ((value / LEAD_TIME_PRESET_DISPLAY_STEP_DAYS).round() * LEAD_TIME_PRESET_DISPLAY_STEP_DAYS)
+        .max(0.0)
+        .mul_add(10.0, 0.0)
+        .round()
+        / 10.0
+}
+
+pub fn target_std_days_by_class(
+    mean_days: f64,
+) -> Vec<(SenaLeadTimeVariabilityClass, f64)> {
+    if !mean_days.is_finite() || mean_days < 0.0 {
+        return Vec::new();
+    }
+
+    let mean_days = mean_days.max(LEAD_TIME_CLASS_MEAN_FLOOR_DAYS);
+    let mut previous_std_days: Option<f64> = None;
+    LEAD_TIME_VARIABILITY_CLASS_ORDER
+        .iter()
+        .map(|class| {
+            let raw_std_days = class.center_relative_width() * mean_days / 2.0;
+            let mut std_days = round_preset_std_days(raw_std_days);
+            if let Some(previous) = previous_std_days {
+                if std_days <= previous {
+                    std_days = previous + LEAD_TIME_PRESET_DISPLAY_STEP_DAYS;
+                }
+            }
+            std_days = round_preset_std_days(std_days);
+            previous_std_days = Some(std_days);
+            (*class, std_days)
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
         classify_relative_width, derive_variability_class, implied_range_from_mean_std,
-        relative_width_from_range, target_std_days, SenaLeadTimeVariabilityClass,
+        relative_width_from_range, target_std_days, target_std_days_by_class,
+        SenaLeadTimeVariabilityClass,
     };
 
     #[test]
@@ -143,6 +193,13 @@ mod tests {
     }
 
     #[test]
+    fn lead_time_range_lower_bound_is_zero() {
+        let (low, high) =
+            implied_range_from_mean_std(0.2, 0.5).expect("range should derive");
+        assert_eq!((low, high), (0.0, 0.7));
+    }
+
+    #[test]
     fn explicit_class_wins_over_derived_range() {
         let class = derive_variability_class(
             Some(SenaLeadTimeVariabilityClass::Wide),
@@ -159,5 +216,26 @@ mod tests {
         let very_wide = target_std_days(6.0, SenaLeadTimeVariabilityClass::VeryWide);
         assert!(very_tight < wide);
         assert!(wide < very_wide);
+    }
+
+    #[test]
+    fn class_targets_are_unique_for_small_means() {
+        let values: Vec<f64> = target_std_days_by_class(1.0)
+            .into_iter()
+            .map(|(_, std_days)| std_days)
+            .collect();
+        assert_eq!(values, vec![0.1, 0.2, 0.3, 0.5, 0.7]);
+        for pair in values.windows(2) {
+            assert!(pair[0] < pair[1]);
+        }
+    }
+
+    #[test]
+    fn duplicate_prone_class_targets_are_jittered() {
+        let values: Vec<f64> = target_std_days_by_class(0.0)
+            .into_iter()
+            .map(|(_, std_days)| std_days)
+            .collect();
+        assert_eq!(values, vec![0.0, 0.1, 0.2, 0.3, 0.4]);
     }
 }

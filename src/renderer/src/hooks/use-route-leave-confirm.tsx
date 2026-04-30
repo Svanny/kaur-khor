@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 
 const DEFAULT_DISCARD_TITLE = 'Discard changes?';
 const DEFAULT_DISCARD_CONFIRM_LABEL = 'Discard changes';
 const DEFAULT_DISCARD_CANCEL_LABEL = 'Keep editing';
+const DEFAULT_DISCARD_SAVE_LABEL = 'Save changes';
+
+type ContinueAfterSave = () => void;
+type SaveBeforeContinueHandler = (continueAfterSave: ContinueAfterSave) => void | boolean | Promise<void | boolean>;
 
 export function resolveInternalNavigationPath(anchor: HTMLAnchorElement) {
   const url = new URL(anchor.href, window.location.href);
@@ -48,30 +53,73 @@ export function useDiscardChangesConfirm({
   description,
   confirmLabel = DEFAULT_DISCARD_CONFIRM_LABEL,
   cancelLabel = DEFAULT_DISCARD_CANCEL_LABEL,
+  saveLabel = DEFAULT_DISCARD_SAVE_LABEL,
+  isSaveDisabled = false,
   onDiscard,
+  onSave,
 }: {
   enabled: boolean;
   title?: string;
   description?: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  saveLabel?: string;
+  isSaveDisabled?: boolean;
   onDiscard?: () => void;
+  onSave?: SaveBeforeContinueHandler;
 }) {
   const [open, setOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const pendingActionRef = useRef<(() => void) | null>(null);
 
   const cancelDiscard = useCallback(() => {
+    if (isSaving) {
+      return;
+    }
     pendingActionRef.current = null;
     setOpen(false);
-  }, []);
+  }, [isSaving]);
 
   const confirmDiscard = useCallback(() => {
+    if (isSaving) {
+      return;
+    }
     const pendingAction = pendingActionRef.current;
     pendingActionRef.current = null;
     onDiscard?.();
     setOpen(false);
     pendingAction?.();
-  }, [onDiscard]);
+  }, [isSaving, onDiscard]);
+
+  const saveAndContinue = useCallback(async () => {
+    if (!onSave || isSaving) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      let didContinue = false;
+      const pendingAction = pendingActionRef.current;
+      const continueAfterSave = () => {
+        if (didContinue) {
+          return;
+        }
+        didContinue = true;
+        pendingActionRef.current = null;
+        setOpen(false);
+        pendingAction?.();
+      };
+      const result = await onSave(continueAfterSave);
+      if (result === false) {
+        return;
+      }
+      continueAfterSave();
+    } catch (error) {
+      console.error('Failed to save changes before continuing.', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [isSaving, onSave]);
 
   const requestDiscard = useCallback(
     (nextAction?: () => void) => {
@@ -94,12 +142,18 @@ export function useDiscardChangesConfirm({
     discardConfirmDialog: (
       <ConfirmActionDialog
         cancelLabel={cancelLabel}
-        confirmLabel={confirmLabel}
+        confirmIcon={onSave ? <ActionSaveIcon data-icon="inline-start" /> : undefined}
+        confirmLabel={onSave ? saveLabel : confirmLabel}
+        confirmVariant={onSave ? 'default' : 'destructive'}
+        destructiveActionLabel={onSave ? confirmLabel : undefined}
         description={description}
+        isConfirmDisabled={onSave ? isSaveDisabled : false}
+        isSubmitting={isSaving}
         open={open}
         title={title}
         onCancel={cancelDiscard}
-        onConfirm={confirmDiscard}
+        onConfirm={onSave ? () => { void saveAndContinue(); } : confirmDiscard}
+        onDestructiveAction={onSave ? confirmDiscard : undefined}
       />
     ),
     isDiscardConfirmOpen: open,
@@ -109,13 +163,19 @@ export function useDiscardChangesConfirm({
 export function useRouteLeaveConfirm({
   enabled,
   description,
+  isSaveDisabled,
   message,
   onDiscard,
+  onSave,
+  saveLabel,
 }: {
   enabled: boolean;
   description?: ReactNode;
+  isSaveDisabled?: boolean;
   message?: string;
   onDiscard?: () => void;
+  onSave?: SaveBeforeContinueHandler;
+  saveLabel?: string;
 }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -124,7 +184,10 @@ export function useRouteLeaveConfirm({
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled,
     description: description ?? message,
+    isSaveDisabled,
     onDiscard,
+    onSave,
+    saveLabel,
   });
   const requestDiscardRef = useRef(requestDiscard);
 

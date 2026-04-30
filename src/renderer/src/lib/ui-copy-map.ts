@@ -282,8 +282,8 @@ export const enUiCopyV1 = {
   catalogSenaSkuRibbonTooltip:
     'The ribbon shows the six signals that matter most for the next control decision. It keeps stock, pipeline, demand, price, and service exposure in one place.',
   catalogSenaSkuRecordStock: 'Record stock',
-  catalogSenaSkuLogOrder: 'Log order',
-  catalogSenaSkuLogReceipt: 'Log receipt',
+  catalogSenaSkuLogOrder: 'Record Supplier order',
+  catalogSenaSkuLogReceipt: 'Record Customer order',
   catalogSenaSkuUpdatePrice: 'Update price',
   catalogSenaSkuLedgerTitle: 'SENA ledger',
   catalogSenaSkuLedgerTooltip:
@@ -1285,7 +1285,7 @@ export const enUiCopyV1 = {
   overviewReceiptWindowPending: 'Arrival window pending',
   overviewEtaExpectedOn: 'Expected {date}',
   overviewEtaExpectedWindow: '{date} ± {days}d',
-  overviewTaskActionLogOrder: 'Log order',
+  overviewTaskActionLogOrder: 'Record Supplier order',
   overviewTaskActionUpdateEta: 'Update ETA',
   overviewTaskActionFollowUp: 'Follow up',
   overviewTaskActionReceive: 'Receive',
@@ -1964,7 +1964,7 @@ export const enUiCopyV1 = {
   stockUpdateRegimeHelp:
     'Regime stays observation-level and applies to the full update package.',
   stockUpdateRegimeDescriptionEmpty:
-    'Leave this empty when the interval does not need a single dominant regime explanation.',
+    'Leave this empty when the record does not need a single dominant regime explanation.',
   stockUpdateOverallRegime: 'Overall regime',
   stockUpdateOptional: '(optional)',
   stockUpdateOptionalStepYes: 'Yes',
@@ -2030,13 +2030,9 @@ export const enUiCopyV1 = {
     'Fill in every enabled SKU flag value or remove the empty flag before saving.',
   stockUpdateGuidanceFillServiceFlagsSave:
     'Fill in every enabled service flag value or remove the empty flag before saving.',
-  stockUpdateGuidanceAddSignal:
-    'Add at least one stock count, row flag, regime, or ranking signal before saving.',
-  stockUpdateGuidanceAddStockCountSignal:
-    'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
   stockUpdateGuidanceFirstUpdateNeedsCount:
     'The first update must include at least one counted SKU so banji can anchor inventory.',
-  stockUpdateDiscardChanges: 'Discard changes',
+  stockUpdateDiscardChanges: 'Discard changes and leave',
   stockUpdateSummaryLastConfirmed: 'Last confirmed update',
   stockUpdateSummaryNoPriorUpdate: 'No prior update',
   stockUpdateSummaryIntervalLength: 'Interval length',
@@ -2089,7 +2085,7 @@ export const enUiCopyV1 = {
   stockUpdateDescriptorFirst:
     'Start banji with one counted SKU, then future updates can stay sparse.',
   stockUpdateContextFooterEmpty:
-    'Leave regime empty when the interval does not need one dominant explanation.',
+    'Leave regime empty when the record does not need one dominant explanation.',
   stockUpdateContextTooltip:
     'Set the observation timestamp, add optional notes, and choose an optional regime for the full update package.',
   stockUpdateContextTooltipLabel: 'Record interval details',
@@ -2836,7 +2832,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateRegimeHelp:
     'This sales pattern applies to the full update, not just one SKU.',
   stockUpdateRegimeDescriptionEmpty:
-    'Leave this empty when the time period does not need one main sales-pattern explanation.',
+    'Leave this empty when the record does not need one main sales-pattern explanation.',
   stockUpdateOverallRegime: 'Overall sales pattern',
   stockUpdateOptionalStepYes: 'Yes',
   stockUpdateOptionalStepNo: 'No',
@@ -2869,17 +2865,13 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateStepChooseYesNo: 'Choose Yes or No',
   stockUpdateStepSkipped: 'Skipped',
   stockUpdateStepRowsChanged: '{count} row{suffix} changed',
-  stockUpdateGuidanceAddSignal:
-    'Add at least one stock count, row flag, sales pattern, or ranking signal before saving.',
-  stockUpdateGuidanceAddStockCountSignal:
-    'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
   stockUpdateGuidanceChooseOptionalStep:
     'Choose Yes or No before continuing.',
   stockUpdateSummaryUntouchedSkus: 'Untouched SKUs stay unchanged',
   stockUpdateDescriptorFirst:
     'Start banji with one counted SKU, then later updates can stay light.',
   stockUpdateContextFooterEmpty:
-    'Leave sales pattern empty when this period does not need one main explanation.',
+    'Leave sales pattern empty when this record does not need one main explanation.',
   stockUpdateContextTooltip:
     'Set the update timestamp, add optional notes, and choose an optional sales pattern for the full update.',
   stockUpdateObservedAtTooltip:
@@ -3080,7 +3072,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
       stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
       stockUpdateContextFooterEmpty:
-        'Leave sales pattern empty when this period does not need one main explanation.',
+        'Leave sales pattern empty when this record does not need one main explanation.',
       stockUpdateContextTooltip:
         'Set the update time, add optional notes, and choose an optional sales pattern for the full update.',
       stockUpdateNotesTooltip:
@@ -3089,10 +3081,6 @@ export const enUiCopyV2: EnglishUiCopy = {
         'Notes explain the update, but on their own they do not count as a business signal.',
       stockUpdateRankingsTooltip:
         'These rankings are selling-order evidence. Leave them unchanged if the selling order did not meaningfully change.',
-      stockUpdateGuidanceAddSignal:
-        'Add at least one stock count, row flag, sales pattern, or ranking signal before saving.',
-      stockUpdateGuidanceAddStockCountSignal:
-        'Add at least one stock count, row event, cost change, retail price change, or sales pattern before saving.',
       stockUpdateSaveFailed:
         "banji couldn't save this update right now. Try again.",
       stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',

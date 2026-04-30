@@ -6,12 +6,18 @@ import {
   deriveLeadTimeVariabilityClass,
   impliedLeadTimeRangeFromMeanStd,
   leadTimeVariabilityLabel,
+  leadTimeVariabilityOptions,
   relativeLeadTimeWidth,
+  uniqueLeadTimePresetStdDays,
 } from './sena-lead-time';
 
 describe('sena lead-time mapping', () => {
   test('derives implied range from mean and std', () => {
     expect(impliedLeadTimeRangeFromMeanStd(4, 1)).toEqual({ lowDays: 3, highDays: 5 });
+  });
+
+  test('uses zero as the lower range bound', () => {
+    expect(impliedLeadTimeRangeFromMeanStd(0.2, 0.5)).toEqual({ lowDays: 0, highDays: 0.7 });
   });
 
   test('maps relative width thresholds to ordinal classes', () => {
@@ -41,11 +47,30 @@ describe('sena lead-time mapping', () => {
 
   test('derives compatible std and range from an ordinal class', () => {
     expect(deriveLeadTimeFromVariabilityClass(5, 'wide')).toEqual({
-      highDays: 7.25,
-      lowDays: 2.75,
-      stdDays: 2.25,
+      highDays: 7.3,
+      lowDays: 2.7,
+      stdDays: 2.3,
       variabilityClass: 'wide',
     });
+  });
+
+  test('jittered presets stay monotonic and unique after one-decimal rounding', () => {
+    const presetStdDays = uniqueLeadTimePresetStdDays(1);
+    const values = leadTimeVariabilityOptions().map((option) => presetStdDays[option]);
+
+    expect(values).toEqual([0.1, 0.2, 0.3, 0.5, 0.7]);
+    expect(new Set(values).size).toBe(values.length);
+    const numericValues = values as number[];
+    for (let index = 1; index < numericValues.length; index += 1) {
+      expect(numericValues[index]).toBeGreaterThan(numericValues[index - 1]);
+    }
+  });
+
+  test('duplicate-prone means still produce unique preset values', () => {
+    const values = leadTimeVariabilityOptions().map((option) => uniqueLeadTimePresetStdDays(0)[option]);
+
+    expect(values).toEqual([0, 0.1, 0.2, 0.3, 0.4]);
+    expect(new Set(values).size).toBe(values.length);
   });
 
   test('derives class and range from mean plus std', () => {

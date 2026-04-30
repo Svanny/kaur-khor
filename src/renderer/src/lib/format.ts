@@ -176,6 +176,31 @@ export function formatQuantityForDisplay(value: number, language: AppLanguage): 
   }).format(maximumFractionDigits === 0 ? sanitizeWholeNumberForDisplay(value) : value);
 }
 
+export function formatCompactQuantityPill(value: number): string {
+  const safeValue = Math.max(0, value);
+  const units = [
+    { threshold: 1_000_000_000_000, suffix: 'T' },
+    { threshold: 1_000_000_000, suffix: 'B' },
+    { threshold: 1_000_000, suffix: 'M' },
+    { threshold: 1_000, suffix: 'k' },
+  ] as const;
+
+  for (const [index, unit] of units.entries()) {
+    if (safeValue >= unit.threshold) {
+      const compactValue = Math.round((safeValue / unit.threshold) * 10) / 10;
+      if (compactValue >= 1000 && unit.suffix !== 'T') {
+        const largerUnit = units[index - 1];
+        if (largerUnit) {
+          return `${formatEditableDecimal(Math.round((safeValue / largerUnit.threshold) * 10) / 10, 1)}${largerUnit.suffix}`;
+        }
+      }
+      return `${formatEditableDecimal(compactValue, 1)}${unit.suffix}`;
+    }
+  }
+
+  return formatEditableWholeNumber(safeValue);
+}
+
 export function formatDurationAuto(
   value: number,
   unit: DurationUnit,
@@ -267,7 +292,7 @@ export function formatEditableMoneyFromUsd(
 }
 
 export function moneyInputStep(currency: AppCurrency): string {
-  return currency === 'KHR' ? '1' : '0.01';
+  return currency === 'KHR' ? '100' : '0.1';
 }
 
 export function reformatMoneyDraftValue({

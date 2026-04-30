@@ -42,6 +42,7 @@ import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackupSnapshotAction,
@@ -175,7 +176,7 @@ const TASK_BATCH_UPDATE_PREFERENCE_OPTIONS: Array<{
 const TASK_BATCH_UPDATE_PREFERENCE_FIELDS: TaskBatchUpdatePreferenceField[] = [
   {
     key: 'logOrder',
-    label: 'Log order',
+    label: 'Record Supplier order',
     action: 'log_order',
   },
   {
@@ -511,12 +512,12 @@ function WorkspacePreferencesPage({
                 <span>{t('settingsExchangeRateLabel')}</span>
                 <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
                   <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
-                  <Input
+                  <NumberStepperInput
                     aria-label={t('settingsExchangeRateInputLabel')}
                     className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
+                    wrapperClassName="min-w-0 flex-1"
                     min="1"
-                    step="1"
-                    type="number"
+                    step="10"
                     value={exchangeRateDraft}
                     onChange={(event) => setExchangeRateDraft(event.target.value)}
                   />
@@ -1254,6 +1255,14 @@ export function SettingsRoute() {
     enabled: hasUnsavedSettingsChanges,
     description: t('settingsUnsavedLeavePrompt'),
     onDiscard: handleDiscardSettingsChanges,
+    onSave: async (continueAfterSave) => {
+      const saved = await handleSavePreferences();
+      if (saved) {
+        continueAfterSave();
+      }
+      return saved;
+    },
+    saveLabel: t('settingsSavePreferencesAction'),
   });
 
   useEffect(() => {
@@ -1299,11 +1308,11 @@ export function SettingsRoute() {
     if (Object.keys(nextErrors).length > 0) {
       setSenaEngineNumberErrors(nextErrors);
       setSenaRunStatus(t('settingsSenaParametersFixErrors'));
-      return;
+      return false;
     }
     if (exchangeRateError) {
       setSenaRunStatus(t('settingsPreferencesFixErrors'));
-      return;
+      return false;
     }
     const nextSenaEngineParameters = pendingSenaEngineParameters;
     const nextUsdToKhrExchangeRate = exchangeRateValue || DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
@@ -1323,6 +1332,7 @@ export function SettingsRoute() {
         setSenaRunStatus(error instanceof Error ? error.message : t('settingsSenaRerunFailed'));
       }
     }
+    return true;
   }
 
   async function handleResetSenaDefaults() {

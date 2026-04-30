@@ -822,7 +822,7 @@ describe('SettingsRoute', () => {
 
     renderSettingsRoute('/settings/workspace');
 
-    const logOrderSelect = await screen.findByRole('combobox', { name: 'Log order' });
+    const logOrderSelect = await screen.findByRole('combobox', { name: 'Record Supplier order' });
     expect(logOrderSelect).toHaveClass('h-9', 'rounded-full', 'bg-card');
     fireEvent.click(logOrderSelect);
     fireEvent.click(screen.getByRole('option', { name: 'Always batch update' }));
@@ -932,7 +932,7 @@ describe('SettingsRoute', () => {
     }));
     renderSettingsRoute();
 
-    const exchangeRateInput = await screen.findByLabelText(/exchange rate for 1 usd in khr/i);
+    const exchangeRateInput = await screen.findByRole('textbox', { name: /exchange rate for 1 usd in khr/i });
     expect(exchangeRateInput).toHaveDisplayValue('4,000');
 
     fireEvent.change(exchangeRateInput, { target: { value: '4100' } });
@@ -1598,7 +1598,10 @@ describe('SettingsRoute', () => {
     fireEvent.click(checkbox);
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
-    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    const leaveDialog = screen.getByRole('dialog');
+    expect(leaveDialog).toHaveTextContent('Discard changes?');
+    expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
+    expect(within(leaveDialog).getByRole('button', { name: 'Save preferences' })).toHaveAttribute('data-variant', 'default');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
     expect(checkbox).not.toBeChecked();
@@ -1607,6 +1610,32 @@ describe('SettingsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+    });
+  });
+
+  it('saves unsaved preference changes before leaving when requested', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/interface']}>
+        <PreferencesProvider>
+          <Link to="/catalog">Catalog</Link>
+          <Routes>
+            <Route element={<SettingsRoute />} path="/settings/*" />
+            <Route element={<div>Catalog destination</div>} path="/catalog" />
+          </Routes>
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+
+    const checkbox = await checkboxInRow('Optional guidance');
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save preferences' }));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showExplanatoryTooltips: false,
+      }));
       expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
   });

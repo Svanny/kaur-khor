@@ -17,9 +17,8 @@ import {
   type OverviewTaskFilterValue,
   type PerformanceRangeValue,
   type PerformanceScopeValue,
-  type ServiceActionValue,
-  type SkuActionValue,
 } from '@/lib/navigation-state';
+import { buildCaptureSessionHref, type CaptureSessionAction, type CaptureSessionTargetType } from '@/lib/record-update-routes';
 import {
   buildRememberedAnalysisHref,
   buildRememberedArchiveHref,
@@ -1039,25 +1038,26 @@ function buildSkuEntityCommands(catalog: SenaCatalog) {
         title: `Archive ${sku.name}`,
       }),
     ];
-    const sheetCommands: Array<{ label: string; mode: SkuActionValue }> = [
-      { label: 'Record stock', mode: 'stock' },
-      { label: 'Log order', mode: 'order' },
-      { label: 'Log receipt', mode: 'receipt' },
+    const sheetCommands: Array<{ action: CaptureSessionAction; label: string; targetType: CaptureSessionTargetType }> = [
+      { action: 'stock', label: 'Record stock', targetType: 'sku' },
+      { action: 'supplier-order', label: 'Record Supplier order', targetType: 'sku' },
+      { action: 'customer-order', label: 'Record Customer order', targetType: 'sku' },
+      { action: 'immediate-sale', label: 'Record Immediate sale', targetType: 'sku' },
     ];
 
     if (sku.soldAsProduct) {
-      sheetCommands.push({ label: 'Update price', mode: 'price' });
+      sheetCommands.push({ action: 'sku-price', label: 'Update price', targetType: 'sku' });
     }
 
     return [
       ...commands,
       ...sheetCommands.map((command, index) =>
         createCommand({
-          action: { href: buildSkuDetailHref(sku.skuId), type: 'sheet' },
-          aliases: supplierName ? [command.mode, sku.name, supplierName] : [command.mode, sku.name],
-          id: `sku:sheet:${command.mode}:${sku.skuId}`,
-          keywords: ['sheet', command.mode, ...skuKeywords],
-          kind: 'sheet',
+          action: { href: buildCaptureSessionHref({ action: command.action, targetId: sku.skuId, targetType: command.targetType }), type: 'workflow' },
+          aliases: supplierName ? [command.action, sku.name, supplierName] : [command.action, sku.name],
+          id: `sku:capture:${command.action}:${sku.skuId}`,
+          keywords: ['capture', command.action, ...skuKeywords],
+          kind: 'workflow',
           pageId: 'catalog',
           pageOrder: 3,
           pagePrefixes: [`/catalog/skus/${sku.skuId}`],
@@ -1074,10 +1074,10 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
   const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;
 
   return visibleCatalog.services.flatMap((service) => {
-    const sheetCommands: Array<{ label: string; mode: ServiceActionValue }> = [
-      { label: 'Record stock', mode: 'stock' },
-      { label: 'Log receipt', mode: 'receipt' },
-      { label: 'Update price', mode: 'price' },
+    const sheetCommands: Array<{ action: CaptureSessionAction; label: string; targetType: CaptureSessionTargetType }> = [
+      { action: 'customer-order', label: 'Record Customer order', targetType: 'service' },
+      { action: 'immediate-sale', label: 'Record Immediate sale', targetType: 'service' },
+      { action: 'service-price', label: 'Update price', targetType: 'service' },
     ];
 
     return [
@@ -1128,11 +1128,11 @@ function buildServiceEntityCommands(catalog: SenaCatalog) {
       }),
       ...sheetCommands.map((command, index) =>
         createCommand({
-          action: { href: buildServiceDetailHref(service.serviceId), type: 'sheet' },
-          aliases: [service.serviceId, command.mode, service.name],
-          id: `service:sheet:${command.mode}:${service.serviceId}`,
-          keywords: ['service', 'sheet', command.mode, service.serviceId],
-          kind: 'sheet',
+          action: { href: buildCaptureSessionHref({ action: command.action, targetId: service.serviceId, targetType: command.targetType }), type: 'workflow' },
+          aliases: [service.serviceId, command.action, service.name],
+          id: `service:capture:${command.action}:${service.serviceId}`,
+          keywords: ['service', 'capture', command.action, service.serviceId],
+          kind: 'workflow',
           pageId: 'catalog',
           pageOrder: 3,
           pagePrefixes: [`/catalog/services/${service.serviceId}`],

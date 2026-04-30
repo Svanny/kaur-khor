@@ -91,14 +91,20 @@ import { formatPhoneForDisplay, normalizePhoneNumber } from '@shared/phone';
 import {
   classifyLeadTimeVariability,
   compatibilityRangeForClass,
+  deriveLeadTimeFromStdDays,
   impliedLeadTimeRangeFromMeanStd,
-  leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { AutoFitContainer } from '@/components/system/auto-fit-text';
 import { ItemAvatar } from '@/components/system/item-identity';
+import {
+  derivedStdDaysDraft,
+  LeadTimeVariabilityField,
+  type LeadTimeVariabilityDraftMode,
+} from '@/components/system/lead-time-variability-field';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
 import { RouteBackButton } from '@/components/system/page-navigation';
+import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SearchInput } from '@/components/system/search-input';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import {
@@ -133,20 +139,20 @@ import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
+import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
-import { displayMoneyFromUsd, formatCurrency, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import { leadTimeVariabilityPlaceholderValue } from '@/lib/lead-time-variability-select';
-import { translateLeadTimeVariabilityDescription, translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
+import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
   getRecordUpdateLane,
   isBaseRecordUpdateLaneId,
   parseCustomRecordUpdateLaneIds,
+  readCaptureSessionTarget,
   RECORD_UPDATE_HUB_PATH,
   type BaseRecordUpdateLaneId,
 } from '@/lib/record-update-routes';
@@ -154,23 +160,26 @@ import { readRecordUpdateSessionViewMode, type SessionViewMode } from '@/lib/rec
 import { activeSenaCatalog, matchesServiceSupplier, matchesSkuSupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import {
-  buildCustomerLinkDirectory,
   buildDeliveryFeeMetadata,
   buildTicketPartyMetadata,
   customerLinkWarning,
   deliveryFeeBucketForWorkflow,
-  latestDeliveryFeeMetadata,
-  latestTicketEvents,
   makeTicketId,
   normalizeTicketLookupValue,
   normalizeTicketPhone,
   summarizeDeliveryFee,
   TICKET_CHANNEL_PRESETS,
-  ticketLabel,
+  type CustomerLinkDirectory,
   type CustomerIdentityDraft,
 } from '@/lib/ticketing';
+import {
+  buildCustomerLinkDirectoryFromContext,
+  latestDeliveryFeeMetadataFromContext,
+  recordTicketOptions,
+} from '@/lib/record-activity';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
+import { useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { actionSheetTextareaClassName } from './detail-action-sheet';
 import { buildRankChangeByEntryKey } from './ranking-order';
@@ -233,6 +242,8 @@ type WorkbenchReorderLaneId = DesktopWorkbenchTileOrderLaneId;
 
 const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS];
 const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
+const CAPTURE_TARGET_FLASH_MS = 1800;
+const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1] motion-reduce:ring-primary/60';
 
 interface PosWorkbenchTile {
   key: string;
@@ -249,6 +260,7 @@ interface PosWorkbenchTile {
   unitAmount: number | null;
   recentAt: string | null;
   touched: boolean;
+  flash?: boolean;
 }
 
 interface PosActiveLine {
@@ -454,12 +466,19 @@ function WorkbenchTileQuantityPill({
     return null;
   }
 
+  const displayQuantity = formatCompactQuantityPill(tile.currentQuantity);
+  const fullQuantity = new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 4,
+  }).format(tile.currentQuantity);
+
   return (
     <span className="absolute right-2 top-2 z-20 translate-x-[28%] -translate-y-[28%]" data-slot="workbench-quantity-pill">
       <span
+        aria-label={fullQuantity}
         className="inline-flex size-10 items-center justify-center rounded-full border border-foreground/45 bg-background text-foreground shadow-[0_8px_20px_rgba(48,31,20,0.12)]"
+        title={fullQuantity}
       >
-        {tile.currentQuantity}
+        {displayQuantity}
       </span>
     </span>
   );
@@ -480,10 +499,12 @@ function workbenchTileButtonClassName({
 }
 
 function workbenchTileShellClassName({
+  flash = false,
   isDragging = false,
   reorderMode = false,
   touched,
 }: {
+  flash?: boolean;
   isDragging?: boolean;
   reorderMode?: boolean;
   touched: boolean;
@@ -495,6 +516,7 @@ function workbenchTileShellClassName({
       : 'border-border/70 bg-white hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_14px_38px_rgba(48,31,20,0.10)]',
     reorderMode && !isDragging && 'motion-safe:animate-[banji-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
     isDragging && 'shadow-[0_24px_50px_rgba(48,31,20,0.22)]',
+    flash && captureTargetFlashClassName,
   );
 }
 
@@ -513,7 +535,7 @@ function WorkbenchTileVisual({
 }) {
   return (
     <div
-      className={workbenchTileShellClassName({ isDragging, reorderMode, touched: tile.touched })}
+      className={workbenchTileShellClassName({ flash: tile.flash, isDragging, reorderMode, touched: tile.touched })}
       data-slot="workbench-tile-visual"
     >
       <div className={workbenchTileInnerClassName()}>
@@ -561,6 +583,7 @@ function SortableWorkbenchTile({
         workbenchTileButtonClassName({ isDragging, reorderMode }),
         isDragging && 'opacity-0',
       )}
+      data-workbench-tile-key={tile.key}
       ref={setNodeRef}
       style={{
         transform: CSS.Transform.toString(transform),
@@ -780,7 +803,9 @@ interface StockUpdateSessionDraft {
   stockView: StockView;
   rows: StockRow[];
   recordOrderExpectedArrivalDate: string;
+  recordOrderLeadTimeDraftMode: LeadTimeVariabilityDraftMode;
   recordOrderLeadTimeMeanDays: string;
+  recordOrderLeadTimeStdDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
   recordReceiptReceivedDate: string;
   deliveryFeeAmount: string;
@@ -821,7 +846,9 @@ interface StockUpdateDraftState {
   retailRankings: string[];
   rows: StockRow[];
   recordOrderExpectedArrivalDate: string;
+  recordOrderLeadTimeDraftMode: LeadTimeVariabilityDraftMode;
   recordOrderLeadTimeMeanDays: string;
+  recordOrderLeadTimeStdDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
   recordReceiptReceivedDate: string;
   deliveryFeeAmount: string;
@@ -1748,7 +1775,9 @@ function hydrateStockUpdateDraft({
     stockView: isStockView(draft.stockView) ? draft.stockView : 'priority',
     rows: baselineRows.map((row) => sanitizeStockRow(draftRowsBySku.get(row.skuId), row)),
     recordOrderExpectedArrivalDate: typeof draft.recordOrderExpectedArrivalDate === 'string' ? draft.recordOrderExpectedArrivalDate : '',
+    recordOrderLeadTimeDraftMode: draft.recordOrderLeadTimeDraftMode === 'std' ? 'std' : 'class',
     recordOrderLeadTimeMeanDays: typeof draft.recordOrderLeadTimeMeanDays === 'string' ? draft.recordOrderLeadTimeMeanDays : '',
+    recordOrderLeadTimeStdDays: typeof draft.recordOrderLeadTimeStdDays === 'string' ? draft.recordOrderLeadTimeStdDays : '',
     recordOrderLeadTimeVariability: sanitizeLeadTimeVariability(draft.recordOrderLeadTimeVariability),
     recordReceiptReceivedDate: typeof draft.recordReceiptReceivedDate === 'string' ? draft.recordReceiptReceivedDate : '',
     deliveryFeeAmount: sanitizeDeliveryFeeAmount(draft.deliveryFeeAmount),
@@ -1792,6 +1821,7 @@ function hasMeaningfulStockUpdateChanges({
   retailRankings,
   recordOrderExpectedArrivalDate,
   recordOrderLeadTimeMeanDays,
+  recordOrderLeadTimeStdDays,
   recordOrderLeadTimeVariability,
   recordReceiptReceivedDate,
   deliveryFeeAmount,
@@ -1818,6 +1848,7 @@ function hasMeaningfulStockUpdateChanges({
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
     recordOrderExpectedArrivalDate.trim() !== '' ||
     recordOrderLeadTimeMeanDays.trim() !== '' ||
+    recordOrderLeadTimeStdDays.trim() !== '' ||
     recordOrderLeadTimeVariability !== '' ||
     recordReceiptReceivedDate.trim() !== '' ||
     deliveryFeeAmount.trim() !== deliveryFeeBaselineAmount.trim() ||
@@ -1854,7 +1885,9 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
     stockView: state.stockView,
     rows: state.rows,
     recordOrderExpectedArrivalDate: state.recordOrderExpectedArrivalDate,
+    recordOrderLeadTimeDraftMode: state.recordOrderLeadTimeDraftMode,
     recordOrderLeadTimeMeanDays: state.recordOrderLeadTimeMeanDays,
+    recordOrderLeadTimeStdDays: state.recordOrderLeadTimeStdDays,
     recordOrderLeadTimeVariability: state.recordOrderLeadTimeVariability,
     recordReceiptReceivedDate: state.recordReceiptReceivedDate,
     deliveryFeeAmount: state.deliveryFeeAmount,
@@ -2301,6 +2334,10 @@ function buildDraftsFromObservationInput({
       : firstLeadTimeHint?.typicalDays != null
         ? String(firstLeadTimeHint.typicalDays)
         : '';
+  const recordOrderLeadTimeStdDays =
+    firstLeadTimeHint?.lowDays != null && firstLeadTimeHint.highDays != null
+      ? String(Math.max(0, Math.round(((firstLeadTimeHint.highDays - firstLeadTimeHint.lowDays) / 2) * 10) / 10))
+      : '';
   const recordOrderLeadTimeVariability = firstLeadTimeHint?.variabilityClass ?? '';
   const deliveryFeeAmount =
     input.deliveryFee?.feeUsd != null
@@ -2360,7 +2397,9 @@ function buildDraftsFromObservationInput({
     stockView: 'counted' as const,
     rows: [...baselineRows.map((row) => rowsBySkuId.get(row.skuId) ?? row), ...appendedRows],
     recordOrderExpectedArrivalDate,
+    recordOrderLeadTimeDraftMode: recordOrderLeadTimeStdDays ? 'std' : 'class',
     recordOrderLeadTimeMeanDays,
+    recordOrderLeadTimeStdDays,
     recordOrderLeadTimeVariability,
     recordReceiptReceivedDate,
     deliveryFeeAmount,
@@ -2538,7 +2577,7 @@ function RankingSignalEditor({
   seedValues: string[];
   values: string[];
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const displayedValues = values.length > 0 ? values : seedValues;
   const rankingTooltip =
     entryType === 'service'
@@ -2688,7 +2727,7 @@ function StockLatestUnitsCell({
   row: StockRow;
   stockBySku: Map<string, SenaStockSnapshot>;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const latestCountedAt = countedAtBySku.get(row.skuId);
   const latestStock = stockBySku.get(row.skuId);
 
@@ -2819,31 +2858,31 @@ function LastReceiptCell({
   );
 }
 
-const leadTimeVariabilityIcons: Record<SenaLeadTimeVariabilityClass, IconComponent> = {
-  very_tight: StatusReadyIcon,
-  tight: StatusTimingIcon,
-  normal: StatusGaugeIcon,
-  wide: StatusScheduleIcon,
-  very_wide: StatusWarningIcon,
-};
-
 function RecordOrderTimingFields({
   expectedArrivalValue,
   expectedArrivalPlaceholder,
+  leadTimeDraftMode,
   leadTimeMeanValue,
   leadTimeMeanPlaceholder,
+  leadTimeStdDaysValue,
   onExpectedArrivalChange,
+  onLeadTimeDraftModeChange,
   onLeadTimeMeanChange,
+  onLeadTimeStdDaysChange,
   onVariabilityChange,
   variabilityPlaceholder,
   variabilityValue,
 }: {
   expectedArrivalValue: string;
   expectedArrivalPlaceholder: string;
+  leadTimeDraftMode: LeadTimeVariabilityDraftMode;
   leadTimeMeanValue: string;
   leadTimeMeanPlaceholder: string;
+  leadTimeStdDaysValue: string;
   onExpectedArrivalChange: (value: string) => void;
+  onLeadTimeDraftModeChange: (value: LeadTimeVariabilityDraftMode) => void;
   onLeadTimeMeanChange: (value: string) => void;
+  onLeadTimeStdDaysChange: (value: string) => void;
   onVariabilityChange: (value: SenaLeadTimeVariabilityClass | '') => void;
   variabilityPlaceholder: SenaLeadTimeVariabilityClass | '';
   variabilityValue: SenaLeadTimeVariabilityClass | '';
@@ -2851,8 +2890,12 @@ function RecordOrderTimingFields({
   const { language } = usePreferences();
   const expectedArrivalId = 'record-order-expected-arrival';
   const leadTimeMeanId = 'record-order-lead-time-mean';
-  const leadTimeVariabilityId = 'record-order-lead-time-variability';
-  const selectedVariabilityValue = variabilityValue || variabilityPlaceholder || leadTimeVariabilityPlaceholderValue;
+  const effectiveMeanDays = leadTimeMeanValue.trim()
+    ? Number(leadTimeMeanValue)
+    : leadTimeMeanPlaceholder.trim()
+      ? Number(leadTimeMeanPlaceholder)
+      : null;
+  const effectiveVariability = variabilityValue || variabilityPlaceholder;
 
   return (
     <div className="grid gap-3">
@@ -2861,71 +2904,44 @@ function RecordOrderTimingFields({
           <RecordUpdateFieldLabel htmlFor={leadTimeMeanId}>
             {translateUiLiteral(language, 'Lead time mean')}
           </RecordUpdateFieldLabel>
-          <Input
+          <NumberStepperInput
             aria-label={translateUiLiteral(language, 'Lead time mean')}
             className={`w-full ${recordUpdateInputClassName}`}
             id={leadTimeMeanId}
             min="0"
             placeholder={leadTimeMeanPlaceholder}
-            step="1"
-            type="number"
+            step="0.01"
+            variant="side-buttons"
             value={leadTimeMeanValue}
             onChange={(event) => onLeadTimeMeanChange(event.target.value)}
           />
         </div>
         <div className="min-w-0">
-          <RecordUpdateFieldLabel htmlFor={leadTimeVariabilityId}>
+          <RecordUpdateFieldLabel>
             {translateUiLiteral(language, 'Lead time variability')}
           </RecordUpdateFieldLabel>
-          <Select
-            value={selectedVariabilityValue}
-            onValueChange={(value) =>
-              onVariabilityChange(value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass))
-            }
-          >
-            <SelectTrigger
-              aria-label={translateUiLiteral(language, 'Lead time variability')}
-              className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between')}
-              id={leadTimeVariabilityId}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {selectedVariabilityValue === leadTimeVariabilityPlaceholderValue ? (
-                <SelectItem value={leadTimeVariabilityPlaceholderValue}>
-                  {translateUiLiteral(language, 'Select variability')}
-                </SelectItem>
-              ) : null}
-              {leadTimeVariabilityOptions().map((option) => (
-                <SelectItem
-                  className="[&_[data-slot=lead-time-description]]:text-xs [&_[data-slot=lead-time-option-copy]]:grid [&_[data-slot=lead-time-option-copy]]:gap-0.5 [&_[data-slot=lead-time-separator]]:hidden"
-                  key={option}
-                  value={option}
-                >
-                  <span className="flex min-w-0 items-center gap-2" data-slot="lead-time-option">
-                    {(() => {
-                      const LeadTimeVariabilityIcon = leadTimeVariabilityIcons[option];
-
-                      return (
-                        <LeadTimeVariabilityIcon
-                          aria-hidden="true"
-                          className="size-4 shrink-0 text-muted-foreground"
-                          strokeWidth={1.8}
-                        />
-                      );
-                    })()}
-                    <span className="min-w-0 truncate" data-slot="lead-time-option-copy">
-                      <span>{translateLeadTimeVariabilityLabel(language, option)}</span>
-                      <span data-slot="lead-time-separator">{': '}</span>
-                      <span className="text-muted-foreground" data-slot="lead-time-description">
-                        {translateLeadTimeVariabilityDescription(language, option)}
-                      </span>
-                    </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <LeadTimeVariabilityField
+            customInputClassName={`w-full ${recordUpdateInputClassName}`}
+            customStdDays={leadTimeStdDaysValue}
+            language={language}
+            meanDays={effectiveMeanDays}
+            mode={leadTimeDraftMode}
+            numberInputVariant="side-buttons"
+            placeholder={translateUiLiteral(language, 'Select variability')}
+            selectTriggerClassName={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between')}
+            value={effectiveVariability}
+            onCustomStdDaysChange={(value) => {
+              onLeadTimeDraftModeChange('std');
+              onLeadTimeStdDaysChange(value);
+            }}
+            onModeChange={onLeadTimeDraftModeChange}
+            onValueChange={(value) => {
+              onVariabilityChange(value);
+              if (value) {
+                onLeadTimeStdDaysChange(derivedStdDaysDraft(effectiveMeanDays, value));
+              }
+            }}
+          />
         </div>
         <div className="min-w-0">
           <RecordUpdateFieldLabel htmlFor={expectedArrivalId}>
@@ -2964,13 +2980,13 @@ function OrderQuantityField({
   return (
     <div className="min-w-0">
       <RecordUpdateMobileLabel>{translateUiLiteral(language, 'Current order')}</RecordUpdateMobileLabel>
-      <Input
+      <NumberStepperInput
         aria-label={ariaLabel ?? translateUiLiteral(language, 'Current order for {name}', { name: rowName })}
         className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
         min="0"
         placeholder={orderQuantityPlaceholder}
         step="1"
-        type="number"
+        variant="side-buttons"
         value={orderQuantityValue}
         onChange={(event) => setOrderQuantity(event.target.value)}
       />
@@ -3026,12 +3042,12 @@ function ReceiptQuantityField({
   return (
     <div className="min-w-0">
       <RecordUpdateMobileLabel>{translateUiLiteral(language, 'Current receipt')}</RecordUpdateMobileLabel>
-      <Input
+      <NumberStepperInput
         aria-label={ariaLabel ?? translateUiLiteral(language, 'Current receipt for {name}', { name: rowName })}
         className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
         min="0"
         step="1"
-        type="number"
+        variant="side-buttons"
         value={receiptQuantityValue}
         onChange={(event) => setReceiptQuantity(event.target.value)}
       />
@@ -3158,6 +3174,7 @@ function DeliveryFeeFields({
             currency={currency}
             inputMode="decimal"
             min="0"
+            variant="side-buttons"
             value={amountValue}
             onChange={(event) => onAmountChange(event.target.value)}
           />
@@ -3470,7 +3487,7 @@ function StockCountStep({
   visibleRows: StockRow[];
   supplierFilterControl?: ReactNode;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
 
   return (
     <WorkspacePanel
@@ -3516,22 +3533,22 @@ function StockCountStep({
                 const unitsChanged = stockRowChanged(catalog, stockBySku, row);
 
                 return {
-                  dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                  dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                   highlight: unitsChanged,
                   inputCellIndexes: [2],
                   cells: [
-                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                     <StockLatestUnitsCell countedAtBySku={countedAtBySku} row={row} stockBySku={stockBySku} />,
                     <>
                       <RecordUpdateMobileLabel>{t('stockUpdateCurrentUnits')}</RecordUpdateMobileLabel>
                       <div className="pr-3">
-                        <Input
+                        <NumberStepperInput
                           aria-label={t('stockUpdateCurrentUnits')}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           min="0"
                           placeholder={String(latestUnits)}
                           step="1"
-                          type="number"
+                          variant="side-buttons"
                           value={unitsChanged ? String(row.unitsInStock) : ''}
                           onChange={(event) =>
                             updateRow(row.skuId, {
@@ -3617,11 +3634,11 @@ function StockCostStep(props: {
                     latestCost == null ? '' : String(displayMoneyFromUsd(latestCost, currency, usdToKhrExchangeRate));
 
                   return {
-                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                     highlight: costChanged,
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                       <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestCost} skuId={row.skuId} />,
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentCost')}</RecordUpdateMobileLabel>
@@ -3632,6 +3649,7 @@ function StockCostStep(props: {
                             currency={currency}
                             min="0"
                             placeholder={latestCostPlaceholder}
+                            variant="side-buttons"
                             value={costChanged && row.costPerUnit != null ? displayMoneyFromUsd(row.costPerUnit, currency, usdToKhrExchangeRate) : ''}
                             onChange={(event) =>
                               updateRow(row.skuId, {
@@ -3671,7 +3689,7 @@ function StockRetailPriceStep(props: {
   onChooseYes: () => void;
   supplierFilterControl?: ReactNode;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const { catalog, choice, countedAtBySku, currency, debugCellBoundaries, guidance, onReorderRows, stockBySku, usdToKhrExchangeRate, updateRow, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
 
   return (
@@ -3713,11 +3731,11 @@ function StockRetailPriceStep(props: {
                     latestRetailPrice == null ? '' : String(displayMoneyFromUsd(latestRetailPrice, currency, usdToKhrExchangeRate));
 
                   return {
-                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                     highlight: retailPriceChanged,
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                       <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestRetailPrice} skuId={row.skuId} />,
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentRetailPrice')}</RecordUpdateMobileLabel>
@@ -3729,6 +3747,7 @@ function StockRetailPriceStep(props: {
                             disabled={!sku?.soldAsProduct}
                             min="0"
                             placeholder={latestRetailPricePlaceholder}
+                            variant="side-buttons"
                             value={retailPriceChanged && row.productPrice != null ? displayMoneyFromUsd(row.productPrice, currency, usdToKhrExchangeRate) : ''}
                             onChange={(event) =>
                               updateRow(row.skuId, {
@@ -3766,7 +3785,7 @@ function StockFlagsStep(props: {
   onChooseYes: () => void;
   supplierFilterControl?: ReactNode;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const { catalog, choice, countedAtBySku, debugCellBoundaries, guidance, onReorderRows, skuSignalDrafts, stockBySku, updateSkuSignalDraft, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
   const stockEventOptions: Array<{
     value: StockEventDropdownValue;
@@ -3826,11 +3845,11 @@ function StockFlagsStep(props: {
                   const eventValue = draft?.blockedEnabled ? draft.blockedState : 'none';
 
                   return {
-                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? row.skuId }),
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                     highlight: Boolean(draft?.blockedEnabled),
                     inputCellIndexes: [1],
                     cells: [
-                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                       <div className="min-w-0">
                         <RecordUpdateMobileLabel>{t('stockUpdateEventColumn')}</RecordUpdateMobileLabel>
                         <Select
@@ -3844,7 +3863,7 @@ function StockFlagsStep(props: {
                           }
                         >
                           <SelectTrigger
-                            aria-label={t('stockUpdateEventFor', { name: sku?.name ?? row.skuId })}
+                            aria-label={t('stockUpdateEventFor', { name: sku?.name ?? translateUiLiteral(language, 'SKU') })}
                             className={cn('min-w-0 w-full max-w-[18rem]', recordUpdateSelectTriggerClassName, 'justify-between')}
                           >
                             <SelectValue />
@@ -4021,21 +4040,21 @@ function CustomerPendingRetailStep({
                   value: retailSalesDrafts[skuId] ?? '',
                 });
                 return {
-                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? skuId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                   highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
                   inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
-                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                     <SalesLatestCountCell countLabel="open" latestAt={null} latestValue={latestValue} />,
                     ...modes.map((nextMode) => (
                       <div key={nextMode} className="grid gap-2 pr-3">
-                        <Input
-                          aria-label={customerPendingInputLabel(language, nextMode, sku?.name ?? skuId)}
+                        <NumberStepperInput
+                          aria-label={customerPendingInputLabel(language, nextMode, sku?.name ?? translateUiLiteral(language, 'SKU'))}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           min="0"
                           placeholder={nextMode === 'modify_pending' ? String(latestValue) : ''}
                           step="1"
-                          type="number"
+                          variant="side-buttons"
                           value={nextMode === mode ? retailSalesDrafts[skuId] ?? '' : ''}
                           onChange={(event) => {
                             setMode(nextMode);
@@ -4133,21 +4152,21 @@ function CustomerPendingServiceStep({
                   value: serviceSalesDrafts[serviceId] ?? '',
                 });
                 return {
-                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? serviceId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? translateUiLiteral(language, 'Service') }),
                   highlight: (serviceSalesDrafts[serviceId]?.trim() ?? '') !== '',
                   inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
-                    <ServiceSummaryCell service={service} serviceName={service?.name ?? serviceId} />,
+                    <ServiceSummaryCell service={service} serviceName={service?.name ?? translateUiLiteral(language, 'Service')} />,
                     <SalesLatestCountCell countLabel="open" latestAt={null} latestValue={latestValue} />,
                     ...modes.map((nextMode) => (
                       <div key={nextMode} className="grid gap-2 pr-3">
-                        <Input
-                          aria-label={customerPendingInputLabel(language, nextMode, service?.name ?? serviceId)}
+                        <NumberStepperInput
+                          aria-label={customerPendingInputLabel(language, nextMode, service?.name ?? translateUiLiteral(language, 'Service'))}
                           className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                           min="0"
                           placeholder={nextMode === 'modify_pending' ? String(latestValue) : ''}
                           step="1"
-                          type="number"
+                          variant="side-buttons"
                           value={nextMode === mode ? serviceSalesDrafts[serviceId] ?? '' : ''}
                           onChange={(event) => {
                             setMode(nextMode);
@@ -4281,22 +4300,22 @@ function SalesRetailStep({
                   const sku = catalog?.skus.find((entry) => entry.skuId === skuId);
                   const latestValue = latestSalesBySku.get(skuId) ?? null;
                   return {
-                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? skuId }),
+                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                     highlight: (retailSalesDrafts[skuId]?.trim() ?? '') !== '',
                     inputCellIndexes: workflowInputIndexes(2, modes.length),
                     cells: [
-                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? skuId} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                       <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtBySku.get(skuId)} latestValue={latestValue} />,
                       ...modes.map((nextMode) => (
                         <div key={nextMode} className="grid gap-2 pr-3">
                           <RecordUpdateMobileLabel>{workflowStateLabel(language, nextMode)}</RecordUpdateMobileLabel>
-                          <Input
-                            aria-label={customerCompletedInputLabel(language, nextMode, mode, sku?.name ?? skuId)}
+                          <NumberStepperInput
+                            aria-label={customerCompletedInputLabel(language, nextMode, mode, sku?.name ?? translateUiLiteral(language, 'SKU'))}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                             min="0"
                             placeholder={latestValue == null ? '' : String(latestValue)}
                             step="1"
-                            type="number"
+                            variant="side-buttons"
                             value={nextMode === mode ? retailSalesDrafts[skuId] ?? '' : ''}
                             onChange={(event) => {
                               setMode(nextMode);
@@ -4445,22 +4464,22 @@ function SalesServiceStep({
                   const service = catalog?.services.find((entry) => entry.serviceId === serviceId);
                   const latestValue = latestSalesByService.get(serviceId) ?? null;
                   return {
-                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? serviceId }),
+                    dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: service?.name ?? translateUiLiteral(language, 'Service') }),
                     highlight: (serviceSalesDrafts[serviceId]?.trim() ?? '') !== '',
                     inputCellIndexes: workflowInputIndexes(2, modes.length),
                     cells: [
-                      <ServiceSummaryCell service={service} serviceName={service?.name ?? serviceId} />,
+                      <ServiceSummaryCell service={service} serviceName={service?.name ?? translateUiLiteral(language, 'Service')} />,
                       <SalesLatestCountCell countLabel="sold" latestAt={latestSalesAtByService.get(serviceId)} latestValue={latestValue} />,
                       ...modes.map((nextMode) => (
                         <div key={nextMode} className="pr-3">
                           <RecordUpdateMobileLabel>{workflowStateLabel(language, nextMode)}</RecordUpdateMobileLabel>
-                          <Input
-                            aria-label={customerCompletedInputLabel(language, nextMode, mode, service?.name ?? serviceId)}
+                          <NumberStepperInput
+                            aria-label={customerCompletedInputLabel(language, nextMode, mode, service?.name ?? translateUiLiteral(language, 'Service'))}
                             className={`w-full max-w-[18rem] ${recordUpdateInputClassName}`}
                             min="0"
                             placeholder={latestValue == null ? '' : String(latestValue)}
                             step="1"
-                            type="number"
+                            variant="side-buttons"
                             value={nextMode === mode ? serviceSalesDrafts[serviceId] ?? '' : ''}
                             onChange={(event) => {
                               setMode(nextMode);
@@ -4508,11 +4527,15 @@ function RecordOrderStep({
   onReorderRows,
   orderRecommendationBySku,
   recordOrderExpectedArrivalDate,
+  recordOrderLeadTimeDraftMode,
   recordOrderLeadTimeMeanDays,
+  recordOrderLeadTimeStdDays,
   recordOrderLeadTimeVariability,
   rows,
   setRecordOrderExpectedArrivalDate,
+  setRecordOrderLeadTimeDraftMode,
   setRecordOrderLeadTimeMeanDays,
+  setRecordOrderLeadTimeStdDays,
   setRecordOrderLeadTimeVariability,
   setMode,
   skuSignalDrafts,
@@ -4533,11 +4556,15 @@ function RecordOrderStep({
   onReorderRows: (activeSkuId: string, overSkuId: string) => void;
   orderRecommendationBySku: Map<string, number>;
   recordOrderExpectedArrivalDate: string;
+  recordOrderLeadTimeDraftMode: LeadTimeVariabilityDraftMode;
   recordOrderLeadTimeMeanDays: string;
+  recordOrderLeadTimeStdDays: string;
   recordOrderLeadTimeVariability: SenaLeadTimeVariabilityClass | '';
   rows: StockRow[];
   setRecordOrderExpectedArrivalDate: (value: string) => void;
+  setRecordOrderLeadTimeDraftMode: (value: LeadTimeVariabilityDraftMode) => void;
   setRecordOrderLeadTimeMeanDays: (value: string) => void;
+  setRecordOrderLeadTimeStdDays: (value: string) => void;
   setRecordOrderLeadTimeVariability: (value: SenaLeadTimeVariabilityClass | '') => void;
   setMode: (mode: SupplierPendingMode) => void;
   skuSignalDrafts: Record<string, SkuSignalDraft>;
@@ -4562,6 +4589,24 @@ function RecordOrderStep({
     }
   }, [leadTimeVariabilityPlaceholder, recordOrderLeadTimeVariability, setRecordOrderLeadTimeVariability]);
   useEffect(() => {
+    if (recordOrderLeadTimeDraftMode === 'class') {
+      setRecordOrderLeadTimeStdDays(derivedStdDaysDraft(effectiveLeadTimeMean, effectiveLeadTimeVariability || ''));
+      return;
+    }
+    const nextVariabilityClass = deriveLeadTimeFromStdDays(
+      effectiveLeadTimeMean,
+      recordOrderLeadTimeStdDays.trim() ? Number(recordOrderLeadTimeStdDays) : null,
+    ).variabilityClass;
+    setRecordOrderLeadTimeVariability(nextVariabilityClass ?? '');
+  }, [
+    effectiveLeadTimeMean,
+    effectiveLeadTimeVariability,
+    recordOrderLeadTimeDraftMode,
+    recordOrderLeadTimeStdDays,
+    setRecordOrderLeadTimeStdDays,
+    setRecordOrderLeadTimeVariability,
+  ]);
+  useEffect(() => {
     if (expectedArrivalEstimate) {
       setRecordOrderExpectedArrivalDate(expectedArrivalEstimate);
     }
@@ -4583,10 +4628,14 @@ function RecordOrderStep({
             <RecordOrderTimingFields
               expectedArrivalPlaceholder={expectedArrivalEstimate}
               expectedArrivalValue={recordOrderExpectedArrivalDate}
+              leadTimeDraftMode={recordOrderLeadTimeDraftMode}
               leadTimeMeanPlaceholder={leadTimeMeanPlaceholder == null ? '' : String(Math.round(leadTimeMeanPlaceholder * 10) / 10)}
               leadTimeMeanValue={recordOrderLeadTimeMeanDays}
+              leadTimeStdDaysValue={recordOrderLeadTimeStdDays}
               onExpectedArrivalChange={setRecordOrderExpectedArrivalDate}
+              onLeadTimeDraftModeChange={setRecordOrderLeadTimeDraftMode}
               onLeadTimeMeanChange={setRecordOrderLeadTimeMeanDays}
+              onLeadTimeStdDaysChange={setRecordOrderLeadTimeStdDays}
               onVariabilityChange={setRecordOrderLeadTimeVariability}
               variabilityPlaceholder={leadTimeVariabilityPlaceholder}
               variabilityValue={recordOrderLeadTimeVariability}
@@ -4617,23 +4666,23 @@ function RecordOrderStep({
                 const recommendedUnits = orderRecommendationBySku.get(row.skuId);
 
                 return {
-                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? row.skuId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                   highlight: orderDraftHasContent(draft),
                   inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
-                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                     <LastOrderCell latestAt={latestOrderAtBySku.get(row.skuId)} latestValue={latestOrderQuantity.get(row.skuId) ?? null} />,
                     ...modes.map((nextMode) => (
                       <OrderQuantityField
                         ariaLabel={nextMode === mode
-                          ? translateUiLiteral(language, 'Current order for {name}', { name: sku?.name ?? row.skuId })
+                          ? translateUiLiteral(language, 'Current order for {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') })
                           : undefined}
                         key={nextMode}
                         orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
                           ? translateUiLiteral(language, 'banji recommends {count} units.', { count: Math.round(recommendedUnits) })
                           : ''}
                         orderQuantityValue={nextMode === mode ? draft.orderedQuantity : ''}
-                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? row.skuId}`}
+                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? translateUiLiteral(language, 'SKU')}`}
                         setOrderQuantity={(value) => {
                           setMode(nextMode);
                           updateSkuSignalDraft(row.skuId, (current) => ({
@@ -4744,20 +4793,20 @@ function RecordReceiptStep({
                 const draft = skuSignalDrafts[row.skuId] ?? createEmptySkuSignalDraft();
 
                 return {
-                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? row.skuId }),
+                  dragLabel: translateUiLiteral(language, 'Reorder {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
                   highlight: receiptDraftHasContent(draft),
                   inputCellIndexes: workflowInputIndexes(2, modes.length),
                   cells: [
-                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? row.skuId} />,
+                    <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
                     <LastReceiptCell latestAt={latestReceiptAtBySku.get(row.skuId)} latestValue={latestReceiptQuantity.get(row.skuId) ?? null} />,
                     ...modes.map((nextMode) => (
                       <ReceiptQuantityField
                         ariaLabel={nextMode === mode
-                          ? translateUiLiteral(language, 'Current receipt for {name}', { name: sku?.name ?? row.skuId })
+                          ? translateUiLiteral(language, 'Current receipt for {name}', { name: sku?.name ?? translateUiLiteral(language, 'SKU') })
                           : undefined}
                         key={nextMode}
                         receiptQuantityValue={nextMode === mode ? draft.receiptQuantity : ''}
-                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? row.skuId}`}
+                        rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? translateUiLiteral(language, 'SKU')}`}
                         setReceiptQuantity={(value) => {
                           setMode(nextMode);
                           updateSkuSignalDraft(row.skuId, (current) => ({
@@ -4807,7 +4856,7 @@ function CustomerMetadataFields({
   onChange,
 }: {
   compact?: boolean;
-  directory: ReturnType<typeof buildCustomerLinkDirectory>;
+  directory: CustomerLinkDirectory;
   identity: CustomerIdentityDraft;
   warning: string | null;
   onChange: (next: CustomerIdentityDraft) => void;
@@ -5041,6 +5090,7 @@ function ServiceSignalsStep({
   catalog,
   currency,
   debugCellBoundaries,
+  flashServiceId,
   guidance,
   language,
   serviceSignalDrafts,
@@ -5051,6 +5101,7 @@ function ServiceSignalsStep({
   catalog: SenaCatalog | null;
   currency: 'USD' | 'KHR';
   debugCellBoundaries: boolean;
+  flashServiceId?: string | null;
   guidance?: string | null;
   language: 'en' | 'km';
   serviceSignalDrafts: Record<string, ServiceSignalDraft>;
@@ -5139,14 +5190,9 @@ function ServiceSignalsStep({
                       service={service}
                       serviceName={service.name}
                       secondary={
-                        <>
-                          <span className="block text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground/75">
-                            {service.serviceId}
-                          </span>
-                          <span className="block text-sm text-muted-foreground">
-                            {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
-                          </span>
-                        </>
+                        <span className="block text-sm text-muted-foreground">
+                          {t('stockUpdateLinkedSkuCount', { count: linkedSkuCount, suffix: linkedSkuCount === 1 ? '' : 's' })}
+                        </span>
                       }
                     />
                   </TableCell>
@@ -5180,10 +5226,14 @@ function ServiceSignalsStep({
                               >
                                 <CurrencyNumberInput
                                   aria-label={t('stockUpdatePriceChangedAria', { name: service.name })}
-                                  className={flagControlClassName}
+                                  className={cn(
+                                    flagControlClassName,
+                                    flashServiceId === service.serviceId && captureTargetFlashClassName,
+                                  )}
                                   currency={currency}
                                   min="0"
                                   placeholder={t('stockUpdateNewPrice')}
+                                  variant="side-buttons"
                                   value={draft.price}
                                   onChange={(event) =>
                                     updateServiceSignalDraft(service.serviceId, (current) => ({
@@ -5359,7 +5409,7 @@ function ReviewStep({
   skuSignalDrafts: Record<string, SkuSignalDraft>;
   payload: ReturnType<typeof createEmptyObservationInput>;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   return (
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
@@ -5399,19 +5449,19 @@ function ReviewStep({
               ...payload.servicePrices.map(
                 (event) =>
                   t('stockUpdatePriceBadge', {
-                    name: catalog?.services.find((service) => service.serviceId === event.serviceId)?.name ?? event.serviceId,
+                    name: catalog?.services.find((service) => service.serviceId === event.serviceId)?.name ?? translateUiLiteral(language, 'Service'),
                   }),
               ),
               ...payload.retailStockouts.map(
                 (skuId) =>
                   t('stockUpdateStockoutBadge', {
-                    name: catalog?.skus.find((sku) => sku.skuId === skuId)?.name ?? skuId,
+                    name: catalog?.skus.find((sku) => sku.skuId === skuId)?.name ?? translateUiLiteral(language, 'SKU'),
                   }),
               ),
               ...payload.serviceStockouts.map(
                 (serviceId) =>
                   t('stockUpdateStockoutBadge', {
-                    name: catalog?.services.find((service) => service.serviceId === serviceId)?.name ?? serviceId,
+                    name: catalog?.services.find((service) => service.serviceId === serviceId)?.name ?? translateUiLiteral(language, 'Service'),
                   }),
               ),
             ].map((label) => (
@@ -5447,6 +5497,7 @@ export function StockUpdateSessionRoute() {
     loadSenaRecordUpdateContext,
     observations,
     orderBatches,
+    recordUpdateContext,
     triggerSenaRun,
     updateSenaObservation,
     updateSenaOrderBatch,
@@ -5464,10 +5515,14 @@ export function StockUpdateSessionRoute() {
   } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
+  const { canGoBack, goBack } = useNavigationHistory();
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
+  const routeCaptureTarget = useMemo(() => readCaptureSessionTarget(location.search), [location.search]);
   const workbenchReorderLaneId = isWorkbenchReorderLaneId(lane.id) ? lane.id : null;
   const posViewAvailable = lane.id !== 'custom';
-  const [sessionViewMode, setSessionViewMode] = useState<SessionViewMode>(() => (posViewAvailable ? readRecordUpdateSessionViewMode() : 'form'));
+  const [sessionViewMode, setSessionViewMode] = useState<SessionViewMode>(() =>
+    posViewAvailable && routeCaptureTarget?.action !== 'service-price' ? 'pos' : posViewAvailable ? readRecordUpdateSessionViewMode() : 'form',
+  );
   const routeCustomSelectedLaneIds = useMemo(() => {
     if (lane.id !== 'custom') {
       return [];
@@ -5493,7 +5548,17 @@ export function StockUpdateSessionRoute() {
   const retailSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:retail-sales`), [lane.id]);
   const serviceSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:service-sales`), [lane.id]);
   const [customSelectedLaneIds, setCustomSelectedLaneIds] = useState<BaseRecordUpdateLaneId[]>(() => routeCustomSelectedLaneIds);
-  const activeStepOrder = useMemo(() => stepOrderForLane(lane.id, customSelectedLaneIds), [customSelectedLaneIds, lane.id]);
+  const activeStepOrder = useMemo(() => {
+    const order = stepOrderForLane(lane.id, customSelectedLaneIds);
+    if (routeCaptureTarget?.action !== 'service-price' || order.includes('service')) {
+      return order;
+    }
+    const reviewIndex = order.indexOf('review');
+    if (reviewIndex < 0) {
+      return [...order, 'service'];
+    }
+    return [...order.slice(0, reviewIndex), 'service', ...order.slice(reviewIndex)];
+  }, [customSelectedLaneIds, lane.id, routeCaptureTarget?.action]);
   const selectedBaseLaneIds = useMemo(
     () => (lane.id === 'custom' ? customSelectedLaneIds : isBaseRecordUpdateLaneId(lane.id) ? [lane.id] : []),
     [customSelectedLaneIds, lane.id],
@@ -5618,11 +5683,13 @@ export function StockUpdateSessionRoute() {
   const [activePosMetadataPopup, setActivePosMetadataPopup] = useState<PosMetadataPopupId | null>(null);
   const [activePosTileKey, setActivePosTileKey] = useState<string | null>(null);
   const [activeWorkbenchDragTileKey, setActiveWorkbenchDragTileKey] = useState<string | null>(null);
+  const [activeWorkbenchDragSize, setActiveWorkbenchDragSize] = useState<{ width: number; height: number } | null>(null);
   const [posTileDialogQuantity, setPosTileDialogQuantity] = useState('1');
   const [posReceiptConfirmOpen, setPosReceiptConfirmOpen] = useState(false);
   const [posReceiptCopyStatus, setPosReceiptCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [posWorkbenchSearch, setPosWorkbenchSearch] = useState('');
   const [posWorkbenchFilter, setPosWorkbenchFilter] = useState<PosWorkbenchFilterId>('all');
+  const [captureTargetFlashKey, setCaptureTargetFlashKey] = useState<string | null>(null);
   const [workbenchReorderMode, setWorkbenchReorderMode] = useState(false);
   const [workbenchReorderPromptOpen, setWorkbenchReorderPromptOpen] = useState(false);
   const [posTouchedLineKeys, setPosTouchedLineKeys] = useState<string[]>([]);
@@ -5633,7 +5700,9 @@ export function StockUpdateSessionRoute() {
   const [refundStockReturnDrafts, setRefundStockReturnDrafts] = useState<Record<string, RefundStockReturnChoice>>({});
   const [skuSignalDrafts, setSkuSignalDrafts] = useState<Record<string, SkuSignalDraft>>({});
   const [recordOrderExpectedArrivalDate, setRecordOrderExpectedArrivalDate] = useState('');
+  const [recordOrderLeadTimeDraftMode, setRecordOrderLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('class');
   const [recordOrderLeadTimeMeanDays, setRecordOrderLeadTimeMeanDays] = useState('');
+  const [recordOrderLeadTimeStdDays, setRecordOrderLeadTimeStdDays] = useState('');
   const [recordOrderLeadTimeVariability, setRecordOrderLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
   const [recordReceiptReceivedDate, setRecordReceiptReceivedDate] = useState('');
   const [stockStepChoices, setStockStepChoices] = useState<Record<OptionalStockStepId, OptionalStockStepChoice>>(
@@ -5650,6 +5719,8 @@ export function StockUpdateSessionRoute() {
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
   const workbenchHoldTimerRef = useRef<number | null>(null);
   const pendingWorkbenchInteractionRef = useRef<null | (() => void)>(null);
+  const handledCaptureTargetRef = useRef<string | null>(null);
+  const captureTargetFlashTimeoutRef = useRef<number | null>(null);
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
   const workingCatalog = editSession ? catalog : visibleCatalog;
   useEffect(() => {
@@ -5662,6 +5733,7 @@ export function StockUpdateSessionRoute() {
     setWorkbenchReorderMode(false);
     setWorkbenchReorderPromptOpen(false);
     setActiveWorkbenchDragTileKey(null);
+    setActiveWorkbenchDragSize(null);
   }, [sessionViewMode, workbenchReorderLaneId]);
   useEffect(() => {
     if (!workbenchReorderMode) {
@@ -5676,24 +5748,40 @@ export function StockUpdateSessionRoute() {
       setWorkbenchReorderPromptOpen(false);
       setWorkbenchReorderMode(false);
       setActiveWorkbenchDragTileKey(null);
+      setActiveWorkbenchDragSize(null);
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [workbenchReorderMode]);
   useEffect(() => {
+    if (routeCaptureTarget && routeCaptureTarget.action !== 'service-price') {
+      setSessionViewMode('pos');
+      return;
+    }
     setSessionViewMode(posViewAvailable ? readRecordUpdateSessionViewMode() : 'form');
-  }, [lane.id, posViewAvailable]);
+  }, [lane.id, posViewAvailable, routeCaptureTarget]);
+  useEffect(() => {
+    if (!routeCaptureTarget) {
+      return;
+    }
+    if (posViewAvailable && routeCaptureTarget.action !== 'service-price') {
+      setSessionViewMode('pos');
+    }
+  }, [posViewAvailable, routeCaptureTarget]);
   useEffect(() => {
     setPosWorkbenchSearch('');
     setPosWorkbenchFilter('all');
     setPosTouchedLineKeys([]);
     setActivePosMetadataPopup(null);
-    setActivePosTileKey(null);
+    if (!routeCaptureTarget || routeCaptureTarget.action === 'service-price') {
+      setActivePosTileKey(null);
+    }
     setPosTileDialogQuantity('1');
     setPosReceiptConfirmOpen(false);
     setPosReceiptCopyStatus('idle');
-  }, [lane.id]);
+    setCaptureTargetFlashKey(null);
+  }, [lane.id, routeCaptureTarget]);
   useEffect(() => {
     if (selectedOrderChildren.length === 0 || draftWasRestored || editSession) {
       return;
@@ -5890,15 +5978,17 @@ export function StockUpdateSessionRoute() {
   const deliveryFeePayerLocked = deliveryFeeBucket === 'supplier';
   const deliveryFeeDefaultPayer = defaultDeliveryFeePayer(deliveryFeeBucket);
   const skipsFirstStockRequirement = !hasStockCountLane;
-  const customerDirectory = useMemo(() => buildCustomerLinkDirectory(observations), [observations]);
+  const customerDirectory = useMemo(
+    () => buildCustomerLinkDirectoryFromContext(recordUpdateContext, observations),
+    [observations, recordUpdateContext],
+  );
   const customerIdentityWarning = useMemo(
     () => customerLinkWarning(customerIdentity, customerDirectory),
     [customerDirectory, customerIdentity],
   );
-  const ticketEvents = useMemo(() => latestTicketEvents(observations), [observations]);
   const latestHistoricalDeliveryFee = useMemo(
-    () => (deliveryFeeBucket == null ? null : latestDeliveryFeeMetadata(observations, deliveryFeeBucket)),
-    [deliveryFeeBucket, observations],
+    () => (deliveryFeeBucket == null ? null : latestDeliveryFeeMetadataFromContext(recordUpdateContext, deliveryFeeBucket, observations)),
+    [deliveryFeeBucket, observations, recordUpdateContext],
   );
   useEffect(() => {
     if (draftWasRestored || editSession) {
@@ -5929,33 +6019,10 @@ export function StockUpdateSessionRoute() {
     usdToKhrExchangeRate,
   ]);
   const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    const seen = new Set<string>();
-    return ticketEvents.flatMap((event) => {
-      if (event.ticketFamily !== 'customer' || event.lifecycle !== 'open' || seen.has(event.ticketId)) {
-        return [];
-      }
-      seen.add(event.ticketId);
-      const channel = event.party?.channelLabel ?? event.party?.channelKey ?? 'No channel';
-      return [{
-        id: event.ticketId,
-        label: ticketLabel(event),
-        description: `${channel} · ${event.lines.length} item${event.lines.length === 1 ? '' : 's'}`,
-        metadata: event.party?.phone ? formatPhoneForDisplay(event.party.phone) : event.note ?? event.occurredAt,
-      }];
-    });
-  }, [ticketEvents]);
+    return recordTicketOptions(recordUpdateContext, 'customer');
+  }, [recordUpdateContext]);
   const supplierTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    const fromTicketEvents = ticketEvents.flatMap((event) => {
-      if (event.ticketFamily !== 'supplier' || event.lifecycle !== 'open') {
-        return [];
-      }
-      return [{
-        id: event.ticketId,
-        label: ticketLabel(event),
-        description: event.party?.supplierName ?? event.stage,
-        metadata: event.lines.map((line) => `${line.entityId}${line.orderedQuantity ? ` · ${line.orderedQuantity}u` : ''}`).join(', '),
-      }];
-    });
+    const fromTicketEvents = recordTicketOptions(recordUpdateContext, 'supplier');
     const fromLegacyBatches = orderBatches.flatMap((batch) => {
       if (batch.status === 'received' || batch.status === 'reviewed') {
         return [];
@@ -5975,7 +6042,7 @@ export function StockUpdateSessionRoute() {
       seen.add(option.id);
       return true;
     });
-  }, [orderBatches, ticketEvents]);
+  }, [orderBatches, recordUpdateContext]);
   const deferredPosWorkbenchSearch = useDeferredValue(posWorkbenchSearch);
   const posTouchedLineKeySet = useMemo(() => new Set(posTouchedLineKeys), [posTouchedLineKeys]);
   const workbenchTileOrder = useMemo(
@@ -6159,7 +6226,9 @@ export function StockUpdateSessionRoute() {
       customerPendingMode,
       customerCompletedMode,
       recordOrderExpectedArrivalDate,
+      recordOrderLeadTimeDraftMode,
       recordOrderLeadTimeMeanDays,
+      recordOrderLeadTimeStdDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
       deliveryFeeAmount,
@@ -6199,7 +6268,9 @@ export function StockUpdateSessionRoute() {
       customerPendingMode,
       customerCompletedMode,
       recordOrderExpectedArrivalDate,
+      recordOrderLeadTimeDraftMode,
       recordOrderLeadTimeMeanDays,
+      recordOrderLeadTimeStdDays,
       recordOrderLeadTimeVariability,
       recordReceiptReceivedDate,
       deliveryFeeAmount,
@@ -6291,7 +6362,9 @@ export function StockUpdateSessionRoute() {
     setCustomerIdentity(hydratedState.customerIdentity);
     setSkuSignalDrafts(hydratedState.skuSignalDrafts);
     setRecordOrderExpectedArrivalDate(hydratedState.recordOrderExpectedArrivalDate);
+    setRecordOrderLeadTimeDraftMode(hydratedState.recordOrderLeadTimeDraftMode);
     setRecordOrderLeadTimeMeanDays(hydratedState.recordOrderLeadTimeMeanDays);
+    setRecordOrderLeadTimeStdDays(hydratedState.recordOrderLeadTimeStdDays);
     setRecordOrderLeadTimeVariability(hydratedState.recordOrderLeadTimeVariability);
     setRecordReceiptReceivedDate(hydratedState.recordReceiptReceivedDate);
     setDeliveryFeeAmount(hydratedState.deliveryFeeAmount);
@@ -6432,7 +6505,9 @@ export function StockUpdateSessionRoute() {
         setCustomerIdentity(hydratedDraft.customerIdentity);
         setSkuSignalDrafts(hydratedDraft.skuSignalDrafts);
         setRecordOrderExpectedArrivalDate(hydratedDraft.recordOrderExpectedArrivalDate);
+        setRecordOrderLeadTimeDraftMode(hydratedDraft.recordOrderLeadTimeDraftMode);
         setRecordOrderLeadTimeMeanDays(hydratedDraft.recordOrderLeadTimeMeanDays);
+        setRecordOrderLeadTimeStdDays(hydratedDraft.recordOrderLeadTimeStdDays);
         setRecordOrderLeadTimeVariability(hydratedDraft.recordOrderLeadTimeVariability);
         setRecordReceiptReceivedDate(hydratedDraft.recordReceiptReceivedDate);
         setDeliveryFeeAmount(hydratedDraft.deliveryFeeAmount);
@@ -7056,16 +7131,24 @@ export function StockUpdateSessionRoute() {
                   recordOrderLeadTimeVariability ||
                   (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
                   null;
-                if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null) {
+                const customStdDays = recordOrderLeadTimeDraftMode === 'std' && recordOrderLeadTimeStdDays.trim()
+                  ? Number(recordOrderLeadTimeStdDays)
+                  : null;
+                if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null && customStdDays == null) {
                   return [];
                 }
-                const compatibilityRange = compatibilityRangeForClass(tableMeanDays, variabilityClass);
+                const leadTime = customStdDays == null
+                  ? {
+                      ...(compatibilityRangeForClass(tableMeanDays, variabilityClass) ?? { lowDays: null, highDays: null }),
+                      variabilityClass,
+                    }
+                  : deriveLeadTimeFromStdDays(tableMeanDays, customStdDays);
                 return [{
                   skuId,
                   typicalDays: tableMeanDays,
-                  lowDays: compatibilityRange?.lowDays ?? null,
-                  highDays: compatibilityRange?.highDays ?? null,
-                  variabilityClass,
+                  lowDays: leadTime.lowDays,
+                  highDays: leadTime.highDays,
+                  variabilityClass: leadTime.variabilityClass,
                 }];
               })),
         );
@@ -7488,16 +7571,24 @@ export function StockUpdateSessionRoute() {
           recordOrderLeadTimeVariability ||
           (tableMeanDays != null ? leadTimeVariabilityDefaults.get(skuId) : null) ||
           null;
-        if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null) {
+        const customStdDays = recordOrderLeadTimeDraftMode === 'std' && recordOrderLeadTimeStdDays.trim()
+          ? Number(recordOrderLeadTimeStdDays)
+          : null;
+        if ((tableMeanDays == null || !Number.isFinite(tableMeanDays) || tableMeanDays < 0) && variabilityClass == null && customStdDays == null) {
           return [];
         }
-        const compatibilityRange = compatibilityRangeForClass(tableMeanDays, variabilityClass);
+        const leadTime = customStdDays == null
+          ? {
+              ...(compatibilityRangeForClass(tableMeanDays, variabilityClass) ?? { lowDays: null, highDays: null }),
+              variabilityClass,
+            }
+          : deriveLeadTimeFromStdDays(tableMeanDays, customStdDays);
         return [{
           skuId,
           typicalDays: tableMeanDays,
-          lowDays: compatibilityRange?.lowDays ?? null,
-          highDays: compatibilityRange?.highDays ?? null,
-          variabilityClass,
+          lowDays: leadTime.lowDays,
+          highDays: leadTime.highDays,
+          variabilityClass: leadTime.variabilityClass,
         }];
       });
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
@@ -7894,19 +7985,6 @@ export function StockUpdateSessionRoute() {
           ? serviceFlagsValid
           : true;
 
-  const addSignalGuidanceText =
-    hasStockCountLane
-      ? t('stockUpdateGuidanceAddStockCountSignal')
-      : isCustomerPendingLane
-        ? translateUiLiteral(language, 'Add at least one open customer order change before saving.')
-        : isCustomerCompletedLane
-          ? translateUiLiteral(language, 'Add at least one completed customer order, refund, row event, ranking, or sales pattern before saving.')
-          : isSupplierPendingLane
-            ? translateUiLiteral(language, 'Add at least one supplier order change, row event, or sales pattern before saving.')
-            : isSupplierReceiptLane
-              ? translateUiLiteral(language, 'Add at least one supplier receipt, reversal, row event, or sales pattern before saving.')
-        : t('stockUpdateGuidanceAddSignal');
-
   const stepGuidance =
     currentStepId === 'observed-at' && !observedAtIso
       ? t('stockUpdateGuidanceChooseObservedAt')
@@ -7934,8 +8012,6 @@ export function StockUpdateSessionRoute() {
             ? t('stockUpdateGuidanceFillSkuFlagsSave')
             : currentStepId === 'review' && lane.id !== 'stock-count' && !serviceFlagsValid
               ? t('stockUpdateGuidanceFillServiceFlagsSave')
-          : currentStepId === 'review' && !hasStructuredObservationSignal(previewPayload)
-                ? addSignalGuidanceText
           : currentStepId === 'review' && !skipsFirstStockRequirement && isFirstObservation && previewPayload.stockSnapshot.length === 0
             ? t('stockUpdateGuidanceFirstUpdateNeedsCount')
             : null;
@@ -7943,9 +8019,6 @@ export function StockUpdateSessionRoute() {
   const reviewBlockers = [
     ...(stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid ? [t('stockUpdateGuidanceFillSkuFlagsSave')] : []),
     ...(lane.id !== 'stock-count' && !serviceFlagsValid ? [t('stockUpdateGuidanceFillServiceFlagsSave')] : []),
-    ...(!hasStructuredObservationSignal(previewPayload)
-      ? [addSignalGuidanceText]
-      : []),
     ...(!skipsFirstStockRequirement && requiresFirstStockSnapshot
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
@@ -8023,7 +8096,9 @@ export function StockUpdateSessionRoute() {
     setRefundStockReturnDrafts({});
     setSkuSignalDrafts({});
     setRecordOrderExpectedArrivalDate('');
+    setRecordOrderLeadTimeDraftMode('class');
     setRecordOrderLeadTimeMeanDays('');
+    setRecordOrderLeadTimeStdDays('');
     setRecordOrderLeadTimeVariability('');
     setRecordReceiptReceivedDate('');
     setDeliveryFeeAmount(resetDeliveryAmount);
@@ -8062,7 +8137,7 @@ export function StockUpdateSessionRoute() {
       return t('stockUpdateGuidanceFillServiceFlagsSave');
     }
     if (!hasStructuredObservationSignal(payload)) {
-      return addSignalGuidanceText;
+      return t('stockUpdateStepNotReady');
     }
     if (!skipsFirstStockRequirement && isFirstObservation && payload.stockSnapshot.length === 0) {
       return t('stockUpdateGuidanceFirstUpdateNeedsCount');
@@ -8082,7 +8157,7 @@ export function StockUpdateSessionRoute() {
     const validationError = submitValidationError(payload);
     if (validationError) {
       setError(validationError);
-      return;
+      return false;
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     try {
@@ -8193,7 +8268,7 @@ export function StockUpdateSessionRoute() {
       }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
-      return;
+      return false;
     }
 
     skipNextDraftPersistRef.current = true;
@@ -8203,7 +8278,7 @@ export function StockUpdateSessionRoute() {
     resetRecordUpdateState();
     navigate('/', { replace: true, state: null });
     if (!shouldSchedulePostSaveRerun) {
-      return;
+      return true;
     }
     if (postSaveRerunTimeoutRef.current != null) {
       window.clearTimeout(postSaveRerunTimeoutRef.current);
@@ -8221,6 +8296,7 @@ export function StockUpdateSessionRoute() {
       });
     };
     postSaveRerunTimeoutRef.current = window.setTimeout(schedulePostSaveRerun, POST_SAVE_RERUN_DELAY_MS);
+    return true;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -8254,9 +8330,23 @@ export function StockUpdateSessionRoute() {
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: canDiscardChanges,
     description: discardChangesDescription,
+    confirmLabel: translateUiLiteral(language, 'Discard changes and leave'),
     onDiscard: handleDiscardChanges,
+    onSave: async (continueAfterSave) => {
+      const saved = await saveCurrentSession();
+      if (saved) {
+        continueAfterSave();
+      }
+      return saved;
+    },
+    saveLabel: translateUiLiteral(language, 'Save changes'),
   });
   const pendingNavigationRef = useRef<PendingNavigationState | null>(null);
+
+  function queueNavigation(continueNavigation: () => void) {
+    pendingNavigationRef.current = { continueNavigation };
+    setLeaveDraftDialogOpen(true);
+  }
 
   function persistDraftForLater() {
     const latestState = latestDraftStateRef.current;
@@ -8269,11 +8359,6 @@ export function StockUpdateSessionRoute() {
   }
 
   useEffect(() => {
-    function queueNavigation(continueNavigation: () => void) {
-      pendingNavigationRef.current = { continueNavigation };
-      setLeaveDraftDialogOpen(true);
-    }
-
     function handleDocumentClick(event: MouseEvent) {
       if (!canDiscardChanges || event.defaultPrevented || event.button !== 0) {
         return;
@@ -8322,6 +8407,16 @@ export function StockUpdateSessionRoute() {
       window.removeEventListener('hashchange', handleHistoryNavigation);
     };
   }, [canDiscardChanges, location.hash, location.pathname, location.search, navigate]);
+
+  function handleRouteBack() {
+    if (canDiscardChanges) {
+      queueNavigation(goBack);
+      return;
+    }
+
+    goBack();
+  }
+
   const draftStatusLabel = draftWasRestored
     ? t('stockSessionDraftResumed')
     : hasMeaningfulChanges
@@ -8393,38 +8488,47 @@ export function StockUpdateSessionRoute() {
     };
   }, []);
 
-  const titleActions = (
-    <WorkspaceActionRow>
-      {draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
-      <Button
-        className={discardChangesButtonClassName}
-        disabled={!canDiscardChanges}
-        title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
-        type="button"
-        variant="destructive-outline"
-        onClick={() => requestDiscard()}
-      >
-        <ActionDeleteIcon className="size-4" />
-        {t('stockUpdateDiscardChanges')}
-      </Button>
-    </WorkspaceActionRow>
-  );
+  const captureReviewActionLabel = stockCountPosMode
+    ? translateUiLiteral(language, 'Review update')
+    : translateUiLiteral(language, 'Review receipt');
 
-  const floatingTitleActions = (
-    <WorkspaceActionRow>
-      <Button
-        className={discardChangesButtonClassName}
-        disabled={!canDiscardChanges}
-        title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
-        type="button"
-        variant="destructive-outline"
-        onClick={() => requestDiscard()}
-      >
-        <ActionDeleteIcon className="size-4" />
-        {t('stockUpdateDiscardChanges')}
-      </Button>
-    </WorkspaceActionRow>
-  );
+  function renderSessionTitleActions(showDraftStatus: boolean) {
+    return (
+      <WorkspaceActionRow>
+        {showDraftStatus && draftStatusLabel ? <span className="px-1 text-sm text-muted-foreground">{draftStatusLabel}</span> : null}
+        <Button
+          className={discardChangesButtonClassName}
+          disabled={!canDiscardChanges}
+          title={canDiscardChanges ? undefined : t('stockSessionNoChangesToDiscard')}
+          type="button"
+          variant="destructive-outline"
+          onClick={() => requestDiscard()}
+        >
+          <ActionDeleteIcon className="size-4" />
+          {t('stockUpdateDiscardChanges')}
+        </Button>
+        <Button
+          disabled={submitDisabled}
+          form="stock-update-session-form"
+          type="submit"
+          onClick={(event) => {
+            if (!workbenchReorderMode) {
+              return;
+            }
+            event.preventDefault();
+            requestWorkbenchReorderPrompt();
+          }}
+        >
+          <EntityReceiptDocumentIcon className="size-4" />
+          {isSaving ? t('catalogSenaSkuSaving') : captureReviewActionLabel}
+        </Button>
+      </WorkspaceActionRow>
+    );
+  }
+
+  const titleActions = renderSessionTitleActions(true);
+
+  const floatingTitleActions = renderSessionTitleActions(false);
 
   const bottomNavigationIsland =
     typeof document !== 'undefined'
@@ -8564,6 +8668,21 @@ export function StockUpdateSessionRoute() {
     setUnlockedStepCount((current) => Math.max(current, targetIndex + 1));
     setCurrentStepId(stepId);
   }, [activeStepOrder]);
+  const routeCaptureTileKey = useMemo(() => {
+    if (!routeCaptureTarget) {
+      return null;
+    }
+    if (routeCaptureTarget.action === 'stock' || routeCaptureTarget.action === 'sku-price') {
+      return routeCaptureTarget.targetType === 'sku' ? `stock:${routeCaptureTarget.targetId}` : null;
+    }
+    if (routeCaptureTarget.action === 'supplier-order') {
+      return routeCaptureTarget.targetType === 'sku' ? `supplier-order:${routeCaptureTarget.targetId}` : null;
+    }
+    if (routeCaptureTarget.action === 'customer-order' || routeCaptureTarget.action === 'immediate-sale') {
+      return `${routeCaptureTarget.targetType === 'service' ? 'service' : 'retail'}:${routeCaptureTarget.targetId}`;
+    }
+    return null;
+  }, [routeCaptureTarget]);
   const posTiles = useMemo<PosWorkbenchTile[]>(() => {
     const nextTiles: PosWorkbenchTile[] = [];
 
@@ -8573,10 +8692,11 @@ export function StockUpdateSessionRoute() {
         if (!sku) {
           continue;
         }
+        const key = `stock:${row.skuId}`;
         const baselineUnits = stockBySku.get(row.skuId)?.unitsInStock ?? 0;
         const changed = stockRowChanged(workingCatalog, stockBySku, row);
         nextTiles.push({
-          key: `stock:${row.skuId}`,
+          key,
           entityId: row.skuId,
           title: sku.name,
           imagePath: sku.imagePath ?? null,
@@ -8594,6 +8714,7 @@ export function StockUpdateSessionRoute() {
           unitAmount: row.costPerUnit,
           recentAt: countedAtBySku.get(row.skuId) ?? null,
           touched: changed || posTouchedLineKeySet.has(`stock:${row.skuId}`),
+          flash: captureTargetFlashKey === key,
         });
       }
     }
@@ -8604,10 +8725,11 @@ export function StockUpdateSessionRoute() {
         if (!sku) {
           continue;
         }
+        const key = `retail:${skuId}`;
         const quantity = Number(retailSalesDrafts[skuId] ?? 0);
         const previousPending = latestCustomerPendingBySku.get(skuId) ?? 0;
         nextTiles.push({
-          key: `retail:${skuId}`,
+          key,
           entityId: skuId,
           title: sku.name,
           imagePath: sku.imagePath ?? null,
@@ -8625,6 +8747,7 @@ export function StockUpdateSessionRoute() {
           unitAmount: sku.productPrice ?? null,
           recentAt: latestRetailSalesAt.get(skuId) ?? null,
           touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`retail:${skuId}`),
+          flash: captureTargetFlashKey === key,
         });
       }
       for (const serviceId of serviceIds) {
@@ -8632,10 +8755,11 @@ export function StockUpdateSessionRoute() {
         if (!service) {
           continue;
         }
+        const key = `service:${serviceId}`;
         const quantity = Number(serviceSalesDrafts[serviceId] ?? 0);
         const previousPending = latestCustomerPendingByService.get(serviceId) ?? 0;
         nextTiles.push({
-          key: `service:${serviceId}`,
+          key,
           entityId: serviceId,
           title: service.name,
           imagePath: service.imagePath ?? null,
@@ -8653,6 +8777,7 @@ export function StockUpdateSessionRoute() {
           unitAmount: service.price,
           recentAt: latestServiceSalesAt.get(serviceId) ?? null,
           touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`service:${serviceId}`),
+          flash: captureTargetFlashKey === key,
         });
       }
     }
@@ -8663,9 +8788,10 @@ export function StockUpdateSessionRoute() {
         if (!sku) {
           continue;
         }
+        const key = `supplier-order:${row.skuId}`;
         const quantity = Number(skuSignalDrafts[row.skuId]?.orderedQuantity ?? 0);
         nextTiles.push({
-          key: `supplier-order:${row.skuId}`,
+          key,
           entityId: row.skuId,
           title: sku.name,
           imagePath: sku.imagePath ?? null,
@@ -8681,6 +8807,7 @@ export function StockUpdateSessionRoute() {
           unitAmount: row.costPerUnit,
           recentAt: latestOrderedAt.get(row.skuId) ?? null,
           touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-order:${row.skuId}`),
+          flash: captureTargetFlashKey === key,
         });
       }
     }
@@ -8691,9 +8818,10 @@ export function StockUpdateSessionRoute() {
         if (!sku) {
           continue;
         }
+        const key = `supplier-receipt:${row.skuId}`;
         const quantity = Number(skuSignalDrafts[row.skuId]?.receiptQuantity ?? 0);
         nextTiles.push({
-          key: `supplier-receipt:${row.skuId}`,
+          key,
           entityId: row.skuId,
           title: sku.name,
           imagePath: sku.imagePath ?? null,
@@ -8709,6 +8837,7 @@ export function StockUpdateSessionRoute() {
           unitAmount: row.costPerUnit,
           recentAt: latestReceiptAt.get(row.skuId) ?? null,
           touched: (Number.isFinite(quantity) ? quantity : 0) > 0 || posTouchedLineKeySet.has(`supplier-receipt:${row.skuId}`),
+          flash: captureTargetFlashKey === key,
         });
       }
     }
@@ -8716,6 +8845,7 @@ export function StockUpdateSessionRoute() {
     return workbenchReorderLaneId ? applyWorkbenchTileOrder(nextTiles, workbenchTileOrder) : nextTiles;
   }, [
     countedAtBySku,
+    captureTargetFlashKey,
     currency,
     hasStockCountLane,
     isCustomerCompletedLane,
@@ -8746,21 +8876,97 @@ export function StockUpdateSessionRoute() {
     workbenchTileOrder,
     workingCatalog,
   ]);
+  useEffect(() => {
+    if (!routeCaptureTarget) {
+      return;
+    }
+    const handleKey = `${location.pathname}${location.search}`;
+    if (handledCaptureTargetRef.current === handleKey && routeCaptureTarget.action !== 'service-price') {
+      return;
+    }
+
+    function flash(key: string) {
+      setCaptureTargetFlashKey(key);
+      if (captureTargetFlashTimeoutRef.current != null) {
+        window.clearTimeout(captureTargetFlashTimeoutRef.current);
+      }
+      captureTargetFlashTimeoutRef.current = window.setTimeout(() => {
+        setCaptureTargetFlashKey((current) => (current === key ? null : current));
+        captureTargetFlashTimeoutRef.current = null;
+      }, CAPTURE_TARGET_FLASH_MS);
+    }
+
+    if (routeCaptureTarget.action === 'service-price') {
+      const serviceDraft = serviceSignalDrafts[routeCaptureTarget.targetId];
+      if (
+        handledCaptureTargetRef.current === handleKey &&
+        currentStepId === 'service' &&
+        serviceDraft?.priceEnabled
+      ) {
+        return;
+      }
+      setSessionViewMode('form');
+      const serviceStepIndex = activeStepOrder.indexOf('service');
+      if (serviceStepIndex < 0) {
+        return;
+      }
+      setUnlockedStepCount((current) => Math.max(current, serviceStepIndex + 1));
+      setCurrentStepId('service');
+      updateServiceSignalDraft(routeCaptureTarget.targetId, (draft) => ({
+        ...draft,
+        priceEnabled: true,
+      }));
+      flash(`service-price:${routeCaptureTarget.targetId}`);
+      handledCaptureTargetRef.current = handleKey;
+      return;
+    }
+
+    if (!routeCaptureTileKey) {
+      return;
+    }
+    const targetTile = posTiles.find((tile) => tile.key === routeCaptureTileKey);
+    if (!targetTile) {
+      return;
+    }
+    setSessionViewMode('pos');
+    setPosWorkbenchSearch('');
+    setPosWorkbenchFilter('all');
+    activatePosStep(targetTile.stepId);
+    setActivePosTileKey(targetTile.key);
+    flash(targetTile.key);
+    handledCaptureTargetRef.current = handleKey;
+  }, [
+    activatePosStep,
+    activeStepOrder,
+    currentStepId,
+    location.pathname,
+    location.search,
+    posTiles,
+    routeCaptureTarget,
+    routeCaptureTileKey,
+    serviceSignalDrafts,
+    updateServiceSignalDraft,
+  ]);
+  useEffect(() => () => {
+    if (captureTargetFlashTimeoutRef.current != null) {
+      window.clearTimeout(captureTargetFlashTimeoutRef.current);
+    }
+  }, []);
   const posFilterOptions = useMemo(() => {
     const hasSkuTiles = posTiles.some((tile) => tile.itemType === 'sku');
     const hasServiceTiles = posTiles.some((tile) => tile.itemType === 'service');
-    const options: Array<{ icon: IconComponent; id: PosWorkbenchFilterId; label: string }> = [
-      { icon: EntityLayersIcon, id: 'all', label: translateUiLiteral(language, 'All') },
+    const options: Array<{ icon: IconComponent; label: string; value: PosWorkbenchFilterId }> = [
+      { icon: EntityLayersIcon, label: translateUiLiteral(language, 'All'), value: 'all' },
     ];
     if (hasServiceTiles) {
-      options.push({ icon: EntityServiceIcon, id: 'services', label: translateUiLiteral(language, 'Services') });
+      options.push({ icon: EntityServiceIcon, label: translateUiLiteral(language, 'Services'), value: 'services' });
     }
     if (hasSkuTiles && !stockCountPosMode) {
-      options.push({ icon: EntitySkuIcon, id: 'skus', label: translateUiLiteral(language, 'SKUs') });
+      options.push({ icon: EntitySkuIcon, label: translateUiLiteral(language, 'SKUs'), value: 'skus' });
     }
     options.push(
-      { icon: StatusScheduleIcon, id: 'recent', label: translateUiLiteral(language, 'Recent') },
-      { icon: StatusReadyIcon, id: 'touched', label: translateUiLiteral(language, 'Touched') },
+      { icon: StatusScheduleIcon, label: translateUiLiteral(language, 'Recent'), value: 'recent' },
+      { icon: StatusReadyIcon, label: translateUiLiteral(language, 'Touched'), value: 'touched' },
     );
     return options;
   }, [language, posTiles, stockCountPosMode]);
@@ -8800,6 +9006,7 @@ export function StockUpdateSessionRoute() {
     setWorkbenchReorderMode(false);
     setWorkbenchReorderPromptOpen(false);
     setActiveWorkbenchDragTileKey(null);
+    setActiveWorkbenchDragSize(null);
     const pendingAction = pendingWorkbenchInteractionRef.current;
     pendingWorkbenchInteractionRef.current = null;
     if (resumePendingAction) {
@@ -8854,10 +9061,20 @@ export function StockUpdateSessionRoute() {
     }
     clearWorkbenchHoldTimer();
     setWorkbenchReorderMode(true);
-    setActiveWorkbenchDragTileKey(String(event.active.id));
+    const activeTileKey = String(event.active.id);
+    const activeTileElement = Array.from(document.querySelectorAll<HTMLElement>('[data-workbench-tile-key]'))
+      .find((element) => element.dataset.workbenchTileKey === activeTileKey);
+    const activeTileRect = activeTileElement?.getBoundingClientRect();
+    setActiveWorkbenchDragSize(
+      activeTileRect && activeTileRect.width > 0 && activeTileRect.height > 0
+        ? { width: activeTileRect.width, height: activeTileRect.height }
+        : null,
+    );
+    setActiveWorkbenchDragTileKey(activeTileKey);
   }, [clearWorkbenchHoldTimer, workbenchReorderLaneId]);
   const clearWorkbenchDragState = useCallback(() => {
     setActiveWorkbenchDragTileKey(null);
+    setActiveWorkbenchDragSize(null);
   }, []);
   const handleWorkbenchDragCancel = useCallback((_event: DragCancelEvent) => {
     clearWorkbenchDragState();
@@ -9638,9 +9855,7 @@ export function StockUpdateSessionRoute() {
   const posSummaryEmptyState = stockCountPosMode
     ? translateUiLiteral(language, 'No SKU changes yet. Open a tile to update units, cost, retail price, or flags.')
     : t('stockUpdateSessionNoLineItems');
-  const posReviewActionLabel = stockCountPosMode
-    ? translateUiLiteral(language, 'Review update')
-    : translateUiLiteral(language, 'Review receipt');
+  const posReviewActionLabel = captureReviewActionLabel;
   const posReviewDialogTitle = stockCountPosMode
     ? translateUiLiteral(language, 'Review update')
     : translateUiLiteral(language, 'Confirm receipt');
@@ -9677,11 +9892,15 @@ export function StockUpdateSessionRoute() {
         onReorderRows={handleStockRowReorder}
         orderRecommendationBySku={recommendedOrderBySku}
         recordOrderExpectedArrivalDate={recordOrderExpectedArrivalDate}
+        recordOrderLeadTimeDraftMode={recordOrderLeadTimeDraftMode}
         recordOrderLeadTimeMeanDays={recordOrderLeadTimeMeanDays}
+        recordOrderLeadTimeStdDays={recordOrderLeadTimeStdDays}
         recordOrderLeadTimeVariability={recordOrderLeadTimeVariability}
         rows={supplierFilteredRows}
         setRecordOrderExpectedArrivalDate={setRecordOrderExpectedArrivalDate}
+        setRecordOrderLeadTimeDraftMode={setRecordOrderLeadTimeDraftMode}
         setRecordOrderLeadTimeMeanDays={setRecordOrderLeadTimeMeanDays}
+        setRecordOrderLeadTimeStdDays={setRecordOrderLeadTimeStdDays}
         setRecordOrderLeadTimeVariability={setRecordOrderLeadTimeVariability}
         setMode={setSupplierPendingMode}
         skuSignalDrafts={skuSignalDrafts}
@@ -9870,6 +10089,7 @@ export function StockUpdateSessionRoute() {
         catalog={workingCatalog}
         currency={currency}
         debugCellBoundaries={debugCellBoundaries}
+        flashServiceId={captureTargetFlashKey?.startsWith('service-price:') ? captureTargetFlashKey.slice('service-price:'.length) : null}
         guidance={currentStepId === 'service' ? stepGuidance : null}
         language={language}
         serviceSignalDrafts={serviceSignalDrafts}
@@ -9993,6 +10213,7 @@ export function StockUpdateSessionRoute() {
         cancelLabel={translateUiLiteral(language, 'Keep editing')}
         confirmLabel={translateUiLiteral(language, 'Save draft and leave')}
         confirmVariant="default"
+        destructiveActionLabel={translateUiLiteral(language, 'Discard changes and leave')}
         description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
         open={leaveDraftDialogOpen}
         title={translateUiLiteral(language, 'Leave record update?')}
@@ -10004,6 +10225,13 @@ export function StockUpdateSessionRoute() {
           const pendingNavigation = pendingNavigationRef.current;
           pendingNavigationRef.current = null;
           persistDraftForLater();
+          setLeaveDraftDialogOpen(false);
+          pendingNavigation?.continueNavigation();
+        }}
+        onDestructiveAction={() => {
+          const pendingNavigation = pendingNavigationRef.current;
+          pendingNavigationRef.current = null;
+          clearCurrentSession();
           setLeaveDraftDialogOpen(false);
           pendingNavigation?.continueNavigation();
         }}
@@ -10039,7 +10267,7 @@ export function StockUpdateSessionRoute() {
         }
         title={
           <span className="flex min-w-0 items-center gap-4">
-            <RouteBackButton className="shrink-0" />
+            <RouteBackButton className="shrink-0" onClick={canGoBack ? handleRouteBack : undefined} />
             <span className="min-w-0">{translateUiLiteral(language, lane.title)}</span>
           </span>
         }
@@ -10068,12 +10296,21 @@ export function StockUpdateSessionRoute() {
                   >
                     <span className="grid gap-1">
                       <span className="flex items-center gap-2">
-                        <Icon className={cn('size-4 shrink-0', active ? 'text-background/80' : 'text-muted-foreground')} />
-                        <span className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', active ? 'text-background/80' : 'text-muted-foreground')}>
+                        <Icon
+                          className={cn('size-4 shrink-0', active ? 'text-background' : 'text-foreground')}
+                          data-slot="capture-metadata-card-icon"
+                        />
+                        <span
+                          className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', active ? 'text-background' : 'text-foreground')}
+                          data-slot="capture-metadata-card-title"
+                        >
                           {section.label}
                         </span>
                       </span>
-                      <span className={cn('text-sm font-medium', active ? 'text-background' : 'text-foreground')}>
+                      <span
+                        className={cn('text-sm font-medium', active ? 'text-background/80' : 'text-muted-foreground')}
+                        data-slot="capture-metadata-card-summary"
+                      >
                         {section.summary}
                       </span>
                     </span>
@@ -10172,34 +10409,22 @@ export function StockUpdateSessionRoute() {
                         }}
                         onChange={(event) => setPosWorkbenchSearch(event.target.value)}
                       />
-                      <ToggleGroup
-                        aria-label={translateUiLiteral(language, 'Workbench filters')}
-                        className="max-w-full justify-start self-start overflow-x-auto rounded-full bg-muted/40"
+                      <ResponsiveToggleFilter
+                        ariaLabel={translateUiLiteral(language, 'Workbench filters')}
+                        className="min-w-0 flex-1"
+                        toggleClassName="rounded-full bg-muted/40"
+                        triggerClassName="h-11 rounded-full"
                         size="lg"
-                        spacing={1}
-                        type="single"
+                        options={posFilterOptions}
                         value={posWorkbenchFilter}
                         onValueChange={(nextValue) => {
                           if (workbenchReorderMode) {
                             requestWorkbenchReorderPrompt();
                             return;
                           }
-                          if (nextValue) {
-                            setPosWorkbenchFilter(nextValue as PosWorkbenchFilterId);
-                          }
+                          setPosWorkbenchFilter(nextValue);
                         }}
-                      >
-                        {posFilterOptions.map((option) => (
-                          <ToggleGroupItem
-                            key={option.id}
-                            className="rounded-full border border-transparent px-4 text-sm"
-                            value={option.id}
-                          >
-                            <option.icon data-icon="inline-start" className="size-4" />
-                            {option.label}
-                          </ToggleGroupItem>
-                        ))}
-                      </ToggleGroup>
+                      />
                     </div>
                   </div>
                 </div>
@@ -10248,10 +10473,9 @@ export function StockUpdateSessionRoute() {
                           <DragOverlay>
                             {activeWorkbenchDragTile ? (
                               <div
-                                className={cn(
-                                  workbenchTileButtonClassName({ isDragging: true, reorderMode: true }),
-                                  'w-[min(20rem,32vw)]',
-                                )}
+                                className={workbenchTileButtonClassName({ isDragging: true, reorderMode: true })}
+                                data-slot="workbench-drag-overlay-tile"
+                                style={activeWorkbenchDragSize ?? undefined}
                               >
                                 <WorkbenchTileVisual isDragging reorderMode tile={activeWorkbenchDragTile} />
                               </div>
@@ -10462,12 +10686,13 @@ export function StockUpdateSessionRoute() {
               <div className="grid gap-5">
                 <div className="grid gap-3">
                   <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-units">{translateUiLiteral(language, 'Units in stock')}</RecordUpdateFieldLabel>
-                  <Input
+                  <NumberStepperInput
                     aria-label={translateUiLiteral(language, 'Units in stock')}
                     className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
                     id="pos-stock-units"
                     min="0"
-                    type="number"
+                    step="1"
+                    variant="side-buttons"
                     value={String(activePosStockCountRow.row.unitsInStock)}
                     onChange={(event) => {
                       markPosLineTouched(activePosTile.key);
@@ -10492,6 +10717,7 @@ export function StockUpdateSessionRoute() {
                     currency={currency}
                     id="pos-stock-cost"
                     min="0"
+                    variant="side-buttons"
                     value={
                       activePosStockCountRow.row.costPerUnit == null
                         ? ''
@@ -10521,10 +10747,15 @@ export function StockUpdateSessionRoute() {
                     <RecordUpdateFieldLabel className="text-sm tracking-[0.24em]" htmlFor="pos-stock-price">{translateUiLiteral(language, 'Retail price')}</RecordUpdateFieldLabel>
                     <CurrencyNumberInput
                       aria-label={translateUiLiteral(language, 'Retail price')}
-                      className={cn(recordUpdateInputClassName, '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                      className={cn(
+                        recordUpdateInputClassName,
+                        '!h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg',
+                        routeCaptureTarget?.action === 'sku-price' && captureTargetFlashKey === activePosTile.key && captureTargetFlashClassName,
+                      )}
                       currency={currency}
                       id="pos-stock-price"
                       min="0"
+                      variant="side-buttons"
                       value={
                         activePosStockCountRow.row.productPrice == null
                           ? ''

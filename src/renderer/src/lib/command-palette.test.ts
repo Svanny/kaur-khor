@@ -288,8 +288,8 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'page:help')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:open:sku-1')).toBe(true);
     expect(commands.some((command) => command.id === 'sku:archive:sku-1')).toBe(true);
-    expect(commands.some((command) => command.id === 'sku:sheet:order:sku-1')).toBe(true);
-    expect(commands.some((command) => command.id === 'service:sheet:price:service-1')).toBe(true);
+    expect(commands.some((command) => command.id === 'sku:capture:supplier-order:sku-1')).toBe(true);
+    expect(commands.some((command) => command.id === 'service:capture:service-price:service-1')).toBe(true);
     expect(commands.some((command) => command.id === 'service:archive:service-1')).toBe(true);
     expect(commands.some((command) => command.id === 'work:task:sku-1:log_order')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:language:km')).toBe(true);
@@ -297,9 +297,9 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'settings:workspace:restore-backup-snapshot')).toBe(true);
     expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU · Supplier: Mekong Looms');
-    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
-    expect(commands.find((command) => command.id === 'sku:sheet:order:sku-1')?.action.href).toBe('/catalog/skus/sku-1');
-    expect(commands.find((command) => command.id === 'service:sheet:price:service-1')?.action.href).toBe('/catalog/services/service-1');
+    expect(commands.find((command) => command.id === 'sku:capture:supplier-order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
+    expect(commands.find((command) => command.id === 'sku:capture:supplier-order:sku-1')?.action.href).toBe('/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new');
+    expect(commands.find((command) => command.id === 'service:capture:service-price:service-1')?.action.href).toBe('/work/capture/custom?targetAction=service-price&targetType=service&targetId=service-1&lanes=stock-count');
     expect(commands.find((command) => command.id === 'work:task:sku-1:log_order')?.action.href).toBe('/work/queue?filter=to_order');
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
   });

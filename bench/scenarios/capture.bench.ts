@@ -94,7 +94,10 @@ async function openHubLane(
     await launched.page.getByRole('link', { name: lane.cardLabel }).click();
   }
   if (lane.actionLabel) {
-    await launched.page.getByRole('button', { name: lane.actionLabel, exact: true }).click();
+    const actionButton = launched.page.getByRole('button', { name: lane.actionLabel, exact: true });
+    if (await actionButton.isVisible().catch(() => false)) {
+      await actionButton.click();
+    }
   }
   await waitForRecordUpdateReady(launched, previousCount);
   if (lane.metricName) {

@@ -1,6 +1,8 @@
 import type { SenaLeadTimeVariabilityClass } from './sena';
 
-export const SENA_LEAD_TIME_FLOOR_DAYS = 0.5;
+export const SENA_LEAD_TIME_FLOOR_DAYS = 0;
+const SENA_LEAD_TIME_CLASS_MEAN_FLOOR_DAYS = 0.5;
+const SENA_LEAD_TIME_PRESET_DISPLAY_STEP_DAYS = 0.1;
 const CLASS_ORDER: SenaLeadTimeVariabilityClass[] = ['very_tight', 'tight', 'normal', 'wide', 'very_wide'];
 const CLASS_CENTER_WIDTH: Record<SenaLeadTimeVariabilityClass, number> = {
   very_tight: 0.10,
@@ -27,6 +29,9 @@ export function relativeLeadTimeWidth(lowDays: number | null, highDays: number |
     return null;
   }
   const midpoint = Math.max((highDays + lowDays) / 2, SENA_LEAD_TIME_FLOOR_DAYS);
+  if (midpoint <= 0) {
+    return 0;
+  }
   return (highDays - lowDays) / midpoint;
 }
 
@@ -131,14 +136,56 @@ export function compatibilityStdDaysForClass(
   if (meanDays == null || variabilityClass == null || !Number.isFinite(meanDays) || meanDays < 0) {
     return null;
   }
-  return Math.max(0.3, (CLASS_CENTER_WIDTH[variabilityClass] * Math.max(meanDays, SENA_LEAD_TIME_FLOOR_DAYS)) / 2);
+  return (CLASS_CENTER_WIDTH[variabilityClass] * Math.max(meanDays, SENA_LEAD_TIME_CLASS_MEAN_FLOOR_DAYS)) / 2;
+}
+
+function roundPresetStdDays(value: number) {
+  return Math.max(0, Number((Math.round(value / SENA_LEAD_TIME_PRESET_DISPLAY_STEP_DAYS) * SENA_LEAD_TIME_PRESET_DISPLAY_STEP_DAYS).toFixed(1)));
+}
+
+export function uniqueLeadTimePresetStdDays(
+  meanDays: number | null,
+): Record<SenaLeadTimeVariabilityClass, number | null> {
+  const result = Object.fromEntries(CLASS_ORDER.map((option) => [option, null])) as Record<
+    SenaLeadTimeVariabilityClass,
+    number | null
+  >;
+  if (meanDays == null || !Number.isFinite(meanDays) || meanDays < 0) {
+    return result;
+  }
+
+  let previousStdDays: number | null = null;
+  for (const option of CLASS_ORDER) {
+    const rawStdDays = compatibilityStdDaysForClass(meanDays, option);
+    if (rawStdDays == null) {
+      continue;
+    }
+    let stdDays = roundPresetStdDays(rawStdDays);
+    if (previousStdDays != null && stdDays <= previousStdDays) {
+      stdDays = previousStdDays + SENA_LEAD_TIME_PRESET_DISPLAY_STEP_DAYS;
+    }
+    stdDays = roundPresetStdDays(stdDays);
+    result[option] = stdDays;
+    previousStdDays = stdDays;
+  }
+  return result;
+}
+
+export function uniqueLeadTimePresetStdDaysForClass(
+  meanDays: number | null,
+  variabilityClass: SenaLeadTimeVariabilityClass | null,
+) {
+  if (variabilityClass == null) {
+    return null;
+  }
+  return uniqueLeadTimePresetStdDays(meanDays)[variabilityClass];
 }
 
 export function compatibilityRangeForClass(
   meanDays: number | null,
   variabilityClass: SenaLeadTimeVariabilityClass | null,
 ) {
-  const stdDays = compatibilityStdDaysForClass(meanDays, variabilityClass);
+  const stdDays = uniqueLeadTimePresetStdDaysForClass(meanDays, variabilityClass);
   if (meanDays == null || stdDays == null) {
     return null;
   }
@@ -154,7 +201,7 @@ export function deriveLeadTimeFromVariabilityClass(
   stdDays: number | null;
   variabilityClass: SenaLeadTimeVariabilityClass | null;
 } {
-  const stdDays = compatibilityStdDaysForClass(meanDays, variabilityClass);
+  const stdDays = uniqueLeadTimePresetStdDaysForClass(meanDays, variabilityClass);
   const range = compatibilityRangeForClass(meanDays, variabilityClass);
   return {
     highDays: range?.highDays ?? null,

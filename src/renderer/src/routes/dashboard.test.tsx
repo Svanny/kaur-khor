@@ -597,7 +597,7 @@ describe('DashboardRoute', () => {
     expect(within(scopeToggle).queryByRole('radio', { name: 'All' })).toBeNull();
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Log order' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Record Supplier order' }).length).toBeGreaterThan(0);
     expect(screen.getByText('Rec. 15u · likely 78%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' }).querySelector('.lucide-calendar-clock')).not.toBeNull();
@@ -612,7 +612,7 @@ describe('DashboardRoute', () => {
     await user.click(screen.getByRole('tab', { name: 'Ready to receive' }));
 
     await waitFor(() => {
-      expect(screen.queryAllByRole('button', { name: 'Log order' })).toHaveLength(0);
+      expect(screen.queryAllByRole('button', { name: 'Record Supplier order' })).toHaveLength(0);
       expect(screen.queryAllByRole('button', { name: 'Update ETA' })).toHaveLength(0);
       expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
     });
@@ -621,7 +621,7 @@ describe('DashboardRoute', () => {
   test.skip('prefills the drawer order quantity from the reorder recommendation', async () => {
     renderRoute();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
     await waitFor(() => {
       expect(screen.getByText('Recommended order')).toBeInTheDocument();
@@ -638,7 +638,7 @@ describe('DashboardRoute', () => {
   test.skip('asks before closing a dirty overview task drawer', async () => {
     renderRoute();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
     await waitFor(() => {
       expect(screen.getByText('Recommended order')).toBeInTheDocument();
@@ -940,7 +940,7 @@ describe('DashboardRoute', () => {
       expect(screen.getByText('Razor refill')).toBeInTheDocument();
     });
 
-    expect(screen.getByRole('button', { name: 'Log order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record Supplier order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Update ETA' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
   });
@@ -949,7 +949,7 @@ describe('DashboardRoute', () => {
     renderRoute();
 
     await act(async () => {
-      fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+      fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
     });
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -994,7 +994,7 @@ describe('DashboardRoute', () => {
 
     const { container } = renderRouteWithLocation();
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Log order' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();

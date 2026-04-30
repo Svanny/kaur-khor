@@ -1,9 +1,8 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
+import type { SenaLeadTimeVariabilityClass, SenaTicketEvent, SenaTicketEventType, SenaTicketStage } from '@shared/sena';
 import {
   deriveLeadTimeFromStdDays,
   deriveLeadTimeFromVariabilityClass,
-  leadTimeVariabilityOptions,
 } from '@shared/sena-lead-time';
 import {
   ActionCloseIcon,
@@ -13,19 +12,18 @@ import {
 } from '@icons/actions';
 import { overviewDrawerBandIcons } from '@icons/domain';
 import { ItemAvatar } from '@/components/system/item-identity';
+import {
+  derivedStdDaysDraft,
+  LeadTimeVariabilityField,
+  type LeadTimeVariabilityDraftMode,
+} from '@/components/system/lead-time-variability-field';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import {
   Sheet,
   SheetClose,
@@ -40,13 +38,9 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import {
-  leadTimeVariabilityPlaceholderValue,
-  shouldShowLeadTimeVariabilityPlaceholder,
-} from '@/lib/lead-time-variability-select';
-import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
+import { makeTicketId } from '@/lib/ticketing';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
@@ -61,7 +55,6 @@ import type { TranslationKey, TranslationVariables } from '@/lib/translations';
 import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
 
 type DrawerTranslate = (key: TranslationKey, variables?: TranslationVariables) => string;
-type LeadTimeDraftMode = 'class' | 'std';
 
 function initialObservedAt(value: string | null) {
   if (value) {
@@ -126,6 +119,73 @@ function leadTimeHintFromTaskInputs({
       variabilityClass: derivedLeadTime.variabilityClass,
     },
   ];
+}
+
+function supplierTicketEventFromDrawer({
+  eventType,
+  expectedArrivalDate,
+  lifecycle,
+  mode,
+  note,
+  observedAt,
+  quantity,
+  receivedCost,
+  skuId,
+  supplierName,
+}: {
+  eventType: SenaTicketEventType;
+  expectedArrivalDate: string;
+  lifecycle: SenaTicketEvent['lifecycle'];
+  mode: OverviewTaskDrawerMode;
+  note: string | null;
+  observedAt: string;
+  quantity: number | null;
+  receivedCost: number | null;
+  skuId: string;
+  supplierName: string | null;
+}): SenaTicketEvent {
+  const stage: SenaTicketStage =
+    mode === 'goods_received'
+      ? 'received'
+      : 'ordered_waiting';
+  const ticketId = makeTicketId({
+    eventType,
+    family: 'supplier',
+    lines: [{ entityType: 'sku', entityId: skuId }],
+    observedAt,
+  });
+  return {
+    ticketId,
+    ticketFamily: 'supplier',
+    lifecycle,
+    stage,
+    revision: 1,
+    eventType,
+    occurredAt: observedAt,
+    nextTouchAt: mode === 'goods_received' ? null : dateInputToIsoDate(expectedArrivalDate),
+    party: {
+      role: 'supplier',
+      supplierName,
+    },
+    lines: [{
+      entityType: 'sku',
+      entityId: skuId,
+      orderedQuantity: mode === 'goods_received' ? null : quantity,
+      receivedQuantity: mode === 'goods_received' ? quantity : null,
+      expectedArrivalAt: mode === 'goods_received' ? null : dateInputToIsoDate(expectedArrivalDate),
+      unitCost: receivedCost,
+      note,
+    }],
+    note,
+  };
+}
+
+function dateInputToIsoDate(value: string) {
+  if (!value) {
+    return null;
+  }
+  const time = new Date(`${value}T12:00:00`).getTime();
+  return Number.isNaN(time) ? null : new Date(time).toISOString();
 }
 
 function useControllableDrawerMode(
@@ -384,7 +444,7 @@ export function OverviewTaskDrawer({
   const [expectedArrivalDate, setExpectedArrivalDate] = useState(initialExpectedArrivalDate(null));
   const [uncertaintyDays, setUncertaintyDays] = useState('');
   const [variabilityClass, setVariabilityClass] = useState<SenaLeadTimeVariabilityClass | ''>('');
-  const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeDraftMode>('std');
+  const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('std');
   const [useLeadTimeEstimate, setUseLeadTimeEstimate] = useState(true);
   const [receivedQuantity, setReceivedQuantity] = useState('');
   const [receivedCost, setReceivedCost] = useState('');
@@ -558,6 +618,13 @@ export function OverviewTaskDrawer({
     enabled: hasUnsavedDrawerChanges,
     description: t('taskDrawerUnsavedLeavePrompt'),
     onDiscard: () => setError(null),
+    onSave: async (continueAfterSave) => {
+      const saved = await submit();
+      if (saved) {
+        continueAfterSave();
+      }
+      return saved;
+    },
   });
 
   function handleOpenChange(nextOpen: boolean) {
@@ -582,20 +649,42 @@ export function OverviewTaskDrawer({
 
   async function submit() {
     setError(null);
+    if (
+      (mode === 'ordered_waiting' && !orderedQuantity) ||
+      ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate) ||
+      (mode === 'goods_received' && (!receivedQuantity || Number(receivedQuantity) <= 0))
+    ) {
+      return false;
+    }
     const observedAtIso = new Date(observedAt).toISOString();
     const senaPayload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: notes.trim() || null,
     });
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
+      const quantity = orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null;
       senaPayload.orderSignals = [
         {
           skuId: activeTask.skuId,
           orderPlaced: true,
           receiptArrived: false,
-          approximateOrderQuantity: orderedQuantity ? Number(orderedQuantity) : activeTask.suggestedOrderQuantity || null,
+          approximateOrderQuantity: quantity,
           approximateReceiptQuantity: null,
         },
+      ];
+      senaPayload.ticketEvents = [
+        supplierTicketEventFromDrawer({
+          eventType: mode === 'eta_changed' ? 'eta_updated' : 'created',
+          expectedArrivalDate,
+          lifecycle: 'open',
+          mode,
+          note: notes.trim() || null,
+          observedAt: observedAtIso,
+          quantity,
+          receivedCost: null,
+          skuId: activeTask.skuId,
+          supplierName: activeTask.supplierName,
+        }),
       ];
       senaPayload.leadTimeHints = leadTimeHintFromTaskInputs({
         observedAt,
@@ -629,12 +718,26 @@ export function OverviewTaskDrawer({
           approximateReceiptQuantity: receivedUnits,
         },
       ];
+      senaPayload.ticketEvents = [
+        supplierTicketEventFromDrawer({
+          eventType: 'fully_received',
+          expectedArrivalDate: '',
+          lifecycle: 'resolved',
+          mode,
+          note: notes.trim() || null,
+          observedAt: observedAtIso,
+          quantity: receivedUnits,
+          receivedCost: nextCost,
+          skuId: activeTask.skuId,
+          supplierName: activeTask.supplierName,
+        }),
+      ];
     }
 
     try {
       if (!hasStructuredObservationSignal(senaPayload)) {
         onOpenChange(false);
-        return;
+        return true;
       }
       await ingestSenaObservation(senaPayload);
       finalizeSuccessfulDrawerSave({
@@ -645,8 +748,10 @@ export function OverviewTaskDrawer({
         prepareWorkspace: () =>
           runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' })),
       });
+      return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('overviewDrawerSaveFailed'));
+      return false;
     }
   }
 
@@ -884,7 +989,7 @@ export function OverviewTaskDrawer({
               {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
                 <>
                   <DrawerBand bandId="order_shape" title={t('overviewDrawerOrderShapeTitle')}>
-                    <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,1fr)]">
+                    <div className="grid gap-5 md:grid-cols-2">
                       <ActionSheetField
                         description={
                           task.reorderRecommendation.recommendationIssued
@@ -895,12 +1000,12 @@ export function OverviewTaskDrawer({
                         }
                         label={t('overviewDrawerOrderedQuantityLabel')}
                       >
-                        <Input
+                        <NumberStepperInput
                           aria-label={t('overviewDrawerOrderedQuantityLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step="1"
-                          type="number"
+                          variant="side-buttons"
                           value={orderedQuantity}
                           onChange={(event) => {
                             markDraftEdited();
@@ -909,61 +1014,36 @@ export function OverviewTaskDrawer({
                         />
                       </ActionSheetField>
                       <ActionSheetField
-                        description={t('overviewDrawerUncertaintyDescription')}
-                        label={t('overviewDrawerUncertaintyLabel')}
+                        description={t('overviewDrawerVariabilityDescription')}
+                        label={t('fieldLeadTimeVariability')}
                       >
-                        <Input
-                          aria-label={t('overviewDrawerUncertaintyLabel')}
-                          className={actionSheetInputClassName}
-                          min="0"
-                          step="1"
-                          type="number"
-                          value={uncertaintyDays}
-                          onChange={(event) => {
+                        <LeadTimeVariabilityField
+                          customInputClassName={actionSheetInputClassName}
+                          customStdDays={uncertaintyDays}
+                          language={language}
+                          meanDays={daysBetween(observedAt, expectedArrivalDate)}
+                          mode={leadTimeDraftMode}
+                          numberInputVariant="side-buttons"
+                          placeholder={t('overviewDrawerVariabilityPlaceholder')}
+                          selectTriggerClassName={actionSheetSelectTriggerClassName}
+                          value={variabilityClass}
+                          onCustomStdDaysChange={(value) => {
                             markDraftEdited();
                             setLeadTimeDraftMode('std');
-                            setUncertaintyDays(event.target.value);
+                            setUncertaintyDays(value);
+                          }}
+                          onModeChange={(value) => {
+                            markDraftEdited();
+                            setLeadTimeDraftMode(value);
+                          }}
+                          onValueChange={(value) => {
+                            markDraftEdited();
+                            setVariabilityClass(value);
+                            if (value) {
+                              setUncertaintyDays(derivedStdDaysDraft(daysBetween(observedAt, expectedArrivalDate), value));
+                            }
                           }}
                         />
-                      </ActionSheetField>
-                      <ActionSheetField
-                        description={t('overviewDrawerVariabilityDescription')}
-                        label={t('overviewDrawerVariabilityLabel')}
-                      >
-                        <Select
-                          value={variabilityClass || leadTimeVariabilityPlaceholderValue}
-                          onValueChange={(value) =>
-                            {
-                              markDraftEdited();
-                              const nextVariabilityClass =
-                                value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass);
-                              setLeadTimeDraftMode('class');
-                              setVariabilityClass(nextVariabilityClass);
-                              const typicalDays = daysBetween(observedAt, expectedArrivalDate);
-                              setUncertaintyDays(
-                                typicalDays == null
-                                  ? ''
-                                  : String(deriveLeadTimeFromVariabilityClass(typicalDays, nextVariabilityClass || null).stdDays ?? ''),
-                              );
-                            }
-                          }
-                        >
-                          <SelectTrigger aria-label={t('overviewDrawerVariabilityLabel')} className={actionSheetSelectTriggerClassName}>
-                            <SelectValue placeholder={t('overviewDrawerVariabilityPlaceholder')} />
-                          </SelectTrigger>
-                          <SelectContent align="start">
-                            {shouldShowLeadTimeVariabilityPlaceholder(variabilityClass) ? (
-                              <SelectItem value={leadTimeVariabilityPlaceholderValue}>
-                                {t('overviewDrawerVariabilityPlaceholder')}
-                              </SelectItem>
-                            ) : null}
-                            {leadTimeVariabilityOptions().map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {translateLeadTimeVariabilityLabel(language, option)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </ActionSheetField>
                     </div>
                   </DrawerBand>
@@ -992,12 +1072,12 @@ export function OverviewTaskDrawer({
                         description={t('overviewDrawerReceivedQuantityDescription')}
                         label={t('overviewDrawerReceivedQuantityLabel')}
                       >
-                        <Input
+                        <NumberStepperInput
                           aria-label={t('overviewDrawerReceivedQuantityLabel')}
                           className={actionSheetInputClassName}
                           min="0"
                           step="1"
-                          type="number"
+                          variant="side-buttons"
                           value={receivedQuantity}
                           onChange={(event) => {
                             markDraftEdited();
@@ -1014,6 +1094,7 @@ export function OverviewTaskDrawer({
                           className={actionSheetInputClassName}
                           currency={currency}
                           min="0"
+                          variant="side-buttons"
                           value={receivedCost}
                           onChange={(event) => {
                             markDraftEdited();

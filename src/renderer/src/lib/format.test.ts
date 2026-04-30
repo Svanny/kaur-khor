@@ -2,6 +2,7 @@ import {
   formatDurationAuto,
   displayMoneyFromUsd,
   formatCurrency,
+  formatCompactQuantityPill,
   formatEditableDecimal,
   formatEditableMoneyFromUsd,
   formatEditableNumberWithCommas,
@@ -69,6 +70,21 @@ describe('format helpers', () => {
     expect(formatQuantityForDisplay(0.6, 'en')).toBe('0.6');
     expect(formatQuantityForDisplay(0.0001, 'en')).toBe('0.0001');
     expect(formatQuantityForDisplay(2.2, 'en')).toBe('2');
+  });
+
+  it('formats compact quantity pill labels', () => {
+    expect(formatCompactQuantityPill(0)).toBe('0');
+    expect(formatCompactQuantityPill(2)).toBe('2');
+    expect(formatCompactQuantityPill(999)).toBe('999');
+    expect(formatCompactQuantityPill(1000)).toBe('1k');
+    expect(formatCompactQuantityPill(1200)).toBe('1.2k');
+    expect(formatCompactQuantityPill(6376.7223)).toBe('6.4k');
+    expect(formatCompactQuantityPill(12500)).toBe('12.5k');
+    expect(formatCompactQuantityPill(999950)).toBe('1M');
+    expect(formatCompactQuantityPill(1000000)).toBe('1M');
+    expect(formatCompactQuantityPill(1250000)).toBe('1.3M');
+    expect(formatCompactQuantityPill(3500000000)).toBe('3.5B');
+    expect(formatCompactQuantityPill(1000000000000)).toBe('1T');
   });
 
   it('steps down sub-unit durations and rounds them to whole numbers', () => {

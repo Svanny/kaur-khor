@@ -109,7 +109,7 @@ function fillNewSkuRequiredFields(name: string) {
   fireEvent.change(costPerUnitInput, { target: { value: '12' } });
   fireEvent.change(leadTimeMeanInput, { target: { value: '5' } });
   fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
-  fireEvent.click(screen.getByRole('option', { name: leadTimeVariabilityLabel('normal') }));
+  fireEvent.click(screen.getByRole('option', { name: new RegExp(`^${leadTimeVariabilityLabel('normal')}\\b`) }));
 }
 
 describe('SkuFormRoute', () => {
@@ -168,9 +168,7 @@ describe('SkuFormRoute', () => {
     expect(screen.getByDisplayValue('5')).toHaveValue('5');
     expect(screen.getByDisplayValue('1')).toHaveValue('1');
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent(
-        leadTimeVariabilityLabel('normal'),
-      );
+      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent('Custom');
     });
   });
 
@@ -190,6 +188,7 @@ describe('SkuFormRoute', () => {
 
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     });
 
     const savedCatalog = upsertSenaCatalog.mock.calls[0]?.[0];
@@ -657,7 +656,7 @@ describe('SkuFormRoute', () => {
     expect(screen.getByText('Choose or enter a supplier before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
-    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(2);
+    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(1);
   });
 
   test('blocks edit save when required SKU fields are cleared', async () => {
@@ -673,18 +672,18 @@ describe('SkuFormRoute', () => {
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
     const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
     const planningPanel = screen.getByRole('heading', { level: 2, name: 'Planning inputs' }).closest('[data-slot="card"]');
-    const [leadTimeMeanInput, uncertaintyInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    const [leadTimeMeanInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
     fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: '' } });
     fireEvent.change(costPerUnitInput, { target: { value: '' } });
     fireEvent.change(leadTimeMeanInput, { target: { value: '' } });
-    fireEvent.change(uncertaintyInput, { target: { value: '' } });
+    fireEvent.change(screen.getByLabelText('Custom uncertainty ± days'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
     expect(screen.getByText('Enter a SKU name before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
-    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(2);
+    expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(1);
   });
 
   test('formats commercial number drafts with commas while saving numeric values', async () => {
@@ -728,15 +727,46 @@ describe('SkuFormRoute', () => {
       showRightRailCards: true,
       t: (key: string) => getTranslation('en', key as never),
     });
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        skus: [
+          {
+            ...sampleCatalog.skus[0],
+            productPrice: null,
+            soldAsProduct: false,
+          },
+        ],
+      },
+      isSaving: false,
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
 
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
     const pricingScope = (pricingPanel ?? document.body) as HTMLElement;
-    const [costInput, priceInput] = within(pricingScope).getAllByRole('textbox');
-    expect(within(pricingScope).getAllByText('៛')).toHaveLength(2);
+    const [costInput] = within(pricingScope).getAllByRole('textbox');
+    expect(within(pricingScope).getAllByText('៛')).toHaveLength(1);
     expect(costInput).toHaveValue('16,000');
-    expect(priceInput).toHaveValue('36,000');
+    expect(within(pricingScope).queryByText('Selling price')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /sell as product/i }));
+
+    const [, priceInput] = within(pricingScope).getAllByRole('textbox');
+    expect(within(pricingScope).getAllByText('៛')).toHaveLength(2);
+    expect(priceInput).toHaveValue('');
+  });
+
+  test('shows selling price immediately for SKUs already sold as products', () => {
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const pricingScope = (pricingPanel ?? document.body) as HTMLElement;
+    const [costInput, priceInput] = within(pricingScope).getAllByRole('textbox');
+    expect(within(pricingScope).getByText('Selling price')).toBeInTheDocument();
+    expect(costInput).toHaveValue('4');
+    expect(priceInput).toHaveValue('9');
   });
 
   test('saves a typed supplier name as normalized SKU metadata', async () => {
@@ -793,6 +823,7 @@ describe('SkuFormRoute', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' })).toHaveAttribute('data-variant', 'default');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByDisplayValue('SKU 1 Updated')).toBeInTheDocument();
 
@@ -802,6 +833,63 @@ describe('SkuFormRoute', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+  });
+
+  test('saves unsaved SKU changes before following navigation', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders(
+      '/catalog/skus/sku-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <SkuFormRoute />
+      </>,
+      '/catalog/skus/:skuId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+    });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0]).toMatchObject({
+      name: 'SKU 1 Updated',
+    });
+  });
+
+  test('disables prompt save when unsaved SKU changes are invalid', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders(
+      '/catalog/skus/sku-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <SkuFormRoute />
+      </>,
+      '/catalog/skus/:skuId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    const saveButton = within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
   });
 
   test('asks before following a More help tooltip link with unsaved SKU changes', async () => {
@@ -885,7 +973,7 @@ describe('SkuFormRoute', () => {
     expect(screen.queryByText('Enter a cost per unit before saving.')).not.toBeInTheDocument();
   });
 
-  test('explains how to enable selling price entry and unlocks it when sell as product is checked', async () => {
+  test('collapses selling price entry until sell as product is checked', async () => {
     inventoryHook.mockReturnValue({
       catalog: {
         ...sampleCatalog,
@@ -904,26 +992,17 @@ describe('SkuFormRoute', () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
-    const [, priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
-    const enableHint = screen.getByText('To enter a selling price, click the Sell as product box below first.');
+    const pricingScope = (pricingPanel ?? document.body) as HTMLElement;
+    const [costInput] = within(pricingScope).getAllByRole('textbox');
     const sellAsProductCheckbox = screen.getByRole('checkbox', { name: /sell as product/i });
-    const sellAsProductRow = sellAsProductCheckbox.closest('[data-slot="checkbox-row"]');
-    expect(priceInput).toHaveAttribute('aria-disabled', 'true');
-    expect(priceInput).toHaveAttribute('readonly');
-    expect(enableHint).toBeInTheDocument();
-    expect(enableHint).not.toHaveClass('text-destructive');
-    expect(sellAsProductRow).not.toHaveClass('border-destructive/60');
-
-    fireEvent.click(priceInput);
-
-    expect(screen.getByText('To enter a selling price, click the Sell as product box below first.')).toHaveClass('text-destructive');
-    expect(sellAsProductRow).toHaveClass('border-destructive/60');
+    expect(costInput).toHaveValue('4');
+    expect(within(pricingScope).queryByText('Selling price')).not.toBeInTheDocument();
+    expect(within(pricingScope).getAllByRole('textbox')).toHaveLength(1);
 
     fireEvent.click(sellAsProductCheckbox);
 
+    const [, priceInput] = within(pricingScope).getAllByRole('textbox');
     expect(priceInput).toBeEnabled();
-    expect(priceInput).not.toHaveAttribute('readonly');
-    expect(sellAsProductRow).not.toHaveClass('border-destructive/60');
     fireEvent.change(priceInput, { target: { value: '25' } });
     expect(priceInput).toHaveValue('25');
   });
@@ -933,12 +1012,66 @@ describe('SkuFormRoute', () => {
 
     const variabilitySelect = screen.getByRole('combobox', { name: 'Lead time variability' });
     fireEvent.click(variabilitySelect);
-    expect(screen.getByRole('option', { name: 'Select variability' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Custom' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('option', { name: leadTimeVariabilityLabel('wide') }));
+    fireEvent.click(screen.getByRole('option', { name: /Wide/ }));
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
     expect(screen.queryByRole('option', { name: 'Select variability' })).not.toBeInTheDocument();
+  });
+
+  test('shows unique jittered variability values for short mean lead times', async () => {
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    const planningPanel = screen.getByRole('heading', { level: 2, name: 'Planning inputs' }).closest('[data-slot="card"]');
+    const [leadTimeMeanInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(leadTimeMeanInput, { target: { value: '1' } });
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
+
+    expect(screen.getByRole('option', { name: 'Very tight' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Tight' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Normal' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Wide' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Very wide' })).toBeInTheDocument();
+    expect(screen.getByText('±0.1 days')).toBeInTheDocument();
+    expect(screen.getByText('±0.2 days')).toBeInTheDocument();
+    expect(screen.getByText('±0.3 days')).toBeInTheDocument();
+    expect(screen.getByText('±0.5 days')).toBeInTheDocument();
+    expect(screen.getByText('±0.7 days')).toBeInTheDocument();
+  });
+
+  test('saves the same jittered std-days value shown for a selected preset', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    const [skuNameInput] = screen.getAllByRole('textbox');
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costPerUnitInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    const planningPanel = screen.getByRole('heading', { level: 2, name: 'Planning inputs' }).closest('[data-slot="card"]');
+    const [leadTimeMeanInput] = within((planningPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+
+    fireEvent.change(skuNameInput, { target: { value: 'Short lead SKU' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Mekong Looms' }));
+    fireEvent.change(costPerUnitInput, { target: { value: '12' } });
+    fireEvent.change(leadTimeMeanInput, { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
+    expect(screen.getByText('±0.2 days')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Tight' }));
+    expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent('±0.2 days');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus.at(-1)?.leadTimeStdDaysHint).toBeCloseTo(0.2);
   });
 
   test('saves a manually entered uncertainty plus-minus days value', async () => {
@@ -951,7 +1084,7 @@ describe('SkuFormRoute', () => {
 
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
-    fireEvent.change(screen.getByDisplayValue('1'), { target: { value: '1.8' } });
+    fireEvent.change(screen.getByLabelText('Custom uncertainty ± days'), { target: { value: '1.8' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
@@ -961,32 +1094,38 @@ describe('SkuFormRoute', () => {
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].leadTimeStdDaysHint).toBeCloseTo(1.8);
   });
 
-  test('updates lead time variability when uncertainty changes', async () => {
+  test('keeps custom selected when custom uncertainty changes', async () => {
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
-    fireEvent.change(screen.getByDisplayValue('1'), { target: { value: '2.5' } });
+    fireEvent.change(screen.getByLabelText('Custom uncertainty ± days'), { target: { value: '2.5' } });
 
     await waitFor(() => {
-      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent(
-        leadTimeVariabilityLabel('wide'),
-      );
+      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent('Custom');
     });
   });
 
   test('updates uncertainty when variability and mean days change', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
-    fireEvent.click(screen.getByRole('option', { name: leadTimeVariabilityLabel('wide') }));
+    fireEvent.click(screen.getByRole('option', { name: new RegExp(`^${leadTimeVariabilityLabel('wide')}\\b`) }));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('2.25')).toBeInTheDocument();
+      expect(screen.getByRole('combobox', { name: 'Lead time variability' })).toHaveTextContent('±2.3 days');
     });
 
     fireEvent.change(screen.getByDisplayValue('5'), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     await waitFor(() => {
-      expect(screen.getByDisplayValue('3.6')).toBeInTheDocument();
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
     });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].leadTimeStdDaysHint).toBeCloseTo(3.6);
   });
 });

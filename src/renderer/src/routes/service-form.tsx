@@ -229,6 +229,8 @@ export function ServiceFormRoute() {
   const [servicePriceDraft, setServicePriceDraft] = useState('');
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+  const [localSavedService, setLocalSavedService] = useState<SenaService | null>(null);
+  const [localSavedSkuIds, setLocalSavedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const editing = Boolean(serviceId);
@@ -244,10 +246,14 @@ export function ServiceFormRoute() {
 
   useEffect(() => {
     if (existingService && catalog) {
+      setLocalSavedService(existingService);
+      setLocalSavedSkuIds(baselineSelectedSkuIds);
       setForm(existingService);
       setServicePriceDraft(moneyDraftFromUsd(existingService.price, currency, usdToKhrExchangeRate));
       setSelectedSkuIds(baselineSelectedSkuIds);
     } else if (!editing) {
+      setLocalSavedService(null);
+      setLocalSavedSkuIds([]);
       setForm(emptyService(''));
       setServicePriceDraft('');
       setSelectedSkuIds([]);
@@ -264,8 +270,8 @@ export function ServiceFormRoute() {
     [form],
   );
   const normalizedBaseline = useMemo(
-    () => existingService ?? emptyService(editing ? (serviceId ?? '') : ''),
-    [editing, existingService, serviceId],
+    () => localSavedService ?? emptyService(editing ? (serviceId ?? '') : ''),
+    [editing, localSavedService, serviceId],
   );
   const draftDirtySnapshot = useMemo(() => normalizedServiceDirtySnapshot(form), [form]);
   const baselineDirtySnapshot = useMemo(
@@ -278,7 +284,7 @@ export function ServiceFormRoute() {
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
     servicePriceDraft !== baselineServicePriceDraft ||
-    JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...baselineSelectedSkuIds].sort());
+    JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...localSavedSkuIds].sort());
   const serviceValidationErrors = {
     name: !form.name.trim() ? t('catalogServiceEditorNameRequired') : null,
     price: !servicePriceDraft.trim() ? t('catalogServiceEditorPriceRequired') : null,
@@ -291,21 +297,29 @@ export function ServiceFormRoute() {
   function resetServiceDraft() {
     setForm(normalizedBaseline);
     setServicePriceDraft(moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate));
-    setSelectedSkuIds(baselineSelectedSkuIds);
+    setSelectedSkuIds(localSavedSkuIds);
     setSaveAttempted(false);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
     enabled: hasUnsavedServiceChanges,
     description: t('serviceEditorUnsavedLeavePrompt'),
+    isSaveDisabled: hasServiceValidationErrors || isSaving,
     onDiscard: resetServiceDraft,
+    onSave: (continueAfterSave) => saveServiceDraft({ afterSave: continueAfterSave, navigateAfterSave: false }),
+    saveLabel: t('saveDraft'),
   });
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function saveServiceDraft({
+    afterSave,
+    navigateAfterSave,
+  }: {
+    afterSave?: () => void;
+    navigateAfterSave: boolean;
+  }) {
     setSaveAttempted(true);
     if (hasServiceValidationErrors) {
-      return;
+      return false;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
     const nextService = editing
@@ -313,6 +327,15 @@ export function ServiceFormRoute() {
       : { ...normalizedDraft, serviceId: createUniqueServiceId(baseCatalog) };
     const nextCatalog = upsertSenaService(baseCatalog, nextService, selectedSkuIds, normalizedBaseline.serviceId);
     await upsertSenaCatalog(nextCatalog);
+    setLocalSavedService(nextService);
+    setLocalSavedSkuIds(selectedSkuIds);
+    setForm(nextService);
+    setServicePriceDraft(moneyDraftFromUsd(nextService.price, currency, usdToKhrExchangeRate));
+    setSaveAttempted(false);
+    afterSave?.();
+    if (!navigateAfterSave) {
+      return true;
+    }
     const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
     const currentOrigin =
       location.state &&
@@ -328,6 +351,12 @@ export function ServiceFormRoute() {
         banjiNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
       },
     });
+    return true;
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await saveServiceDraft({ navigateAfterSave: true });
   }
 
   const filteredSkus = useMemo(() => {

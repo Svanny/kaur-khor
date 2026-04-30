@@ -488,6 +488,7 @@ describe('ServiceFormRoute', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
     expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' })).toHaveAttribute('data-variant', 'default');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByDisplayValue('Service 1 Updated')).toBeInTheDocument();
 
@@ -497,6 +498,67 @@ describe('ServiceFormRoute', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+  });
+
+  test('saves unsaved service changes before following navigation', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders(
+      '/catalog/services/service-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <ServiceFormRoute />
+      </>,
+      '/catalog/services/:serviceId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+    });
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0]).toMatchObject({
+      name: 'Service 1 Updated',
+    });
+  });
+
+  test('disables prompt save when unsaved service changes are invalid', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders(
+      '/catalog/services/service-1/edit',
+      <>
+        <Link to="/catalog">Catalog</Link>
+        <ServiceFormRoute />
+      </>,
+      '/catalog/services/:serviceId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    const saveButton = within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' });
+    expect(saveButton).toBeDisabled();
+    fireEvent.click(saveButton);
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
   });
 
   test('asks before using the edit page back button with unsaved service changes', async () => {

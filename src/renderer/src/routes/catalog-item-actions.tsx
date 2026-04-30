@@ -1,30 +1,30 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import type { AppLanguage } from '@shared/inventory';
 import type { SenaLeadTimeVariabilityClass } from '@shared/sena';
 import {
   compatibilityRangeForClass,
-  leadTimeVariabilityOptions,
+  deriveLeadTimeFromStdDays,
 } from '@shared/sena-lead-time';
 import {
   ActionAddBadgeIcon,
   ActionClipboardAddIcon,
+  ActionCloseIcon,
+  ActionCreatePackageIcon,
+  ActionDeleteIcon,
   ActionEditIcon,
   ActionOpenExternalIcon,
   ActionReceiveInventoryIcon,
   ActionSaveIcon,
 } from '@icons/actions';
-import { EntityTagsIcon } from '@icons/entities';
+import { EntityCustomerIcon, EntityRevenueIcon, EntityTagsIcon } from '@icons/entities';
+import { NavigationExpandIcon } from '@icons/navigation';
+import type { IconComponent } from '@icons';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import {
   Sheet,
   SheetContent,
@@ -35,14 +35,21 @@ import {
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
 import { SupplierBadge } from '@/components/system/supplier';
+import {
+  derivedStdDaysDraft,
+  LeadTimeVariabilityField,
+  type LeadTimeVariabilityDraftMode,
+} from '@/components/system/lead-time-variability-field';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import {
-  leadTimeVariabilityPlaceholderValue,
-  shouldShowLeadTimeVariabilityPlaceholder,
-} from '@/lib/lead-time-variability-select';
 import { translateUiLiteral } from '@/lib/translations';
-import { translateLeadTimeVariabilityLabel } from '@/lib/localized-display';
+import {
+  buildCaptureSessionHref,
+  draftStorageKeyForLane,
+  laneForCaptureSessionAction,
+  type CaptureSessionAction,
+  type CaptureSessionTargetType,
+} from '@/lib/record-update-routes';
 import { cn } from '@/lib/utils';
 import { buildBanjiNavigationState } from '@/state/navigation-history';
 import {
@@ -94,26 +101,42 @@ function initialObservedAt(value: string | null) {
 }
 
 export function buildLeadTimeHintFromInputs({
+  stdDays,
   skuId,
   typicalLeadTimeDays,
   variabilityClass,
 }: {
+  stdDays?: string;
   skuId: string;
   typicalLeadTimeDays: string;
   variabilityClass: SenaLeadTimeVariabilityClass | '';
 }) {
   const typicalDays = typicalLeadTimeDays ? Number(typicalLeadTimeDays) : null;
-  const range = compatibilityRangeForClass(typicalDays, variabilityClass || null);
-  if (typicalDays == null && !variabilityClass) {
+  const customStdDays = stdDays?.trim() ? Number(stdDays) : null;
+  const compatibilityRange = compatibilityRangeForClass(typicalDays, variabilityClass || null);
+  const derivedLeadTime =
+    customStdDays != null
+      ? deriveLeadTimeFromStdDays(typicalDays, customStdDays)
+      : compatibilityRange == null
+        ? {
+            lowDays: null,
+            highDays: null,
+            variabilityClass: variabilityClass || null,
+          }
+        : {
+            ...compatibilityRange,
+            variabilityClass: variabilityClass || null,
+          };
+  if (typicalDays == null && !variabilityClass && customStdDays == null) {
     return null;
   }
 
   return {
     skuId,
     typicalDays,
-    lowDays: range?.lowDays ?? null,
-    highDays: range?.highDays ?? null,
-    variabilityClass: variabilityClass || null,
+    lowDays: derivedLeadTime?.lowDays ?? null,
+    highDays: derivedLeadTime?.highDays ?? null,
+    variabilityClass: derivedLeadTime?.variabilityClass ?? null,
   };
 }
 
@@ -125,6 +148,29 @@ interface ActionButtonProps {
   onClick?: () => void;
   type?: 'button' | 'submit' | 'reset';
   variant?: 'default' | 'outline' | 'ghost';
+}
+
+interface CaptureActionButtonProps {
+  action: CaptureSessionAction;
+  children: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  disabledReason?: string;
+  icon: IconComponent;
+  menuItem?: boolean;
+  targetId: string;
+  targetType: CaptureSessionTargetType;
+  variant?: 'default' | 'outline' | 'ghost';
+}
+
+interface RecordCaptureAction {
+  action: CaptureSessionAction;
+  disabled?: boolean;
+  disabledReason?: string;
+  icon: IconComponent;
+  label: string;
+  targetId: string;
+  targetType: CaptureSessionTargetType;
 }
 
 function ActionButton({
@@ -153,6 +199,173 @@ function ActionButton({
     >
       {children}
     </span>
+  );
+}
+
+function hasSavedCaptureDraft(draftStorageKey: string | null) {
+  if (!draftStorageKey || typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+    return false;
+  }
+  return window.localStorage.getItem(draftStorageKey) != null;
+}
+
+function removeSavedCaptureDraft(draftStorageKey: string | null) {
+  if (!draftStorageKey || typeof window === 'undefined' || typeof window.localStorage?.removeItem !== 'function') {
+    return;
+  }
+  window.localStorage.removeItem(draftStorageKey);
+}
+
+function CaptureActionButton({
+  action,
+  children,
+  className,
+  disabled = false,
+  disabledReason,
+  icon: Icon,
+  menuItem = false,
+  targetId,
+  targetType,
+  variant = 'outline',
+}: CaptureActionButtonProps) {
+  const navigate = useNavigate();
+  const { language } = usePreferences();
+  const [confirmDiscardDraftOpen, setConfirmDiscardDraftOpen] = useState(false);
+  const href = buildCaptureSessionHref({ action, targetId, targetType });
+  const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action));
+
+  function openCaptureSession({ deleteDraft }: { deleteDraft: boolean }) {
+    if (deleteDraft) {
+      removeSavedCaptureDraft(draftStorageKey);
+    }
+    setConfirmDiscardDraftOpen(false);
+    navigate(href);
+  }
+
+  function handleClick() {
+    if (disabled) {
+      return;
+    }
+    if (hasSavedCaptureDraft(draftStorageKey)) {
+      setConfirmDiscardDraftOpen(true);
+      return;
+    }
+    openCaptureSession({ deleteDraft: false });
+  }
+
+  return (
+    <>
+      {menuItem ? (
+        <button
+          aria-disabled={disabled ? 'true' : undefined}
+          className={cn(
+            'flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50',
+            className,
+          )}
+          disabled={disabled}
+          role="menuitem"
+          title={disabled ? disabledReason : undefined}
+          type="button"
+          onClick={handleClick}
+        >
+          <Icon className="size-4" />
+          {children}
+        </button>
+      ) : (
+        <ActionButton
+          className={className}
+          disabled={disabled}
+          disabledReason={disabledReason}
+          type="button"
+          variant={variant}
+          onClick={handleClick}
+        >
+          <Icon className="size-4" />
+          {children}
+        </ActionButton>
+      )}
+      {confirmDiscardDraftOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
+          role="presentation"
+          onClick={() => setConfirmDiscardDraftOpen(false)}
+        >
+          <div
+            aria-modal="true"
+            className="w-full max-w-md rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+            role="dialog"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <p className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+              {translateUiLiteral(language, 'Delete saved draft?')}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {translateUiLiteral(language, 'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.')}
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <Button type="button" variant="ghost" onClick={() => setConfirmDiscardDraftOpen(false)}>
+                <ActionCloseIcon className="size-4" />
+                {translateUiLiteral(language, 'Cancel')}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => openCaptureSession({ deleteDraft: false })}>
+                <ActionReceiveInventoryIcon className="size-4" />
+                {translateUiLiteral(language, 'Resume draft')}
+              </Button>
+              <Button type="button" variant="destructive" onClick={() => openCaptureSession({ deleteDraft: true })}>
+                <ActionDeleteIcon className="size-4" />
+                {translateUiLiteral(language, 'Delete draft and start new')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function RecordCaptureActionMenu({
+  actions,
+  className,
+  language,
+}: {
+  actions: RecordCaptureAction[];
+  className?: string;
+  language: AppLanguage;
+}) {
+  return (
+    <AnchoredMenu
+      align="left"
+      className="w-64 p-1"
+      label={translateUiLiteral(language, 'Record')}
+      triggerClassName={className}
+      triggerIcon={
+        <span className="inline-flex items-center gap-2">
+          <ActionClipboardAddIcon className="size-4" />
+          {translateUiLiteral(language, 'Record')}
+          <NavigationExpandIcon className="size-4" />
+        </span>
+      }
+      triggerSize="sm"
+    >
+      {() => (
+        <div className="grid gap-1">
+          {actions.map((action) => (
+            <CaptureActionButton
+              key={`${action.action}:${action.targetType}:${action.targetId}`}
+              action={action.action}
+              disabled={action.disabled}
+              disabledReason={action.disabledReason}
+              icon={action.icon}
+              menuItem
+              targetId={action.targetId}
+              targetType={action.targetType}
+            >
+              {action.label}
+            </CaptureActionButton>
+          ))}
+        </div>
+      )}
+    </AnchoredMenu>
   );
 }
 
@@ -236,6 +449,8 @@ export function SkuMutationActions({
   const [approximateReceiptQuantity, setApproximateReceiptQuantity] = useState('');
   const [typicalLeadTimeDays, setTypicalLeadTimeDays] = useState('');
   const [leadTimeVariability, setLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
+  const [leadTimeStdDays, setLeadTimeStdDays] = useState('');
+  const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('class');
   const [error, setError] = useState<string | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
 
@@ -266,6 +481,19 @@ export function SkuMutationActions({
     previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
   }, [currency, usdToKhrExchangeRate]);
 
+  useEffect(() => {
+    const typicalDays = typicalLeadTimeDays.trim() ? Number(typicalLeadTimeDays) : null;
+    if (leadTimeDraftMode === 'class') {
+      setLeadTimeStdDays(derivedStdDaysDraft(typicalDays, leadTimeVariability));
+      return;
+    }
+    const nextVariabilityClass = deriveLeadTimeFromStdDays(
+      typicalDays,
+      leadTimeStdDays.trim() ? Number(leadTimeStdDays) : null,
+    ).variabilityClass;
+    setLeadTimeVariability(nextVariabilityClass ?? '');
+  }, [leadTimeDraftMode, leadTimeStdDays, leadTimeVariability, typicalLeadTimeDays]);
+
   const baselineSnapshot = useMemo(
     () => ({
       skuId,
@@ -295,6 +523,8 @@ export function SkuMutationActions({
     setApproximateReceiptQuantity('');
     setTypicalLeadTimeDays('');
     setLeadTimeVariability(actionContext.leadTimeVariability ?? '');
+    setLeadTimeStdDays('');
+    setLeadTimeDraftMode('class');
     setError(null);
   }
 
@@ -310,6 +540,8 @@ export function SkuMutationActions({
       approximateReceiptQuantity,
       typicalLeadTimeDays,
       leadTimeVariability,
+      leadTimeStdDays,
+      leadTimeDraftMode,
     };
   }
 
@@ -328,6 +560,8 @@ export function SkuMutationActions({
       approximateReceiptQuantity: '',
       typicalLeadTimeDays: '',
       leadTimeVariability: actionContext.leadTimeVariability ?? '',
+      leadTimeStdDays: '',
+      leadTimeDraftMode: 'class' as const,
     };
   }
 
@@ -361,6 +595,7 @@ export function SkuMutationActions({
       ];
       const leadTimeHint = buildLeadTimeHintFromInputs({
         skuId,
+        stdDays: leadTimeDraftMode === 'std' ? leadTimeStdDays : undefined,
         typicalLeadTimeDays,
         variabilityClass: leadTimeVariability,
       });
@@ -402,8 +637,10 @@ export function SkuMutationActions({
             await onComplete();
           }),
       });
+      return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
+      return false;
     }
   }
 
@@ -420,7 +657,18 @@ export function SkuMutationActions({
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedSheetChanges,
     description: t('sheetUnsavedLeavePrompt'),
+    isSaveDisabled: submitDisabled,
     onDiscard: () => setError(null),
+    onSave: async (continueAfterSave) => {
+      if (mode == null) {
+        return false;
+      }
+      const saved = await submit(mode);
+      if (saved) {
+        continueAfterSave();
+      }
+      return saved;
+    },
   });
 
   function handleSheetOpenChange(open: boolean) {
@@ -434,24 +682,49 @@ export function SkuMutationActions({
     <>
       {showActionButtons ? (
         <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
-          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'default'} onClick={() => resetForm('stock')}>
-            <ActionAddBadgeIcon className="size-4" />
-            {t('catalogSenaSkuRecordStock')}
-          </ActionButton>
-          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('order')}>
-            <ActionClipboardAddIcon className="size-4" />
-            {t('catalogSenaSkuLogOrder')}
-          </ActionButton>
-          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('receipt')}>
-            <ActionReceiveInventoryIcon className="size-4" />
-            {t('catalogSenaSkuLogReceipt')}
-          </ActionButton>
-          {actionContext.soldAsProduct ? (
-            <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-              <EntityTagsIcon className="size-4" />
-              {t('catalogSenaSkuUpdatePrice')}
-            </ActionButton>
-          ) : null}
+          <RecordCaptureActionMenu
+            className={layout === 'menu' ? 'w-full justify-start' : undefined}
+            language={language}
+            actions={[
+              {
+                action: 'stock',
+                icon: ActionAddBadgeIcon,
+                label: translateUiLiteral(language, 'Stock Count'),
+                targetId: skuId,
+                targetType: 'sku',
+              },
+              {
+                action: 'supplier-order',
+                icon: ActionCreatePackageIcon,
+                label: translateUiLiteral(language, 'Supplier Order'),
+                targetId: skuId,
+                targetType: 'sku',
+              },
+              {
+                action: 'customer-order',
+                icon: EntityCustomerIcon,
+                label: translateUiLiteral(language, 'Customer Order'),
+                targetId: skuId,
+                targetType: 'sku',
+              },
+              {
+                action: 'immediate-sale',
+                icon: EntityRevenueIcon,
+                label: translateUiLiteral(language, 'Immediate Sale'),
+                targetId: skuId,
+                targetType: 'sku',
+              },
+              ...(actionContext.soldAsProduct
+                ? [{
+                    action: 'sku-price' as const,
+                    icon: EntityTagsIcon,
+                    label: translateUiLiteral(language, 'Updated Price'),
+                    targetId: skuId,
+                    targetType: 'sku' as const,
+                  }]
+                : []),
+            ]}
+          />
           {showEditButton ? (
             <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
               <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${skuId}/edit`}>
@@ -503,12 +776,12 @@ export function SkuMutationActions({
             {(mode === 'stock' || mode === 'receipt') ? (
               <>
                 <ActionSheetField label={t('catalogSenaSkuUnitsInStock')}>
-                  <Input
+                  <NumberStepperInput
                     aria-label={t('catalogSenaSkuUnitsInStock')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
-                    type="number"
+                    variant="side-buttons"
                     value={unitsInStock}
                     onChange={(event) => setUnitsInStock(event.target.value)}
                   />
@@ -519,6 +792,7 @@ export function SkuMutationActions({
                     className={actionSheetInputClassName}
                     currency={currency}
                     min="0"
+                    variant="side-buttons"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
                   />
@@ -533,6 +807,7 @@ export function SkuMutationActions({
                   className={actionSheetInputClassName}
                   currency={currency}
                   min="0"
+                  variant="side-buttons"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
                 />
@@ -549,23 +824,23 @@ export function SkuMutationActions({
                   }
                   label={t('catalogSenaSkuApproximateOrderQuantity')}
                 >
-                  <Input
+                  <NumberStepperInput
                     aria-label={t('catalogSenaSkuApproximateOrderQuantity')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
-                    type="number"
+                    variant="side-buttons"
                     value={approximateOrderQuantity}
                     onChange={(event) => setApproximateOrderQuantity(event.target.value)}
                   />
                 </ActionSheetField>
                 <ActionSheetField label={t('catalogSenaSkuTypicalLeadTimeDays')}>
-                  <Input
+                  <NumberStepperInput
                     aria-label={t('catalogSenaSkuTypicalLeadTimeDays')}
                     className={actionSheetInputClassName}
                     min="0"
-                    step="0.1"
-                    type="number"
+                    step="0.01"
+                    variant="side-buttons"
                     value={typicalLeadTimeDays}
                     onChange={(event) => setTypicalLeadTimeDays(event.target.value)}
                   />
@@ -574,42 +849,40 @@ export function SkuMutationActions({
                   description={t('catalogSenaSkuLeadTimeVariabilityHint')}
                   label={t('catalogSenaSkuLeadTimeVariability')}
                 >
-                  <Select
-                    value={leadTimeVariability || leadTimeVariabilityPlaceholderValue}
-                    onValueChange={(value) =>
-                      setLeadTimeVariability(
-                        value === leadTimeVariabilityPlaceholderValue ? '' : (value as SenaLeadTimeVariabilityClass),
-                      )
-                    }
-                  >
-                    <SelectTrigger aria-label={t('catalogSenaSkuLeadTimeVariability')} className={actionSheetSelectTriggerClassName}>
-                      <SelectValue placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')} />
-                    </SelectTrigger>
-                    <SelectContent align="start">
-                      {shouldShowLeadTimeVariabilityPlaceholder(leadTimeVariability) ? (
-                        <SelectItem value={leadTimeVariabilityPlaceholderValue}>
-                          {t('catalogSkuLeadTimeVariabilityPlaceholder')}
-                        </SelectItem>
-                      ) : null}
-                      {leadTimeVariabilityOptions().map((option) => (
-                        <SelectItem key={option} value={option}>
-                          {translateLeadTimeVariabilityLabel(language, option)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <LeadTimeVariabilityField
+                    customInputClassName={actionSheetInputClassName}
+                    customStdDays={leadTimeStdDays}
+                    language={language}
+                    meanDays={typicalLeadTimeDays.trim() ? Number(typicalLeadTimeDays) : null}
+                    mode={leadTimeDraftMode}
+                    numberInputVariant="side-buttons"
+                    placeholder={t('catalogSkuLeadTimeVariabilityPlaceholder')}
+                    selectTriggerClassName={actionSheetSelectTriggerClassName}
+                    value={leadTimeVariability}
+                    onCustomStdDaysChange={(value) => {
+                      setLeadTimeDraftMode('std');
+                      setLeadTimeStdDays(value);
+                    }}
+                    onModeChange={setLeadTimeDraftMode}
+                    onValueChange={(value) => {
+                      setLeadTimeVariability(value);
+                      if (value) {
+                        setLeadTimeStdDays(derivedStdDaysDraft(typicalLeadTimeDays.trim() ? Number(typicalLeadTimeDays) : null, value));
+                      }
+                    }}
+                  />
                 </ActionSheetField>
               </>
             ) : null}
 
             {mode === 'receipt' ? (
               <ActionSheetField label={t('catalogSenaSkuApproximateReceiptQuantity')}>
-                <Input
+                <NumberStepperInput
                   aria-label={t('catalogSenaSkuApproximateReceiptQuantity')}
                   className={actionSheetInputClassName}
                   min="0"
                   step="1"
-                  type="number"
+                  variant="side-buttons"
                   value={approximateReceiptQuantity}
                   onChange={(event) => setApproximateReceiptQuantity(event.target.value)}
                 />
@@ -623,6 +896,7 @@ export function SkuMutationActions({
                   className={actionSheetInputClassName}
                   currency={currency}
                   min="0"
+                  variant="side-buttons"
                   value={productPrice}
                   onChange={(event) => setProductPrice(event.target.value)}
                 />
@@ -789,7 +1063,7 @@ export function ServiceMutationActions({
     if (modeValue === 'stock') {
       if (!baselineSnapshot || !actions.bottleneckSku) {
         setError(actions.noBottleneckHint);
-        return;
+        return false;
       }
       senaPayload.stockSnapshot = [
         {
@@ -805,7 +1079,7 @@ export function ServiceMutationActions({
     if (modeValue === 'receipt') {
       if (!baselineSnapshot || !actions.bottleneckSku) {
         setError(actions.noBottleneckHint);
-        return;
+        return false;
       }
       senaPayload.stockSnapshot = [
         {
@@ -839,8 +1113,10 @@ export function ServiceMutationActions({
             await onComplete();
           }),
       });
+      return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
+      return false;
     }
   }
 
@@ -858,7 +1134,18 @@ export function ServiceMutationActions({
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedSheetChanges,
     description: t('sheetUnsavedLeavePrompt'),
+    isSaveDisabled: submitDisabled,
     onDiscard: () => setError(null),
+    onSave: async (continueAfterSave) => {
+      if (mode == null) {
+        return false;
+      }
+      const saved = await submit(mode);
+      if (saved) {
+        continueAfterSave();
+      }
+      return saved;
+    },
   });
 
   function handleSheetOpenChange(open: boolean) {
@@ -884,32 +1171,42 @@ export function ServiceMutationActions({
               {translateUiLiteral(language, 'Open bottleneck SKU')}
             </Link>
           ) : null}
-          <ActionButton
+          <RecordCaptureActionMenu
             className={layout === 'menu' ? 'w-full justify-start' : undefined}
-            disabled={bottleneckUnavailable}
-            disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
-            type="button"
-            variant={layout === 'menu' ? 'ghost' : 'outline'}
-            onClick={() => resetForm('receipt')}
-          >
-            <ActionClipboardAddIcon className="size-4" />
-            {translateUiLiteral(language, 'Log receipt')}
-          </ActionButton>
-          <ActionButton
-            className={layout === 'menu' ? 'w-full justify-start' : undefined}
-            disabled={bottleneckUnavailable}
-            disabledReason={bottleneckUnavailable ? actions.noBottleneckHint : undefined}
-            type="button"
-            variant={layout === 'menu' ? 'ghost' : 'outline'}
-            onClick={() => resetForm('stock')}
-          >
-            <ActionReceiveInventoryIcon className="size-4" />
-            {translateUiLiteral(language, 'Record stock')}
-          </ActionButton>
-          <ActionButton className={layout === 'menu' ? 'w-full justify-start' : undefined} type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} onClick={() => resetForm('price')}>
-            <EntityTagsIcon className="size-4" />
-            {translateUiLiteral(language, 'Update price')}
-          </ActionButton>
+            language={language}
+            actions={[
+              {
+                action: 'stock',
+                disabled: bottleneckUnavailable,
+                disabledReason: bottleneckUnavailable ? actions.noBottleneckHint : undefined,
+                icon: ActionReceiveInventoryIcon,
+                label: translateUiLiteral(language, 'Stock Count'),
+                targetId: actions.bottleneckSku?.skuId ?? '',
+                targetType: 'sku',
+              },
+              {
+                action: 'customer-order',
+                icon: EntityCustomerIcon,
+                label: translateUiLiteral(language, 'Customer Order'),
+                targetId: actions.servicePrice.serviceId,
+                targetType: 'service',
+              },
+              {
+                action: 'immediate-sale',
+                icon: EntityRevenueIcon,
+                label: translateUiLiteral(language, 'Immediate Sale'),
+                targetId: actions.servicePrice.serviceId,
+                targetType: 'service',
+              },
+              {
+                action: 'service-price',
+                icon: EntityTagsIcon,
+                label: translateUiLiteral(language, 'Updated Price'),
+                targetId: actions.servicePrice.serviceId,
+                targetType: 'service',
+              },
+            ]}
+          />
           {showEditButton ? (
             <Link
               className={cn(
@@ -935,7 +1232,7 @@ export function ServiceMutationActions({
                 mode === 'stock'
                   ? translateUiLiteral(language, 'Record stock')
                   : mode === 'receipt'
-                    ? translateUiLiteral(language, 'Log receipt')
+                    ? translateUiLiteral(language, 'Record Customer order')
                     : translateUiLiteral(language, 'Update price'),
                 layout,
                 catalogEntityName,
@@ -969,12 +1266,12 @@ export function ServiceMutationActions({
             {(mode === 'stock' || mode === 'receipt') ? (
               <>
                 <ActionSheetField label={translateUiLiteral(language, 'Units in stock')}>
-                  <Input
+                  <NumberStepperInput
                     aria-label={translateUiLiteral(language, 'Units in stock')}
                     className={actionSheetInputClassName}
                     min="0"
                     step="1"
-                    type="number"
+                    variant="side-buttons"
                     value={unitsInStock}
                     onChange={(event) => setUnitsInStock(event.target.value)}
                   />
@@ -985,6 +1282,7 @@ export function ServiceMutationActions({
                     className={actionSheetInputClassName}
                     currency={currency}
                     min="0"
+                    variant="side-buttons"
                     value={costPerUnit}
                     onChange={(event) => setCostPerUnit(event.target.value)}
                   />
@@ -996,6 +1294,7 @@ export function ServiceMutationActions({
                       className={actionSheetInputClassName}
                       currency={currency}
                       min="0"
+                      variant="side-buttons"
                       value={productPrice}
                       onChange={(event) => setProductPrice(event.target.value)}
                     />
@@ -1006,12 +1305,12 @@ export function ServiceMutationActions({
 
             {mode === 'receipt' ? (
               <ActionSheetField label={translateUiLiteral(language, 'Approximate receipt quantity')}>
-                <Input
+                <NumberStepperInput
                   aria-label={translateUiLiteral(language, 'Approximate receipt quantity')}
                   className={actionSheetInputClassName}
                   min="0"
                   step="1"
-                  type="number"
+                  variant="side-buttons"
                   value={approximateReceiptQuantity}
                   onChange={(event) => setApproximateReceiptQuantity(event.target.value)}
                 />
@@ -1025,6 +1324,7 @@ export function ServiceMutationActions({
                   className={actionSheetInputClassName}
                   currency={currency}
                   min="0"
+                  variant="side-buttons"
                   value={servicePrice}
                   onChange={(event) => setServicePrice(event.target.value)}
                 />

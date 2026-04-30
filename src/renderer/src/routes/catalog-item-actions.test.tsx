@@ -1,8 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useState } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { ServiceMutationActions, SkuMutationActions } from './catalog-item-actions';
+import { buildLeadTimeHintFromInputs, ServiceMutationActions, SkuMutationActions } from './catalog-item-actions';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
@@ -21,6 +21,7 @@ if (!Element.prototype.scrollIntoView) {
 
 describe('catalog item action sheets', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     inventoryHook.mockReturnValue({
       ingestSenaObservation: vi.fn(),
       isSaving: false,
@@ -34,8 +35,8 @@ describe('catalog item action sheets', () => {
           catalogSenaSkuDialogDescription: 'Capture the signal.',
           catalogSenaSkuLeadTimeVariability: 'Lead time variability',
           catalogSenaSkuLeadTimeVariabilityHint: 'Choose variability.',
-          catalogSenaSkuLogOrder: 'Log order',
-          catalogSenaSkuLogReceipt: 'Log receipt',
+          catalogSenaSkuLogOrder: 'Record Supplier order',
+          catalogSenaSkuLogReceipt: 'Record Customer order',
           catalogSenaSkuMutationFailed: 'Failed',
           catalogSenaSkuNotes: 'Notes',
           catalogSenaSkuObservedAt: 'Observed at',
@@ -53,6 +54,39 @@ describe('catalog item action sheets', () => {
           sheetUnsavedLeavePrompt: 'Unsaved changes',
         }[key] ?? key),
       usdToKhrExchangeRate: 4100,
+    });
+  });
+
+  test('builds preset lead-time hints from the jittered std-days value', () => {
+    expect(
+      buildLeadTimeHintFromInputs({
+        skuId: 'sku-1',
+        typicalLeadTimeDays: '1',
+        variabilityClass: 'tight',
+      }),
+    ).toEqual({
+      skuId: 'sku-1',
+      typicalDays: 1,
+      lowDays: 0.8,
+      highDays: 1.2,
+      variabilityClass: 'tight',
+    });
+  });
+
+  test('builds custom lead-time hints from typed uncertainty days', () => {
+    expect(
+      buildLeadTimeHintFromInputs({
+        skuId: 'sku-1',
+        stdDays: '3',
+        typicalLeadTimeDays: '1',
+        variabilityClass: 'tight',
+      }),
+    ).toEqual({
+      skuId: 'sku-1',
+      typicalDays: 1,
+      lowDays: 0,
+      highDays: 4,
+      variabilityClass: 'very_wide',
     });
   });
 
@@ -137,116 +171,113 @@ describe('catalog item action sheets', () => {
     });
   });
 
-  test('removes the lead time variability placeholder after a real choice in the order sheet', async () => {
+  function LocationProbe() {
+    const location = useLocation();
+    return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
+  }
+
+  test('routes SKU observation buttons into targeted capture sessions', () => {
     render(
-      <MemoryRouter>
-        <SkuMutationActions
-          actionContext={{
-            currentStock: 12,
-            costPerUnit: 4,
-            leadTimeVariability: null,
-            latestObservationAt: '2026-04-02T00:00:00Z',
-            productPrice: 9,
-            recommendedOrderQuantity: 6,
-            reorderRecommendation: {
-              compactLabel: 'Order 6',
-              likelyRangeLabel: 'Likely range 5-7',
-              needProbabilityLabel: '91% need probability',
-              optionalOrderLabel: null,
-              quietLabel: 'Quiet',
-              recommendationIssued: true,
-              recommendedOrderLabel: 'Order 6',
-              recommendedUnits: 6,
-            },
-            soldAsProduct: true,
-          }}
-          mode="order"
-          onComplete={vi.fn(async () => {})}
-          onModeChange={vi.fn()}
-          skuId="sku-1"
-        />
+      <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+        <Routes>
+          <Route
+            element={
+              <>
+                <SkuMutationActions
+                  actionContext={{
+                    currentStock: 12,
+                    costPerUnit: 4,
+                    leadTimeVariability: null,
+                    latestObservationAt: '2026-04-02T00:00:00Z',
+                    productPrice: 9,
+                    recommendedOrderQuantity: 6,
+                    reorderRecommendation: {
+                      compactLabel: 'Order 6',
+                      likelyRangeLabel: 'Likely range 5-7',
+                      needProbabilityLabel: '91% need probability',
+                      optionalOrderLabel: null,
+                      quietLabel: 'Quiet',
+                      recommendationIssued: true,
+                      recommendedOrderLabel: 'Order 6',
+                      recommendedUnits: 6,
+                    },
+                    soldAsProduct: true,
+                  }}
+                  onComplete={vi.fn(async () => {})}
+                  skuId="sku-1"
+                />
+                <LocationProbe />
+              </>
+            }
+            path="*"
+          />
+        </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
-    expect(screen.getByRole('option', { name: 'Choose variability' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record Supplier order' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log receipt' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('option', { name: 'Wide' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Immediate Sale' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Updated Price' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Lead time variability' }));
-    expect(screen.queryByRole('option', { name: 'Choose variability' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    expect(screen.getByTestId('location')).toHaveTextContent(
+      '/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new',
+    );
   });
 
-  test('closes the SKU receipt sheet after save even while refresh work is still pending', async () => {
-    let resolveTriggerRun: ((value: { runId: string }) => void) | null = null;
-    let resolveOnComplete: (() => void) | null = null;
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation: vi.fn(async (payload: unknown) => payload),
-      isSaving: false,
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(
-        () =>
-          new Promise<{ runId: string }>((resolve) => {
-            resolveTriggerRun = resolve;
-          }),
-      ),
-    });
-
-    function ControlledSkuSheetHarness() {
-      const [mode, setMode] = useState<'receipt' | null>('receipt');
-
-      return mode ? (
-        <SkuMutationActions
-          actionContext={{
-            currentStock: 12,
-            costPerUnit: 4,
-            leadTimeVariability: null,
-            latestObservationAt: '2026-04-02T00:00:00Z',
-            productPrice: 9,
-            recommendedOrderQuantity: 6,
-            reorderRecommendation: {
-              compactLabel: 'Order 6',
-              likelyRangeLabel: 'Likely range 5-7',
-              needProbabilityLabel: '91% need probability',
-              optionalOrderLabel: null,
-              quietLabel: 'Quiet',
-              recommendationIssued: true,
-              recommendedOrderLabel: 'Order 6',
-              recommendedUnits: 6,
-            },
-            soldAsProduct: true,
-          }}
-          mode={mode}
-          onComplete={() =>
-            new Promise<void>((resolve) => {
-              resolveOnComplete = resolve;
-            })}
-          onModeChange={setMode}
-          skuId="sku-1"
-        />
-      ) : (
-        <div>Sheet closed</div>
-      );
-    }
-
+  test('prompts before deleting a saved draft for direct capture actions', () => {
+    window.localStorage.setItem('banji:record-update:draft:supplier-order-pending:v1', '{"version":1}');
     render(
-      <MemoryRouter>
-        <ControlledSkuSheetHarness />
+      <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+        <Routes>
+          <Route
+            element={
+              <>
+                <SkuMutationActions
+                  actionContext={{
+                    currentStock: 12,
+                    costPerUnit: 4,
+                    leadTimeVariability: null,
+                    latestObservationAt: '2026-04-02T00:00:00Z',
+                    productPrice: 9,
+                    recommendedOrderQuantity: 6,
+                    reorderRecommendation: {
+                      compactLabel: 'Order 6',
+                      likelyRangeLabel: 'Likely range 5-7',
+                      needProbabilityLabel: '91% need probability',
+                      optionalOrderLabel: null,
+                      quietLabel: 'Quiet',
+                      recommendationIssued: true,
+                      recommendedOrderLabel: 'Order 6',
+                      recommendedUnits: 6,
+                    },
+                    soldAsProduct: true,
+                  }}
+                  onComplete={vi.fn(async () => {})}
+                  skuId="sku-1"
+                />
+                <LocationProbe />
+              </>
+            }
+            path="*"
+          />
+        </Routes>
       </MemoryRouter>,
     );
 
-    fireEvent.change(screen.getByLabelText('Approximate receipt quantity'), { target: { value: '24' } });
-    fireEvent.change(screen.getByLabelText('Units in stock'), { target: { value: '36' } });
-    fireEvent.change(screen.getByLabelText('Cost per unit'), { target: { value: '4' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete saved draft?');
 
-    await waitFor(() => {
-      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledTimes(1);
-      expect(inventoryHook().runWorkspacePreparation).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Sheet closed')).toBeInTheDocument();
-    });
-
-    resolveOnComplete?.();
-    resolveTriggerRun?.({ runId: 'run-2' });
+    fireEvent.click(screen.getByRole('button', { name: 'Resume draft' }));
+    expect(window.localStorage.getItem('banji:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
+    expect(screen.getByTestId('location')).toHaveTextContent('/work/capture/supplier-order');
   });
 });

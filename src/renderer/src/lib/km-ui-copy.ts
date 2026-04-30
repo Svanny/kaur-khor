@@ -573,10 +573,6 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បំពេញតម្លៃសញ្ញា SKU ទាំងអស់ដែលបានបើក ឬដកសញ្ញាទទេ មុនពេលរក្សាទុក។',
   stockUpdateGuidanceFillServiceFlagsSave:
     'បំពេញតម្លៃសញ្ញាសេវាកម្មទាំងអស់ដែលបានបើក ឬដកសញ្ញាទទេ មុនពេលរក្សាទុក។',
-  stockUpdateGuidanceAddSignal:
-    'បន្ថែមការរាប់ស្តុក សញ្ញាជួរ លំនាំលក់ ឬសញ្ញាលំដាប់លក់យ៉ាងហោចណាស់មួយ មុនពេលរក្សាទុក។',
-  stockUpdateGuidanceAddStockCountSignal:
-    'បន្ថែមការរាប់ស្តុក ព្រឹត្តិការណ៍ជួរ ការផ្លាស់ប្តូរថ្លៃដើម ការផ្លាស់ប្តូរតម្លៃលក់រាយ ឬលំនាំលក់យ៉ាងហោចណាស់មួយ មុនពេលរក្សាទុក។',
   stockUpdateGuidanceFirstUpdateNeedsCount:
     'ការអាប់ដេតលើកដំបូង ត្រូវមាន SKU ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យ banji ចាប់យកស្តុកបាន។',
   stockUpdateSessionViewPos: 'ទិដ្ឋភាពចំណុចលក់',
@@ -620,7 +616,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateDescriptorFirst:
     'ចាប់ផ្តើម banji ដោយរាប់ SKU មួយជាមុនសិន បន្ទាប់មកការអាប់ដេតក្រោយៗអាចសាមញ្ញជាងនេះបាន។',
   stockUpdateContextFooterEmpty:
-    'ទុកលំនាំលក់ឲ្យទទេ ប្រសិនបើរយៈពេលនេះមិនត្រូវការការពន្យល់សំខាន់តែមួយទេ។',
+    'ទុកលំនាំលក់ឲ្យទទេ ប្រសិនបើកំណត់ត្រានេះមិនត្រូវការការពន្យល់សំខាន់តែមួយទេ។',
   stockUpdateContextTooltip:
     'កំណត់ពេលវេលាអាប់ដេត បន្ថែមកំណត់ចំណាំស្រេចចិត្ត និងជ្រើសលំនាំលក់ស្រេចចិត្ត សម្រាប់ការអាប់ដេតទាំងមូល។',
   stockUpdateObservedAtTooltip:
@@ -1568,13 +1564,9 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     stockUpdateStepRegimeSummary: 'លំនាំលក់៖ {value}',
     stockUpdateStepContextSummary: 'ពេលវេលាដែលបានសង្កេត កំណត់ចំណាំ និងលំនាំលក់',
     stockUpdateContextFooterEmpty:
-      'ទុកលំនាំលក់ឱ្យទទេ ប្រសិនបើរយៈពេលនេះមិនត្រូវការការពន្យល់សំខាន់តែមួយ។',
+      'ទុកលំនាំលក់ឱ្យទទេ ប្រសិនបើកំណត់ត្រានេះមិនត្រូវការការពន្យល់សំខាន់តែមួយ។',
     stockUpdateContextTooltip:
       'កំណត់ពេលអាប់ដេត បន្ថែមកំណត់ចំណាំស្រេចចិត្ត និងជ្រើសលំនាំលក់ស្រេចចិត្ត សម្រាប់ការអាប់ដេតទាំងមូល។',
-    stockUpdateGuidanceAddSignal:
-      'បន្ថែមយ៉ាងហោចណាស់ ការរាប់ស្តុកមួយ សញ្ញាជួរមួយ លំនាំលក់មួយ ឬសញ្ញាលំដាប់ មុនពេលរក្សាទុក។',
-    stockUpdateGuidanceAddStockCountSignal:
-      'បន្ថែមយ៉ាងហោចណាស់ ការរាប់ស្តុក ព្រឹត្តិការណ៍ជួរ ការផ្លាស់ប្តូរថ្លៃដើម ការផ្លាស់ប្តូរតម្លៃលក់រាយ ឬលំនាំលក់ មុនពេលរក្សាទុក។',
     serviceEditorUnsavedLeavePrompt:
       'អ្នកមានការផ្លាស់ប្តូរសេវាកម្មមិនទាន់រក្សាទុក។ ចាកចេញពីទំព័រនេះ ហើយបោះបង់សេចក្តីព្រាងបច្ចុប្បន្នឬ?',
     settingsShowOptionalHelpHelp:
@@ -1880,6 +1872,7 @@ const exactValueTranslations: Record<string, string> = {
   'All suppliers': 'អ្នកផ្គត់ផ្គង់ទាំងអស់',
   'No supplier': 'គ្មានអ្នកផ្គត់ផ្គង់',
   'Custom supplier': 'អ្នកផ្គត់ផ្គង់ផ្ទាល់ខ្លួន',
+  'Custom uncertainty ± days': 'ភាពមិនច្បាស់លាស់ផ្ទាល់ខ្លួន ± ថ្ងៃ',
   'Customer pending mode': 'របៀបបញ្ជាទិញអតិថិជនកំពុងបើក',
   'New pending': 'បើកថ្មី',
   'Modify pending': 'កែការបើក',
@@ -1959,6 +1952,8 @@ const exactValueTranslations: Record<string, string> = {
   Filter: 'តម្រង',
   'Lead time mean': 'មធ្យមពេលមកដល់',
   'Select variability': 'ជ្រើសភាពប្រែប្រួល',
+  'Set mean days first': 'កំណត់ចំនួនថ្ងៃមធ្យមជាមុន',
+  '±{days} days': '±{days} ថ្ងៃ',
   'Expected date of arrival': 'កាលបរិច្ឆេទមកដល់ដែលរំពឹង',
   'Current order': 'ការបញ្ជាទិញបច្ចុប្បន្ន',
   'Current order for {name}': 'ការបញ្ជាទិញបច្ចុប្បន្នសម្រាប់ {name}',
@@ -2021,14 +2016,6 @@ const exactValueTranslations: Record<string, string> = {
   'Open quantity changes': 'ការផ្លាស់ប្តូរបរិមាណបើក',
   '{count} service row{suffix}': 'ជួរសេវាកម្ម {count}',
   '{count} ranked service{suffix}': 'សេវាកម្មដែលបានដាក់លំដាប់ {count}',
-  'Add at least one open customer order change before saving.':
-    'បន្ថែមការផ្លាស់ប្តូរការបញ្ជាទិញអតិថិជនដែលកំពុងបើកយ៉ាងហោចណាស់មួយ មុនរក្សាទុក។',
-  'Add at least one completed customer order, refund, row event, ranking, or sales pattern before saving.':
-    'បន្ថែមការបញ្ជាទិញអតិថិជនដែលបានបញ្ចប់ ការសងប្រាក់ ព្រឹត្តិការណ៍ជួរ លំដាប់ ឬលំនាំលក់យ៉ាងហោចណាស់មួយ មុនរក្សាទុក។',
-  'Add at least one supplier order change, row event, or sales pattern before saving.':
-    'បន្ថែមការផ្លាស់ប្តូរការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ព្រឹត្តិការណ៍ជួរ ឬលំនាំលក់យ៉ាងហោចណាស់មួយ មុនរក្សាទុក។',
-  'Add at least one supplier receipt, reversal, row event, or sales pattern before saving.':
-    'បន្ថែមការទទួលពីអ្នកផ្គត់ផ្គង់ ការបញ្ច្រាស ព្រឹត្តិការណ៍ជួរ ឬលំនាំលក់យ៉ាងហោចណាស់មួយ មុនរក្សាទុក។',
   'Select customer pending workflow': 'ជ្រើសលំហូរការបញ្ជាទិញអតិថិជនកំពុងបើក',
   'Customer pending states': 'ស្ថានភាពការបញ្ជាទិញអតិថិជនកំពុងបើក',
   'Customer completion mode': 'របៀបបញ្ចប់ការបញ្ជាទិញអតិថិជន',
@@ -2192,8 +2179,13 @@ const exactValueTranslations: Record<string, string> = {
   'Stock snapshot': 'ស្ថានភាពស្តុក',
   'Key signals': 'សញ្ញាសំខាន់',
   'Record stock': 'កត់ត្រាស្តុក',
-  'Log order': 'កត់ត្រាការបញ្ជាទិញ',
-  'Log receipt': 'កត់ត្រាការទទួលទំនិញ',
+  'Record Supplier order': 'កត់ត្រាការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Record Customer order': 'កត់ត្រាការបញ្ជាទិញអតិថិជន',
+  'Record Immediate sale': 'កត់ត្រាការលក់ភ្លាមៗ',
+  Record: 'កត់ត្រា',
+  'Updated Price': 'តម្លៃបានអាប់ដេត',
+  'Log order': 'កត់ត្រាការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
+  'Log receipt': 'កត់ត្រាការបញ្ជាទិញអតិថិជន',
   'Update price': 'អាប់ដេតតម្លៃ',
   'SKU timeline': 'បន្ទាត់ពេលវេលា SKU',
   'Recent evidence': 'ភស្តុតាងថ្មីៗ',
@@ -2402,6 +2394,7 @@ const exactValueTranslations: Record<string, string> = {
   'Not ready yet': 'មិនទាន់រួចរាល់',
   'Ready to save': 'រួចរាល់សម្រាប់រក្សាទុក',
   'Discard changes': 'បោះបង់ការផ្លាស់ប្តូរ',
+  'Discard changes and leave': 'បោះបង់ការផ្លាស់ប្តូរ ហើយចាកចេញ',
   'Last confirmed update': 'ការអាប់ដេតដែលបានបញ្ជាក់ចុងក្រោយ',
   'No prior update': 'មិនទាន់មានការអាប់ដេតមុនទេ',
   'Interval length': 'រយៈពេលចន្លោះ',
@@ -3004,6 +2997,9 @@ const exactValueTranslations: Record<string, string> = {
   'No clear blocker detected': 'មិនទាន់រកឃើញចំណុចរារាំងច្បាស់លាស់ទេ',
   'Keep draft': 'រក្សាសេចក្តីព្រាង',
   'Delete draft and start new': 'លុបសេចក្តីព្រាង ហើយចាប់ផ្តើមថ្មី',
+  'Resume draft': 'បន្តសេចក្តីព្រាង',
+  'This capture lane has a saved draft. Resume the draft to keep it, or delete it before starting this targeted capture session.':
+    'លំហូរកត់ត្រានេះមានសេចក្តីព្រាងដែលបានរក្សាទុក។ បន្តសេចក្តីព្រាងដើម្បីរក្សាវា ឬលុបវាមុនចាប់ផ្តើមការកត់ត្រាគោលដៅនេះ។',
   'Starting a new update will permanently delete the saved draft for this lane. Resume the draft instead if you want to keep it.':
     'ការចាប់ផ្តើមការអាប់ដេតថ្មី នឹងលុបសេចក្តីព្រាងដែលបានរក្សាទុកសម្រាប់ផ្លូវនេះជារៀងរហូត។ បន្តសេចក្តីព្រាងវិញ ប្រសិនបើអ្នកចង់រក្សាវាទុក។',
   'Delete saved draft?': 'លុបសេចក្តីព្រាងដែលបានរក្សាទុក?',
@@ -3801,7 +3797,7 @@ function translateByPattern(value: string): string | null {
     [/^Service · (.+)$/, (target) => `សេវាកម្ម · ${target}`],
     [/^SKU action · (.+)$/, (target) => `សកម្មភាព SKU · ${target}`],
     [/^Service action · (.+)$/, (target) => `សកម្មភាពសេវាកម្ម · ${target}`],
-    [/^(Record stock|Log order|Log receipt|Update price) for (.+)$/, (action, target) => `${translateValueFragment(action)} សម្រាប់ ${target}`],
+    [/^(Record stock|Record Supplier order|Record Customer order|Record Immediate sale|Log order|Log receipt|Update price) for (.+)$/, (action, target) => `${translateValueFragment(action)} សម្រាប់ ${target}`],
     [/^No (.+) yet\.?$/, (target) => `មិនទាន់មាន${needsSpaceBefore(target) ? ' ' : ''}${translateValueFragment(target)}នៅឡើយទេ។`],
     [/^No (.+) available\.?$/, (target) => `មិនទាន់មាន${needsSpaceBefore(target) ? ' ' : ''}${translateValueFragment(target)}ទេ។`],
     [/^Loading (.+)…$/, (target) => joinKhmer('កំពុងផ្ទុក', translateValueFragment(target), '…')],
