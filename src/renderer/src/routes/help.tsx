@@ -172,7 +172,7 @@ export function HelpRoute() {
     return () => {
       window.clearTimeout(delayId);
     };
-  }, [location.hash, visibleSections]);
+  }, [location.hash]);
 
   useEffect(() => {
     if (!highlightedSubsectionId) {

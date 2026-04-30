@@ -312,6 +312,30 @@ describe('HelpRoute', () => {
     intersectionObserver.restore();
   });
 
+  test('does not retrigger hash scrolling when filtering help results', () => {
+    const intersectionObserver = mockIntersectionObserver();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/help#automation-intake-request']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search help' }), {
+      target: { value: 'automation' },
+    });
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    intersectionObserver.restore();
+  });
+
   test('renders cleaned subsection titles while preserving old More-link anchors', () => {
     render(
       <MemoryRouter initialEntries={['/settings/help']}>
