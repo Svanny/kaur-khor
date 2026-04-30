@@ -111,9 +111,12 @@ function fillNewServiceRequiredFields(name: string) {
 describe('ServiceFormRoute', () => {
   const pickAndStoreImage = vi.fn();
   const storeDroppedImage = vi.fn();
+  const ingestSenaObservation = vi.fn();
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    ingestSenaObservation.mockReset();
+    ingestSenaObservation.mockResolvedValue({ observationId: 'obs-catalog-edit' });
     pickAndStoreImage.mockReset();
     pickAndStoreImage.mockResolvedValue('/tmp/service-image.png');
     storeDroppedImage.mockReset();
@@ -137,6 +140,7 @@ describe('ServiceFormRoute', () => {
     });
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isLoading: false,
       isSaving: false,
       renameCatalogEntity: vi.fn(async () => sampleCatalog),
@@ -204,6 +208,7 @@ describe('ServiceFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isLoading: false,
       isSaving: false,
       renameCatalogEntity: vi.fn(async () => sampleCatalog),
@@ -220,6 +225,7 @@ describe('ServiceFormRoute', () => {
 
     await waitFor(() => {
       expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
     });
 
     const savedCatalog = upsertSenaCatalog.mock.calls[0]?.[0];
@@ -237,6 +243,14 @@ describe('ServiceFormRoute', () => {
       { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
       { enabled: true, serviceId: 'service-1', skuId: 'sku-2', usageProbability: null },
     ]);
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePrices: [{ serviceId: 'service-1', price: 29 }],
+        stockSnapshot: [],
+        retailPrices: [],
+        leadTimeHints: [],
+      }),
+    );
 
     await waitFor(() => {
       expect(screen.getByText('Service detail destination')).toBeInTheDocument();
@@ -247,6 +261,7 @@ describe('ServiceFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isLoading: false,
       isSaving: false,
       renameCatalogEntity: vi.fn(async () => sampleCatalog),
@@ -269,6 +284,34 @@ describe('ServiceFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/service-image.png');
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('does not append history when only linked SKUs change', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'SKU 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-2', usageProbability: null },
+    ]);
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
   test('adds a service picture via drag and drop', async () => {
@@ -457,6 +500,7 @@ describe('ServiceFormRoute', () => {
     });
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isLoading: false,
       isSaving: false,
       upsertSenaCatalog,
@@ -472,6 +516,11 @@ describe('ServiceFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].price).toBe(2);
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servicePrices: [{ serviceId: 'service-1', price: 2 }],
+      }),
+    );
   });
 
   test('asks before leaving with unsaved service changes', async () => {
@@ -504,6 +553,7 @@ describe('ServiceFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isLoading: false,
       isSaving: false,
       renameCatalogEntity: vi.fn(async () => sampleCatalog),
@@ -530,6 +580,7 @@ describe('ServiceFormRoute', () => {
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0]).toMatchObject({
       name: 'Service 1 Updated',
     });
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
   test('disables prompt save when unsaved service changes are invalid', async () => {

@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { buildServiceCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { DetailHeroWireframe } from './loading-wireframes';
@@ -222,7 +223,7 @@ export function ServiceFormRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const { serviceId } = useParams();
-  const { catalog, isLoading, isSaving, upsertSenaCatalog } = useInventory();
+  const { catalog, ingestSenaObservation, isLoading, isSaving, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const { currency, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
@@ -327,6 +328,15 @@ export function ServiceFormRoute() {
       : { ...normalizedDraft, serviceId: createUniqueServiceId(baseCatalog) };
     const nextCatalog = upsertSenaService(baseCatalog, nextService, selectedSkuIds, normalizedBaseline.serviceId);
     await upsertSenaCatalog(nextCatalog);
+    const observation = editing
+      ? buildServiceCatalogEditObservation({
+          baseline: normalizedBaseline,
+          next: nextService,
+        })
+      : null;
+    if (observation) {
+      await ingestSenaObservation(observation);
+    }
     setLocalSavedService(nextService);
     setLocalSavedSkuIds(selectedSkuIds);
     setForm(nextService);

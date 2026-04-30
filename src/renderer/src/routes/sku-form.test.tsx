@@ -63,6 +63,44 @@ const sampleCatalog = {
   sharingMask: [],
 };
 
+const sampleSnapshot = {
+  skus: [
+    {
+      skuId: 'sku-1',
+      name: 'SKU 1',
+      description: 'Cotton tee',
+      unitsInStock: 12,
+      costPerUnit: 4,
+      soldAsProduct: true,
+      productPrice: 9,
+      leadTimeMeanDays: 5,
+      leadTimeStdDays: 1,
+    },
+  ],
+  services: [],
+  ranking: [],
+  sist: {
+    status: {
+      state: 'ready',
+      updatedAt: null,
+      reportCount: 0,
+      confidence: 'low',
+      reason: null,
+    },
+    settings: {
+      targetServiceLevel: 0.95,
+      forecastHorizonDays: 14,
+      particleCount: 512,
+      smoothingWindowReports: 90,
+    },
+    asOf: null,
+    topRegime: null,
+    pendingReorderCount: 0,
+    highRiskSkuIds: [],
+    skuInsights: [],
+  },
+};
+
 function renderWithProviders(
   route: string,
   element: ReactNode,
@@ -115,9 +153,12 @@ function fillNewSkuRequiredFields(name: string) {
 describe('SkuFormRoute', () => {
   const pickAndStoreImage = vi.fn();
   const storeDroppedImage = vi.fn();
+  const ingestSenaObservation = vi.fn();
 
   beforeEach(() => {
     window.sessionStorage.clear();
+    ingestSenaObservation.mockReset();
+    ingestSenaObservation.mockResolvedValue({ observationId: 'obs-catalog-edit' });
     preferencesHook.mockReturnValue({
       currency: 'USD',
       language: 'en',
@@ -141,7 +182,9 @@ describe('SkuFormRoute', () => {
     };
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog: vi.fn(async (payload) => payload),
     });
   });
@@ -176,7 +219,9 @@ describe('SkuFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog,
     });
 
@@ -210,6 +255,69 @@ describe('SkuFormRoute', () => {
 
     expect(screen.queryByText('SKU detail destination')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: 'Edit SKU' })).toBeInTheDocument();
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('appends stock history when editing SKU cost', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isSaving: false,
+      snapshot: sampleSnapshot,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(costInput, { target: { value: '6' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
+    });
+
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 6, productPrice: 9 }],
+        retailPrices: [],
+        leadTimeHints: [],
+      }),
+    );
+  });
+
+  test('appends retail price history when editing SKU product price', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isSaving: false,
+      snapshot: sampleSnapshot,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [, priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    fireEvent.change(priceInput, { target: { value: '11' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+      expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
+    });
+
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [],
+        retailPrices: [{ skuId: 'sku-1', price: 11 }],
+        leadTimeHints: [],
+      }),
+    );
   });
 
   test('opens SKU details from the edit page details action', async () => {
@@ -226,7 +334,9 @@ describe('SkuFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog,
     });
 
@@ -246,6 +356,7 @@ describe('SkuFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/sku-image.png');
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
   test('shows a field error when choosing a sku picture fails', async () => {
@@ -752,7 +863,9 @@ describe('SkuFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog,
     });
 
@@ -777,6 +890,12 @@ describe('SkuFormRoute', () => {
       costPerUnit: 7960000.12345,
       productPrice: 8000000.98765,
     });
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 12, costPerUnit: 7960000.12345, productPrice: 8000000.98765 }],
+        retailPrices: [{ skuId: 'sku-1', price: 8000000.98765 }],
+      }),
+    );
   });
 
   test('shows riel symbols for commercial inputs in KHR mode', () => {
@@ -1140,7 +1259,9 @@ describe('SkuFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog,
     });
 
@@ -1154,6 +1275,21 @@ describe('SkuFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].leadTimeStdDaysHint).toBeCloseTo(1.8);
+    expect(ingestSenaObservation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stockSnapshot: [],
+        retailPrices: [],
+        leadTimeHints: [
+          expect.objectContaining({
+            skuId: 'sku-1',
+            typicalDays: 5,
+            lowDays: 3.2,
+            highDays: 6.8,
+            variabilityClass: 'wide',
+          }),
+        ],
+      }),
+    );
   });
 
   test('keeps custom selected when custom uncertainty changes', async () => {
@@ -1170,7 +1306,9 @@ describe('SkuFormRoute', () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
+      ingestSenaObservation,
       isSaving: false,
+      snapshot: sampleSnapshot,
       upsertSenaCatalog,
     });
     renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');

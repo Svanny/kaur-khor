@@ -24,6 +24,7 @@ import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-c
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { buildSkuCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
 import { EditorField, editorInputClassName, editorPanelClassName, editorTextareaClassName } from './editor-form-primitives';
 import { SkuPageHero } from './sku-page-hero';
@@ -90,7 +91,7 @@ export function SkuFormRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const { skuId } = useParams();
-  const { catalog, isSaving, upsertSenaCatalog } = useInventory();
+  const { catalog, ingestSenaObservation, isSaving, snapshot, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const editing = Boolean(skuId);
@@ -267,6 +268,16 @@ export function SkuFormRoute() {
         };
     const nextCatalog = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
     await upsertSenaCatalog(nextCatalog);
+    const observation = editing
+      ? buildSkuCatalogEditObservation({
+          baseline: normalizedBaseline,
+          next: nextSku,
+          snapshot,
+        })
+      : null;
+    if (observation) {
+      await ingestSenaObservation(observation);
+    }
     setLocalSavedSku(nextSku);
     setForm(nextSku);
     setCostPerUnitDraft(moneyDraftFromUsd(nextSku.costPerUnit, currency, usdToKhrExchangeRate));
