@@ -7,20 +7,20 @@
 - [បញ្ជី សម្រាប់អ្វី](#បញ្ជី-សម្រាប់អ្វី)
 - [លំហូរការងារប្រចាំថ្ងៃ](#លំហូរការងារប្រចាំថ្ងៃ)
 - [ការរុករក](#ការរុករក)
-- [Home](#home)
-- [Work](#work)
+- [ទំព័រដើម](#home)
+- [ការងារ](#work)
 - [Queue](#queue)
-- [Capture](#capture)
+- [កត់ត្រា](#capture)
 - [Intake](#intake)
 - [Catalog](#catalog)
-- [Insights](#insights)
+- [ការយល់ដឹង](#insights)
 - [Pressure](#pressure)
 - [Money](#money)
 - [Explain](#explain)
 - [Automations](#automations)
-- [History](#history)
-- [Settings](#settings)
-- [First Useful Workflow](#first-useful-workflow)
+- [ប្រវត្តិ](#history)
+- [ការកំណត់](#settings)
+- [លំហូរការងារដំបូងដែលមានប្រយោជន៍](#first-useful-workflow)
 - [Glossary](#glossary)
 - [សំណួរញឹកញាប់](#សំណួរញឹកញាប់)
 
@@ -40,59 +40,59 @@
 
 លំដាប់ធម្មតា៖
 
-1. ចាប់ផ្តើមពី **Home**។
-2. បើក **Work** ដើម្បីពិនិត្យ queue, capture, និង intake work។
-3. ប្រើ **Work / Capture** នៅពេលមានអ្វីពិតបានផ្លាស់ប្តូរ។
+1. ចាប់ផ្តើមពី **ទំព័រដើម**។
+2. បើក **ការងារ** ដើម្បីពិនិត្យ queue, capture, និង intake work។
+3. ប្រើ **ការងារ / កត់ត្រា** នៅពេលមានអ្វីពិតបានផ្លាស់ប្តូរ។
 4. បើក **Catalog** នៅពេលត្រូវកែ item, archive, ឬ automation exposure។
-5. បើក **Insights** សម្រាប់ pressure, money, និង explanation views។
-6. ប្រើ **History** ពី command palette ឬ Settings ដើម្បីមើល report, edit, ឬ delete។
-7. ប្រើ **Settings** សម្រាប់ preferences, local data, planning, automation connection, help, benchmarks, និង danger zone។
+5. បើក **ការយល់ដឹង** សម្រាប់ pressure, money, និង explanation views។
+6. ប្រើ **ប្រវត្តិ** ពី command palette ឬ ការកំណត់ ដើម្បីមើល report, edit, ឬ delete។
+7. ប្រើ **ការកំណត់** សម្រាប់ preferences, local data, planning, automation connection, help, benchmarks, និង danger zone។
 
 ## ការរុករក
 
 Sidebar មានគោលដៅសំខាន់តែប៉ុន្មាន៖
 
-- **Home**៖ ចំណុចចាប់ផ្តើម និង command home
-- **Work**៖ queue, capture, និង automation intake
+- **ទំព័រដើម**៖ ចំណុចចាប់ផ្តើម និង command home
+- **ការងារ**៖ queue, capture, និង automation intake
 - **Catalog**៖ active items, archived items, detail, edit, និង automation exposure
-- **Insights**៖ Pressure, Money, និង Explain modes
-- **Settings**៖ system, support, local data, automation connection, និង maintenance
+- **ការយល់ដឹង**៖ Pressure, Money, និង Explain modes
+- **ការកំណត់**៖ system, support, local data, automation connection, និង maintenance
 
 អ្វីដែលបានផ្លាស់ទី៖
 
-- **History** អាចបើកតាម command palette, Settings, និង report context។
+- **ប្រវត្តិ** អាចបើកតាម command palette, ការកំណត់, និង report context។
 - **Archived catalog** នៅក្នុង Catalog។
-- **Help** នៅក្នុង Settings `/settings/help`។
-- **Automation intake** នៅក្នុង Work; exposure នៅក្នុង Catalog; Telegram connection នៅក្នុង Settings។
+- **ជំនួយ** នៅក្នុង ការកំណត់ `/settings/help`។
+- **Automation intake** នៅក្នុង ការងារ; exposure នៅក្នុង Catalog; Telegram connection នៅក្នុង ការកំណត់។
 
-នៅពេលចូល Settings ពី route ផ្សេងក្នុង app, **Back to app** ត្រឡប់ទៅ route ដើមនោះ រួមទាំង query filters មិនមែនតែងតែទៅ Home ទេ។
+នៅពេលចូល ការកំណត់ ពី route ផ្សេងក្នុង app, **Back to app** ត្រឡប់ទៅ route ដើមនោះ រួមទាំង query filters មិនមែនតែងតែទៅ ទំព័រដើម ទេ។
 
 URL top-level ចាស់ៗមិនគាំទ្រទៀតទេ។
 
-## Home
+## ទំព័រដើម
 
-Home គឺជាផ្ទៃចាប់ផ្តើម។ វាអាចបង្ហាញសកម្មភាពសំខាន់រហូតដល់ 4៖
+ទំព័រដើម គឺជាផ្ទៃចាប់ផ្តើម។ វាអាចបង្ហាញសកម្មភាពសំខាន់រហូតដល់ 4៖
 
-- **Start Work**
-- **Capture Update**
+- **Start ការងារ**
+- **កត់ត្រា Update**
 - **Open Catalog**
-- **Open Insights**
+- **Open ការយល់ដឹង**
 
-សកម្មភាពដែលអាចប្រើបាន បង្ហាញជា grid នៅកណ្ដាល ដូច layout របស់ Capture hub។ នៅពេលមានសកម្មភាព 3 ដែលអាចមើលឃើញ Home បង្ហាញវាជាជួរតែមួយ ជំនួសឲ្យទុកចន្លោះ card ទី 4 ទទេ។ banji លាក់សកម្មភាពដែលមិនទាន់អាចប្រើបាន ជំនួសឲ្យការបង្ហាញ card disabled។
+សកម្មភាពដែលអាចប្រើបាន បង្ហាញជា grid នៅកណ្ដាល ដូច layout របស់ កត់ត្រា hub។ នៅពេលមានសកម្មភាព 3 ដែលអាចមើលឃើញ ទំព័រដើម បង្ហាញវាជាជួរតែមួយ ជំនួសឲ្យទុកចន្លោះ card ទី 4 ទទេ។ បញ្ជី លាក់សកម្មភាពដែលមិនទាន់អាចប្រើបាន ជំនួសឲ្យការបង្ហាញ card disabled។
 
-ប្រើ Home នៅពេលអ្នកមិនប្រាកដថាត្រូវចាប់ផ្តើមពីណា។
+ប្រើ ទំព័រដើម នៅពេលអ្នកមិនប្រាកដថាត្រូវចាប់ផ្តើមពីណា។
 
-## Work
+## ការងារ
 
-Work គឺជា workspace ប្រចាំថ្ងៃសម្រាប់ប្រតិបត្តិការ។ វាបែងចែកជា Queue សម្រាប់សម្រេចថាអ្វីត្រូវយកចិត្តទុកដាក់, Capture សម្រាប់រក្សាទុកការផ្លាស់ប្តូរពិត, និង Intake សម្រាប់ពិនិត្យ request ពី automation/customer។ ប្រើ Work នៅពេលសំណួរគឺត្រូវពិនិត្យ កត់ត្រា ឬ promote អ្វីឥឡូវនេះ។
+ការងារ គឺជា workspace ប្រចាំថ្ងៃសម្រាប់ប្រតិបត្តិការ។ វាបែងចែកជា Queue សម្រាប់សម្រេចថាអ្វីត្រូវយកចិត្តទុកដាក់, កត់ត្រា សម្រាប់រក្សាទុកការផ្លាស់ប្តូរពិត, និង Intake សម្រាប់ពិនិត្យ request ពី automation/customer។ ប្រើ ការងារ នៅពេលសំណួរគឺត្រូវពិនិត្យ កត់ត្រា ឬ promote អ្វីឥឡូវនេះ។
 
 ## Queue
 
 Queue គឺជា decision surface សម្រាប់ supplier និង customer work។ Operator ប្រើវាដើម្បី scan task status, បើក drawer, filter តាម supplier ឬ task state, ហើយទៅ item ឬ capture lane ដែលត្រូវ។ Queue មិន save evidence ថ្មីដោយខ្លួនឯងទេ; វាជួយជ្រើស next action ពី catalog, ticket, stock, និង timing signals ដែលមានស្រាប់។
 
-## Capture
+## កត់ត្រា
 
-Capture គឺជា update-authoring workflow នៅក្នុង Work។ វាបម្លែងព្រឹត្តិការណ៍ពិតទៅជា local evidence ដែល queue, Catalog detail, Pressure, Money, Explain, និង History អាចអានពេលក្រោយ។ ប្រើ Capture នៅពេល stock, orders, receipts, prices, flags, rankings, notes, ឬ delivery details ផ្លាស់ប្តូរ។
+កត់ត្រា គឺជា update-authoring workflow នៅក្នុង ការងារ។ វាបម្លែងព្រឹត្តិការណ៍ពិតទៅជា local evidence ដែល queue, Catalog detail, Pressure, Money, Explain, និង ប្រវត្តិ អាចអានពេលក្រោយ។ ប្រើ កត់ត្រា នៅពេល stock, orders, receipts, prices, flags, rankings, notes, ឬ delivery details ផ្លាស់ប្តូរ។
 
 សម្រាប់ ticket-backed lanes, បញ្ជី បើកលំហូរ new ticket ដោយផ្ទាល់ នៅពេលគ្មាន meaningful saved draft ឬ editable ticket។ វាសួរ resume, start new, ឬ edit/update តែនៅពេលជម្រើសនោះប៉ះពាល់ការងារពិត។ Mode-only placeholders ត្រូវបានលុប មិនបង្ហាញជា saved drafts ទេ។
 
@@ -102,7 +102,7 @@ Delivery fee records the charge and payer for a customer order or receipt summar
 
 ### កំណត់សម្គាល់ {#record-update-notes}
 
-Notes capture operator context that structured fields cannot express. They គឺជា useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual ព្រោះ they appear later in History, detail pages, and analysis evidence.
+Notes capture operator context that structured fields cannot express. They គឺជា useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual ព្រោះ they appear later in ប្រវត្តិ, detail pages, and analysis evidence.
 
 ### ពេលសង្កេត {#record-update-observed-at}
 
@@ -192,7 +192,7 @@ Confidence គឺជា certainty របស់ បញ្ជី លើ inferred r
 
 ### ការទទួលសំណើផ្ទាល់ {#automation-live-intake}
 
-Live intake គឺជា the table of customer requests captured from automation មុនពេល they become normal Work tickets. វា បង្ហាញ who asked, what was parsed, quoted totals, state, and timestamps. ប្រើវា to review and promote requests that គឺជា ready, or investigate ones that គឺជា still ambiguous.
+Live intake គឺជា the table of customer requests captured from automation មុនពេល they become normal ការងារ tickets. វា បង្ហាញ who asked, what was parsed, quoted totals, state, and timestamps. ប្រើវា to review and promote requests that គឺជា ready, or investigate ones that គឺជា still ambiguous.
 
 ### ត្រូវការពិនិត្យ {#automation-needs-review}
 
@@ -213,7 +213,7 @@ Catalog គឺជា source of truth សម្រាប់ SKU និង service
 
 Archive មិនមែន delete ទេ។ Archived items លាក់ពី active work ប៉ុន្តែនៅរក្សាទុកសម្រាប់ប្រវត្តិ ហើយអាច restore បាន។
 
-Money fields ក្នុង Catalog និង Capture បង្ហាញនិមិត្តសញ្ញារូបិយប័ណ្ណសកម្ម (`$` ឬ `៛`) នៅក្នុង input។ វាយតែចំនួនលេខប៉ុណ្ណោះ; សញ្ញាក្បៀស និងនិមិត្តសញ្ញារូបិយប័ណ្ណ គ្រាន់តែជាជំនួយបង្ហាញ ហើយ បញ្ជី រក្សាទុកតម្លៃខាងក្រោយតាមរូបិយប័ណ្ណ workspace ដែលបានជ្រើស។
+Money fields ក្នុង Catalog និង កត់ត្រា បង្ហាញនិមិត្តសញ្ញារូបិយប័ណ្ណសកម្ម (`$` ឬ `៛`) នៅក្នុង input។ វាយតែចំនួនលេខប៉ុណ្ណោះ; សញ្ញាក្បៀស និងនិមិត្តសញ្ញារូបិយប័ណ្ណ គ្រាន់តែជាជំនួយបង្ហាញ ហើយ បញ្ជី រក្សាទុកតម្លៃខាងក្រោយតាមរូបិយប័ណ្ណ workspace ដែលបានជ្រើស។
 
 ### ធ្វើឥឡូវនេះ {#catalog-detail-act-now}
 
@@ -311,9 +311,9 @@ The trading chart ledger គឺជា the detail chart surface for SKU, service,
 
 Dense overlay evidence ដូចជា supplier orders, receipts, ឬ repeated regime markers អាច cluster ជា timeline marker មួយ។ Select marker នោះ ដើម្បី inspect latest interval ក្នុង cluster នោះ។
 
-## Insights
+## ការយល់ដឹង
 
-Insights គឺជា entry point សម្រាប់ operating signals។ Subpages របស់វាគឺ Pressure, Money, និង Explain។ ប្រើ section នេះដើម្បីជ្រើស lens ដែលត្រូវនឹងសំណួរ៖ operational urgency, financial quality, ឬ evidence-level explanation។
+ការយល់ដឹង គឺជា entry point សម្រាប់ operating signals។ Subpages របស់វាគឺ Pressure, Money, និង Explain។ ប្រើ section នេះដើម្បីជ្រើស lens ដែលត្រូវនឹងសំណួរ៖ operational urgency, financial quality, ឬ evidence-level explanation។
 
 នៅពេល custom time range កំពុង active នៅក្នុង Pressure, Money, ឬ Explain-adjacent views, range menu បង្ហាញ custom range edit button។ Edit button លាក់នៅពេល preset range active ដើម្បីកុំឲ្យ menu បង្ហាញថាមាន custom range រួចហើយ។
 
@@ -519,7 +519,7 @@ The regime lane labels each interval with the demand pattern បញ្ជី inf
 
 ### សញ្ញាដែលបានសង្កេត {#explain-observation-observed}
 
-The observed column identifies the saved event and its timestamp. វា គឺជា the audit trail behind the Explain workbench. ប្រើវា to find the exact update that changed a signal, then open History or the source record if the observation looks wrong.
+The observed column identifies the saved event and its timestamp. វា គឺជា the audit trail behind the Explain workbench. ប្រើវា to find the exact update that changed a signal, then open ប្រវត្តិ or the source record if the observation looks wrong.
 
 ### បញ្ជីការសង្កេត {#explain-observations-ledger}
 
@@ -595,7 +595,7 @@ Reorder policy បង្ហាញ the model's recommended supplier action for a 
 
 ### ការកំណត់របស់ផ្លូវ {#explain-rail-settings}
 
-ផ្នែកនេះ rail block identifies the selected SKU or service and gives the short pressure explanation. វា គឺជា the entity inspector header, not the global Settings page. ប្រើវា to confirm you គឺជា inspecting the right item មុនពេល opening its Catalog detail.
+ផ្នែកនេះ rail block identifies the selected SKU or service and gives the short pressure explanation. វា គឺជា the entity inspector header, not the global ការកំណត់ page. ប្រើវា to confirm you គឺជា inspecting the right item មុនពេល opening its Catalog detail.
 
 ### ប្រភពសញ្ញាខ្លាំងបំផុតរបស់ផ្លូវ {#explain-rail-strongest-channels}
 
@@ -619,7 +619,7 @@ Intervals tells how many timeline windows the Explain run evaluated. More interv
 
 ### ការសង្កេតចុងក្រោយ {#explain-settings-latest-observed}
 
-Latest observed គឺជា the newest saved event included in the Explain run. If this timestamp គឺជា old, the output may be stale even if the screen loaded correctly. Capture a fresh update មុនពេល acting on time-sensitive pressure.
+Latest observed គឺជា the newest saved event included in the Explain run. If this timestamp គឺជា old, the output may be stale even if the screen loaded correctly. កត់ត្រា a fresh update មុនពេល acting on time-sensitive pressure.
 
 ### ការសង្កេតដែលបានប្រើ {#explain-settings-observations-used}
 
@@ -647,7 +647,7 @@ Smoothing controls how strongly the run softens noisy observations. More smoothi
 
 ## Automations
 
-Automations គ្រប់គ្រង configuration និង customer-facing exposure សម្រាប់ automation។ ប្រើវាដើម្បីគ្រប់គ្រង Telegram connection, សម្រេចថា sellables ណាដែល bot អាច offer, និងរក្សា customer-facing catalog data ឱ្យរួចរាល់។ Intake review មាន Help section ដាច់ដោយឡែក ព្រោះវាជា Work subpage មិនមែនត្រឹម configuration panel ទេ។
+Automations គ្រប់គ្រង configuration និង customer-facing exposure សម្រាប់ automation។ ប្រើវាដើម្បីគ្រប់គ្រង Telegram connection, សម្រេចថា sellables ណាដែល bot អាច offer, និងរក្សា customer-facing catalog data ឱ្យរួចរាល់។ Intake review មាន ជំនួយ section ដាច់ដោយឡែក ព្រោះវាជា ការងារ subpage មិនមែនត្រឹម configuration panel ទេ។
 
 Automations ប្រើភាសា app សម្រាប់ controls និង messages របស់ operator។ Telegram text, handles, SKU names, service names, និង notes របស់ customer នៅដូចដែលបានបញ្ចូល។
 
@@ -695,35 +695,35 @@ Configuration គឺជា the Telegram connection panel. វា holds bot ident
 
 Sellables exposed to Telegram គឺជា the customer-facing catalog control. វា decides which SKUs and services automation can mention, quote, or offer. ប្រើវា to hide incomplete items and expose only records with clear names, prices, aliases, and availability.
 
-## History
+## ប្រវត្តិ
 
-History គឺជាប្រវត្តិ saved update។ វាជា maintenance/context surface មិនមែនជា destination នៅ sidebar ទេ។
+ប្រវត្តិ គឺជាប្រវត្តិ saved update។ វាជា maintenance/context surface មិនមែនជា destination នៅ sidebar ទេ។
 
-ប្រើ History ដើម្បី៖
+ប្រើ ប្រវត្តិ ដើម្បី៖
 
 - ស្វែងរក saved reports
 - មើល heatmap ឬ all-reports list
 - បើក report
-- edit report តាម Capture flow
+- edit report តាម កត់ត្រា flow
 - delete report បន្ទាប់ពី confirmation
 
-History ពន្យល់អ្វីដែលបានរក្សាទុក។ Work ពន្យល់អ្វីដែលត្រូវធ្វើឥឡូវនេះ។
+ប្រវត្តិ ពន្យល់អ្វីដែលបានរក្សាទុក។ ការងារ ពន្យល់អ្វីដែលត្រូវធ្វើឥឡូវនេះ។
 
-## Settings
+## ការកំណត់
 
-Settings រួមមាន៖
+ការកំណត់ រួមមាន៖
 
 - workspace preferences
 - interface visibility controls
 - local data, backup, restore, និង clear-data actions
 - local planning parameters
 - Telegram automation connection និង test-message state
-- Help នៅ `/settings/help`
+- ជំនួយ នៅ `/settings/help`
 - benchmarks
 - danger zone
 - credits
 
-Help mirror មគ្គុទ្ទេសក៍នេះ ហើយអាចស្វែងរកក្នុង app បាន។
+ជំនួយ mirror មគ្គុទ្ទេសក៍នេះ ហើយអាចស្វែងរកក្នុង app បាន។
 
 ### ការណែនាំប៉ារ៉ាម៉ែត្រ {#settings-parameter-guidance}
 
@@ -731,26 +731,26 @@ Parameter guidance explains SENA planning inputs such as particle count, service
 
 ### ការធ្វើឲ្យរលោង {#settings-smoothing}
 
-Smoothing controls whether បញ្ជី softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. ប្រើវា for steadier operations; disable it only នៅពេល immediate responsiveness matters more than noise control.
+Smoothing controls whether បញ្ជី softens noisy SENA signals in ការកំណត់. When enabled, charts and recommendations may react less sharply to one-off updates. ប្រើវា for steadier operations; disable it only នៅពេល immediate responsiveness matters more than noise control.
 
-## First Useful Workflow
+## លំហូរការងារដំបូងដែលមានប្រយោជន៍
 
 សម្រាប់ workspace ថ្មី លំហូរខ្លីដែលមានប្រយោជន៍គឺ៖
 
 1. បើក Catalog ហើយបង្កើត SKUs ឬ services ដែលក្រុមលក់ពិត។
 2. បន្ថែម supplier, cost, price, lead-time, និង linked-SKU details នៅពេល fields ទាំងនោះប៉ះពាល់ការសម្រេចចិត្ត។
-3. បើក Work / Capture ហើយ save stock count ឬ order ពិតដំបូង។
-4. Save update ពិតទីពីរ នៅពេលមានពេល ឬសកម្មភាពគ្រប់គ្រាន់សម្រាប់ banji ប្រៀបធៀប intervals។
-5. ត្រឡប់ទៅ Work ដើម្បីមើល supplier ឬ customer tasks ដែលត្រូវយកចិត្តទុកដាក់។
-6. បើក Insights / Pressure ដើម្បីយល់ demand, available capacity, pipeline support, confidence, និង next action។
-7. បើក Insights / Money នៅពេលត្រូវការ sales, gross profit, tied-up capital, ឬ leakage context។
+3. បើក ការងារ / កត់ត្រា ហើយ save stock count ឬ order ពិតដំបូង។
+4. Save update ពិតទីពីរ នៅពេលមានពេល ឬសកម្មភាពគ្រប់គ្រាន់សម្រាប់ បញ្ជី ប្រៀបធៀប intervals។
+5. ត្រឡប់ទៅ ការងារ ដើម្បីមើល supplier ឬ customer tasks ដែលត្រូវយកចិត្តទុកដាក់។
+6. បើក ការយល់ដឹង / Pressure ដើម្បីយល់ demand, available capacity, pipeline support, confidence, និង next action។
+7. បើក ការយល់ដឹង / Money នៅពេលត្រូវការ sales, gross profit, tied-up capital, ឬ leakage context។
 
 Search keywords: start, setup, onboarding, first update, first count, first order, first sale, first analysis។
 
 ពេលកែ SKU ឬ service ដែលមានស្រាប់ក្នុង Catalog ការផ្លាស់ប្តូរ variable
 សំខាន់ៗនឹងត្រូវរក្សាទុកក្នុង history ផង និង catalog ផង។ ការ​ផ្លាស់ប្តូរ
 SKU cost, SKU retail price, SKU lead-time mean ឬ uncertainty, និង service price
-នឹងក្លាយជា observations ដើម្បីឱ្យ Explain, Money, Pressure, និង History អាច
+នឹងក្លាយជា observations ដើម្បីឱ្យ Explain, Money, Pressure, និង ប្រវត្តិ អាច
 trace ថា assumptions ទាំងនោះផ្លាស់ប្តូរពេលណា។ ការកែ name, description,
 picture, supplier, linked-SKU, archive, និង new-item setup នៅតែជា catalog setup
 ប៉ុណ្ណោះ លុះត្រាតែ variable មួយក្នុងចំណោមនេះក៏ផ្លាស់ប្តូរផងដែរ។

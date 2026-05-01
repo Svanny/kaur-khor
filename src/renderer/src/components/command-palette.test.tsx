@@ -326,6 +326,58 @@ describe('CommandPaletteProvider', () => {
     expect(screen.getByText('បិទ')).toBeInTheDocument();
   });
 
+  test('finds settings commands from Khmer search terms without English-only aliases', () => {
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      applySenaEngineParameters,
+      currency: 'USD',
+      displayViewMode: 'custom',
+      language: 'km',
+      savePreferences,
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key: string) =>
+        ({
+          navSettings: 'ការកំណត់',
+          settingsExportLogsAction: 'នាំចេញកំណត់ហេតុ',
+          settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
+          settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន',
+          settingsPreferencesControlsTitle: 'ចំណូលចិត្តកន្លែងធ្វើការ',
+          settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <CommandPaletteProvider>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </CommandPaletteProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
+    const searchbox = screen.getByRole('searchbox', { name: 'ស្វែងរកពាក្យបញ្ជា' });
+
+    fireEvent.change(searchbox, { target: { value: 'ភាសា' } });
+    expect(screen.getByRole('option', { name: /ប្តូរភាសាទៅខ្មែរ/ })).toBeInTheDocument();
+
+    fireEvent.change(searchbox, { target: { value: 'រូបិយប័ណ្ណ' } });
+    expect(screen.getByRole('option', { name: /ប្តូររូបិយប័ណ្ណទៅរៀល/ })).toBeInTheDocument();
+
+    fireEvent.change(searchbox, { target: { value: 'តេលេក្រាម' } });
+    expect(screen.getByRole('option', { name: /ការទទួលសំណើ/ })).toBeInTheDocument();
+
+    fireEvent.change(searchbox, { target: { value: 'នាំចេញទិន្នន័យ' } });
+    expect(screen.getByRole('option', { name: /នាំចេញទិន្នន័យផែនការ: ឯកសារអិចសែល/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Excel/)).not.toBeInTheDocument();
+  });
+
   test('renders best matches ahead of grouped page, tab, and action results', () => {
     inventoryHook.mockReturnValue({
       catalog: {

@@ -31,6 +31,7 @@ import {
   buildRememberedSettingsHref,
 } from '@/lib/page-state-memory';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
+import { translateUiLiteral } from '@/lib/translations';
 import {
   activeSenaCatalog,
   archivedSenaServices,
@@ -98,6 +99,15 @@ export interface CommandPaletteSection {
 }
 
 type Translator = (key: string) => string;
+
+const khmerSettingsSearchTerms = ['ការកំណត់', 'ចំណូលចិត្ត'];
+const khmerLanguageSearchTerms = ['ភាសា', 'អង់គ្លេស', 'ខ្មែរ'];
+const khmerCurrencySearchTerms = ['រូបិយប័ណ្ណ', 'ដុល្លារ', 'រៀល'];
+const khmerIntakeSearchTerms = ['សំណើចូល', 'សំណើតេលេក្រាម', 'តេលេក្រាម'];
+
+function exportCommandTitle(language: AppLanguage, actionTitle: string) {
+  return `${actionTitle}: ${translateUiLiteral(language, 'Excel file')}`;
+}
 
 function commandKindLabel(kind: CommandKind) {
   if (kind === 'page') {
@@ -775,9 +785,9 @@ function buildSettingsCommands({
   return [
     createCommand({
       action: { effect: 'set-language', href: '/settings', type: 'settings', value: 'en' },
-      aliases: ['settings language english'],
+      aliases: ['settings language english', ...khmerSettingsSearchTerms, ...khmerLanguageSearchTerms],
       id: 'settings:language:en',
-      keywords: ['settings', 'language', 'english', language === 'en' ? 'current' : ''],
+      keywords: ['settings', 'language', 'english', ...khmerSettingsSearchTerms, ...khmerLanguageSearchTerms, language === 'en' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
@@ -788,9 +798,9 @@ function buildSettingsCommands({
     }),
     createCommand({
       action: { effect: 'set-language', href: '/settings', type: 'settings', value: 'km' },
-      aliases: ['settings language khmer'],
+      aliases: ['settings language khmer', ...khmerSettingsSearchTerms, ...khmerLanguageSearchTerms],
       id: 'settings:language:km',
-      keywords: ['settings', 'language', 'khmer', language === 'km' ? 'current' : ''],
+      keywords: ['settings', 'language', 'khmer', ...khmerSettingsSearchTerms, ...khmerLanguageSearchTerms, language === 'km' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
@@ -801,9 +811,9 @@ function buildSettingsCommands({
     }),
     createCommand({
       action: { effect: 'set-currency', href: '/settings', type: 'settings', value: 'USD' },
-      aliases: ['settings currency usd'],
+      aliases: ['settings currency usd', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms],
       id: 'settings:currency:usd',
-      keywords: ['settings', 'currency', 'usd', currency === 'USD' ? 'current' : ''],
+      keywords: ['settings', 'currency', 'usd', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms, currency === 'USD' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
@@ -814,9 +824,9 @@ function buildSettingsCommands({
     }),
     createCommand({
       action: { effect: 'set-currency', href: '/settings', type: 'settings', value: 'KHR' },
-      aliases: ['settings currency khr'],
+      aliases: ['settings currency khr', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms],
       id: 'settings:currency:khr',
-      keywords: ['settings', 'currency', 'khr', currency === 'KHR' ? 'current' : ''],
+      keywords: ['settings', 'currency', 'khr', ...khmerSettingsSearchTerms, ...khmerCurrencySearchTerms, currency === 'KHR' ? 'current' : ''],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
@@ -905,9 +915,9 @@ function buildSettingsCommands({
     }),
     createCommand({
       action: { effect: 'set-show-automations-page', href: '/settings/interface?highlight=automations', type: 'settings', value: !showAutomationsPage },
-      aliases: ['settings automations and intake', 'automation', 'intake', 'telegram bot'],
+      aliases: ['settings automations and intake', 'automation', 'intake', 'telegram bot', ...khmerSettingsSearchTerms, ...khmerIntakeSearchTerms],
       id: `settings:automations-page:${showAutomationsPage ? 'off' : 'on'}`,
-      keywords: ['settings', 'automation', 'automations', 'intake', 'telegram', 'bot', showAutomationsPage ? 'disable' : 'enable'],
+      keywords: ['settings', 'automation', 'automations', 'intake', 'telegram', 'bot', ...khmerSettingsSearchTerms, ...khmerIntakeSearchTerms, showAutomationsPage ? 'disable' : 'enable'],
       kind: 'workflow',
       pageId: 'settings',
       pageOrder: 6,
@@ -966,7 +976,7 @@ function buildSettingsCommands({
       pagePrefixes: ['/settings'],
       priority: 512,
       subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
-      title: `${t('settingsExportLogsAction')}: Excel`,
+      title: exportCommandTitle(language, t('settingsExportLogsAction')),
     }),
     createCommand({
       action: { effect: 'export-planning-data', href: '/settings', type: 'settings', value: 'excel' },
@@ -979,7 +989,7 @@ function buildSettingsCommands({
       pagePrefixes: ['/settings'],
       priority: 513,
       subtitle: `${t('navSettings')} / ${t('settingsLocalWorkspaceStorageTitle')}`,
-      title: `${t('settingsExportSenaDataAction')}: Excel`,
+      title: exportCommandTitle(language, t('settingsExportSenaDataAction')),
     }),
   ];
 }

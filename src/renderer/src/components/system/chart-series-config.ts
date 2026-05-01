@@ -1,3 +1,5 @@
+import type { AppLanguage } from '@shared/inventory';
+
 export type ChartInputValueSource = 'open' | 'high' | 'low' | 'close' | 'hl2' | 'ohlc4' | 'ohlc';
 
 export interface ChartInputSourceOption {
@@ -17,6 +19,28 @@ export const CHART_INPUT_VALUE_SOURCE_OPTIONS: ChartInputSourceOption[] = [
 
 export function chartInputSourceLabel(source: ChartInputValueSource) {
   return CHART_INPUT_VALUE_SOURCE_OPTIONS.find((option) => option.value === source)?.label ?? source;
+}
+
+export function localizedChartInputSourceLabel(language: AppLanguage, source: ChartInputValueSource) {
+  if (language !== 'km') {
+    return chartInputSourceLabel(source);
+  }
+  switch (source) {
+    case 'open':
+      return 'តម្លៃបើក';
+    case 'high':
+      return 'តម្លៃខ្ពស់';
+    case 'low':
+      return 'តម្លៃទាប';
+    case 'close':
+      return 'តម្លៃបិទ';
+    case 'hl2':
+      return 'មធ្យមតម្លៃខ្ពស់ និងទាប';
+    case 'ohlc4':
+      return 'មធ្យមតម្លៃបើក ខ្ពស់ ទាប និងបិទ';
+    case 'ohlc':
+      return 'តម្លៃបើក ខ្ពស់ ទាប និងបិទ';
+  }
 }
 
 export function isOhlcSource(source: ChartInputValueSource) {

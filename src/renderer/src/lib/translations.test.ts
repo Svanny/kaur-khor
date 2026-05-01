@@ -2,6 +2,12 @@ import { readdir, readFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { kmUiCopy } from './km-ui-copy';
+import {
+  translateChartTimeframeLabel,
+  translateLeadTimeVariabilityDescription,
+  translateObservationEvidenceLabel,
+  translateRiskLevelLabel,
+} from './localized-display';
 import { getTranslation, translations, translateUiLiteral } from './translations';
 import { activeEnUiCopy, enUiCopyV1, enUiCopyV2 } from './ui-copy-map';
 
@@ -38,10 +44,20 @@ async function collectSourceFiles(directory: string): Promise<string[]> {
 }
 
 function collectStaticTranslateUiLiteralCalls(source: string): Array<{ literal: string; line: number }> {
-  return [...source.matchAll(/\btranslateUiLiteral\(\s*language\s*,\s*(['"])((?:\\.|(?!\1).)*)\1/g)].map((match) => ({
+  return [...source.matchAll(/\btranslateUiLiteral\(\s*(?!['"]en['"])(?:[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*,\s*(['"])((?:\\.|(?!\1).)*)\1/g)].map((match) => ({
     literal: match[2].replace(/\\'/g, "'").replace(/\\"/g, '"'),
     line: source.slice(0, match.index).split('\n').length,
-  }));
+  })).filter(({ literal }) => literal.length > 1);
+}
+
+function collectTernaryTranslateUiLiteralCalls(source: string): Array<{ literal: string; line: number }> {
+  return [...source.matchAll(/\btranslateUiLiteral\(\s*(?!['"]en['"])(?:[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)?)\s*,\s*[^?\n]+?\?\s*(['"])((?:\\.|(?!\1).)*)\1\s*:\s*(['"])((?:\\.|(?!\3).)*)\3/g)].flatMap((match) => {
+    const line = source.slice(0, match.index).split('\n').length;
+    return [
+      { literal: match[2].replace(/\\'/g, "'").replace(/\\"/g, '"'), line },
+      { literal: match[4].replace(/\\'/g, "'").replace(/\\"/g, '"'), line },
+    ];
+  }).filter(({ literal }) => literal.length > 1);
 }
 
 describe('getTranslation', () => {
@@ -165,8 +181,80 @@ describe('getTranslation', () => {
       'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
     );
     expect(getTranslation('km', 'analysisRouteScopeAll' as never)).toBe('ទាំងអស់');
-    expect(getTranslation('km', 'analysisRouteScopeSkus' as never)).toBe('អេសខេយូ');
+    expect(getTranslation('km', 'analysisRouteScopeSkus' as never)).toBe('ធាតុស្តុក');
     expect(getTranslation('km', 'analysisRouteScopeServices' as never)).toBe('សេវាកម្ម');
+  });
+
+  test('uses natural Khmer verbs for catalog creation actions', () => {
+    expect(translateUiLiteral('km', 'New SKU')).toBe('បន្ថែមអេសខេយូ');
+    expect(translateUiLiteral('km', 'New service')).toBe('បន្ថែមសេវាកម្ម');
+    expect(translateUiLiteral('km', 'Create new SKU')).toBe('បង្កើតអេសខេយូ');
+    expect(translateUiLiteral('km', 'Create a new SKU')).toBe('បង្កើតអេសខេយូ');
+    expect(translateUiLiteral('km', 'Create a new service')).toBe('បង្កើតសេវាកម្ម');
+  });
+
+  test('localizes bounded Khmer runtime literals without scanner leaks', () => {
+    const literals = [
+      'Automations',
+      'Configuration',
+      'Overview',
+      'Catalog',
+      'handle',
+      'token',
+      'Mission Control',
+      'SKUs ({count})',
+      '{count} linked SKUs',
+      '{quantity} x {label}',
+      '{items} +{overflow} more',
+      'Telegram customer',
+      'Telegram intake',
+      'Telegram',
+      'Chart duration',
+      'Chart timeframe',
+      'Chart flags',
+      'Ledger for {name}',
+      'adjustments',
+      'Optional guidance',
+      'Floating page actions',
+      'Right-side context panels',
+      'Work queue filter tabs',
+      'US dollar',
+      'Cambodian riel',
+    ];
+
+    for (const literal of literals) {
+      const translated = translateUiLiteral('km', literal, {
+        count: 2,
+        items: 'សាប៊ូ, កន្សែង',
+        label: 'សាប៊ូ',
+        overflow: 1,
+        quantity: 3,
+        name: 'សាប៊ូ',
+      });
+      expect(translated).not.toBe(literal);
+      expect(/[A-Za-z]/.test(stripAllowedLatin(translated))).toBe(false);
+    }
+  });
+
+  test('localizes representative helper display labels in Khmer', () => {
+    expect(translateLeadTimeVariabilityDescription('km', 'very_tight')).toBe(
+      'ពេលវេលាដឹកមកដល់មានស្ថិរភាពខ្លាំង។',
+    );
+    expect(translateChartTimeframeLabel('km', 'Recent')).toBe('ថ្មីៗ');
+    expect(translateChartTimeframeLabel('km', 'MAX')).toBe('ទាំងអស់');
+    expect(translateRiskLevelLabel('km', 'High risk')).toBe('ហានិភ័យខ្ពស់');
+    expect(translateRiskLevelLabel('km', 'Low')).toBe('ទាប');
+    expect(translateObservationEvidenceLabel('km', 'No direct evidence in this period.')).toBe(
+      'មិនមានភស្តុតាងផ្ទាល់នៅក្នុងរយៈពេលនេះទេ។',
+    );
+    expect(getTranslation('km', 'catalogServiceRailCoverLine' as never, { value: '8 ថ្ងៃ' })).toBe(
+      'ថ្ងៃគ្រប់គ្រាន់ 8 ថ្ងៃ',
+    );
+  });
+
+  test('documents the bounded Latin-token policy used by Khmer guardrails', () => {
+    expect(/[A-Za-z]/.test(stripAllowedLatin('អេសខេយូ SKU CSV USD KHR API JSON SQLite ID IDs ETA SENA ESS 1M'))).toBe(false);
+    expect(/[A-Za-z]/.test(stripAllowedLatin('ឯកសារ Excel'))).toBe(true);
   });
 
   test('localizes logs and archive hero descriptor literals in Khmer', () => {
@@ -240,6 +328,13 @@ describe('getTranslation', () => {
       'Supply',
       'Customer',
       'All suppliers',
+      'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.',
+      'Expose approved sellables to Telegram, turn messages into tickets, and keep banji as source.',
+      '@bot_username',
+      'https://t.me/your_bot',
+      'Demand, support, timing, price, and recovery pressure.',
+      'Money in, money tied up, and value leakage.',
+      'Detailed explanation, observations, fragility, and chart settings.',
     ];
 
     for (const literal of screenshotRegressionLiterals) {
@@ -262,9 +357,31 @@ describe('getTranslation', () => {
           offenders.push(`${relative(rendererRoot, sourceFile)}:${line}: ${literal} -> ${translated}`);
         }
       }
+      for (const { literal, line } of collectTernaryTranslateUiLiteralCalls(source)) {
+        const translated = translateUiLiteral('km', literal);
+        if (/[A-Za-z]/.test(stripTemplateVariables(translated))) {
+          offenders.push(`${relative(rendererRoot, sourceFile)}:${line}: ${literal} -> ${translated}`);
+        }
+      }
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  test('keeps Khmer insight route titles and tabs localized consistently', () => {
+    expect(getTranslation('km', 'performanceRouteTitle' as never)).toBe('សម្ពាធ');
+    expect(getTranslation('km', 'analysisRouteTitle' as never)).toBe('ការពន្យល់');
+    expect(getTranslation('km', 'analysisWorkbenchNavPressure' as never)).toBe('ហានិភ័យ');
+    expect(getTranslation('km', 'analysisWorkbenchNavObservations' as never)).toBe('ភស្តុតាង');
+    expect(getTranslation('km', 'analysisWorkbenchNavFragility' as never)).toBe('ចំណុចរារាំង');
+    expect(getTranslation('km', 'analysisWorkbenchNavSettings' as never)).toBe('ប៉ារ៉ាម៉ែត្រ');
+    expect(getTranslation('km', 'analysisWorkbenchSelectSurface' as never)).toBe('ជ្រើសទិដ្ឋភាពការពន្យល់');
+  });
+
+  test('keeps Khmer Money terminology aligned across financial surfaces', () => {
+    expect(getTranslation('km', 'navFinancials' as never)).toBe('ហិរញ្ញវត្ថុ');
+    expect(getTranslation('km', 'financialsRouteTitle' as never)).toBe('ហិរញ្ញវត្ថុ');
+    expect(translateUiLiteral('km', 'Money')).toBe('ហិរញ្ញវត្ថុ');
   });
 
   test('still falls back to English defensively if a Khmer entry is unavailable at runtime', () => {

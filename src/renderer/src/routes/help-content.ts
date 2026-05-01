@@ -44,6 +44,20 @@ function parseHeadingText(value: string) {
   };
 }
 
+function isTableOfContentsHeading(value: string) {
+  const normalized = value
+    .toLowerCase()
+    .replace(/[^\p{Letter}\p{Mark}\p{Number}]+/gu, '');
+
+  return [
+    'tableofcontents',
+    'contents',
+    'មាតិកា',
+    'តារាងមាតិកា',
+    'បញ្ជីមាតិកា',
+  ].includes(normalized);
+}
+
 function blockSearchText(block: HelpBlock) {
   if (block.type === 'paragraph' || block.type === 'heading') {
     return block.text;
@@ -103,7 +117,7 @@ export function parseHelpContent(markdown: string): ParsedHelpContent {
     if (line.startsWith('## ')) {
       const { id, text: title } = parseHeadingText(line.slice(3));
       collectingIntro = false;
-      if (!['table of contents', 'មាតិកា'].includes(title.toLowerCase())) {
+      if (!isTableOfContentsHeading(title)) {
         currentSection = { blocks: [], id, searchText: '', title };
         sections.push(currentSection);
       } else {

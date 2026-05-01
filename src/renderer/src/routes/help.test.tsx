@@ -2,6 +2,7 @@ import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { parseHelpContent } from './help-content';
 import { HelpRoute } from './help';
 
 const preferencesHook = vi.fn();
@@ -16,14 +17,14 @@ function translationsFor(language: 'en' | 'km') {
     return {
       navHelp: 'ជំនួយ',
       helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
-      helpPageDescriptor: 'រកមើលលំហូរការងារ និងសំណួរញឹកញាប់របស់ banji ពីទំព័រជំនួយតែមួយ។',
-      helpOpenOverviewAction: 'បើក Home',
-      helpStartUpdateAction: 'បើក Capture',
+      helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់បញ្ជី ពីការកំណត់។',
+      helpOpenOverviewAction: 'បើកទំព័រដើម',
+      helpStartUpdateAction: 'បើកការកត់ត្រា',
       helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
       helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
       helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
       helpNoMatchesDescriptor: 'សាកពាក្យស្វែងរកទូលំទូលាយជាងមុន ឬសម្អាតតម្រងបច្ចុប្បន្ន។',
-      helpNoMatchesBody: 'banji រកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
+      helpNoMatchesBody: 'បញ្ជីរកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
       helpClearSearchAction: 'សម្អាតការស្វែងរក',
       helpBestMatchBadge: 'ត្រូវគ្នាបំផុត',
       helpIndexTitle: 'មាតិកា',
@@ -168,8 +169,37 @@ describe('HelpRoute', () => {
     );
 
     expect(screen.getByText('មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់')).toBeInTheDocument();
-    expect(screen.getAllByText('Work').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ការងារ').length).toBeGreaterThan(0);
     expect(screen.getAllByText('សំណួរញឹកញាប់').length).toBeGreaterThan(0);
+  });
+
+  test('uses the Khmer overview CTA and descriptor without stale English settings copy', () => {
+    mockPreferences('km');
+
+    render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: /បើកទំព័រដើម/ })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('link', { name: /បើកការកត់ត្រា/ })).toHaveAttribute('href', '/work/capture');
+    expect(screen.getByText('រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់បញ្ជី ពីការកំណត់។')).toBeInTheDocument();
+  });
+
+  test('keeps visible Khmer help content free of stale English navigation tokens', () => {
+    mockPreferences('km');
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    const visibleText = container.textContent ?? '';
+    expect(visibleText).not.toMatch(/\b(?:Work|Settings|Capture|Insights)\b/);
+    expect(screen.queryByRole('link', { name: /Capture/ })).not.toBeInTheDocument();
+    expect(screen.queryByText(/banji/)).not.toBeInTheDocument();
   });
 
   test('searches Khmer help content when Khmer is active', () => {
@@ -182,10 +212,10 @@ describe('HelpRoute', () => {
     );
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'ស្វែងរកជំនួយ' }), {
-      target: { value: 'Settings' },
+      target: { value: 'ការកំណត់' },
     });
 
-    expect(screen.getAllByText('Settings').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('ការកំណត់').length).toBeGreaterThan(0);
     expect(screen.getByTestId('help-best-match-badge')).toBeInTheDocument();
   });
 
@@ -238,10 +268,30 @@ describe('HelpRoute', () => {
   });
 
   test('keeps the Khmer guide aligned with the intent-first IA', () => {
-    expect(guideSourceKm).toContain('Capture');
-    expect(guideSourceKm).toContain('Insights');
+    expect(guideSourceKm).toContain('កត់ត្រា');
+    expect(guideSourceKm).toContain('ការយល់ដឹង');
+    expect(guideSourceKm).not.toMatch(/\b(?:Work|Settings|Capture|Insights)\b/);
     expect(guideSourceKm).toContain('តើគួរបញ្ចូលអ្វីមុន?');
     expect(guideSourceKm).toContain('តើធ្វើដូចម្តេច បើការណែនាំមើលទៅមិនត្រឹមត្រូវ?');
+  });
+
+  test('suppresses Khmer table-of-contents headings with variant punctuation', () => {
+    const parsed = parseHelpContent(`# មគ្គុទ្ទេសក៍
+
+សេចក្តីផ្តើម
+
+## តារាង​មាតិកា៖
+
+- [ការងារ](#work)
+- [ការកំណត់](#settings)
+
+## ការងារ
+
+មាតិកាផ្នែកការងារ។`);
+
+    expect(parsed.intro).toEqual(['សេចក្តីផ្តើម']);
+    expect(parsed.sections.map((section) => section.title)).toEqual(['ការងារ']);
+    expect(parsed.sections[0]?.blocks).toEqual([{ text: 'មាតិកាផ្នែកការងារ។', type: 'paragraph' }]);
   });
 
   test('keeps bottom breathing room at the end of the Help page', () => {
