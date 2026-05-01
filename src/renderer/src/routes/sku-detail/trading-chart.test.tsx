@@ -425,8 +425,8 @@ describe('SkuTradingChart settings', () => {
 
     expect(markers).toHaveLength(1);
     expect(markers[0]?.bottom).toBe(6);
-    expect(markers[0]?.left).toBe(64);
-    expect(markers[0]?.width).toBe(72);
+    expect(markers[0]?.left).toBe(64.5);
+    expect(markers[0]?.width).toBe(71);
     expect(markers[0]?.segments.map((segment) => segment.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags']);
   });
 
@@ -475,8 +475,8 @@ describe('SkuTradingChart settings', () => {
 
     expect(markers).toHaveLength(1);
     expect(markers[0]?.bottom).toBe(6);
-    expect(markers[0]?.left).toBe(-30);
-    expect(markers[0]?.width).toBe(108);
+    expect(markers[0]?.left).toBe(-29);
+    expect(markers[0]?.width).toBe(106);
     expect(markers[0]?.segments.map((segment) => segment.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags', 'regime']);
   });
 
@@ -516,6 +516,68 @@ describe('SkuTradingChart settings', () => {
 
     expect(markers).toHaveLength(2);
     expect(markers.map((marker) => marker.width)).toEqual([100, 100]);
+  });
+
+  it('keeps compact overlay flags aligned to their interval cells', () => {
+    const markers = stackOverlayFlagMarkers([
+      {
+        key: 'order:first',
+        indicatorId: 'newOrderFlags',
+        paneId: 'main',
+        intervalIndex: 1,
+        layerOrder: 1,
+        left: 90,
+        width: 20,
+        collisionLeft: 90,
+        collisionWidth: 20,
+        color: '#000',
+        label: 'Supplier order activity',
+        onClick: vi.fn(),
+        icon: vi.fn() as never,
+        compact: true,
+      },
+      {
+        key: 'order:second',
+        indicatorId: 'newOrderFlags',
+        paneId: 'main',
+        intervalIndex: 2,
+        layerOrder: 1,
+        left: 110,
+        width: 20,
+        collisionLeft: 110,
+        collisionWidth: 20,
+        color: '#000',
+        label: 'Supplier order activity',
+        onClick: vi.fn(),
+        icon: vi.fn() as never,
+        compact: true,
+      },
+      {
+        key: 'receipt:second',
+        indicatorId: 'newReceiptFlags',
+        paneId: 'main',
+        intervalIndex: 2,
+        layerOrder: 2,
+        left: 110,
+        width: 20,
+        collisionLeft: 110,
+        collisionWidth: 20,
+        color: '#000',
+        label: 'Supplier receipt activity',
+        onClick: vi.fn(),
+        icon: vi.fn() as never,
+        compact: true,
+      },
+    ]);
+
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.left).toBe(90);
+    expect(markers[0]?.width).toBe(40);
+    expect(markers[0]?.segmentLayout).toEqual([
+      { key: 'order:first', left: 0, width: 20 },
+      { key: 'order:second', left: 20, width: 10 },
+      { key: 'receipt:second', left: 30, width: 10 },
+    ]);
   });
 
   it('includes split order pipeline indicators in default settings', () => {
@@ -942,7 +1004,7 @@ describe('SkuTradingChart settings', () => {
     await waitFor(() => expect(onPaneHeightsChange).toHaveBeenCalledWith({ main: 320, 'pane-1': 188 }, 'manual'));
   });
 
-  it('lets expanded chart windows shrink inside the available overlay height', () => {
+  it('preserves pane-count minimum height in expanded chart windows', () => {
     const initialSettings = defaultTradingChartIndicators();
     initialSettings.demand.enabled = true;
     initialSettings.receipts.enabled = true;
@@ -967,10 +1029,10 @@ describe('SkuTradingChart settings', () => {
     });
 
     expect(screen.getByTestId('sku-trading-chart').parentElement).toHaveStyle({
-      minHeight: '0',
+      minHeight: `${deriveTradingChartMinRenderHeight(2)}px`,
     });
     expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
-      minHeight: '0',
+      minHeight: `${deriveTradingChartMinRenderHeight(2)}px`,
     });
   });
 
@@ -1172,7 +1234,7 @@ describe('SkuTradingChart settings', () => {
     });
 
     const flagGroup = await screen.findByRole('group', { name: /Supplier order activity, Supplier receipt activity/ });
-    expect(flagGroup).toHaveStyle({ width: '108px' });
+    expect(flagGroup).toHaveStyle({ width: '106px' });
     expect(within(flagGroup).getAllByRole('button')).toHaveLength(3);
     const orderButton = within(flagGroup).getByRole('button', { name: 'Select Supplier order activity' });
     const receiptButton = within(flagGroup).getByRole('button', { name: 'Select Supplier receipt activity' });
@@ -1183,6 +1245,137 @@ describe('SkuTradingChart settings', () => {
     await userEvent.click(receiptButton);
 
     expect(onSelectInterval).toHaveBeenCalledWith(0);
+  });
+
+  it('resizes attached chart flag pills after the chart time scale settles on zoom', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 320,
+    });
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.newOrderFlags.enabled = true;
+    initialSettings.newOrderFlags.paneId = 'main';
+    initialSettings.newOrderFlags.layerOrder = 1;
+    initialSettings.newReceiptFlags.enabled = true;
+    initialSettings.newReceiptFlags.paneId = 'main';
+    initialSettings.newReceiptFlags.layerOrder = 2;
+
+    const baseModel = multiPointChartModel(2);
+    const firstPoint = { ...baseModel.points[0]!, newOrderFlag: 1 };
+    const secondPoint = { ...baseModel.points[1]!, newOrderFlag: 1, newReceiptFlag: 1 };
+    const flaggedChartModel: TradingChartModel = {
+      ...baseModel,
+      points: [firstPoint, secondPoint],
+      pointByIntervalIndex: new Map([
+        [firstPoint.intervalIndex, firstPoint],
+        [secondPoint.intervalIndex, secondPoint],
+      ]),
+      pointByTimeKey: new Map([
+        [String(firstPoint.time), firstPoint],
+        [String(secondPoint.time), secondPoint],
+      ]),
+      availability: {
+        ...baseModel.availability,
+        newOrderFlags: true,
+        newReceiptFlags: true,
+      },
+    };
+    const coordinateForTime = new Map<unknown, number>([
+      [firstPoint.time, 100],
+      [secondPoint.time, 128],
+    ]);
+    renderChart({
+      chartModelOverride: flaggedChartModel,
+      initialSettings,
+    });
+    chartMockState.timeToCoordinate.mockImplementation(function () {
+      return coordinateForTime.get(arguments[0]) ?? 100;
+    });
+
+    const overlayRangeHandler = chartMockState.visibleRangeHandlers.at(-1);
+    expect(overlayRangeHandler).toBeDefined();
+    act(() => {
+      overlayRangeHandler?.({ from: 0, to: 1 });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('group', { name: /Supplier order activity/ })).toHaveStyle({ width: '99px' });
+    });
+
+    act(() => {
+      overlayRangeHandler?.({ from: 0, to: 1 });
+      coordinateForTime.set(secondPoint.time, 136);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('group', { name: /Supplier order activity/ })).toHaveStyle({ width: '107px' });
+    });
+  });
+
+  it('renders narrow interval chart flags as color-only pills instead of icons', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 320,
+    });
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.newOrderFlags.enabled = true;
+    initialSettings.newOrderFlags.paneId = 'main';
+    initialSettings.newOrderFlags.layerOrder = 1;
+    initialSettings.newReceiptFlags.enabled = true;
+    initialSettings.newReceiptFlags.paneId = 'main';
+    initialSettings.newReceiptFlags.layerOrder = 2;
+
+    const baseModel = multiPointChartModel(2);
+    const firstPoint = { ...baseModel.points[0]!, newOrderFlag: 1 };
+    const secondPoint = { ...baseModel.points[1]!, newOrderFlag: 1, newReceiptFlag: 1 };
+    const flaggedChartModel: TradingChartModel = {
+      ...baseModel,
+      points: [firstPoint, secondPoint],
+      pointByIntervalIndex: new Map([
+        [firstPoint.intervalIndex, firstPoint],
+        [secondPoint.intervalIndex, secondPoint],
+      ]),
+      pointByTimeKey: new Map([
+        [String(firstPoint.time), firstPoint],
+        [String(secondPoint.time), secondPoint],
+      ]),
+      availability: {
+        ...baseModel.availability,
+        newOrderFlags: true,
+        newReceiptFlags: true,
+      },
+    };
+    const coordinateForTime = new Map<unknown, number>([
+      [firstPoint.time, 100],
+      [secondPoint.time, 120],
+    ]);
+    renderChart({
+      chartModelOverride: flaggedChartModel,
+      initialSettings,
+    });
+    chartMockState.timeToCoordinate.mockImplementation(function () {
+      return coordinateForTime.get(arguments[0]) ?? 100;
+    });
+
+    const overlayRangeHandler = chartMockState.visibleRangeHandlers.at(-1);
+    act(() => {
+      overlayRangeHandler?.({ from: 0, to: 1 });
+    });
+
+    const flagGroup = await screen.findByRole('group', { name: /Supplier receipt activity/ });
+    await waitFor(() => {
+      expect(flagGroup).toHaveStyle({ width: '40px' });
+    });
+    const buttons = within(flagGroup).getAllByRole('button');
+    expect(buttons).toHaveLength(3);
+    expect(buttons[0]).toHaveStyle({ width: '20px' });
+    expect(buttons[1]).toHaveStyle({ width: '10px' });
+    expect(buttons[0]).toHaveClass('rounded-l-full', 'rounded-r-none');
+    expect(buttons[2]).toHaveClass('rounded-l-none', 'rounded-r-full');
+    expect(flagGroup.querySelector('svg')).toBeNull();
+    expect(buttons[0]?.getAttribute('style')).toContain('color-mix');
   });
 
 

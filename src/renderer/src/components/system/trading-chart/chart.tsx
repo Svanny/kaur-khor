@@ -201,6 +201,7 @@ interface OverlayFlagMarker {
   onClick: () => void;
   icon: IconComponent;
   clustered?: boolean;
+  compact?: boolean;
 }
 interface OverlayFlagPill {
   key: string;
@@ -209,6 +210,7 @@ interface OverlayFlagPill {
   width: number;
   bottom: number;
   segments: OverlayFlagMarker[];
+  segmentLayout: Array<{ key: string; left: number; width: number }>;
 }
 interface OverlayIconCluster {
   indicatorId: OverlayIndicatorId;
@@ -309,6 +311,7 @@ const REGIME_CLUSTER_GAP = 8;
 const OVERLAY_FLAG_STACK_GAP = 6;
 const OVERLAY_FLAG_ATTACH_PADDING = 8;
 const CHART_ICON_BOTTOM_INSET = OVERLAY_FLAG_STACK_GAP;
+const COMPACT_OVERLAY_FLAG_COLOR_ALPHA = 28;
 const OLDER_LOAD_MIN_LOGICAL_RANGE_THRESHOLD = 5;
 const OLDER_LOAD_RANGE_FRACTION = 0.25;
 const OLDER_LOAD_MAX_LOGICAL_RANGE_THRESHOLD = 40;
@@ -1411,15 +1414,89 @@ function overlayFlagMarkerCollisionRight(marker: OverlayFlagMarker) {
   return overlayFlagMarkerCollisionLeft(marker) + (marker.collisionWidth ?? marker.width);
 }
 
-function overlayFlagPillWidth(segments: OverlayFlagMarker[]) {
-  const attachPadding = segments.length > 1 ? OVERLAY_FLAG_ATTACH_PADDING : 0;
-  return segments.reduce((sum, segment) => sum + Math.max(REGIME_ICON_SIZE, segment.width) + attachPadding, 0);
+function overlayFlagCompactPillStyle(color: string) {
+  return {
+    backgroundColor: `color-mix(in srgb, ${color} ${COMPACT_OVERLAY_FLAG_COLOR_ALPHA}%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 34%, transparent)`,
+    color,
+  };
 }
 
-function overlayFlagPillLeft(segments: OverlayFlagMarker[], width: number) {
-  const collisionLeft = Math.min(...segments.map(overlayFlagMarkerCollisionLeft));
-  const collisionRight = Math.max(...segments.map(overlayFlagMarkerCollisionRight));
-  return (collisionLeft + collisionRight - width) / 2;
+function overlayFlagCompactPillLayout(segments: OverlayFlagMarker[]) {
+  const orderedSegments = [...segments].sort(overlayFlagMarkerSort);
+  const segmentsBySlot = new Map<string, OverlayFlagMarker[]>();
+  for (const segment of orderedSegments) {
+    const key = `${segment.left}:${segment.width}`;
+    const current = segmentsBySlot.get(key) ?? [];
+    current.push(segment);
+    segmentsBySlot.set(key, current);
+  }
+  const positioned = [...segmentsBySlot.values()].flatMap((slotSegments) => {
+    const [firstSegment] = slotSegments;
+    if (!firstSegment) {
+      return [];
+    }
+    const width = firstSegment.width / slotSegments.length;
+    return slotSegments.map((segment, index) => ({
+      key: segment.key,
+      left: segment.left + width * index,
+      width,
+    }));
+  });
+  const left = Math.min(...positioned.map((segment) => segment.left));
+  const right = Math.max(...positioned.map((segment) => segment.left + segment.width));
+  return {
+    left,
+    width: right - left,
+    segmentLayout: positioned.map((segment) => ({
+      key: segment.key,
+      left: segment.left - left,
+      width: segment.width,
+    })),
+  };
+}
+
+function overlayFlagPillLayout(segments: OverlayFlagMarker[]) {
+  if (segments.some((segment) => segment.compact)) {
+    return overlayFlagCompactPillLayout(segments);
+  }
+  const attachPadding = segments.length > 1 ? OVERLAY_FLAG_ATTACH_PADDING : 0;
+  const orderedSegments = [...segments].sort(overlayFlagMarkerSort);
+  const positioned = orderedSegments.map((segment) => {
+    const width = Math.max(REGIME_ICON_SIZE, segment.width) + attachPadding;
+    const preferredCenter = segment.left + segment.width / 2;
+    return {
+      key: segment.key,
+      left: preferredCenter - width / 2,
+      preferredCenter,
+      width,
+    };
+  });
+  for (let index = 1; index < positioned.length; index += 1) {
+    const previous = positioned[index - 1]!;
+    const current = positioned[index]!;
+    current.left = Math.max(current.left, previous.left + previous.width - 1);
+  }
+  if (positioned.length > 1) {
+    const preferredCenter = positioned.reduce((sum, segment) => sum + segment.preferredCenter, 0) / positioned.length;
+    const left = Math.min(...positioned.map((segment) => segment.left));
+    const right = Math.max(...positioned.map((segment) => segment.left + segment.width));
+    const shift = preferredCenter - (left + right) / 2;
+    for (const segment of positioned) {
+      segment.left += shift;
+    }
+  }
+  const left = Math.min(...positioned.map((segment) => segment.left));
+  const right = Math.max(...positioned.map((segment) => segment.left + segment.width));
+  return {
+    left,
+    width: right - left,
+    segmentLayout: positioned.map((segment) => ({
+      key: segment.key,
+      left: segment.left - left,
+      width: segment.width,
+    })),
+  };
 }
 
 export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): OverlayFlagPill[] {
@@ -1438,19 +1515,22 @@ export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): OverlayFl
       if (previous && previous.segments.some((segment) => overlayFlagMarkersOverlap(segment, marker))) {
         previous.segments.push(marker);
         previous.segments.sort(overlayFlagMarkerSort);
-        previous.width = overlayFlagPillWidth(previous.segments);
-        previous.left = overlayFlagPillLeft(previous.segments, previous.width);
+        const layout = overlayFlagPillLayout(previous.segments);
+        previous.left = layout.left;
+        previous.width = layout.width;
+        previous.segmentLayout = layout.segmentLayout;
         previous.key = previous.segments.map((segment) => segment.key).join('|');
         continue;
       }
-      const width = Math.max(REGIME_ICON_SIZE, marker.width);
+      const layout = overlayFlagPillLayout([marker]);
       pills.push({
         key: marker.key,
         paneId: marker.paneId,
-        left: marker.left + (marker.width - width) / 2,
-        width,
+        left: layout.left,
+        width: layout.width,
         bottom: CHART_ICON_BOTTOM_INSET,
         segments: [marker],
+        segmentLayout: layout.segmentLayout,
       });
     }
     return pills;
@@ -1886,29 +1966,106 @@ function buildRegimeIconClusters(
   );
 }
 
+function overlayIntervalSlot(
+  points: TradingChartPoint[],
+  index: number | undefined,
+  positions: Map<number, number>,
+  plotAreaWidth: number,
+) {
+  if (index == null) {
+    return null;
+  }
+  const point = points[index];
+  if (!point) {
+    return null;
+  }
+  const x = positions.get(point.intervalIndex);
+  if (x == null) {
+    return null;
+  }
+  const previousPoint = points[index - 1];
+  const nextPoint = points[index + 1];
+  const previousX = previousPoint ? positions.get(previousPoint.intervalIndex) : null;
+  const nextX = nextPoint ? positions.get(nextPoint.intervalIndex) : null;
+  const left = previousX != null
+    ? (previousX + x) / 2
+    : x - Math.max(1, nextX != null ? (nextX - x) / 2 : REGIME_ICON_SIZE / 2);
+  const right = nextX != null
+    ? (x + nextX) / 2
+    : x + Math.max(1, previousX != null ? (x - previousX) / 2 : REGIME_ICON_SIZE / 2);
+  const clippedLeft = Math.max(0, left);
+  const clippedRight = plotAreaWidth > 0 ? Math.min(plotAreaWidth, right) : right;
+  return {
+    left: clippedLeft,
+    width: Math.max(1, clippedRight - clippedLeft),
+  };
+}
+
 function buildStackedOverlayMarkers({
   chartModel,
-  clusters,
   editableIndicatorSettings,
   language,
   onSelectInterval,
+  plotAreaWidth,
   regimeIconPositions,
   regimePaneId,
   showRegimeIcons,
 }: {
   chartModel: TradingChartModel;
-  clusters: OverlayIconCluster[];
   editableIndicatorSettings: TradingChartIndicatorSettings;
   language: 'en' | 'km';
   onSelectInterval: (index: number) => void;
+  plotAreaWidth: number;
   regimeIconPositions: Map<number, number>;
   regimePaneId: string;
   showRegimeIcons: boolean;
 }) {
   const markers: OverlayFlagMarker[] = [];
+  const pointIndexByIntervalIndex = new Map(chartModel.points.map((point, index) => [point.intervalIndex, index]));
+  const slotForPoint = (point: TradingChartPoint) => overlayIntervalSlot(
+    chartModel.points,
+    pointIndexByIntervalIndex.get(point.intervalIndex),
+    regimeIconPositions,
+    plotAreaWidth,
+  );
 
   if (showRegimeIcons) {
-    for (const cluster of clusters) {
+    const entries: Array<{ indicatorId: OverlayIndicatorId; groupKey: string; intervalIndex: number; x: number }> = [];
+    for (const point of chartModel.points) {
+      const regime = point.dominantRegime;
+      const x = regimeIconPositions.get(point.intervalIndex);
+      if (!regime || x == null) {
+        continue;
+      }
+      const slot = slotForPoint(point);
+      if (slot && slot.width < REGIME_ICON_SIZE) {
+        const regimeKey = regime.toLowerCase();
+        markers.push({
+          key: `regime:compact:${point.intervalIndex}-${regime}`,
+          indicatorId: 'regime',
+          paneId: regimePaneId,
+          intervalIndex: point.intervalIndex,
+          layerOrder: editableIndicatorSettings.regime.layerOrder,
+          left: slot.left,
+          width: slot.width,
+          collisionLeft: slot.left,
+          collisionWidth: slot.width,
+          color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
+          label: regimeClusterLabel(language, regime, 1),
+          onClick: () => onSelectInterval(point.intervalIndex),
+          icon: getRegimeIcon(regime),
+          compact: true,
+        });
+        continue;
+      }
+      entries.push({
+        indicatorId: 'regime',
+        groupKey: regime,
+        intervalIndex: point.intervalIndex,
+        x,
+      });
+    }
+    for (const cluster of buildOverlayIconClusters(entries)) {
       const regime = cluster.groupKey;
       const regimeKey = regime.toLowerCase();
       const markerLeft = cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2;
@@ -1945,6 +2102,26 @@ function buildStackedOverlayMarkers({
     for (const point of chartModel.points) {
       const x = regimeIconPositions.get(point.intervalIndex);
       if (hasValue(point) && x != null) {
+        const slot = slotForPoint(point);
+        if (slot && slot.width < REGIME_ICON_SIZE) {
+          markers.push({
+            key: `${indicatorId}:compact:${point.intervalIndex}`,
+            indicatorId,
+            paneId: setting.paneId,
+            intervalIndex: point.intervalIndex,
+            layerOrder: setting.layerOrder,
+            left: slot.left,
+            width: slot.width,
+            collisionLeft: slot.left,
+            collisionWidth: slot.width,
+            color: setting.color,
+            label,
+            onClick: () => onSelectInterval(point.intervalIndex),
+            icon: Icon,
+            compact: true,
+          });
+          continue;
+        }
         entries.push({ indicatorId, groupKey: indicatorId, intervalIndex: point.intervalIndex, x });
       }
     }
@@ -2053,7 +2230,8 @@ function overlayFlagMarkersEqual(left: OverlayFlagMarker[], right: OverlayFlagMa
       segment.color === other.color &&
       segment.label === other.label &&
       segment.icon === other.icon &&
-      segment.clustered === other.clustered;
+      segment.clustered === other.clustered &&
+      segment.compact === other.compact;
   });
 }
 
@@ -2069,7 +2247,15 @@ function stackedOverlayMarkersEqual(left: OverlayFlagPill[], right: OverlayFlagP
       pill.left === other.left &&
       pill.width === other.width &&
       pill.bottom === other.bottom &&
-      overlayFlagMarkersEqual(pill.segments, other.segments);
+      overlayFlagMarkersEqual(pill.segments, other.segments) &&
+      pill.segmentLayout.length === other.segmentLayout.length &&
+      pill.segmentLayout.every((segment, segmentIndex) => {
+        const otherSegment = other.segmentLayout[segmentIndex];
+        return otherSegment != null &&
+          segment.key === otherSegment.key &&
+          segment.left === otherSegment.left &&
+          segment.width === otherSegment.width;
+      });
   });
 }
 
@@ -2703,11 +2889,9 @@ export function SkuTradingChart({
   );
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const minimumRenderHeight = baseMinRenderHeight + Math.max(0, activeAdditionalPaneCount) * additionalPaneMinRenderHeight;
-  const chartRenderStyle: CSSProperties = expanded
-    ? { minHeight: 0 }
-    : chartRenderHeight == null
-      ? { minHeight: minimumRenderHeight }
-      : { height: chartRenderHeight, minHeight: minimumRenderHeight };
+  const chartRenderStyle: CSSProperties = chartRenderHeight == null
+    ? { minHeight: minimumRenderHeight }
+    : { height: chartRenderHeight, minHeight: minimumRenderHeight };
   const regimeSetting = editableIndicatorSettings.regime;
   const regimeIndicatorEnabled = isEnabled(editableIndicatorSettings, chartModel.availability, 'regime');
   const showRegimeIcons = regimeIndicatorEnabled && regimeUsesIcons(regimeSetting.plotStyle);
@@ -2986,10 +3170,10 @@ export function SkuTradingChart({
     const nextClusters = buildRegimeIconClusters(visibleRegimePoints, nextPositions);
     const nextMarkers = buildStackedOverlayMarkers({
       chartModel,
-      clusters: nextClusters,
       editableIndicatorSettings,
       language,
       onSelectInterval,
+      plotAreaWidth: plotAreaWidth || chartContainerRef.current?.clientWidth || 0,
       regimeIconPositions: nextPositions,
       regimePaneId,
       showRegimeIcons,
@@ -3872,30 +4056,40 @@ export function SkuTradingChart({
       }
       const nextPositions = new Map<number, number>();
       const clipWidth = plotAreaWidth || container.clientWidth;
-      for (const intervalIndex of overlayPointIntervals) {
-        const point = chartModel.pointByIntervalIndex.get(intervalIndex);
-        if (!point) {
-          continue;
-        }
+      for (const point of chartModel.points) {
         const coordinate = chart.timeScale().timeToCoordinate(point.time);
         if (coordinate == null || coordinate < -clipWidth || coordinate > clipWidth * 2) {
           continue;
         }
-        nextPositions.set(intervalIndex, coordinate);
+        nextPositions.set(point.intervalIndex, coordinate);
       }
       syncPlotAreaWidth();
       setOverlayRenderStateIfChanged(nextPositions);
     };
 
+    let animationFrame: number | null = null;
+    const scheduleRegimeIconPositionsUpdate = () => {
+      if (animationFrame != null) {
+        return;
+      }
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateRegimeIconPositions();
+      });
+    };
+
     updateRegimeIconPositions();
     const layoutRoot = typeof chart.chartElement === 'function' ? chart.chartElement() : container;
-    const stopObservingLayout = observeChartLayout(layoutRoot, updateRegimeIconPositions, undefined, {
+    const stopObservingLayout = observeChartLayout(layoutRoot, scheduleRegimeIconPositionsUpdate, undefined, {
       mutationThrottleMs: 48,
     });
-    chart.timeScale().subscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleRegimeIconPositionsUpdate);
     return () => {
+      if (animationFrame != null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       stopObservingLayout();
-      chart.timeScale().unsubscribeVisibleLogicalRangeChange(updateRegimeIconPositions);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(scheduleRegimeIconPositionsUpdate);
     };
   }, [
     chartModel,
@@ -4928,6 +5122,48 @@ export function SkuTradingChart({
                   }
                   const top = Math.max(pane.top, pane.top + pane.height - pill.bottom - REGIME_ICON_SIZE);
                   const [singleSegment] = pill.segments;
+                  const rendersAsColorCells = pill.segments.some((segment) => segment.compact);
+                  if (rendersAsColorCells) {
+                    return (
+                      <div
+                        key={pill.key}
+                        aria-label={pill.segments.map((segment) => segment.label).join(', ')}
+                        className="pointer-events-none absolute h-7 text-foreground"
+                        role="group"
+                        style={{
+                          top,
+                          left: pill.left,
+                          width: pill.width,
+                        }}
+                      >
+                        {pill.segments.map((segment, index) => {
+                          const layout = pill.segmentLayout.find((entry) => entry.key === segment.key);
+                          return (
+                            <button
+                              key={segment.key}
+                              aria-label={translateUiLiteral(language, 'Select {name}', { name: segment.label })}
+                              className={cn(
+                                'pointer-events-auto absolute h-7 min-w-0 border border-background/80 shadow-sm transition-[filter,opacity] hover:brightness-95',
+                                index === 0 ? 'rounded-l-full' : '-ml-px rounded-l-none border-l-border/70',
+                                index === pill.segments.length - 1 ? 'rounded-r-full' : 'rounded-r-none',
+                              )}
+                              style={{
+                                ...overlayFlagCompactPillStyle(segment.color),
+                                left: layout?.left ?? 0,
+                                width: layout?.width ?? segment.width,
+                              }}
+                              type="button"
+                              onClick={segment.onClick}
+                            >
+                              <span className="sr-only">
+                                {segment.indicatorId === 'regime' ? shortRegimeLabel(segment.label) : segment.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  }
                   if (singleSegment) {
                     const Icon = singleSegment.icon;
                     if (pill.segments.length === 1) {
@@ -4970,18 +5206,20 @@ export function SkuTradingChart({
                     >
                       {pill.segments.map((segment, index) => {
                         const Icon = segment.icon;
+                        const layout = pill.segmentLayout.find((entry) => entry.key === segment.key);
                         return (
                           <button
                             key={segment.key}
                             aria-label={translateUiLiteral(language, 'Select {name}', { name: segment.label })}
                             className={cn(
-                              'pointer-events-auto flex h-7 min-w-0 items-center justify-center border border-background/80 bg-background/92 shadow-sm transition-colors hover:bg-muted/60',
+                              'pointer-events-auto absolute flex h-7 min-w-0 items-center justify-center border border-background/80 bg-background/92 shadow-sm transition-colors hover:bg-muted/60',
                               index === 0 ? 'rounded-l-full' : '-ml-px rounded-l-none border-l-border/70',
                               index === pill.segments.length - 1 ? 'rounded-r-full' : 'rounded-r-none',
                             )}
                             style={{
+                              left: layout?.left ?? 0,
                               color: segment.color,
-                              width: Math.max(REGIME_ICON_SIZE, segment.width) + OVERLAY_FLAG_ATTACH_PADDING,
+                              width: layout?.width ?? Math.max(REGIME_ICON_SIZE, segment.width),
                             }}
                             type="button"
                             onClick={segment.onClick}
