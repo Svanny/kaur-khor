@@ -37,7 +37,7 @@ export function WorkspacePage({
   return (
     <div
       className={cn(
-        'flex flex-col gap-6',
+        'flex w-full flex-col gap-6',
         showFloatingTitleActions && !fitViewport && 'pb-32 md:pb-36',
         fitViewport && 'min-h-0 flex-1',
         className,

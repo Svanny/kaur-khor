@@ -262,7 +262,7 @@ function useVirtualizedQueueRows<T>(
 type OverviewWorkflowScope = 'customer' | 'supplier';
 
 function boardClassName() {
-  return `${cardFrameClassName} ${cardSurfaceClassName} overflow-hidden rounded-[2rem]`;
+  return `${cardFrameClassName} ${cardSurfaceClassName} flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem]`;
 }
 
 function railBlockClassName() {
@@ -701,7 +701,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   }
 
   return (
-    <WorkspacePage className={embedded ? 'gap-4 p-0' : 'gap-5'}>
+    <WorkspacePage fitViewport className={embedded ? 'gap-4 p-0' : 'gap-5'}>
       {!embedded ? (
         <WorkspaceTitleCard
           title={
@@ -753,7 +753,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       ) : null}
 
       <ChromeTabs
-        className="relative gap-0"
+        className="relative min-h-0 flex-1 gap-0"
         value={overviewScope === 'customer' ? customerFilter : activeFilter}
         onValueChange={(nextValue) => {
           if (overviewScope === 'customer') {
@@ -792,13 +792,14 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
 
         <section
           className={`relative z-[1] ${boardClassName()}`}
+          data-slot="overview-board"
           style={{
             marginTop: showOverviewTaskTabs ? 'calc(var(--chrome-tabs-surface-overlap) * -2.75)' : undefined,
           }}
         >
           {overviewScope === 'customer' ? (
-            <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
-              <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
+            <div className={showRightRailCards ? 'grid h-full min-h-0 items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid h-full min-h-0 gap-0'}>
+              <div className="flex min-h-0 min-w-0 flex-col border-b border-border/60 lg:border-r lg:border-b-0">
                 <div className="border-b border-border/60 px-5 py-5 sm:px-6">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
@@ -904,7 +905,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                     </div>
                   </HeaderedTable>
                 ) : (
-                  <div className="grid place-items-center px-5 py-16 sm:px-6">
+                  <div className="grid flex-1 place-items-center px-5 py-16 sm:px-6">
                     <div className="max-w-md text-center">
                       <ActionSearchOffIcon className="mx-auto size-9 text-muted-foreground/70" />
                       <h3 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-foreground">
@@ -918,7 +919,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 )}
               </div>
               {showRightRailCards ? (
-                <aside className="flex h-full flex-col bg-secondary/15">
+                <aside className="flex h-full min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
                   <section className={railBlockClassName()}>
                     <div className="mb-4 flex items-center gap-2">
                       <NavigationTaskListIcon className="size-4 text-primary" />
@@ -978,8 +979,8 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
               ) : null}
             </div>
           ) : (
-            <div className={showRightRailCards ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid gap-0'}>
-          <div className="min-w-0 border-b border-border/60 lg:border-r lg:border-b-0">
+            <div className={showRightRailCards ? 'grid h-full min-h-0 items-stretch gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid h-full min-h-0 gap-0'}>
+          <div className="flex min-h-0 min-w-0 flex-col border-b border-border/60 lg:border-r lg:border-b-0">
             <div className="border-b border-border/60 px-5 py-5 sm:px-6">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                 <div>
@@ -1131,7 +1132,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 </div>
               </HeaderedTable>
             ) : (
-              <div className="grid place-items-center px-5 py-16 sm:px-6">
+              <div className="grid flex-1 place-items-center px-5 py-16 sm:px-6">
                 <div className="max-w-md text-center">
                     <ActionSearchOffIcon className="mx-auto size-9 text-muted-foreground/70" />
                   <h3 className="mt-4 text-lg font-semibold tracking-[-0.02em] text-foreground">
@@ -1150,7 +1151,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
           </div>
 
           {showRightRailCards ? (
-          <aside className="flex h-full flex-col bg-secondary/15">
+          <aside className="flex h-full min-h-0 flex-col bg-secondary/15" data-slot="overview-right-rail">
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
                 <NavigationTaskListIcon className="size-4 text-primary" />

@@ -4,6 +4,7 @@ import { DescriptionTextVisibilityProvider } from '@/components/system/descripti
 import { PreferencesProvider } from '@/state/preferences';
 import { WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from './workspace';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
+import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 
 describe('WorkspacePanel', () => {
   beforeEach(() => {
@@ -191,7 +192,7 @@ describe('WorkspacePanel', () => {
     });
   });
 
-  test('constrains height to viewport when fitViewport is enabled', async () => {
+  test('joins the flex height chain when fitViewport is enabled', async () => {
     render(
       <PreferencesProvider>
         <WorkspacePage fitViewport>
@@ -204,5 +205,17 @@ describe('WorkspacePanel', () => {
       expect(screen.getByText('Page body').parentElement?.className).toContain('min-h-0');
     });
     expect(screen.getByText('Page body').parentElement?.className).toContain('flex-1');
+    expect(screen.getByText('Page body').parentElement?.className).toContain('w-full');
+  });
+
+  test('keeps shared right-rail layouts content-sized by default', () => {
+    const layoutClassName = rightRailLayoutClassName(true);
+
+    expect(layoutClassName).toContain('lg:grid-cols-[minmax(0,1fr)_320px]');
+    expect(layoutClassName).not.toContain('flex-1');
+    expect(layoutClassName).not.toContain('h-full');
+    expect(RIGHT_RAIL_ASIDE_CLASS_NAME).toContain('lg:sticky');
+    expect(RIGHT_RAIL_ASIDE_CLASS_NAME).toContain('lg:self-start');
+    expect(RIGHT_RAIL_ASIDE_CLASS_NAME).not.toContain('lg:h-full');
   });
 });
