@@ -35,6 +35,10 @@ This keeps renderer reads responsive without letting cached analysis survive kno
 Routes that need observation history should request explicit pages through
 `sena.listObservationPage()`. Routes that only need "latest known value" anchors
 should use `sena.getRecordUpdateContext()`.
+The analysis route should request a bounded initial observation page when
+startup supplied only compact metadata and that metadata proves saved
+observations exist. The workbench can use the compact count immediately, but
+full rows should remain route-hydrated instead of blocking startup.
 
 Work surfaces are route-scoped support-read users. `/work/queue`,
 `/work/capture`, and Record Update session routes should call the renderer

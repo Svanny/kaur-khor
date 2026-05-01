@@ -62,6 +62,10 @@ Work routes should request their own bounded support data after startup. The
 renderer inventory action `loadWorkSupportData()` is the shared entrypoint for
 queue, capture, and Record Update session surfaces that need record context,
 order batches, and optionally a recent observation page.
+Use compact metadata, such as `observationFingerprint`, latest-run counts, and
+workspace-summary interval counts, as the existence signal while those bounded
+route reads are still loading. Do not gate saved-observation UI only on
+hydrated `inventory.observations` rows after startup.
 
 Write behavior:
 
