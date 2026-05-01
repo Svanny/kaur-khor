@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog } from './confirm-action-dialog';
@@ -65,6 +65,14 @@ describe('ConfirmActionDialog', () => {
       />,
     );
 
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveClass('w-fit');
+    expect(dialog).toHaveClass('max-w-2xl');
+    expect(within(dialog).getAllByRole('button').map((button) => button.textContent)).toEqual([
+      'Discard changes',
+      'Keep editing',
+      'Save changes',
+    ]);
     expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
     expect(screen.getByRole('button', { name: 'Save changes' })).toHaveAttribute('data-variant', 'default');
 
