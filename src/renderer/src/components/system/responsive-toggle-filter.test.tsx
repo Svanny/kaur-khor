@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ResponsiveToggleFilter } from './responsive-toggle-filter';
@@ -15,12 +15,48 @@ const options = [
   { icon: EntityServiceIcon, label: 'Services', value: 'services' },
 ] as const;
 
-function mockElementWidths({ availableWidth, contentWidth }: { availableWidth: number; contentWidth: number }) {
+const originalResizeObserver = globalThis.ResizeObserver;
+const resizeObservers: ResizeObserverCallback[] = [];
+
+class ResizeObserverMock {
+  constructor(private readonly callback: ResizeObserverCallback) {
+    resizeObservers.push(callback);
+  }
+
+  observe() {}
+
+  disconnect() {}
+}
+
+function triggerResizeObservers() {
+  for (const callback of resizeObservers) {
+    callback([], {} as ResizeObserver);
+  }
+}
+
+function mockElementWidths({
+  availableWidth,
+  contentWidth,
+  dropdownWidth = 192,
+  viewportWidth = 1024,
+}: {
+  availableWidth: number;
+  contentWidth: number;
+  dropdownWidth?: number;
+  viewportWidth?: number;
+}) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: viewportWidth,
+  });
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     configurable: true,
     get() {
       if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter-measure') {
         return contentWidth;
+      }
+      if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter') {
+        return this.querySelector('[role="combobox"]') ? dropdownWidth : availableWidth;
       }
       return availableWidth;
     },
@@ -31,20 +67,30 @@ function mockElementWidths({ availableWidth, contentWidth }: { availableWidth: n
       if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter-measure') {
         return contentWidth;
       }
+      if (this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter') {
+        return this.querySelector('[role="combobox"]') ? dropdownWidth : availableWidth;
+      }
       return availableWidth;
     },
   });
   Object.defineProperty(HTMLElement.prototype, 'getBoundingClientRect', {
     configurable: true,
     value() {
+      const isRoot = this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter';
+      const isMeasure = this instanceof HTMLElement && this.dataset.slot === 'responsive-toggle-filter-measure';
       const isClippingParent = this instanceof HTMLElement && this.dataset.testid === 'clipping-parent';
+      const width = isRoot
+        ? (this.querySelector('[role="combobox"]') ? dropdownWidth : availableWidth)
+        : isMeasure
+          ? contentWidth
+          : availableWidth;
       return {
         bottom: 0,
         height: 0,
         left: isClippingParent ? 0 : 180,
-        right: isClippingParent ? availableWidth : 180 + contentWidth,
+        right: isClippingParent ? availableWidth : 180 + width,
         top: 0,
-        width: isClippingParent ? availableWidth : contentWidth,
+        width,
         x: isClippingParent ? 0 : 180,
         y: 0,
         toJSON: () => {},
@@ -55,11 +101,18 @@ function mockElementWidths({ availableWidth, contentWidth }: { availableWidth: n
 
 describe('ResponsiveToggleFilter', () => {
   beforeEach(() => {
+    resizeObservers.length = 0;
+    globalThis.ResizeObserver = ResizeObserverMock as unknown as typeof ResizeObserver;
     mockElementWidths({ availableWidth: 400, contentWidth: 240 });
     Element.prototype.scrollIntoView = vi.fn();
   });
 
   afterEach(() => {
+    if (originalResizeObserver) {
+      globalThis.ResizeObserver = originalResizeObserver;
+    } else {
+      Reflect.deleteProperty(globalThis, 'ResizeObserver');
+    }
     vi.restoreAllMocks();
   });
 
@@ -128,6 +181,29 @@ describe('ResponsiveToggleFilter', () => {
     );
 
     expect(screen.getByRole('combobox', { name: 'Catalog filter' })).toHaveTextContent('Filter:');
+  });
+
+  test('switches back to toggle pills when the available viewport grows', () => {
+    mockElementWidths({ availableWidth: 160, contentWidth: 320, dropdownWidth: 192, viewportWidth: 420 });
+
+    render(
+      <ResponsiveToggleFilter
+        ariaLabel="Catalog filter"
+        options={[...options]}
+        value="skus"
+        onValueChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Catalog filter' })).toBeInTheDocument();
+
+    mockElementWidths({ availableWidth: 420, contentWidth: 320, dropdownWidth: 192, viewportWidth: 680 });
+    act(() => {
+      triggerResizeObservers();
+    });
+
+    expect(screen.queryByRole('combobox', { name: 'Catalog filter' })).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
   });
 
   test('selects an option from the dropdown', async () => {

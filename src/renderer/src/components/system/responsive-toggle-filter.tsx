@@ -33,6 +33,26 @@ function clippedInlineWidth(element: HTMLElement) {
   return Math.min(...widths.filter((width) => Number.isFinite(width) && width > 0));
 }
 
+function clippedInlineBoundaryWidth(element: HTMLElement) {
+  const elementRect = element.getBoundingClientRect();
+  const widths: number[] = [];
+  let ancestor = element.parentElement;
+
+  while (ancestor) {
+    const style = window.getComputedStyle(ancestor);
+    if (/(auto|scroll|hidden|clip)/.test(`${style.overflowX} ${style.overflow}`)) {
+      widths.push(Math.max(0, ancestor.getBoundingClientRect().right - elementRect.left));
+    }
+    ancestor = ancestor.parentElement;
+  }
+
+  if (typeof window.innerWidth === 'number') {
+    widths.push(Math.max(0, window.innerWidth - elementRect.left));
+  }
+
+  return Math.min(...widths.filter((width) => Number.isFinite(width) && width > 0));
+}
+
 export function ResponsiveToggleFilter<TValue extends string>({
   ariaLabel,
   className,
@@ -61,6 +81,8 @@ export function ResponsiveToggleFilter<TValue extends string>({
   const { language } = usePreferences();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const measureRef = useRef<HTMLDivElement | null>(null);
+  const useDropdownRef = useRef(false);
+  const dropdownBoundaryWidthRef = useRef<number | null>(null);
   const [useDropdown, setUseDropdown] = useState(false);
   const activeOption = useMemo(
     () => options.find((option) => option.value === value) ?? options[0],
@@ -75,8 +97,36 @@ export function ResponsiveToggleFilter<TValue extends string>({
     if (!root || !measured) {
       return;
     }
-    const nextUseDropdown = measured.scrollWidth > clippedInlineWidth(root) + 1;
-    setUseDropdown((current) => (current === nextUseDropdown ? current : nextUseDropdown));
+    const measuredWidth = measured.scrollWidth;
+    const availableWidth = clippedInlineWidth(root);
+    const boundaryWidth = clippedInlineBoundaryWidth(root);
+    const nextUseDropdown = measuredWidth > availableWidth + 1;
+
+    if (
+      useDropdownRef.current &&
+      nextUseDropdown &&
+      dropdownBoundaryWidthRef.current != null &&
+      boundaryWidth > dropdownBoundaryWidthRef.current + 1 &&
+      measuredWidth <= boundaryWidth + 1
+    ) {
+      dropdownBoundaryWidthRef.current = null;
+      useDropdownRef.current = false;
+      setUseDropdown(false);
+      return;
+    }
+
+    if (nextUseDropdown && useDropdownRef.current) {
+      dropdownBoundaryWidthRef.current = boundaryWidth;
+    }
+
+    setUseDropdown((current) => {
+      if (current === nextUseDropdown) {
+        return current;
+      }
+      dropdownBoundaryWidthRef.current = nextUseDropdown ? boundaryWidth : null;
+      useDropdownRef.current = nextUseDropdown;
+      return nextUseDropdown;
+    });
   }, []);
 
   useLayoutEffect(() => {
