@@ -65,4 +65,4 @@ Persist only safe page-level controls. Do not persist selected rows, open drawer
 
 Use `src/renderer/src/lib/page-state-memory.ts` for page-state persistence and remembered href builders. The memory is local-first and reload-safe via `localStorage`; resetting a page to its canonical default state must clear that page's remembered entry.
 
-Page memory can also store small scoped values such as chart layout preferences through `readRememberedPageValue()` and `writeRememberedPageValue()`. Use validators for these values and clear default values from storage so the remembered record remains small and route-focused.
+Page memory can also store small scoped values such as chart layout preferences through `readRememberedPageValue()` and `writeRememberedPageValue()`. Use validators for these values and clear default values from storage so the remembered record remains small and route-focused. Chart pane heights are only restorable when they are marked as manual user resizes; passive chart measurements should not become persisted layout preferences.

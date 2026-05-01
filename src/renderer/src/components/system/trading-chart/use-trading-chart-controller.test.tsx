@@ -147,12 +147,13 @@ describe('useTradingChartController', () => {
     render(<Recorder />);
 
     act(() => {
-      latest?.handleChartLayoutPreferencesChange({ paneHeights: { main: 360 } });
+      latest?.handleChartLayoutPreferencesChange({ paneHeights: { main: 360 }, paneHeightsSource: 'manual' });
     });
 
     await waitFor(() => {
       const record = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
       expect(record.catalog?.values?.['sku:sku-1:chartLayout']?.paneHeights).toEqual({ main: 360 });
+      expect(record.catalog?.values?.['sku:sku-1:chartLayout']?.paneHeightsSource).toBe('manual');
     });
   });
 

@@ -28,6 +28,7 @@ export interface PersistedChartLayoutPreferences {
   customChartResolution: ChartCustomResolution | null;
   visibleDateRange: ChartVisibleDateRange | null;
   paneHeights: Record<string, number>;
+  paneHeightsSource?: 'manual';
 }
 
 const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'banji:chart-layout:defaults:v1';
@@ -111,11 +112,14 @@ export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPrefe
           endAt: value.visibleDateRange.endAt,
         }
       : null;
-  const paneHeights = Object.fromEntries(
-    Object.entries(value.paneHeights ?? {}).filter((entry): entry is [string, number] =>
-      typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] > 0,
-    ),
-  );
+  const paneHeightsSource = value.paneHeightsSource === 'manual' ? value.paneHeightsSource : undefined;
+  const paneHeights = paneHeightsSource === 'manual'
+    ? Object.fromEntries(
+        Object.entries(value.paneHeights ?? {}).filter((entry): entry is [string, number] =>
+          typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] > 0,
+        ),
+      )
+    : {};
   return {
     timeframe,
     customTimeframeRange,
@@ -123,6 +127,7 @@ export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPrefe
     customChartResolution,
     visibleDateRange,
     paneHeights,
+    ...(paneHeightsSource ? { paneHeightsSource } : {}),
   };
 }
 
@@ -150,6 +155,9 @@ export function chartLayoutPreferencesEqual(
   }
   const leftPaneHeightEntries = Object.entries(left.paneHeights);
   const rightPaneHeightEntries = Object.entries(right.paneHeights);
+  if (left.paneHeightsSource !== right.paneHeightsSource) {
+    return false;
+  }
   if (leftPaneHeightEntries.length !== rightPaneHeightEntries.length) {
     return false;
   }

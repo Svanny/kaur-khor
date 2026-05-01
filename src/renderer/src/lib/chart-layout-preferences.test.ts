@@ -308,6 +308,7 @@ describe('chart layout preference storage', () => {
       ...defaultChartLayoutPreferences(),
       timeframe: '3M' as const,
       paneHeights: { inventory: 320 },
+      paneHeightsSource: 'manual' as const,
     };
 
     writeSubtypeDefaultChartLayoutPreferences('service', subtypeDefaults);
@@ -343,7 +344,7 @@ describe('chart layout preference storage', () => {
     localStorageGetter.mockRestore();
   });
 
-  it('normalizes invalid persisted values before comparison and resolution', () => {
+  it('ignores legacy pane heights that were saved without a manual source marker', () => {
     window.localStorage.setItem(
       'banji:page-state-memory:v1',
       JSON.stringify({
@@ -362,9 +363,35 @@ describe('chart layout preference storage', () => {
       }),
     );
 
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual(defaultChartLayoutPreferences());
+    expect(
+      chartLayoutPreferencesEqual(
+        resolveEntityChartLayoutPreferences('sku', 'sku-1'),
+        defaultChartLayoutPreferences(),
+      ),
+    ).toBe(true);
+  });
+
+  it('normalizes manual pane heights before comparison and resolution', () => {
+    window.localStorage.setItem(
+      'banji:page-state-memory:v1',
+      JSON.stringify({
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': {
+              ...defaultChartLayoutPreferences(),
+              paneHeights: { valid: 220, zero: 0, invalid: 'wide' },
+              paneHeightsSource: 'manual',
+            },
+          },
+        },
+      }),
+    );
+
     expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual({
       ...defaultChartLayoutPreferences(),
       paneHeights: { valid: 220 },
+      paneHeightsSource: 'manual',
     });
     expect(
       chartLayoutPreferencesEqual(
@@ -372,6 +399,7 @@ describe('chart layout preference storage', () => {
         {
           ...defaultChartLayoutPreferences(),
           paneHeights: { valid: 220 },
+          paneHeightsSource: 'manual',
         },
       ),
     ).toBe(true);

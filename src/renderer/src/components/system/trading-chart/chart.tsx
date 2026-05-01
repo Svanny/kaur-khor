@@ -173,6 +173,8 @@ type ChartSeriesRefs = Partial<Record<
 type InputSeriesData = LineData<Time>[] | HistogramData<Time>[] | Array<BarData<Time> | CandlestickData<Time>>;
 type LegendRow = ReturnType<typeof buildLegendRows>[number];
 type ChartSettingsDialogId = 'settings' | 'indicators' | 'layout';
+type ChartPaneHeightChangeSource = 'manual';
+type ChartLayoutChangeSource = 'passive' | ChartPaneHeightChangeSource;
 type HistogramIndicatorId =
   | 'demand'
   | 'serviceDemand'
@@ -702,7 +704,7 @@ function cleanupEmptyTrailingPanes(chart: IChartApi | null) {
 
 function observeChartLayout(
   container: HTMLElement,
-  onLayoutChange: () => void,
+  onLayoutChange: (source: ChartLayoutChangeSource) => void,
   getObservedElements?: () => HTMLElement[],
   options?: {
     mutationThrottleMs?: number;
@@ -710,15 +712,21 @@ function observeChartLayout(
   },
 ) {
   let frame: number | null = null;
+  let scheduledSource: ChartLayoutChangeSource = 'passive';
   let mutationTimer: number | null = null;
   let dragging = false;
-  const schedule = () => {
+  const schedule = (source: ChartLayoutChangeSource = 'passive') => {
+    if (source === 'manual') {
+      scheduledSource = 'manual';
+    }
     if (frame != null) {
       return;
     }
     frame = window.requestAnimationFrame(() => {
       frame = null;
-      onLayoutChange();
+      const source = scheduledSource;
+      scheduledSource = 'passive';
+      onLayoutChange(source);
     });
   };
 
@@ -766,7 +774,7 @@ function observeChartLayout(
     if (!dragging || !container.contains(event.target as Node | null)) {
       return;
     }
-    schedule();
+    schedule('manual');
   };
   const handlePointerDown = (event: PointerEvent) => {
     if (!(event.target instanceof Node) || !container.contains(event.target)) {
@@ -776,7 +784,7 @@ function observeChartLayout(
       return;
     }
     dragging = true;
-    schedule();
+    schedule('manual');
   };
 
   syncObservedElements();
@@ -2390,7 +2398,7 @@ interface SkuTradingChartProps {
   isLoadingOlderIntervals: boolean;
   loadOlderIntervals: (limit?: number) => Promise<unknown>;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
-  onPaneHeightsChange?: (paneHeights: Record<string, number>) => void;
+  onPaneHeightsChange?: (paneHeights: Record<string, number>, source: ChartPaneHeightChangeSource) => void;
   onReset: () => void;
   onSelectInterval: (index: number) => void;
   onCustomTimeframeChange?: (range: ChartCustomTimeframeRange | null) => void;
@@ -2711,7 +2719,6 @@ export function SkuTradingChart({
     );
     const anchors = paneLegendAnchors(chartRef.current);
     setPaneLegendPositionsIfChanged(anchors);
-    emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors));
     syncPlotAreaWidth();
     if (!paneHeightsMatchTargets(chartRef.current, totalHeight, paneIds, initialPaneHeights) && retryCount < 6) {
       paneHeightUpdateFrameRef.current = requestAnimationFrame(() => {
@@ -2761,7 +2768,7 @@ export function SkuTradingChart({
     setPlotAreaWidth((current) => (Math.abs(current - nextWidth) < 1 ? current : nextWidth));
   }
 
-  function emitPaneHeightsChange(nextPaneHeights: Record<string, number>, options?: { immediate?: boolean }) {
+  function emitPaneHeightsChange(nextPaneHeights: Record<string, number>, source: ChartPaneHeightChangeSource, options?: { immediate?: boolean }) {
     if (!onPaneHeightsChange) {
       return;
     }
@@ -2782,7 +2789,7 @@ export function SkuTradingChart({
       }
       pendingPaneHeightsRef.current = null;
       lastEmittedPaneHeightsRef.current = pending;
-      onPaneHeightsChange(pending);
+      onPaneHeightsChange(pending, source);
     };
     pendingPaneHeightsRef.current = nextPaneHeights;
     if (options?.immediate) {
@@ -2932,7 +2939,7 @@ export function SkuTradingChart({
       immediate: true,
       syncCustomTimeframeRange: false,
     });
-    emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, paneLegendAnchors(chart)), { immediate: true });
+    emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, paneLegendAnchors(chart)), 'manual', { immediate: true });
   }
 
   function setChartVisibleLogicalRange(range: { from: number; to: number }) {
@@ -3023,10 +3030,12 @@ export function SkuTradingChart({
       return;
     }
 
-    const updatePaneLegendPositions = () => {
+    const updatePaneLegendPositions = (source: ChartLayoutChangeSource = 'passive') => {
       const anchors = paneLegendAnchors(chart);
       setPaneLegendPositionsIfChanged(anchors);
-      emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors));
+      if (source === 'manual') {
+        emitPaneHeightsChange(paneHeightsRecordFromAnchors(paneLayout, anchors), source);
+      }
       syncPlotAreaWidth();
     };
 

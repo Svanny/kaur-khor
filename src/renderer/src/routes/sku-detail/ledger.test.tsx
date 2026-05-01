@@ -67,7 +67,7 @@ vi.mock('@/components/system/trading-chart/chart', () => ({
     onChartResolutionChange: (value: 'H' | '1D' | '1W' | '1M' | '3M' | '1Y' | 'Custom', custom: { amount: number; unit: 'm' | 'H' | 'D' | 'W' | 'M' | 'Y'; expression: string } | null) => void;
     onSaveDefaultIndicatorSettings: (next: ReturnType<typeof defaultTradingChartIndicators>) => void;
     onVisibleDateRangeChange: (range: { startAt: string; endAt: string } | null) => void;
-    onPaneHeightsChange: (paneHeights: Record<string, number>) => void;
+    onPaneHeightsChange: (paneHeights: Record<string, number>, source: 'manual') => void;
     setIndicatorSettings: (next: ReturnType<typeof defaultTradingChartIndicators>) => void;
     timeframe: string;
   }) => (
@@ -109,7 +109,7 @@ vi.mock('@/components/system/trading-chart/chart', () => ({
           onPaneHeightsChange({
             main: 320,
             'pane-1': 120,
-          });
+          }, 'manual');
         }}
       >
         Update layout preferences
@@ -251,7 +251,7 @@ describe('SkuDetailLedger', () => {
       { visibleDateRange: { startAt: '2026-02-01T00:00:00.000Z', endAt: '2026-03-01T00:00:00.000Z' } },
       undefined,
     );
-    expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(2, { paneHeights: { main: 320, 'pane-1': 120 } });
+    expect(onChartLayoutPreferencesChange).toHaveBeenNthCalledWith(2, { paneHeights: { main: 320, 'pane-1': 120 }, paneHeightsSource: 'manual' });
   });
 
   it('debounces indicator setting persistence to page memory', async () => {

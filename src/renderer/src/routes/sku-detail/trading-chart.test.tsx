@@ -26,6 +26,7 @@ const chartMockState = vi.hoisted(() => ({
   setVisibleLogicalRange: vi.fn(),
   visibleRangeHandler: null as ((range: { from: number; to: number } | null) => void) | null,
   visibleRangeHandlers: [] as Array<(range: { from: number; to: number } | null) => void>,
+  chartElement: null as HTMLElement | null,
   paneCount: 1,
   priceScaleApplyOptions: new Map<string, ReturnType<typeof vi.fn>>(),
   seriesApplyOptions: [] as ReturnType<typeof vi.fn>[],
@@ -56,6 +57,7 @@ vi.mock('lightweight-charts', async () => {
   chartMockState.setVisibleLogicalRange.mockReset();
   chartMockState.visibleRangeHandler = null;
   chartMockState.visibleRangeHandlers = [];
+  chartMockState.chartElement = null;
   chartMockState.paneHeights = [420];
   chartMockState.paneCount = 1;
   chartMockState.priceScaleApplyOptions = new Map();
@@ -71,6 +73,7 @@ vi.mock('lightweight-charts', async () => {
     chartMockState.setVisibleLogicalRange.mockReset();
     chartMockState.visibleRangeHandler = null;
     chartMockState.visibleRangeHandlers = [];
+    chartMockState.chartElement = document.createElement('div');
     chartMockState.paneHeights = [420];
     chartMockState.paneCount = 1;
     chartMockState.priceScaleApplyOptions = new Map();
@@ -102,7 +105,7 @@ vi.mock('lightweight-charts', async () => {
         chartMockState.paneHeights.push(150);
       }),
       applyOptions: vi.fn(),
-      chartElement: vi.fn(() => document.createElement('div')),
+      chartElement: vi.fn(() => chartMockState.chartElement ?? document.createElement('div')),
       paneSize: vi.fn(() => ({ width: 320, height: 420 })),
       panes: vi.fn(() => Array.from({ length: chartMockState.paneCount }, (_, index) => buildPane(index))),
       priceScale: vi.fn((side: string, paneIndex?: number) => {
@@ -238,6 +241,7 @@ function renderChart({
   customTimeframeRange = null,
   expanded = false,
   hasOlderIntervals = false,
+  initialPaneHeights = null,
   initialSettings,
   isBusy = false,
   isVisuallyBusy,
@@ -256,6 +260,7 @@ function renderChart({
   customTimeframeRange?: { startAt: string; endAt: string } | null;
   expanded?: boolean;
   hasOlderIntervals?: boolean;
+  initialPaneHeights?: Record<string, number> | null;
   initialSettings?: TradingChartIndicatorSettings;
   isBusy?: boolean;
   isVisuallyBusy?: boolean;
@@ -288,6 +293,7 @@ function renderChart({
       expanded={expanded}
       hasOlderIntervals={hasOlderIntervals}
       indicatorSettings={settings}
+      initialPaneHeights={initialPaneHeights}
       initialVisibleDateRange={initialVisibleDateRange}
       isBusy={isBusy}
       isVisuallyBusy={isVisuallyBusy}
@@ -541,7 +547,7 @@ describe('SkuTradingChart settings', () => {
     });
   });
 
-  it('debounces visible-range and pane-height persistence updates', async () => {
+  it('debounces visible-range updates without persisting passive pane measurements', async () => {
     vi.useFakeTimers();
     try {
       vi.stubGlobal('navigator', { userAgent: 'unit-test' });
@@ -614,7 +620,7 @@ describe('SkuTradingChart settings', () => {
         await vi.advanceTimersByTimeAsync(1);
       });
 
-      expect(onPaneHeightsChange).toHaveBeenLastCalledWith({ main: 480 });
+      expect(onPaneHeightsChange).not.toHaveBeenCalled();
       expect(onVisibleDateRangeChange).toHaveBeenCalledTimes(1);
       expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
         {
@@ -790,6 +796,102 @@ describe('SkuTradingChart settings', () => {
     expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
       minHeight: `${deriveTradingChartMinRenderHeight(2)}px`,
     });
+  });
+
+  it('uses default pane allocation on mount when no manual pane heights exist', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    initialSettings.receipts.enabled = true;
+    initialSettings.ordersInTransit.enabled = true;
+    const multiPaneModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+        receiptsMean: 2,
+        ordersInTransitMean: 4,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+        receipts: true,
+        ordersInTransit: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: multiPaneModel,
+      initialSettings,
+    });
+
+    await waitFor(() => expect(chartMockState.paneHeights).toEqual([374, 124, 124, 126]));
+  });
+
+  it('restores manual pane heights when a confirmed manual layout exists', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    initialSettings.receipts.enabled = true;
+    const multiPaneModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+        receiptsMean: 2,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+        receipts: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: multiPaneModel,
+      initialPaneHeights: { main: 320, 'pane-1': 120, 'pane-2': 180 },
+      initialSettings,
+    });
+
+    await waitFor(() => expect(chartMockState.paneHeights).toEqual([324, 122, 182]));
+  });
+
+  it('persists pane heights only after a manual pane resize interaction', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+
+    const onPaneHeightsChange = vi.fn();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    const demandChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: demandChartModel,
+      initialSettings,
+      onPaneHeightsChange,
+    });
+
+    await waitFor(() => expect(chartMockState.paneHeights).toEqual([381, 127]));
+    expect(onPaneHeightsChange).not.toHaveBeenCalled();
+
+    chartMockState.paneHeights = [320, 188];
+    const resizeHandle = document.createElement('div');
+    resizeHandle.setAttribute('role', 'separator');
+    chartMockState.chartElement?.appendChild(resizeHandle);
+    fireEvent.pointerDown(resizeHandle);
+
+    await waitFor(() => expect(onPaneHeightsChange).toHaveBeenCalledWith({ main: 320, 'pane-1': 188 }, 'manual'));
   });
 
   it('lets expanded chart windows shrink inside the available overlay height', () => {

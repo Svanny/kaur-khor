@@ -229,7 +229,7 @@ export function TradingChartLedger({
           fillAvailableHeight={fillAvailableHeight}
           hasOlderIntervals={hasOlderIntervals}
           indicatorSettings={indicatorSettings}
-          initialPaneHeights={chartLayoutPreferences.paneHeights}
+          initialPaneHeights={chartLayoutPreferences.paneHeightsSource === 'manual' ? chartLayoutPreferences.paneHeights : {}}
           initialVisibleDateRange={chartLayoutPreferences.visibleDateRange}
           isBusy={isBusy}
           isVisuallyBusy={isVisuallyBusy}
@@ -241,7 +241,7 @@ export function TradingChartLedger({
           onChartResolutionChange={onChartResolutionChange}
           onCustomTimeframeChange={onCustomTimeframeChange}
           onOlderLoadProgressChange={onOlderLoadProgressChange}
-          onPaneHeightsChange={(paneHeights) => onChartLayoutPreferencesChange({ paneHeights })}
+          onPaneHeightsChange={(paneHeights, source) => onChartLayoutPreferencesChange({ paneHeights, paneHeightsSource: source })}
           onReset={onResetCharts}
           onSaveDefaultIndicatorSettings={saveDefaultIndicatorSettings}
           onSelectInterval={onSelectInterval}
