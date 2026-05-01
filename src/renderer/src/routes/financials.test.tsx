@@ -372,8 +372,8 @@ describe('FinancialsRoute', () => {
 
     expect(screen.getAllByText(/\+\$/)[0]).toHaveClass('bg-emerald-50');
     expect(screen.getByRole('heading', { name: 'Earners' }).closest('div')).toHaveClass('bg-emerald-50/70');
-    expect(screen.getByRole('heading', { name: 'Capital traps' }).closest('div')).toHaveClass('bg-amber-50/70');
-    expect(screen.getByRole('heading', { name: 'Margin leaks' }).closest('div')).toHaveClass('bg-rose-50/70');
+    expect(screen.queryByRole('heading', { name: 'Capital traps' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Margin leaks' })).not.toBeInTheDocument();
   });
 
   test('renders ribbon metrics without clickable links', () => {

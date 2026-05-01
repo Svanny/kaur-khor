@@ -14,6 +14,10 @@ export type HeaderedTableLayout = {
   style: CSSProperties;
 };
 
+export function hasRenderableRows<T>(rows: readonly T[] | null | undefined): rows is readonly T[] {
+  return Boolean(rows?.length);
+}
+
 export function createHeaderedTableLayout({
   breakpoint,
   columns,
@@ -78,12 +82,20 @@ export function createHeaderedTableLayout({
 export function HeaderedTable({
   children,
   className,
+  empty = false,
+  hideWhenEmpty = false,
   variant = 'overview',
 }: {
   children: ReactNode;
   className?: string;
+  empty?: boolean;
+  hideWhenEmpty?: boolean;
   variant?: HeaderedTableVariant;
 }) {
+  if (hideWhenEmpty && empty) {
+    return null;
+  }
+
   return (
     <div
       className={cn(

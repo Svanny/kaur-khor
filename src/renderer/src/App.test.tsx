@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const inventoryHook = vi.fn();
+const preferencesHook = vi.fn();
 
 vi.mock('@/state/inventory', () => ({
   InventoryProvider: ({ children }: { children: ReactNode }) => children,
@@ -13,10 +14,7 @@ vi.mock('@/state/inventory', () => ({
 
 vi.mock('@/state/preferences', () => ({
   PreferencesProvider: ({ children }: { children: ReactNode }) => children,
-  usePreferences: () => ({
-    isHydrated: true,
-    onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
-  }),
+  usePreferences: () => preferencesHook(),
 }));
 
 vi.mock('@/state/automation', () => ({
@@ -101,6 +99,11 @@ import { AppRoutes, LoadedApp, routeBenchmarkName } from './App';
 
 describe('AppRoutes', () => {
   beforeEach(() => {
+    preferencesHook.mockReturnValue({
+      isHydrated: true,
+      language: 'en',
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+    });
     inventoryHook.mockReturnValue({
       catalog: {
         schemaVersion: 1,
@@ -220,6 +223,25 @@ describe('routeBenchmarkName', () => {
 });
 
 describe('LoadedApp', () => {
+  beforeEach(() => {
+    preferencesHook.mockReturnValue({
+      isHydrated: true,
+      language: 'en',
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+    });
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [],
+      },
+      isLoading: false,
+      observations: [{ observationId: 'obs-1' }],
+    });
+  });
+
   it('renders the work route through the provider stack', async () => {
     render(
       <MemoryRouter initialEntries={['/work/queue']}>
@@ -228,5 +250,22 @@ describe('LoadedApp', () => {
     );
 
     expect(await screen.findByText('Work screen')).toBeInTheDocument();
+  });
+
+  it('keeps incomplete onboarding inside the onboarding route', async () => {
+    preferencesHook.mockReturnValue({
+      isHydrated: true,
+      language: 'en',
+      onboardingCompletedAt: null,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/work/queue']}>
+        <LoadedApp />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Onboarding screen')).toBeInTheDocument();
+    expect(screen.queryByText('Work screen')).not.toBeInTheDocument();
   });
 });

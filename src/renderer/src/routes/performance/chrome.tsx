@@ -18,6 +18,7 @@ export function PerformanceSectionShell({
   children,
   className,
   contentClassName,
+  hideWhenEmpty = false,
 }: {
   title: string;
   tooltip: string;
@@ -29,11 +30,16 @@ export function PerformanceSectionShell({
   children: ReactNode;
   className?: string;
   contentClassName?: string;
+  hideWhenEmpty?: boolean;
 }) {
   const descriptionVisible = useDescriptionTextVisible();
   const resolvedDescriptor = descriptor ?? description;
   const showDescription = hasDescriptionText(resolvedDescriptor, descriptionVisible);
   const descriptorElement = typeof resolvedDescriptor === 'string' ? 'p' : 'div';
+
+  if (hideWhenEmpty && children == null) {
+    return null;
+  }
 
   return (
     <section className={cn(PERFORMANCE_HEADER_SURFACE_CLASS_NAME, 'flex h-full flex-col', className)}>
@@ -61,12 +67,18 @@ export function PerformanceRightRailBlock({
   tooltip,
   helpHref,
   children,
+  hideWhenEmpty = false,
 }: {
   title: string;
   tooltip: string;
   helpHref: string;
-  children: ReactNode;
+  children?: ReactNode;
+  hideWhenEmpty?: boolean;
 }) {
+  if (hideWhenEmpty && children == null) {
+    return null;
+  }
+
   return (
     <section className={PERFORMANCE_RAIL_BLOCK_CLASS_NAME}>
       <div className="border-b border-border/60 px-4 py-3">

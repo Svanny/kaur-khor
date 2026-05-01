@@ -65,6 +65,7 @@ import {
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
+  hasRenderableRows,
   HeaderedTableCellStack,
   HeaderedTable,
   HeaderedTableBody,
@@ -117,6 +118,23 @@ const ANALYSIS_RAIL_PANEL_CLASS_NAME = 'flex h-full flex-col bg-secondary/15 lg:
 
 function sectionSupportsRightRail(section: AnalysisSection) {
   return section !== 'observations' && section !== 'fragility';
+}
+
+function hasFragilityMapContent(model: AnalysisWorkbenchViewModel) {
+  return model.fragilityRows.some((row) => hasRenderableRows(row.cells));
+}
+
+function analysisSectionHasContent(section: AnalysisSection, model: AnalysisWorkbenchViewModel) {
+  if (section === 'pressure') {
+    return hasRenderableRows(model.entityRows);
+  }
+  if (section === 'observations') {
+    return hasRenderableRows(model.evidenceRows);
+  }
+  if (section === 'fragility') {
+    return hasFragilityMapContent(model);
+  }
+  return true;
 }
 
 function analysisRailBlockClassName() {
@@ -395,9 +413,11 @@ function AnalysisRailRow({
 function InternalNav({
   section,
   showRightRailCards,
+  visibleSections,
 }: {
   section: AnalysisSection;
   showRightRailCards: boolean;
+  visibleSections: AnalysisSection[];
 }) {
   const { t } = usePreferences();
   const navOptions: Array<{ value: AnalysisSection; label: string; leading: ReactNode }> = [
@@ -406,7 +426,7 @@ function InternalNav({
     { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <EntityEvidenceIcon className="size-4" /> },
     { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <NavigationDenseGridIcon className="size-4" /> },
     { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <StatusSettingsControlIcon className="size-4" /> },
-  ];
+  ].filter((option) => visibleSections.includes(option.value));
   return (
     <div className={`relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
       <ChromeTabsList aria-label={t('analysisWorkbenchSelectSurface')} className="min-w-max">
@@ -2481,7 +2501,15 @@ export function AnalysisWorkbench({
   const [pendingSection, setPendingSection] = useState<AnalysisSection | null>(null);
   const [flashedIntervalSection, setFlashedIntervalSection] = useState<IntervalRailSectionKey | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
-  const activeSection = pendingSection ?? section;
+  const visibleSections = useMemo(
+    () =>
+      (['workbench', 'pressure', 'observations', 'fragility', 'settings'] as AnalysisSection[])
+        .filter((candidate) => analysisSectionHasContent(candidate, model)),
+    [model],
+  );
+  const fallbackSection = visibleSections[0] ?? 'settings';
+  const requestedSection = pendingSection ?? section;
+  const activeSection = visibleSections.includes(requestedSection) ? requestedSection : fallbackSection;
   const isSectionPending = pendingSection != null && pendingSection !== section;
   const railEnabled = showRightRailCards && sectionSupportsRightRail(activeSection);
   const handleSelection = (nextSelection: AnalysisSelection) => {
@@ -2501,6 +2529,16 @@ export function AnalysisWorkbench({
       setPendingSection(null);
     }
   }, [pendingSection, section]);
+
+  useEffect(() => {
+    if (visibleSections.includes(section)) {
+      return;
+    }
+    setPendingSection(null);
+    startTransition(() => {
+      setSection(fallbackSection);
+    });
+  }, [fallbackSection, section, setSection, visibleSections]);
 
   useEffect(() => {
     setSelection((current) => {
@@ -2561,16 +2599,16 @@ export function AnalysisWorkbench({
     if (isSectionPending) {
       return <AnalysisSurfaceWireframe section={activeSection} />;
     }
-    if (section === 'pressure') {
+    if (activeSection === 'pressure') {
       return <PressureSurface model={model} selectedEntityId={selectedEntityId} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
-    if (section === 'observations') {
+    if (activeSection === 'observations') {
       return <ObservationsSurface model={model} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
-    if (section === 'fragility') {
+    if (activeSection === 'fragility') {
       return <FragilitySurface model={model} setSelection={handleSelection} showRightRailCards={railEnabled} />;
     }
-    if (section === 'settings') {
+    if (activeSection === 'settings') {
       return <SettingsSurface model={model} showRightRailCards={railEnabled} />;
     }
     return (
@@ -2616,7 +2654,7 @@ export function AnalysisWorkbench({
           }
         }}
       >
-        <InternalNav section={activeSection} showRightRailCards={railEnabled} />
+        <InternalNav section={activeSection} showRightRailCards={railEnabled} visibleSections={visibleSections} />
 
         <section
           className={cn(

@@ -301,6 +301,26 @@ describe('AnalysisWorkbench', () => {
     expect(setSection).toHaveBeenCalledWith('fragility');
   });
 
+  test('hides empty analysis tabs and falls back to the first visible surface', async () => {
+    const model = {
+      ...buildModel(),
+      entityRows: [],
+      evidenceRows: [],
+      fragilityRows: [],
+    };
+    const setSection = vi.fn();
+
+    render(<AnalysisWorkbench model={model} section="pressure" setSection={setSection} showRightRailCards={false} />);
+
+    expect(screen.queryByRole('tab', { name: 'Pressure' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Blockers' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Main view' })).toBeInTheDocument();
+
+    await screen.findByRole('heading', { name: 'System timeline' });
+    expect(setSection).toHaveBeenCalledWith('workbench');
+  });
+
   test('does not mount the inspector rail on the observations tab', () => {
     render(<AnalysisWorkbench model={buildModel()} section="observations" setSection={vi.fn()} showRightRailCards />);
 

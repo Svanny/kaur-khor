@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, test } from 'vitest';
 import {
   createHeaderedTableLayout,
+  hasRenderableRows,
   HeaderedTableCellStack,
   HeaderedTable,
   HeaderedTableBody,
@@ -127,5 +128,21 @@ describe('HeaderedTable', () => {
     );
 
     expect(screen.getByText('No rows available')).toBeInTheDocument();
+  });
+
+  test('hides table chrome when empty hiding is enabled', () => {
+    const { container } = render(
+      <HeaderedTable empty hideWhenEmpty>
+        <div>No rows available</div>
+      </HeaderedTable>,
+    );
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test('detects renderable row collections explicitly', () => {
+    expect(hasRenderableRows([{ id: 'row-1' }])).toBe(true);
+    expect(hasRenderableRows([])).toBe(false);
+    expect(hasRenderableRows(null)).toBe(false);
   });
 });

@@ -24,6 +24,7 @@ import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilter
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
+  hasRenderableRows,
   HeaderedTableCellStack,
   HeaderedTable,
   HeaderedTableBody,
@@ -189,16 +190,18 @@ function CashBandColumn({
   helpHref,
   title,
   tooltip,
-  emptyMessage,
   rows,
 }: {
   band: 'winners' | 'blockedProfit' | 'cashTraps';
   helpHref: string;
   title: string;
   tooltip: string;
-  emptyMessage: string;
   rows: PerformanceBandEntry[];
 }) {
+  if (!hasRenderableRows(rows)) {
+    return null;
+  }
+
   const HeaderIcon =
     band === 'winners' ? StatusAchievementIcon : band === 'blockedProfit' ? StatusWarningIcon : StatusSavingsIcon;
 
@@ -211,28 +214,22 @@ function CashBandColumn({
         </h3>
       </div>
       <div className="mt-4 space-y-3">
-        {rows.length > 0 ? (
-          rows.map((row) => (
-            <Link
-              key={row.id}
-              className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(row.tone)} ${rowHoverClassName}`}
-              to={row.href}
-            >
-              <ItemIdentityBlock
-                align="center"
-                description={row.summary}
-                imagePath={row.imagePath}
-                name={<span className="font-medium text-foreground">{row.label}</span>}
-                size="compact"
-                type={row.entityType}
-              />
-            </Link>
-          ))
-        ) : (
-          <p className="rounded-[1.2rem] border border-dashed border-border/60 px-4 py-4 text-sm text-muted-foreground">
-            {emptyMessage}
-          </p>
-        )}
+        {rows.map((row) => (
+          <Link
+            key={row.id}
+            className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(row.tone)} ${rowHoverClassName}`}
+            to={row.href}
+          >
+            <ItemIdentityBlock
+              align="center"
+              description={row.summary}
+              imagePath={row.imagePath}
+              name={<span className="font-medium text-foreground">{row.label}</span>}
+              size="compact"
+              type={row.entityType}
+            />
+          </Link>
+        ))}
       </div>
     </div>
   );
@@ -551,6 +548,11 @@ export function PerformanceRoute() {
     );
   }
 
+  const hasCashBandRows =
+    hasRenderableRows(model.winners) ||
+    hasRenderableRows(model.blockedProfit) ||
+    hasRenderableRows(model.cashTraps);
+
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
@@ -697,40 +699,43 @@ export function PerformanceRoute() {
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
-          <PerformanceSectionShell
-            helpHref="/settings/help#pressure-move-now"
-            title={t('performanceRouteMoveNowTitle')}
-            tooltip={t('performanceRouteMoveNowTooltip')}
-            descriptor={t('performanceRouteMoveNowDescriptor')}
-            contentClassName="px-0 py-0"
-          >
-            <MoveNowTable
-              headers={{
-                action: t('performanceRouteActionHeader'),
-                actionHelpHref: '/settings/help#pressure-move-action',
-                actionTooltip: t('performanceRouteActionHeaderTooltip'),
-                expectedEffect: t('performanceRouteExpectedEffectHeader'),
-                expectedEffectHelpHref: '/settings/help#pressure-move-expected-effect',
-                expectedEffectTooltip: t('performanceRouteExpectedEffectHeaderTooltip'),
-                move: t('performanceRouteMoveHeader'),
-                moveHelpHref: '/settings/help#pressure-move-column',
-                moveTooltip: t('performanceRouteMoveHeaderTooltip'),
-                whyNow: t('performanceRouteWhyNowHeader'),
-                whyNowHelpHref: '/settings/help#pressure-move-why-now',
-                whyNowTooltip: t('performanceRouteWhyNowHeaderTooltip'),
-              }}
-              rows={model.moves}
-            />
-          </PerformanceSectionShell>
+          {hasRenderableRows(model.moves) ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#pressure-move-now"
+              title={t('performanceRouteMoveNowTitle')}
+              tooltip={t('performanceRouteMoveNowTooltip')}
+              descriptor={t('performanceRouteMoveNowDescriptor')}
+              contentClassName="px-0 py-0"
+            >
+              <MoveNowTable
+                headers={{
+                  action: t('performanceRouteActionHeader'),
+                  actionHelpHref: '/settings/help#pressure-move-action',
+                  actionTooltip: t('performanceRouteActionHeaderTooltip'),
+                  expectedEffect: t('performanceRouteExpectedEffectHeader'),
+                  expectedEffectHelpHref: '/settings/help#pressure-move-expected-effect',
+                  expectedEffectTooltip: t('performanceRouteExpectedEffectHeaderTooltip'),
+                  move: t('performanceRouteMoveHeader'),
+                  moveHelpHref: '/settings/help#pressure-move-column',
+                  moveTooltip: t('performanceRouteMoveHeaderTooltip'),
+                  whyNow: t('performanceRouteWhyNowHeader'),
+                  whyNowHelpHref: '/settings/help#pressure-move-why-now',
+                  whyNowTooltip: t('performanceRouteWhyNowHeaderTooltip'),
+                }}
+                rows={model.moves}
+              />
+            </PerformanceSectionShell>
+          ) : null}
 
-          <PerformanceSectionShell
-            helpHref="/settings/help#pressure-demand-capacity-board"
-            title={t('performanceRouteBoardTitle')}
-            tooltip={t('performanceRouteBoardTooltip')}
-            descriptor={t('performanceRouteBoardDescriptor')}
-            contentClassName="px-0 py-0"
-          >
-            <HeaderedTable>
+          {hasRenderableRows(visibleBoardRows) ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#pressure-demand-capacity-board"
+              title={t('performanceRouteBoardTitle')}
+              tooltip={t('performanceRouteBoardTooltip')}
+              descriptor={t('performanceRouteBoardDescriptor')}
+              contentClassName="px-0 py-0"
+            >
+              <HeaderedTable>
               <div className={demandCapacityBoardLayout.containerClassName} style={demandCapacityBoardLayout.style}>
                 <HeaderedTableHeader className={demandCapacityBoardLayout.headerClassName}>
                   <HeaderedTableHeaderCell>
@@ -876,88 +881,97 @@ export function PerformanceRoute() {
                   ))}
                 </HeaderedTableBody>
               </div>
-            </HeaderedTable>
-          </PerformanceSectionShell>
+              </HeaderedTable>
+            </PerformanceSectionShell>
+          ) : null}
 
-          <PerformanceSectionShell
-            helpHref="/settings/help#pressure-cash-signal-bands"
-            title={t('performanceRouteCashTitle')}
-            tooltip={t('performanceRouteCashTooltip')}
-            descriptor={t('performanceRouteCashDescriptor')}
-          >
-            <div className="grid gap-6 xl:grid-cols-3">
-              <CashBandColumn
-                band="winners"
-                emptyMessage={t('performanceRouteBandEmpty')}
-                helpHref="/settings/help#pressure-band-winners"
-                rows={model.winners}
-                title={t('performanceRouteBandWinners')}
-                tooltip={t('performanceRouteBandWinnersTooltip')}
-              />
-              <CashBandColumn
-                band="blockedProfit"
-                emptyMessage={t('performanceRouteBandEmpty')}
-                helpHref="/settings/help#pressure-band-blocked-profit"
-                rows={model.blockedProfit}
-                title={t('performanceRouteBandBlockedProfit')}
-                tooltip={t('performanceRouteBandBlockedProfitTooltip')}
-              />
-              <CashBandColumn
-                band="cashTraps"
-                emptyMessage={t('performanceRouteBandEmpty')}
-                helpHref="/settings/help#pressure-band-cash-traps"
-                rows={model.cashTraps}
-                title={t('performanceRouteBandCashTraps')}
-                tooltip={t('performanceRouteBandCashTrapsTooltip')}
-              />
-            </div>
-          </PerformanceSectionShell>
+          {hasCashBandRows ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#pressure-cash-signal-bands"
+              title={t('performanceRouteCashTitle')}
+              tooltip={t('performanceRouteCashTooltip')}
+              descriptor={t('performanceRouteCashDescriptor')}
+            >
+              <div className="grid gap-6 xl:grid-cols-3">
+                <CashBandColumn
+                  band="winners"
+                  helpHref="/settings/help#pressure-band-winners"
+                  rows={model.winners}
+                  title={t('performanceRouteBandWinners')}
+                  tooltip={t('performanceRouteBandWinnersTooltip')}
+                />
+                <CashBandColumn
+                  band="blockedProfit"
+                  helpHref="/settings/help#pressure-band-blocked-profit"
+                  rows={model.blockedProfit}
+                  title={t('performanceRouteBandBlockedProfit')}
+                  tooltip={t('performanceRouteBandBlockedProfitTooltip')}
+                />
+                <CashBandColumn
+                  band="cashTraps"
+                  helpHref="/settings/help#pressure-band-cash-traps"
+                  rows={model.cashTraps}
+                  title={t('performanceRouteBandCashTraps')}
+                  tooltip={t('performanceRouteBandCashTrapsTooltip')}
+                />
+              </div>
+            </PerformanceSectionShell>
+          ) : null}
         </div>
 
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
           <PerformanceRightRailBlock
+            hideWhenEmpty
             helpHref="/settings/help#pressure-operational-drag"
             title={t('performanceRouteOperationalDragTitle')}
             tooltip={t('performanceRouteOperationalDragTooltip')}
           >
-            <div className="space-y-3">
-              {model.operationalDrag.map((line) => (
-                <p key={line} className="text-sm leading-6 text-muted-foreground">
-                  {line}
-                </p>
-              ))}
-            </div>
+            {hasRenderableRows(model.operationalDrag) ? (
+              <div className="space-y-3">
+                {model.operationalDrag.map((line) => (
+                  <p key={line} className="text-sm leading-6 text-muted-foreground">
+                    {line}
+                  </p>
+                ))}
+              </div>
+            ) : null}
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
+            hideWhenEmpty
             helpHref="/settings/help#pressure-recovery-pipeline"
             title={t('performanceRouteRecoveryPipelineTitle')}
             tooltip={t('performanceRouteRecoveryPipelineTooltip')}
           >
-            <div className="divide-y divide-border/60">
-              {model.recoveryPipeline.map((row) => (
-                <Link key={row.id} className="block py-3 first:pt-0 last:pb-0" to={row.href}>
-                  <p className="font-medium text-foreground">{row.label}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{row.detail}</p>
-                </Link>
-              ))}
-            </div>
+            {hasRenderableRows(model.recoveryPipeline) ? (
+              <div className="divide-y divide-border/60">
+                {model.recoveryPipeline.map((row) => (
+                  <Link key={row.id} className="block py-3 first:pt-0 last:pb-0" to={row.href}>
+                    <p className="font-medium text-foreground">{row.label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{row.detail}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
+            hideWhenEmpty
             helpHref="/settings/help#pressure-price-watch"
             title={t('performanceRoutePriceWatchTitle')}
             tooltip={t('performanceRoutePriceWatchTooltip')}
           >
-            <div className="divide-y divide-border/60">
-              {model.priceWatch.map((row) => (
-                <Link key={row.id} className="block py-3 first:pt-0 last:pb-0" to={row.href}>
-                  <p className="font-medium text-foreground">{row.label}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{row.detail}</p>
-                </Link>
-              ))}
-            </div>
+            {hasRenderableRows(model.priceWatch) ? (
+              <div className="divide-y divide-border/60">
+                {model.priceWatch.map((row) => (
+                  <Link key={row.id} className="block py-3 first:pt-0 last:pb-0" to={row.href}>
+                    <p className="font-medium text-foreground">{row.label}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{row.detail}</p>
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </PerformanceRightRailBlock>
 
           <PerformanceRightRailBlock
@@ -991,11 +1005,12 @@ export function PerformanceRoute() {
               </Button>
             </div>
           </PerformanceRightRailBlock>
+
           </aside>
         ) : null}
       </div>
 
-      {showPerformanceTimelineCard ? (
+      {showPerformanceTimelineCard && hasRenderableRows(model.timeline) ? (
         <PerformanceSectionShell
           helpHref="/settings/help#pressure-timeline"
           title={t('performanceRouteTimelineTitle')}

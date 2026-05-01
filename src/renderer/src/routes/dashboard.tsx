@@ -33,6 +33,7 @@ import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
+  hasRenderableRows,
   HeaderedTable,
   HeaderedTableBody,
   HeaderedTableHeader,
@@ -1178,6 +1179,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
               </div>
             </section>
 
+            {hasRenderableRows(model.inTransit) ? (
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
                 <EntityTransitIcon className="size-4 text-primary" />
@@ -1186,8 +1188,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 </h2>
               </div>
               <div className="divide-y divide-border/50">
-                {model.inTransit.length > 0 ? (
-                  model.inTransit.map((row) => (
+                {model.inTransit.map((row) => (
                     <button
                       key={row.id}
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
@@ -1208,15 +1209,12 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                       </span>
                       <span className="shrink-0 text-sm text-muted-foreground">{row.etaLabel}</span>
                     </button>
-                  ))
-                ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    {translateUiLiteral(language, 'No active receipt windows are open right now.')}
-                  </p>
-                )}
+                  ))}
               </div>
             </section>
+            ) : null}
 
+            {hasRenderableRows(model.recentReceipts) ? (
             <section className={railBlockClassName()}>
               <div className="mb-4 flex items-center gap-2">
                 <EntityReceiptDocumentIcon className="size-4 text-primary" />
@@ -1225,8 +1223,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 </h2>
               </div>
               <div className="divide-y divide-border/50">
-                {model.recentReceipts.length > 0 ? (
-                  model.recentReceipts.map((row) => (
+                {model.recentReceipts.map((row) => (
                     <button
                       key={row.id}
                       className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
@@ -1249,15 +1246,12 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                       </div>
                       <span className="shrink-0 text-sm text-muted-foreground">{row.receivedLabel}</span>
                     </button>
-                  ))
-                ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    {translateUiLiteral(language, 'Confirmed receipts will appear here as inventory closes the loop.')}
-                  </p>
-                )}
+                  ))}
               </div>
             </section>
+            ) : null}
 
+            {hasRenderableRows(model.signals) ? (
             <section className={`${railBlockClassName()} border-b border-border/60`}>
               <div className="mb-4 flex items-center gap-2">
                 <EntitySignalIcon className="size-4 text-primary" />
@@ -1266,22 +1260,17 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 </h2>
               </div>
               <div className="divide-y divide-border/50">
-                {model.signals.length > 0 ? (
-                  model.signals.map((signal) => (
+                {model.signals.map((signal) => (
                     <div
                       key={signal.id}
                       className="py-3 text-sm leading-6 text-foreground"
                     >
                       {signal.text}
                     </div>
-                  ))
-                ) : (
-                  <p className="py-3 text-sm text-muted-foreground">
-                    {translateUiLiteral(language, 'Sales-pattern and price changes will appear here once banji has enough activity to explain them.')}
-                  </p>
-                )}
+                  ))}
               </div>
             </section>
+            ) : null}
 
             <section className="mt-auto flex justify-center px-5 py-5">
               <Button asChild variant="outline">

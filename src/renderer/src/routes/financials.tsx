@@ -29,6 +29,7 @@ import { CreateFirstSkuButton } from '@/components/system/create-first-sku-butto
 import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
 import {
   createHeaderedTableLayout,
+  hasRenderableRows,
   HeaderedTable,
   HeaderedTableBody,
   HeaderedTableCellStack,
@@ -223,7 +224,10 @@ function StatementBlock({ block }: { block: FinancialStatementBlock }) {
 
 function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] }) {
   const { language } = usePreferences();
-  const emptyText = translateUiLiteral(language, 'No contributors match the current filters. Broaden scope, clear supplier, or record more live data.');
+
+  if (!hasRenderableRows(rows)) {
+    return null;
+  }
 
   return (
     <HeaderedTable>
@@ -261,7 +265,7 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
           </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={contributorsTableLayout.bodyClassName}>
-          {rows.length > 0 ? rows.map((row) => (
+          {rows.map((row) => (
             <HeaderedTableRow key={`${row.entityType}-${row.id}`} className={`${rowHoverClassName} ${contributorsTableLayout.rowClassName}`}>
               <div className="min-w-0">
                 <HeaderedTableMobileLabel className={contributorsTableLayout.mobileLabelClassName}>
@@ -320,9 +324,7 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
                 </span>
               </div>
             </HeaderedTableRow>
-          )) : (
-            <div className="px-6 py-6 text-sm leading-6 text-muted-foreground">{emptyText}</div>
-          )}
+          ))}
         </HeaderedTableBody>
       </div>
     </HeaderedTable>
@@ -330,7 +332,6 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
 }
 
 function MoneyBandColumn({
-  emptyMessage,
   helpHref,
   icon,
   rows,
@@ -338,7 +339,6 @@ function MoneyBandColumn({
   title,
   tooltip,
 }: {
-  emptyMessage: string;
   helpHref: string;
   icon: ReactNode;
   rows: FinancialBandEntry[];
@@ -346,6 +346,10 @@ function MoneyBandColumn({
   title: string;
   tooltip: string;
 }) {
+  if (!hasRenderableRows(rows)) {
+    return null;
+  }
+
   return (
     <div className="min-w-0">
       <div className={`rounded-[0.9rem] border px-3 py-2.5 ${tintedSurfaceClassName(tone)}`}>
@@ -355,7 +359,7 @@ function MoneyBandColumn({
         </h3>
       </div>
       <div className="mt-4 space-y-3">
-        {rows.length > 0 ? rows.map((row) => (
+        {rows.map((row) => (
           <Link
             key={`${row.entityType}-${row.id}`}
             className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(tone)} ${rowHoverClassName}`}
@@ -371,11 +375,7 @@ function MoneyBandColumn({
               type={row.entityType}
             />
           </Link>
-        )) : (
-          <p className={`rounded-[1.2rem] border border-dashed px-4 py-4 text-sm text-muted-foreground ${tintedSurfaceClassName(tone)}`}>
-            {emptyMessage}
-          </p>
-        )}
+        ))}
       </div>
     </div>
   );
@@ -694,6 +694,12 @@ export function FinancialsRoute() {
     );
   }
 
+  const visibleStatementBlocks = model.statement.filter((block) => hasRenderableRows(block.rows));
+  const hasMoneyBandRows =
+    hasRenderableRows(model.earners) ||
+    hasRenderableRows(model.capitalTraps) ||
+    hasRenderableRows(model.marginLeaks);
+
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
@@ -847,99 +853,111 @@ export function FinancialsRoute() {
 
       <div className={rightRailLayoutClassName(showRightRailCards)}>
         <div className="grid min-w-0 gap-6">
-          <PerformanceSectionShell
-            helpHref="/settings/help#money-financial-statement"
-            title={translateUiLiteral(language, 'Financial statement')}
-            tooltip={translateUiLiteral(language, 'The money shape of the business in money in, money tied up, and money leaking layers.')}
-            descriptor={translateUiLiteral(language, 'Read the stock-linked money view as a statement, not an action queue.')}
-            contentClassName="px-0 py-0"
-          >
-            {model.statement.map((block) => (
-              <StatementBlock key={block.id} block={block} />
-            ))}
-          </PerformanceSectionShell>
+          {hasRenderableRows(visibleStatementBlocks) ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#money-financial-statement"
+              title={translateUiLiteral(language, 'Financial statement')}
+              tooltip={translateUiLiteral(language, 'The money shape of the business in money in, money tied up, and money leaking layers.')}
+              descriptor={translateUiLiteral(language, 'Read the stock-linked money view as a statement, not an action queue.')}
+              contentClassName="px-0 py-0"
+            >
+              {visibleStatementBlocks.map((block) => (
+                <StatementBlock key={block.id} block={block} />
+              ))}
+            </PerformanceSectionShell>
+          ) : null}
 
-          <PerformanceSectionShell
-            helpHref="/settings/help#money-economic-contributors"
-            title={translateUiLiteral(language, 'Economic contributors')}
-            tooltip={translateUiLiteral(language, 'The SKUs and services explaining most of the current economic picture.')}
-            descriptor={translateUiLiteral(language, 'Ranked by gross profit contribution, then sales contribution.')}
-            contentClassName="px-0 py-0"
-          >
-            <EconomicContributorsTable rows={model.contributors} />
-          </PerformanceSectionShell>
+          {hasRenderableRows(model.contributors) ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#money-economic-contributors"
+              title={translateUiLiteral(language, 'Economic contributors')}
+              tooltip={translateUiLiteral(language, 'The SKUs and services explaining most of the current economic picture.')}
+              descriptor={translateUiLiteral(language, 'Ranked by gross profit contribution, then sales contribution.')}
+              contentClassName="px-0 py-0"
+            >
+              <EconomicContributorsTable rows={model.contributors} />
+            </PerformanceSectionShell>
+          ) : null}
 
-          <PerformanceSectionShell
-            helpHref="/settings/help#money-quality-bands"
-            title={translateUiLiteral(language, 'Money quality bands')}
-            tooltip={translateUiLiteral(language, 'Financial groupings by earning quality, trapped capital, and margin leakage.')}
-            descriptor={translateUiLiteral(language, 'Scan where money is working, sitting, or leaking.')}
-          >
-            <div className="grid gap-6 xl:grid-cols-3">
-              <MoneyBandColumn
-                emptyMessage={translateUiLiteral(language, 'No efficient earners are standing out in this window.')}
-                helpHref="/settings/help#money-band-earners"
-                icon={<StatusAchievementIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
-                rows={model.earners}
-                tone="success"
-                title={translateUiLiteral(language, 'Earners')}
-                tooltip={translateUiLiteral(language, 'Strong sales, healthy profit, and acceptable capital footprint.')}
-              />
-              <MoneyBandColumn
-                emptyMessage={translateUiLiteral(language, 'No capital traps are stacking up in this window.')}
-                helpHref="/settings/help#money-band-capital-traps"
-                icon={<StatusSavingsIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
-                rows={model.capitalTraps}
-                tone="warning"
-                title={translateUiLiteral(language, 'Capital traps')}
-                tooltip={translateUiLiteral(language, 'Too much stock value relative to realized return.')}
-              />
-              <MoneyBandColumn
-                emptyMessage={translateUiLiteral(language, 'No margin leaks are standing out in this window.')}
-                helpHref="/settings/help#money-band-margin-leaks"
-                icon={<StatusWarningIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
-                rows={model.marginLeaks}
-                tone="danger"
-                title={translateUiLiteral(language, 'Margin leaks')}
-                tooltip={translateUiLiteral(language, 'Sales activity exists, but spread is weak or deteriorating.')}
-              />
-            </div>
-          </PerformanceSectionShell>
+          {hasMoneyBandRows ? (
+            <PerformanceSectionShell
+              helpHref="/settings/help#money-quality-bands"
+              title={translateUiLiteral(language, 'Money quality bands')}
+              tooltip={translateUiLiteral(language, 'Financial groupings by earning quality, trapped capital, and margin leakage.')}
+              descriptor={translateUiLiteral(language, 'Scan where money is working, sitting, or leaking.')}
+            >
+              <div className="grid gap-6 xl:grid-cols-3">
+                <MoneyBandColumn
+                  helpHref="/settings/help#money-band-earners"
+                  icon={<StatusAchievementIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  rows={model.earners}
+                  tone="success"
+                  title={translateUiLiteral(language, 'Earners')}
+                  tooltip={translateUiLiteral(language, 'Strong sales, healthy profit, and acceptable capital footprint.')}
+                />
+                <MoneyBandColumn
+                  helpHref="/settings/help#money-band-capital-traps"
+                  icon={<StatusSavingsIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  rows={model.capitalTraps}
+                  tone="warning"
+                  title={translateUiLiteral(language, 'Capital traps')}
+                  tooltip={translateUiLiteral(language, 'Too much stock value relative to realized return.')}
+                />
+                <MoneyBandColumn
+                  helpHref="/settings/help#money-band-margin-leaks"
+                  icon={<StatusWarningIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  rows={model.marginLeaks}
+                  tone="danger"
+                  title={translateUiLiteral(language, 'Margin leaks')}
+                  tooltip={translateUiLiteral(language, 'Sales activity exists, but spread is weak or deteriorating.')}
+                />
+              </div>
+            </PerformanceSectionShell>
+          ) : null}
         </div>
 
         {showRightRailCards ? (
           <aside className={RIGHT_RAIL_ASIDE_CLASS_NAME}>
             <PerformanceRightRailBlock
+              hideWhenEmpty
               helpHref="/settings/help#money-commitments-due"
               title={translateUiLiteral(language, 'Commitments due')}
               tooltip={translateUiLiteral(language, 'Supplier-side value likely to leave the business soon.')}
             >
-              <RailRows
-                emptyLabel={translateUiLiteral(language, 'No open supplier commitments are visible right now.')}
-                rows={model.commitmentsDue}
-              />
+              {hasRenderableRows(model.commitmentsDue) ? (
+                <RailRows
+                  emptyLabel={translateUiLiteral(language, 'No open supplier commitments are visible right now.')}
+                  rows={model.commitmentsDue}
+                />
+              ) : null}
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              hideWhenEmpty
               helpHref="/settings/help#money-largest-capital-positions"
               title={translateUiLiteral(language, 'Largest capital positions')}
               tooltip={translateUiLiteral(language, 'The biggest current stock-value concentrations.')}
             >
-              <RailRows
-                emptyLabel={translateUiLiteral(language, 'No material stock-value concentration is visible yet.')}
-                rows={model.largestCapitalPositions}
-              />
+              {hasRenderableRows(model.largestCapitalPositions) ? (
+                <RailRows
+                  emptyLabel={translateUiLiteral(language, 'No material stock-value concentration is visible yet.')}
+                  rows={model.largestCapitalPositions}
+                />
+              ) : null}
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock
+              hideWhenEmpty
               helpHref="/settings/help#money-recent-margin-shifts"
               title={translateUiLiteral(language, 'Recent margin shifts')}
               tooltip={translateUiLiteral(language, 'Recent price, cost, receipt, or correction changes with financial impact.')}
             >
-              <RailRows
-                emptyLabel={translateUiLiteral(language, 'No recent price or cost shifts are visible in this window.')}
-                rows={model.recentMarginShifts}
-              />
+              {hasRenderableRows(model.recentMarginShifts) ? (
+                <RailRows
+                  emptyLabel={translateUiLiteral(language, 'No recent price or cost shifts are visible in this window.')}
+                  rows={model.recentMarginShifts}
+                />
+              ) : null}
             </PerformanceRightRailBlock>
 
             <PerformanceRightRailBlock

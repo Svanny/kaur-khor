@@ -45,6 +45,7 @@ import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
+import { hasRenderableRows } from '@/components/system/headered-table';
 import {
   type AutomationExposureValue,
   automationIntakeFilterValues,
@@ -175,15 +176,9 @@ function connectionLabel(status: string) {
   return 'Disconnected';
 }
 
-function RailRows({
-  emptyLabel,
-  rows,
-}: {
-  emptyLabel: string;
-  rows: AutomationRailRow[];
-}) {
+function RailRows({ rows }: { rows: AutomationRailRow[] }) {
   if (rows.length === 0) {
-    return <p className="text-sm leading-6 text-muted-foreground">{emptyLabel}</p>;
+    return null;
   }
 
   return (
@@ -214,6 +209,10 @@ function OverviewColumn({
   title: string;
   tooltip: string;
 }) {
+  if (children == null) {
+    return null;
+  }
+
   return (
     <section className="min-w-0 px-4 py-4 xl:px-5">
       <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -804,21 +803,23 @@ export function AutomationsRoute({
                   )}
                 />
               ) : null}
+              {hasRenderableRows(model?.today) || hasRenderableRows(model?.recentActivity) || hasRenderableRows(model?.coverage) ? (
               <section className={PERFORMANCE_HEADER_SURFACE_CLASS_NAME}>
                 <div className="grid divide-y divide-border/60 xl:grid-cols-3 xl:divide-x xl:divide-y-0">
                   <OverviewColumn title={translateUiLiteral(language, 'Today')} tooltip={translateUiLiteral(language, 'Telegram intake counts for today.')}>
-                    <RailRows emptyLabel={translateUiLiteral(language, 'Telegram activity has not started today.')} rows={model?.today ?? []} />
+                    {hasRenderableRows(model?.today) ? <RailRows rows={model?.today ?? []} /> : null}
                   </OverviewColumn>
 
                   <OverviewColumn title={translateUiLiteral(language, 'Recent automation activity')} tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
-                    <RecentAutomationActivityRail rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} />
+                    {hasRenderableRows(model?.recentActivity) ? <RecentAutomationActivityRail rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} /> : null}
                   </OverviewColumn>
 
                   <OverviewColumn title={translateUiLiteral(language, 'Coverage')} tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
-                    <RailRows emptyLabel={translateUiLiteral(language, 'Expose at least one sellable to start Telegram coverage.')} rows={model?.coverage ?? []} />
+                    {hasRenderableRows(model?.coverage) ? <RailRows rows={model?.coverage ?? []} /> : null}
                   </OverviewColumn>
                 </div>
               </section>
+              ) : null}
             </div>
           ) : null}
 
