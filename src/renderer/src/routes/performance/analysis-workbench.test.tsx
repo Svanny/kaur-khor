@@ -406,7 +406,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('button', { name: 'Scope help' })).toBeInTheDocument();
   });
 
-  test('renders the shared chart viewport in place of the legacy synchronized lanes', () => {
+  test('renders the shared chart viewport without making the mainview window scroll internally', () => {
     const { container } = render(
       <AnalysisWorkbench
         hasOlderIntervals={false}
@@ -422,6 +422,20 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
+    expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-visible');
+    expect(screen.getByTestId('insights-board-section')).not.toHaveClass('overflow-y-auto');
+  });
+
+  test('keeps non-chart explain sections scrollable inside the board', () => {
+    render(
+      <AnalysisWorkbench
+        model={buildModel()}
+        section="pressure"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
     expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-y-auto');
   });
 

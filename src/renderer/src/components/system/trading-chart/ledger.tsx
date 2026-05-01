@@ -201,7 +201,7 @@ export function TradingChartLedger({
         'relative isolate flex min-w-0 flex-col',
         expanded
           ? `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`
-          : `${cardFrameClassName} ${cardSurfaceClassName} h-full w-full rounded-[2rem] px-6 py-5`,
+          : `${cardFrameClassName} ${cardSurfaceClassName} h-full min-h-0 w-full rounded-[2rem] px-6 py-5`,
         className,
       )}
     >

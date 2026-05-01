@@ -2634,12 +2634,20 @@ export function AnalysisWorkbench({
               timeframe={timeframe}
             />
     );
-  }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, section, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+  }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+
+  const workbenchSectionActive = activeSection === 'workbench';
 
   return (
-    <div className={cn('grid gap-6 h-full min-h-0 grid-rows-[auto_minmax(0,1fr)]')} onPointerDown={handleWorkbenchPointerDown}>
+    <div
+      className={cn(
+        'grid gap-6 min-h-0',
+        workbenchSectionActive ? 'grid-rows-[auto_auto]' : 'h-full grid-rows-[auto_minmax(0,1fr)]',
+      )}
+      onPointerDown={handleWorkbenchPointerDown}
+    >
       <ChromeTabs
-        className={cn('relative gap-0 flex min-h-0 flex-1 flex-col')}
+        className={cn('relative gap-0 flex min-h-0 flex-col', !workbenchSectionActive && 'flex-1')}
         value={activeSection}
         onValueChange={(nextValue) => {
           if (nextValue) {
@@ -2659,15 +2667,20 @@ export function AnalysisWorkbench({
         <section
           className={cn(
             ANALYSIS_BOARD_CLASS_NAME,
-            'flex flex-1 flex-col',
-            activeSection === 'workbench' ? 'overflow-x-hidden overflow-y-auto' : 'overflow-y-auto',
+            'flex flex-col',
+            workbenchSectionActive ? 'overflow-visible' : 'flex-1 overflow-y-auto',
           )}
           data-testid="insights-board-section"
           style={{
             marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
           }}
         >
-          <div className={cn(railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0', 'flex-1')}>
+          <div
+            className={cn(
+              railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0',
+              !workbenchSectionActive && 'flex-1',
+            )}
+          >
             <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', 'flex flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}>
               <div className={cn('flex min-w-0 gap-6 px-0 py-0 flex-1 flex-col')}>{surface}</div>
             </div>

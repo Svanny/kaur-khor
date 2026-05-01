@@ -61,14 +61,10 @@ export function AnalysisTradingChartLedger({
       chartModel={chartModel}
       chartResolution={chartResolution ?? chartLayoutPreferences.chartResolution}
       chartZoomResetToken={chartZoomResetToken}
-      additionalPaneMinRenderHeight={30}
-      baseMinRenderHeight={160}
-      chartRenderHeight={expanded ? undefined : 'clamp(300px, calc(100svh - 360px), 520px)'}
-      className={expanded ? 'h-full' : 'h-auto'}
       customChartResolution={customChartResolution ?? chartLayoutPreferences.customChartResolution}
       customTimeframeRange={customTimeframeRange ?? chartLayoutPreferences.customTimeframeRange}
       expanded={expanded}
-      fillAvailableHeight={expanded}
+      fillAvailableHeight
       hasOlderIntervals={hasOlderIntervals}
       isBusy={isBusy}
       isVisuallyBusy={isVisuallyBusy}

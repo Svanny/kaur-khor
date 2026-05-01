@@ -784,8 +784,43 @@ describe('SkuTradingChart settings', () => {
       initialSettings,
     });
 
+    expect(screen.getByTestId('sku-trading-chart').parentElement).toHaveStyle({
+      minHeight: `${deriveTradingChartMinRenderHeight(2)}px`,
+    });
     expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
       minHeight: `${deriveTradingChartMinRenderHeight(2)}px`,
+    });
+  });
+
+  it('lets expanded chart windows shrink inside the available overlay height', () => {
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    initialSettings.receipts.enabled = true;
+    const multiPaneModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+        receiptsMean: 2,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+        receipts: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: multiPaneModel,
+      expanded: true,
+      initialSettings,
+    });
+
+    expect(screen.getByTestId('sku-trading-chart').parentElement).toHaveStyle({
+      minHeight: '0',
+    });
+    expect(screen.getByTestId('sku-trading-chart')).toHaveStyle({
+      minHeight: '0',
     });
   });
 

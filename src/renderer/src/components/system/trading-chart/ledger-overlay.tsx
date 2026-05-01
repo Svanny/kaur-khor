@@ -25,7 +25,7 @@ export function ChartLedgerOverlay({
         onClick={onClose}
         type="button"
       />
-      <div className={cn('relative z-10 flex h-full w-full min-w-0', panelClassName)}>
+      <div className={cn('relative z-10 flex h-full min-h-0 w-full min-w-0', panelClassName)}>
         {children}
       </div>
     </div>

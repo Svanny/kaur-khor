@@ -2603,9 +2603,11 @@ export function SkuTradingChart({
   );
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const minimumRenderHeight = baseMinRenderHeight + Math.max(0, activeAdditionalPaneCount) * additionalPaneMinRenderHeight;
-  const chartRenderStyle: CSSProperties = chartRenderHeight == null
-    ? { minHeight: minimumRenderHeight }
-    : { height: chartRenderHeight, minHeight: minimumRenderHeight };
+  const chartRenderStyle: CSSProperties = expanded
+    ? { minHeight: 0 }
+    : chartRenderHeight == null
+      ? { minHeight: minimumRenderHeight }
+      : { height: chartRenderHeight, minHeight: minimumRenderHeight };
   const regimeSetting = editableIndicatorSettings.regime;
   const regimeIndicatorEnabled = isEnabled(editableIndicatorSettings, chartModel.availability, 'regime');
   const showRegimeIcons = regimeIndicatorEnabled && regimeUsesIcons(regimeSetting.plotStyle);
@@ -4733,6 +4735,7 @@ export function SkuTradingChart({
       <div
         className={cn(
           'relative min-h-[420px] flex-1 rounded-lg border border-border/70 bg-white transition-opacity duration-200 motion-reduce:transition-none',
+          expanded && 'min-h-0',
           chartRenderHeight != null && 'shrink-0 flex-none',
           shouldDimChartWhileBusy && 'opacity-45',
         )}
@@ -4864,6 +4867,7 @@ export function SkuTradingChart({
           ref={chartContainerRef}
           className={cn(
             'relative z-[2] h-full min-h-[420px] w-full transition-opacity duration-75 motion-reduce:transition-none',
+            expanded && 'min-h-0',
             hideChartVisualsDuringRelayout && 'opacity-0',
           )}
           data-testid="sku-trading-chart"
