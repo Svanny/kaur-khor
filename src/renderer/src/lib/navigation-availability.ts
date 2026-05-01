@@ -1,6 +1,7 @@
 import type { DesktopSeenUnlockedNavItemId, DesktopSeenUnlockedNavItems } from '@shared/ipc';
 import { hasAutomationEligibleSellable } from '@shared/automation-sellables';
 import type { InventoryContextValue } from '@/state/inventory';
+import { deriveAvailableObservationCount } from './observation-count';
 import { activeSenaCatalog } from './sena-catalog';
 
 export type NavigationAvailability = {
@@ -18,18 +19,9 @@ export const GATED_NAV_ITEM_IDS: DesktopSeenUnlockedNavItemId[] = [
   'work',
 ];
 
-function deriveAvailableObservationCount(
-  inventory: Pick<InventoryContextValue, 'latestRun' | 'observations' | 'workspaceSummary'>,
-) {
-  return Math.max(
-    inventory.observations?.length ?? 0,
-    inventory.latestRun?.observationCount ?? 0,
-    inventory.workspaceSummary?.intervalCount ?? 0,
-  );
-}
-
 export function deriveNavigationAvailability(
-  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'workspaceSummary'>,
+  inventory: Pick<InventoryContextValue, 'catalog' | 'latestRun' | 'observations' | 'workspaceSummary'> &
+    Partial<Pick<InventoryContextValue, 'observationFingerprint'>>,
 ): NavigationAvailability {
   const visibleCatalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const activeSkuCount = visibleCatalog?.skus.filter((sku) => !sku.archived).length ?? 0;

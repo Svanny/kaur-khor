@@ -47,8 +47,10 @@ import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-fi
 import { Button } from '@/components/ui/button';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
+import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
+import { deriveAvailableObservationCount } from '@/lib/observation-count';
 import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { matchesSupplierName, type SupplierFilterValue } from '@/lib/sena-catalog';
@@ -170,6 +172,58 @@ function scheduleDeferredBackgroundTask(task: () => void, delayMs = DASHBOARD_DE
     window.clearTimeout(timeoutId);
     cancelBackgroundTask?.();
   };
+}
+
+function WorkSupportLoadingBoard() {
+  return (
+    <section
+      className={`${cardFrameClassName} ${cardSurfaceClassName} flex min-h-[28rem] flex-col rounded-[2rem] px-5 py-5 sm:px-6`}
+      data-slot="overview-support-loading"
+    >
+      <div className="flex items-end justify-between gap-4 border-b border-border/60 pb-5">
+        <div className="grid gap-3">
+          <Skeleton className="h-7 w-36 rounded-full" />
+          <Skeleton className="h-4 w-80 max-w-full rounded-full" />
+        </div>
+        <Skeleton className="h-4 w-24 rounded-full" />
+      </div>
+      <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 border-border/60 lg:border-r">
+          {Array.from({ length: 4 }, (_, index) => (
+            <div key={`queue-loading-row-${index}`} className="grid gap-4 border-b border-border/60 px-4 py-6 lg:grid-cols-[minmax(18rem,1.15fr)_minmax(14rem,0.95fr)_minmax(16rem,1fr)_minmax(10rem,0.7fr)]">
+              <div className="flex items-center gap-4">
+                <Skeleton className="size-12 shrink-0 rounded-full" />
+                <div className="grid min-w-0 flex-1 gap-2">
+                  <Skeleton className="h-5 w-40 rounded-full" />
+                  <Skeleton className="h-4 w-56 max-w-full rounded-full" />
+                </div>
+              </div>
+              <div className="grid content-center gap-2">
+                <Skeleton className="h-4 w-36 rounded-full" />
+                <Skeleton className="h-4 w-48 max-w-full rounded-full" />
+              </div>
+              <div className="grid content-center gap-2">
+                <Skeleton className="h-4 w-32 rounded-full" />
+                <Skeleton className="h-4 w-52 max-w-full rounded-full" />
+              </div>
+              <div className="flex items-center justify-center">
+                <Skeleton className="h-9 w-32 rounded-full" />
+              </div>
+            </div>
+          ))}
+        </div>
+        <aside className="hidden px-5 py-5 lg:block">
+          <Skeleton className="h-6 w-24 rounded-full" />
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={`queue-loading-rail-${index}`} className="mt-6 flex items-center justify-between gap-4 border-b border-border/60 pb-5">
+              <Skeleton className="h-4 w-36 rounded-full" />
+              <Skeleton className="h-5 w-8 rounded-full" />
+            </div>
+          ))}
+        </aside>
+      </div>
+    </section>
+  );
 }
 
 function useVirtualizedQueueRows<T>(
@@ -421,6 +475,8 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     taskId: string;
   } | null>(null);
   const [selectedAutomationIntakeId, setSelectedAutomationIntakeId] = useState<string | null>(null);
+  const [hasLoadedInitialWorkSupportData, setHasLoadedInitialWorkSupportData] = useState(false);
+  const [isLoadingWorkSupportData, setIsLoadingWorkSupportData] = useState(false);
   const requestedOrderBatchesRef = useRef(false);
   const routeState = readOverviewRouteState(searchParams);
   const overviewScope = routeState.workflow;
@@ -433,6 +489,15 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
+  const availableObservationCount = deriveAvailableObservationCount(inventory);
+  const needsInitialWorkSupportData = Boolean(
+    inventory.catalog &&
+      inventory.workspaceSummary &&
+      availableObservationCount > 0 &&
+      inventory.observations.length === 0 &&
+      !hasLoadedInitialWorkSupportData,
+  );
+  const showWorkSupportLoading = needsInitialWorkSupportData || isLoadingWorkSupportData;
   const filterOptions = useMemo(() => buildFilterOptions(language), [language]);
   const customerFilterOptions = useMemo(() => buildCustomerFilterOptions(language), [language]);
   const todayFilterRows = useMemo(() => buildTodayFilterRows(language), [language]);
@@ -450,18 +515,31 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   }
 
   useEffect(() => {
-    if (typeof loadWorkSupportData !== 'function' || requestedOrderBatchesRef.current) {
+    if (
+      typeof loadWorkSupportData !== 'function' ||
+      requestedOrderBatchesRef.current ||
+      inventory.isLoading ||
+      !inventory.catalog ||
+      !inventory.workspaceSummary
+    ) {
       return undefined;
     }
     requestedOrderBatchesRef.current = true;
-    const cancel = scheduleDeferredBackgroundTask(() => {
-      void loadWorkSupportData({ includeObservations: true }).catch((error) => {
+    setIsLoadingWorkSupportData(needsInitialWorkSupportData);
+    void loadWorkSupportData({ includeObservations: true })
+      .then(() => {
+        setHasLoadedInitialWorkSupportData(true);
+      })
+      .catch((error) => {
         requestedOrderBatchesRef.current = false;
+        setHasLoadedInitialWorkSupportData(true);
         console.warn('[dashboard] work support data load failed', error);
+      })
+      .finally(() => {
+        setIsLoadingWorkSupportData(false);
       });
-    });
-    return cancel;
-  }, [loadWorkSupportData]);
+    return undefined;
+  }, [inventory.catalog, inventory.isLoading, inventory.workspaceSummary, loadWorkSupportData, needsInitialWorkSupportData]);
 
   useEffect(() => {
     const skuIds = orderedDashboardSkuDetailIds(inventory.workspaceSummary);
@@ -752,20 +830,23 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
         </WorkspaceTitleCard>
       ) : null}
 
-      <ChromeTabs
-        className="relative min-h-0 flex-1 gap-0"
-        value={overviewScope === 'customer' ? customerFilter : activeFilter}
-        onValueChange={(nextValue) => {
-          if (overviewScope === 'customer') {
-            updateRouteState({
-              customerFilter: nextValue as OverviewCustomerFilter,
-              customerTaskId: null,
-            });
-            return;
-          }
-          updateRouteState({ filter: nextValue as OverviewTaskFilter });
-        }}
-      >
+      {showWorkSupportLoading ? (
+        <WorkSupportLoadingBoard />
+      ) : (
+        <ChromeTabs
+          className="relative min-h-0 flex-1 gap-0"
+          value={overviewScope === 'customer' ? customerFilter : activeFilter}
+          onValueChange={(nextValue) => {
+            if (overviewScope === 'customer') {
+              updateRouteState({
+                customerFilter: nextValue as OverviewCustomerFilter,
+                customerTaskId: null,
+              });
+              return;
+            }
+            updateRouteState({ filter: nextValue as OverviewTaskFilter });
+          }}
+        >
         {showOverviewTaskTabs ? (
           <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
@@ -1104,7 +1185,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                           <div className="flex items-start lg:justify-center">
                             {isOverviewSkuTask(task) ? (
                               <Button
-                                className="w-[136px] justify-center"
+                                className="min-w-[9.5rem] justify-center"
                                 size="sm"
                                 type="button"
                                 variant={task.action === 'log_order' || task.action === 'receive' ? 'default' : 'outline'}
@@ -1114,7 +1195,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                                 {task.actionLabel}
                               </Button>
                             ) : (
-                              <Button asChild className="w-[136px] justify-center" size="sm">
+                              <Button asChild className="min-w-[9.5rem] justify-center" size="sm">
                                 <Link to="/work/capture">
                                   {TaskActionIcon ? <TaskActionIcon className="size-4" /> : null}
                                   {task.actionLabel}
@@ -1286,7 +1367,8 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
         </div>
           )}
         </section>
-      </ChromeTabs>
+        </ChromeTabs>
+      )}
 
       {overviewScope === 'supplier' ? (
         <>

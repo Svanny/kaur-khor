@@ -152,6 +152,14 @@ function freezeDate(isoString: string) {
   vi.stubGlobal('Date', MockDate as unknown as DateConstructor);
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+  return { promise, resolve };
+}
+
 const inventoryHook = vi.fn();
 const automationHook = vi.fn();
 const savePreferencesMock = vi.fn(async () => undefined);
@@ -641,6 +649,41 @@ describe('DashboardRoute', () => {
 
     renderRouteWithLocation('/work/queue');
 
+    await waitFor(() => {
+      expect(loadWorkSupportData).toHaveBeenCalledWith({ includeObservations: true });
+    });
+  });
+
+  test('shows a loading board instead of a partial queue while cold support data loads', async () => {
+    const supportData = deferred<null>();
+    const loadWorkSupportData = vi.fn(() => supportData.promise);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      latestRun: { observationCount: 2 },
+      observations: [],
+      observationFingerprint: {
+        count: 2,
+        latestObservedAt: '2026-04-03T12:00:00.000Z',
+        latestObservationId: 'obs-2',
+      },
+      orderBatches: [],
+      recordUpdateContext: null,
+      workspaceSummary: {
+        ...sampleWorkspaceSummary,
+        intervalCount: 2,
+      },
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData,
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isLoading: false,
+      isSaving: false,
+    });
+
+    const { container } = renderRouteWithLocation('/work/queue');
+
+    expect(container.querySelector('[data-slot="overview-support-loading"]')).not.toBeNull();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Task queue' })).not.toBeInTheDocument();
     await waitFor(() => {
       expect(loadWorkSupportData).toHaveBeenCalledWith({ includeObservations: true });
     });
