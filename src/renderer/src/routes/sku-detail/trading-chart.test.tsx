@@ -5,7 +5,13 @@ import { localizedChartInputSourceLabel } from '@/components/system/chart-series
 import {
   buildOverlayIconClusters,
   deriveTradingChartMinRenderHeight,
+  LAYOUT_SORTABLE_STRATEGY,
+  LAYOUT_SORTABLE_TRANSITION,
+  layoutPaneListsEqual,
+  moveIndicatorInPaneLayout,
   paneHeightAllocation,
+  resolveLayoutDragOverPaneLayout,
+  resolveLayoutDropPlacement,
   shouldAutoCenterSelectedInterval,
   stackOverlayFlagMarkers,
   SkuTradingChart,
@@ -16,6 +22,7 @@ import {
   normalizeTradingChartIndicatorSettings,
   type TradingChartIndicatorSettings,
   type TradingChartModel,
+  type TradingChartPaneLayout,
 } from './trading-chart-model';
 
 const chartMockState = vi.hoisted(() => ({
@@ -578,6 +585,239 @@ describe('SkuTradingChart settings', () => {
       { key: 'order:second', left: 20, width: 10 },
       { key: 'receipt:second', left: 30, width: 10 },
     ]);
+  });
+
+  it('computes same-pane layout drag placements after hovered row midpoints', () => {
+    const panes: TradingChartPaneLayout[] = [{
+      id: 'main',
+      indicatorIds: ['inventory', 'uncertainty', 'regime'],
+    }];
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: 150,
+      activeIndicatorId: 'inventory',
+      nextPaneId: 'pane-11',
+      overRect: { top: 100, height: 40 },
+      panes,
+      target: { type: 'row', indicatorId: 'uncertainty' },
+    })).toEqual({ paneId: 'main', index: 1 });
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: 210,
+      activeIndicatorId: 'inventory',
+      nextPaneId: 'pane-11',
+      overRect: { top: 160, height: 40 },
+      panes,
+      target: { type: 'row', indicatorId: 'regime' },
+    })).toEqual({ paneId: 'main', index: 2 });
+  });
+
+  it('updates same-pane layout draft order while dragging over rows', () => {
+    const panes: TradingChartPaneLayout[] = [{
+      id: 'main',
+      indicatorIds: ['inventory', 'uncertainty', 'regime'],
+    }];
+
+    expect(resolveLayoutDragOverPaneLayout({
+      activeCenterY: 150,
+      activeId: 'layout:row:inventory',
+      indicatorId: 'inventory',
+      nextPaneId: 'pane-11',
+      overId: 'layout:row:uncertainty',
+      overRect: { top: 100, height: 40 },
+      panes,
+    })[0]?.indicatorIds).toEqual(['uncertainty', 'inventory', 'regime']);
+
+    expect(resolveLayoutDragOverPaneLayout({
+      activeCenterY: 210,
+      activeId: 'layout:row:inventory',
+      indicatorId: 'inventory',
+      nextPaneId: 'pane-11',
+      overId: 'layout:row:regime',
+      overRect: { top: 160, height: 40 },
+      panes,
+    })[0]?.indicatorIds).toEqual(['uncertainty', 'regime', 'inventory']);
+  });
+
+  it('ignores same-pane pane hits so row and pane collisions cannot oscillate', () => {
+    const panes: TradingChartPaneLayout[] = [
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand', 'regime'] },
+    ];
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: null,
+      activeIndicatorId: 'demand',
+      nextPaneId: 'pane-11',
+      overRect: null,
+      panes,
+      target: { type: 'pane', paneId: 'pane-1' },
+    })).toBeNull();
+
+    const nextPanes = resolveLayoutDragOverPaneLayout({
+      activeCenterY: null,
+      activeId: 'layout:row:demand',
+      indicatorId: 'demand',
+      nextPaneId: 'pane-11',
+      overId: 'layout:pane:pane-1',
+      overRect: null,
+      panes,
+    });
+
+    expect(layoutPaneListsEqual(nextPanes, panes)).toBe(true);
+  });
+
+  it('updates cross-pane layout draft order to the hovered row position', () => {
+    const panes: TradingChartPaneLayout[] = [
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand', 'regime'] },
+      { id: 'pane-2', indicatorIds: ['ordersReceived'] },
+    ];
+
+    const nextPanes = resolveLayoutDragOverPaneLayout({
+      activeCenterY: 110,
+      activeId: 'layout:row:ordersReceived',
+      indicatorId: 'ordersReceived',
+      nextPaneId: 'pane-11',
+      overId: 'layout:row:regime',
+      overRect: { top: 100, height: 40 },
+      panes,
+    });
+
+    expect(nextPanes).toEqual([
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand', 'ordersReceived', 'regime'] },
+      { id: 'pane-2', indicatorIds: [] },
+    ]);
+  });
+
+  it('updates layout draft order into empty and new panes', () => {
+    const panes: TradingChartPaneLayout[] = [
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand'] },
+      { id: 'pane-11', indicatorIds: [] },
+    ];
+
+    expect(resolveLayoutDragOverPaneLayout({
+      activeCenterY: null,
+      activeId: 'layout:row:inventory',
+      indicatorId: 'inventory',
+      nextPaneId: 'pane-12',
+      overId: 'layout:pane:pane-11',
+      overRect: null,
+      panes,
+    })).toEqual([
+      { id: 'main', indicatorIds: [] },
+      { id: 'pane-1', indicatorIds: ['demand'] },
+      { id: 'pane-11', indicatorIds: ['inventory'] },
+    ]);
+
+    expect(resolveLayoutDragOverPaneLayout({
+      activeCenterY: null,
+      activeId: 'layout:row:inventory',
+      indicatorId: 'inventory',
+      nextPaneId: 'pane-12',
+      overId: 'layout:new-pane',
+      overRect: null,
+      panes,
+    })).toEqual([
+      { id: 'main', indicatorIds: [] },
+      { id: 'pane-1', indicatorIds: ['demand'] },
+      { id: 'pane-11', indicatorIds: [] },
+      { id: 'pane-12', indicatorIds: ['inventory'] },
+    ]);
+  });
+
+  it('keeps source panes present when layout draft movement empties them', () => {
+    const panes: TradingChartPaneLayout[] = [
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand'] },
+    ];
+
+    expect(moveIndicatorInPaneLayout(panes, 'demand', 'main', 1)).toEqual([
+      { id: 'main', indicatorIds: ['inventory', 'demand'] },
+      { id: 'pane-1', indicatorIds: [] },
+    ]);
+  });
+
+  it('ignores layout drag over events without a placement change', () => {
+    const panes: TradingChartPaneLayout[] = [{
+      id: 'main',
+      indicatorIds: ['inventory', 'uncertainty'],
+    }];
+    const nextPanes = resolveLayoutDragOverPaneLayout({
+      activeCenterY: null,
+      activeId: 'layout:row:inventory',
+      indicatorId: 'inventory',
+      nextPaneId: 'pane-11',
+      overId: 'layout:row:inventory',
+      overRect: null,
+      panes,
+    });
+
+    expect(layoutPaneListsEqual(nextPanes, panes)).toBe(true);
+  });
+
+  it('does not resolve adjacent same-pane row drops to the original source slot', () => {
+    const panes: TradingChartPaneLayout[] = [{
+      id: 'pane-1',
+      indicatorIds: ['demand', 'regime', 'ordersReceived'],
+    }];
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: 150,
+      activeIndicatorId: 'ordersReceived',
+      nextPaneId: 'pane-11',
+      overRect: { top: 100, height: 40 },
+      panes,
+      target: { type: 'row', indicatorId: 'regime' },
+    })).toEqual({ paneId: 'pane-1', index: 1 });
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: 110,
+      activeIndicatorId: 'regime',
+      nextPaneId: 'pane-11',
+      overRect: { top: 100, height: 40 },
+      panes,
+      target: { type: 'row', indicatorId: 'ordersReceived' },
+    })).toEqual({ paneId: 'pane-1', index: 2 });
+  });
+
+  it('computes cross-pane and empty-pane layout drag placements', () => {
+    const panes: TradingChartPaneLayout[] = [
+      { id: 'main', indicatorIds: ['inventory'] },
+      { id: 'pane-1', indicatorIds: ['demand', 'serviceDemand'] },
+      { id: 'pane-11', indicatorIds: [] },
+    ];
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: 150,
+      activeIndicatorId: 'inventory',
+      nextPaneId: 'pane-12',
+      overRect: { top: 100, height: 40 },
+      panes,
+      target: { type: 'row', indicatorId: 'demand' },
+    })).toEqual({ paneId: 'pane-1', index: 1 });
+
+    expect(resolveLayoutDropPlacement({
+      activeCenterY: null,
+      activeIndicatorId: 'inventory',
+      nextPaneId: 'pane-12',
+      overRect: null,
+      panes,
+      target: { type: 'pane', paneId: 'pane-11' },
+    })).toEqual({ paneId: 'pane-11', index: 0 });
+  });
+
+  it('keeps layout drag motion aligned with the POS sortable profile', () => {
+    expect(LAYOUT_SORTABLE_TRANSITION).toEqual({
+      duration: 240,
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+    });
+  });
+
+  it('uses a vertical list strategy for chart layout rows', () => {
+    expect(LAYOUT_SORTABLE_STRATEGY.name).toBe('verticalListSortingStrategy');
   });
 
   it('includes split order pipeline indicators in default settings', () => {
@@ -1769,6 +2009,43 @@ describe('SkuTradingChart settings', () => {
     expect(setIndicatorSettings).not.toHaveBeenCalled();
   }, 10_000);
 
+  it('asks before switching from dirty settings to indicators', async () => {
+    const user = userEvent.setup();
+    const { setIndicatorSettings } = renderChart();
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Inventory color' }));
+    await user.click(screen.getByRole('button', { name: 'Use color #2962ff' }));
+    await user.click(screen.getByRole('button', { name: 'Indicators' }));
+
+    expect(screen.getByRole('dialog', { name: 'Apply chart changes' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Chart indicator settings' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Chart indicators' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Chart indicator settings' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Chart indicators' })).toBeInTheDocument();
+    expect(setIndicatorSettings).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it('applies dirty settings before continuing to a dialog trigger clicked behind the overlay', async () => {
+    const user = userEvent.setup();
+    const { setIndicatorSettings } = renderChart();
+
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    await user.click(screen.getByRole('button', { name: 'Inventory color' }));
+    await user.click(screen.getByRole('button', { name: 'Use color #2962ff' }));
+    await user.click(screen.getByRole('button', { name: 'Indicators' }));
+    await user.click(screen.getByRole('button', { name: 'Apply changes' }));
+
+    expect(setIndicatorSettings).toHaveBeenCalledTimes(1);
+    const nextSettings = setIndicatorSettings.mock.calls[0]?.[0] as TradingChartIndicatorSettings;
+    expect(nextSettings.inventory.color).toBe('#2962ff');
+    expect(screen.queryByRole('dialog', { name: 'Chart indicator settings' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Chart indicators' })).toBeInTheDocument();
+  }, 10_000);
+
   it('asks before leaving dirty indicators and can apply staged changes', async () => {
     const user = userEvent.setup();
     const demandChartModel: TradingChartModel = {
@@ -1830,6 +2107,42 @@ describe('SkuTradingChart settings', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Chart layout' })).not.toBeInTheDocument();
     expect(setIndicatorSettings).not.toHaveBeenCalled();
+  });
+
+  it('dims the full UI when confirming dirty layout changes from another toolbar button', async () => {
+    const user = userEvent.setup();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    const demandChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+        retailDemandMean: 2,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+      },
+    };
+    renderChart({
+      chartModelOverride: demandChartModel,
+      initialSettings,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Layout' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Customer demand' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+
+    expect(screen.getAllByRole('dialog', { name: 'Apply chart changes' })).toHaveLength(1);
+    expect(screen.getByTestId('chart-settings-leave-overlay')).toHaveClass('bg-black/40');
+    expect(screen.getByRole('dialog', { name: 'Chart layout' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Chart indicator settings' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
+
+    expect(screen.queryByRole('dialog', { name: 'Apply chart changes' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Chart layout' })).toBeInTheDocument();
   });
 
   it('suppresses automatic older loads while busy and allows them after busy clears', async () => {
@@ -2075,6 +2388,69 @@ describe('SkuTradingChart settings', () => {
     await user.click(screen.getByRole('button', { name: 'Layout' }));
     expect(screen.getByRole('heading', { name: 'Chart layout' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Delete Customer demand' }));
+    await user.click(screen.getByRole('button', { name: 'Ok' }));
+
+    expect(setIndicatorSettings).toHaveBeenCalledTimes(1);
+    const nextSettings = setIndicatorSettings.mock.calls[0]?.[0] as TradingChartIndicatorSettings;
+    expect(nextSettings.demand.enabled).toBe(false);
+  });
+
+  it('keeps layout drag activation on the row handle instead of row controls', async () => {
+    const user = userEvent.setup();
+    renderChart();
+
+    await user.click(screen.getByRole('button', { name: 'Layout' }));
+
+    expect(screen.getByRole('button', { name: 'Drag Inventory' })).toHaveAttribute('aria-roledescription');
+    expect(screen.getByRole('combobox', { name: 'Inventory axis side' })).not.toHaveAttribute('aria-roledescription');
+    expect(screen.getByRole('button', { name: 'Delete Inventory' })).not.toHaveAttribute('aria-roledescription');
+  });
+
+  it('adds a temporary empty layout pane without persisting it on ok', async () => {
+    const user = userEvent.setup();
+    const { setIndicatorSettings } = renderChart();
+
+    await user.click(screen.getByRole('button', { name: 'Layout' }));
+    expect(document.querySelectorAll('[data-testid^="chart-layout-pane-"]')).toHaveLength(1);
+
+    await user.click(screen.getByRole('button', { name: 'New pane' }));
+
+    expect(document.querySelectorAll('[data-testid^="chart-layout-pane-"]')).toHaveLength(2);
+    expect(screen.getByTestId('chart-layout-pane-pane-11')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Ok' }));
+
+    expect(setIndicatorSettings).not.toHaveBeenCalled();
+  });
+
+  it('keeps a layout pane placeholder when the last row is deleted', async () => {
+    const user = userEvent.setup();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.demand.enabled = true;
+    const demandChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        serviceDemandMean: 3,
+        retailDemandMean: 2,
+      }],
+      availability: {
+        ...chartModel.availability,
+        demand: true,
+      },
+    };
+    const { setIndicatorSettings } = renderChart({
+      chartModelOverride: demandChartModel,
+      initialSettings,
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Layout' }));
+    expect(screen.getByTestId('chart-layout-pane-pane-1')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Delete Customer demand' }));
+
+    expect(screen.getByTestId('chart-layout-pane-pane-1')).toBeInTheDocument();
+
     await user.click(screen.getByRole('button', { name: 'Ok' }));
 
     expect(setIndicatorSettings).toHaveBeenCalledTimes(1);

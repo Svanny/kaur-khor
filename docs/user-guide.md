@@ -311,6 +311,10 @@ The SKU operational ribbon is the compact metric strip below the hero. It surfac
 
 The trading chart ledger is the detail chart surface for SKU, service, or analysis signals. It combines timeline controls, indicators, selected interval behavior, and saved evidence overlays. Use it when you need to inspect how a headline changed over time.
 
+Use **Settings** for indicator style, value, and input-source choices; **Indicators** to choose which signals are visible; and **Layout** to arrange indicators across panes. Layout rows move from the drag handle so axis-side menus and delete buttons remain normal controls. **New pane** adds a temporary empty pane for staging a layout; it is saved only after an indicator is placed there and the layout is confirmed.
+
+If you switch chart dialogs or click outside with unsaved chart changes, banji asks whether to apply, discard, or keep editing before continuing.
+
 Dense overlay evidence such as supplier orders, receipts, or repeated regime markers may be clustered into one timeline marker. Select the marker to inspect the latest interval in that cluster.
 
 ## Insights

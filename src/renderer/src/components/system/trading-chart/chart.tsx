@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type HTMLAttributes, type SetStateAction } from 'react';
+import { forwardRef, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type HTMLAttributes, type Ref, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import {
@@ -13,6 +13,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
 import {
@@ -134,8 +135,6 @@ import {
   deriveTradingChartDisplayModel,
   deriveTradingChartPaneLayout,
   isOhlcTradingChartPlotStyle,
-  moveTradingChartIndicator,
-  nextTradingChartPaneId,
   normalizeTradingChartIndicatorSettings,
   precisionLabel,
   plotStyleLabel,
@@ -174,6 +173,10 @@ type ChartSeriesRefs = Partial<Record<
 type InputSeriesData = LineData<Time>[] | HistogramData<Time>[] | Array<BarData<Time> | CandlestickData<Time>>;
 type LegendRow = ReturnType<typeof buildLegendRows>[number];
 type ChartSettingsDialogId = 'settings' | 'indicators' | 'layout';
+type PendingChartSettingsLeave = {
+  dialogId: ChartSettingsDialogId;
+  action: () => void;
+};
 type ChartPaneHeightChangeSource = 'manual';
 type ChartLayoutChangeSource = 'passive' | ChartPaneHeightChangeSource;
 type HistogramIndicatorId =
@@ -222,10 +225,20 @@ interface OverlayIconCluster {
   right: number;
   center: number;
 }
-type LayoutDropTarget =
+export type LayoutDropTarget =
   | { type: 'row'; indicatorId: TradingChartIndicatorId }
   | { type: 'pane'; paneId: string }
   | { type: 'new-pane' };
+export interface LayoutDropPlacement {
+  paneId: string;
+  index: number;
+}
+interface LayoutDragState {
+  indicatorId: TradingChartIndicatorId;
+  newPaneId: string;
+  sourcePaneId: string;
+  activeSize: { width: number; height: number } | null;
+}
 
 const INDICATOR_ORDER: TradingChartIndicatorId[] = ALL_TRADING_CHART_INDICATOR_IDS;
 const HISTOGRAM_INDICATOR_IDS: HistogramIndicatorId[] = [
@@ -302,10 +315,16 @@ const CHART_MAX_TIME_AXIS_HEIGHT_RATIO = 0.35;
 const CHART_INDICATOR_PANE_RATIO = 0.25;
 const CHART_MIN_MAIN_PANE_RATIO = 0.5;
 const SERIES_DATA_CACHE = new WeakMap<TradingChartPoint[], Map<string, unknown>>();
+export const LAYOUT_SORTABLE_TRANSITION = {
+  duration: 240,
+  easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+};
+export const LAYOUT_SORTABLE_STRATEGY = verticalListSortingStrategy;
 const LAYOUT_DROP_ANIMATION = {
   duration: 160,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
+const CHART_LAYOUT_DND_DEBUG_STORAGE_KEY = 'banji:debug:chart-layout-dnd';
 const REGIME_ICON_SIZE = 28;
 const REGIME_CLUSTER_GAP = 8;
 const OVERLAY_FLAG_STACK_GAP = 6;
@@ -329,7 +348,6 @@ const SETTINGS_DIALOG_BODY_BASE_CLASS = 'px-8 py-6';
 const SETTINGS_DIALOG_FOOTER_CLASS = 'sticky bottom-0 flex items-center justify-between gap-3 border-t border-border/60 bg-white px-8 py-5';
 const SETTINGS_DIALOG_FOOTER_BUTTON_CLASS = 'h-9 rounded-[0.9rem] px-4';
 const LAYOUT_NEW_PANE_DROP_ID = 'layout:new-pane';
-const LAYOUT_PANE_EDGE_DROP_ZONE_PX = 32;
 
 function pointTimestampMs(point: TradingChartPoint) {
   const source = point.endAt ?? point.startAt;
@@ -855,8 +873,10 @@ function settingsDialogBodyClassName(scrollLocked = false) {
 }
 
 const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement> & {
+  dragHandleProps?: HTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> };
   dragging?: boolean;
   indicatorId: TradingChartIndicatorId;
+  interactive?: boolean;
   language: AppLanguage;
   onAxisSideChange?: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
   onDelete?: (indicatorId: TradingChartIndicatorId) => void;
@@ -864,8 +884,10 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
   style?: CSSProperties;
 }>(function LayoutIndicatorRowCard({
   className,
+  dragHandleProps,
   dragging = false,
   indicatorId,
+  interactive = true,
   language,
   onAxisSideChange,
   onDelete,
@@ -881,44 +903,73 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
       ref={ref}
       aria-label={translateUiLiteral(language, 'Drag {name}', { name: label })}
       className={cn(
-        'flex cursor-grab items-center gap-3 rounded-[1rem] border border-border/60 bg-[#fffaf3] px-3 py-3 shadow-[0_1px_0_rgba(255,255,255,0.75)] transition-[box-shadow,opacity,transform] duration-150 ease-out focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing data-[dragging=true]:cursor-grabbing data-[dragging=true]:shadow-[0_16px_42px_rgba(48,31,20,0.16)] motion-reduce:transition-none',
+        'flex select-none items-center gap-3 rounded-[1rem] border border-border/60 bg-[#fffaf3] px-3 py-3 shadow-[0_1px_0_rgba(255,255,255,0.75)] transition-[border-color,background-color,box-shadow,opacity] duration-150 ease-out focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 data-[dragging=true]:shadow-[0_16px_42px_rgba(48,31,20,0.16)] motion-reduce:transition-none',
         dragging && 'opacity-70',
         className,
       )}
       data-dragging={dragging || undefined}
       style={style}
-      tabIndex={0}
+      tabIndex={interactive ? 0 : undefined}
       {...props}
     >
-      <span
-        aria-hidden="true"
-        className="flex h-8 w-8 items-center justify-center rounded-[0.75rem] text-muted-foreground"
-      >
-        <ActionDragHandleIcon className="size-4" />
-      </span>
+      {interactive ? (
+        <button
+          {...dragHandleProps}
+          aria-label={translateUiLiteral(language, 'Drag {name}', { name: label })}
+          className={cn(
+            'flex h-8 w-8 touch-none cursor-grab items-center justify-center rounded-[0.75rem] text-muted-foreground transition-[background-color,color,box-shadow] duration-150 ease-out hover:bg-white/80 hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing data-[dragging=true]:cursor-grabbing motion-reduce:transition-none',
+            dragHandleProps?.className,
+          )}
+          data-dragging={dragging || undefined}
+          type="button"
+        >
+          <ActionDragHandleIcon className="size-4" />
+        </button>
+      ) : (
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 items-center justify-center rounded-[0.75rem] text-muted-foreground"
+          data-dragging={dragging || undefined}
+        >
+          <ActionDragHandleIcon className="size-4" />
+        </span>
+      )}
       <IndicatorIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">{label}</span>
-      <Select
-        value={settings[indicatorId].axisSide}
-        onValueChange={(value) => onAxisSideChange?.(indicatorId, value as TradingChartIndicatorAxisSide)}
-      >
-        <SelectTrigger aria-label={translateUiLiteral(language, '{name} axis side', { name: label })} className="h-9 min-w-36 rounded-[0.9rem] bg-white px-3 text-sm">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent align="end" className="rounded-[1rem] border-border/70 bg-[#fdfaf6]">
-          <SelectItem value="left">{translateUiLiteral(language, 'Left y-axis')}</SelectItem>
-          <SelectItem value="right">{translateUiLiteral(language, 'Right y-axis')}</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        aria-label={translateUiLiteral(language, 'Delete {name}', { name: label })}
-        className="h-9 rounded-[0.9rem] px-3"
-        type="button"
-        variant="destructive-outline"
-        onClick={() => onDelete?.(indicatorId)}
-      >
-        <ActionDeleteIcon className="size-4" />
-      </Button>
+      {interactive ? (
+        <>
+          <Select
+            value={settings[indicatorId].axisSide}
+            onValueChange={(value) => onAxisSideChange?.(indicatorId, value as TradingChartIndicatorAxisSide)}
+          >
+            <SelectTrigger aria-label={translateUiLiteral(language, '{name} axis side', { name: label })} className="h-9 min-w-36 rounded-[0.9rem] bg-white px-3 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" className="rounded-[1rem] border-border/70 bg-[#fdfaf6]">
+              <SelectItem value="left">{translateUiLiteral(language, 'Left y-axis')}</SelectItem>
+              <SelectItem value="right">{translateUiLiteral(language, 'Right y-axis')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            aria-label={translateUiLiteral(language, 'Delete {name}', { name: label })}
+            className="h-9 rounded-[0.9rem] px-3"
+            type="button"
+            variant="destructive-outline"
+            onClick={() => onDelete?.(indicatorId)}
+          >
+            <ActionDeleteIcon className="size-4" />
+          </Button>
+        </>
+      ) : (
+        <>
+          <span className="flex h-9 min-w-36 items-center rounded-[0.9rem] bg-white px-3 text-sm text-foreground shadow-[0_1px_0_rgba(255,255,255,0.75)]">
+            {translateUiLiteral(language, settings[indicatorId].axisSide === 'left' ? 'Left y-axis' : 'Right y-axis')}
+          </span>
+          <span className="flex h-9 items-center rounded-[0.9rem] border border-destructive/30 bg-destructive/8 px-3 text-destructive">
+            <ActionDeleteIcon className="size-4" />
+          </span>
+        </>
+      )}
     </div>
   );
 });
@@ -926,26 +977,35 @@ const LayoutIndicatorRowCard = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDiv
 function LayoutIndicatorRow({
   indicatorId,
   language,
+  paneId,
   settings,
   onAxisSideChange,
   onDelete,
 }: {
   indicatorId: TradingChartIndicatorId;
   language: AppLanguage;
+  paneId: string;
   settings: TradingChartIndicatorSettings;
   onAxisSideChange: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
   onDelete: (indicatorId: TradingChartIndicatorId) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setActivatorNodeRef, setNodeRef, transform, transition, isDragging } = useSortable({
     id: layoutRowId(indicatorId),
     animateLayoutChanges: (args) => defaultAnimateLayoutChanges({ ...args, wasDragging: true }),
+    data: { paneId },
+    transition: LAYOUT_SORTABLE_TRANSITION,
   });
 
   return (
     <LayoutIndicatorRowCard
-      {...attributes}
-      {...listeners}
+      className={isDragging ? 'pointer-events-none opacity-0' : undefined}
+      dragHandleProps={{
+        ...attributes,
+        ...listeners,
+        ref: setActivatorNodeRef,
+      }}
       dragging={isDragging}
+      data-layout-row-id={indicatorId}
       indicatorId={indicatorId}
       language={language}
       ref={setNodeRef}
@@ -973,11 +1033,12 @@ function LayoutPaneSection({
   onAxisSideChange: (indicatorId: TradingChartIndicatorId, axisSide: TradingChartIndicatorAxisSide) => void;
   onDelete: (indicatorId: TradingChartIndicatorId) => void;
 }) {
-  const { isOver, setNodeRef } = useDroppable({ id: layoutPaneId(pane.id) });
+  const { isOver, setNodeRef } = useDroppable({ id: layoutPaneId(pane.id), data: { paneId: pane.id } });
 
   return (
     <section
       ref={setNodeRef}
+      data-testid={`chart-layout-pane-${pane.id}`}
       className={cn(
         'grid gap-3 rounded-[1.25rem] border border-border/60 bg-white/70 p-4',
         isOver && 'border-foreground/50 bg-[#fff7ee]',
@@ -991,13 +1052,14 @@ function LayoutPaneSection({
           {layoutPaneLabel(language, pane.id)}
         </p>
       </div>
-      <SortableContext items={pane.indicatorIds.map(layoutRowId)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={pane.indicatorIds.map(layoutRowId)} strategy={LAYOUT_SORTABLE_STRATEGY}>
         <div className="grid gap-3">
           {pane.indicatorIds.map((indicatorId) => (
             <LayoutIndicatorRow
               key={indicatorId}
               indicatorId={indicatorId}
               language={language}
+              paneId={pane.id}
               settings={settings}
               onAxisSideChange={onAxisSideChange}
               onDelete={onDelete}
@@ -1009,19 +1071,22 @@ function LayoutPaneSection({
   );
 }
 
-function LayoutNewPaneDropZone({ language }: { language: AppLanguage }) {
+function LayoutNewPaneDropZone({ language, onClick }: { language: AppLanguage; onClick: () => void }) {
   const { isOver, setNodeRef } = useDroppable({ id: LAYOUT_NEW_PANE_DROP_ID });
   return (
-    <div
+    <button
       ref={setNodeRef}
+      aria-label={translateUiLiteral(language, 'New pane')}
       className={cn(
         'flex min-h-24 items-center justify-center gap-2 rounded-[1.25rem] border border-dashed border-border/70 bg-[#fffaf3] px-4 text-sm text-muted-foreground transition-colors hover:border-accent hover:bg-accent hover:text-accent-foreground',
         isOver && 'border-accent bg-accent text-accent-foreground',
       )}
+      type="button"
+      onClick={onClick}
     >
       <ActionAddBadgeIcon aria-hidden="true" className="size-4" />
       <span>{translateUiLiteral(language, 'New pane')}</span>
-    </div>
+    </button>
   );
 }
 
@@ -2477,6 +2542,10 @@ function chartSettingsEqual(
   return JSON.stringify(normalizeTradingChartIndicatorSettings(left)) === JSON.stringify(normalizeTradingChartIndicatorSettings(right));
 }
 
+function stringListsEqual(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function ChartSettingsLeavePrompt({
   language,
   open,
@@ -2494,16 +2563,25 @@ function ChartSettingsLeavePrompt({
     return null;
   }
 
-  return (
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/30 px-4 py-6"
+      className="fixed inset-0 z-[120] flex items-center justify-center px-4 py-6"
       role="presentation"
       onClick={onKeepEditing}
     >
       <div
+        aria-hidden="true"
+        className="absolute inset-0 bg-black/40"
+        data-testid="chart-settings-leave-overlay"
+      />
+      <div
         aria-label={translateUiLiteral(language, 'Apply chart changes')}
         aria-modal="true"
-        className="w-fit max-w-2xl rounded-[1.5rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+        className="relative z-[1] w-fit max-w-2xl rounded-[1.5rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
         role="dialog"
         onClick={(event) => event.stopPropagation()}
       >
@@ -2528,7 +2606,8 @@ function ChartSettingsLeavePrompt({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -2553,39 +2632,147 @@ function isLayoutPaneId(value: string) {
 }
 
 const layoutCollisionDetection: CollisionDetection = (args) => {
-  const rowContainers = args.droppableContainers.filter((container) => isLayoutRowId(String(container.id)));
-  const rowPointerCollisions = pointerWithin({ ...args, droppableContainers: rowContainers });
-  if (rowPointerCollisions.length > 0) {
-    const rowIds = new Set(rowPointerCollisions.map((collision) => collision.id));
+  const activeId = String(args.active.id);
+  const pointerCollisions = pointerWithin(args);
+  const pointerRowIds = new Set(
+    pointerCollisions
+      .map((collision) => String(collision.id))
+      .filter((id) => id !== activeId && isLayoutRowId(id)),
+  );
+  if (pointerRowIds.size > 0) {
     return closestCenter({
       ...args,
-      droppableContainers: rowContainers.filter((container) => rowIds.has(container.id)),
+      droppableContainers: args.droppableContainers.filter((container) =>
+        pointerRowIds.has(String(container.id)),
+      ),
     });
   }
 
-  const newPaneContainers = args.droppableContainers.filter((container) => container.id === LAYOUT_NEW_PANE_DROP_ID);
-  const newPaneCollisions = pointerWithin({ ...args, droppableContainers: newPaneContainers });
-  if (newPaneCollisions.length > 0) {
-    return newPaneCollisions;
+  const newPaneCollision = pointerCollisions.find((collision) => collision.id === LAYOUT_NEW_PANE_DROP_ID);
+  if (newPaneCollision) {
+    return [newPaneCollision];
   }
 
-  const pointerY = args.pointerCoordinates?.y;
-  if (pointerY == null) {
-    return [];
+  const pointerPaneIds = new Set(
+    pointerCollisions
+      .map((collision) => String(collision.id))
+      .filter(isLayoutPaneId),
+  );
+  if (pointerPaneIds.size > 0) {
+    return closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((container) =>
+        pointerPaneIds.has(String(container.id)),
+      ),
+    });
   }
-  const paneEdgeContainers = args.droppableContainers.filter((container) => {
-    if (!isLayoutPaneId(String(container.id))) {
-      return false;
-    }
-    const rect = args.droppableRects.get(container.id);
-    if (!rect) {
-      return false;
-    }
-    const edgeSize = Math.min(LAYOUT_PANE_EDGE_DROP_ZONE_PX, rect.height / 2);
-    return pointerY <= rect.top + edgeSize || pointerY >= rect.bottom - edgeSize;
+
+  return closestCenter({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((container) =>
+      String(container.id) !== activeId,
+    ),
   });
-  return pointerWithin({ ...args, droppableContainers: paneEdgeContainers });
 };
+
+function chartLayoutDndDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    const debugWindow = window as Window & { __BANJI_CHART_LAYOUT_DND_DEBUG__?: boolean };
+    return debugWindow.__BANJI_CHART_LAYOUT_DND_DEBUG__ === true ||
+      window.localStorage?.getItem(CHART_LAYOUT_DND_DEBUG_STORAGE_KEY) === '1' ||
+      window.location.hash.includes('debugChartLayoutDnd=1') ||
+      window.location.search.includes('debugChartLayoutDnd=1');
+  } catch {
+    return false;
+  }
+}
+
+function chartLayoutDndDebug(event: string, details: Record<string, unknown>) {
+  if (!chartLayoutDndDebugEnabled()) {
+    return;
+  }
+  console.info(`[chart-layout-dnd] ${event}`, details);
+  console.info(`[chart-layout-dnd-json] ${event} ${JSON.stringify(details, (_key, value: unknown) => {
+    if (
+      value &&
+      typeof value === 'object' &&
+      'top' in value &&
+      'height' in value &&
+      'width' in value
+    ) {
+      const rect = value as { bottom?: number; height: number; left?: number; right?: number; top: number; width: number };
+      return {
+        bottom: rect.bottom,
+        height: rect.height,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        width: rect.width,
+      };
+    }
+    return value;
+  })}`);
+}
+
+function chartLayoutDndPaneSummary(panes: TradingChartPaneLayout[]) {
+  return panes.map((pane) => ({
+    indicators: pane.indicatorIds,
+    paneId: pane.id,
+  }));
+}
+
+function findLayoutPane(panes: TradingChartPaneLayout[], indicatorId: TradingChartIndicatorId) {
+  return panes.find((pane) => pane.indicatorIds.includes(indicatorId)) ?? null;
+}
+
+export function layoutPaneListsEqual(left: TradingChartPaneLayout[], right: TradingChartPaneLayout[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((leftPane, paneIndex) => {
+    const rightPane = right[paneIndex];
+    return rightPane.id === leftPane.id &&
+      rightPane.indicatorIds.length === leftPane.indicatorIds.length &&
+      rightPane.indicatorIds.every((id, indicatorIndex) => id === leftPane.indicatorIds[indicatorIndex]);
+  });
+}
+
+export function moveIndicatorInPaneLayout(
+  panes: TradingChartPaneLayout[],
+  indicatorId: TradingChartIndicatorId,
+  targetPaneId: string,
+  targetIndex: number,
+) {
+  const next = panes.map((pane) => ({
+    ...pane,
+    indicatorIds: pane.indicatorIds.filter((id) => id !== indicatorId),
+  }));
+  let targetPane = next.find((pane) => pane.id === targetPaneId);
+  if (!targetPane) {
+    targetPane = { id: targetPaneId, indicatorIds: [] };
+    next.push(targetPane);
+  }
+  const insertAt = Math.max(0, Math.min(targetIndex, targetPane.indicatorIds.length));
+  targetPane.indicatorIds.splice(insertAt, 0, indicatorId);
+  return sortChartPaneLayout(next);
+}
+
+function applyPaneLayoutToIndicatorSettings(
+  settings: TradingChartIndicatorSettings,
+  panes: TradingChartPaneLayout[],
+) {
+  const next = normalizeTradingChartIndicatorSettings(settings);
+  panes.forEach((pane) => {
+    pane.indicatorIds.forEach((indicatorId, index) => {
+      next[indicatorId].paneId = pane.id;
+      next[indicatorId].layerOrder = index;
+    });
+  });
+  return normalizeTradingChartIndicatorSettings(next);
+}
 
 function parseLayoutDropTarget(value: string): LayoutDropTarget | null {
   if (value === LAYOUT_NEW_PANE_DROP_ID) {
@@ -2602,6 +2789,131 @@ function parseLayoutDropTarget(value: string): LayoutDropTarget | null {
 
 function layoutPaneLabel(language: AppLanguage, paneId: string) {
   return translateUiLiteral(language, paneId === TRADING_CHART_MAIN_PANE_ID ? 'Main' : 'Pane');
+}
+
+function chartPaneSortValue(paneId: string) {
+  if (paneId === TRADING_CHART_MAIN_PANE_ID) {
+    return -1;
+  }
+  const match = /^pane-(\d+)$/.exec(paneId);
+  return match ? Number.parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+}
+
+function sortChartPaneLayout(panes: TradingChartPaneLayout[]) {
+  return [...panes].sort((left, right) => {
+    const delta = chartPaneSortValue(left.id) - chartPaneSortValue(right.id);
+    return delta !== 0 ? delta : left.id.localeCompare(right.id);
+  });
+}
+
+function appendLayoutEmptyPanes(panes: TradingChartPaneLayout[], emptyPaneIds: string[], enabled: boolean) {
+  if (!enabled || emptyPaneIds.length === 0) {
+    return panes;
+  }
+  const existingPaneIds = new Set(panes.map((pane) => pane.id));
+  return sortChartPaneLayout([
+    ...panes,
+    ...emptyPaneIds
+      .filter((paneId) => !existingPaneIds.has(paneId))
+      .map((paneId) => ({ id: paneId, indicatorIds: [] })),
+  ]);
+}
+
+export function resolveLayoutDropPlacement({
+  activeCenterY,
+  activeIndicatorId,
+  nextPaneId,
+  overRect,
+  panes,
+  target,
+}: {
+  activeCenterY: number | null;
+  activeIndicatorId: TradingChartIndicatorId;
+  nextPaneId: string;
+  overRect: { top: number; height: number } | null;
+  panes: TradingChartPaneLayout[];
+  target: LayoutDropTarget;
+}): LayoutDropPlacement | null {
+  if (target.type === 'new-pane') {
+    return { paneId: nextPaneId, index: 0 };
+  }
+
+  if (target.type === 'pane') {
+    const pane = panes.find((entry) => entry.id === target.paneId);
+    if (pane?.indicatorIds.includes(activeIndicatorId)) {
+      return null;
+    }
+    return {
+      paneId: target.paneId,
+      index: pane?.indicatorIds.filter((id) => id !== activeIndicatorId).length ?? 0,
+    };
+  }
+
+  const pane = panes.find((entry) => entry.indicatorIds.includes(target.indicatorId));
+  if (!pane) {
+    return null;
+  }
+  const sourceIndex = pane.indicatorIds.indexOf(activeIndicatorId);
+  const targetOriginalIndex = pane.indicatorIds.indexOf(target.indicatorId);
+  const targetIds = pane.indicatorIds.filter((id) => id !== activeIndicatorId);
+  const targetIndex = targetIds.indexOf(target.indicatorId);
+  if (targetIndex < 0) {
+    return null;
+  }
+  const insertAfter = overRect != null && activeCenterY != null
+    ? activeCenterY > overRect.top + overRect.height / 2
+    : false;
+  let index = targetIndex + (insertAfter ? 1 : 0);
+  if (sourceIndex >= 0 && targetOriginalIndex >= 0 && sourceIndex !== targetOriginalIndex && index === sourceIndex) {
+    index = targetOriginalIndex < sourceIndex ? targetIndex : targetIndex + 1;
+  }
+  return {
+    paneId: pane.id,
+    index,
+  };
+}
+
+export function resolveLayoutDragOverPaneLayout({
+  activeCenterY,
+  activeId,
+  indicatorId,
+  nextPaneId,
+  overId,
+  overRect,
+  panes,
+}: {
+  activeCenterY: number | null;
+  activeId: string;
+  indicatorId: TradingChartIndicatorId;
+  nextPaneId: string;
+  overId: string | null;
+  overRect: { top: number; height: number } | null;
+  panes: TradingChartPaneLayout[];
+}) {
+  const target = overId && overId !== activeId ? parseLayoutDropTarget(overId) : null;
+  if (!target) {
+    return panes;
+  }
+  const placement = resolveLayoutDropPlacement({
+    activeCenterY,
+    activeIndicatorId: indicatorId,
+    nextPaneId,
+    overRect,
+    panes,
+    target,
+  });
+  return placement
+    ? moveIndicatorInPaneLayout(panes, indicatorId, placement.paneId, placement.index)
+    : panes;
+}
+
+function nextDraftLayoutPaneId(settings: TradingChartIndicatorSettings, emptyPaneIds: string[]) {
+  const nextIndex = Math.max(
+    0,
+    ...Object.values(settings).map((setting) => chartPaneSortValue(setting.paneId)).filter((value) => Number.isFinite(value) && value >= 0),
+    ...emptyPaneIds.map(chartPaneSortValue).filter((value) => Number.isFinite(value) && value >= 0),
+  ) + 1;
+  return `pane-${nextIndex}`;
 }
 
 function hasRenderedIndicatorData(chartModel: TradingChartModel, id: TradingChartIndicatorId) {
@@ -2783,17 +3095,17 @@ export function SkuTradingChart({
   const [settingsSelectOpen, setSettingsSelectOpen] = useState(false);
   const [defaultsActionValue, setDefaultsActionValue] = useState<string | undefined>(undefined);
   const [settingsRenderPosition, setSettingsRenderPosition] = useState<{ top: number; left: number } | null>(null);
-  const [pendingSettingsLeave, setPendingSettingsLeave] = useState<{
-    dialogId: ChartSettingsDialogId;
-    action: () => void;
-  } | null>(null);
+  const pendingSettingsLeaveRef = useRef<PendingChartSettingsLeave | null>(null);
+  const [pendingSettingsLeave, setPendingSettingsLeave] = useState<PendingChartSettingsLeave | null>(null);
   const [clusteredRegimeIcons, setClusteredRegimeIcons] = useState<OverlayIconCluster[]>([]);
   const [paneLegendPositions, setPaneLegendPositions] = useState<Array<{ top: number; height: number }>>([]);
   const [stackedOverlayMarkers, setStackedOverlayMarkers] = useState<OverlayFlagPill[]>([]);
   const [plotAreaWidth, setPlotAreaWidth] = useState(0);
   const [regimeBackgroundBands, setRegimeBackgroundBands] = useState<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [uncertaintyBandPath, setUncertaintyBandPath] = useState('');
-  const [activeLayoutRowId, setActiveLayoutRowId] = useState<string | null>(null);
+  const [draftLayoutEmptyPaneIds, setDraftLayoutEmptyPaneIds] = useState<string[]>([]);
+  const [draftLayoutPaneLayout, setDraftLayoutPaneLayout] = useState<TradingChartPaneLayout[] | null>(null);
+  const [layoutDragState, setLayoutDragState] = useState<LayoutDragState | null>(null);
   const [chartBootstrapVersion, setChartBootstrapVersion] = useState(0);
   const [isPaneRelayoutPending, setIsPaneRelayoutPending] = useState(false);
   const [isOlderLoadPending, setIsOlderLoadPending] = useState(false);
@@ -2802,7 +3114,7 @@ export function SkuTradingChart({
   const [draftCustomRangeStart, setDraftCustomRangeStart] = useState(() => dateInputValueFromIsoString(customTimeframeRange?.startAt));
   const [draftCustomRangeEnd, setDraftCustomRangeEnd] = useState(() => dateInputValueFromIsoString(customTimeframeRange?.endAt));
   const [draftCustomResolution, setDraftCustomResolution] = useState(() => customChartResolution?.expression ?? '1D');
-  const activeLayoutIndicatorId = activeLayoutRowId ? layoutIndicatorIdFromRowId(activeLayoutRowId) : null;
+  const activeLayoutIndicatorId = layoutDragState?.indicatorId ?? null;
   const chartInteractionLocked = ENABLE_CHART_INTERACTION_LOCK && (isBusy || isLoadingOlderIntervals || isOlderLoadPending || isPaneRelayoutPending);
   const hideChartVisualsDuringRelayout = ENABLE_CHART_INTERACTION_LOCK && isPaneRelayoutPending;
   const showBusyState = (isVisuallyBusy ?? isBusy) || isLoadingOlderIntervals || isOlderLoadPending;
@@ -2887,6 +3199,26 @@ export function SkuTradingChart({
     () => deriveTradingChartPaneLayout(editableIndicatorSettings, chartModel.availability),
     [availabilityKey, structuralSettingsSignature],
   );
+  const layoutDraftBaseSettings = useMemo(
+    () => normalizeTradingChartIndicatorSettings(draftLayoutIndicatorSettings ?? indicatorSettings),
+    [draftLayoutIndicatorSettings, indicatorSettings],
+  );
+  const layoutDialogBasePaneLayout = useMemo(
+    () => appendLayoutEmptyPanes(paneLayout, draftLayoutEmptyPaneIds, layoutDialogOpen),
+    [draftLayoutEmptyPaneIds, layoutDialogOpen, paneLayout],
+  );
+  const layoutDialogPaneLayout = draftLayoutPaneLayout ?? layoutDialogBasePaneLayout;
+  useEffect(() => {
+    if (!layoutDialogOpen || !layoutDragState || !chartLayoutDndDebugEnabled()) {
+      return;
+    }
+    chartLayoutDndDebug('draft:rendered-layout', {
+      active: layoutDragState.indicatorId,
+      basePanes: chartLayoutDndPaneSummary(layoutDialogBasePaneLayout),
+      draftPanes: chartLayoutDndPaneSummary(layoutDialogPaneLayout),
+      sourcePaneId: layoutDragState.sourcePaneId,
+    });
+  }, [layoutDialogBasePaneLayout, layoutDialogOpen, layoutDialogPaneLayout, layoutDragState]);
   const activeAdditionalPaneCount = Math.max(0, paneLayout.length - 1);
   const minimumRenderHeight = baseMinRenderHeight + Math.max(0, activeAdditionalPaneCount) * additionalPaneMinRenderHeight;
   const chartRenderStyle: CSSProperties = chartRenderHeight == null
@@ -3232,55 +3564,213 @@ export function SkuTradingChart({
   ) {
     setDraftLayoutIndicatorSettings((current) => {
       const base = normalizeTradingChartIndicatorSettings(current ?? indicatorSettings);
-      return normalizeTradingChartIndicatorSettings({
+      const next = normalizeTradingChartIndicatorSettings({
         ...base,
         [indicatorId]: {
           ...base[indicatorId],
           ...patch,
         },
       });
+      return chartSettingsEqual(base, next) ? current : next;
     });
   }
 
   function deleteLayoutIndicator(indicatorId: TradingChartIndicatorId) {
+    const paneId = (draftLayoutIndicatorSettings ?? indicatorSettings)[indicatorId].paneId;
+    if (paneId !== TRADING_CHART_MAIN_PANE_ID) {
+      setDraftLayoutEmptyPaneIds((current) => current.includes(paneId) ? current : [...current, paneId]);
+    }
+    setDraftLayoutPaneLayout((current) => {
+      const panes = current ?? layoutDialogPaneLayout;
+      return panes.map((pane) => pane.id === paneId
+        ? { ...pane, indicatorIds: pane.indicatorIds.filter((id) => id !== indicatorId) }
+        : pane);
+    });
     updateDraftLayoutIndicator(indicatorId, { enabled: false });
   }
 
-  function moveLayoutIndicator(indicatorId: TradingChartIndicatorId, target: LayoutDropTarget) {
-    setDraftLayoutIndicatorSettings((current) => {
-      const base = normalizeTradingChartIndicatorSettings(current ?? indicatorSettings);
-      const basePaneLayout = deriveTradingChartPaneLayout(base, chartModel.availability);
-      if (target.type === 'new-pane') {
-        return moveTradingChartIndicator(base, indicatorId, nextTradingChartPaneId(base), 0);
-      }
-      if (target.type === 'pane') {
-        const targetPane = basePaneLayout.find((pane) => pane.id === target.paneId);
-        return moveTradingChartIndicator(base, indicatorId, target.paneId, targetPane?.indicatorIds.length ?? 0);
-      }
-      const overPaneId = base[target.indicatorId].paneId;
-      const targetPane = basePaneLayout.find((pane) => pane.id === overPaneId);
-      const targetIndex = Math.max(0, targetPane?.indicatorIds.findIndex((id) => id === target.indicatorId) ?? 0);
-      return moveTradingChartIndicator(base, indicatorId, overPaneId, targetIndex);
+  function addLayoutEmptyPane() {
+    const base = normalizeTradingChartIndicatorSettings(draftLayoutIndicatorSettings ?? indicatorSettings);
+    const panes = draftLayoutPaneLayout ?? layoutDialogPaneLayout;
+    const paneId = nextDraftLayoutPaneId(base, [
+      ...draftLayoutEmptyPaneIds,
+      ...panes.map((pane) => pane.id),
+    ]);
+    chartLayoutDndDebug('empty-pane:add-clicked', {
+      currentEmptyPaneIds: draftLayoutEmptyPaneIds,
+      paneId,
+    });
+    setDraftLayoutEmptyPaneIds((current) => current.includes(paneId) ? current : [...current, paneId]);
+    setDraftLayoutPaneLayout((layout) => {
+      const currentLayout = layout ?? panes;
+      return currentLayout.some((pane) => pane.id === paneId)
+        ? currentLayout
+        : sortChartPaneLayout([
+            ...currentLayout,
+            { id: paneId, indicatorIds: [] },
+          ]);
     });
   }
 
+  function commitLayoutPaneOrder(indicatorId: TradingChartIndicatorId, nextPanes: TradingChartPaneLayout[], sourcePaneId: string) {
+    const panesChanged = !layoutPaneListsEqual(layoutDialogPaneLayout, nextPanes);
+    const nextSettings = applyPaneLayoutToIndicatorSettings(layoutDraftBaseSettings, nextPanes);
+    const settingsChanged = !chartSettingsEqual(layoutDraftBaseSettings, nextSettings);
+    chartLayoutDndDebug('commit:requested', {
+      indicatorId,
+      afterPanes: chartLayoutDndPaneSummary(nextPanes),
+      beforePanes: chartLayoutDndPaneSummary(layoutDialogPaneLayout),
+      emptyPaneIds: draftLayoutEmptyPaneIds,
+      panesChanged,
+      settingsChanged,
+      sourcePaneId,
+    });
+    const deriveNextEmptyPaneIds = (emptyPaneIds: string[]) => {
+      const occupiedPaneIds = new Set(nextPanes.filter((pane) => pane.indicatorIds.length > 0).map((pane) => pane.id));
+      const nextEmptyPaneIds = new Set(emptyPaneIds.filter((paneId) => !occupiedPaneIds.has(paneId)));
+      const sourcePane = nextPanes.find((pane) => pane.id === sourcePaneId);
+      if (sourcePaneId !== TRADING_CHART_MAIN_PANE_ID && sourcePane?.indicatorIds.length === 0) {
+        nextEmptyPaneIds.add(sourcePaneId);
+      }
+      return [...nextEmptyPaneIds].sort((left, right) => {
+        const delta = chartPaneSortValue(left) - chartPaneSortValue(right);
+        return delta !== 0 ? delta : left.localeCompare(right);
+      });
+    };
+    const nextEmptyPaneIds = deriveNextEmptyPaneIds(draftLayoutEmptyPaneIds);
+    const emptyPaneIdsChanged = !stringListsEqual(draftLayoutEmptyPaneIds, nextEmptyPaneIds);
+    if (!panesChanged && !settingsChanged && !emptyPaneIdsChanged) {
+      chartLayoutDndDebug('commit:skipped-noop', { indicatorId });
+      return;
+    }
+    if (emptyPaneIdsChanged) {
+      setDraftLayoutEmptyPaneIds((emptyPaneIds) => {
+        const derived = deriveNextEmptyPaneIds(emptyPaneIds);
+        return stringListsEqual(emptyPaneIds, derived) ? emptyPaneIds : derived;
+      });
+    }
+    if (panesChanged) {
+      setDraftLayoutPaneLayout((current) => current && layoutPaneListsEqual(current, nextPanes) ? current : nextPanes);
+    }
+    if (settingsChanged) {
+      setDraftLayoutIndicatorSettings((current) => {
+        const base = normalizeTradingChartIndicatorSettings(current ?? indicatorSettings);
+        const next = applyPaneLayoutToIndicatorSettings(base, nextPanes);
+        if (chartSettingsEqual(base, next)) {
+          return current;
+        }
+      chartLayoutDndDebug('commit:settings-updated', {
+        indicatorId,
+        nextPaneId: next[indicatorId].paneId,
+        nextSetting: next[indicatorId],
+      });
+      return next;
+      });
+    }
+  }
+
   function handleLayoutDragStart(event: DragStartEvent) {
-    setActiveLayoutRowId(String(event.active.id));
+    const rowId = String(event.active.id);
+    const indicatorId = layoutIndicatorIdFromRowId(rowId);
+    if (!indicatorId) {
+      chartLayoutDndDebug('drag-start:ignored-non-row', {
+        activeId: rowId,
+      });
+      return;
+    }
+    const sourcePane = layoutDialogPaneLayout.find((pane) => pane.indicatorIds.includes(indicatorId));
+    const activeRowElement = Array.from(document.querySelectorAll<HTMLElement>('[data-layout-row-id]'))
+      .find((element) => element.dataset.layoutRowId === indicatorId);
+    const activeRowRect = activeRowElement?.getBoundingClientRect();
+    const nextState: LayoutDragState = {
+      activeSize: activeRowRect && activeRowRect.width > 0 && activeRowRect.height > 0
+        ? { width: activeRowRect.width, height: activeRowRect.height }
+        : null,
+      indicatorId,
+      newPaneId: nextDraftLayoutPaneId(layoutDraftBaseSettings, [
+        ...draftLayoutEmptyPaneIds,
+        ...layoutDialogPaneLayout.map((pane) => pane.id),
+      ]),
+      sourcePaneId: sourcePane?.id ?? layoutDraftBaseSettings[indicatorId].paneId,
+    };
+    chartLayoutDndDebug('drag-start', {
+      panes: chartLayoutDndPaneSummary(layoutDialogPaneLayout),
+      rowRect: activeRowRect
+        ? { height: activeRowRect.height, top: activeRowRect.top, width: activeRowRect.width }
+        : null,
+      state: nextState,
+    });
+    setDraftLayoutPaneLayout(layoutDialogPaneLayout);
+    setLayoutDragState(nextState);
+  }
+
+  function handleLayoutDragOver(event: DragOverEvent) {
+    const activeId = String(event.active.id);
+    const indicatorId = layoutIndicatorIdFromRowId(activeId);
+    const overId = event.over ? String(event.over.id) : null;
+    if (!overId || !indicatorId) {
+      chartLayoutDndDebug('drag-over:ignored', {
+        activeId,
+        indicatorId,
+        overId,
+        reason: !overId ? 'no-over' : 'active-not-row',
+      });
+      return;
+    }
+
+    const nextPaneId = layoutDragState?.newPaneId ?? nextDraftLayoutPaneId(layoutDraftBaseSettings, [
+      ...draftLayoutEmptyPaneIds,
+      ...layoutDialogPaneLayout.map((pane) => pane.id),
+    ]);
+    const activeTranslatedRect = event.active.rect.current.translated;
+    const activeCenterY = activeTranslatedRect
+      ? activeTranslatedRect.top + activeTranslatedRect.height / 2
+      : null;
+    setDraftLayoutPaneLayout((current) => {
+      const panes = current ?? layoutDialogPaneLayout;
+      const nextPanes = resolveLayoutDragOverPaneLayout({
+        activeCenterY,
+        activeId,
+        indicatorId,
+        nextPaneId,
+        overId,
+        overRect: event.over ? { top: event.over.rect.top, height: event.over.rect.height } : null,
+        panes,
+      });
+      if (layoutPaneListsEqual(panes, nextPanes)) {
+        return panes;
+      }
+      chartLayoutDndDebug('drag-over:draft-updated', {
+        afterPanes: chartLayoutDndPaneSummary(nextPanes),
+        beforePanes: chartLayoutDndPaneSummary(panes),
+        indicatorId,
+        overId,
+      });
+      return nextPanes;
+    });
   }
 
   function handleLayoutDragEnd(event: DragEndEvent) {
-    setActiveLayoutRowId(null);
     const activeId = String(event.active.id);
     const overId = event.over ? String(event.over.id) : null;
     const indicatorId = layoutIndicatorIdFromRowId(activeId);
-    if (!overId || !indicatorId) {
+    const dragState = layoutDragState;
+    setLayoutDragState(null);
+    if (!indicatorId) {
+      chartLayoutDndDebug('drag-end:ignored-non-row', {
+        activeId,
+        overId,
+      });
       return;
     }
-    const target = parseLayoutDropTarget(overId);
-    if (!target) {
-      return;
-    }
-    moveLayoutIndicator(indicatorId, target);
+    const panes = draftLayoutPaneLayout ?? layoutDialogPaneLayout;
+    chartLayoutDndDebug('drag-end:commit', {
+      activeId,
+      panes: chartLayoutDndPaneSummary(panes),
+      dragState,
+      overId,
+    });
+    commitLayoutPaneOrder(indicatorId, panes, dragState?.sourcePaneId ?? layoutDraftBaseSettings[indicatorId].paneId);
   }
   useLayoutEffect(() => {
     activeAdditionalPaneCountRef.current = activeAdditionalPaneCount;
@@ -4136,6 +4626,8 @@ export function SkuTradingChart({
     setLayoutDialogOpen(false);
     setDraftIndicatorsDialogSettings(null);
     setDraftLayoutIndicatorSettings(null);
+    setDraftLayoutEmptyPaneIds([]);
+    setDraftLayoutPaneLayout(null);
     setSettingsOpen(true);
     setStylePopover(null);
     setSettingsSelectOpen(false);
@@ -4154,6 +4646,8 @@ export function SkuTradingChart({
     setLayoutDialogOpen(false);
     setDraftIndicatorSettings(null);
     setDraftLayoutIndicatorSettings(null);
+    setDraftLayoutEmptyPaneIds([]);
+    setDraftLayoutPaneLayout(null);
     setStylePopover(null);
     setSettingsSelectOpen(false);
     setIndicatorsDialogOpen(true);
@@ -4164,7 +4658,9 @@ export function SkuTradingChart({
   function leaveLayoutDialog() {
     setLayoutDialogOpen(false);
     setDraftLayoutIndicatorSettings(null);
-    setActiveLayoutRowId(null);
+    setDraftLayoutEmptyPaneIds([]);
+    setDraftLayoutPaneLayout(null);
+    setLayoutDragState(null);
     positionSettingsDialog(false);
   }
 
@@ -4177,11 +4673,127 @@ export function SkuTradingChart({
     setSettingsSelectOpen(false);
     setLayoutDialogOpen(true);
     positionSettingsDialog(true);
-    setDraftLayoutIndicatorSettings(normalizeTradingChartIndicatorSettings(structuredClone(indicatorSettings)));
-    setActiveLayoutRowId(null);
+    const nextSettings = normalizeTradingChartIndicatorSettings(structuredClone(indicatorSettings));
+    setDraftLayoutIndicatorSettings(nextSettings);
+    setDraftLayoutEmptyPaneIds([]);
+    setDraftLayoutPaneLayout(deriveTradingChartPaneLayout(nextSettings, chartModel.availability));
+    setLayoutDragState(null);
+  }
+
+  function chartDialogOpenAction(dialogId: ChartSettingsDialogId) {
+    if (dialogId === 'settings') {
+      return openSettingsDialog;
+    }
+    if (dialogId === 'indicators') {
+      return openIndicatorsDialog;
+    }
+    return openLayoutDialog;
+  }
+
+  function chartDialogLeaveAction(dialogId: ChartSettingsDialogId) {
+    if (dialogId === 'settings') {
+      return leaveSettingsDialog;
+    }
+    if (dialogId === 'indicators') {
+      return leaveIndicatorsDialog;
+    }
+    return leaveLayoutDialog;
+  }
+
+  function activeChartDialogId(): ChartSettingsDialogId | null {
+    if (settingsOpen) {
+      return 'settings';
+    }
+    if (indicatorsDialogOpen) {
+      return 'indicators';
+    }
+    if (layoutDialogOpen) {
+      return 'layout';
+    }
+    return null;
+  }
+
+  function requestChartDialogOpen(dialogId: ChartSettingsDialogId) {
+    if (pendingSettingsLeaveRef.current) {
+      const openAction = chartDialogOpenAction(dialogId);
+      queuePendingSettingsLeave({ ...pendingSettingsLeaveRef.current, action: openAction });
+      return;
+    }
+    const currentDialogId = activeChartDialogId();
+    const openAction = chartDialogOpenAction(dialogId);
+    if (!currentDialogId) {
+      openAction();
+      return;
+    }
+    if (currentDialogId === dialogId) {
+      requestSettingsDialogLeave(dialogId, chartDialogLeaveAction(dialogId));
+      return;
+    }
+    requestSettingsDialogLeave(currentDialogId, openAction);
+  }
+
+  function chartDialogActionFromOutsideElements(elements: Element[]) {
+    for (const element of elements) {
+      const target = element as HTMLElement;
+      if (target.closest('[data-chart-dialog-overlay="true"], [data-chart-dialog-content="true"]')) {
+        continue;
+      }
+      const trigger = target.closest<HTMLElement>('[data-chart-dialog-trigger]');
+      const targetDialogId = trigger?.dataset.chartDialogTrigger as ChartSettingsDialogId | undefined;
+      if (targetDialogId === 'settings' || targetDialogId === 'indicators' || targetDialogId === 'layout') {
+        return chartDialogOpenAction(targetDialogId);
+      }
+    }
+    for (const element of elements) {
+      const target = element as HTMLElement;
+      if (target.closest('[data-chart-dialog-overlay="true"], [data-chart-dialog-content="true"]')) {
+        continue;
+      }
+      const interactiveTarget = target.closest<HTMLElement>('button,a[href],[role="button"],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+      if (!interactiveTarget || interactiveTarget.hasAttribute('disabled') || interactiveTarget.getAttribute('aria-disabled') === 'true') {
+        continue;
+      }
+      return () => {
+        if (document.contains(interactiveTarget)) {
+          interactiveTarget.click();
+        }
+      };
+    }
+    return null;
+  }
+
+  function chartDialogActionFromOutsideTarget(target: EventTarget | null) {
+    return target instanceof Element ? chartDialogActionFromOutsideElements([target]) : null;
+  }
+
+  function chartDialogActionFromOutsidePointer(event: React.PointerEvent<HTMLElement>) {
+    if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function') {
+      return chartDialogActionFromOutsideTarget(event.target);
+    }
+    return chartDialogActionFromOutsideElements(document.elementsFromPoint(event.clientX, event.clientY));
+  }
+
+  function requestSettingsDialogOutsidePointer(dialogId: ChartSettingsDialogId, event: React.PointerEvent<HTMLElement>) {
+    requestSettingsDialogLeave(dialogId, chartDialogActionFromOutsidePointer(event) ?? chartDialogLeaveAction(dialogId));
+  }
+
+  function requestSettingsDialogPointerDownOutside(
+    dialogId: ChartSettingsDialogId,
+    event: { target: EventTarget | null; preventDefault: () => void },
+  ) {
+    event.preventDefault();
+    requestSettingsDialogLeave(dialogId, chartDialogActionFromOutsideTarget(event.target) ?? chartDialogLeaveAction(dialogId));
+  }
+
+  function queuePendingSettingsLeave(next: PendingChartSettingsLeave | null) {
+    pendingSettingsLeaveRef.current = next;
+    setPendingSettingsLeave(next);
   }
 
   function requestSettingsDialogLeave(dialogId: ChartSettingsDialogId, action: () => void) {
+    if (pendingSettingsLeaveRef.current) {
+      return;
+    }
     const dirty =
       (dialogId === 'settings' && settingsDialogDirty) ||
       (dialogId === 'indicators' && indicatorsDialogDirty) ||
@@ -4190,7 +4802,7 @@ export function SkuTradingChart({
       action();
       return;
     }
-    setPendingSettingsLeave({ dialogId, action });
+    queuePendingSettingsLeave({ dialogId, action });
   }
 
   function applyPendingSettingsLeave() {
@@ -4207,7 +4819,7 @@ export function SkuTradingChart({
       setIndicatorSettings(normalizeTradingChartIndicatorSettings(draftLayoutIndicatorSettings));
     }
     const action = pendingSettingsLeave.action;
-    setPendingSettingsLeave(null);
+    queuePendingSettingsLeave(null);
     action();
   }
 
@@ -4216,7 +4828,7 @@ export function SkuTradingChart({
       return;
     }
     const action = pendingSettingsLeave.action;
-    setPendingSettingsLeave(null);
+    queuePendingSettingsLeave(null);
     action();
   }
 
@@ -4469,17 +5081,15 @@ export function SkuTradingChart({
               requestSettingsDialogLeave('settings', leaveSettingsDialog);
             }}
           >
-              <DialogPrimitive.Trigger asChild>
-              <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
-                <StatusSettingsControlIcon aria-hidden="true" className="size-4" />
-                <span>{translateUiLiteral(language, 'Settings')}</span>
-              </Button>
-            </DialogPrimitive.Trigger>
+            <Button className="gap-2" data-chart-dialog-trigger="settings" disabled={!hasPoints} size="sm" type="button" variant="outline" onClick={() => requestChartDialogOpen('settings')}>
+              <StatusSettingsControlIcon aria-hidden="true" className="size-4" />
+              <span>{translateUiLiteral(language, 'Settings')}</span>
+            </Button>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
                 data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
-                onPointerDown={() => requestSettingsDialogLeave('settings', leaveSettingsDialog)}
+                onPointerDown={(event) => requestSettingsDialogOutsidePointer('settings', event)}
               />
               <DialogPrimitive.Content
                 data-chart-dialog-content="true"
@@ -4510,7 +5120,9 @@ export function SkuTradingChart({
                   const target = event.target as Node | null;
                   if (target && activeStylePopoverRef.current?.contains(target)) {
                     event.preventDefault();
+                    return;
                   }
+                  requestSettingsDialogPointerDownOutside('settings', event);
                 }}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
@@ -4747,17 +5359,15 @@ export function SkuTradingChart({
               requestSettingsDialogLeave('indicators', leaveIndicatorsDialog);
             }}
           >
-              <DialogPrimitive.Trigger asChild>
-              <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
-                <StatusTrendChartIcon aria-hidden="true" className="size-4" />
-                <span>{translateUiLiteral(language, 'Indicators')}</span>
-              </Button>
-            </DialogPrimitive.Trigger>
+            <Button className="gap-2" data-chart-dialog-trigger="indicators" disabled={!hasPoints} size="sm" type="button" variant="outline" onClick={() => requestChartDialogOpen('indicators')}>
+              <StatusTrendChartIcon aria-hidden="true" className="size-4" />
+              <span>{translateUiLiteral(language, 'Indicators')}</span>
+            </Button>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
                 data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
-                onPointerDown={() => requestSettingsDialogLeave('indicators', leaveIndicatorsDialog)}
+                onPointerDown={(event) => requestSettingsDialogOutsidePointer('indicators', event)}
               />
               <DialogPrimitive.Content
                 data-chart-dialog-content="true"
@@ -4769,6 +5379,7 @@ export function SkuTradingChart({
                     requestSettingsDialogLeave('indicators', leaveIndicatorsDialog);
                   }
                 }}
+                onPointerDownOutside={(event) => requestSettingsDialogPointerDownOutside('indicators', event)}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
                 <DialogPrimitive.Title className="sr-only">{translateUiLiteral(language, 'Chart indicators')}</DialogPrimitive.Title>
@@ -4891,17 +5502,15 @@ export function SkuTradingChart({
               requestSettingsDialogLeave('layout', leaveLayoutDialog);
             }}
           >
-            <DialogPrimitive.Trigger asChild>
-              <Button className="gap-2" disabled={!hasPoints} size="sm" type="button" variant="outline">
-                <EntityLayersIcon aria-hidden="true" className="size-4" />
-                <span>{translateUiLiteral(language, 'Layout')}</span>
-              </Button>
-            </DialogPrimitive.Trigger>
+            <Button className="gap-2" data-chart-dialog-trigger="layout" disabled={!hasPoints} size="sm" type="button" variant="outline" onClick={() => requestChartDialogOpen('layout')}>
+              <EntityLayersIcon aria-hidden="true" className="size-4" />
+              <span>{translateUiLiteral(language, 'Layout')}</span>
+            </Button>
             <DialogPrimitive.Portal>
               <DialogPrimitive.Overlay
                 data-chart-dialog-overlay="true"
                 className="fixed inset-0 z-50 bg-transparent data-[state=open]:animate-in data-[state=open]:fade-in-0"
-                onPointerDown={() => requestSettingsDialogLeave('layout', leaveLayoutDialog)}
+                onPointerDown={(event) => requestSettingsDialogOutsidePointer('layout', event)}
               />
               <DialogPrimitive.Content
                 data-chart-dialog-content="true"
@@ -4913,8 +5522,10 @@ export function SkuTradingChart({
                     requestSettingsDialogLeave('layout', leaveLayoutDialog);
                     return;
                   }
-                  setActiveLayoutRowId(null);
+                  setLayoutDragState(null);
+                  setDraftLayoutPaneLayout(layoutDialogBasePaneLayout);
                 }}
+                onPointerDownOutside={(event) => requestSettingsDialogPointerDownOutside('layout', event)}
                 style={settingsRenderPosition ?? { left: 16, top: 16 }}
               >
                 <DialogPrimitive.Title className="sr-only">{translateUiLiteral(language, 'Chart layout')}</DialogPrimitive.Title>
@@ -4941,13 +5552,20 @@ export function SkuTradingChart({
                 <div className={settingsDialogBodyClassName(false)}>
                   <DndContext
                     collisionDetection={layoutCollisionDetection}
-                    onDragCancel={() => setActiveLayoutRowId(null)}
+                    onDragCancel={() => {
+                      chartLayoutDndDebug('drag-cancel', {
+                        dragState: layoutDragState,
+                      });
+                      setLayoutDragState(null);
+                      setDraftLayoutPaneLayout(layoutDialogBasePaneLayout);
+                    }}
                     onDragEnd={handleLayoutDragEnd}
+                    onDragOver={handleLayoutDragOver}
                     onDragStart={handleLayoutDragStart}
                     sensors={layoutSensors}
                   >
                     <div className="grid gap-4">
-                      {paneLayout.map((pane) => (
+                      {layoutDialogPaneLayout.map((pane) => (
                         <LayoutPaneSection
                           key={pane.id}
                           language={language}
@@ -4957,7 +5575,7 @@ export function SkuTradingChart({
                           onDelete={deleteLayoutIndicator}
                         />
                       ))}
-                      <LayoutNewPaneDropZone language={language} />
+                      <LayoutNewPaneDropZone language={language} onClick={addLayoutEmptyPane} />
                     </div>
                     {typeof document !== 'undefined'
                       ? createPortal(
@@ -4965,9 +5583,12 @@ export function SkuTradingChart({
                             {activeLayoutIndicatorId ? (
                               <LayoutIndicatorRowCard
                                 dragging
+                                data-slot="layout-drag-overlay-row"
                                 indicatorId={activeLayoutIndicatorId}
+                                interactive={false}
                                 language={language}
                                 settings={editableIndicatorSettings}
+                                style={layoutDragState?.activeSize ?? undefined}
                               />
                             ) : null}
                           </DragOverlay>,
@@ -4978,7 +5599,7 @@ export function SkuTradingChart({
                 </div>
                 <div className={SETTINGS_DIALOG_FOOTER_CLASS}>
                   <div className="text-sm text-muted-foreground">
-                    {translateUiLiteral(language, activeLayoutRowId ? 'Drop on a pane or New pane.' : 'Drag rows to reorder their pane and draw layer.')}
+                    {translateUiLiteral(language, layoutDragState ? 'Drop on a pane or New pane.' : 'Drag rows to reorder their pane and draw layer.')}
                   </div>
                   <div className="flex items-center gap-3">
                     <Button
@@ -4996,7 +5617,7 @@ export function SkuTradingChart({
                       size="sm"
                       type="button"
                       onClick={() => {
-                        if (draftLayoutIndicatorSettings) {
+                        if (draftLayoutIndicatorSettings && layoutDialogDirty) {
                           setIndicatorSettings(normalizeTradingChartIndicatorSettings(draftLayoutIndicatorSettings));
                         }
                         leaveLayoutDialog();
@@ -5467,7 +6088,7 @@ export function SkuTradingChart({
         open={pendingSettingsLeave != null}
         onApply={applyPendingSettingsLeave}
         onDiscard={discardPendingSettingsLeave}
-        onKeepEditing={() => setPendingSettingsLeave(null)}
+        onKeepEditing={() => queuePendingSettingsLeave(null)}
       />
     </div>
   );
