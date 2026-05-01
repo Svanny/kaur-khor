@@ -12,14 +12,14 @@ import { LiquidGridCard } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { buildRememberedInboxHref, usePageStateMemoryVersion } from '@/lib/page-state-memory';
-import { translateUiLiteral } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { AutomationsRoute } from './automations';
 import { DashboardRoute } from './dashboard';
 import { RecordUpdateHubRoute } from './record-update-hub';
 
 function WorkSubPageTitleCard() {
-  const { language, showAutomationsPage } = usePreferences();
+  const { language, showAutomationsPage, t } = usePreferences();
   const location = useLocation();
   const navigate = useNavigate();
   usePageStateMemoryVersion();
@@ -53,7 +53,7 @@ function WorkSubPageTitleCard() {
 
   return (
     <WorkspaceTitleCard
-      eyebrow={translateUiLiteral(language, 'Work')}
+      eyebrow={t('navWork')}
       title={translateUiLiteral(language, 'Daily operator work')}
       descriptor={translateUiLiteral(language, 'Queue, capture, and intake stay in one operator workspace.')}
       actions={
@@ -115,7 +115,7 @@ const WORK_MODES: Array<{
 ];
 
 export function WorkRoute() {
-  const { language, showAutomationsPage } = usePreferences();
+  const { language, showAutomationsPage, t } = usePreferences();
   const params = useParams();
   const activePath = params['*']?.replace(/\/+$/, '') ?? '';
   usePageStateMemoryVersion();
@@ -128,7 +128,7 @@ export function WorkRoute() {
     return (
       <WorkspacePage fitViewport className="gap-5">
         <WorkspaceTitleCard
-          eyebrow={translateUiLiteral(language, 'Work')}
+          eyebrow={t?.('navWork') ?? getTranslation(language, 'navWork')}
           title={translateUiLiteral(language, 'Daily operator work')}
           descriptor={translateUiLiteral(language, 'Queue, capture, and intake stay in one operator workspace.')}
           className="rounded-xl"
@@ -153,7 +153,7 @@ export function WorkRoute() {
                         <Icon className="size-16 shrink-0 text-foreground md:size-20" aria-hidden="true" />
                       </span>
                       <span className="flex flex-col items-center gap-3">
-                        <span className="block h-8 text-2xl font-semibold text-foreground">
+                        <span className="khmer-safe-display block min-h-8 text-2xl font-semibold text-foreground">
                           {translateUiLiteral(language, mode.label)}
                         </span>
                         <span className="mx-auto block h-[4.5rem] max-w-[15rem] text-sm leading-6 text-muted-foreground line-clamp-3">

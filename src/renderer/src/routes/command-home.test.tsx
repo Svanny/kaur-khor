@@ -111,6 +111,45 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
   });
 
+  test('marks action card labels and descriptions as Khmer-safe display text', () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            archived: false,
+            costPerUnit: 4,
+            description: 'SKU',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      latestRun: null,
+      observations: [{ observationId: 'obs-1' }],
+      orderBatches: [],
+      workspaceSummary: null,
+    });
+    preferencesHook.mockReturnValue({
+      language: 'km',
+      showAnalysisPage: true,
+    });
+
+    renderRoute();
+
+    expect(screen.getAllByText('ចាប់ផ្តើមការងារ').some((node) => node.className.includes('khmer-safe-display'))).toBe(true);
+    expect(screen.getByText('កត់ត្រាការអាប់ដេត').className).toContain('khmer-safe-display');
+    expect(screen.getByText('បើកការងារអ្នកផ្គត់ផ្គង់ អតិថិជន និងការទទួលសំណើ ដែលត្រូវការសេចក្តីសម្រេច។').className).toContain('khmer-safe-display');
+    expect(screen.getByText('រក្សាទុកការរាប់ស្តុក ការបញ្ជាទិញអតិថិជន ការលក់ ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ឬព្រឹត្តិការណ៍ផ្ទាល់ខ្លួន។').className).toContain('khmer-safe-display');
+  });
+
   test('hides insights when the analysis page is disabled', () => {
     preferencesHook.mockReturnValue({
       language: 'en',

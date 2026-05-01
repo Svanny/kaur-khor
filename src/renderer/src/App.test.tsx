@@ -268,4 +268,23 @@ describe('LoadedApp', () => {
     expect(await screen.findByText('Onboarding screen')).toBeInTheDocument();
     expect(screen.queryByText('Work screen')).not.toBeInTheDocument();
   });
+
+  it('marks the hydrated app shell with the active Khmer language', async () => {
+    preferencesHook.mockReturnValue({
+      isHydrated: true,
+      language: 'km',
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+    });
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/']}>
+        <LoadedApp />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Home screen')).toBeInTheDocument();
+    const languageRoot = container.querySelector('[data-language="km"]');
+    expect(languageRoot).not.toBeNull();
+    expect(languageRoot).toHaveAttribute('lang', 'km');
+  });
 });

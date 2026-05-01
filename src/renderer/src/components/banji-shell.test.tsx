@@ -214,6 +214,31 @@ describe('BanjiShell', () => {
     expect(screen.queryByRole('button', { name: 'Custom View' })).not.toBeInTheDocument();
   });
 
+  test('localizes the command shortcut glyph label in Khmer', () => {
+    setViewport({ width: 1440, isMobile: false });
+    Object.defineProperty(window.navigator, 'platform', {
+      configurable: true,
+      value: 'MacIntel',
+    });
+    preferencesHook.mockReturnValue({
+      ...preferencesHook(),
+      language: 'km',
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('ពាក្យបញ្ជា')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Command')).not.toBeInTheDocument();
+  });
+
   test('restores remembered page state from sidebar navigation links', () => {
     setViewport({ width: 1440, isMobile: false });
     window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
@@ -716,6 +741,63 @@ describe('BanjiShell', () => {
     await waitFor(() => {
       expect(markUnlockedNavItemSeen).toHaveBeenCalledWith('insights');
     });
+  });
+
+  test('marks the Khmer unlocked badge as Khmer-safe typography', () => {
+    setViewport({ width: 1440, isMobile: false });
+    preferencesHook.mockReturnValue({
+      applyDisplayViewMode,
+      isHydrated: true,
+      displayViewMode: 'custom',
+      language: 'km',
+      markUnlockedNavItemSeen,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: false,
+        work: false,
+      },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key: string) =>
+        ({
+          appBrand: 'banji',
+          navOverview: 'ទំព័រដើម',
+          navHome: 'ទំព័រដើម',
+          navInbox: 'ប្រអប់ការងារ',
+          navRecordUpdate: 'កត់ត្រា',
+          navCapture: 'កត់ត្រា',
+          navPerformance: 'សមិទ្ធផល',
+          navInsights: 'ការយល់ដឹង',
+          navFinancials: 'ហិរញ្ញវត្ថុ',
+          navAnalysis: 'ពន្យល់',
+          navCatalog: 'កាតាឡុក',
+          navOperations: 'ប្រវត្តិ',
+          navHistory: 'ប្រវត្តិ',
+          navArchive: 'បណ្ណសារ',
+          navHelp: 'ជំនួយ',
+          sidebarSectionMain: 'មេ',
+          sidebarSectionOther: 'ផ្សេងទៀត',
+          navSettings: 'ការកំណត់',
+          skipToContent: 'រំលងទៅមាតិកា',
+          openNavigation: 'បើកការរុករក',
+          collapseNavigation: 'បង្រួមការរុករក',
+        }[key] ?? key),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('ទើបបើក').every((badge) => badge.className.includes('khmer-safe-label'))).toBe(true);
   });
 
   test('keeps the unified insights navigation item when analysis mode is disabled', () => {

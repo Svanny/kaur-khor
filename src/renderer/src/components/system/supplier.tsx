@@ -176,7 +176,7 @@ export function SupplierFilter({
   return (
     <Select value={supplierFilterQueryValue(value) ?? 'all'} onValueChange={(nextValue) => onChange(supplierFilterValueForQuery(nextValue))}>
       <SelectTrigger
-        aria-label={label}
+        aria-label={translateUiLiteral(language, label)}
         className={cn(
           'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
           className,

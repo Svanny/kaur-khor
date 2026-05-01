@@ -49,6 +49,9 @@ vi.mock('../state/preferences', () => ({
     taskBatchUpdatePreferences: preferenceState.taskBatchUpdatePreferences,
     overviewStaleUpdateReminderSnoozeUntil: preferenceState.overviewStaleUpdateReminderSnoozeUntil,
     t: (key: string) => {
+      if (key === 'navWork') {
+        return preferenceState.language === 'km' ? 'ការងារ' : 'Work';
+      }
       if (key === 'searchPlaceholder') {
         return 'Search name or description…';
       }
@@ -60,6 +63,7 @@ vi.mock('../state/preferences', () => ({
 describe('WorkRoute', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    preferenceState.language = 'en';
     preferenceState.showAutomationsPage = true;
     inventoryHook.mockReturnValue({
       catalog: {
@@ -133,6 +137,14 @@ describe('WorkRoute', () => {
       '/work/queue?workflow=customer&customerFilter=review',
     );
     expect(screen.getByRole('link', { name: /Intake/i })).toBeInTheDocument();
+  });
+
+  test('uses the keyed Khmer Work label for the work page eyebrow', async () => {
+    preferenceState.language = 'km';
+
+    await renderWithProvidersSettled('/work', <WorkRoute />, '/work/*');
+
+    expect(screen.getByText('ការងារ')).toBeInTheDocument();
   });
 
   test('hides the intake hub tile when automations are disabled', async () => {

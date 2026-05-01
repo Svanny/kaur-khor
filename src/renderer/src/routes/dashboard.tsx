@@ -24,6 +24,7 @@ import {
   WorkspaceEmpty,
   WorkspacePage,
   WorkspaceTitleCard,
+  useWorkspaceWindowMinHeight,
 } from '@/components/system/workspace';
 import type { IconComponent } from '@icons';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
@@ -489,6 +490,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
   const filter = routeState.filter as OverviewTaskFilter;
   const activeFilter: OverviewTaskFilter = showOverviewTaskTabs ? filter : 'all';
+  const workWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`${overviewScope}:${overviewScope === 'customer' ? customerFilter : activeFilter}:${showRightRailCards}`);
   const availableObservationCount = deriveAvailableObservationCount(inventory);
   const needsInitialWorkSupportData = Boolean(
     inventory.catalog &&
@@ -833,20 +835,27 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       {showWorkSupportLoading ? (
         <WorkSupportLoadingBoard />
       ) : (
-        <ChromeTabs
-          className="relative min-h-0 flex-1 gap-0"
-          value={overviewScope === 'customer' ? customerFilter : activeFilter}
-          onValueChange={(nextValue) => {
-            if (overviewScope === 'customer') {
-              updateRouteState({
-                customerFilter: nextValue as OverviewCustomerFilter,
-                customerTaskId: null,
-              });
-              return;
-            }
-            updateRouteState({ filter: nextValue as OverviewTaskFilter });
-          }}
+      <div className="flex min-h-0 flex-1 flex-col" data-work-window-root="queue">
+        <div
+          ref={workWindow.ref}
+          className="flex min-h-0 shrink-0 flex-col"
+          data-work-window="queue"
+          style={workWindow.style}
         >
+          <ChromeTabs
+            className="relative min-h-0 flex-1 gap-0"
+            value={overviewScope === 'customer' ? customerFilter : activeFilter}
+            onValueChange={(nextValue) => {
+              if (overviewScope === 'customer') {
+                updateRouteState({
+                  customerFilter: nextValue as OverviewCustomerFilter,
+                  customerTaskId: null,
+                });
+                return;
+              }
+              updateRouteState({ filter: nextValue as OverviewTaskFilter });
+            }}
+          >
         {showOverviewTaskTabs ? (
           <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
@@ -1018,7 +1027,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                         <button
                           key={key}
                           aria-pressed={customerFilter === key}
-                          className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
+                          className={`flex w-full items-center justify-between px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
                           type="button"
                           onClick={() => updateRouteState({ customerFilter: key as OverviewCustomerFilter, customerTaskId: null })}
                         >
@@ -1246,7 +1255,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                     <button
                       key={row.filter}
                       aria-pressed={filter === row.filter}
-                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
+                      className={`flex w-full items-center justify-between px-3 py-3 text-left text-sm transition-colors ${rowHoverClassName}`}
                       type="button"
                       onClick={() => updateRouteState({ filter: row.filter })}
                     >
@@ -1273,7 +1282,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 {model.inTransit.map((row) => (
                     <button
                       key={row.id}
-                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+                      className={`flex w-full items-center justify-between px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
                       onClick={() => {
@@ -1308,7 +1317,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                 {model.recentReceipts.map((row) => (
                     <button
                       key={row.id}
-                      className={`flex w-full items-center justify-between rounded-[1rem] px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
+                      className={`flex w-full items-center justify-between px-3 py-3 text-left transition-colors ${rowHoverClassName}`}
                       data-slot="overview-rail-row"
                       type="button"
                       onClick={() => {
@@ -1367,7 +1376,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
         </div>
           )}
         </section>
-        </ChromeTabs>
+          </ChromeTabs>
+        </div>
+        <div aria-hidden="true" className="h-32 shrink-0 md:h-36" data-work-bottom-breathing-room="queue" />
+      </div>
       )}
 
       {overviewScope === 'supplier' ? (

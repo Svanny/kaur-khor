@@ -49,8 +49,8 @@ function CommandAction({
       <span className="flex h-full flex-col items-center justify-center gap-4 md:gap-6">
         <Icon className="size-12 shrink-0 text-foreground sm:size-16 md:size-20" aria-hidden="true" />
         <span className="space-y-2 md:space-y-3">
-          <span className="block text-lg font-semibold text-foreground sm:text-xl md:text-2xl">{label}</span>
-          <span className="mx-auto block min-h-[3.75rem] max-w-[18rem] text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6 md:min-h-[4.5rem]">
+          <span className="khmer-safe-display block text-lg font-semibold text-foreground sm:text-xl md:text-2xl">{label}</span>
+          <span className="khmer-safe-display mx-auto block min-h-[3.75rem] max-w-[18rem] text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6 md:min-h-[4.5rem]">
             {description}
           </span>
         </span>

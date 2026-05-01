@@ -3,6 +3,7 @@
 import { useMemo } from 'react';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { useDescriptionTextVisible } from '@/components/system/description-text';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { hasDescriptionText } from '@/components/system/description-text';
@@ -169,9 +170,11 @@ function FieldSeparator({
 function FieldError({
   className,
   children,
+  errorFlashKey,
   errors,
   ...props
 }: React.ComponentProps<'div'> & {
+  errorFlashKey?: number;
   errors?: Array<{ message?: string } | undefined>;
 }) {
   const content = useMemo(() => {
@@ -203,14 +206,16 @@ function FieldError({
   }
 
   return (
-    <div
+    <SaveErrorFlash
+      as="div"
       className={cn('text-sm font-normal text-destructive', className)}
       data-slot="field-error"
+      flashKey={errorFlashKey}
       role="alert"
       {...props}
     >
       {content}
-    </div>
+    </SaveErrorFlash>
   );
 }
 

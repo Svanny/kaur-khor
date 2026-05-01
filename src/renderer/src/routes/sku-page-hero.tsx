@@ -31,7 +31,7 @@ export function SkuPageHero({
               <RouteBackButton onClick={onBack} />
               {visual}
               <div className="min-w-0">
-                <h1 className="truncate text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h1>
+                <h1 className="khmer-safe-display truncate text-2xl font-semibold tracking-[-0.04em] text-foreground">{title}</h1>
               </div>
             </div>
             {actions && !visible ? (

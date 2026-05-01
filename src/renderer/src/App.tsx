@@ -212,7 +212,7 @@ export function AppRoutes() {
 }
 
 function AppFrame() {
-  const { isHydrated, onboardingCompletedAt } = usePreferences();
+  const { isHydrated, language, onboardingCompletedAt } = usePreferences();
   const preferencesHydrationRecordedRef = useRef(false);
 
   useEffect(() => {
@@ -248,14 +248,16 @@ function AppFrame() {
   }
 
   return (
-    <NavigationHistoryProvider>
-      <PageStateMemoryObserver />
-      <CommandPaletteProvider>
-        <BanjiShell>
-          <AppRoutes />
-        </BanjiShell>
-      </CommandPaletteProvider>
-    </NavigationHistoryProvider>
+    <div className="contents" data-language={language} lang={language === 'km' ? 'km' : 'en'}>
+      <NavigationHistoryProvider>
+        <PageStateMemoryObserver />
+        <CommandPaletteProvider>
+          <BanjiShell>
+            <AppRoutes />
+          </BanjiShell>
+        </CommandPaletteProvider>
+      </NavigationHistoryProvider>
+    </div>
   );
 }
 

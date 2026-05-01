@@ -622,6 +622,9 @@ describe('DashboardRoute', () => {
     expect(container.querySelector('[data-slot="overview-board"]')?.className).toContain('min-h-0');
     expect(container.querySelector('[data-slot="overview-right-rail"]')?.className).toContain('h-full');
     expect(container.querySelector('[data-slot="overview-right-rail"]')?.className).toContain('min-h-0');
+    expect(container.querySelector('[data-work-window-root="queue"]')?.className).toContain('flex-1');
+    expect(container.querySelector('[data-work-window="queue"]')?.className).toContain('shrink-0');
+    expect(container.querySelector('[data-work-bottom-breathing-room="queue"]')?.className).toContain('h-32');
 
     await user.click(screen.getByRole('tab', { name: 'Ready to receive' }));
 

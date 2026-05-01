@@ -30,14 +30,14 @@ export function createHeaderedTableLayout({
   const responsiveClasses =
     breakpoint === 'lg'
       ? {
-          container: 'lg:grid lg:[grid-template-columns:var(--headered-table-columns)]',
+          container: 'min-h-full flex-1 bg-white lg:grid lg:auto-rows-max lg:content-start lg:[grid-template-columns:var(--headered-table-columns)]',
           header: 'lg:grid lg:grid-cols-subgrid lg:col-span-full',
           body: 'lg:grid lg:grid-cols-subgrid lg:col-span-full',
           row: 'lg:grid-cols-subgrid lg:col-span-full',
           mobileLabel: 'lg:hidden',
         }
       : {
-          container: 'xl:grid xl:[grid-template-columns:var(--headered-table-columns)]',
+          container: 'min-h-full flex-1 bg-white xl:grid xl:auto-rows-max xl:content-start xl:[grid-template-columns:var(--headered-table-columns)]',
           header: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           body: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           row: 'xl:grid-cols-subgrid xl:col-span-full',
@@ -99,8 +99,8 @@ export function HeaderedTable({
   return (
     <div
       className={cn(
-        variant === 'overview' && 'overflow-hidden rounded-none border-0 bg-white',
-        variant === 'framed' && 'overflow-hidden rounded-[1.4rem] border border-border/60 bg-white',
+        variant === 'overview' && 'flex min-h-full flex-1 flex-col overflow-hidden rounded-none border-0 bg-white',
+        variant === 'framed' && 'flex min-h-full flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-border/60 bg-white',
         className,
       )}
       data-slot="headered-table"
@@ -167,7 +167,7 @@ export const HeaderedTableBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLD
   return (
     <div
       {...props}
-      className={cn('divide-y divide-border/60', className)}
+      className={cn('divide-y divide-border/60 bg-white', className)}
       data-slot="headered-table-body"
       ref={ref}
       style={style}
@@ -180,6 +180,7 @@ export const HeaderedTableBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLD
 export const HeaderedTableRow = forwardRef<
   HTMLDivElement,
   HTMLAttributes<HTMLDivElement> & {
+    'data-slot'?: string;
     dataSlot?: string;
   }
 >(function HeaderedTableRow(
@@ -208,7 +209,7 @@ export const HeaderedTableRow = forwardRef<
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      onClick();
+      event.currentTarget.click();
     }
   };
 

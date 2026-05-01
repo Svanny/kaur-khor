@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
-import { pillHoverClassName } from '@/lib/interactive-surface';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { SectionTitle } from './sku-detail/section-heading';
@@ -71,47 +71,55 @@ export function PagedPanelNavigation({
   const resolvedLastLabel = lastLabel ?? t('catalogSenaSkuEvidenceLast');
 
   return (
-    <div className={cn('flex w-full items-center justify-between border-t border-border/60 px-6 py-3', className)}>
+    <div className={cn('sticky bottom-0 z-10 mt-auto flex w-full items-center justify-between border-t border-border/60 bg-card px-6 py-3', className)}>
       <p className="text-sm text-muted-foreground">{resolvedPageLabel}</p>
       <div className="flex items-center gap-2">
-        <button
+        <Button
           aria-label={resolvedPreviousAriaLabel}
-          className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          className="rounded-full"
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex === 0}
+          size="icon-sm"
           type="button"
+          variant="outline"
           onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
         >
           <NavigationPreviousIcon className="size-4" />
-        </button>
-        <button
-          className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+        </Button>
+        <Button
+          className="rounded-full"
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex === 0}
+          size="sm"
           type="button"
+          variant="outline"
           onClick={() => setPageIndex(0)}
         >
           {resolvedFirstLabel}
-        </button>
-        <button
-          className={`rounded-full border border-border/70 px-3 py-1 text-sm text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+        </Button>
+        <Button
+          className="rounded-full"
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex >= pageCount - 1}
+          size="sm"
           type="button"
+          variant="outline"
           onClick={() => setPageIndex(pageCount - 1)}
         >
           {resolvedLastLabel}
-        </button>
-        <button
+        </Button>
+        <Button
           aria-label={resolvedNextAriaLabel}
-          className={`rounded-full border border-border/70 p-2 text-foreground transition-colors ${pillHoverClassName} disabled:text-muted-foreground disabled:hover:bg-transparent disabled:hover:text-muted-foreground disabled:hover:shadow-none`}
+          className="rounded-full"
           data-slot="paged-panel-nav-pill"
           disabled={pageIndex >= pageCount - 1}
+          size="icon-sm"
           type="button"
+          variant="outline"
           onClick={() => setPageIndex((current) => Math.min(pageCount - 1, current + 1))}
         >
           <NavigationNextIcon className="size-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

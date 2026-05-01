@@ -9,8 +9,11 @@ import { ActionSelectCheckIcon } from '@icons/actions';
 const interfaceViewCardCopy: Record<AppLanguage, Record<InterfaceViewMode, {
   description: string;
   label: string;
-}>> = {
+}> & {
+  groupLabel: string;
+}> = {
   en: {
+    groupLabel: 'Display view mode',
     default: {
       description: 'Guidance, floating actions, and status signals stay visible.',
       label: 'Default View',
@@ -29,6 +32,7 @@ const interfaceViewCardCopy: Record<AppLanguage, Record<InterfaceViewMode, {
     },
   },
   km: {
+    groupLabel: 'របៀបទិដ្ឋភាពបង្ហាញ',
     default: {
       description: 'រក្សាការណែនាំ សកម្មភាពអណ្តែត និងសញ្ញាស្ថានភាពឱ្យមើលឃើញ។',
       label: 'ទិដ្ឋភាពលំនាំដើម',
@@ -252,7 +256,7 @@ export function InterfaceViewModeCards({
 
   return (
     <div
-      aria-label="Display view mode"
+      aria-label={copy.groupLabel}
       className={[
         'grid justify-center gap-6 xl:gap-8',
         gridColsClass,
@@ -286,7 +290,7 @@ export function InterfaceViewModeCards({
               </span>
             </span>
             <span className="grid content-end gap-1">
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <span className="khmer-safe-display flex items-center gap-1.5 text-sm font-semibold text-foreground">
                 <span>{copy[mode].label}</span>
                 <ActionSelectCheckIcon
                   aria-hidden="true"
@@ -296,7 +300,7 @@ export function InterfaceViewModeCards({
                   ].join(' ')}
                 />
               </span>
-              <span className="text-xs leading-5 text-muted-foreground">{copy[mode].description}</span>
+              <span className="khmer-safe text-xs leading-5 text-muted-foreground">{copy[mode].description}</span>
             </span>
           </button>
         );

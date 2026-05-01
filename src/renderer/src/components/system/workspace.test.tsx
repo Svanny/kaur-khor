@@ -2,7 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { PreferencesProvider } from '@/state/preferences';
-import { WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from './workspace';
+import { EmptyTitle } from '@/components/ui/empty';
+import { CardTitle } from '@/components/ui/card';
+import { MetricCard, SectionEyebrow, WorkspacePage, WorkspacePageTitle, WorkspacePanel, WorkspaceTitleCard } from './workspace';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 
@@ -176,6 +178,54 @@ describe('WorkspacePanel', () => {
 
     expect(titleActionSurface?.className).toContain(headerActionSurfaceClassName);
     expect(floatingActionSurface?.className).toContain(headerActionSurfaceClassName);
+  });
+
+  test('marks title-card eyebrow and display title as Khmer-safe typography surfaces', async () => {
+    const { container } = render(
+      <PreferencesProvider>
+        <WorkspaceTitleCard
+          descriptor="Start with the next operational decision."
+          eyebrow="ទំព័រដើម"
+          title="ទំព័រដើមបញ្ជា"
+        />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('ទំព័រដើម').className).toContain('khmer-safe-eyebrow');
+    });
+
+    const title = screen.getByText('ទំព័រដើមបញ្ជា');
+    expect(title.className).toContain('khmer-safe-display');
+    expect(title.className).toContain('font-semibold');
+    expect(container.querySelector('[data-slot="card-description"]')).not.toBeNull();
+  });
+
+  test('marks shared workspace headings and labels as Khmer-safe typography surfaces', () => {
+    render(
+      <>
+        <WorkspacePageTitle>ទំព័រដើមបញ្ជា</WorkspacePageTitle>
+        <MetricCard label="កាតាឡុក" value="ធាតុ 1" />
+        <SectionEyebrow>សកម្មភាពបន្ទាប់</SectionEyebrow>
+      </>,
+    );
+
+    expect(screen.getByText('ទំព័រដើមបញ្ជា').className).toContain('khmer-safe-display');
+    expect(screen.getByText('កាតាឡុក').className).toContain('khmer-safe-label');
+    expect(screen.getByText('ធាតុ 1').className).toContain('khmer-safe-display');
+    expect(screen.getByText('សកម្មភាពបន្ទាប់').className).toContain('khmer-safe-label');
+  });
+
+  test('marks shared card and empty-state titles as Khmer-safe display surfaces', () => {
+    render(
+      <>
+        <CardTitle>ចំណងជើងកាត</CardTitle>
+        <EmptyTitle>គ្មានលទ្ធផល</EmptyTitle>
+      </>,
+    );
+
+    expect(screen.getByText('ចំណងជើងកាត').className).toContain('khmer-safe-display');
+    expect(screen.getByText('គ្មានលទ្ធផល').className).toContain('khmer-safe-display');
   });
 
   test('adds bottom safe-area spacing when floating title actions are enabled', async () => {

@@ -40,7 +40,11 @@ describe('HeaderedTable', () => {
     expect(screen.getByText('Beta').className).toContain('text-center');
     expect(table?.getAttribute('data-variant')).toBe('overview');
     expect(table?.className).toContain('rounded-none');
+    expect(table?.className).toContain('min-h-full');
+    expect(table?.className).toContain('flex-1');
     expect(header?.className).toContain('sm:px-6');
+    expect(container.querySelector('[data-slot="headered-table-body"]')?.className).toContain('bg-white');
+    expect(container.querySelector('[data-slot="headered-table-body"]')?.className).not.toContain('flex-1');
     expect(row?.className).toContain('px-5');
     expect(row?.className).toContain('sm:px-6');
   });
@@ -66,6 +70,11 @@ describe('HeaderedTable', () => {
     });
 
     expect(layout.containerClassName).toContain('lg:[grid-template-columns:var(--headered-table-columns)]');
+    expect(layout.containerClassName).toContain('min-h-full');
+    expect(layout.containerClassName).toContain('bg-white');
+    expect(layout.containerClassName).toContain('flex-1');
+    expect(layout.containerClassName).toContain('lg:auto-rows-max');
+    expect(layout.containerClassName).toContain('lg:content-start');
     expect(layout.headerClassName).toContain('lg:grid-cols-subgrid');
     expect(layout.headerClassName).toContain('lg:gap-0');
     expect(layout.headerClassName).toContain('lg:[&>*]:px-3.5');

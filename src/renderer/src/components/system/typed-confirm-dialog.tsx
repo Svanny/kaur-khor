@@ -8,6 +8,7 @@ export function TypedConfirmDialog({
   title,
   description,
   confirmationToken,
+  inputLabel = 'Deletion confirmation token',
   value,
   confirmLabel,
   cancelLabel,
@@ -21,6 +22,7 @@ export function TypedConfirmDialog({
   title: string;
   description?: ReactNode;
   confirmationToken: string;
+  inputLabel?: string;
   value: string;
   confirmLabel: string;
   cancelLabel: string;
@@ -54,7 +56,7 @@ export function TypedConfirmDialog({
           <div className="mt-3 text-sm leading-6 text-muted-foreground">{description}</div>
         ) : null}
         <Input
-          aria-label="Deletion confirmation token"
+          aria-label={inputLabel}
           autoFocus
           className="mt-5"
           placeholder={confirmationToken}

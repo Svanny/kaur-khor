@@ -54,7 +54,7 @@ export function MetricRibbon({
     >
       {title ? (
         <div className="border-b border-border/60 px-4 py-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</p>
+          <p className="khmer-safe-label text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">{title}</p>
         </div>
       ) : null}
       <div className={`grid divide-y divide-border/60 bg-border/40 sm:grid-cols-2 sm:divide-x sm:divide-y-0 ${gridClassName}`}>
@@ -62,7 +62,7 @@ export function MetricRibbon({
           const content = (
             <>
               <p className="truncate text-sm text-muted-foreground">{item.label}</p>
-              <div className={cn('mt-1 text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground', item.valueClassName)}>
+              <div className={cn('khmer-safe-display mt-1 text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground', item.valueClassName)}>
                 {item.value}
               </div>
               {item.detail ? (

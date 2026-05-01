@@ -213,7 +213,7 @@ function SidebarSectionMenu({
               </NavLink>
             </SidebarMenuButton>
             {isNew && showSidebarText ? (
-              <SidebarMenuBadge className="right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
+              <SidebarMenuBadge className="khmer-safe-label right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
                 {newLabel}
               </SidebarMenuBadge>
             ) : null}
@@ -236,7 +236,7 @@ function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'e
       <span className="font-medium">{translateUiLiteral(language, 'Search')}</span>
       <span className="flex items-center gap-1.5 text-xs font-semibold text-sidebar-foreground/65">
         {isMacPlatform() ? (
-          <span aria-label="Command" className={shortcutKeyClassName}>
+          <span aria-label={translateUiLiteral(language, 'Command')} className={shortcutKeyClassName}>
             <NavigationCommandPaletteIcon className="size-3.5" />
           </span>
         ) : (

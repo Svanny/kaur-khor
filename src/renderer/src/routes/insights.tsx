@@ -107,7 +107,7 @@ export function InsightsRoute() {
                   <span className="flex h-full flex-col items-center justify-center gap-5">
                     <Icon className="size-16 shrink-0 text-foreground md:size-20" aria-hidden="true" />
                     <span className="space-y-3">
-                      <span className="block text-2xl font-semibold text-foreground">
+                      <span className="khmer-safe-display block text-2xl font-semibold text-foreground">
                         {translateUiLiteral(language, mode.label)}
                       </span>
                       <span className="mx-auto block max-w-[15rem] text-sm leading-6 text-muted-foreground">

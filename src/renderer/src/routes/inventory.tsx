@@ -560,7 +560,7 @@ export function InventoryRoute() {
 
       {showSkus && filteredSkus.length > 0 ? (
             <WorkspacePanel
-              title={`SKUs (${filteredSkus.length})`}
+              title={translateUiLiteral(language, 'SKUs ({count})', { count: filteredSkus.length })}
               descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
             >
               <div className="grid">

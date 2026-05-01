@@ -26,9 +26,9 @@ type OnboardingStep = 'preferences' | 'interface';
 function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
     Welcome: 'សូមស្វាគមន៍',
-    'Set up banji': 'រៀបចំ បញ្ជី',
+    'Set up banji': 'រៀបចំបញ្ជី',
     'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.':
-      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលប៊ូតុងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
+      'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលការគ្រប់គ្រងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
     'Choose interface view': 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ',
     'Pick how much guidance and status detail banji keeps visible in your workspace.':
       'ជ្រើសរើសថាតើ បញ្ជី ត្រូវបង្ហាញការណែនាំ និងសេចក្តីលម្អិតស្ថានភាពច្រើនប៉ុណ្ណានៅក្នុងកន្លែងធ្វើការ។',
@@ -47,10 +47,12 @@ function onboardingCopy(englishText: string) {
 
 function OptionPrefixLabel({
   fixedPrefixWidth = false,
+  language,
   prefix,
   label,
 }: {
   fixedPrefixWidth?: boolean;
+  language: AppLanguage;
   prefix: string;
   label: string;
 }) {
@@ -58,7 +60,8 @@ function OptionPrefixLabel({
     <span className="inline-flex items-center gap-3">
       <span
         className={cn(
-          'font-mono text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground',
+          'text-xs font-semibold text-muted-foreground',
+          language === 'km' ? 'tracking-normal' : 'font-mono uppercase tracking-[0.18em]',
           fixedPrefixWidth ? 'w-4 shrink-0 text-left' : null,
         )}
       >
@@ -74,12 +77,14 @@ function CyclingOnboardingCopy({
   english,
   khmer,
   itemClassName,
+  khmerItemClassName,
   reserveWidthFor,
 }: {
   className?: string;
   english: ReactNode;
   khmer: ReactNode;
   itemClassName?: string;
+  khmerItemClassName?: string;
   reserveWidthFor?: ReactNode[];
 }) {
   const itemClassNames = cn('flex h-full items-center will-change-transform', itemClassName);
@@ -104,7 +109,7 @@ function CyclingOnboardingCopy({
           {english}
         </span>
         <span
-          className={cn('absolute inset-0', itemClassNames, 'normal-case tracking-normal')}
+          className={cn('absolute inset-0', itemClassNames, 'normal-case tracking-normal', khmerItemClassName)}
           style={{
             animation: `${onboardingCopyKhmerAnimationName} ${onboardingCopyCycleMs}ms linear infinite`,
           }}
@@ -155,6 +160,8 @@ export function OnboardingRoute() {
     ),
     language: onboardingCopy('Language'),
     currency: onboardingCopy('Currency'),
+    english: onboardingCopy('English'),
+    khmer: onboardingCopy('Khmer'),
     interfaceView: onboardingCopy('Interface view'),
     back: onboardingCopy('Back'),
     continue: onboardingCopy('Continue'),
@@ -266,7 +273,15 @@ export function OnboardingRoute() {
             }
           }
         `}</style>
-        <p aria-label={step === 'preferences' ? copy.welcome.en : copy.welcome[interfaceLanguage]} className="text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
+        <p
+          aria-label={step === 'preferences' ? copy.welcome[selectedLanguage] : copy.welcome[interfaceLanguage]}
+          className={cn(
+            'text-xs font-semibold text-primary/80',
+            (step === 'preferences' ? selectedLanguage : interfaceLanguage) === 'km'
+              ? 'tracking-normal'
+              : 'uppercase tracking-[0.24em]',
+          )}
+        >
           {step === 'preferences' ? (
             <CyclingOnboardingCopy
               className="h-[1.35rem]"
@@ -282,7 +297,15 @@ export function OnboardingRoute() {
             />
           )}
         </p>
-        <h1 aria-label={step === 'preferences' ? activeTitle.en : activeTitle[interfaceLanguage]} className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-foreground">
+        <h1
+          aria-label={step === 'preferences' ? activeTitle[selectedLanguage] : activeTitle[interfaceLanguage]}
+          className={cn(
+            'mt-3 text-4xl font-semibold text-foreground',
+            (step === 'preferences' ? selectedLanguage : interfaceLanguage) === 'km'
+              ? 'tracking-normal'
+              : 'tracking-[-0.05em]',
+          )}
+        >
           {step === 'preferences' ? (
             <CyclingOnboardingCopy
               className="h-[3.25rem] md:h-[3.6rem]"
@@ -298,7 +321,7 @@ export function OnboardingRoute() {
             />
           )}
         </h1>
-        <p aria-label={step === 'preferences' ? activeDescription.en : activeDescription[interfaceLanguage]} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+        <p aria-label={step === 'preferences' ? activeDescription[selectedLanguage] : activeDescription[interfaceLanguage]} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
           {step === 'preferences' ? (
             <CyclingOnboardingCopy
               className="h-[5.5rem] md:h-[4rem]"
@@ -318,7 +341,7 @@ export function OnboardingRoute() {
         {step === 'preferences' ? (
           <div className="mt-8 grid gap-5 md:grid-cols-2">
             <div className="grid gap-2">
-              <label aria-label={copy.language.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-language">
+              <label aria-label={copy.language[selectedLanguage]} className="text-sm font-semibold text-foreground" htmlFor="onboarding-language">
                 <CyclingOnboardingCopy
                   className="h-[1.6rem]"
                   english={copy.language.en}
@@ -326,22 +349,22 @@ export function OnboardingRoute() {
                 />
               </label>
               <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as AppLanguage)}>
-                <SelectTrigger id="onboarding-language" className={selectTriggerClassName} aria-label="Language">
+                <SelectTrigger id="onboarding-language" className={selectTriggerClassName} aria-label={copy.language[selectedLanguage]}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="en">
-                    <OptionPrefixLabel prefix="abc" label="English" />
+                    <OptionPrefixLabel language={selectedLanguage} prefix={selectedLanguage === 'km' ? 'អង់' : 'abc'} label={copy.english[selectedLanguage]} />
                   </SelectItem>
                   <SelectItem value="km">
-                    <OptionPrefixLabel prefix="កខគ" label="Khmer" />
+                    <OptionPrefixLabel language={selectedLanguage} prefix="កខគ" label={copy.khmer[selectedLanguage]} />
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="grid gap-2">
-              <label aria-label={copy.currency.en} className="text-sm font-semibold text-foreground" htmlFor="onboarding-currency">
+              <label aria-label={copy.currency[selectedLanguage]} className="text-sm font-semibold text-foreground" htmlFor="onboarding-currency">
                 <CyclingOnboardingCopy
                   className="h-[1.6rem]"
                   english={copy.currency.en}
@@ -349,15 +372,15 @@ export function OnboardingRoute() {
                 />
               </label>
               <Select value={selectedCurrency} onValueChange={(value) => setSelectedCurrency(value as AppCurrency)}>
-                <SelectTrigger id="onboarding-currency" className={selectTriggerClassName} aria-label="Currency">
+                <SelectTrigger id="onboarding-currency" className={selectTriggerClassName} aria-label={copy.currency[selectedLanguage]}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="USD">
-                    <OptionPrefixLabel fixedPrefixWidth prefix="$" label="USD" />
+                    <OptionPrefixLabel fixedPrefixWidth language={selectedLanguage} prefix="$" label="USD" />
                   </SelectItem>
                   <SelectItem value="KHR">
-                    <OptionPrefixLabel fixedPrefixWidth prefix="៛" label="KHR" />
+                    <OptionPrefixLabel fixedPrefixWidth language={selectedLanguage} prefix="៛" label="KHR" />
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -405,7 +428,7 @@ export function OnboardingRoute() {
             className="inline-grid w-fit min-w-0 grid-cols-[auto_auto] items-center gap-2 px-5"
             disabled={isSaving}
             type="button"
-            aria-label={isSaving ? 'Saving' : step === 'preferences' ? copy.continue.en : copy.continue[interfaceLanguage]}
+            aria-label={isSaving ? translateUiLiteral(selectedLanguage, 'Saving') : step === 'preferences' ? copy.continue[selectedLanguage] : copy.continue[interfaceLanguage]}
             onClick={() => void handleContinue()}
           >
             {isSaving ? (

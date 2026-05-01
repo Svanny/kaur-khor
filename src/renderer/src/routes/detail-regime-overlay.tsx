@@ -17,8 +17,26 @@ export function regimeGlyphMode(slotWidth: number): RegimeGlyphMode {
   return 'hidden';
 }
 
-export function regimeInitials(regime: string) {
+export function regimeInitials(regime: string, language: AppLanguage = 'en') {
   const normalized = regime.trim().toLowerCase();
+  if (language === 'km') {
+    if (normalized.includes('stockout')) {
+      return 'អស់';
+    }
+    if (normalized.includes('promo')) {
+      return 'ប្រូ';
+    }
+    if (normalized.includes('spike')) {
+      return 'កើន';
+    }
+    if (normalized.includes('lull')) {
+      return 'ស្ង';
+    }
+    if (normalized.includes('correction')) {
+      return 'កែ';
+    }
+    return 'ធម្ម';
+  }
   if (normalized.includes('stockout')) {
     return 'SC';
   }
@@ -38,9 +56,11 @@ export function regimeInitials(regime: string) {
 }
 
 function RegimeGlyph({
+  language,
   mode,
   regime,
 }: {
+  language: AppLanguage;
   mode: RegimeGlyphMode;
   regime: string;
 }) {
@@ -51,7 +71,7 @@ function RegimeGlyph({
   if (mode === 'initials') {
     return (
       <span className="text-[0.62rem] font-semibold tracking-[0.02em] text-foreground/80">
-        {regimeInitials(regime)}
+        {regimeInitials(regime, language)}
       </span>
     );
   }
@@ -81,7 +101,7 @@ export function DetailRegimeLegendItem({
           regimeTintedSurfaceClassName(regime),
         )}
       >
-        <RegimeGlyph mode="icon" regime={regime} />
+        <RegimeGlyph language={language} mode="icon" regime={regime} />
       </span>
       {translateRegimeLabel(language, regime)}
     </span>
@@ -150,7 +170,7 @@ export function DetailRegimeOverlay({
                 onClick={() => onSelect(interval.intervalIndex)}
               >
                 <span aria-hidden="true" className="mt-2 inline-flex min-h-4 items-center justify-center">
-                  <RegimeGlyph mode={glyphMode} regime={interval.dominantRegime} />
+                  <RegimeGlyph language={language} mode={glyphMode} regime={interval.dominantRegime} />
                 </span>
               </button>
             </TooltipTrigger>

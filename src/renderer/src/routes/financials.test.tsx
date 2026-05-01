@@ -16,7 +16,7 @@ const preferenceState = {
   t: (
     key: Parameters<typeof getTranslation>[1],
     variables?: Parameters<typeof getTranslation>[2],
-  ) => getTranslation('en', key, variables),
+  ) => getTranslation(preferenceState.language, key, variables),
 };
 
 vi.mock('@/state/inventory', () => ({
@@ -339,6 +339,16 @@ describe('FinancialsRoute', () => {
     expect(screen.getByRole('heading', { name: 'Economic contributors' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Money quality bands' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Move now' })).not.toBeInTheDocument();
+  });
+
+  test('keeps Khmer Money terminology aligned between route title and title-adjacent labels', () => {
+    preferenceState.language = 'km';
+
+    renderRoute();
+
+    expect(screen.getAllByText('ហិរញ្ញវត្ថុ').length).toBeGreaterThan(0);
+    expect(screen.queryByText('លំហូរសាច់ប្រាក់')).not.toBeInTheDocument();
+    expect(screen.queryByText('Money')).not.toBeInTheDocument();
   });
 
   test('redirects financials when insights are disabled', () => {

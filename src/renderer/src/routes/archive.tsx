@@ -201,7 +201,7 @@ export function ArchiveRoute() {
       <div className="grid gap-6">
         {showSkus && archivedSkus.length > 0 ? (
           <WorkspacePanel
-            title={`SKUs (${archivedSkus.length})`}
+            title={translateUiLiteral(language, 'SKUs ({count})', { count: archivedSkus.length })}
             descriptor={translateUiLiteral(
               language,
               'Archived stock-carrying items stay in banji history but stay hidden from active workspaces.',

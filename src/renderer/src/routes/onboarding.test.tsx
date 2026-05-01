@@ -172,15 +172,15 @@ describe('OnboardingRoute', () => {
 
     fireEvent.click(await screen.findByRole('combobox', { name: 'Language' }));
     fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
-    fireEvent.click(screen.getByRole('combobox', { name: 'Currency' }));
+    fireEvent.click(screen.getByRole('combobox', { name: 'រូបិយប័ណ្ណ' }));
     fireEvent.click(screen.getByRole('option', { name: /KHR/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByRole('button', { name: 'បន្ត' }));
 
     fireEvent.click(await screen.findByRole('button', { name: 'ត្រឡប់ក្រោយ' }));
 
     expect(savePreferences).not.toHaveBeenCalled();
-    expect(await screen.findByRole('combobox', { name: 'Language' })).toHaveTextContent('Khmer');
-    expect(screen.getByRole('combobox', { name: 'Currency' })).toHaveTextContent('KHR');
+    expect(await screen.findByRole('combobox', { name: 'ភាសា' })).toHaveTextContent('ខ្មែរ');
+    expect(screen.getByRole('combobox', { name: 'រូបិយប័ណ្ណ' })).toHaveTextContent('KHR');
   });
 
   it('renders Khmer interface view cards for Khmer onboarding', async () => {
@@ -191,7 +191,7 @@ describe('OnboardingRoute', () => {
 
     renderRoute();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'បន្ត' }));
 
     expect(await screen.findByRole('heading', { name: 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Choose interface view' })).not.toBeInTheDocument();
@@ -201,6 +201,45 @@ describe('OnboardingRoute', () => {
     expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពសាមញ្ញ' })).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពពេញលេញ' })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: 'ទិដ្ឋភាពផ្ទាល់ខ្លួន' })).not.toBeInTheDocument();
+  });
+
+  it('uses corrected Khmer onboarding copy for controls and brand spacing', async () => {
+    getPreferences.mockResolvedValue({
+      ...basePreferences,
+      language: 'km',
+    });
+
+    renderRoute();
+
+    expect(await screen.findByText('រៀបចំបញ្ជី')).toBeInTheDocument();
+    expect(screen.getByText('ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលការគ្រប់គ្រងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'រៀបចំបញ្ជី' })).not.toHaveClass('tracking-[-0.05em]');
+    expect(screen.queryByText(/ប៊ូតុងនីមួយៗ/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/រៀបចំ បញ្ជី/)).not.toBeInTheDocument();
+  });
+
+  it('localizes Khmer preference combobox names and option labels', async () => {
+    getPreferences.mockResolvedValue({
+      ...basePreferences,
+      language: 'km',
+    });
+
+    renderRoute();
+
+    const languageCombobox = await screen.findByRole('combobox', { name: 'ភាសា' });
+    expect(languageCombobox).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'រូបិយប័ណ្ណ' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Currency' })).not.toBeInTheDocument();
+
+    fireEvent.click(languageCombobox);
+
+    expect(screen.getByRole('option', { name: /អង់គ្លេស/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /ខ្មែរ/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /English/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /Khmer/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('abc')).not.toBeInTheDocument();
+    expect(screen.getByText('អង់')).not.toHaveClass('font-mono', 'uppercase', 'tracking-[0.18em]');
   });
 
   it('renders full-height onboarding wireframes without scaled-down previews', async () => {

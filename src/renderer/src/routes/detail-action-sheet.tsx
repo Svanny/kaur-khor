@@ -12,11 +12,13 @@ export function ActionSheetField({
   children,
   description,
   error,
+  errorFlashKey,
   label,
 }: {
   children: ReactNode;
   description?: ReactNode;
   error?: string | null;
+  errorFlashKey?: number;
   label: string;
 }) {
   return (
@@ -25,7 +27,7 @@ export function ActionSheetField({
       <FieldContent className="gap-2">
         {children}
         {description ? <FieldDescription className="text-xs leading-6">{description}</FieldDescription> : null}
-        <FieldError>{error}</FieldError>
+        <FieldError errorFlashKey={errorFlashKey}>{error}</FieldError>
       </FieldContent>
     </Field>
   );

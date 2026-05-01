@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ActionOpenExternalIcon } from '@icons/actions';
 import { StatusInsightIcon } from '@icons/status';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -47,6 +47,44 @@ export function WorkspacePage({
   );
 }
 
+export function useWorkspaceWindowMinHeight<T extends HTMLElement>(dependencyKey: string | number | boolean | null = null) {
+  const ref = useRef<T | null>(null);
+  const [minHeight, setMinHeight] = useState<number | null>(null);
+
+  useLayoutEffect(() => {
+    const windowRoot = ref.current;
+    const main = document.getElementById('main-content');
+    if (!windowRoot || !main) {
+      setMinHeight(null);
+      return;
+    }
+
+    const updateMinHeight = () => {
+      const mainBounds = main.getBoundingClientRect();
+      const windowBounds = windowRoot.getBoundingClientRect();
+      const nextMinHeight = Math.max(0, Math.floor(mainBounds.bottom - windowBounds.top - 20));
+      setMinHeight((current) => (current === nextMinHeight ? current : nextMinHeight));
+    };
+
+    const frameId = window.requestAnimationFrame(updateMinHeight);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateMinHeight);
+    observer?.observe(main);
+    observer?.observe(windowRoot);
+    window.addEventListener('resize', updateMinHeight);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer?.disconnect();
+      window.removeEventListener('resize', updateMinHeight);
+    };
+  }, [dependencyKey]);
+
+  return {
+    ref,
+    style: minHeight != null ? { minHeight } : undefined,
+  };
+}
+
 export function WorkspacePageTitle({
   className,
   children,
@@ -55,7 +93,7 @@ export function WorkspacePageTitle({
   children: ReactNode;
 }) {
   return (
-    <span className={cn('text-4xl font-semibold tracking-[-0.05em] text-foreground', className)}>
+    <span className={cn('khmer-safe-display text-4xl font-semibold tracking-[-0.05em] text-foreground', className)}>
       {children}
     </span>
   );
@@ -100,12 +138,12 @@ export function WorkspaceTitleCard({
         <CardHeader className={cn('relative gap-4', !showDescription && 'gap-2')}>
           <div className={cn('flex flex-col gap-3', !showDescription && 'gap-2')}>
             {eyebrow ? (
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
+              <p className="khmer-safe-eyebrow text-[0.68rem] font-semibold uppercase tracking-[0.24em] text-primary/85">
                 {eyebrow}
               </p>
             ) : null}
             <div className="flex min-w-0 max-w-none flex-col gap-3">
-              <CardTitle className="text-3xl leading-tight tracking-[-0.04em] sm:text-4xl">
+              <CardTitle className="khmer-safe-display text-3xl font-semibold leading-tight tracking-[-0.04em] sm:text-4xl">
                 {title}
               </CardTitle>
               {showDescription ? (
@@ -166,10 +204,10 @@ export function MetricCard({
   return (
     <Card className="border-white/70">
       <CardHeader className="gap-1">
-        <CardDescription className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+        <CardDescription className="khmer-safe-label text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
           {label}
         </CardDescription>
-        <CardTitle className="text-3xl tracking-[-0.04em]">{value}</CardTitle>
+        <CardTitle className="khmer-safe-display text-3xl tracking-[-0.04em]">{value}</CardTitle>
       </CardHeader>
       {detail || emphasis ? (
         <CardFooter className="justify-between gap-3 border-t border-border/60 pt-4 text-sm text-muted-foreground">
@@ -321,7 +359,7 @@ export function SectionEyebrow({
   className?: string;
 }) {
   return (
-    <p className={cn('text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground', className)}>
+    <p className={cn('khmer-safe-label text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-muted-foreground', className)}>
       {children}
     </p>
   );

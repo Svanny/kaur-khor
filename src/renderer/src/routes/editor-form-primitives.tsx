@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { DescriptionText } from '@/components/system/description-text';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { SectionLabel } from './sku-detail/section-heading';
 
 export const editorInputClassName = 'h-14 w-full rounded-xl border border-border bg-background px-3 py-2';
@@ -11,6 +12,7 @@ type EditorFieldBaseProps = {
   helper?: string;
   hint?: string;
   error?: string;
+  errorFlashKey?: number;
   status?: ReactNode;
   children: ReactNode;
 };
@@ -25,6 +27,7 @@ export function EditorField({
   helper,
   hint,
   error,
+  errorFlashKey,
   status,
   tooltip,
   helpHref,
@@ -36,7 +39,7 @@ export function EditorField({
         {tooltip ? <SectionLabel helpHref={helpHref} tooltip={tooltip}>{label}</SectionLabel> : label}
       </span>
       {children}
-      {error ? <span className="text-xs leading-5 text-destructive">{error}</span> : null}
+      {error ? <SaveErrorFlash className="text-xs leading-5 text-destructive" flashKey={errorFlashKey}>{error}</SaveErrorFlash> : null}
       {!error && helper ? <span className="text-xs leading-5 text-muted-foreground">{helper}</span> : null}
       {!error && hint ? <DescriptionText as="span" className="text-xs leading-5 text-muted-foreground">{hint}</DescriptionText> : null}
       {status ? <span className="text-xs leading-5 text-foreground">{status}</span> : null}
