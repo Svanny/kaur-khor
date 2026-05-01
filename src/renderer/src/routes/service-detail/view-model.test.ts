@@ -127,6 +127,60 @@ describe('deriveServiceDetailViewModel', () => {
     expect(model.rail.recoveryPath).toContain('Razor refill · order 15u');
   });
 
+  test('localizes compact service recovery labels in Khmer mode', () => {
+    const khmerSnapshot: InventorySnapshot = {
+      ...snapshot,
+      skus: [
+        {
+          ...snapshot.skus[0],
+          name: 'ដាវកោរ',
+        },
+      ],
+    };
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail,
+      language: 'km',
+      observations: [
+        {
+          observationId: 'obs-order',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T08:00:00.000Z',
+            stockSnapshot: [],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [{
+              approximateOrderQuantity: 15,
+              approximateReceiptQuantity: null,
+              orderPlaced: true,
+              receiptArrived: false,
+              skuId: 'sku-razor',
+            }],
+            servicePrices: [],
+            retailPrices: [],
+            leadTimeHints: [],
+            adjustmentSignals: [],
+            recipeUsageHints: [],
+            notes: null,
+          },
+        },
+      ],
+      reports: [],
+      service,
+      snapshot: khmerSnapshot,
+      workspaceSummary,
+    });
+
+    const restockGuidance = model.contributors[0]?.restockGuidance ?? '';
+    const recoveryPath = model.rail.recoveryPath.join(' ');
+    expect(restockGuidance).toContain('បញ្ជាទិញ 15 ឯកតា');
+    expect(recoveryPath).toContain('1 ថ្ងៃ');
+    expect(/[A-Za-z]/.test(`${restockGuidance} ${recoveryPath}`)).toBe(false);
+  });
+
   test('orders contributor roles from the strongest limiting probability signal', () => {
     const serviceWithThreeLinks: ServiceRecord = {
       ...service,

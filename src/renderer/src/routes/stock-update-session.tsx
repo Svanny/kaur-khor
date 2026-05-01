@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react';
+import { createContext, useCallback, useContext, useDeferredValue, useEffect, useMemo, useRef, useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Dialog as DialogPrimitive } from 'radix-ui';
@@ -131,6 +131,7 @@ import { StepWizard } from '@/components/system/step-wizard';
 import { ServiceIdentityCell, SkuIdentityCell, SupplierFilter } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import {
   currentInternalNavigationPath,
@@ -248,6 +249,23 @@ const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WOR
 const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
 const CAPTURE_TARGET_FLASH_MS = 1800;
 const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1] motion-reduce:ring-primary/60';
+const SaveErrorFlashKeyContext = createContext(0);
+
+function RecordUpdateSaveErrorFlash({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  const flashKey = useContext(SaveErrorFlashKeyContext);
+
+  return (
+    <SaveErrorFlash as="p" className={cn('text-sm text-destructive', className)} flashKey={flashKey}>
+      {children}
+    </SaveErrorFlash>
+  );
+}
 
 interface PosWorkbenchTile {
   key: string;
@@ -3545,7 +3563,7 @@ function StockCountStep({
       }
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} />
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoSkusHelper')}</p>
@@ -3643,7 +3661,7 @@ function StockCostStep(props: {
       title={<SectionLabel helpHref="/settings/help#record-update-stock-cost" tooltip={t('stockUpdateCostStepTooltip')} tooltipLabel={t('stockUpdateCostIfChanged')}>{t('stockUpdateCostIfChanged')}</SectionLabel>}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateCostStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateCostStepQuestion')} />
         {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
@@ -3740,7 +3758,7 @@ function StockRetailPriceStep(props: {
       title={<SectionLabel helpHref="/settings/help#record-update-retail-price" tooltip={t('stockUpdateRetailPriceStepTooltip')} tooltipLabel={t('stockUpdateRetailPriceIfChanged')}>{t('stockUpdateRetailPriceIfChanged')}</SectionLabel>}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateRetailPriceStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateRetailPriceStepQuestion')} />
         {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
@@ -3857,7 +3875,7 @@ function StockFlagsStep(props: {
       title={<SectionLabel helpHref="/settings/help#record-update-sku-flags" tooltip={t('stockUpdateSkuFlagsTooltip')} tooltipLabel={t('stockUpdateSkuFlagsTooltipLabel')}>{t('stockUpdateAddFlags')}</SectionLabel>}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <OptionalStockDecisionCard choice={choice} helper={t('stockUpdateFlagsStepHelper')} onNo={onChooseNo} onYes={onChooseYes} question={t('stockUpdateFlagsStepQuestion')} />
         {choice === 'yes' ? <RecordUpdateFilterRow supplierFilterControl={supplierFilterControl} /> : null}
         {choice === 'yes' ? (
@@ -4046,7 +4064,7 @@ function CustomerPendingRetailStep({
       title={translateUiLiteral(language, 'Open retail / sellable SKU orders')}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         {retailSkuIds.length === 0 ? (
           <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No sellable SKUs available.')}</p>
@@ -4158,7 +4176,7 @@ function CustomerPendingServiceStep({
       title={translateUiLiteral(language, 'Open service orders')}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         {serviceIds.length === 0 ? (
           <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No services available.')}</p>
@@ -4302,7 +4320,7 @@ function SalesRetailStep({
       title={resolvedTitle}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         <OptionalStockDecisionCard
           choice={choice}
@@ -4466,7 +4484,7 @@ function SalesServiceStep({
       title={resolvedTitle}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         <RecordUpdateFilterRow stateFilterControl={filterControl} supplierFilterControl={supplierFilterControl} />
         <OptionalStockDecisionCard
           choice={choice}
@@ -4659,7 +4677,7 @@ function RecordOrderStep({
       title={translateUiLiteral(language, 'Reorder table')}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No SKUs are in the catalog yet. Add a SKU first if you need to record a reorder.')}</p>
         ) : (
@@ -4797,7 +4815,7 @@ function RecordReceiptStep({
       title={translateUiLiteral(language, 'Record receipt')}
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         {(catalog?.skus ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{translateUiLiteral(language, 'No SKUs are in the catalog yet. Add a SKU first if you need to record a receipt.')}</p>
         ) : (
@@ -5182,7 +5200,7 @@ function ServiceSignalsStep({
       }
     >
       <div className="grid gap-3">
-        {guidance ? <p className="text-sm text-destructive">{guidance}</p> : null}
+        {guidance ? <RecordUpdateSaveErrorFlash>{guidance}</RecordUpdateSaveErrorFlash> : null}
         {(catalog?.services ?? []).length === 0 ? (
           <p className="text-sm text-muted-foreground">{t('stockUpdateNoServicesHelper')}</p>
         ) : (
@@ -5468,9 +5486,9 @@ function ReviewStep({
         {blockers.length > 0 ? (
           <div className="grid gap-2">
             {blockers.map((blocker) => (
-              <p key={blocker} className="text-sm text-destructive">
+              <RecordUpdateSaveErrorFlash key={blocker}>
                 {blocker}
-              </p>
+              </RecordUpdateSaveErrorFlash>
             ))}
           </div>
         ) : null}
@@ -5517,9 +5535,9 @@ function ReviewStep({
           <p className="text-sm text-muted-foreground">{t('stockUpdateServicePriceSaved')}</p>
         ) : null}
         {error ? (
-          <p className="rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <RecordUpdateSaveErrorFlash className="rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3">
             {error}
-          </p>
+          </RecordUpdateSaveErrorFlash>
         ) : null}
       </div>
     </WorkspacePanel>
@@ -5704,6 +5722,7 @@ export function StockUpdateSessionRoute() {
   const [retailRankings, setRetailRankings] = useState<string[]>([]);
   const [debugCellBoundaries, setDebugCellBoundaries] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [hasSavedDraft, setHasSavedDraft] = useState(() => hasStoredStockUpdateDraft(draftStorageKey));
   const [draftWasRestored, setDraftWasRestored] = useState(false);
   const [leaveDraftDialogOpen, setLeaveDraftDialogOpen] = useState(false);
@@ -8158,6 +8177,13 @@ export function StockUpdateSessionRoute() {
       ? [t('stockUpdateGuidanceFirstUpdateNeedsCount')]
       : []),
   ];
+  const hasVisibleSaveErrors = Boolean(stepGuidance) || reviewBlockers.length > 0 || Boolean(error);
+
+  function flashVisibleSaveErrors() {
+    if (hasVisibleSaveErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
+    }
+  }
 
   function selectStep(stepId: StockUpdateStepId) {
     const targetIndex = activeStepOrder.indexOf(stepId);
@@ -8246,6 +8272,7 @@ export function StockUpdateSessionRoute() {
     setServiceRankings([]);
     setRetailRankings([]);
     setError(null);
+    setSaveErrorFlashKey(0);
   }
 
   function clearCurrentSession() {
@@ -8292,6 +8319,7 @@ export function StockUpdateSessionRoute() {
     const validationError = submitValidationError(payload);
     if (validationError) {
       setError(validationError);
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
@@ -8415,6 +8443,7 @@ export function StockUpdateSessionRoute() {
       }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
 
@@ -8441,6 +8470,7 @@ export function StockUpdateSessionRoute() {
     const validationError = submitValidationError(payload);
     if (validationError) {
       setError(validationError);
+      setSaveErrorFlashKey((current) => current + 1);
       return;
     }
     if (sessionViewMode === 'pos') {
@@ -8514,6 +8544,8 @@ export function StockUpdateSessionRoute() {
       }
 
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       queueNavigation(() => navigate(nextPath));
     }
 
@@ -8569,10 +8601,12 @@ export function StockUpdateSessionRoute() {
         </Button>
       ) : null}
       {isLastStep ? (
-        <Button disabled={submitDisabled} form="stock-update-session-form" type="submit">
-          <ActionSaveIcon className="size-4" />
-          {isSaving ? t('catalogSenaSkuSaving') : t('stockDone')}
-        </Button>
+        <span className="inline-flex" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+          <Button disabled={submitDisabled} form="stock-update-session-form" type="submit">
+            <ActionSaveIcon className="size-4" />
+            {isSaving ? t('catalogSenaSkuSaving') : t('stockDone')}
+          </Button>
+        </span>
       ) : (
         <Button disabled={!canContinueCurrentStep} type="button" onClick={goToNextStep}>
           {t('stockSessionNext')}
@@ -8642,21 +8676,23 @@ export function StockUpdateSessionRoute() {
           <ActionDeleteIcon className="size-4" />
           {t('stockUpdateDiscardChanges')}
         </Button>
-        <Button
-          disabled={submitDisabled}
-          form="stock-update-session-form"
-          type="submit"
-          onClick={(event) => {
-            if (!workbenchReorderMode) {
-              return;
-            }
-            event.preventDefault();
-            requestWorkbenchReorderPrompt();
-          }}
-        >
-          <EntityReceiptDocumentIcon className="size-4" />
-          {isSaving ? t('catalogSenaSkuSaving') : captureReviewActionLabel}
-        </Button>
+        <span className="inline-flex" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+          <Button
+            disabled={submitDisabled}
+            form="stock-update-session-form"
+            type="submit"
+            onClick={(event) => {
+              if (!workbenchReorderMode) {
+                return;
+              }
+              event.preventDefault();
+              requestWorkbenchReorderPrompt();
+            }}
+          >
+            <EntityReceiptDocumentIcon className="size-4" />
+            {isSaving ? t('catalogSenaSkuSaving') : captureReviewActionLabel}
+          </Button>
+        </span>
       </WorkspaceActionRow>
     );
   }
@@ -10279,6 +10315,7 @@ export function StockUpdateSessionRoute() {
     ) : null;
 
   return (
+    <SaveErrorFlashKeyContext.Provider value={saveErrorFlashKey}>
     <WorkspacePage className="relative pb-32 md:pb-36">
       {isCustomerPendingLane ? (
         <TicketEntryPrompt
@@ -10346,9 +10383,9 @@ export function StockUpdateSessionRoute() {
       {discardConfirmDialog}
       <ConfirmActionDialog
         cancelLabel={translateUiLiteral(language, 'Keep editing')}
-        confirmLabel={translateUiLiteral(language, 'Save draft and leave')}
+        confirmLabel={translateUiLiteral(language, 'Save draft')}
         confirmVariant="default"
-        destructiveActionLabel={translateUiLiteral(language, 'Discard changes and leave')}
+        destructiveActionLabel={translateUiLiteral(language, 'Discard changes')}
         description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
         open={leaveDraftDialogOpen}
         title={translateUiLiteral(language, 'Leave record update?')}
@@ -10733,9 +10770,9 @@ export function StockUpdateSessionRoute() {
 
                     <div className="grid gap-2">
                       {error ? (
-                        <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-3 text-sm text-destructive">
+                        <RecordUpdateSaveErrorFlash className="rounded-2xl border border-destructive/30 bg-destructive/10 px-3 py-3">
                           {error}
-                        </p>
+                        </RecordUpdateSaveErrorFlash>
                       ) : null}
                       {reviewBlockers.length > 0 ? (
                         <div className="grid gap-2">
@@ -10758,21 +10795,23 @@ export function StockUpdateSessionRoute() {
                           <ActionDeleteIcon className="size-4" />
                           {translateUiLiteral(language, 'Clear session')}
                         </Button>
-                        <Button
-                          disabled={submitDisabled}
-                          form="stock-update-session-form"
-                          type="submit"
-                          onClick={(event) => {
-                            if (!workbenchReorderMode) {
-                              return;
-                            }
-                            event.preventDefault();
-                            requestWorkbenchReorderPrompt();
-                          }}
-                        >
-                          <EntityReceiptDocumentIcon className="size-4" />
-                          {isSaving ? t('catalogSenaSkuSaving') : posReviewActionLabel}
-                        </Button>
+                        <span className="inline-flex" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+                          <Button
+                            disabled={submitDisabled}
+                            form="stock-update-session-form"
+                            type="submit"
+                            onClick={(event) => {
+                              if (!workbenchReorderMode) {
+                                return;
+                              }
+                              event.preventDefault();
+                              requestWorkbenchReorderPrompt();
+                            }}
+                          >
+                            <EntityReceiptDocumentIcon className="size-4" />
+                            {isSaving ? t('catalogSenaSkuSaving') : posReviewActionLabel}
+                          </Button>
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -11244,5 +11283,6 @@ export function StockUpdateSessionRoute() {
       </Sheet>
       {sessionViewMode === 'form' ? bottomNavigationIsland : null}
     </WorkspacePage>
+    </SaveErrorFlashKeyContext.Provider>
   );
 }

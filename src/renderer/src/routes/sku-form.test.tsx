@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import * as senaCatalog from '@/lib/sena-catalog';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { leadTimeVariabilityLabel } from '@shared/sena-lead-time';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuFormRoute } from './sku-form';
 
@@ -127,6 +127,16 @@ function renderWithProviders(
         </Routes>
       </NavigationHistoryProvider>
     </MemoryRouter>,
+  );
+}
+
+function ImperativeCatalogLink() {
+  const navigate = useNavigate();
+
+  return (
+    <Link to="/catalog" onClick={() => navigate('/catalog')}>
+      Catalog
+    </Link>
   );
 }
 
@@ -825,11 +835,17 @@ describe('SkuFormRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
-    expect(screen.getByText('Enter a SKU name before saving.')).toBeInTheDocument();
+    const nameError = screen.getByText('Enter a SKU name before saving.');
+    expect(nameError).toBeInTheDocument();
+    expect(nameError).toHaveAttribute('data-error-flash-key', '1');
+    expect(nameError).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
     expect(screen.getByText('Choose or enter a supplier before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
     expect(screen.getAllByText('Enter uncertainty days or choose a lead time variability before saving.')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+    expect(screen.getByText('Enter a SKU name before saving.')).toHaveAttribute('data-error-flash-key', '2');
   });
 
   test('blocks edit save when required SKU fields are cleared', async () => {
@@ -878,6 +894,39 @@ describe('SkuFormRoute', () => {
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
   });
 
+  test('localizes invalid SKU money validation in Khmer mode', async () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('km', key as never),
+    });
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        skus: [{ ...sampleCatalog.skus[0], costPerUnit: -4, productPrice: -9 }],
+      },
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: translateUiLiteral('km', 'Save changes') }));
+
+    const costError = translateUiLiteral('km', 'Enter a non-negative finite cost before saving.');
+    const priceError = translateUiLiteral('km', 'Enter a non-negative finite selling price before saving.');
+    expect(screen.getByText(costError)).toBeInTheDocument();
+    expect(screen.getByText(priceError)).toBeInTheDocument();
+    expect(/[A-Za-z]/.test(`${costError} ${priceError}`)).toBe(false);
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
   test('blocks edit save when SKU product price draft is negative', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -895,6 +944,44 @@ describe('SkuFormRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
+  test('localizes catalog image controls in Khmer mode', () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('km', key as never),
+    });
+
+    renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    const details = translateUiLiteral('km', 'Details');
+    const picture = translateUiLiteral('km', 'Picture');
+    const helper = translateUiLiteral(
+      'km',
+      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. banji will show it on supported item surfaces.',
+    );
+    const noPicture = translateUiLiteral('km', 'No picture selected.');
+    const chooseImage = translateUiLiteral('km', 'Choose image');
+    expect(screen.getByRole('button', { name: details })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Details' })).not.toBeInTheDocument();
+    expect(screen.getByText(picture)).toBeInTheDocument();
+    expect(screen.getByText(helper)).toBeInTheDocument();
+    expect(screen.getByText(noPicture)).toBeInTheDocument();
+    expect(findButtonByText(chooseImage)).toBeInTheDocument();
+    expect(screen.queryByText('Picture')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. banji will show it on supported item surfaces.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('No picture selected.')).not.toBeInTheDocument();
+    expect(findButtonByText('Choose image')).toBeUndefined();
+    expect(/[A-Za-z]/.test(`${details} ${picture} ${helper} ${noPicture} ${chooseImage}`)).toBe(false);
   });
 
   test('formats commercial number drafts with commas while saving numeric values', async () => {
@@ -1051,6 +1138,32 @@ describe('SkuFormRoute', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+
+  test('blocks custom link handlers while asking before leaving with unsaved SKU changes', async () => {
+    renderWithProviders(
+      '/catalog/skus/sku-1/edit',
+      <>
+        <ImperativeCatalogLink />
+        <SkuFormRoute />
+      </>,
+      '/catalog/skus/:skuId/edit',
+    );
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Updated' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Discard changes?');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
+    expect(screen.getByDisplayValue('SKU 1 Updated')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
     });
   });
 

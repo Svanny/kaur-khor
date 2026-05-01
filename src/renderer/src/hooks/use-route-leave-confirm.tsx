@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ActionSaveIcon } from '@icons/actions';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
+import { translateUiLiteral } from '@/lib/translations';
+import { usePreferences } from '@/state/preferences';
 
 const DEFAULT_DISCARD_TITLE = 'Discard changes?';
 const DEFAULT_DISCARD_CONFIRM_LABEL = 'Discard changes';
@@ -68,6 +70,17 @@ export function useDiscardChangesConfirm({
   onDiscard?: () => void;
   onSave?: SaveBeforeContinueHandler;
 }) {
+  const { language } = usePreferences();
+  const resolvedTitle = title === DEFAULT_DISCARD_TITLE ? translateUiLiteral(language, DEFAULT_DISCARD_TITLE) : title;
+  const resolvedConfirmLabel = confirmLabel === DEFAULT_DISCARD_CONFIRM_LABEL
+    ? translateUiLiteral(language, DEFAULT_DISCARD_CONFIRM_LABEL)
+    : confirmLabel;
+  const resolvedCancelLabel = cancelLabel === DEFAULT_DISCARD_CANCEL_LABEL
+    ? translateUiLiteral(language, DEFAULT_DISCARD_CANCEL_LABEL)
+    : cancelLabel;
+  const resolvedSaveLabel = saveLabel === DEFAULT_DISCARD_SAVE_LABEL
+    ? translateUiLiteral(language, DEFAULT_DISCARD_SAVE_LABEL)
+    : saveLabel;
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const pendingActionRef = useRef<(() => void) | null>(null);
@@ -141,16 +154,16 @@ export function useDiscardChangesConfirm({
     requestDiscard,
     discardConfirmDialog: (
       <ConfirmActionDialog
-        cancelLabel={cancelLabel}
+        cancelLabel={resolvedCancelLabel}
         confirmIcon={onSave ? <ActionSaveIcon data-icon="inline-start" /> : undefined}
-        confirmLabel={onSave ? saveLabel : confirmLabel}
+        confirmLabel={onSave ? resolvedSaveLabel : resolvedConfirmLabel}
         confirmVariant={onSave ? 'default' : 'destructive'}
-        destructiveActionLabel={onSave ? confirmLabel : undefined}
+        destructiveActionLabel={onSave ? resolvedConfirmLabel : undefined}
         description={description}
         isConfirmDisabled={onSave ? isSaveDisabled : false}
         isSubmitting={isSaving}
         open={open}
-        title={title}
+        title={resolvedTitle}
         onCancel={cancelDiscard}
         onConfirm={onSave ? () => { void saveAndContinue(); } : confirmDiscard}
         onDestructiveAction={onSave ? confirmDiscard : undefined}
@@ -218,6 +231,8 @@ export function useRouteLeaveConfirm({
       }
 
       event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
       requestDiscardRef.current(() => navigate(nextPath));
     }
 

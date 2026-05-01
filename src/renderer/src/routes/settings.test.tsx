@@ -405,6 +405,138 @@ describe('SettingsRoute', () => {
     });
   });
 
+  it('renders the interface visibility page in Khmer without English card or toggle copy', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'km',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+        automations: true,
+      },
+    });
+
+    renderSettingsRoute('/settings/interface');
+
+    expect(await screen.findByRole('radiogroup', { name: 'របៀបទិដ្ឋភាពបង្ហាញ' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពលំនាំដើម' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពសាមញ្ញ' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពពេញលេញ' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'ទិដ្ឋភាពផ្ទាល់ខ្លួន' })).toBeInTheDocument();
+    expect(screen.getByText('ការណែនាំស្រេចចិត្ត')).toBeInTheDocument();
+    expect(screen.getByText('សកម្មភាពទំព័រអណ្តែត')).toBeInTheDocument();
+    expect(screen.getByText('ផ្ទាំងបរិបទខាងស្តាំ')).toBeInTheDocument();
+    expect(screen.getByText('ផ្ទាំងតម្រងជួរការងារ')).toBeInTheDocument();
+    expect(screen.getByText('បង្ហាញស្លាកពន្យល់ស្រេចចិត្ត អត្ថបទជំនួយ និងគន្លឹះជំនួយ។ ការណែនាំវាលចាំបាច់នៅតែមើលឃើញ។')).toBeInTheDocument();
+
+    expect(screen.queryByRole('radiogroup', { name: 'Display view mode' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Default View')).not.toBeInTheDocument();
+    expect(screen.queryByText('Minimal View')).not.toBeInTheDocument();
+    expect(screen.queryByText('Maximal View')).not.toBeInTheDocument();
+    expect(screen.queryByText('Custom View')).not.toBeInTheDocument();
+    expect(screen.queryByText('Optional guidance')).not.toBeInTheDocument();
+    expect(screen.queryByText('Floating page actions')).not.toBeInTheDocument();
+    expect(screen.queryByText('Right-side context panels')).not.toBeInTheDocument();
+    expect(screen.queryByText('Work queue filter tabs')).not.toBeInTheDocument();
+  });
+
+  it('renders Khmer currency option names with currency codes as secondary text', async () => {
+    getPreferences.mockResolvedValue({
+      language: 'km',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      displayViewMode: 'custom',
+      itemImageMode: 'small',
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showOverviewTaskTabs: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      showPerformanceCompareToggle: true,
+      showPerformanceTimelineCard: true,
+      showLogsViewToggle: true,
+      showHeartbeatRibbons: true,
+      taskBatchUpdatePreferences: {
+        logOrder: 'ask',
+        updateEta: 'ask',
+        followUp: 'ask',
+        receive: 'ask',
+        review: 'ask',
+      },
+      customShowExplanatoryTooltips: true,
+      customShowFloatingTitleActions: true,
+      customShowRightRailCards: true,
+      customShowOverviewTaskTabs: true,
+      customShowAutomationsPage: true,
+      customShowAnalysisPage: true,
+      customShowPerformanceCompareToggle: true,
+      customShowPerformanceTimelineCard: true,
+      customShowLogsViewToggle: true,
+      customShowHeartbeatRibbons: true,
+      senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: '2026-04-10T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: true,
+        operations: true,
+        performance: true,
+        financials: true,
+        automations: true,
+      },
+    });
+
+    renderSettingsRoute('/settings/workspace');
+
+    const currencySelect = await screen.findByRole('combobox', { name: 'រូបិយប័ណ្ណ' });
+    expect(currencySelect).toHaveTextContent('ដុល្លារអាមេរិក');
+    expect(currencySelect).toHaveTextContent('USD');
+
+    fireEvent.click(currencySelect);
+
+    expect(await screen.findByRole('option', { name: /USD.*ដុល្លារអាមេរិក/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /KHR.*រៀលខ្មែរ/ })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'USD' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'KHR' })).not.toBeInTheDocument();
+  });
+
   it('keeps the onboarding injector hidden by default', async () => {
     renderSettingsRoute('/settings/workspace');
 
@@ -841,6 +973,27 @@ describe('SettingsRoute', () => {
     });
   });
 
+  it('localizes workspace preference labels in Khmer', async () => {
+    renderSettingsRoute();
+
+    const [languageSelect] = await screen.findAllByRole('combobox');
+    fireEvent.click(languageSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'កខគKhmer' }));
+
+    expect(await screen.findByText('ចំណូលចិត្តតំបន់')).toBeInTheDocument();
+    expect(screen.getByText('រូបភាពធាតុ')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'ទំហំរូបភាពធាតុ' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'បន្ថយពន្លឺក្រាបពេលកំពុងផ្ទុក' })).toBeInTheDocument();
+    expect(screen.getByText('លំនាំដើមសកម្មភាពជួរការងារ')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'កត់ត្រាការបញ្ជាទិញពីអ្នកផ្គត់ផ្គង់' })).toBeInTheDocument();
+    expect(screen.getByText('ខ្មែរ')).toBeInTheDocument();
+    expect(screen.queryByText('Regional preferences')).not.toBeInTheDocument();
+    expect(screen.queryByText('Item pictures')).not.toBeInTheDocument();
+    expect(screen.queryByText('Chart loading')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dim charts while loading')).not.toBeInTheDocument();
+    expect(screen.queryByText('Work queue action defaults')).not.toBeInTheDocument();
+  });
+
   it('renders and saves language and currency through the shared select controls', async () => {
     savePreferences.mockImplementation(async (payload) => ({
       language: payload.language ?? 'en',
@@ -882,7 +1035,7 @@ describe('SettingsRoute', () => {
 
     expect(currencySelect).toHaveTextContent('USD');
     fireEvent.click(currencySelect);
-    fireEvent.click(screen.getByRole('option', { name: 'KHR' }));
+    fireEvent.click(screen.getByRole('option', { name: /KHR.*រៀលខ្មែរ/ }));
 
     fireEvent.click(firstSavePreferencesButton());
 
@@ -1562,8 +1715,10 @@ describe('SettingsRoute', () => {
     expect(screen.getByText('Suggested range end cannot be below the range start.')).toBeInTheDocument();
     expect(firstSavePreferencesButton()).toBeDisabled();
 
-    fireEvent.click(firstSavePreferencesButton());
+    fireEvent.pointerDown(firstSavePreferencesButton().parentElement as HTMLElement);
     expect(savePreferences).not.toHaveBeenCalled();
+    expect(screen.getByText('Suggested range start cannot be above the range end.')).toHaveAttribute('data-error-flash-key', '1');
+    expect(screen.getByText('Suggested range start cannot be above the range end.')).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
 
     fireEvent.change(rangeHighInput, { target: { value: '0.97' } });
     fireEvent.change(recommendationInput, { target: { value: '0.96' } });

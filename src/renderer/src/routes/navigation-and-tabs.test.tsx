@@ -281,6 +281,10 @@ describe('SENA routes', () => {
     );
   }
 
+  function continueToCapture() {
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to capture' }));
+  }
+
   async function renderWithProvidersSettled(route: string, element: ReactNode, path: string) {
     let view!: ReturnType<typeof renderWithProviders>;
     await act(async () => {
@@ -410,6 +414,7 @@ describe('SENA routes', () => {
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();
@@ -460,6 +465,7 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Updated Price' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();
@@ -484,6 +490,7 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Customer Order' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();
@@ -798,6 +805,7 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Immediate Sale' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();
@@ -813,6 +821,7 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Updated Price' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();

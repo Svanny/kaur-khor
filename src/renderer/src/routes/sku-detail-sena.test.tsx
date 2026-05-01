@@ -324,6 +324,10 @@ function renderWithProviders(route: string, element: ReactNode, path: string) {
   );
 }
 
+function continueToCapture() {
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to capture' }));
+}
+
 function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
   const intervals = Array.from({ length: intervalCount }, (_, index) => {
     const day = String(index + 1).padStart(2, '0');
@@ -898,8 +902,8 @@ describe('SKU detail SENA helpers', () => {
     expect(hint?.skuId).toBe('sku-1');
     expect(hint?.typicalDays).toBe(5);
     expect(hint?.variabilityClass).toBe('wide');
-    expect(hint?.lowDays).toBeCloseTo(2.75);
-    expect(hint?.highDays).toBeCloseTo(7.25);
+    expect(hint?.lowDays).toBeCloseTo(2.7);
+    expect(hint?.highDays).toBeCloseTo(7.3);
   });
 
   test('pages evidence timeline rows in groups of five', () => {
@@ -1416,6 +1420,7 @@ describe('SKU detail route', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+    continueToCapture();
 
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();

@@ -564,8 +564,8 @@ function weekdayLabels(language: AppLanguage) {
   return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(start.getTime() + index * 24 * 60 * 60 * 1000)));
 }
 
-function observationDeleteToken(observation: SenaObservationRecord) {
-  return `CONFIRM DELETE REPORT`;
+function observationDeleteToken(language: AppLanguage) {
+  return translateUiLiteral(language, 'DELETE REPORT');
 }
 
 function ObservationCard({
@@ -778,18 +778,19 @@ export function StockUpdateRoute() {
       <TypedConfirmDialog
         cancelLabel={translateUiLiteral(language, 'Cancel')}
         confirmLabel={translateUiLiteral(language, 'Delete report')}
-        confirmationToken={deleteTarget ? observationDeleteToken(deleteTarget) : ''}
+        confirmationToken={deleteTarget ? observationDeleteToken(language) : ''}
+        inputLabel={translateUiLiteral(language, 'Deletion confirmation token')}
         description={
           deleteTarget ? (
             <>
               <p>{translateUiLiteral(language, 'Type this exactly to permanently delete the report:')}</p>
-              <p className="mt-2 font-mono text-xs text-foreground">{observationDeleteToken(deleteTarget)}</p>
+              <p className="mt-2 font-mono text-xs text-foreground">{observationDeleteToken(language)}</p>
             </>
           ) : undefined
         }
         isConfirmDisabled={
           !deleteTarget ||
-          deleteTokenValue.trim() !== observationDeleteToken(deleteTarget) ||
+          deleteTokenValue.trim() !== observationDeleteToken(language) ||
           isSaving
         }
         isSubmitting={isSaving}

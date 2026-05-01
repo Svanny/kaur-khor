@@ -22,6 +22,7 @@ import {
 import { TradingChartLedger } from '@/components/system/trading-chart/ledger';
 import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
 import { defaultChartLayoutPreferences, type ChartLayoutPreferenceMergeOptions, type PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
+import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { deriveTradingChartModel } from './trading-chart-model';
 import type { SenaSkuDetailViewModel } from './view-model';
@@ -94,7 +95,7 @@ export function SkuDetailLedger({
   setSelectedIntervalIndex: (index: number) => void;
   timeframe: ChartTimeframe;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const chartModel = useMemo(() => deriveTradingChartModel(model), [model]);
 
   return (
@@ -114,7 +115,7 @@ export function SkuDetailLedger({
       selectedIntervalIndex={selectedIntervalIndex}
       subjectId={model.identity.skuId}
       subtype={chartSettingsSubtype}
-      title={`Ledger for ${model.identity.name}`}
+      title={translateUiLiteral(language, 'Ledger for {name}', { name: model.identity.name })}
       tooltip={t('catalogSenaSkuLedgerTooltip')}
       onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
       onChartResolutionChange={onChartResolutionChange}

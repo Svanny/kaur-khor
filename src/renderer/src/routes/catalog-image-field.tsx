@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
+import { usePreferences } from '@/state/preferences';
 import { EditorField } from './editor-form-primitives';
 
 const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -63,6 +65,7 @@ export function CatalogImageField({
   type: 'sku' | 'service';
   onChange: (value: string | null) => void;
 }) {
+  const { language } = usePreferences();
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -141,7 +144,11 @@ export function CatalogImageField({
   }
 
   return (
-    <EditorField error={error ?? undefined} helper={helper} label={label}>
+    <EditorField
+      error={error ?? undefined}
+      helper={translateUiLiteral(language, helper)}
+      label={translateUiLiteral(language, label)}
+    >
       <div
         className={cn(
           'flex flex-col gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 p-4 sm:flex-row sm:items-center transition-colors',
@@ -157,17 +164,19 @@ export function CatalogImageField({
         <ItemAvatar imagePath={imagePath} name={name} size="default" type={type} />
         <div className="grid gap-2">
           <div className="text-sm text-muted-foreground">
-            {imagePath ? 'Picture shows anywhere this item identity appears.' : 'No picture selected.'}
+            {imagePath
+              ? translateUiLiteral(language, 'Picture shows anywhere this item identity appears.')
+              : translateUiLiteral(language, 'No picture selected.')}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button disabled={busy} type="button" variant="outline" onClick={() => void handleChooseImage()}>
               <ActionEditIcon className="size-4" />
-              {imagePath ? 'Replace image' : 'Choose image'}
+              {imagePath ? translateUiLiteral(language, 'Replace image') : translateUiLiteral(language, 'Choose image')}
             </Button>
             {imagePath ? (
               <Button disabled={busy} type="button" variant="destructive-outline" onClick={() => onChange(null)}>
                 <ActionDeleteIcon className="size-4" />
-                Remove image
+                {translateUiLiteral(language, 'Remove image')}
               </Button>
             ) : null}
           </div>

@@ -9,16 +9,18 @@ import {
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
 } from '@/lib/record-update-routes';
 import { recordUpdateSessionViewStorageKey } from '@/lib/record-update-session-view';
+import { translateUiLiteral } from '@/lib/translations';
 import { RecordUpdateHubRoute } from './record-update-hub';
 import type { SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
 
 const inventoryHook = vi.fn();
+const preferenceState = {
+  language: 'en',
+  showFloatingTitleActions: false,
+};
 
 vi.mock('../state/preferences', () => ({
-  usePreferences: () => ({
-    language: 'en',
-    showFloatingTitleActions: false,
-  }),
+  usePreferences: () => preferenceState,
 }));
 
 vi.mock('@/state/inventory', () => ({
@@ -105,6 +107,7 @@ function HubRouteTestShell() {
 describe('RecordUpdateHubRoute', () => {
   beforeEach(() => {
     installLocalStorageStub();
+    preferenceState.language = 'en';
     inventoryHook.mockReturnValue(inventoryState());
   });
 
@@ -348,11 +351,48 @@ describe('RecordUpdateHubRoute', () => {
 
     const picker = screen.getByRole('dialog');
     expect(picker).toHaveTextContent('Edit / update existing supplier order');
+    expect(picker).toHaveTextContent('0 SKUs · open');
     expect(screen.getAllByText('/work/capture')[0]).toBeInTheDocument();
 
     fireEvent.click(within(picker).getByRole('button', { name: /Mekong Looms/i }));
 
     expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
+  });
+
+  it('localizes legacy supplier batch option descriptions in Khmer mode', () => {
+    preferenceState.language = 'km';
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        orderBatches: [
+          {
+            batchOrderId: 'batch-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'open',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: null,
+              supplierNote: '',
+            },
+            children: [{ skuId: 'sku-1' }, { skuId: 'sku-2' }],
+          },
+        ],
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: translateUiLiteral('km', 'Supplier Order') }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: translateUiLiteral('km', 'Edit/Update') }));
+
+    const picker = screen.getByRole('dialog');
+    expect(picker).toHaveTextContent('2 ធាតុស្តុក · កំពុងបើក');
+    expect(picker).not.toHaveTextContent('SKU');
+    expect(picker).not.toHaveTextContent('open');
   });
 
   it('opens a new supplier order directly when no draft or editable order exists', () => {

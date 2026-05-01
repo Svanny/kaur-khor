@@ -44,12 +44,12 @@ export function SkuDetailHero({
     >
       {showHeartbeatRibbons ? (
         <div className="mt-7 text-center">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+          <p className="khmer-safe-label text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
             <SectionLabel helpHref="/settings/help#catalog-sku-hero-signal" tooltip={t('catalogSenaSkuHeroTooltip')}>
               {t('catalogSenaSkuHeroTitle')}
             </SectionLabel>
           </p>
-          <h2 className="mt-4 text-5xl leading-[1.18] font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
+          <h2 className="khmer-safe-display mt-4 text-5xl leading-[1.18] font-semibold tracking-[-0.06em] text-foreground sm:text-6xl">
             {model.heartbeat.headlineUnits}
           </h2>
           <p className="mx-auto mt-6 max-w-5xl text-base leading-7 text-muted-foreground">
@@ -72,8 +72,8 @@ export function SkuDetailHero({
               value: metric.value,
               valueClassName:
                 metric.key === 'nextReceipt'
-                  ? 'mt-1 text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
-                  : 'mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground',
+                  ? 'khmer-safe-display mt-1 text-[1.35rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
+                  : 'khmer-safe-display mt-1 truncate text-[1.35rem] font-semibold tracking-[-0.03em] text-foreground',
             }))}
           />
         </div>

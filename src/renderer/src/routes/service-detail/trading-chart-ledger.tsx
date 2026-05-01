@@ -4,6 +4,7 @@ import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/sys
 import type { ChartCustomResolution, ChartResolutionOption } from '@/components/system/chart-resolution';
 import { TradingChartLedger } from '@/components/system/trading-chart/ledger';
 import { defaultChartLayoutPreferences, type ChartLayoutPreferenceMergeOptions, type PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
+import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { deriveServiceTradingChartModel } from './trading-chart-adapter';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
@@ -61,7 +62,7 @@ export function ServiceTradingChartLedger({
   setSelection: (value: ServiceInspectorSelection) => void;
   timeframe: ChartTimeframe;
 }) {
-  const { t } = usePreferences();
+  const { language, t } = usePreferences();
   const chartModel = useMemo(() => deriveServiceTradingChartModel(model), [model]);
 
   return (
@@ -81,7 +82,7 @@ export function ServiceTradingChartLedger({
       selectedIntervalIndex={selectedIntervalIndexFromSelection(model, selection)}
       subjectId={model.identity.serviceId}
       subtype="service"
-      title={`Ledger for ${model.identity.name}`}
+      title={translateUiLiteral(language, 'Ledger for {name}', { name: model.identity.name })}
       tooltip={t('catalogServiceLedgerTooltip')}
       onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
       onChartResolutionChange={onChartResolutionChange}

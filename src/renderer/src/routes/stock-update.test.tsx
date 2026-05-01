@@ -398,7 +398,7 @@ describe('StockUpdateRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('Type this exactly to permanently delete the report:');
-    fireEvent.change(within(dialog).getByLabelText('Deletion confirmation token'), { target: { value: 'CONFIRM DELETE REPORT' } });
+    fireEvent.change(within(dialog).getByLabelText('Deletion confirmation token'), { target: { value: 'DELETE REPORT' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete report' }));
 
     await act(async () => {

@@ -943,6 +943,9 @@ describe('StockUpdateSessionRoute', () => {
       screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Review receipt' }).parentElement as HTMLElement);
+    expect(screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.')).toHaveAttribute('data-error-flash-key', '1');
+    expect(screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.')).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
 
     fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
@@ -1111,7 +1114,7 @@ describe('StockUpdateSessionRoute', () => {
     await user.hover(within(dialog).getByRole('button', { name: 'Delivery fee help' }));
     await user.click((await screen.findAllByRole('link', { name: 'More help for Delivery fee' }))[0]!);
     const confirmLeaveDialog = screen.getByText('Leave record update?').closest('[role="dialog"]');
-    fireEvent.click(within(confirmLeaveDialog as HTMLElement).getByRole('button', { name: 'Save draft and leave' }));
+    fireEvent.click(within(confirmLeaveDialog as HTMLElement).getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
       expect(screen.getByText('Help destination')).toBeInTheDocument();
@@ -2408,13 +2411,13 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
 
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
-    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes and leave' })).toHaveAttribute('data-variant', 'destructive-outline');
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
     fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft and leave' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
       expect(screen.getByText('Catalog destination')).toBeInTheDocument();
@@ -2449,7 +2452,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Back' })[0]!);
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft and leave' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
       expect(screen.getByText('Catalog destination')).toBeInTheDocument();

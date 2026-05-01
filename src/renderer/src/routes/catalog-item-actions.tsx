@@ -32,6 +32,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Textarea } from '@/components/ui/textarea';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { SupplierBadge } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import {
@@ -417,6 +418,7 @@ export function SkuMutationActions({
   const [leadTimeStdDays, setLeadTimeStdDays] = useState('');
   const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('class');
   const [error, setError] = useState<string | null>(null);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
 
   useEffect(() => {
@@ -491,6 +493,7 @@ export function SkuMutationActions({
     setLeadTimeStdDays('');
     setLeadTimeDraftMode('class');
     setError(null);
+    setSaveErrorFlashKey(0);
   }
 
   function skuActionDraftSnapshot(modeValue: SkuActionMode) {
@@ -535,6 +538,7 @@ export function SkuMutationActions({
     const observedAtIso = parseDatetimeLocalIso(observedAt);
     if (!observedAtIso) {
       setError('Observed at is required.');
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
 
@@ -558,6 +562,7 @@ export function SkuMutationActions({
       (modeValue === 'price' && (!actionContext.soldAsProduct || parsedProductPrice == null))
     ) {
       setError('Enter non-negative finite quantities and prices before saving.');
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
 
@@ -633,6 +638,7 @@ export function SkuMutationActions({
       return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
   }
@@ -655,6 +661,12 @@ export function SkuMutationActions({
     (mode === 'price' &&
       (!actionContext.soldAsProduct || parseNonNegativeMoneyDraft(productPrice, currency, usdToKhrExchangeRate) == null));
   const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
+  const hasVisibleSaveErrors = Boolean(observedAtError) || Boolean(error);
+  function flashVisibleSaveErrors() {
+    if (hasVisibleSaveErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
+    }
+  }
   const hasUnsavedSheetChanges =
     mode != null &&
     JSON.stringify(skuActionDraftSnapshot(mode)) !== JSON.stringify(skuActionBaselineSnapshot(mode));
@@ -766,7 +778,7 @@ export function SkuMutationActions({
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-5 px-8 py-7">
-            <ActionSheetField error={observedAtError} label={t('catalogSenaSkuObservedAt')}>
+            <ActionSheetField error={observedAtError} errorFlashKey={saveErrorFlashKey} label={t('catalogSenaSkuObservedAt')}>
               <Input
                 aria-label={t('catalogSenaSkuObservedAt')}
                 className={actionSheetInputClassName}
@@ -916,19 +928,25 @@ export function SkuMutationActions({
               />
             </ActionSheetField>
 
-            {error ? <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <SaveErrorFlash as="p" className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
+                {error}
+              </SaveErrorFlash>
+            ) : null}
           </div>
           <SheetFooter className="border-t border-border/60 px-8 py-6">
-            <Button
-              className="h-14 w-full rounded-[1.5rem] text-base font-semibold shadow-sm shadow-primary/15"
-              disabled={submitDisabled}
-              size="lg"
-              type="button"
-              onClick={() => void submit(mode as SkuActionMode)}
-            >
-              <ActionSaveIcon data-icon="inline-start" />
-              {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
-            </Button>
+            <span className="inline-flex w-full" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+              <Button
+                className="h-14 w-full rounded-[1.5rem] text-base font-semibold shadow-sm shadow-primary/15"
+                disabled={submitDisabled}
+                size="lg"
+                type="button"
+                onClick={() => void submit(mode as SkuActionMode)}
+              >
+                <ActionSaveIcon data-icon="inline-start" />
+                {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
+              </Button>
+            </span>
           </SheetFooter>
         </SheetContent>
       </Sheet>
@@ -964,6 +982,7 @@ export function ServiceMutationActions({
   const [approximateReceiptQuantity, setApproximateReceiptQuantity] = useState('');
   const [servicePrice, setServicePrice] = useState(formatMoneyDraft(actions.servicePrice.currentPrice, currency, usdToKhrExchangeRate));
   const [error, setError] = useState<string | null>(null);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
 
   useEffect(() => {
@@ -1029,6 +1048,7 @@ export function ServiceMutationActions({
     setApproximateReceiptQuantity('');
     setServicePrice(formatMoneyDraft(actions.servicePrice.currentPrice, currency, usdToKhrExchangeRate));
     setError(null);
+    setSaveErrorFlashKey(0);
   }
 
   function serviceActionDraftSnapshot(modeValue: ServiceActionMode) {
@@ -1062,6 +1082,7 @@ export function ServiceMutationActions({
     const observedAtIso = parseDatetimeLocalIso(observedAt);
     if (!observedAtIso) {
       setError('Observed at is required.');
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
 
@@ -1084,6 +1105,7 @@ export function ServiceMutationActions({
       (modeValue === 'price' && parsedServicePrice == null)
     ) {
       setError('Enter non-negative finite quantities and prices before saving.');
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
 
@@ -1094,6 +1116,7 @@ export function ServiceMutationActions({
     if (modeValue === 'stock') {
       if (!baselineSnapshot || !actions.bottleneckSku) {
         setError(actions.noBottleneckHint);
+        setSaveErrorFlashKey((current) => current + 1);
         return false;
       }
       senaPayload.stockSnapshot = [
@@ -1110,6 +1133,7 @@ export function ServiceMutationActions({
     if (modeValue === 'receipt') {
       if (!baselineSnapshot || !actions.bottleneckSku) {
         setError(actions.noBottleneckHint);
+        setSaveErrorFlashKey((current) => current + 1);
         return false;
       }
       senaPayload.stockSnapshot = [
@@ -1147,6 +1171,7 @@ export function ServiceMutationActions({
       return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('catalogSenaSkuMutationFailed'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
   }
@@ -1169,6 +1194,12 @@ export function ServiceMutationActions({
         (costPerUnit.trim() && parseNonNegativeMoneyDraft(costPerUnit, currency, usdToKhrExchangeRate) == null))) ||
     (mode === 'price' && parseNonNegativeMoneyDraft(servicePrice, currency, usdToKhrExchangeRate) == null);
   const observedAtError = mode != null && !observedAt ? 'Observed at is required.' : null;
+  const hasVisibleSaveErrors = Boolean(observedAtError) || Boolean(error);
+  function flashVisibleSaveErrors() {
+    if (hasVisibleSaveErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
+    }
+  }
   const hasUnsavedSheetChanges =
     mode != null &&
     JSON.stringify(serviceActionDraftSnapshot(mode)) !== JSON.stringify(serviceActionBaselineSnapshot(mode));
@@ -1293,7 +1324,7 @@ export function ServiceMutationActions({
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-5 px-8 py-7">
-            <ActionSheetField error={observedAtError} label={translateUiLiteral(language, 'Observed at')}>
+            <ActionSheetField error={observedAtError} errorFlashKey={saveErrorFlashKey} label={translateUiLiteral(language, 'Observed at')}>
               <Input
                 aria-label={translateUiLiteral(language, 'Observed at')}
                 className={actionSheetInputClassName}
@@ -1381,19 +1412,25 @@ export function ServiceMutationActions({
               />
             </ActionSheetField>
 
-            {error ? <p className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+            {error ? (
+              <SaveErrorFlash as="p" className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
+                {error}
+              </SaveErrorFlash>
+            ) : null}
           </div>
           <SheetFooter className="border-t border-border/60 px-8 py-6">
-            <Button
-              className="h-14 w-full rounded-[1.5rem] text-base font-semibold shadow-sm shadow-primary/15"
-              disabled={submitDisabled}
-              size="lg"
-              type="button"
-              onClick={() => void submit(mode as ServiceActionMode)}
-            >
-              <ActionSaveIcon data-icon="inline-start" />
-              {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
-            </Button>
+            <span className="inline-flex w-full" onPointerDown={submitDisabled ? flashVisibleSaveErrors : undefined}>
+              <Button
+                className="h-14 w-full rounded-[1.5rem] text-base font-semibold shadow-sm shadow-primary/15"
+                disabled={submitDisabled}
+                size="lg"
+                type="button"
+                onClick={() => void submit(mode as ServiceActionMode)}
+              >
+                <ActionSaveIcon data-icon="inline-start" />
+                {isSaving ? t('catalogSenaSkuSaving') : t('catalogSenaSkuSaveAndRefresh')}
+              </Button>
+            </span>
           </SheetFooter>
         </SheetContent>
       </Sheet>

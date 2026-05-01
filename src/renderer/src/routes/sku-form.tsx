@@ -12,6 +12,7 @@ import {
   LeadTimeVariabilityField,
   type LeadTimeVariabilityDraftMode,
 } from '@/components/system/lead-time-variability-field';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { SupplierField } from '@/components/system/supplier';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
+import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
@@ -130,6 +132,7 @@ export function SkuFormRoute() {
     deriveLeadTimeDraftMode(initialExistingSku ?? emptySku(skuId)),
   );
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const formId = 'sku-editor-form';
   const existingSku = useMemo(
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -212,11 +215,11 @@ export function SkuFormRoute() {
     costPerUnit: !costPerUnitDraft.trim()
       ? t('catalogSkuEditorCostRequired')
       : parsedCostPerUnitDraft == null
-        ? 'Enter a non-negative finite cost before saving.'
+        ? translateUiLiteral(language, 'Enter a non-negative finite cost before saving.')
         : null,
     productPrice:
       form.soldAsProduct && productPriceDraft.trim() && parsedProductPriceDraft == null
-        ? 'Enter a non-negative finite selling price before saving.'
+        ? translateUiLiteral(language, 'Enter a non-negative finite selling price before saving.')
         : null,
     leadTimeMeanDays: form.leadTimeMeanDaysHint == null ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
     leadTimeUncertainty:
@@ -228,6 +231,7 @@ export function SkuFormRoute() {
   const visibleSkuValidationErrors = saveAttempted ? skuValidationErrors : {
     ...skuValidationErrors,
     costPerUnit: skuValidationErrors.costPerUnit,
+    productPrice: skuValidationErrors.productPrice,
   };
   const hasUnsavedSkuChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
@@ -240,6 +244,7 @@ export function SkuFormRoute() {
     setLeadTimeVariability(baselineLeadTimeVariability);
     setLeadTimeDraftMode(deriveLeadTimeDraftMode(normalizedBaseline));
     setSaveAttempted(false);
+    setSaveErrorFlashKey(0);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -285,6 +290,7 @@ export function SkuFormRoute() {
   }) {
     setSaveAttempted(true);
     if (hasSkuValidationErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -314,6 +320,7 @@ export function SkuFormRoute() {
     setLeadTimeVariability(deriveCatalogVariabilityClass(nextSku) ?? '');
     setLeadTimeDraftMode(deriveLeadTimeDraftMode(nextSku));
     setSaveAttempted(false);
+    setSaveErrorFlashKey(0);
     afterSave?.();
     if (!editing && navigateAfterCreate) {
       await navigate(`/catalog/skus/${nextSku.skuId}`, {
@@ -364,7 +371,7 @@ export function SkuFormRoute() {
             {detailPath ? (
               <Button type="button" variant="outline" onClick={openDetails}>
                 <ActionEyeIcon data-icon="inline-start" />
-                Details
+                {translateUiLiteral(language, 'Details')}
               </Button>
             ) : null}
             <Button disabled={(editing && !hasUnsavedSkuChanges) || isSaving} form={formId} type="submit">
@@ -398,6 +405,7 @@ export function SkuFormRoute() {
             <div className="grid items-start gap-4 md:grid-cols-2">
               <EditorField
                 error={visibleSkuValidationErrors.name ?? undefined}
+                errorFlashKey={saveErrorFlashKey}
                 helper={t('catalogSkuEditorNameHelper')}
                 label={t('fieldName')}
               >
@@ -410,6 +418,7 @@ export function SkuFormRoute() {
               </EditorField>
               <EditorField
                 error={visibleSkuValidationErrors.supplier ?? undefined}
+                errorFlashKey={saveErrorFlashKey}
                 helper={t('catalogSkuEditorSupplierHelper')}
                 label={t('fieldSupplier')}
               >
@@ -448,6 +457,7 @@ export function SkuFormRoute() {
           >
             <EditorField
               error={visibleSkuValidationErrors.costPerUnit ?? undefined}
+              errorFlashKey={saveErrorFlashKey}
               helper={t('catalogSkuEditorCostHelper')}
               label={t('fieldCostPerUnit')}
             >
@@ -484,6 +494,7 @@ export function SkuFormRoute() {
                   <label className="grid w-full content-start gap-2 text-sm">
                     <CurrencyNumberInput
                       aria-label={t('fieldProductPrice')}
+                      aria-invalid={visibleSkuValidationErrors.productPrice ? 'true' : 'false'}
                       className={editorInputClassName}
                       currency={currency}
                       min="0"
@@ -501,6 +512,11 @@ export function SkuFormRoute() {
                       }}
                     />
                     <span className="text-xs leading-5 text-muted-foreground">{t('catalogSkuEditorRetailPriceHelper')}</span>
+                    {visibleSkuValidationErrors.productPrice ? (
+                      <SaveErrorFlash className="text-xs leading-5 text-destructive" flashKey={saveErrorFlashKey}>
+                        {visibleSkuValidationErrors.productPrice}
+                      </SaveErrorFlash>
+                    ) : null}
                   </label>
                 </div>
               </div>
@@ -517,6 +533,7 @@ export function SkuFormRoute() {
         >
           <EditorField
             error={visibleSkuValidationErrors.leadTimeMeanDays ?? undefined}
+            errorFlashKey={saveErrorFlashKey}
             helper={t('catalogSkuEditorLeadTimeMeanHelper')}
             helpHref="/settings/help#catalog-sku-editor-planning"
             label={t('fieldLeadTimeMeanDays')}
@@ -538,6 +555,7 @@ export function SkuFormRoute() {
 
           <EditorField
             error={visibleSkuValidationErrors.leadTimeUncertainty ?? undefined}
+            errorFlashKey={saveErrorFlashKey}
             helper={t('catalogSkuEditorLeadTimeVariabilityHelper')}
             helpHref="/settings/help#catalog-sku-editor-planning"
             hint={t('catalogSkuEditorLeadTimeVariabilityHint')}

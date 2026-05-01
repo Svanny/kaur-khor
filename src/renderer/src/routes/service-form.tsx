@@ -13,6 +13,7 @@ import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { createUniqueServiceId, emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
+import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
@@ -241,10 +242,11 @@ export function ServiceFormRoute() {
   const { serviceId } = useParams();
   const { catalog, ingestSenaObservation, isLoading, isSaving, upsertSenaCatalog } = useInventory();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
-  const { currency, t, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [form, setForm] = useState<SenaService>(() => emptyService(serviceId));
   const [servicePriceDraft, setServicePriceDraft] = useState('');
   const [saveAttempted, setSaveAttempted] = useState(false);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [localSavedService, setLocalSavedService] = useState<SenaService | null>(null);
   const [localSavedSkuIds, setLocalSavedSkuIds] = useState<string[]>([]);
@@ -308,7 +310,7 @@ export function ServiceFormRoute() {
     price: !servicePriceDraft.trim()
       ? t('catalogServiceEditorPriceRequired')
       : parsedServicePriceDraft == null
-        ? 'Enter a non-negative finite service price before saving.'
+        ? translateUiLiteral(language, 'Enter a non-negative finite service price before saving.')
         : null,
   };
   const hasServiceValidationErrors = Object.values(serviceValidationErrors).some(Boolean);
@@ -321,6 +323,7 @@ export function ServiceFormRoute() {
     setServicePriceDraft(moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate));
     setSelectedSkuIds(localSavedSkuIds);
     setSaveAttempted(false);
+    setSaveErrorFlashKey(0);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -341,6 +344,7 @@ export function ServiceFormRoute() {
   }) {
     setSaveAttempted(true);
     if (hasServiceValidationErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -363,6 +367,7 @@ export function ServiceFormRoute() {
     setForm(nextService);
     setServicePriceDraft(moneyDraftFromUsd(nextService.price, currency, usdToKhrExchangeRate));
     setSaveAttempted(false);
+    setSaveErrorFlashKey(0);
     afterSave?.();
     if (!navigateAfterSave) {
       return true;
@@ -450,6 +455,7 @@ export function ServiceFormRoute() {
         >
           <EditorField
             error={visibleServiceValidationErrors.name ?? undefined}
+            errorFlashKey={saveErrorFlashKey}
             helper={t('catalogServiceEditorNameHelper')}
             helpHref="/settings/help#catalog-service-editor-details"
             label={t('fieldName')}
@@ -493,6 +499,7 @@ export function ServiceFormRoute() {
         >
           <EditorField
             error={visibleServiceValidationErrors.price ?? undefined}
+            errorFlashKey={saveErrorFlashKey}
             helper={t('catalogServiceEditorPriceHelper')}
             helpHref="/settings/help#catalog-service-editor-pricing"
             label={t('fieldPrice')}

@@ -4,7 +4,7 @@ import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import * as senaCatalog from '@/lib/sena-catalog';
-import { getTranslation } from '@/lib/translations';
+import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { ServiceFormRoute } from './service-form';
 import { deriveMeasuredGridColumnCount } from './service-form-layout';
@@ -383,6 +383,39 @@ describe('ServiceFormRoute', () => {
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/dropped-service.png');
   });
 
+  test('localizes catalog image labels in Khmer mode', () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('km', key as never),
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    const picture = translateUiLiteral('km', 'Picture');
+    const helper = translateUiLiteral(
+      'km',
+      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces.',
+    );
+    const noPicture = translateUiLiteral('km', 'No picture selected.');
+    const chooseImage = translateUiLiteral('km', 'Choose image');
+    expect(screen.getByText(picture)).toBeInTheDocument();
+    expect(screen.getByText(helper)).toBeInTheDocument();
+    expect(screen.getByText(noPicture)).toBeInTheDocument();
+    expect(findButtonByText(chooseImage)).toBeInTheDocument();
+    expect(screen.queryByText('Picture')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces.',
+      ),
+    ).not.toBeInTheDocument();
+    expect(/[A-Za-z]/.test(`${picture} ${helper} ${noPicture} ${chooseImage}`)).toBe(false);
+  });
+
   test('replaces the new service route so back from the created detail page returns to catalog', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
@@ -463,8 +496,14 @@ describe('ServiceFormRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
 
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
-    expect(screen.getByText('Enter a service name before saving.')).toBeInTheDocument();
+    const nameError = screen.getByText('Enter a service name before saving.');
+    expect(nameError).toBeInTheDocument();
+    expect(nameError).toHaveAttribute('data-error-flash-key', '1');
+    expect(nameError).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
     expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+    expect(screen.getByText('Enter a service name before saving.')).toHaveAttribute('data-error-flash-key', '2');
   });
 
   test('blocks edit save when service price is cleared', async () => {
@@ -504,6 +543,38 @@ describe('ServiceFormRoute', () => {
     fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
 
+    expect(upsertSenaCatalog).not.toHaveBeenCalled();
+  });
+
+  test('localizes invalid service money validation in Khmer mode', async () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('km', key as never),
+    });
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        services: [{ ...sampleCatalog.services[0], price: -24 }],
+      },
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Updated' } });
+    fireEvent.click(screen.getByRole('button', { name: translateUiLiteral('km', 'Save changes') }));
+
+    const priceError = translateUiLiteral('km', 'Enter a non-negative finite service price before saving.');
+    expect(screen.getByText(priceError)).toBeInTheDocument();
+    expect(/[A-Za-z]/.test(priceError)).toBe(false);
     expect(upsertSenaCatalog).not.toHaveBeenCalled();
   });
 

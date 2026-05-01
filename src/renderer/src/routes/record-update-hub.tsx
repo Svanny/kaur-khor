@@ -68,6 +68,14 @@ interface TicketPickerOption {
 
 const draftStorageKeyByLaneId = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.id, lane.draftStorageKey]));
 
+function supplierBatchOptionDescription(language: ReturnType<typeof usePreferences>['language'], count: number, status: string) {
+  return translateUiLiteral(language, '{count} {noun} · {status}', {
+    count,
+    noun: translateUiLiteral(language, count === 1 ? 'SKU' : 'SKUs'),
+    status: translateUiLiteral(language, status.replaceAll('_', ' ')),
+  });
+}
+
 const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
   {
     title: 'Stock Count',
@@ -429,7 +437,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
       return [{
         id: batch.batchOrderId,
         label: batch.supplierName ?? batch.batchOrderId,
-        description: `${batch.children.length} SKU${batch.children.length === 1 ? '' : 's'} · ${batch.status.replaceAll('_', ' ')}`,
+        description: supplierBatchOptionDescription(language, batch.children.length, batch.status),
         metadata: batch.shared.expectedArrivalAt ?? batch.updatedAt,
         queryParam: 'batchOrderId' as const,
       }];

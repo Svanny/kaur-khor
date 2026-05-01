@@ -39,12 +39,12 @@ export function ServiceDetailHero({
       {showHeartbeatRibbons ? (
         <div className="mt-7 grid gap-6">
           <div className="grid gap-3 text-center">
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+            <p className="khmer-safe-label text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
               <SectionLabel helpHref="/settings/help#catalog-service-availability" tooltip={t('catalogServiceHeroAvailabilityTooltip')}>
                 {t('catalogServiceHeroAvailabilityTitle')}
               </SectionLabel>
             </p>
-            <h2 className="mx-auto max-w-4xl text-4xl font-semibold tracking-[-0.06em] text-foreground sm:text-5xl">
+            <h2 className="khmer-safe-display mx-auto max-w-4xl text-4xl font-semibold tracking-[-0.06em] text-foreground sm:text-5xl">
               {model.hero.headline}
             </h2>
             <p className="mx-auto max-w-5xl text-base leading-7 text-muted-foreground">
@@ -64,8 +64,8 @@ export function ServiceDetailHero({
               value: metric.value,
               valueClassName:
                 metric.key === 'bottleneck'
-                  ? 'mt-1 text-[1.2rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
-                  : 'mt-1 truncate text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground',
+                  ? 'khmer-safe-display mt-1 text-[1.2rem] leading-tight font-semibold tracking-[-0.03em] text-foreground'
+                  : 'khmer-safe-display mt-1 truncate text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground',
             }))}
           />
         </div>

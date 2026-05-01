@@ -38,6 +38,7 @@ import { AttentionFlash } from '@/components/system/attention-flash';
 import { CheckboxRow } from '@/components/system/checkbox-row';
 import { HelpTooltip } from '@/components/system/help-tooltip';
 import { InterfaceViewModeCards } from '@/components/system/interface-view-cards';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
@@ -438,6 +439,7 @@ function WorkspacePreferencesPage({
   itemImageMode,
   language,
   onInjectOnboarding,
+  saveErrorFlashKey,
   showDevOnboardingInjector,
   setCurrency,
   setDimChartsWhileLoading,
@@ -455,6 +457,7 @@ function WorkspacePreferencesPage({
   itemImageMode: DesktopItemImageMode;
   language: 'en' | 'km';
   onInjectOnboarding: () => void;
+  saveErrorFlashKey: number;
   showDevOnboardingInjector: boolean;
   setCurrency: (value: 'USD' | 'KHR') => void;
   setDimChartsWhileLoading: (value: boolean) => void;
@@ -474,9 +477,14 @@ function WorkspacePreferencesPage({
         <section className="grid gap-5">
           <div className="grid gap-5">
             <div className="grid gap-1">
-              <p className="text-sm font-medium text-foreground">Regional preferences</p>
+              <p className="text-sm font-medium text-foreground">
+                {translateUiLiteral(language, 'Regional preferences')}
+              </p>
               <p className="text-sm text-muted-foreground">
-                Choose how banji presents language labels and KHR reference amounts across the desktop.
+                {translateUiLiteral(
+                  language,
+                  'Choose how banji presents language labels and KHR reference amounts across the desktop.',
+                )}
               </p>
             </div>
             <label className="grid content-start gap-2 text-sm">
@@ -487,10 +495,10 @@ function WorkspacePreferencesPage({
                 </SelectTrigger>
                 <SelectContent align="start" position="popper">
                   <SelectItem value="en">
-                    <LanguageOptionLabel prefix="abc" label="English" />
+                    <LanguageOptionLabel prefix="abc" label={translateUiLiteral(language, 'English')} />
                   </SelectItem>
                   <SelectItem value="km">
-                    <LanguageOptionLabel prefix="កខគ" label="Khmer" />
+                    <LanguageOptionLabel prefix="កខគ" label={translateUiLiteral(language, 'Khmer')} />
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -503,8 +511,16 @@ function WorkspacePreferencesPage({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent align="start" position="popper">
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="KHR">KHR</SelectItem>
+                    <SelectItem value="USD">
+                      {language === 'km' ? (
+                        <LanguageOptionLabel prefix="USD" label={translateUiLiteral(language, 'US dollar')} />
+                      ) : 'USD'}
+                    </SelectItem>
+                    <SelectItem value="KHR">
+                      {language === 'km' ? (
+                        <LanguageOptionLabel prefix="KHR" label={translateUiLiteral(language, 'Cambodian riel')} />
+                      ) : 'KHR'}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </label>
@@ -524,7 +540,9 @@ function WorkspacePreferencesPage({
                   <span className="shrink-0 border-l border-border/70 px-3 text-muted-foreground">៛</span>
                 </div>
                 {exchangeRateError ? (
-                  <span className="text-xs leading-5 text-destructive">{exchangeRateError}</span>
+                  <SaveErrorFlash className="text-xs leading-5 text-destructive" flashKey={saveErrorFlashKey}>
+                    {exchangeRateError}
+                  </SaveErrorFlash>
                 ) : (
                   <span className="text-xs leading-5 text-muted-foreground">{t('settingsExchangeRateHelp')}</span>
                 )}
@@ -537,13 +555,21 @@ function WorkspacePreferencesPage({
           <div className="grid gap-4">
             <div className="grid gap-4">
               <div className="grid gap-1">
-                <p className="text-sm font-medium text-foreground">Item pictures</p>
+                <p className="text-sm font-medium text-foreground">
+                  {translateUiLiteral(language, 'Item pictures')}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Control whether SKU and service pictures appear, and how large they render.
+                  {translateUiLiteral(
+                    language,
+                    'Control whether SKU and service pictures appear, and how large they render.',
+                  )}
                 </p>
               </div>
               <Select value={itemImageMode} onValueChange={(value) => setItemImageMode(value as DesktopItemImageMode)}>
-                <SelectTrigger aria-label="Item picture size" className={preferenceSelectTriggerClassName}>
+                <SelectTrigger
+                  aria-label={translateUiLiteral(language, 'Item picture size')}
+                  className={preferenceSelectTriggerClassName}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -557,7 +583,9 @@ function WorkspacePreferencesPage({
                               className={`${option.value === 'thumbnail' ? 'size-3' : option.value === 'small' ? 'size-4' : 'size-6 text-muted-foreground'}`}
                             />
                           </span>
-                          <span className="align-baseline text-foreground">{option.label}</span>
+                          <span className="align-baseline text-foreground">
+                            {translateUiLiteral(language, option.label)}
+                          </span>
                         </span>
                       </SelectItem>
                     );
@@ -570,17 +598,25 @@ function WorkspacePreferencesPage({
           <div className="grid gap-4 lg:border-l lg:border-border/60 lg:pl-8">
             <div className="grid gap-4">
               <div className="grid gap-1">
-                <p className="text-sm font-medium text-foreground">Chart loading</p>
+                <p className="text-sm font-medium text-foreground">
+                  {translateUiLiteral(language, 'Chart loading')}
+                </p>
                 <p className="text-sm text-muted-foreground">
-                  Control whether chart surfaces visually soften while background data refreshes.
+                  {translateUiLiteral(
+                    language,
+                    'Control whether chart surfaces visually soften while background data refreshes.',
+                  )}
                 </p>
               </div>
               <CheckboxRow
                 checked={dimChartsWhileLoading}
                 className="items-start px-0 py-0"
-                hint="Applies a loading dim to all charting surfaces while data is refreshing or older intervals are loading."
+                hint={translateUiLiteral(
+                  language,
+                  'Applies a loading dim to all charting surfaces while data is refreshing or older intervals are loading.',
+                )}
                 icon={<NavigationPerformanceIcon className="size-4" />}
-                label="Dim charts while loading"
+                label={translateUiLiteral(language, 'Dim charts while loading')}
                 onCheckedChange={setDimChartsWhileLoading}
                 variant="flat"
               />
@@ -591,9 +627,14 @@ function WorkspacePreferencesPage({
         <section className="grid gap-5 border-t border-border/60 pt-6">
           <div className="grid gap-5">
             <div className="grid gap-1">
-              <p className="text-sm font-medium text-foreground">Work queue action defaults</p>
+              <p className="text-sm font-medium text-foreground">
+                {translateUiLiteral(language, 'Work queue action defaults')}
+              </p>
               <p className="text-sm text-muted-foreground">
-                Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.
+                {translateUiLiteral(
+                  language,
+                  'Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.',
+                )}
               </p>
             </div>
             <div className="divide-y divide-border/60 rounded-[1.25rem] border border-border/60 bg-background/70">
@@ -609,7 +650,9 @@ function WorkspacePreferencesPage({
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted/45 text-foreground">
                         <TaskActionIcon className="size-4.5" />
                       </span>
-                      <span className="text-sm font-medium text-foreground">{field.label}</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {translateUiLiteral(language, field.label)}
+                      </span>
                     </div>
                     <Select
                       value={taskBatchUpdatePreferences[field.key]}
@@ -618,7 +661,7 @@ function WorkspacePreferencesPage({
                       }
                     >
                       <SelectTrigger
-                        aria-label={field.label}
+                        aria-label={translateUiLiteral(language, field.label)}
                         className={compactPreferenceSelectTriggerClassName}
                       >
                         <SelectValue />
@@ -626,7 +669,7 @@ function WorkspacePreferencesPage({
                       <SelectContent align="start" position="popper">
                         {TASK_BATCH_UPDATE_PREFERENCE_OPTIONS.map((option) => (
                           <SelectItem key={option.value} value={option.value}>
-                            {option.label}
+                            {translateUiLiteral(language, option.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -661,6 +704,7 @@ function WorkspacePreferencesPage({
 
 function InterfaceVisibilityPage({
   displayViewMode,
+  language,
   setShowExplanatoryTooltips,
   setDisplayViewMode,
   setShowFloatingTitleActions,
@@ -683,6 +727,7 @@ function InterfaceVisibilityPage({
   t,
 }: {
   displayViewMode: InterfaceViewMode;
+  language: 'en' | 'km';
   setDisplayViewMode: (value: InterfaceViewMode) => void;
   setShowExplanatoryTooltips: (checked: boolean) => void;
   setShowFloatingTitleActions: (checked: boolean) => void;
@@ -752,6 +797,7 @@ function InterfaceVisibilityPage({
       <div className="grid gap-6">
         <InterfaceViewModeCards
           displayViewMode={displayViewMode}
+          language={language}
           modes={['default', 'minimal', 'maximal', 'custom']}
           visibility={{
             showExplanatoryTooltips,
@@ -771,9 +817,9 @@ function InterfaceVisibilityPage({
           <div>
             <CheckboxRow
               checked={showExplanatoryTooltips}
-              hint="Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible."
+              hint={translateUiLiteral(language, 'Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible.')}
               icon={<StatusHelpBadgeIcon className="size-4" />}
-              label="Optional guidance"
+              label={translateUiLiteral(language, 'Optional guidance')}
               onCheckedChange={setShowExplanatoryTooltips}
               variant="flat"
             />
@@ -782,9 +828,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showFloatingTitleActions}
-            hint="Keeps primary page actions visible near the title area after the header scrolls away."
+            hint={translateUiLiteral(language, 'Keeps primary page actions visible near the title area after the header scrolls away.')}
             icon={<NavigationWorkspacePanelsIcon className="size-4" />}
-            label="Floating page actions"
+            label={translateUiLiteral(language, 'Floating page actions')}
             onCheckedChange={setShowFloatingTitleActions}
             variant="flat"
           />
@@ -793,9 +839,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showRightRailCards}
-            hint="Shows supplemental right-side panels on Work, Insights, Pressure, Financials, and detail screens."
+            hint={translateUiLiteral(language, 'Shows supplemental right-side panels on Work, Insights, Pressure, Financials, and detail screens.')}
             icon={<NavigationRightPanelIcon className="size-4" />}
-            label="Right-side context panels"
+            label={translateUiLiteral(language, 'Right-side context panels')}
             onCheckedChange={setShowRightRailCards}
             variant="flat"
           />
@@ -804,9 +850,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showOverviewTaskTabs}
-            hint="Shows task-status filter tabs above the Work queue. When off, Work uses a single All Tasks queue."
+            hint={translateUiLiteral(language, 'Shows task-status filter tabs above the Work queue. When off, Work uses a single All Tasks queue.')}
             icon={<NavigationTaskListIcon className="size-4" />}
-            label="Work queue filter tabs"
+            label={translateUiLiteral(language, 'Work queue filter tabs')}
             onCheckedChange={setShowOverviewTaskTabs}
             variant="flat"
           />
@@ -821,9 +867,9 @@ function InterfaceVisibilityPage({
         >
           <CheckboxRow
             checked={showAutomationsPage}
-            hint="Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused."
+            hint={translateUiLiteral(language, 'Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused.')}
             icon={<NavigationAutomationIcon className="size-4" />}
-            label="Automations and intake"
+            label={translateUiLiteral(language, 'Automations and intake')}
             onCheckedChange={setShowAutomationsPage}
             variant="flat"
           />
@@ -832,9 +878,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showPerformanceCompareToggle}
-            hint="Shows the Compare / Single view switch on Pressure and Financials. When off, those pages stay in Single view."
+            hint={translateUiLiteral(language, 'Shows the Compare / Single view switch on Pressure and Financials. When off, those pages stay in Single view.')}
             icon={<EntityComparisonIcon className="size-4" />}
-            label="Comparison view switch"
+            label={translateUiLiteral(language, 'Comparison view switch')}
             onCheckedChange={setShowPerformanceCompareToggle}
             variant="flat"
           />
@@ -843,9 +889,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showPerformanceTimelineCard}
-            hint="Shows the business timeline card on Pressure."
+            hint={translateUiLiteral(language, 'Shows the business timeline card on Pressure.')}
             icon={<NavigationPerformanceIcon className="size-4" />}
-            label="Pressure timeline card"
+            label={translateUiLiteral(language, 'Pressure timeline card')}
             onCheckedChange={setShowPerformanceTimelineCard}
             variant="flat"
           />
@@ -854,9 +900,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showLogsViewToggle}
-            hint="Shows the Heatmap / All view selector in Settings / History. When off, History stays in All view."
+            hint={translateUiLiteral(language, 'Shows the Heatmap / All view selector in Settings / History. When off, History stays in All view.')}
             icon={<NavigationHistoryIcon className="size-4" />}
-            label="History view selector"
+            label={translateUiLiteral(language, 'History view selector')}
             onCheckedChange={setShowLogsViewToggle}
             variant="flat"
           />
@@ -865,9 +911,9 @@ function InterfaceVisibilityPage({
         <div>
           <CheckboxRow
             checked={showHeartbeatRibbons}
-            hint="Shows heartbeat indicators and signal ribbons on detail, Pressure, Financials, and update screens."
+            hint={translateUiLiteral(language, 'Shows heartbeat indicators and signal ribbons on detail, Pressure, Financials, and update screens.')}
             icon={<EntitySignalIcon className="size-4" />}
-            label="Heartbeat and signal ribbons"
+            label={translateUiLiteral(language, 'Heartbeat and signal ribbons')}
             onCheckedChange={setShowHeartbeatRibbons}
             variant="flat"
           />
@@ -883,6 +929,7 @@ function PlanningSettingsPage({
   senaEngineNumberDrafts,
   senaEngineNumberErrors,
   senaEngineParameterFields,
+  saveErrorFlashKey,
   senaParametersChanged,
   senaRunStatus,
   senaEngineParameters,
@@ -895,6 +942,7 @@ function PlanningSettingsPage({
   senaEngineNumberDrafts: SenaEngineNumberDrafts;
   senaEngineNumberErrors: SenaEngineNumberErrors;
   senaEngineParameterFields: ReturnType<typeof buildSenaEngineParameterFields>;
+  saveErrorFlashKey: number;
   senaParametersChanged: boolean;
   senaRunStatus: string | null;
   senaEngineParameters: SenaEngineParameters;
@@ -969,13 +1017,14 @@ function PlanningSettingsPage({
               {parameter.helper}
             </span>
             {senaEngineNumberErrors[parameter.key] ? (
-              <span
+              <SaveErrorFlash
                 className="text-sm text-destructive"
+                flashKey={saveErrorFlashKey}
                 id={`sena-parameter-${parameter.key}-error`}
                 role="alert"
               >
                 {senaEngineNumberErrors[parameter.key]}
-              </span>
+              </SaveErrorFlash>
             ) : null}
           </div>
         ))}
@@ -1001,7 +1050,9 @@ function PlanningSettingsPage({
       {senaRunStatus ? (
         <p className="text-sm text-muted-foreground">{senaRunStatus}</p>
       ) : hasSenaParameterErrors ? (
-        <p className="text-sm text-destructive">{t('settingsSenaParametersFixErrors')}</p>
+        <SaveErrorFlash as="p" className="text-sm text-destructive" flashKey={saveErrorFlashKey}>
+          {t('settingsSenaParametersFixErrors')}
+        </SaveErrorFlash>
       ) : senaParametersChanged ? (
         <p className="text-sm text-muted-foreground">{t('settingsSenaParametersRerunHint')}</p>
       ) : null}
@@ -1206,6 +1257,7 @@ export function SettingsRoute() {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearConfirmValue, setClearConfirmValue] = useState('');
   const [clearInFlight, setClearInFlight] = useState(false);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
   const [senaEngineNumberDrafts, setSenaEngineNumberDrafts] = useState<SenaEngineNumberDrafts>(() =>
     createSenaEngineNumberDrafts(senaEngineParameters),
@@ -1244,6 +1296,13 @@ export function SettingsRoute() {
     Boolean(exchangeRateError) ||
     hasSenaParameterErrors ||
     (!hasPendingChanges && !senaParametersChanged && !exchangeRateChanged);
+  const hasVisibleSaveErrors = Boolean(exchangeRateError) || hasSenaParameterErrors;
+
+  function flashVisibleSaveErrors() {
+    if (hasVisibleSaveErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
+    }
+  }
 
   function handleDiscardSettingsChanges() {
     resetPreferences();
@@ -1251,6 +1310,7 @@ export function SettingsRoute() {
     setSenaEngineNumberDrafts(createSenaEngineNumberDrafts(persistedSenaEngineParameters));
     setSenaEngineNumberErrors({});
     setSenaRunStatus(null);
+    setSaveErrorFlashKey(0);
   }
 
   const { discardConfirmDialog } = useRouteLeaveConfirm({
@@ -1310,16 +1370,19 @@ export function SettingsRoute() {
     if (Object.keys(nextErrors).length > 0) {
       setSenaEngineNumberErrors(nextErrors);
       setSenaRunStatus(t('settingsSenaParametersFixErrors'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     if (exchangeRateError) {
       setSenaRunStatus(t('settingsPreferencesFixErrors'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     const nextSenaEngineParameters = pendingSenaEngineParameters;
     const nextUsdToKhrExchangeRate = exchangeRateValue || DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
     const shouldRerunSena = senaParametersChanged;
     setSenaRunStatus(null);
+    setSaveErrorFlashKey(0);
     setSenaEngineParameters(nextSenaEngineParameters);
     setUsdToKhrExchangeRate(nextUsdToKhrExchangeRate);
     await savePreferences({
@@ -1417,6 +1480,7 @@ export function SettingsRoute() {
         cancelLabel={t('settingsClearCurrentDataCancel')}
         confirmLabel={t('settingsClearCurrentDataAction')}
         confirmationToken={CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN}
+        inputLabel={translateUiLiteral(language, 'Deletion confirmation token')}
         description={(
           <>
             <p>{t('settingsClearCurrentDataDescription')}</p>
@@ -1458,14 +1522,16 @@ export function SettingsRoute() {
                       {t('settingsResetDefaultsAction')}
                     </Button>
                   ) : null}
-                  <Button
-                    disabled={saveButtonDisabled}
-                    type="button"
-                    onClick={() => void handleSavePreferences()}
-                  >
-                    <ActionSaveIcon data-icon="inline-start" />
-                    {t('settingsSavePreferencesAction')}
-                  </Button>
+                  <span className="inline-flex" onPointerDown={saveButtonDisabled ? flashVisibleSaveErrors : undefined}>
+                    <Button
+                      disabled={saveButtonDisabled}
+                      type="button"
+                      onClick={() => void handleSavePreferences()}
+                    >
+                      <ActionSaveIcon data-icon="inline-start" />
+                      {t('settingsSavePreferencesAction')}
+                    </Button>
+                  </span>
                 </WorkspaceActionRow>
               ) : undefined
             }
@@ -1487,6 +1553,7 @@ export function SettingsRoute() {
                   itemImageMode={itemImageMode}
                   language={language}
                   onInjectOnboarding={() => void handleInjectOnboardingStage()}
+                  saveErrorFlashKey={saveErrorFlashKey}
                   showDevOnboardingInjector={showDevOnboardingInjector}
                   setCurrency={setCurrency}
                   setDimChartsWhileLoading={setDimChartsWhileLoading}
@@ -1504,6 +1571,7 @@ export function SettingsRoute() {
               element={
                 <InterfaceVisibilityPage
                   displayViewMode={displayViewMode}
+                  language={language}
                   setDisplayViewMode={setDisplayViewMode}
                   setShowExplanatoryTooltips={setShowExplanatoryTooltips}
                   setShowFloatingTitleActions={setShowFloatingTitleActions}
@@ -1535,6 +1603,7 @@ export function SettingsRoute() {
                   senaEngineNumberDrafts={senaEngineNumberDrafts}
                   senaEngineNumberErrors={senaEngineNumberErrors}
                   senaEngineParameterFields={senaEngineParameterFields}
+                  saveErrorFlashKey={saveErrorFlashKey}
                   senaParametersChanged={senaParametersChanged}
                   senaRunStatus={senaRunStatus}
                   senaEngineParameters={senaEngineParameters}

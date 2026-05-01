@@ -23,6 +23,30 @@ function translate(language: AppLanguage, key: Parameters<typeof getTranslation>
   return getTranslation(language, key, variables);
 }
 
+function formatCompactUnits(value: number, language: AppLanguage) {
+  return translateUiLiteral(language, '{count}u', {
+    count: formatWholeNumber(value, language),
+  });
+}
+
+function formatCompactDays(value: number, language: AppLanguage) {
+  return translateUiLiteral(language, '{count}d', {
+    count: formatWholeNumber(value, language),
+  });
+}
+
+function restockGuidanceLabel(language: AppLanguage, name: string, units: number, mode: 'recommended' | 'optional') {
+  return mode === 'recommended'
+    ? translateUiLiteral(language, '{name} · order {count}', {
+        name,
+        count: formatCompactUnits(units, language),
+      })
+    : translateUiLiteral(language, '{name} · keep watching · optional order {count}', {
+        name,
+        count: formatCompactUnits(units, language),
+      });
+}
+
 export interface ServiceInspectorSelection {
   type: 'overview' | 'contributor' | 'interval';
   skuId?: string;
@@ -377,7 +401,12 @@ function buildRestorationEvents({
 
     const expectedReceiptAt = addDays(signal.observedAt, contributor.sku.leadTimeMeanDays);
     const timingLabel = expectedReceiptAt
-      ? `${formatSenaDate(expectedReceiptAt, language)}${contributor.sku.leadTimeStdDays != null ? ` ± ${formatWholeNumber(contributor.sku.leadTimeStdDays, language)}d` : ''}`
+      ? contributor.sku.leadTimeStdDays != null
+        ? translateUiLiteral(language, '{date} ± {days}', {
+            date: formatSenaDate(expectedReceiptAt, language),
+            days: formatCompactDays(contributor.sku.leadTimeStdDays, language),
+          })
+        : formatSenaDate(expectedReceiptAt, language)
       : translate(language, 'serviceVmEtaPending');
 
     events.push({
@@ -559,9 +588,9 @@ export function deriveServiceDetailViewModel({
     const contributorDetail = detail?.contributors.find((contributor) => contributor.skuId === entry.sku.skuId) ?? null;
     const reorderRecommendation = formatSenaReorderQuantity(contributorDetail?.reorderQuantity, language);
     const restockGuidance = reorderRecommendation.recommendationIssued
-      ? `${entry.sku.name} · order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+      ? restockGuidanceLabel(language, entry.sku.name, reorderRecommendation.recommendedUnits, 'recommended')
       : reorderRecommendation.optionalOrderLabel
-        ? `${entry.sku.name} · keep watching · optional order ${formatWholeNumber(reorderRecommendation.recommendedUnits, language)}u`
+        ? restockGuidanceLabel(language, entry.sku.name, reorderRecommendation.recommendedUnits, 'optional')
         : null;
     const limitingProbability = clamp(
       contributorDetail?.bottleneckProbability ?? entry.insight?.stockoutRisk ?? entry.insight?.reorderTriggerProbability ?? 0,

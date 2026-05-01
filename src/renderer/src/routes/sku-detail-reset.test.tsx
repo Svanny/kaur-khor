@@ -44,7 +44,7 @@ vi.mock('./sku-detail/view-model', () => ({
   deriveSenaSkuDetailViewModel: () => ({
     actionContext: {},
     dependencyImpact: [],
-    evidenceRows: [],
+    evidence: [],
     identity: { title: 'SKU 1' },
   }),
 }));
