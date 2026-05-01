@@ -857,7 +857,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
             }}
           >
         {showOverviewTaskTabs ? (
-          <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
+          <div className={`relative flex overflow-hidden px-5 sm:pl-8 sm:pr-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
             <ChromeTabsList aria-label={translateUiLiteral(language, 'Filter overview tasks')} className="min-w-0" collapseBehavior="progressive">
               {(overviewScope === 'customer'
                 ? customerFilterOptions
@@ -884,7 +884,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
           className={`relative z-[1] ${boardClassName()}`}
           data-slot="overview-board"
           style={{
-            marginTop: showOverviewTaskTabs ? 'calc(var(--chrome-tabs-surface-overlap) * -2.75)' : undefined,
+            marginTop: showOverviewTaskTabs ? 'calc(var(--chrome-tabs-surface-overlap) * -3)' : undefined,
           }}
         >
           {overviewScope === 'customer' ? (

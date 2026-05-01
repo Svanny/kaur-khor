@@ -422,7 +422,7 @@ function InternalNav({
     { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <StatusSettingsControlIcon className="size-4" /> },
   ] satisfies Array<{ value: AnalysisSection; label: string; leading: ReactNode }>).filter((option) => visibleSections.includes(option.value));
   return (
-    <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`} data-analysis-nav="true">
+    <div className={`relative flex overflow-hidden px-5 sm:pl-8 sm:pr-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`} data-analysis-nav="true">
       <ChromeTabsList aria-label={t('analysisWorkbenchSelectSurface')} className="min-w-0" collapseBehavior="progressive">
         {navOptions.map((option) => (
           <ChromeTabsTrigger key={option.value} leading={option.leading} value={option.value}>
@@ -2702,7 +2702,7 @@ export function AnalysisWorkbench({
             className={ANALYSIS_BOARD_CLASS_NAME}
             data-testid="insights-board-section"
             style={{
-              marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
+              marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2)',
             }}
           >
             <div
