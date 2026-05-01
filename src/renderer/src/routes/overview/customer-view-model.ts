@@ -65,18 +65,22 @@ function buildTicketEditHref(ticketId: string) {
   return `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=${encodeURIComponent(ticketId)}`;
 }
 
-function customerLabel(intake: AutomationOrderIntake) {
-  return (intake.customerDisplayName ?? intake.customerHandle ?? formatPhoneForDisplay(intake.phone)) || 'Telegram customer';
+function customerLabel(intake: AutomationOrderIntake, language: AppLanguage) {
+  return (intake.customerDisplayName ?? intake.customerHandle ?? formatPhoneForDisplay(intake.phone)) || literal(language, 'Telegram customer');
 }
 
-function requestSummary(lines: AutomationIntakeLine[]) {
+function requestSummary(lines: AutomationIntakeLine[], language: AppLanguage) {
   const visible = lines.slice(0, 2).map((line) => {
-    const quantity = line.quantity != null ? `${line.quantity} x ` : '';
-    return `${quantity}${line.resolvedLabel ?? line.requestedLabel}`;
+    const label = line.resolvedLabel ?? line.requestedLabel;
+    return line.quantity != null
+      ? literal(language, '{quantity} x {label}', { label, quantity: line.quantity })
+      : label;
   });
   const overflow = lines.length - visible.length;
-  const summary = overflow > 0 ? `${visible.join(', ')} +${overflow} more` : visible.join(', ');
-  return summary || 'Telegram intake';
+  const summary = overflow > 0
+    ? literal(language, '{items} +{overflow} more', { items: visible.join(', '), overflow })
+    : visible.join(', ');
+  return summary || literal(language, 'Telegram intake');
 }
 
 function automationTaskState(intake: AutomationOrderIntake): Exclude<OverviewCustomerFilter, 'all'> {
@@ -210,7 +214,7 @@ function buildAutomationCustomerTasks(intakes: AutomationOrderIntake[], language
       id: `automation:intake:${intake.intakeId}`,
       entityId: firstLine?.entityId ?? null,
       entityType,
-      label: customerLabel(intake),
+      label: customerLabel(intake, language),
       imagePath: null,
       action: action.action,
       actionLabel: action.actionLabel,
@@ -231,9 +235,9 @@ function buildAutomationCustomerTasks(intakes: AutomationOrderIntake[], language
       stateBadgeTone: customerTaskStateTone(state),
       whyNow: automationTaskWhyNow(intake, language, state),
       whyDetail: automationTaskWhyDetail(intake, language, state),
-      summary: requestSummary(intake.lines),
+      summary: requestSummary(intake.lines, language),
       source: 'telegram_intake',
-      sourceLabel: 'Telegram',
+      sourceLabel: literal(language, 'Telegram'),
       automationIntakeId: intake.intakeId,
       promotedTicketId: intake.promotedTicketId,
       sourceBadgeTone: 'info',

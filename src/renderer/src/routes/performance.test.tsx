@@ -2,13 +2,26 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { AppLanguage } from '@shared/inventory';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { getTranslation } from '@/lib/translations';
 import { AnalysisRoute } from './analysis';
 import { PerformanceRoute } from './performance';
 
 const inventoryHook = vi.fn();
-const preferenceState = {
+const preferenceState: {
+  currency: string;
+  language: AppLanguage;
+  showAnalysisPage: boolean;
+  showHeartbeatRibbons: boolean;
+  showPerformanceCompareToggle: boolean;
+  showPerformanceTimelineCard: boolean;
+  showRightRailCards: boolean;
+  t: (
+    key: Parameters<typeof getTranslation>[1],
+    variables?: Parameters<typeof getTranslation>[2],
+  ) => string;
+} = {
   currency: 'USD',
   language: 'en',
   showAnalysisPage: true,
@@ -19,7 +32,7 @@ const preferenceState = {
   t: (
     key: Parameters<typeof getTranslation>[1],
     variables?: Parameters<typeof getTranslation>[2],
-  ) => getTranslation('en', key, variables),
+  ) => getTranslation(preferenceState.language, key, variables),
 };
 
 vi.mock('@/state/inventory', () => ({
@@ -531,6 +544,15 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Revenue at risk')).toBeInTheDocument();
   });
 
+  test('renders the Khmer performance route title without falling back to English', async () => {
+    preferenceState.language = 'km';
+
+    await renderPerformanceRouteSettled();
+
+    expect(screen.getAllByText('សម្ពាធ').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Pressure')).not.toBeInTheDocument();
+  });
+
   test('renders icons inside performance toggle pills', async () => {
     await renderPerformanceRouteSettled();
 
@@ -580,6 +602,15 @@ describe('PerformanceRoute', () => {
     expect(screen.queryByText('Service blocker map')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: /Select Explain time range/i })).not.toBeInTheDocument();
   }, 10_000);
+
+  test('renders the Khmer analysis route title without Explain fallback', async () => {
+    preferenceState.language = 'km';
+
+    await renderAnalysisRouteSettled('/analysis?section=pressure');
+
+    expect(screen.getAllByText('ការពន្យល់').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Explain')).not.toBeInTheDocument();
+  });
 
   test('does not restart analysis detail hydration on an unchanged route rerender', async () => {
     const state = createInventoryState();
@@ -750,6 +781,7 @@ describe('PerformanceRoute', () => {
     expect(screen.getByText('Observation note 3')).toBeInTheDocument();
     expect(screen.queryByText('Observation note 2')).not.toBeInTheDocument();
     expect(screen.queryByText('Observation note 1')).not.toBeInTheDocument();
+    expect(screen.getByText('Page 1 of 2').closest('div')).toHaveClass('sticky', 'bottom-0', 'mt-auto');
 
     await user.click(screen.getByLabelText('Next evidence page'));
 
@@ -789,6 +821,43 @@ describe('PerformanceRoute', () => {
     expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
     expect(await screen.findByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
     expect(screen.queryByRole('heading', { name: 'System timeline' })).not.toBeInTheDocument();
+  });
+
+  test('keeps Explain section tabs visible above the board on direct settings routes', async () => {
+    renderAnalysisRoute('/analysis?section=settings');
+
+    expect(await screen.findByRole('heading', { name: 'Explain details' })).toBeInTheDocument();
+
+    const tabList = screen.getByRole('tablist', { name: 'Select Explain view' });
+    const nav = tabList.closest('[data-analysis-nav="true"]');
+    const board = screen.getByTestId('insights-board-section');
+    expect(nav).toHaveClass('overflow-hidden');
+    expect(tabList).toHaveClass('min-w-0');
+    expect(tabList.compareDocumentPosition(board) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('tab', { name: 'Main view' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Risks' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Observations' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toHaveAttribute('data-state', 'active');
+  });
+
+  test('hides the Explain observations tab and falls back when no observations exist', async () => {
+    const user = userEvent.setup();
+    const inventoryState = createInventoryState({ observations: [] });
+    inventoryHook.mockReturnValue(inventoryState);
+
+    renderAnalysisRoute('/analysis?section=observations');
+
+    expect(await screen.findByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Main view' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: 'Risks' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Observations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: 'Parameters' }));
+    expect(await screen.findByRole('heading', { name: 'Explain details' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Observations' })).not.toBeInTheDocument();
   });
 
 

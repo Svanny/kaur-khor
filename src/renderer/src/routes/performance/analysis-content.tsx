@@ -298,9 +298,7 @@ function AnalysisContentInner({
           showRightRailCards={showRightRailCards}
           timeframe={chartController.timeframe as AnalysisTimeframe}
         />
-      ) : (
-        <div aria-hidden="true" className="min-h-[100svh] rounded-[2rem]" />
-      )}
+      ) : null}
       {isLedgerExpanded ? (
         <ChartLedgerOverlay
           ariaLabel="Expanded system ledger"

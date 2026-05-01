@@ -1,19 +1,26 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
+import type { AppLanguage } from '@shared/inventory';
 import type { SenaCatalog, SenaDiagnostics, SenaObservationRecord, SenaServiceDetail, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { getTranslation } from '@/lib/translations';
 import { AnalysisWorkbench } from './analysis-workbench';
 import { deriveAnalysisViewModel } from './analysis-view-model';
 
-const preferenceState = {
+const preferenceState: {
+  currency: string;
+  language: AppLanguage;
+  showFloatingTitleActions: boolean;
+  showRightRailCards: boolean;
+  t: (key: string, variables?: Record<string, string | number | null | undefined>) => string;
+} = {
   currency: 'USD',
   language: 'en',
   showFloatingTitleActions: false,
   showRightRailCards: false,
   t: (key: string, variables?: Record<string, string | number | null | undefined>) =>
-    getTranslation('en', key as never, variables),
+    getTranslation(preferenceState.language, key as never, variables),
 };
 
 vi.mock('@/state/preferences', () => ({
@@ -265,7 +272,7 @@ afterEach(() => {
   preferenceState.showFloatingTitleActions = false;
   preferenceState.language = 'en';
   preferenceState.t = (key: string, variables?: Record<string, string | number | null | undefined>) =>
-    getTranslation('en', key as never, variables);
+    getTranslation(preferenceState.language, key as never, variables);
 });
 
 function buildModel() {
@@ -283,7 +290,7 @@ function buildModel() {
 }
 
 describe('AnalysisWorkbench', () => {
-  test('keeps the analysis nav horizontally scrollable so fragility stays reachable', async () => {
+  test('keeps the analysis nav collapsed inside the Work-style tab rail so fragility stays reachable', async () => {
     const user = userEvent.setup();
     const model = buildModel();
 
@@ -293,32 +300,79 @@ describe('AnalysisWorkbench', () => {
     expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
 
     const tabList = screen.getByRole('tablist', { name: 'Select Explain view' });
-    expect(tabList.parentElement).toHaveClass('overflow-x-auto');
-    expect(tabList.parentElement).not.toHaveClass('overflow-hidden');
+    expect(tabList).toHaveClass('min-w-0');
+    expect(tabList).toHaveAttribute('data-presentation-mode');
+    expect(tabList.parentElement).toHaveClass('overflow-hidden');
 
     await user.click(screen.getByRole('tab', { name: 'Blockers' }));
 
     expect(setSection).toHaveBeenCalledWith('fragility');
   });
 
-  test('hides empty analysis tabs and falls back to the first visible surface', async () => {
+  test('keeps the Observations tab visible when saved observations exist but evidence rows are empty', async () => {
     const model = {
       ...buildModel(),
-      entityRows: [],
       evidenceRows: [],
-      fragilityRows: [],
+      observationCount: 1,
     };
     const setSection = vi.fn();
 
     render(<AnalysisWorkbench model={model} section="pressure" setSection={setSection} showRightRailCards={false} />);
 
-    expect(screen.queryByRole('tab', { name: 'Pressure' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Evidence' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Blockers' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Main view' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
+    expect(screen.getByRole('tab', { name: 'Observations' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
 
-    await screen.findByRole('heading', { name: 'System timeline' });
-    expect(setSection).toHaveBeenCalledWith('workbench');
+    await screen.findByText('Risk explorer');
+    expect(setSection).not.toHaveBeenCalled();
+  });
+
+  test('hides only the Observations tab when no observations exist', async () => {
+    const model = {
+      ...buildModel(),
+      evidenceRows: [],
+      observationCount: 0,
+    };
+    const setSection = vi.fn();
+
+    render(<AnalysisWorkbench model={model} section="pressure" setSection={setSection} showRightRailCards={false} />);
+
+    expect(screen.getByRole('tab', { name: 'Main view' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Risks' })).toHaveAttribute('data-state', 'active');
+    expect(screen.queryByRole('tab', { name: 'Observations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Blockers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Parameters' })).toBeInTheDocument();
+
+    await screen.findByText('Risk explorer');
+    expect(setSection).not.toHaveBeenCalled();
+  });
+
+  test('falls back from a requested empty Observations tab to Main view', async () => {
+    const model = {
+      ...buildModel(),
+      evidenceRows: [],
+      observationCount: 0,
+    };
+    const setSection = vi.fn();
+
+    render(
+      <AnalysisWorkbench
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={model}
+        section="observations"
+        setSection={setSection}
+        showRightRailCards={false}
+      />,
+    );
+
+    expect(screen.getByRole('tab', { name: 'Main view' })).toHaveAttribute('data-state', 'active');
+    expect(screen.queryByRole('tab', { name: 'Observations' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
+    await waitFor(() => expect(setSection).toHaveBeenCalledWith('workbench'));
   });
 
   test('does not mount the inspector rail on the observations tab', () => {
@@ -359,8 +413,6 @@ test('shows reorder policy in the selected SKU inspector', async () => {
 
   test('keeps risk pill colors stable in Khmer mode', () => {
     preferenceState.language = 'km';
-    preferenceState.t = (key: string, variables?: Record<string, string | number | null | undefined>) =>
-      getTranslation('km', key as never, variables);
 
     const model = deriveAnalysisViewModel({
       catalog,
@@ -383,6 +435,36 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getAllByText('ខ្ពស់').find((node) => node.className.includes('text-rose-800'))).toBeTruthy();
     expect(screen.getAllByText('ទាប').find((node) => node.className.includes('text-sky-700'))).toBeTruthy();
     expect(screen.getAllByText('មធ្យម').find((node) => node.className.includes('text-amber-800'))).toBeTruthy();
+  });
+
+  test('renders Explain navigation in Khmer without English leaks', () => {
+    preferenceState.language = 'km';
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'km',
+      observations,
+      scope: 'all',
+      serviceDetailsById,
+      skuDetailsById,
+      workspaceSummary,
+    });
+
+    render(
+      <MemoryRouter>
+        <AnalysisWorkbench model={model} section="pressure" setSection={vi.fn()} showRightRailCards={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('tablist', { name: 'ជ្រើសទិដ្ឋភាពការពន្យល់' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'ហានិភ័យ' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'ភស្តុតាង' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'ចំណុចរារាំង' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'ប៉ារ៉ាម៉ែត្រ' })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Risks' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Blockers' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Parameters' })).not.toBeInTheDocument();
   });
 
   test('does not mount the inspector rail on the fragility tab', () => {
@@ -422,11 +504,48 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getByRole('heading', { name: 'System timeline' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Recent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '1D' })).toBeInTheDocument();
-    expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-visible');
+    expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-hidden');
     expect(screen.getByTestId('insights-board-section')).not.toHaveClass('overflow-y-auto');
   });
 
-  test('keeps non-chart explain sections scrollable inside the board', () => {
+  test('bounds the workbench chart board when the right rail is visible', () => {
+    render(
+      <AnalysisWorkbench
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards
+      />,
+    );
+
+    const board = screen.getByTestId('insights-board-section');
+    const root = board.closest('[data-analysis-workbench-root="true"]');
+    const analysisWindow = document.querySelector('[data-analysis-window="true"]');
+    const breathingRoom = document.querySelector('[data-analysis-bottom-breathing-room="true"]');
+    const nav = document.querySelector('[data-analysis-nav="true"]');
+    const rail = document.querySelector('[data-analysis-inspector="true"]');
+    const firstRailSection = rail?.querySelector('section');
+    const innerShell = document.querySelector('.analysis-panel-shell');
+    expect(root).toHaveClass('flex-1', 'flex-col', 'shrink-0');
+    expect(root).not.toHaveClass('h-full', 'min-h-0');
+    expect(analysisWindow).toHaveClass('shrink-0');
+    expect(analysisWindow).not.toHaveClass('h-full');
+    expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
+    expect(nav).toHaveClass('overflow-hidden');
+    expect(board).toHaveClass('flex-1', 'overflow-hidden');
+    expect(board).toHaveClass('!border-white/70');
+    expect(innerShell).toHaveClass('!border-transparent', '!shadow-none', '!rounded-none');
+    expect(board.firstElementChild).toHaveClass('flex-1', 'items-stretch', 'h-full', 'min-h-0');
+    expect(rail).toHaveClass('h-full', 'min-h-0', 'overflow-y-auto');
+    expect(rail).toHaveClass('lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]');
+    expect(firstRailSection).toHaveClass('first-of-type:border-t-0');
+    expect(rail).not.toHaveClass('min-h-full');
+  });
+
+  test('lets non-chart explain sections fill available height and grow when needed', () => {
     render(
       <AnalysisWorkbench
         model={buildModel()}
@@ -436,7 +555,89 @@ test('shows reorder policy in the selected SKU inspector', async () => {
       />,
     );
 
-    expect(screen.getByTestId('insights-board-section')).toHaveClass('overflow-y-auto');
+    const board = screen.getByTestId('insights-board-section');
+    const root = board.closest('[data-analysis-workbench-root="true"]');
+    const analysisWindow = document.querySelector('[data-analysis-window="true"]');
+    const breathingRoom = document.querySelector('[data-analysis-bottom-breathing-room="true"]');
+    const tabs = board.closest('[data-slot="chrome-tabs"]');
+    const surface = document.querySelector('[data-analysis-surface="true"]');
+    const surfaceContent = document.querySelector('[data-analysis-surface-content="true"]');
+    const nav = document.querySelector('[data-analysis-nav="true"]');
+    expect(board).toHaveClass('flex-1', 'overflow-hidden');
+    expect(board.firstElementChild).toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(nav).toHaveClass('overflow-hidden');
+    expect(board).not.toHaveClass('overflow-y-auto');
+    expect(root).toHaveClass('flex-1', 'flex-col');
+    expect(root).toHaveClass('shrink-0');
+    expect(root).not.toHaveClass('h-full', 'min-h-full', 'mb-32', 'md:mb-36');
+    expect(analysisWindow).toHaveClass('shrink-0');
+    expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
+    expect(tabs).toHaveClass('flex-1');
+    expect(tabs).not.toHaveClass('pb-32', 'md:pb-36');
+    expect(surface).toHaveClass('flex-1');
+    expect(surfaceContent).toHaveClass('min-h-full');
+  });
+
+  test('keeps non-chart sections natural height with right-rail bottom breathing room', () => {
+    render(
+      <MemoryRouter>
+        <AnalysisWorkbench
+          model={buildModel()}
+          section="pressure"
+          setSection={vi.fn()}
+          showRightRailCards
+        />
+      </MemoryRouter>,
+    );
+
+    const board = screen.getByTestId('insights-board-section');
+    const root = board.closest('[data-analysis-workbench-root="true"]');
+    const analysisWindow = document.querySelector('[data-analysis-window="true"]');
+    const breathingRoom = document.querySelector('[data-analysis-bottom-breathing-room="true"]');
+    const tabs = board.closest('[data-slot="chrome-tabs"]');
+    const surface = document.querySelector('[data-analysis-surface="true"]');
+    const surfaceContent = document.querySelector('[data-analysis-surface-content="true"]');
+    const rail = document.querySelector('[data-analysis-inspector="true"]');
+    const firstRailSection = rail?.querySelector('section');
+    const measurements = document.querySelector('[data-analysis-inspector-measurements="true"]');
+    expect(board).toHaveClass('flex-1', 'overflow-hidden');
+    expect(board.firstElementChild).toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board).not.toHaveClass('overflow-y-auto');
+    expect(root).toHaveClass('flex-1', 'flex-col');
+    expect(root).toHaveClass('shrink-0');
+    expect(root).not.toHaveClass('h-full', 'min-h-full', 'mb-32', 'md:mb-36');
+    expect(analysisWindow).toHaveClass('shrink-0');
+    expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
+    expect(tabs).toHaveClass('flex-1');
+    expect(tabs).not.toHaveClass('pb-32', 'md:pb-36');
+    expect(surface).toHaveClass('flex-1');
+    expect(surfaceContent).toHaveClass('min-h-full');
+    expect(rail).toHaveClass('h-full', 'min-h-full');
+    expect(rail).toHaveClass('lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]');
+    expect(firstRailSection).toHaveClass('first-of-type:border-t-0');
+    expect(rail).not.toHaveClass('overflow-y-auto');
+    expect(measurements).toHaveClass('h-0', 'overflow-hidden');
+  });
+
+  test('does not render the expanded ledger viewport spacer', () => {
+    const { container } = render(
+      <AnalysisWorkbench
+        expanded
+        hasOlderIntervals={false}
+        isLoadingOlderIntervals={false}
+        loadOlderIntervals={vi.fn(async () => 0)}
+        model={buildModel()}
+        section="workbench"
+        setSection={vi.fn()}
+        showRightRailCards={false}
+      />,
+    );
+
+    expect(
+      Array.from(container.querySelectorAll('[class]')).some((element) =>
+        String(element.getAttribute('class')).includes('min-h-[100svh]'),
+      ),
+    ).toBe(false);
   });
 
   test('renders the shared ledger controls on the workbench surface', () => {

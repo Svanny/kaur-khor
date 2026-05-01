@@ -1,4 +1,4 @@
-import benchmarkScenarios from './benchmark-scenarios.json';
+import benchmarkScenarios from './benchmark-scenarios.json' with { type: 'json' };
 
 export type BanjiBenchmarkLayer = 'renderer' | 'main' | 'preload' | 'core' | 'playwright';
 

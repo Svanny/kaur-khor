@@ -497,7 +497,7 @@ describe('deriveAnalysisViewModel', () => {
       skuDetailsById: {
         ...skuDetailsById,
         'sku-razor-2': {
-          ...skuDetailsById['sku-razor'],
+          ...skuDetailsById['sku-razor']!,
           summary: {
             ...workspaceSummary.skuSummaries[0],
             skuId: 'sku-razor-2',
@@ -622,7 +622,7 @@ describe('deriveAnalysisViewModel', () => {
       serviceDetailsById: { ...serviceDetailsById },
       skuDetailsById: {
         'sku-haircut': {
-          ...skuDetailsById['sku-razor'],
+          ...skuDetailsById['sku-razor']!,
           summary: {
             ...workspaceSummary.skuSummaries[0],
             skuId: 'sku-haircut',

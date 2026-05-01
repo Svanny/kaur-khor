@@ -1,6 +1,7 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { localizedChartInputSourceLabel } from '@/components/system/chart-series-config';
 import {
   buildOverlayIconClusters,
   deriveTradingChartMinRenderHeight,
@@ -251,6 +252,7 @@ function renderChart({
   onChartResolutionChange = vi.fn(),
   onCustomTimeframeChange = vi.fn(),
   onPaneHeightsChange = vi.fn(),
+  onSelectInterval = vi.fn(),
   onToggleExpand = vi.fn(),
   onVisibleDateRangeChange = vi.fn(),
   selectedIntervalIndex = 0,
@@ -269,7 +271,8 @@ function renderChart({
   loadOlderIntervals?: () => Promise<unknown>;
   onChartResolutionChange?: (value: 'H' | '1D' | '1W' | '1M' | '3M' | '1Y' | 'Custom', custom: { amount: number; unit: 'm' | 'H' | 'D' | 'W' | 'M' | 'Y'; expression: string } | null) => void;
   onCustomTimeframeChange?: (range: { startAt: string; endAt: string } | null) => void;
-  onPaneHeightsChange?: (paneHeights: Record<string, number>) => void;
+  onPaneHeightsChange?: (paneHeights: Record<string, number>, source: 'manual') => void;
+  onSelectInterval?: (index: number) => void;
   onToggleExpand?: () => void;
   onVisibleDateRangeChange?: (range: { startAt: string; endAt: string } | null) => void;
   selectedIntervalIndex?: number | null;
@@ -307,7 +310,7 @@ function renderChart({
       onCustomTimeframeChange={onCustomTimeframeChange}
       onReset={vi.fn()}
       onSaveDefaultIndicatorSettings={vi.fn()}
-      onSelectInterval={vi.fn()}
+      onSelectInterval={onSelectInterval}
       onToggleExpand={onToggleExpand}
       onTimeframeChange={vi.fn()}
       onPaneHeightsChange={onPaneHeightsChange}
@@ -320,6 +323,7 @@ function renderChart({
     onChartResolutionChange,
     onCustomTimeframeChange,
     onPaneHeightsChange,
+    onSelectInterval,
     onToggleExpand,
     onVisibleDateRangeChange,
     setIndicatorSettings,
@@ -396,7 +400,7 @@ describe('SkuTradingChart settings', () => {
     ]);
   });
 
-  it('does not merge different overlay indicators before stacking them by layer', () => {
+  it('merges different overlapping overlay indicators into one segmented pill', () => {
     const clusters = buildOverlayIconClusters([
       { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 1, x: 100 },
       { indicatorId: 'newReceiptFlags', groupKey: 'newReceiptFlags', intervalIndex: 1, x: 100 },
@@ -419,11 +423,14 @@ describe('SkuTradingChart settings', () => {
       clustered: cluster.count > 1,
     })));
 
-    expect(markers.map((marker) => marker.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags']);
-    expect(markers.map((marker) => marker.bottom)).toEqual([6, 40]);
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.bottom).toBe(6);
+    expect(markers[0]?.left).toBe(64);
+    expect(markers[0]?.width).toBe(72);
+    expect(markers[0]?.segments.map((segment) => segment.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags']);
   });
 
-  it('stacks overlay flags by layer order inside same pane interval', () => {
+  it('keeps overlapping overlay flags in one bottom-aligned pill ordered by layer', () => {
     const markers = stackOverlayFlagMarkers([
       {
         key: 'regime',
@@ -466,8 +473,49 @@ describe('SkuTradingChart settings', () => {
       },
     ]);
 
-    expect(markers.map((marker) => marker.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags', 'regime']);
-    expect(markers.map((marker) => marker.bottom)).toEqual([6, 40, 74]);
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.bottom).toBe(6);
+    expect(markers[0]?.left).toBe(-30);
+    expect(markers[0]?.width).toBe(108);
+    expect(markers[0]?.segments.map((segment) => segment.indicatorId)).toEqual(['newOrderFlags', 'newReceiptFlags', 'regime']);
+  });
+
+  it('uses icon footprint, not interval width, to decide overlay flag collisions', () => {
+    const markers = stackOverlayFlagMarkers([
+      {
+        key: 'first',
+        indicatorId: 'newOrderFlags',
+        paneId: 'main',
+        intervalIndex: 1,
+        layerOrder: 1,
+        left: 0,
+        width: 100,
+        collisionLeft: 36,
+        collisionWidth: 28,
+        color: '#000',
+        label: 'Supplier order activity',
+        onClick: vi.fn(),
+        icon: vi.fn() as never,
+      },
+      {
+        key: 'second',
+        indicatorId: 'newOrderFlags',
+        paneId: 'main',
+        intervalIndex: 2,
+        layerOrder: 1,
+        left: 100,
+        width: 100,
+        collisionLeft: 136,
+        collisionWidth: 28,
+        color: '#000',
+        label: 'Supplier order activity',
+        onClick: vi.fn(),
+        icon: vi.fn() as never,
+      },
+    ]);
+
+    expect(markers).toHaveLength(2);
+    expect(markers.map((marker) => marker.width)).toEqual([100, 100]);
   });
 
   it('includes split order pipeline indicators in default settings', () => {
@@ -1022,6 +1070,119 @@ describe('SkuTradingChart settings', () => {
 
     expect(screen.getByText('Supplier orders in transit')).toBeInTheDocument();
     expect(screen.queryByText('42.00u')).not.toBeInTheDocument();
+  });
+
+  it('localizes Khmer chart status values and input source labels without changing source values', async () => {
+    preferenceState.language = 'km';
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 320,
+    });
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.ordersInTransit.enabled = true;
+    initialSettings.ordersInTransit.paneId = 'main';
+    initialSettings.newOrderFlags.enabled = true;
+    initialSettings.regime.enabled = true;
+
+    const ordersChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [{
+        ...chartModel.points[0]!,
+        dominantRegime: 'normal',
+        ordersInTransitMean: 42,
+        newOrderFlag: 3,
+      }],
+      pointByIntervalIndex: new Map([[0, {
+        ...chartModel.points[0]!,
+        dominantRegime: 'normal',
+        ordersInTransitMean: 42,
+        newOrderFlag: 3,
+      }]]),
+      pointByTimeKey: new Map([[String(chartModel.points[0]!.time), {
+        ...chartModel.points[0]!,
+        dominantRegime: 'normal',
+        ordersInTransitMean: 42,
+        newOrderFlag: 3,
+      }]]),
+      availability: {
+        ...chartModel.availability,
+        newOrderFlags: true,
+        ordersInTransit: true,
+        regime: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: ordersChartModel,
+      initialSettings,
+    });
+
+    expect(screen.getByText('42 ឯកតា')).toBeInTheDocument();
+    expect(screen.getByLabelText('រយៈពេលក្រាប')).toBeInTheDocument();
+    expect(screen.getByLabelText('ចន្លោះពេលក្រាប')).toBeInTheDocument();
+    expect(await screen.findByLabelText('សញ្ញាក្រាហ្វ')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Chart flags')).not.toBeInTheDocument();
+    expect(screen.getByText('រយៈពេល')).not.toHaveClass('uppercase', 'tracking-[0.12em]');
+    expect(localizedChartInputSourceLabel('km', 'open')).toBe('តម្លៃបើក');
+    expect(localizedChartInputSourceLabel('km', 'ohlc4')).toBe('មធ្យមតម្លៃបើក ខ្ពស់ ទាប និងបិទ');
+    expect(localizedChartInputSourceLabel('en', 'ohlc4')).toBe('(O + H + L + C)/4');
+  });
+
+  it('renders overlapping chart flags as one segmented pill with selectable segments', async () => {
+    vi.stubGlobal('navigator', { userAgent: 'unit-test' });
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      value: 320,
+    });
+    const onSelectInterval = vi.fn();
+    const initialSettings = defaultTradingChartIndicators();
+    initialSettings.regime.enabled = true;
+    initialSettings.regime.paneId = 'main';
+    initialSettings.regime.layerOrder = 3;
+    initialSettings.newOrderFlags.enabled = true;
+    initialSettings.newOrderFlags.paneId = 'main';
+    initialSettings.newOrderFlags.layerOrder = 1;
+    initialSettings.newReceiptFlags.enabled = true;
+    initialSettings.newReceiptFlags.paneId = 'main';
+    initialSettings.newReceiptFlags.layerOrder = 2;
+
+    const point = {
+      ...chartModel.points[0]!,
+      dominantRegime: 'normal',
+      newOrderFlag: 1,
+      newReceiptFlag: 1,
+    };
+    const flaggedChartModel: TradingChartModel = {
+      ...chartModel,
+      points: [point],
+      pointByIntervalIndex: new Map([[0, point]]),
+      pointByTimeKey: new Map([[String(point.time), point]]),
+      availability: {
+        ...chartModel.availability,
+        regime: true,
+        newOrderFlags: true,
+        newReceiptFlags: true,
+      },
+    };
+
+    renderChart({
+      chartModelOverride: flaggedChartModel,
+      initialSettings,
+      onSelectInterval,
+    });
+
+    const flagGroup = await screen.findByRole('group', { name: /Supplier order activity, Supplier receipt activity/ });
+    expect(flagGroup).toHaveStyle({ width: '108px' });
+    expect(within(flagGroup).getAllByRole('button')).toHaveLength(3);
+    const orderButton = within(flagGroup).getByRole('button', { name: 'Select Supplier order activity' });
+    const receiptButton = within(flagGroup).getByRole('button', { name: 'Select Supplier receipt activity' });
+    expect(orderButton).toHaveClass('rounded-l-full', 'rounded-r-none');
+    expect(receiptButton).toHaveClass('border-l-border/70');
+    expect(receiptButton).toHaveClass('rounded-l-none', 'rounded-r-none');
+
+    await userEvent.click(receiptButton);
+
+    expect(onSelectInterval).toHaveBeenCalledWith(0);
   });
 
 

@@ -18,6 +18,7 @@ import {
   type LeadTimeVariabilityDraftMode,
 } from '@/components/system/lead-time-variability-field';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -516,6 +517,7 @@ export function OverviewTaskDrawer({
   const [receivedQuantity, setReceivedQuantity] = useState('');
   const [receivedCost, setReceivedCost] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
   const [dismissedAfterSave, setDismissedAfterSave] = useState(false);
   const [showDetailBody, setShowDetailBody] = useState(false);
@@ -549,6 +551,7 @@ export function OverviewTaskDrawer({
     setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
     setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
+    setSaveErrorFlashKey(0);
     setInitializedTaskId(task.id);
     return () => window.cancelAnimationFrame(frameId);
   }, [task?.id]);
@@ -867,6 +870,7 @@ export function OverviewTaskDrawer({
       return true;
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('overviewDrawerSaveFailed'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
   }
@@ -1273,9 +1277,9 @@ export function OverviewTaskDrawer({
               </DrawerBand>
 
               {error ? (
-                <p className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <SaveErrorFlash as="p" className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
                   {error}
-                </p>
+                </SaveErrorFlash>
               ) : null}
                 </>
               ) : null}

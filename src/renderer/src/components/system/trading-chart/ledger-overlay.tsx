@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export function ChartLedgerOverlay({
@@ -6,18 +6,20 @@ export function ChartLedgerOverlay({
   children,
   onClose,
   panelClassName,
+  ...props
 }: {
   ariaLabel: string;
   children: ReactNode;
   onClose: () => void;
   panelClassName?: string;
-}) {
+} & Omit<ComponentProps<'div'>, 'aria-label' | 'children' | 'role'>) {
   return (
     <div
       aria-label={ariaLabel}
       aria-modal="true"
       className="fixed inset-0 z-50 p-4"
       role="dialog"
+      {...props}
     >
       <button
         aria-label="Close expanded chart overlay"

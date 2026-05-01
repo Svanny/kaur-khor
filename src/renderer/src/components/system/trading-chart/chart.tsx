@@ -103,6 +103,7 @@ import {
 } from '@/components/system/chart-resolution';
 import {
   CHART_INPUT_VALUE_SOURCE_OPTIONS,
+  localizedChartInputSourceLabel,
   type ChartInputValueSource,
 } from '@/components/system/chart-series-config';
 import { intervalTooltipLabel } from '@/components/system/interval-strip';
@@ -193,14 +194,21 @@ interface OverlayFlagMarker {
   layerOrder: number;
   left: number;
   width: number;
+  collisionLeft?: number;
+  collisionWidth?: number;
   color: string;
   label: string;
   onClick: () => void;
   icon: IconComponent;
   clustered?: boolean;
 }
-interface StackedOverlayFlagMarker extends OverlayFlagMarker {
+interface OverlayFlagPill {
+  key: string;
+  paneId: string;
+  left: number;
+  width: number;
   bottom: number;
+  segments: OverlayFlagMarker[];
 }
 interface OverlayIconCluster {
   indicatorId: OverlayIndicatorId;
@@ -299,6 +307,7 @@ const LAYOUT_DROP_ANIMATION = {
 const REGIME_ICON_SIZE = 28;
 const REGIME_CLUSTER_GAP = 8;
 const OVERLAY_FLAG_STACK_GAP = 6;
+const OVERLAY_FLAG_ATTACH_PADDING = 8;
 const CHART_ICON_BOTTOM_INSET = OVERLAY_FLAG_STACK_GAP;
 const OLDER_LOAD_MIN_LOGICAL_RANGE_THRESHOLD = 5;
 const OLDER_LOAD_RANGE_FRACTION = 0.25;
@@ -972,7 +981,10 @@ function LayoutPaneSection({
       )}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        <p className={cn(
+          'text-[0.72rem] font-semibold text-muted-foreground',
+          language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.12em]',
+        )}>
           {layoutPaneLabel(language, pane.id)}
         </p>
       </div>
@@ -1308,45 +1320,109 @@ function setInputSeriesData(
   series.setData(cachedInputSeriesData(points, id, setting) as never);
 }
 
+function localizedChartValueSuffix(language: AppLanguage, suffix: string) {
+  if (language !== 'km') {
+    return suffix;
+  }
+  if (suffix === 'u') {
+    return ' ឯកតា';
+  }
+  if (suffix === 'd') {
+    return ' ថ្ងៃ';
+  }
+  return suffix;
+}
+
+function formatValue(
+  value: number | null | undefined,
+  suffix = '',
+  precision: TradingChartIndicatorPrecision = 'default',
+  language: AppLanguage = 'en',
+) {
+  if (value == null || !Number.isFinite(value)) {
+    return translateUiLiteral(language, 'No data');
+  }
+  const digits = precision === 'default'
+    ? (Number.isInteger(value) ? 0 : 2)
+    : Number.parseInt(precision, 10);
+  return `${value.toFixed(digits)}${localizedChartValueSuffix(language, suffix)}`;
+}
+
 function histogramIndicatorLegendValue(
   point: TradingChartPoint,
   id: HistogramIndicatorId,
   precision: TradingChartIndicatorPrecision,
   source: ChartInputValueSource | undefined,
+  language: AppLanguage,
 ) {
   if (source && source !== 'close') {
     const value = valueForInputSource(point, id, source);
     return id === 'demand' || id === 'serviceDemand' || id === 'retailDemand'
-      ? formatValue(value == null ? value : Math.abs(value), 'u', precision)
-      : formatValue(value, 'u', precision);
+      ? formatValue(value == null ? value : Math.abs(value), 'u', precision, language)
+      : formatValue(value, 'u', precision, language);
   }
   switch (id) {
     case 'demand': {
       const totalDemand = (point.serviceDemandMean ?? 0) + (point.retailDemandMean ?? 0);
-      return point.serviceDemandMean == null && point.retailDemandMean == null ? 'No data' : formatValue(totalDemand, 'u', precision);
+      return point.serviceDemandMean == null && point.retailDemandMean == null
+        ? translateUiLiteral(language, 'No data')
+        : formatValue(totalDemand, 'u', precision, language);
     }
     case 'serviceDemand':
-      return formatValue(point.serviceDemandMean, 'u', precision);
+      return formatValue(point.serviceDemandMean, 'u', precision, language);
     case 'retailDemand':
-      return formatValue(point.retailDemandMean, 'u', precision);
+      return formatValue(point.retailDemandMean, 'u', precision, language);
     case 'receipts':
       return point.receiptsMean == null && point.adjustmentsMean == null
-        ? 'No data'
-        : `${formatValue(point.receiptsMean ?? 0, 'u', precision)} / ${formatValue(point.adjustmentsMean ?? 0, 'u', precision)} adj`;
+        ? translateUiLiteral(language, 'No data')
+        : `${formatValue(point.receiptsMean ?? 0, 'u', precision, language)} / ${formatValue(point.adjustmentsMean ?? 0, 'u', precision, language)} ${translateUiLiteral(language, 'adjustments')}`;
     case 'ordersInTransit':
-      return formatValue(point.ordersInTransitMean, 'u', precision);
+      return formatValue(point.ordersInTransitMean, 'u', precision, language);
     case 'ordersLate':
-      return formatValue(point.ordersLateMean, 'u', precision);
+      return formatValue(point.ordersLateMean, 'u', precision, language);
     case 'ordersReadyToReceive':
-      return formatValue(point.ordersReadyToReceiveMean, 'u', precision);
+      return formatValue(point.ordersReadyToReceiveMean, 'u', precision, language);
     case 'ordersReceived':
-      return formatValue(point.ordersReceivedMean, 'u', precision);
+      return formatValue(point.ordersReceivedMean, 'u', precision, language);
     default:
-      return 'No data';
+      return translateUiLiteral(language, 'No data');
   }
 }
 
-export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): StackedOverlayFlagMarker[] {
+function overlayFlagMarkerSort(left: OverlayFlagMarker, right: OverlayFlagMarker) {
+  return left.left - right.left ||
+    left.layerOrder - right.layerOrder ||
+    INDICATOR_ORDER.indexOf(left.indicatorId) - INDICATOR_ORDER.indexOf(right.indicatorId);
+}
+
+function overlayFlagMarkersOverlap(left: OverlayFlagMarker, right: OverlayFlagMarker) {
+  const leftStart = left.collisionLeft ?? left.left;
+  const leftRight = leftStart + (left.collisionWidth ?? left.width);
+  const rightStart = right.collisionLeft ?? right.left;
+  const rightRight = rightStart + (right.collisionWidth ?? right.width);
+  return leftStart < rightRight + OVERLAY_FLAG_STACK_GAP && leftRight + OVERLAY_FLAG_STACK_GAP > rightStart;
+}
+
+function overlayFlagMarkerCollisionLeft(marker: OverlayFlagMarker) {
+  return marker.collisionLeft ?? marker.left;
+}
+
+function overlayFlagMarkerCollisionRight(marker: OverlayFlagMarker) {
+  return overlayFlagMarkerCollisionLeft(marker) + (marker.collisionWidth ?? marker.width);
+}
+
+function overlayFlagPillWidth(segments: OverlayFlagMarker[]) {
+  const attachPadding = segments.length > 1 ? OVERLAY_FLAG_ATTACH_PADDING : 0;
+  return segments.reduce((sum, segment) => sum + Math.max(REGIME_ICON_SIZE, segment.width) + attachPadding, 0);
+}
+
+function overlayFlagPillLeft(segments: OverlayFlagMarker[], width: number) {
+  const collisionLeft = Math.min(...segments.map(overlayFlagMarkerCollisionLeft));
+  const collisionRight = Math.max(...segments.map(overlayFlagMarkerCollisionRight));
+  return (collisionLeft + collisionRight - width) / 2;
+}
+
+export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): OverlayFlagPill[] {
   const grouped = new Map<string, OverlayFlagMarker[]>();
   for (const marker of markers) {
     const key = marker.paneId;
@@ -1355,22 +1431,29 @@ export function stackOverlayFlagMarkers(markers: OverlayFlagMarker[]): StackedOv
     grouped.set(key, current);
   }
   return [...grouped.values()].flatMap((group) => {
-    const rows: OverlayFlagMarker[][] = [];
-    return [...group]
-      .sort((left, right) => left.layerOrder - right.layerOrder || INDICATOR_ORDER.indexOf(left.indicatorId) - INDICATOR_ORDER.indexOf(right.indicatorId))
-      .map((marker) => {
-        const markerRight = marker.left + marker.width;
-        let rowIndex = rows.findIndex((row) => !row.some((placed) => marker.left < placed.left + placed.width + OVERLAY_FLAG_STACK_GAP && markerRight + OVERLAY_FLAG_STACK_GAP > placed.left));
-        if (rowIndex === -1) {
-          rowIndex = rows.length;
-          rows.push([]);
-        }
-        rows[rowIndex]!.push(marker);
-        return {
-          ...marker,
-          bottom: CHART_ICON_BOTTOM_INSET + rowIndex * (REGIME_ICON_SIZE + OVERLAY_FLAG_STACK_GAP),
-        };
+    const pills: OverlayFlagPill[] = [];
+    const orderedMarkers = [...group].sort(overlayFlagMarkerSort);
+    for (const marker of orderedMarkers) {
+      const previous = pills.at(-1);
+      if (previous && previous.segments.some((segment) => overlayFlagMarkersOverlap(segment, marker))) {
+        previous.segments.push(marker);
+        previous.segments.sort(overlayFlagMarkerSort);
+        previous.width = overlayFlagPillWidth(previous.segments);
+        previous.left = overlayFlagPillLeft(previous.segments, previous.width);
+        previous.key = previous.segments.map((segment) => segment.key).join('|');
+        continue;
+      }
+      const width = Math.max(REGIME_ICON_SIZE, marker.width);
+      pills.push({
+        key: marker.key,
+        paneId: marker.paneId,
+        left: marker.left + (marker.width - width) / 2,
+        width,
+        bottom: CHART_ICON_BOTTOM_INSET,
+        segments: [marker],
       });
+    }
+    return pills;
   });
 }
 
@@ -1648,16 +1731,6 @@ function regimeUsesBackground(plotStyle: TradingChartIndicatorPlotStyle) {
   return plotStyle === 'background-highlight' || plotStyle === 'background-highlight-icons';
 }
 
-function formatValue(value: number | null | undefined, suffix = '', precision: TradingChartIndicatorPrecision = 'default') {
-  if (value == null || !Number.isFinite(value)) {
-    return 'No data';
-  }
-  const digits = precision === 'default'
-    ? (Number.isInteger(value) ? 0 : 2)
-    : Number.parseInt(precision, 10);
-  return `${value.toFixed(digits)}${suffix}`;
-}
-
 function shortRegimeLabel(regime: string | null) {
   if (!regime) {
     return '';
@@ -1838,14 +1911,16 @@ function buildStackedOverlayMarkers({
     for (const cluster of clusters) {
       const regime = cluster.groupKey;
       const regimeKey = regime.toLowerCase();
+      const markerLeft = cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2;
+      const markerWidth = cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE;
       markers.push({
         key: `regime:${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}-${regime}`,
         indicatorId: 'regime',
         paneId: regimePaneId,
         intervalIndex: cluster.lastIntervalIndex,
         layerOrder: editableIndicatorSettings.regime.layerOrder,
-        left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
-        width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
+        left: markerLeft,
+        width: markerWidth,
         color: REGIME_COLORS[regimeKey] ?? REGIME_COLORS.unknown,
         label: regimeClusterLabel(language, regime, cluster.count),
         onClick: () => onSelectInterval(cluster.lastIntervalIndex),
@@ -1866,25 +1941,25 @@ function buildStackedOverlayMarkers({
       return;
     }
     const setting = editableIndicatorSettings[indicatorId];
-    const clusters = buildOverlayIconClusters(
-      chartModel.points
-        .map((point) => {
-          const x = regimeIconPositions.get(point.intervalIndex);
-          return hasValue(point) && x != null
-            ? { indicatorId, groupKey: indicatorId, intervalIndex: point.intervalIndex, x }
-            : null;
-        })
-        .filter((entry): entry is { indicatorId: 'newOrderFlags' | 'newReceiptFlags'; groupKey: string; intervalIndex: number; x: number } => entry != null),
-    );
+    const entries: Array<{ indicatorId: OverlayIndicatorId; groupKey: string; intervalIndex: number; x: number }> = [];
+    for (const point of chartModel.points) {
+      const x = regimeIconPositions.get(point.intervalIndex);
+      if (hasValue(point) && x != null) {
+        entries.push({ indicatorId, groupKey: indicatorId, intervalIndex: point.intervalIndex, x });
+      }
+    }
+    const clusters = buildOverlayIconClusters(entries);
     for (const cluster of clusters) {
+      const markerLeft = cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2;
+      const markerWidth = cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE;
       markers.push({
         key: `${indicatorId}:${cluster.firstIntervalIndex}-${cluster.lastIntervalIndex}`,
         indicatorId,
         paneId: setting.paneId,
         intervalIndex: cluster.lastIntervalIndex,
         layerOrder: setting.layerOrder,
-        left: cluster.count > 1 ? cluster.left : cluster.center - REGIME_ICON_SIZE / 2,
-        width: cluster.count > 1 ? Math.max(REGIME_ICON_SIZE, cluster.right - cluster.left) : REGIME_ICON_SIZE,
+        left: markerLeft,
+        width: markerWidth,
         color: setting.color,
         label: cluster.count > 1 ? `${label}, ${cluster.count} intervals` : label,
         onClick: () => onSelectInterval(cluster.lastIntervalIndex),
@@ -1959,25 +2034,42 @@ function regimeIconClustersEqual(left: OverlayIconCluster[], right: OverlayIconC
   });
 }
 
-function stackedOverlayMarkersEqual(left: StackedOverlayFlagMarker[], right: StackedOverlayFlagMarker[]) {
+function overlayFlagMarkersEqual(left: OverlayFlagMarker[], right: OverlayFlagMarker[]) {
   if (left.length !== right.length) {
     return false;
   }
-  return left.every((marker, index) => {
+  return left.every((segment, index) => {
     const other = right[index];
     return other != null &&
-      marker.key === other.key &&
-      marker.indicatorId === other.indicatorId &&
-      marker.paneId === other.paneId &&
-      marker.intervalIndex === other.intervalIndex &&
-      marker.layerOrder === other.layerOrder &&
-      marker.left === other.left &&
-      marker.width === other.width &&
-      marker.color === other.color &&
-      marker.label === other.label &&
-      marker.icon === other.icon &&
-      marker.clustered === other.clustered &&
-      marker.bottom === other.bottom;
+      segment.key === other.key &&
+      segment.indicatorId === other.indicatorId &&
+      segment.paneId === other.paneId &&
+      segment.intervalIndex === other.intervalIndex &&
+      segment.layerOrder === other.layerOrder &&
+      segment.left === other.left &&
+      segment.width === other.width &&
+      segment.collisionLeft === other.collisionLeft &&
+      segment.collisionWidth === other.collisionWidth &&
+      segment.color === other.color &&
+      segment.label === other.label &&
+      segment.icon === other.icon &&
+      segment.clustered === other.clustered;
+  });
+}
+
+function stackedOverlayMarkersEqual(left: OverlayFlagPill[], right: OverlayFlagPill[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((pill, index) => {
+    const other = right[index];
+    return other != null &&
+      pill.key === other.key &&
+      pill.paneId === other.paneId &&
+      pill.left === other.left &&
+      pill.width === other.width &&
+      pill.bottom === other.bottom &&
+      overlayFlagMarkersEqual(pill.segments, other.segments);
   });
 }
 
@@ -2105,21 +2197,21 @@ function buildLegendRows({
     let value = translateUiLiteral(language, 'No data');
     if (point) {
       if (id === 'inventory') {
-        value = formatValue(valueForInputSource(point, id, setting.inputSource), 'u', setting.precision);
+        value = formatValue(valueForInputSource(point, id, setting.inputSource), 'u', setting.precision, language);
       } else if (id === 'uncertainty') {
         value = point.inventoryLow == null || point.inventoryHigh == null
           ? translateUiLiteral(language, 'No data')
-          : `${formatValue(point.inventoryLow, 'u', setting.precision)} - ${formatValue(point.inventoryHigh, 'u', setting.precision)}`;
+          : `${formatValue(point.inventoryLow, 'u', setting.precision, language)} - ${formatValue(point.inventoryHigh, 'u', setting.precision, language)}`;
       } else if (id === 'reorderPoint') {
-        value = formatValue(point.reorderPoint, 'u', setting.precision);
+        value = formatValue(point.reorderPoint, 'u', setting.precision, language);
       } else if (id === 'safetyStock') {
-        value = formatValue(point.safetyStock, 'u', setting.precision);
+        value = formatValue(point.safetyStock, 'u', setting.precision, language);
       } else if (id === 'availableCapacity') {
-        value = formatValue(point.availableCapacity, 'u', setting.precision);
+        value = formatValue(point.availableCapacity, 'u', setting.precision, language);
       } else if (id === 'demandMinusAvailableCapacity') {
-        value = formatValue(point.demandMinusAvailableCapacity, 'u', setting.precision);
+        value = formatValue(point.demandMinusAvailableCapacity, 'u', setting.precision, language);
       } else if (isHistogramIndicatorId(id)) {
-        value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource);
+        value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource, language);
       } else if (id === 'newOrderFlags') {
         value = point.newOrderFlag
           ? translateUiLiteral(language, 'Supplier order recorded')
@@ -2129,13 +2221,13 @@ function buildLegendRows({
           ? translateUiLiteral(language, 'Supplier receipt recorded')
           : translateUiLiteral(language, 'No activity');
       } else if (id === 'price') {
-        value = formatValue(valueForInputSource(point, id, setting.inputSource), '', setting.precision);
+        value = formatValue(valueForInputSource(point, id, setting.inputSource), '', setting.precision, language);
       } else if (id === 'leadTime') {
-        value = formatValue(point.leadTimeMean, 'd', setting.precision);
+        value = formatValue(point.leadTimeMean, 'd', setting.precision, language);
       } else if (id === 'leadTimeRange') {
         value = point.leadTimeLow == null || point.leadTimeHigh == null
           ? translateUiLiteral(language, 'No data')
-          : `${formatValue(point.leadTimeLow, 'd', setting.precision)} - ${formatValue(point.leadTimeHigh, 'd', setting.precision)}`;
+          : `${formatValue(point.leadTimeLow, 'd', setting.precision, language)} - ${formatValue(point.leadTimeHigh, 'd', setting.precision, language)}`;
       } else if (id === 'regime') {
         value = point.dominantRegime ? translateRegimeLabel(language, point.dominantRegime) : translateUiLiteral(language, 'No data');
       }
@@ -2490,7 +2582,7 @@ export function SkuTradingChart({
   const viewportInteractionEndTimerRef = useRef<number | null>(null);
   const regimeIconPositionsRef = useRef<Map<number, number>>(new Map());
   const clusteredRegimeIconsRef = useRef<OverlayIconCluster[]>([]);
-  const stackedOverlayMarkersRef = useRef<StackedOverlayFlagMarker[]>([]);
+  const stackedOverlayMarkersRef = useRef<OverlayFlagPill[]>([]);
   const regimeBackgroundBandsRef = useRef<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [hoveredTime, setHoveredTime] = useState<Time | null>(null);
   const [indicatorsDialogOpen, setIndicatorsDialogOpen] = useState(false);
@@ -2511,7 +2603,7 @@ export function SkuTradingChart({
   } | null>(null);
   const [clusteredRegimeIcons, setClusteredRegimeIcons] = useState<OverlayIconCluster[]>([]);
   const [paneLegendPositions, setPaneLegendPositions] = useState<Array<{ top: number; height: number }>>([]);
-  const [stackedOverlayMarkers, setStackedOverlayMarkers] = useState<StackedOverlayFlagMarker[]>([]);
+  const [stackedOverlayMarkers, setStackedOverlayMarkers] = useState<OverlayFlagPill[]>([]);
   const [plotAreaWidth, setPlotAreaWidth] = useState(0);
   const [regimeBackgroundBands, setRegimeBackgroundBands] = useState<Array<{ intervalIndex: number; regime: string; left: number; width: number }>>([]);
   const [uncertaintyBandPath, setUncertaintyBandPath] = useState('');
@@ -4300,7 +4392,10 @@ export function SkuTradingChart({
                           </div>
                           <div className="grid gap-4">
                             <div className="grid gap-4">
-                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Input Values')}</p>
+                              <p className={cn(
+                                'text-[0.72rem] font-semibold text-muted-foreground',
+                                language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.12em]',
+                              )}>{translateUiLiteral(language, 'Input Values')}</p>
                               <div className="flex flex-wrap items-center gap-4">
                                 <label className="text-sm font-medium text-foreground" htmlFor={`indicator-source-${id}`}>{translateUiLiteral(language, 'Source')}</label>
                                 <Select
@@ -4324,7 +4419,7 @@ export function SkuTradingChart({
                                           disabled={inputSourceOptionDisabled(setting.plotStyle, option.value)}
                                           value={option.value}
                                         >
-                                          {translateUiLiteral(language, option.label)}
+                                          {localizedChartInputSourceLabel(language, option.value)}
                                         </SelectItem>
                                       ))}
                                     </SelectGroup>
@@ -4333,7 +4428,10 @@ export function SkuTradingChart({
                               </div>
                             </div>
                             <div className="grid gap-4">
-                              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Output Values')}</p>
+                              <p className={cn(
+                                'text-[0.72rem] font-semibold text-muted-foreground',
+                                language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.12em]',
+                              )}>{translateUiLiteral(language, 'Output Values')}</p>
                               <div className="flex flex-wrap items-center gap-4">
                                 <label className="text-sm font-medium text-foreground" htmlFor={`indicator-precision-${id}`}>{translateUiLiteral(language, 'Precision')}</label>
                                 <Select
@@ -4504,7 +4602,10 @@ export function SkuTradingChart({
                   <div className="grid gap-6">
                     {visibleIndicatorSections.map((section) => (
                       <section key={section.title} className="grid gap-3">
-                        <p className="text-[0.72rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, section.title)}</p>
+                        <p className={cn(
+                          'text-[0.72rem] font-semibold text-muted-foreground',
+                          language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.12em]',
+                        )}>{translateUiLiteral(language, section.title)}</p>
                         <div className="grid gap-0">
                           {section.ids.map((id) => {
                             const setting = draftIndicatorsDialogSettings?.[id] ?? indicatorSettings[id];
@@ -4807,47 +4908,92 @@ export function SkuTradingChart({
                 </div>
               );
             }) : null}
-            {stackedOverlayMarkers.length > 0 ? (
+            {stackedOverlayMarkers.length > 0 || overlayPointIntervals.length > 0 ? (
               <div
-                aria-label="Chart flags"
+                aria-label={translateUiLiteral(language, 'Chart flags')}
                 className="pointer-events-none absolute inset-y-0 left-0 z-10 overflow-hidden"
                 style={{ width: plotAreaWidth || '100%' }}
               >
-                {stackedOverlayMarkers.map((marker) => {
-                  const paneIndex = paneIndexById.get(marker.paneId);
+                {stackedOverlayMarkers.map((pill) => {
+                  const paneIndex = paneIndexById.get(pill.paneId);
                   const pane = paneIndex == null ? null : paneLegendPositions[paneIndex];
                   if (!pane || pane.height <= 0) {
                     return null;
                   }
                   if (plotAreaWidth != null) {
-                    const markerRight = marker.left + marker.width;
-                    if (markerRight <= 0 || marker.left >= plotAreaWidth) {
+                    const pillRight = pill.left + pill.width;
+                    if (pillRight <= 0 || pill.left >= plotAreaWidth) {
                       return null;
                     }
                   }
-                  const Icon = marker.icon;
+                  const top = Math.max(pane.top, pane.top + pane.height - pill.bottom - REGIME_ICON_SIZE);
+                  const [singleSegment] = pill.segments;
+                  if (singleSegment) {
+                    const Icon = singleSegment.icon;
+                    if (pill.segments.length === 1) {
+                      return (
+                        <button
+                          key={pill.key}
+                          aria-label={translateUiLiteral(language, 'Select {name}', { name: singleSegment.label })}
+                          className={cn(
+                            'pointer-events-auto absolute flex h-7 items-center justify-center rounded-full border border-background/80 bg-background/92 text-foreground shadow-sm transition-transform hover:scale-105',
+                            singleSegment.clustered ? 'px-2' : 'w-7',
+                          )}
+                          style={{
+                            top,
+                            left: pill.left,
+                            width: pill.width,
+                            color: singleSegment.color,
+                          }}
+                          type="button"
+                          onClick={singleSegment.onClick}
+                        >
+                          <Icon aria-hidden="true" className="size-4" />
+                          <span className="sr-only">
+                            {singleSegment.indicatorId === 'regime' ? shortRegimeLabel(singleSegment.label) : singleSegment.label}
+                          </span>
+                        </button>
+                      );
+                    }
+                  }
                   return (
-                    <button
-                      key={marker.key}
-                      aria-label={translateUiLiteral(language, 'Select {name}', { name: marker.label })}
-                      className={cn(
-                        'pointer-events-auto absolute flex h-7 items-center justify-center rounded-full border border-background/80 bg-background/92 text-foreground shadow-sm transition-transform hover:scale-105',
-                        marker.clustered ? 'px-2' : 'w-7',
-                      )}
+                    <div
+                      key={pill.key}
+                      aria-label={pill.segments.map((segment) => segment.label).join(', ')}
+                      className="pointer-events-none absolute flex h-7 text-foreground"
+                      role="group"
                       style={{
-                        top: Math.max(pane.top, pane.top + pane.height - marker.bottom - REGIME_ICON_SIZE),
-                        left: marker.left,
-                        width: marker.width,
-                        color: marker.color,
+                        top,
+                        left: pill.left,
+                        width: pill.width,
                       }}
-                      type="button"
-                      onClick={marker.onClick}
                     >
-                      <Icon aria-hidden="true" className="size-4" />
-                      <span className="sr-only">
-                        {marker.indicatorId === 'regime' ? shortRegimeLabel(marker.label) : marker.label}
-                      </span>
-                    </button>
+                      {pill.segments.map((segment, index) => {
+                        const Icon = segment.icon;
+                        return (
+                          <button
+                            key={segment.key}
+                            aria-label={translateUiLiteral(language, 'Select {name}', { name: segment.label })}
+                            className={cn(
+                              'pointer-events-auto flex h-7 min-w-0 items-center justify-center border border-background/80 bg-background/92 shadow-sm transition-colors hover:bg-muted/60',
+                              index === 0 ? 'rounded-l-full' : '-ml-px rounded-l-none border-l-border/70',
+                              index === pill.segments.length - 1 ? 'rounded-r-full' : 'rounded-r-none',
+                            )}
+                            style={{
+                              color: segment.color,
+                              width: Math.max(REGIME_ICON_SIZE, segment.width) + OVERLAY_FLAG_ATTACH_PADDING,
+                            }}
+                            type="button"
+                            onClick={segment.onClick}
+                          >
+                            <Icon aria-hidden="true" className="size-4 max-h-[70%] max-w-[70%]" />
+                            <span className="sr-only">
+                              {segment.indicatorId === 'regime' ? shortRegimeLabel(segment.label) : segment.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   );
                 })}
               </div>
@@ -4891,7 +5037,7 @@ export function SkuTradingChart({
       </div>
 
       <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
-        <div className="flex flex-wrap items-center gap-2" aria-label="Chart duration">
+        <div className="flex flex-wrap items-center gap-2" aria-label={translateUiLiteral(language, 'Chart duration')}>
           {CHART_TIMEFRAME_OPTIONS.map((option) => (
             <button
               key={option}
@@ -4993,8 +5139,11 @@ export function SkuTradingChart({
           ) : null}
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2" aria-label="Chart timeframe">
-          <span className="mr-1 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{translateUiLiteral(language, 'Timeframe')}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2" aria-label={translateUiLiteral(language, 'Chart timeframe')}>
+          <span className={cn(
+            'mr-1 text-xs font-semibold text-muted-foreground',
+            language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.12em]',
+          )}>{translateUiLiteral(language, 'Timeframe')}</span>
           {CHART_RESOLUTION_OPTIONS.map((option) => {
             const active = chartResolution === option;
             if (option === 'Custom') {

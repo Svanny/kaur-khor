@@ -2,6 +2,7 @@ import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import type {
   SenaCatalog,
   SenaDiagnostics,
+  SenaLeadTimeVariabilityClass,
   SenaLeadTimePosteriorPoint,
   SenaObservationRecord,
   SenaServiceDetail,
@@ -288,7 +289,7 @@ type IntervalAggregateSeed = {
   ageDaysMean: number;
   leadTimeMeanDays: number;
   leadTimeStdDays: number;
-  leadTimeVariabilityClass: string | null;
+  leadTimeVariabilityClass: SenaLeadTimeVariabilityClass | null;
   leadTimeCount: number;
   priceShiftCount: number;
   priceDeltaCount: number;

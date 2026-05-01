@@ -65,7 +65,6 @@ import {
 import { RIGHT_RAIL_ASIDE_CLASS_NAME } from '@/components/system/right-rail-layout';
 import {
   createHeaderedTableLayout,
-  hasRenderableRows,
   HeaderedTableCellStack,
   HeaderedTable,
   HeaderedTableBody,
@@ -78,7 +77,6 @@ import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { useFloatingTitleActions } from '@/components/system/floating-title-actions';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
-import { cardFrameClassName, cardSurfaceClassName } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { translateObservationEvidenceLabel, translateRegimeLabel } from '@/lib/localized-display';
@@ -113,32 +111,28 @@ const pressureTableLayout = createHeaderedTableLayout({
   gap: 4,
 });
 
-const ANALYSIS_BOARD_CLASS_NAME = `${cardFrameClassName} ${cardSurfaceClassName} relative z-[1] overflow-hidden rounded-[2rem]`;
-const ANALYSIS_RAIL_PANEL_CLASS_NAME = 'flex h-full flex-col bg-secondary/15 lg:rounded-l-none';
+const ANALYSIS_BOARD_CLASS_NAME = 'editorial-panel relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem] !border-white/70 bg-white text-sm text-card-foreground shadow-[0_16px_40px_rgba(48,31,20,0.06)]';
+const ANALYSIS_PANEL_SURFACE_CLASS_NAME = 'analysis-panel-shell !overflow-visible !rounded-none !border-transparent !shadow-none ![background:transparent]';
+const ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME = 'flex flex-col bg-secondary/15 lg:rounded-l-none lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]';
+const ANALYSIS_SECTIONS: AnalysisSection[] = ['workbench', 'pressure', 'observations', 'fragility', 'settings'];
 
 function sectionSupportsRightRail(section: AnalysisSection) {
   return section !== 'observations' && section !== 'fragility';
 }
 
-function hasFragilityMapContent(model: AnalysisWorkbenchViewModel) {
-  return model.fragilityRows.some((row) => hasRenderableRows(row.cells));
+function visibleAnalysisSections(model: AnalysisWorkbenchViewModel) {
+  return ANALYSIS_SECTIONS.filter((section) => section !== 'observations' || model.observationCount > 0);
 }
 
-function analysisSectionHasContent(section: AnalysisSection, model: AnalysisWorkbenchViewModel) {
-  if (section === 'pressure') {
-    return hasRenderableRows(model.entityRows);
-  }
-  if (section === 'observations') {
-    return hasRenderableRows(model.evidenceRows);
-  }
-  if (section === 'fragility') {
-    return hasFragilityMapContent(model);
-  }
-  return true;
+function analysisRailPanelClassName(fitViewport: boolean) {
+  return cn(
+    ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME,
+    fitViewport ? 'h-full min-h-0 overflow-y-auto' : 'h-full min-h-full',
+  );
 }
 
 function analysisRailBlockClassName() {
-  return 'border-t border-border/60 px-5 py-5 first:border-t-0';
+  return 'border-t border-border/60 px-5 py-5 first-of-type:border-t-0';
 }
 
 function scoreCellTone(level: AnalysisRiskLevel) {
@@ -362,7 +356,7 @@ function AnalysisRailSection({
     <section
       className={cn(
         analysisRailBlockClassName(),
-        'scroll-mt-6 rounded-[1.1rem] transition-colors duration-300',
+        'scroll-mt-6 transition-colors duration-300',
         flash && 'bg-primary/[0.08] ring-1 ring-primary/20',
       )}
     >
@@ -396,14 +390,14 @@ function AnalysisRailRow({
 }) {
   if (!secondary) {
     return (
-      <div className="rounded-[1rem] px-3 py-3">
+      <div className="px-3 py-3">
         <div className="min-w-0 break-words text-sm text-foreground">{primary}</div>
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-[minmax(6.5rem,0.85fr)_minmax(0,1.15fr)] items-start gap-3 rounded-[1rem] px-3 py-3">
+    <div className="grid grid-cols-[minmax(6.5rem,0.85fr)_minmax(0,1.15fr)] items-start gap-3 px-3 py-3">
       <div className="min-w-0 break-words text-sm text-foreground">{primary}</div>
       <div className="min-w-0 break-words text-right text-sm text-muted-foreground [overflow-wrap:anywhere]">{secondary}</div>
     </div>
@@ -420,16 +414,16 @@ function InternalNav({
   visibleSections: AnalysisSection[];
 }) {
   const { t } = usePreferences();
-  const navOptions: Array<{ value: AnalysisSection; label: string; leading: ReactNode }> = [
+  const navOptions = ([
     { value: 'workbench', label: t('analysisWorkbenchNavWorkbench'), leading: <EntityWaypointsIcon className="size-4" /> },
     { value: 'pressure', label: t('analysisWorkbenchNavPressure'), leading: <StatusGaugeIcon className="size-4" /> },
     { value: 'observations', label: t('analysisWorkbenchNavObservations'), leading: <EntityEvidenceIcon className="size-4" /> },
     { value: 'fragility', label: t('analysisWorkbenchNavFragility'), leading: <NavigationDenseGridIcon className="size-4" /> },
     { value: 'settings', label: t('analysisWorkbenchNavSettings'), leading: <StatusSettingsControlIcon className="size-4" /> },
-  ].filter((option) => visibleSections.includes(option.value));
+  ] satisfies Array<{ value: AnalysisSection; label: string; leading: ReactNode }>).filter((option) => visibleSections.includes(option.value));
   return (
-    <div className={`relative flex overflow-x-auto overflow-y-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`}>
-      <ChromeTabsList aria-label={t('analysisWorkbenchSelectSurface')} className="min-w-max">
+    <div className={`relative flex overflow-hidden px-5 sm:px-6 ${showRightRailCards ? 'lg:pr-[calc(320px+1.5rem)]' : ''}`} data-analysis-nav="true">
+      <ChromeTabsList aria-label={t('analysisWorkbenchSelectSurface')} className="min-w-0" collapseBehavior="progressive">
         {navOptions.map((option) => (
           <ChromeTabsTrigger key={option.value} leading={option.leading} value={option.value}>
             {option.label}
@@ -503,9 +497,9 @@ function AnalysisSurfaceWireframe({ section }: { section: AnalysisSection }) {
   );
 }
 
-function AnalysisRailWireframe() {
+function AnalysisRailWireframe({ fitViewport }: { fitViewport: boolean }) {
   return (
-    <aside className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, ANALYSIS_RAIL_PANEL_CLASS_NAME, 'gap-4 px-4 py-4')}>
+    <aside className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, analysisRailPanelClassName(fitViewport), 'gap-4 px-4 py-4')}>
       {Array.from({ length: 3 }).map((_, index) => (
         <section key={`wireframe-rail:${index}`} className="rounded-[1.4rem] border border-border/60 bg-white/85 px-4 py-4">
           <Skeleton className="h-5 w-32 rounded-full" />
@@ -887,7 +881,7 @@ function SystemLedger({
         helpHref="/settings/help#explain-ledger"
         descriptor={t('analysisWorkbenchLedgerDescriptor')}
         headerActions={chartHeaderActions}
-        className={cn(showRightRailCards && 'lg:rounded-r-none', 'h-full')}
+        className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none', 'h-full')}
         contentClassName="px-0 py-0"
       >
         <div
@@ -1669,8 +1663,8 @@ function ObservationLedgerCompact({
   }, [pageCount]);
 
   return (
-    <div className="grid gap-0">
-      <HeaderedTable>
+    <div className="flex min-h-full flex-1 flex-col">
+      <HeaderedTable className="min-h-0">
         <HeaderedTableHeader className={observationLedgerGridClassName}>
           <HeaderedTableHeaderCell className="justify-self-start">
             <HeaderTooltipLabel helpHref="/settings/help#explain-observation-observed" tooltip={t('analysisWorkbenchObservedHeaderTooltip')}>
@@ -1865,7 +1859,7 @@ function SupplyFragilityMap({
       tooltip={t('analysisWorkbenchFragilityTooltip')}
       helpHref="/settings/help#explain-fragility-map"
       descriptor={t('analysisWorkbenchFragilityDescriptor')}
-      className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+      className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none')}
       contentClassName="px-0 py-0"
     >
       {floatingServiceHeaderVisible ? (
@@ -2168,11 +2162,13 @@ function InspectorRail({
   section,
   selection,
   flashedSection,
+  fitViewport,
 }: {
   model: AnalysisWorkbenchViewModel;
   section: AnalysisSection;
   selection: AnalysisSelection;
   flashedSection: IntervalRailSectionKey | null;
+  fitViewport: boolean;
 }) {
   const interval = selection.type === 'interval'
     ? model.intervals.find((entry) => entry.intervalIndex === selection.intervalIndex) ?? null
@@ -2244,18 +2240,18 @@ function InspectorRail({
 
   return (
     <aside
-      className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, ANALYSIS_RAIL_PANEL_CLASS_NAME, 'relative gap-0')}
+      className={cn(RIGHT_RAIL_ASIDE_CLASS_NAME, analysisRailPanelClassName(fitViewport), 'relative gap-0')}
       data-analysis-inspector="true"
-      style={reservedHeight != null ? { minHeight: reservedHeight } : undefined}
+      style={!fitViewport && reservedHeight != null ? { minHeight: reservedHeight } : undefined}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 invisible">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-0 overflow-hidden invisible" data-analysis-inspector-measurements="true">
         {measurementVariants.map((variant, index) => (
           <div
             key={variant.key}
             ref={(node) => {
               measurementRefs.current[index] = node;
             }}
-            className={cn(ANALYSIS_RAIL_PANEL_CLASS_NAME, 'gap-0')}
+            className={cn(ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME, 'gap-0')}
           >
             {variant.content}
           </div>
@@ -2315,6 +2311,7 @@ function WorkbenchSurface({
       <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
         chartLayoutPreferences={chartLayoutPreferences}
+        className={ANALYSIS_PANEL_SURFACE_CLASS_NAME}
         customTimeframeRange={customTimeframeRange}
         expanded={expanded}
         hasOlderIntervals={hasOlderIntervals}
@@ -2350,13 +2347,13 @@ function PressureSurface({
 }) {
   const { t } = usePreferences();
   return (
-    <div className="grid gap-6">
+    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchPressureTitle')}
         tooltip={t('analysisWorkbenchPressureTooltip')}
         helpHref="/settings/help#explain-pressure-table"
         descriptor={t('analysisWorkbenchPressureDescriptor')}
-        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+        className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none')}
         contentClassName="px-0 py-0"
       >
         <EntityPressureTable model={model} selectedEntityId={selectedEntityId} setSelection={setSelection} />
@@ -2376,13 +2373,13 @@ function ObservationsSurface({
 }) {
   const { t } = usePreferences();
   return (
-    <div className="grid gap-6">
+    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchObservationsTitle')}
         tooltip={t('analysisWorkbenchObservationsTooltip')}
         helpHref="/settings/help#explain-observations-ledger"
         descriptor={t('analysisWorkbenchObservationsDescriptor')}
-        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+        className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none')}
         contentClassName="px-0 py-0"
       >
         <ObservationLedgerCompact model={model} />
@@ -2401,7 +2398,7 @@ function FragilitySurface({
   showRightRailCards: boolean;
 }) {
   return (
-    <div className="grid gap-6">
+    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
       <SupplyFragilityMap model={model} setSelection={setSelection} showRightRailCards={showRightRailCards} />
     </div>
   );
@@ -2427,20 +2424,20 @@ function SettingsSurface({
     { key: 'scope', label: t('analysisWorkbenchSettingsScopeLabel'), tooltip: t('analysisWorkbenchSettingsScopeTooltip'), helpHref: '/settings/help#explain-settings-scope', valueKey: 'scopeSummary' },
   ] as const;
   return (
-    <div className="grid gap-6">
+    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchSettingsTitle')}
         tooltip={t('analysisWorkbenchSettingsTooltip')}
         helpHref="/settings/help#explain-settings-panel"
         descriptor={t('analysisWorkbenchSettingsDescriptor')}
-        className={showRightRailCards ? 'lg:rounded-r-none' : undefined}
+        className={cn(ANALYSIS_PANEL_SURFACE_CLASS_NAME, showRightRailCards && 'lg:rounded-r-none')}
       >
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid h-full gap-4 md:grid-cols-2 xl:grid-cols-3 xl:auto-rows-fr">
           {analysisSettingsFields.map((field) => {
             const value = model.settings[field.valueKey];
 
             return (
-              <div key={field.key} className="rounded-[1.25rem] border border-border/60 bg-white px-4 py-4">
+              <div key={field.key} className="rounded-[1.25rem] border border-white/70 bg-white/92 px-4 py-4 shadow-[0_1px_0_rgba(255,255,255,0.9)]">
                 <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   <SectionLabel helpHref={field.helpHref} tooltip={field.tooltip}>{field.label}</SectionLabel>
                 </p>
@@ -2459,11 +2456,11 @@ export function AnalysisWorkbench({
   chartLayoutPreferences,
   customTimeframeRange = null,
   expanded = false,
-  hasOlderIntervals,
+  hasOlderIntervals = false,
   isHydratingDetails = false,
   isVisuallyBusy,
-  isLoadingOlderIntervals,
-  loadOlderIntervals,
+  isLoadingOlderIntervals = false,
+  loadOlderIntervals = async () => 0,
   model,
   onChartLayoutPreferencesChange,
   onCustomTimeframeChange,
@@ -2480,11 +2477,11 @@ export function AnalysisWorkbench({
   chartLayoutPreferences?: PersistedChartLayoutPreferences;
   customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
-  hasOlderIntervals: boolean;
+  hasOlderIntervals?: boolean;
   isHydratingDetails?: boolean;
   isVisuallyBusy?: boolean;
-  isLoadingOlderIntervals: boolean;
-  loadOlderIntervals: (limit?: number) => Promise<number>;
+  isLoadingOlderIntervals?: boolean;
+  loadOlderIntervals?: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   onChartLayoutPreferencesChange?: (next: Partial<PersistedChartLayoutPreferences>, options?: ChartLayoutPreferenceMergeOptions) => void;
   onCustomTimeframeChange?: (value: ChartCustomTimeframeRange | null) => void;
@@ -2497,17 +2494,14 @@ export function AnalysisWorkbench({
   showRightRailCards: boolean;
   timeframe?: AnalysisTimeframe;
 }) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [selection, setSelection] = useState<AnalysisSelection>({ type: 'overview' });
   const [pendingSection, setPendingSection] = useState<AnalysisSection | null>(null);
   const [flashedIntervalSection, setFlashedIntervalSection] = useState<IntervalRailSectionKey | null>(null);
+  const [naturalSectionMinHeight, setNaturalSectionMinHeight] = useState<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
-  const visibleSections = useMemo(
-    () =>
-      (['workbench', 'pressure', 'observations', 'fragility', 'settings'] as AnalysisSection[])
-        .filter((candidate) => analysisSectionHasContent(candidate, model)),
-    [model],
-  );
-  const fallbackSection = visibleSections[0] ?? 'settings';
+  const visibleSections = useMemo(() => visibleAnalysisSections(model), [model]);
+  const fallbackSection = visibleSections[0] ?? 'workbench';
   const requestedSection = pendingSection ?? section;
   const activeSection = visibleSections.includes(requestedSection) ? requestedSection : fallbackSection;
   const isSectionPending = pendingSection != null && pendingSection !== section;
@@ -2637,61 +2631,103 @@ export function AnalysisWorkbench({
   }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   const workbenchSectionActive = activeSection === 'workbench';
+  const workbenchFitsViewport = workbenchSectionActive && railEnabled;
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const main = document.getElementById('main-content');
+    if (!root || !main) {
+      return;
+    }
+
+    const updateMinHeight = () => {
+      const mainBounds = main.getBoundingClientRect();
+      const rootBounds = root.getBoundingClientRect();
+      const nextMinHeight = Math.max(0, Math.floor(mainBounds.bottom - rootBounds.top - 20));
+      setNaturalSectionMinHeight((current) => (current === nextMinHeight ? current : nextMinHeight));
+    };
+
+    const frameId = window.requestAnimationFrame(updateMinHeight);
+    const observer = new ResizeObserver(updateMinHeight);
+    observer.observe(main);
+    observer.observe(root);
+    window.addEventListener('resize', updateMinHeight);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+      window.removeEventListener('resize', updateMinHeight);
+    };
+  }, [activeSection]);
 
   return (
     <div
+      ref={rootRef}
       className={cn(
-        'grid gap-6 min-h-0',
-        workbenchSectionActive ? 'grid-rows-[auto_auto]' : 'h-full grid-rows-[auto_minmax(0,1fr)]',
+        'flex flex-1 flex-col',
+        'shrink-0',
       )}
+      data-analysis-active-section={activeSection}
+      data-analysis-rail-enabled={railEnabled ? 'true' : 'false'}
+      data-analysis-workbench-root="true"
       onPointerDown={handleWorkbenchPointerDown}
     >
-      <ChromeTabs
-        className={cn('relative gap-0 flex min-h-0 flex-col', !workbenchSectionActive && 'flex-1')}
-        value={activeSection}
-        onValueChange={(nextValue) => {
-          if (nextValue) {
-            const nextSection = nextValue as AnalysisSection;
-            if (nextSection === activeSection) {
-              return;
-            }
-            setPendingSection(nextSection);
-            startTransition(() => {
-              setSection(nextSection);
-            });
-          }
-        }}
+      <div
+        className={cn(
+          'flex min-h-0 flex-col',
+          'shrink-0',
+        )}
+        data-analysis-window="true"
+        style={naturalSectionMinHeight != null ? { minHeight: naturalSectionMinHeight } : undefined}
       >
-        <InternalNav section={activeSection} showRightRailCards={railEnabled} visibleSections={visibleSections} />
-
-        <section
-          className={cn(
-            ANALYSIS_BOARD_CLASS_NAME,
-            'flex flex-col',
-            workbenchSectionActive ? 'overflow-visible' : 'flex-1 overflow-y-auto',
-          )}
-          data-testid="insights-board-section"
-          style={{
-            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
+        <ChromeTabs
+          className="relative min-h-0 flex-1 gap-0"
+          value={activeSection}
+          onValueChange={(nextValue) => {
+            if (nextValue) {
+              const nextSection = nextValue as AnalysisSection;
+              if (nextSection === activeSection) {
+                return;
+              }
+              setPendingSection(nextSection);
+              startTransition(() => {
+                setSection(nextSection);
+              });
+            }
           }}
         >
-          <div
-            className={cn(
-              railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0',
-              !workbenchSectionActive && 'flex-1',
-            )}
+          <InternalNav section={activeSection} showRightRailCards={railEnabled} visibleSections={visibleSections} />
+
+          <section
+            className={ANALYSIS_BOARD_CLASS_NAME}
+            data-testid="insights-board-section"
+            style={{
+              marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2.75)',
+            }}
           >
-            <div className={cn('min-w-0 border-b border-border/60 lg:border-b-0', 'flex flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}>
-              <div className={cn('flex min-w-0 gap-6 px-0 py-0 flex-1 flex-col')}>{surface}</div>
+            <div
+              className={cn(
+                railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0',
+                'min-h-full flex-1 items-stretch',
+                workbenchFitsViewport && 'h-full min-h-0',
+              )}
+            >
+              <div
+                className={cn('min-w-0 border-b border-white/70 lg:border-b-0', 'flex min-h-0 flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}
+                data-analysis-content-column="true"
+              >
+                <div className={cn('flex min-h-0 min-w-0 gap-6 px-0 py-0 flex-1 flex-col')} data-analysis-surface="true">{surface}</div>
+              </div>
+              {railEnabled ? (
+                isSectionPending
+                  ? <AnalysisRailWireframe fitViewport={workbenchFitsViewport} />
+                  : <InspectorRail fitViewport={workbenchFitsViewport} flashedSection={flashedIntervalSection} model={model} section={activeSection} selection={selectedObservationId ? selection : selection} />
+              ) : null}
             </div>
-            {railEnabled ? (
-              isSectionPending
-                ? <AnalysisRailWireframe />
-                : <InspectorRail flashedSection={flashedIntervalSection} model={model} section={activeSection} selection={selectedObservationId ? selection : selection} />
-            ) : null}
-          </div>
-        </section>
-      </ChromeTabs>
+          </section>
+        </ChromeTabs>
+      </div>
+      <div aria-hidden="true" className="h-32 shrink-0 md:h-36" data-analysis-bottom-breathing-room="true" />
     </div>
   );
 }

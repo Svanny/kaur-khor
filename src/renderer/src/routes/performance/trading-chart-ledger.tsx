@@ -29,6 +29,7 @@ export function AnalysisTradingChartLedger({
   onToggleExpand,
   selectedIntervalIndex,
   setSelection,
+  className,
 }: {
   chartZoomResetToken?: number;
   chartLayoutPreferences?: PersistedChartLayoutPreferences;
@@ -52,6 +53,7 @@ export function AnalysisTradingChartLedger({
   selectedIntervalIndex: number | null;
   setSelection: (value: AnalysisSelection) => void;
   timeframe: AnalysisTimeframe;
+  className?: string;
 }) {
   const chartModel = useMemo(() => deriveAnalysisTradingChartModel(model), [model]);
 
@@ -75,6 +77,7 @@ export function AnalysisTradingChartLedger({
       subtype="analysis"
       title="System timeline"
       tooltip="Shared analysis chart workspace across inventory, orders, and lead time indicators."
+      className={className}
       onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
       onChartResolutionChange={onChartResolutionChange}
       onCustomTimeframeChange={onCustomTimeframeChange}

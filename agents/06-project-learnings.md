@@ -12,3 +12,5 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Sheets and dialogs containing helper tooltip triggers must control initial focus so opening the surface never auto-focuses a tooltip trigger.
 - Interface view preset cards must keep fixed square card tracks with even outer gutters, and their wireframes must fill the preview/title space with proportional internal density rather than leaving blank frame area.
 - Khmer UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
+- Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
+- Work and Explain window surfaces must stretch to the viewport, with scrolling breathing room rendered outside the window rather than as inner padding.

@@ -372,4 +372,70 @@ describe('buildCustomerOverviewModel', () => {
       closed: 2,
     });
   });
+
+  test('localizes Telegram source metadata and request summaries in Khmer', () => {
+    const model = buildCustomerOverviewModel({
+      automationIntakes: [
+        {
+          intakeId: 'intake-km',
+          conversationId: 'conv-km',
+          channel: 'telegram',
+          status: 'new',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: '2026-04-03T10:00:00.000Z',
+          updatedAt: '2026-04-03T10:00:00.000Z',
+          promotedTicketId: null,
+          lines: [
+            {
+              lineId: 'line-1',
+              entityType: 'sku',
+              entityId: 'sku-1',
+              requestedLabel: 'Cotton pads',
+              resolvedLabel: 'Cotton pads',
+              quantity: 2,
+              unitPrice: 5,
+              lineTotal: 10,
+            },
+            {
+              lineId: 'line-2',
+              entityType: 'sku',
+              entityId: 'sku-2',
+              requestedLabel: 'Toner',
+              resolvedLabel: 'Toner',
+              quantity: null,
+              unitPrice: null,
+              lineTotal: null,
+            },
+            {
+              lineId: 'line-3',
+              entityType: 'service',
+              entityId: 'service-1',
+              requestedLabel: 'Facial',
+              resolvedLabel: 'Facial',
+              quantity: 1,
+              unitPrice: 20,
+              lineTotal: 20,
+            },
+          ],
+        },
+      ],
+      catalog: emptyCatalog as never,
+      language: 'km',
+      observations: [],
+    });
+
+    expect(model.tasks[0]).toMatchObject({
+      label: 'អតិថិជនតេលេក្រាម',
+      sourceLabel: 'តេលេក្រាម',
+      summary: '2 × Cotton pads, Toner និង 1 ទៀត',
+    });
+  });
 });
