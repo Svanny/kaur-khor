@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, vi } from 'vitest';
@@ -78,6 +78,60 @@ describe('TooltipContent', () => {
     const moreLink = screen.getAllByRole('link', { name: 'More help for Pressure' })[0];
     expect(moreLink).toHaveAttribute('href', '/settings/help#pressure-move-now');
     expect(moreLink.querySelector('svg')).toBeInTheDocument();
+  });
+
+  test('reopens helper tooltip content after click dismissing it', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <DescriptionTextVisibilityProvider visible>
+          <HelpTooltip
+            content="Explains pressure signals."
+            helpHref="/settings/help#pressure-move-now"
+            label="Pressure"
+          />
+        </DescriptionTextVisibilityProvider>
+      </MemoryRouter>,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Pressure help' });
+    await user.hover(trigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Explains pressure signals.');
+
+    await user.click(trigger);
+
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
+
+    await user.click(trigger);
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Explains pressure signals.');
+  });
+
+  test('dismisses helper tooltip content when another surface is clicked', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <DescriptionTextVisibilityProvider visible>
+          <HelpTooltip
+            content="Explains pressure signals."
+            helpHref="/settings/help#pressure-move-now"
+            label="Pressure"
+          />
+          <button type="button">Other surface</button>
+        </DescriptionTextVisibilityProvider>
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Pressure help' }));
+
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Explains pressure signals.');
+
+    await user.click(screen.getByRole('button', { name: 'Other surface' }));
+
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
   });
 
   test('localizes helper tooltip actions in Khmer', async () => {

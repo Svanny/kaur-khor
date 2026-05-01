@@ -26,10 +26,14 @@ export function HoverTooltip({
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<TooltipInteractionMode>(null);
   const [suppressed, setSuppressed] = useState(false);
+  const contentRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
+  const openTimerRef = useRef<number | null>(null);
   const openRef = useRef(open);
   const modeRef = useRef(mode);
+  const pointerDownRef = useRef(false);
   const suppressedRef = useRef(suppressed);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
 
   const triggerContent = typeof children === 'function' ? children({ open }) : children;
 
@@ -52,6 +56,22 @@ export function HoverTooltip({
     }
   }
 
+  function clearOpenTimer() {
+    if (openTimerRef.current !== null) {
+      window.clearTimeout(openTimerRef.current);
+      openTimerRef.current = null;
+    }
+  }
+
+  function schedulePointerOpen() {
+    clearOpenTimer();
+    openTimerRef.current = window.setTimeout(() => {
+      if (!suppressedRef.current && modeRef.current !== 'click') {
+        syncState(true, 'pointer');
+      }
+    }, 80);
+  }
+
   function schedulePointerClose() {
     clearCloseTimer();
     closeTimerRef.current = window.setTimeout(() => {
@@ -61,7 +81,35 @@ export function HoverTooltip({
     }, 120);
   }
 
-  useEffect(() => () => clearCloseTimer(), []);
+  useEffect(() => {
+    function handlePointerDown(event: PointerEvent) {
+      if (!openRef.current) {
+        return;
+      }
+
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (triggerRef.current?.contains(target) || contentRef.current?.contains(target)) {
+        return;
+      }
+
+      clearOpenTimer();
+      clearCloseTimer();
+      syncState(false, null);
+      syncSuppressed(false);
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      clearOpenTimer();
+      clearCloseTimer();
+    };
+  }, []);
 
   return (
     <TooltipProvider>
@@ -72,6 +120,7 @@ export function HoverTooltip({
             aria-label={ariaLabel}
             className={cn('focus-visible:outline-none', className)}
             onBlur={() => {
+              clearOpenTimer();
               clearCloseTimer();
               if (suppressedRef.current) {
                 syncSuppressed(false);
@@ -81,7 +130,9 @@ export function HoverTooltip({
               }
             }}
             onClick={() => {
+              clearOpenTimer();
               clearCloseTimer();
+              pointerDownRef.current = false;
               if (openRef.current) {
                 syncState(false, null);
                 syncSuppressed(true);
@@ -92,7 +143,11 @@ export function HoverTooltip({
               syncState(true, 'click');
             }}
             onFocus={() => {
+              clearOpenTimer();
               clearCloseTimer();
+              if (pointerDownRef.current) {
+                return;
+              }
               if (suppressedRef.current || modeRef.current === 'click') {
                 return;
               }
@@ -101,6 +156,7 @@ export function HoverTooltip({
             }}
             onKeyDown={(event) => {
               if (event.key === 'Escape' && openRef.current) {
+                clearOpenTimer();
                 clearCloseTimer();
                 syncState(false, null);
                 syncSuppressed(false);
@@ -113,9 +169,14 @@ export function HoverTooltip({
                 return;
               }
 
-              syncState(true, 'pointer');
+              schedulePointerOpen();
+            }}
+            onPointerDown={() => {
+              clearOpenTimer();
+              pointerDownRef.current = true;
             }}
             onPointerLeave={() => {
+              clearOpenTimer();
               if (suppressedRef.current) {
                 syncSuppressed(false);
                 return;
@@ -124,6 +185,7 @@ export function HoverTooltip({
                 schedulePointerClose();
               }
             }}
+            ref={triggerRef}
             type="button"
           >
             {triggerContent}
@@ -141,6 +203,7 @@ export function HoverTooltip({
               schedulePointerClose();
             }
           }}
+          ref={contentRef}
           side={side}
           sideOffset={sideOffset}
         >
