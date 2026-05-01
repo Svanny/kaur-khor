@@ -12,6 +12,7 @@ import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-int
 import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController, type TradingChartController } from '@/components/system/trading-chart';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
+import { deriveSavedObservationCount } from '@/lib/observation-count';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
 import { AnalysisTradingChartLedger } from './trading-chart-ledger';
@@ -137,6 +138,7 @@ function AnalysisContentInner({
     }
 
     return deriveAnalysisViewModel({
+      availableObservationCount: deriveSavedObservationCount(inventory),
       catalog: visibleCatalog,
       currency,
       diagnostics: inventory.diagnostics,

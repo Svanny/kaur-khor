@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { NavigationDashboardIcon, NavigationTaskListIcon } from '@icons/navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
@@ -16,6 +16,7 @@ import {
   readAnalysisRouteState,
 } from '@/lib/navigation-state';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
+import { deriveAvailableObservationCount } from '@/lib/observation-count';
 import { activeSenaCatalog, filterCatalogBySupplier } from '@/lib/sena-catalog';
 import { supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { WireframeRightRailLayout, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
@@ -39,6 +40,8 @@ const AnalysisContent = lazy(async () => {
   const module = await loadAnalysisContentModule();
   return { default: module.AnalysisContent };
 });
+
+const INITIAL_ANALYSIS_OBSERVATION_LIMIT = 20;
 
 function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: boolean }) {
   const { t } = usePreferences();
@@ -126,6 +129,7 @@ export function AnalysisRoute() {
   const timeframe = routeState.timeframe as AnalysisTimeframe;
   const isLedgerExpanded = routeState.chart === 'expanded';
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
+  const requestedInitialObservationsRef = useRef(false);
   const baseCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
   const visibleCatalog = useMemo(
     () => filterCatalogBySupplier(baseCatalog, supplierFilter),
@@ -175,6 +179,7 @@ export function AnalysisRoute() {
   });
   const hasCatalog = Boolean(visibleCatalog && (visibleCatalog.skus.length > 0 || visibleCatalog.services.length > 0));
   const hasWorkspaceSummary = Boolean(inventory.workspaceSummary);
+  const availableObservationCount = deriveAvailableObservationCount(inventory);
   const expectedHydratedEntityCount =
     (visibleCatalog?.services.length ?? 0) +
     (visibleCatalog?.skus.length ?? 0);
@@ -202,6 +207,24 @@ export function AnalysisRoute() {
       void loadAnalysisContentModule();
     }
   }, [hasCatalog, hasWorkspaceSummary]);
+
+  useEffect(() => {
+    if (
+      !hasWorkspaceSummary ||
+      inventory.observations.length > 0 ||
+      availableObservationCount === 0 ||
+      requestedInitialObservationsRef.current ||
+      typeof inventory.listSenaObservationPage !== 'function'
+    ) {
+      return;
+    }
+
+    requestedInitialObservationsRef.current = true;
+    void inventory.listSenaObservationPage({ limit: INITIAL_ANALYSIS_OBSERVATION_LIMIT }).catch((error) => {
+      requestedInitialObservationsRef.current = false;
+      console.warn('[analysis] initial observation page load failed', error);
+    });
+  }, [availableObservationCount, hasWorkspaceSummary, inventory.listSenaObservationPage, inventory.observations.length]);
 
   useBenchmarkRouteReady('insights.explain', !inventory.isLoading && !isPreparingInitialAnalysis, {
     hasCatalog,

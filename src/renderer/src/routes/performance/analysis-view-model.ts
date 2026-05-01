@@ -257,6 +257,7 @@ export interface AnalysisWorkbenchViewModel {
   intervals: AnalysisIntervalRow[];
   workbench: AnalysisWorkbenchChartModel;
   entityRows: AnalysisEntityPressureRow[];
+  observationCount: number;
   evidenceRows: AnalysisObservationLedgerRow[];
   fragilityRows: AnalysisFragilityRow[];
   fragilityColumns: Array<{ skuId: string; name: string; imagePath: string | null }>;
@@ -755,6 +756,7 @@ function pushSeedEntity(seed: IntervalAggregateSeed, label: string) {
 }
 
 export function deriveAnalysisViewModel({
+  availableObservationCount,
   catalog,
   currency,
   diagnostics,
@@ -765,6 +767,7 @@ export function deriveAnalysisViewModel({
   skuDetailsById,
   workspaceSummary,
 }: {
+  availableObservationCount?: number;
   catalog: SenaCatalog;
   currency: AppCurrency;
   diagnostics: SenaDiagnostics | null;
@@ -1501,6 +1504,7 @@ export function deriveAnalysisViewModel({
     intervals: intervalRows,
     workbench,
     entityRows,
+    observationCount: availableObservationCount ?? observations.length,
     evidenceRows,
     fragilityRows,
     fragilityColumns,
