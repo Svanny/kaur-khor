@@ -5762,15 +5762,28 @@ export function StockUpdateSessionRoute() {
           : selectedOrderBatch.children,
     [selectedLegacySupplierOrderTarget.childOrderId, selectedOrderBatch],
   );
-  useEffect(() => {
-    const scopedIds =
+  const isEditingExistingCaptureSession =
+    editSession != null ||
+    routeTicketMode === 'edit' ||
+    customerTicketMode === 'edit' ||
+    supplierTicketMode === 'edit' ||
+    routeBatchOrderId != null ||
+    routeChildOrderId != null;
+  const routeScopedSkuIds = useMemo(() => {
+    if (isEditingExistingCaptureSession) {
+      return null;
+    }
+    return (
       initialSkuIds ??
-      (selectedOrderChildren.length > 0 ? new Set(selectedOrderChildren.map((child) => child.skuId)) : null);
-    if (scopedIds && catalog) {
-      const filtered = buildInitialRows(catalog, observations).filter((row) => scopedIds.has(row.skuId));
+      (selectedOrderChildren.length > 0 ? new Set(selectedOrderChildren.map((child) => child.skuId)) : null)
+    );
+  }, [initialSkuIds, isEditingExistingCaptureSession, selectedOrderChildren]);
+  useEffect(() => {
+    if (routeScopedSkuIds && catalog) {
+      const filtered = buildInitialRows(catalog, observations).filter((row) => routeScopedSkuIds.has(row.skuId));
       setRows(applyStockRowOrder(filtered, readStockRowOrder(stockRowOrderStorageKey)));
     }
-  }, [initialSkuIds, catalog, observations, selectedOrderChildren, stockRowOrderStorageKey]);
+  }, [catalog, observations, routeScopedSkuIds, stockRowOrderStorageKey]);
   useEffect(() => {
     setWorkbenchTileOrderDraftByLane(workbenchTileOrderByLane);
   }, [workbenchTileOrderByLane]);
@@ -6579,9 +6592,9 @@ export function StockUpdateSessionRoute() {
     }
 
     if (!hasAnyLiveDraft && !editSession) {
-      setRows(baselineRows);
+      setRows(routeScopedSkuIds ? baselineRows.filter((row) => routeScopedSkuIds.has(row.skuId)) : baselineRows);
     }
-  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, lane.id, location.pathname, navigate, observations, routeCustomSelectedLaneIds, usdToKhrExchangeRate, workingCatalog]);
+  }, [activeStepOrder, buildOrderedInitialRows, currency, draftStorageKey, editSession, hasAnyLiveDraft, incomingEditSession, lane.id, location.pathname, navigate, observations, routeCustomSelectedLaneIds, routeScopedSkuIds, usdToKhrExchangeRate, workingCatalog]);
 
   useEffect(() => {
     if (!(catalog ?? visibleCatalog) || !draftHydrationCheckedRef.current || !incomingEditSession) {

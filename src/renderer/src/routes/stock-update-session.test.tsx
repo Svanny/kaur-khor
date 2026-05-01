@@ -351,6 +351,31 @@ function renderEditRoute(
   );
 }
 
+function renderEditRouteWithSearch(
+  search: string,
+  observation = observations[0]!,
+  nextObservations = observations,
+  pathname = RECORD_UPDATE_STOCK_COUNT_PATH,
+) {
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
+
+  return render(
+    <MemoryRouter
+      initialEntries={[
+        {
+          pathname,
+          search,
+          state: {
+            editSession: createRecordUpdateEditSession(observation),
+          },
+        },
+      ]}
+    >
+      <StockUpdateSessionRoute />
+    </MemoryRouter>,
+  );
+}
+
 function renderRouteWithInlineEditLink(
   observation = observations[0]!,
   nextObservations = observations,
@@ -674,6 +699,30 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(dialog).getByRole('combobox', { name: 'Flags' })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
     expect(screen.getByRole('listbox')).toHaveClass('z-[110]');
+  });
+
+  it('keeps all stock-count workbench SKUs available when editing a scoped saved update', () => {
+    const editableObservation = {
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        stockSnapshot: [
+          { skuId: 'sku-1', unitsInStock: 11, costPerUnit: 4, productPrice: 9 },
+        ],
+      },
+    };
+
+    renderEditRouteWithSearch('?skus=sku-1', editableObservation);
+
+    expect(visibleWorkbenchTileTitles()).toEqual(['Razor refill', 'Towel']);
+    expect(screen.getByRole('button', { name: 'Edit Razor refill changed item' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit Towel changed item' })).not.toBeInTheDocument();
+  });
+
+  it('keeps non-edit stock-count SKU deep links scoped to the target SKU', () => {
+    renderRoute(observations, `${RECORD_UPDATE_STOCK_COUNT_PATH}?skus=sku-1`);
+
+    expect(visibleWorkbenchTileTitles()).toEqual(['Razor refill']);
   });
 
   it('opens the targeted stock tile popup from a capture-session deep link', async () => {
@@ -1263,6 +1312,53 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
 
     expect(visibleWorkbenchTileTitles()).toEqual(['Towel', 'Razor refill']);
+  });
+
+  it('keeps all supplier-order workbench SKUs available when editing a child order', () => {
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        orderBatches: [
+          {
+            batchOrderId: 'batch-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'open',
+            createdAt: '2026-04-03T12:00:00.000Z',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+              supplierNote: '',
+            },
+            children: [
+              {
+                childOrderId: 'child-1',
+                skuId: 'sku-1',
+                status: 'open',
+                updatedAt: '2026-04-03T12:00:00.000Z',
+                effective: {
+                  orderedQuantity: 8,
+                  receivedQuantity: 0,
+                  expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+                  leadTimeDaysHint: 6,
+                  leadTimeVariability: 'tight',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&childOrderId=child-1`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    expect(visibleWorkbenchTileTitles()).toEqual(['Razor refill', 'Towel']);
+    expect(screen.getByText('Supplier Order')).toBeInTheDocument();
   });
 
   it('keeps supplier and immediate-sale workbench orders scoped to their own buckets', () => {
