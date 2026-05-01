@@ -14,6 +14,7 @@ import { formatPhoneForDisplay, normalizePhoneNumber } from '@shared/phone';
 import { ActionClipboardAddIcon, ActionCloseIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
+import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { Input } from '@/components/ui/input';
 import {
   Sheet,
@@ -132,6 +133,7 @@ export function AutomationIntakeDrawer({
   const [operatorNote, setOperatorNote] = useState('');
   const [messages, setMessages] = useState<AutomationMessageRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [showDetailBody, setShowDetailBody] = useState(false);
 
@@ -149,6 +151,7 @@ export function AutomationIntakeDrawer({
     setPhoneOverride(formatPhoneForDisplay(intake.phone));
     setOperatorNote(intake.notes ?? '');
     setError(null);
+    setSaveErrorFlashKey(0);
     return () => window.cancelAnimationFrame(frameId);
   }, [intake, open]);
 
@@ -219,10 +222,12 @@ export function AutomationIntakeDrawer({
       }
       if (!promotionAllowed) {
         setError(literal('Every line must resolve to a priced sellable before banj can create a customer ticket.'));
+        setSaveErrorFlashKey((current) => current + 1);
         return;
       }
       if (action === 'append_ticket' && !appendTicketId.trim()) {
         setError(literal('Choose a customer ticket before appending Telegram intake.'));
+        setSaveErrorFlashKey((current) => current + 1);
         return;
       }
       await onPromote({
@@ -238,6 +243,7 @@ export function AutomationIntakeDrawer({
       onClose();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
+      setSaveErrorFlashKey((current) => current + 1);
     }
   }
 
@@ -252,7 +258,10 @@ export function AutomationIntakeDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
-      <SheetContent className="w-full max-w-3xl gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-3xl">
+      <SheetContent
+        className="w-full max-w-3xl gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-3xl"
+        showCloseButton={false}
+      >
         <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
@@ -344,7 +353,7 @@ export function AutomationIntakeDrawer({
                   <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
                     <p className={sectionTitleClassName()}>{literal('Source')}</p>
                     <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName('info')}`}>
-                      Telegram
+                      {literal('Telegram')}
                     </span>
                   </div>
                 </div>
@@ -425,9 +434,9 @@ export function AutomationIntakeDrawer({
               </DrawerBand>
 
               {error ? (
-                <p className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <SaveErrorFlash as="p" className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
                   {error}
-                </p>
+                </SaveErrorFlash>
               ) : null}
             </section>
           </div>

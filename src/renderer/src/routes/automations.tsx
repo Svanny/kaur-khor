@@ -42,7 +42,7 @@ import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SearchInput } from '@/components/system/search-input';
-import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
+import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard, useWorkspaceWindowMinHeight } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { hasRenderableRows } from '@/components/system/headered-table';
@@ -117,20 +117,20 @@ function matchesIntakeQuery(intake: AutomationOrderIntake, query: string | null)
     .includes(normalized);
 }
 
-function relativeTime(value: string | null) {
+function relativeTime(value: string | null, language: Parameters<typeof translateUiLiteral>[0]) {
   if (!value) {
-    return 'No webhook yet';
+    return translateUiLiteral(language, 'No webhook yet');
   }
   const deltaMs = Date.now() - new Date(value).getTime();
   const minutes = Math.max(1, Math.round(deltaMs / 60_000));
   if (minutes < 60) {
-    return `${minutes}m ago`;
+    return translateUiLiteral(language, '{count}m ago', { count: minutes });
   }
   const hours = Math.max(1, Math.round(minutes / 60));
   if (hours < 24) {
-    return `${hours}h ago`;
+    return translateUiLiteral(language, '{count}h ago', { count: hours });
   }
-  return `${Math.max(1, Math.round(hours / 24))}d ago`;
+  return translateUiLiteral(language, '{count}d ago', { count: Math.max(1, Math.round(hours / 24)) });
 }
 
 export function buildTelegramOpenUrl(
@@ -163,17 +163,17 @@ export function buildTelegramOpenUrl(
   return null;
 }
 
-function connectionLabel(status: string) {
+function connectionLabel(status: string, language: Parameters<typeof translateUiLiteral>[0]) {
   if (status === 'connected') {
-    return 'Connected';
+    return translateUiLiteral(language, 'Connected');
   }
   if (status === 'paused') {
-    return 'Paused';
+    return translateUiLiteral(language, 'Paused');
   }
   if (status === 'error') {
-    return 'Error';
+    return translateUiLiteral(language, 'Error');
   }
-  return 'Disconnected';
+  return translateUiLiteral(language, 'Disconnected');
 }
 
 function RailRows({ rows }: { rows: AutomationRailRow[] }) {
@@ -268,34 +268,35 @@ function CardControlRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AutomationConfigurationTutorial() {
+function AutomationConfigurationTutorial({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
+  const literal = (englishTemplate: string) => translateUiLiteral(language, englishTemplate);
+
   return (
     <div className="max-w-4xl space-y-3 text-sm leading-6 text-muted-foreground">
       <p>
-        Follow Telegram&apos;s current official <strong className="font-medium text-foreground">@BotFather</strong> setup flow first,
-        then paste the generated values into this form.
+        {literal('Follow Telegram current official')} <strong className="font-medium text-foreground">@BotFather</strong> {literal('setup flow first, then paste the generated values into this form.')}
       </p>
       <ol className="list-decimal space-y-2 pl-6 marker:font-semibold marker:text-foreground">
-        <li>Open Telegram, search for <strong className="font-medium text-foreground">@BotFather</strong>, and press <strong className="font-medium text-foreground">Start</strong>.</li>
-        <li>Send <strong className="font-medium text-foreground">/newbot</strong> to create a new bot.</li>
-        <li>Enter the bot display name customers should see. Paste that same value into <strong className="font-medium text-foreground">Bot display name</strong>.</li>
+        <li>{literal('Open Telegram, search for')} <strong className="font-medium text-foreground">@BotFather</strong>{literal(', and press')} <strong className="font-medium text-foreground">{literal('Start')}</strong>.</li>
+        <li>{literal('Send')} <strong className="font-medium text-foreground">/newbot</strong> {literal('to create a new bot.')}</li>
+        <li>{literal('Enter the bot display name customers should see. Paste that same value into')} <strong className="font-medium text-foreground">{literal('Bot display name')}</strong>.</li>
         <li>
-          Choose the public username. Telegram requires <strong className="font-medium text-foreground">5-32 Latin letters, numbers, or underscores</strong>,
-          and the username must end in <strong className="font-medium text-foreground">bot</strong>. Paste it into <strong className="font-medium text-foreground">@bot_username</strong>.
+          {literal('Choose the public username. Telegram requires')} <strong className="font-medium text-foreground">{literal('5-32 Latin letters, numbers, or underscores')}</strong>,
+          {literal('and the username must end in')} <strong className="font-medium text-foreground">{literal('bot')}</strong>. {literal('Paste it into')} <strong className="font-medium text-foreground">@bot_username</strong>.
         </li>
         <li>
-          Build the public link from the username and paste it into <strong className="font-medium text-foreground">https://t.me/your_bot</strong> in the format
+          {literal('Build the public link from the username and paste it into')} <strong className="font-medium text-foreground">https://t.me/your_bot</strong> {literal('in the format')}
           <strong className="font-medium text-foreground"> https://t.me/your_username</strong>.
         </li>
         <li>
-          Copy the bot token that BotFather returns and paste it into <strong className="font-medium text-foreground">Telegram bot token</strong>.
-          Treat that token like a password because anyone with it can control the bot.
+          {literal('Copy the bot token that BotFather returns and paste it into')} <strong className="font-medium text-foreground">{literal('Telegram bot token')}</strong>.
+          {literal('Treat that token like a password because anyone with it can control the bot.')}
         </li>
-        <li>Click <strong className="font-medium text-foreground">Save Telegram settings</strong>. banji keeps Automations locked to Configuration until the saved token exists.</li>
-        <li>After saving, use <strong className="font-medium text-foreground">Test message</strong> to validate the bot, then expose sellables and open intake tabs.</li>
+        <li>{literal('Click')} <strong className="font-medium text-foreground">{literal('Save Telegram settings')}</strong>. {literal('banji keeps Automations locked to Configuration until the saved token exists.')}</li>
+        <li>{literal('After saving, use')} <strong className="font-medium text-foreground">{literal('Test message')}</strong> {literal('to validate the bot, then expose sellables and open intake tabs.')}</li>
       </ol>
       <p>
-        Telegram&apos;s official bot documentation says the username is the bot&apos;s public identity and link target, so choose it carefully before saving.
+        {literal('Telegram official bot documentation says the username is the bot public identity and link target, so choose it carefully before saving.')}
       </p>
     </div>
   );
@@ -563,6 +564,7 @@ export function AutomationsRoute({
 
   const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
   const section = forcedSection ?? (hasSavedTelegramConfiguration ? routeState.section : 'settings');
+  const workIntakeWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`intake:${intakeTab}:${section}:${hasSavedTelegramConfiguration}`);
   const showOverviewSection = section === 'overview';
   const showSettingsSection = section === 'settings';
   const showCatalogSection = section === 'catalog' || (forcedSection === 'intake' && intakeTab === 'exposed');
@@ -701,7 +703,7 @@ export function AutomationsRoute({
   }
 
   return (
-    <WorkspacePage className="gap-5">
+    <WorkspacePage fitViewport={forcedSection === 'intake'} className="gap-5">
       <WorkspaceTitleCard
         actions={hasSavedTelegramConfiguration ? titleActions : undefined}
         eyebrow={forcedSection === 'settings' ? getTranslation(language, 'settingsTitle') : undefined}
@@ -763,17 +765,24 @@ export function AutomationsRoute({
         />
       ) : null}
 
-      <ChromeTabs
-        className="relative gap-0"
-        value={forcedSection === 'intake' && hasSavedTelegramConfiguration ? intakeTab : section}
-        onValueChange={(value) => {
-          if (forcedSection === 'intake' && hasSavedTelegramConfiguration) {
-            setIntakeTab(value as 'intake' | 'exposed');
-          } else {
-            updateRouteState({ section: value as typeof automationSectionValues[number] });
-          }
-        }}
-      >
+      <div className={forcedSection === 'intake' ? 'flex min-h-0 flex-1 flex-col' : undefined} data-work-window-root={forcedSection === 'intake' ? 'intake' : undefined}>
+        <div
+          ref={forcedSection === 'intake' ? workIntakeWindow.ref : undefined}
+          className={forcedSection === 'intake' ? 'flex min-h-0 shrink-0 flex-col' : undefined}
+          data-work-window={forcedSection === 'intake' ? 'intake' : undefined}
+          style={forcedSection === 'intake' ? workIntakeWindow.style : undefined}
+        >
+          <ChromeTabs
+            className={forcedSection === 'intake' ? 'relative min-h-0 flex-1 gap-0' : 'relative gap-0'}
+            value={forcedSection === 'intake' && hasSavedTelegramConfiguration ? intakeTab : section}
+            onValueChange={(value) => {
+              if (forcedSection === 'intake' && hasSavedTelegramConfiguration) {
+                setIntakeTab(value as 'intake' | 'exposed');
+              } else {
+                updateRouteState({ section: value as typeof automationSectionValues[number] });
+              }
+            }}
+          >
         {hasSavedTelegramConfiguration && forcedSection === 'intake' ? <IntakeViewTabs language={language} /> : hasSavedTelegramConfiguration && !forcedSection ? <AutomationTabs language={language} /> : null}
 
         <div
@@ -811,7 +820,7 @@ export function AutomationsRoute({
                   </OverviewColumn>
 
                   <OverviewColumn title={translateUiLiteral(language, 'Recent automation activity')} tooltip={translateUiLiteral(language, 'The latest Telegram intake and promotion movement.')}>
-                    {hasRenderableRows(model?.recentActivity) ? <RecentAutomationActivityRail rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} /> : null}
+                    {hasRenderableRows(model?.recentActivity) ? <RecentAutomationActivityRail language={language} rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} /> : null}
                   </OverviewColumn>
 
                   <OverviewColumn title={translateUiLiteral(language, 'Coverage')} tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
@@ -825,7 +834,7 @@ export function AutomationsRoute({
 
           {showSettingsSection ? (
             <PerformanceSectionShell
-              descriptor={<AutomationConfigurationTutorial />}
+              descriptor={<AutomationConfigurationTutorial language={language} />}
               helpHref="/settings/help#automation-configuration"
               title={translateUiLiteral(language, 'Configuration')}
               tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.')}
@@ -837,6 +846,7 @@ export function AutomationsRoute({
                 connection={connection}
                 externalLink={externalLink}
                 isSaving={isSaving}
+                language={language}
                 onBotDisplayNameChange={setBotDisplayName}
                 onBotTokenChange={setBotToken}
                 onBotUsernameChange={setBotUsername}
@@ -872,6 +882,7 @@ export function AutomationsRoute({
             >
               {visibleExposureRows.length > 0 ? (
                 <AutomationExposureTable
+                  language={language}
                   rows={visibleExposureRows}
                   onAliasCommit={(row, nextAlias) => {
                     void patchExposureRow({
@@ -916,7 +927,7 @@ export function AutomationsRoute({
               tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
             >
               {visibleIntakeRows.length > 0 ? (
-                <AutomationIntakeTable rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
+                <AutomationIntakeTable language={language} rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
                   body={translateUiLiteral(language, 'No Telegram intake matches this view.')}
@@ -951,7 +962,7 @@ export function AutomationsRoute({
               tooltip={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
             >
               {visibleExceptionRows.length > 0 ? (
-                <AutomationExceptionTable rows={visibleExceptionRows} onOpenIntake={openIntakeDrawer} />
+                <AutomationExceptionTable language={language} rows={visibleExceptionRows} onOpenIntake={openIntakeDrawer} />
               ) : (
                 <AutomationEmptyState
                   body={translateUiLiteral(language, 'No review items are waiting right now.')}
@@ -961,7 +972,12 @@ export function AutomationsRoute({
             </PerformanceSectionShell>
           ) : null}
         </div>
-      </ChromeTabs>
+          </ChromeTabs>
+        </div>
+        {forcedSection === 'intake' ? (
+          <div aria-hidden="true" className="h-32 shrink-0 md:h-36" data-work-bottom-breathing-room="intake" />
+        ) : null}
+      </div>
 
       <AutomationIntakeDrawer
         conversationId={selectedIntakeRequest?.conversationId ?? null}

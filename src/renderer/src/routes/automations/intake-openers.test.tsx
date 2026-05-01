@@ -7,6 +7,12 @@ import { AutomationIntakeTable } from './intake-table';
 import { RecentAutomationActivityRail } from './recent-activity-rail';
 import type { AutomationExceptionRow, AutomationIntakeTableRow, AutomationRailRow } from './view-model';
 
+vi.mock('@/state/preferences', () => ({
+  usePreferences: () => ({
+    language: 'en',
+  }),
+}));
+
 const intakeRow: AutomationIntakeTableRow = {
   actionLabel: 'Open intake',
   conversationId: 'conv-1',

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import type { AppLanguage } from '@shared/inventory';
 import type { AutomationIntakeTableRow } from './view-model';
 import {
   createHeaderedTableLayout,
@@ -16,6 +17,7 @@ import { rowHoverClassName } from '@/lib/interactive-surface';
 import { ActionClipboardAddIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { EntityCustomerIcon } from '@icons/entities';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
+import { translateUiLiteral } from '@/lib/translations';
 
 const automationActionButtonClassName = 'min-w-[152px] justify-center';
 
@@ -39,35 +41,38 @@ function HeaderTooltipLabel({
 
 export function AutomationIntakeTable({
   rows,
+  language = 'en',
   onOpenIntake,
 }: {
   rows: AutomationIntakeTableRow[];
+  language?: AppLanguage;
   onOpenIntake: (row: AutomationIntakeTableRow) => void;
 }) {
   if (rows.length === 0) {
     return null;
   }
+  const literal = (englishTemplate: string) => translateUiLiteral(language, englishTemplate);
 
   return (
     <HeaderedTable>
       <div className={layout.containerClassName} style={layout.style}>
         <HeaderedTableHeader className={layout.headerClassName}>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-customer" tooltip="Customer identity inferred from the intake conversation.">Customer</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-customer" tooltip={literal('Customer identity inferred from the intake conversation.')}>{literal('Customer')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-request" tooltip="The parsed customer request before it is attached to a ticket.">Request</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-request" tooltip={literal('The parsed customer request before it is attached to a ticket.')}>{literal('Request')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip="Estimated customer-facing total when banji has enough matched catalog data.">Quoted total</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip={literal('Estimated customer-facing total when banji has enough matched catalog data.')}>{literal('Quoted total')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-state" tooltip="Current intake state, including whether operator review is still needed.">State</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-state" tooltip={literal('Current intake state, including whether operator review is still needed.')}>{literal('State')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-created-updated" tooltip="When the intake was created and most recently changed.">Created / updated</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-created-updated" tooltip={literal('When the intake was created and most recently changed.')}>{literal('Created / updated')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell align="center">Action</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center">{literal('Action')}</HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={layout.bodyClassName}>
           {rows.map((row) => (
@@ -82,21 +87,21 @@ export function AutomationIntakeTable({
                 </button>
               </div>
               <div className="min-w-0">
-                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Request</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Request')}</HeaderedTableMobileLabel>
                 <p className="text-sm leading-6 text-foreground">{row.requestLabel}</p>
               </div>
               <div>
-                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Quoted total</HeaderedTableMobileLabel>
-                <span className="text-sm font-medium text-foreground">{row.quoteLabel ?? 'Pending quote'}</span>
+                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Quoted total')}</HeaderedTableMobileLabel>
+                <span className="text-sm font-medium text-foreground">{row.quoteLabel ?? literal('Pending quote')}</span>
               </div>
               <div>
-                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>State</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('State')}</HeaderedTableMobileLabel>
                 <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(row.statusTone)}`}>
                   {row.statusLabel}
                 </span>
               </div>
               <div>
-                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>Created / updated</HeaderedTableMobileLabel>
+                <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Created / updated')}</HeaderedTableMobileLabel>
                 <p className="text-sm leading-6 text-muted-foreground">{row.createdLabel}</p>
               </div>
               <div className="flex items-start lg:justify-center">
@@ -109,7 +114,7 @@ export function AutomationIntakeTable({
                   </Button>
                 ) : (
                   <Button className={automationActionButtonClassName} size="sm" type="button" variant="outline" onClick={() => onOpenIntake(row)}>
-                    {row.actionLabel === 'Open intake' ? <ActionEditIcon className="size-4" /> : <ActionClipboardAddIcon className="size-4" />}
+                    {row.ticketHref == null ? <ActionEditIcon className="size-4" /> : <ActionClipboardAddIcon className="size-4" />}
                     {row.actionLabel}
                   </Button>
                 )}

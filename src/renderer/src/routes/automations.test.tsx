@@ -69,6 +69,14 @@ function renderRoute(initialEntry = '/automations') {
   );
 }
 
+function renderForcedIntake(initialEntry = '/work/intake') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <AutomationsRoute forcedSection="intake" />
+    </MemoryRouter>,
+  );
+}
+
 function makeAutomationState(hasBotToken: boolean, overrides: Partial<AutomationContextValue> = {}): AutomationContextValue {
   return {
     connection: {
@@ -208,6 +216,17 @@ describe('AutomationsRoute', () => {
     expect(screen.getByText('Connection')).toBeInTheDocument();
   });
 
+  it('uses the Work intake window height frame with bottom breathing room', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    const { container } = renderForcedIntake();
+
+    expect(screen.getByRole('tab', { name: /Live intake/i })).toBeInTheDocument();
+    expect(container.querySelector('[data-work-window-root="intake"]')?.className).toContain('flex-1');
+    expect(container.querySelector('[data-work-window="intake"]')?.className).toContain('shrink-0');
+    expect(container.querySelector('[data-work-bottom-breathing-room="intake"]')?.className).toContain('h-32');
+  });
+
   it('localizes automation route chrome and filters when Khmer is active', () => {
     preferencesHook.mockReturnValue({
       currency: 'USD',
@@ -225,6 +244,23 @@ describe('AutomationsRoute', () => {
     expect(screen.getByRole('tab', { name: 'ត្រូវពិនិត្យ' })).toBeInTheDocument();
     expect(screen.queryByText('Search automations')).not.toBeInTheDocument();
     expect(screen.queryByText('No Telegram intake')).not.toBeInTheDocument();
+  });
+
+  it('localizes the automation route descriptor in Khmer', () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'km',
+      showAutomationsPage: true,
+      usdToKhrExchangeRate: 4000,
+      t: (key: string) => (key === 'navAutomations' ? 'ស្វ័យប្រវត្តិកម្ម' : key),
+    });
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderRoute();
+
+    expect(screen.getByText('បង្ហាញធាតុដែលអនុម័តទៅតេលេក្រាម បំលែងសារទៅជាសំបុត្រការងារអតិថិជន ហើយរក្សាបញ្ជីជាប្រភពពិតសម្រាប់តម្លៃ និងការបំពេញការបញ្ជាទិញ។')).toBeInTheDocument();
+    expect(screen.queryByText(/Expose approved sellables/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/turn messages into customer tickets/i)).not.toBeInTheDocument();
   });
 
   it('warns in overview when unavailable sellables are still exposed to Telegram', () => {

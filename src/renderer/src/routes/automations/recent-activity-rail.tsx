@@ -1,17 +1,21 @@
 import { Link } from 'react-router-dom';
+import type { AppLanguage } from '@shared/inventory';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import type { AutomationRailRow } from './view-model';
 import { StatusAutomationIcon } from '@icons/status';
+import { translateUiLiteral } from '@/lib/translations';
 
 export function RecentAutomationActivityRail({
   rows,
+  language = 'en',
   onOpenIntake,
 }: {
   rows: AutomationRailRow[];
+  language?: AppLanguage;
   onOpenIntake: (row: AutomationRailRow) => void;
 }) {
   if (rows.length === 0) {
-    return <p className="py-3 text-sm text-muted-foreground">Automation activity will appear here once Telegram intake starts moving.</p>;
+    return <p className="py-3 text-sm text-muted-foreground">{translateUiLiteral(language, 'Automation activity will appear here once Telegram intake starts moving.')}</p>;
   }
 
   return (
