@@ -23,6 +23,7 @@
     "dev": "pnpm data:generate && electron-vite dev --watch",
     "data:generate": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5",
     "data:generate:force": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5 --force",
+    "data:generate:screenshot": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 1 --force --use-bundled-dev-catalog",
     "build": "electron-vite build",
     "dev:web": "vite --config vite.web.config.ts",
     "build:web": "vite build --config vite.web.config.ts",

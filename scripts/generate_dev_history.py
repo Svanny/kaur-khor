@@ -8,6 +8,7 @@ import json
 import math
 import os
 import random
+import shutil
 import sqlite3
 import subprocess
 import uuid
@@ -43,6 +44,11 @@ class SkuState:
     phase: float
     trend_slope: float
     trend_bias: float
+    demand_volatility: float
+    supplier_reliability: float
+    cost_volatility: float
+    price_volatility: float
+    adjustment_probability: float
     reorder_strategy: str
     reorder_discipline: float
     review_period_days: float
@@ -60,6 +66,8 @@ class ServiceState:
     base_activity: float
     phase: float
     promo_affinity: float
+    activity_volatility: float
+    price_volatility: float
 
 
 @dataclass(frozen=True)
@@ -267,19 +275,16 @@ def build_sku_states(skus: list[dict[str, Any]], services: list[dict[str, Any]])
         lead_mean = float(sku.get("leadTimeMeanDays") or 7.0)
         lead_std = float(sku.get("leadTimeStdDays") or max(1.0, lead_mean * 0.25))
         current_units = float(sku.get("unitsInStock") or 0.0)
-        opening_units = max(
-            18.0,
-            current_units * rng.uniform(1.3, 1.9) + rng.uniform(8.0, 28.0),
-        )
+        opening_units = max(18.0, current_units * rng.uniform(1.15, 1.65) + rng.uniform(8.0, 24.0))
         service_links = service_link_counts.get(sku["skuId"], 0)
         base_daily = (
-            0.3
-            + service_links * 0.55
+            0.16
+            + service_links * 0.18
             + (0.65 if sku.get("soldAsProduct") and sku.get("productPrice") is not None else 0.2)
-            + min(max(current_units, 0.0), 120.0) / 42.0
-            + rng.uniform(-0.18, 0.35)
+            + min(max(current_units, 0.0), 120.0) / 74.0
+            + rng.uniform(-0.08, 0.22)
         )
-        base_daily = clamp(base_daily, 0.25, 8.5)
+        base_daily = clamp(base_daily, 0.12, 4.8)
         reorder_strategy = choose_reorder_strategy(rng)
         reorder_point, reorder_target, reorder_batch, reorder_discipline, review_period_days = (
             reorder_policy_for_strategy(reorder_strategy, opening_units, base_daily, lead_mean, rng)
@@ -304,6 +309,11 @@ def build_sku_states(skus: list[dict[str, Any]], services: list[dict[str, Any]])
                 phase=rng.uniform(0.0, math.tau),
                 trend_slope=rng.uniform(-0.0018, 0.0025),
                 trend_bias=rng.uniform(-0.18, 0.22),
+                demand_volatility=rng.uniform(0.12, 0.36),
+                supplier_reliability=rng.uniform(0.72, 0.97),
+                cost_volatility=rng.uniform(0.002, 0.014),
+                price_volatility=rng.uniform(0.006, 0.028),
+                adjustment_probability=rng.uniform(0.004, 0.024),
                 reorder_strategy=reorder_strategy,
                 reorder_discipline=reorder_discipline,
                 review_period_days=review_period_days,
@@ -323,9 +333,11 @@ def build_service_states(services: list[dict[str, Any]]) -> list[ServiceState]:
                 service_id=service["serviceId"],
                 sku_ids=list(service.get("skuIds", [])),
                 price=float(service.get("price") or 0.0),
-                base_activity=clamp(1.2 + len(service.get("skuIds", [])) * 0.9 + rng.uniform(-0.2, 0.8), 0.9, 7.0),
+                base_activity=clamp(0.22 + len(service.get("skuIds", [])) * 0.32 + rng.uniform(-0.06, 0.34), 0.08, 3.4),
                 phase=rng.uniform(0.0, math.tau),
                 promo_affinity=rng.uniform(0.8, 1.35),
+                activity_volatility=rng.uniform(0.16, 0.42),
+                price_volatility=rng.uniform(0.006, 0.03),
             )
         )
     return states
@@ -383,6 +395,7 @@ def generate_reports(
                 activity *= service_rng.uniform(0.86, 1.02)
             if (report_index + service_index) % 11 == 0:
                 activity *= 1.0 + service_rng.uniform(0.12, 0.28)
+            activity *= max(0.0, 1.0 + service_rng.uniform(-service.activity_volatility, service.activity_volatility))
             service_count = max(0.0, activity)
             service_demand_scores[service.service_id] = service_count
 
@@ -420,32 +433,39 @@ def generate_reports(
                     * macro_wave
                     * regime_multiplier(scheduled_regime.regime)
                     * (state.promo_affinity if scheduled_regime.regime in {"promo", "spike"} else 1.0)
-                    * sku_rng.uniform(0.82, 1.18),
+                    * max(0.0, sku_rng.uniform(1.0 - state.demand_volatility, 1.0 + state.demand_volatility)),
                 )
             unconstrained_demand = max(0.0, service_demand_by_sku[state.sku_id] + retail_draw)
             retail_demand_scores[state.sku_id] = retail_draw / max(interval_days, 1.0) if state.sold_as_product else 0.0
 
-            inventory_position_gap = max(0.0, state.reorder_target - (state.stock + sum(order.quantity for order in state.pending_orders)))
+            pending_quantity = sum(order.quantity for order in state.pending_orders)
+            inventory_position_gap = max(0.0, state.reorder_target - (state.stock + pending_quantity))
             age_days = (report_index - state.last_order_report) * interval_days if state.last_order_report is not None else (report_index + 1) * interval_days
+            review_due = age_days >= state.review_period_days * sku_rng.uniform(0.82, 1.28)
+            pressure = inventory_position_gap / max(state.reorder_target, 1.0)
             order_probability = clamp(
-                0.1
-                + (inventory_position_gap / max(state.reorder_target, 1.0)) * 0.74
-                + (age_days / max(state.lead_mean_days, 1.0)) * 0.06
-                - sum(order.quantity for order in state.pending_orders) / max(state.reorder_batch, 1.0) * 0.18
-                + (0.05 if scheduled_regime.regime in {"promo", "spike"} else 0.0),
-                0.02,
-                0.92,
-            )
+                0.01
+                + pressure * 0.58
+                + (0.11 if review_due else 0.0)
+                + (0.05 if state.stock <= state.reorder_point else 0.0)
+                - pending_quantity / max(state.reorder_batch * 1.8, 1.0) * 0.26
+                + (0.045 if scheduled_regime.regime in {"promo", "spike"} else 0.0),
+                0.0,
+                0.82,
+            ) * state.reorder_discipline
             order_quantity: float | None = None
             placement_timestamp: str | None = None
             lead_time_days_hint: float | None = None
-            if sku_rng.random() < order_probability:
+            if inventory_position_gap > state.reorder_batch * 0.18 and sku_rng.random() < order_probability:
+                reliability_delay = 0.0 if sku_rng.random() < state.supplier_reliability else sku_rng.uniform(1.0, max(2.0, state.lead_std_days * 2.2))
                 lead_time_days = max(
                     1.0,
                     state.lead_mean_days
                     + sku_rng.uniform(-state.lead_std_days, state.lead_std_days * 1.25)
-                    + (0.6 if scheduled_regime.regime in {"promo", "spike"} else 0.0),
+                    + (0.6 if scheduled_regime.regime in {"promo", "spike"} else 0.0)
+                    + reliability_delay,
                 )
+                fill_rate = sku_rng.uniform(0.86, 1.0) if sku_rng.random() > state.supplier_reliability else sku_rng.uniform(0.94, 1.05)
                 order_quantity = round_money(
                     max(
                         6.0,
@@ -453,7 +473,9 @@ def generate_reports(
                         * (0.86 + inventory_position_gap / max(state.reorder_target, 1.0) * 0.55)
                         * sku_rng.uniform(0.88, 1.18),
                     )
+                    * fill_rate
                 )
+                order_quantity = round_money(max(6.0, order_quantity))
                 placement_timestamp = interval_timestamp(report_at, 12)
                 lead_time_days_hint = round(lead_time_days, 2)
                 state.pending_orders.append(
@@ -468,10 +490,11 @@ def generate_reports(
                 restock_count += 1
 
             adjustment_delta = 0.0
-            if scheduled_regime.regime == "correction" and (report_index + sku_index) % 3 == 0:
-                adjustment_delta = (-1 if (report_index + sku_index) % 2 == 0 else 1) * round_money(sku_rng.uniform(0.8, 3.3))
-            elif sku_rng.random() < 0.035:
-                adjustment_delta = -round_money(sku_rng.uniform(0.2, 1.1))
+            if scheduled_regime.regime == "correction" and (report_index + sku_index) % 5 == 0:
+                adjustment_delta = (-1 if (report_index + sku_index) % 2 == 0 else 1) * round_money(sku_rng.uniform(0.4, 2.4))
+            elif sku_rng.random() < state.adjustment_probability:
+                direction = -1 if sku_rng.random() < 0.72 else 1
+                adjustment_delta = direction * round_money(sku_rng.uniform(0.1, 1.3))
             if adjustment_delta != 0.0:
                 adjustment_count += 1
 
@@ -481,9 +504,9 @@ def generate_reports(
             lost_demand_by_sku[state.sku_id] = lost_demand
             next_stock = max(0.0, state.stock + adjustment_delta - realized_consumption)
 
-            cost_shift = 1.0 + sku_rng.uniform(-0.008, 0.015)
+            cost_shift = 1.0 + sku_rng.uniform(-state.cost_volatility, state.cost_volatility * 1.55)
             if receipts_by_sku.get(state.sku_id, 0.0) > 0:
-                cost_shift += 0.012 if scheduled_regime.regime == "promo" else 0.006
+                cost_shift += state.cost_volatility * (1.8 if scheduled_regime.regime == "promo" else 0.85)
             next_cost = round_money(max(0.2, state.cost * cost_shift))
 
             next_price = state.price
@@ -496,7 +519,7 @@ def generate_reports(
                     or (report_index + sku_index) % 13 == 0
                 )
                 if should_reprice:
-                    price_shift = sku_rng.uniform(-0.025, 0.05)
+                    price_shift = sku_rng.uniform(-state.price_volatility, state.price_volatility * 1.8)
                     if scheduled_regime.regime == "promo":
                         price_shift -= sku_rng.uniform(0.03, 0.08)
                     elif scheduled_regime.regime == "stockout_constrained":
@@ -550,7 +573,7 @@ def generate_reports(
 
             if report_index == 0 or final_regime in {"promo", "spike", "correction"} or (report_index + service_index) % 12 == 0:
                 previous_price = service.price
-                price_delta = service_rng.uniform(-0.03, 0.05)
+                price_delta = service_rng.uniform(-service.price_volatility, service.price_volatility * 1.7)
                 if final_regime == "promo":
                     price_delta -= service_rng.uniform(0.04, 0.09)
                 elif final_regime == "stockout_constrained":
@@ -924,112 +947,269 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
         "skus": [
             {
                 "skuId": "sku-001",
-                "name": "Rattan Market Tote",
-                "description": "Woven tote with steady tourist demand.",
-                "supplierName": "Siem Reap Rattan",
-                "costPerUnit": 18.0,
+                "name": "Phnom Penh Krama Scarf",
+                "description": "Soft cotton scarf for everyday market shelves and gift wraps.",
+                "imagePath": "banji-dev-sku-001-phnom-penh-krama-scarf.png",
+                "supplierName": "Mekong Loom House",
+                "costPerUnit": 8.5,
                 "archived": False,
                 "soldAsProduct": True,
-                "productPrice": 42.0,
-                "leadTimeMeanDaysHint": 5.0,
+                "productPrice": 22.0,
+                "leadTimeMeanDaysHint": 4.0,
                 "leadTimeStdDaysHint": 1.0,
             },
             {
                 "skuId": "sku-002",
-                "name": "Children's Krama Set",
-                "description": "Giftable woven set for family bundles.",
-                "supplierName": "Mekong Looms",
-                "costPerUnit": 12.0,
+                "name": "Siem Reap Rattan Tote",
+                "description": "Handwoven tote for market days, errands, and picnic packs.",
+                "imagePath": "banji-dev-sku-002-siem-reap-rattan-tote.png",
+                "supplierName": "Siem Reap Rattan",
+                "costPerUnit": 18.0,
                 "archived": False,
                 "soldAsProduct": True,
-                "productPrice": 28.0,
+                "productPrice": 44.0,
                 "leadTimeMeanDaysHint": 6.0,
                 "leadTimeStdDaysHint": 2.0,
             },
             {
                 "skuId": "sku-003",
-                "name": "Cotton Scarf",
-                "description": "Everyday scarf used across service bundles.",
-                "supplierName": "Mekong Looms",
-                "costPerUnit": 9.0,
+                "name": "Kampot Pepper Gift Tin",
+                "description": "Premium pepper tin for tasting sets and travel gifts.",
+                "imagePath": "banji-dev-sku-003-kampot-pepper-gift-tin.png",
+                "supplierName": "Kampot Spice Co-op",
+                "costPerUnit": 6.75,
                 "archived": False,
                 "soldAsProduct": True,
-                "productPrice": 21.0,
-                "leadTimeMeanDaysHint": 4.0,
+                "productPrice": 16.0,
+                "leadTimeMeanDaysHint": 7.0,
                 "leadTimeStdDaysHint": 1.0,
             },
             {
                 "skuId": "sku-004",
-                "name": "Handwoven Belt",
-                "description": "Accessory SKU with quick replenishment.",
-                "supplierName": None,
-                "costPerUnit": 7.0,
+                "name": "Lotus Silk Hair Ribbon",
+                "description": "Lotus-pink silk ribbon for styling kits and counter displays.",
+                "imagePath": "banji-dev-sku-004-lotus-silk-hair-ribbon.png",
+                "supplierName": "Phnom Silk Collective",
+                "costPerUnit": 5.25,
                 "archived": False,
                 "soldAsProduct": True,
-                "productPrice": 17.0,
-                "leadTimeMeanDaysHint": 3.0,
+                "productPrice": 14.0,
+                "leadTimeMeanDaysHint": 5.0,
                 "leadTimeStdDaysHint": 1.0,
             },
             {
                 "skuId": "sku-005",
-                "name": "Wedding Sampot",
-                "description": "High-value ceremonial fabric with long lead time.",
-                "supplierName": "Phnom Silk Collective",
-                "costPerUnit": 26.0,
+                "name": "Tonle Sap Palm Sugar Jar",
+                "description": "Amber palm sugar jar for tea pairings and pantry bundles.",
+                "imagePath": "banji-dev-sku-005-tonle-sap-palm-sugar-jar.png",
+                "supplierName": "Tonle Sap Pantry",
+                "costPerUnit": 4.0,
                 "archived": False,
                 "soldAsProduct": True,
-                "productPrice": 58.0,
-                "leadTimeMeanDaysHint": 8.0,
-                "leadTimeStdDaysHint": 3.0,
+                "productPrice": 11.0,
+                "leadTimeMeanDaysHint": 3.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-006",
+                "name": "Angkor Market Notebook",
+                "description": "Handmade notebook for stamp kits and visitor counter baskets.",
+                "imagePath": "banji-dev-sku-006-angkor-market-notebook.png",
+                "supplierName": "Angkor Paper Studio",
+                "costPerUnit": 3.8,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 12.0,
+                "leadTimeMeanDaysHint": 5.0,
+                "leadTimeStdDaysHint": 2.0,
+            },
+            {
+                "skuId": "sku-007",
+                "name": "Battambang Rice Pouch",
+                "description": "Small rice pouch for pantry starter bundles and shelf displays.",
+                "imagePath": "banji-dev-sku-007-battambang-rice-pouch.png",
+                "supplierName": "Battambang Rice Mill",
+                "costPerUnit": 2.4,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 7.5,
+                "leadTimeMeanDaysHint": 4.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-008",
+                "name": "Mekong Blue Ceramic Cup",
+                "description": "Blue glazed cup for coffee sets and gift table edits.",
+                "imagePath": "banji-dev-sku-008-mekong-blue-ceramic-cup.png",
+                "supplierName": "Mekong Clay Works",
+                "costPerUnit": 7.25,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 19.0,
+                "leadTimeMeanDaysHint": 6.0,
+                "leadTimeStdDaysHint": 2.0,
+            },
+            {
+                "skuId": "sku-009",
+                "name": "Kampong Speu Honey Bottle",
+                "description": "Golden honey bottle for breakfast bundles and checkout shelves.",
+                "imagePath": "banji-dev-sku-009-kampong-speu-honey-bottle.png",
+                "supplierName": "Kampong Speu Honey",
+                "costPerUnit": 5.5,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 15.0,
+                "leadTimeMeanDaysHint": 5.0,
+                "leadTimeStdDaysHint": 1.0,
+            },
+            {
+                "skuId": "sku-010",
+                "name": "Water Festival Candle Set",
+                "description": "Hand-poured candle set for seasonal table displays.",
+                "imagePath": "banji-dev-sku-010-water-festival-candle-set.png",
+                "supplierName": "Chaktomuk Candle Studio",
+                "costPerUnit": 6.6,
+                "archived": False,
+                "soldAsProduct": True,
+                "productPrice": 18.0,
+                "leadTimeMeanDaysHint": 7.0,
+                "leadTimeStdDaysHint": 2.0,
             },
         ],
         "services": [
             {
                 "serviceId": "service-001",
-                "name": "Market Tote Add-On",
-                "description": "Accessory upsell anchored on woven totes.",
-                "price": 18.0,
+                "name": "Krama Gift Wrap",
+                "description": "Gift wrap flow that pairs a krama with small retail goods.",
+                "imagePath": "banji-dev-service-001-krama-gift-wrap.png",
+                "price": 9.0,
                 "archived": False,
                 "bundle": False,
             },
             {
                 "serviceId": "service-002",
-                "name": "Family Krama Bundle",
-                "description": "Multi-item family set for holiday promos.",
-                "price": 35.0,
+                "name": "Rattan Picnic Pack",
+                "description": "Tote-led pack for weekend outings and market-day add-ons.",
+                "imagePath": "banji-dev-service-002-rattan-picnic-pack.png",
+                "price": 52.0,
                 "archived": False,
                 "bundle": True,
             },
             {
                 "serviceId": "service-003",
-                "name": "Tourist Gift Pairing",
-                "description": "Giftable pairing for quick checkout.",
-                "price": 16.0,
+                "name": "Pepper Tasting Set",
+                "description": "Small counter set built around Kampot pepper samples.",
+                "imagePath": "banji-dev-service-003-pepper-tasting-set.png",
+                "price": 24.0,
                 "archived": False,
                 "bundle": False,
             },
             {
                 "serviceId": "service-004",
-                "name": "Wedding Premium Bundle",
-                "description": "Ceremony package built around premium fabric.",
-                "price": 72.0,
+                "name": "Silk Ribbon Styling Kit",
+                "description": "Ribbon styling kit for quick gifting and accessory displays.",
+                "imagePath": "banji-dev-service-004-silk-ribbon-styling-kit.png",
+                "price": 28.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-005",
+                "name": "Palm Sugar Tea Pairing",
+                "description": "Tea counter pairing anchored on palm sugar jars.",
+                "imagePath": "banji-dev-service-005-palm-sugar-tea-pairing.png",
+                "price": 22.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-006",
+                "name": "Notebook Custom Stamp Kit",
+                "description": "Notebook and stamp kit for personal gifting shelves.",
+                "imagePath": "banji-dev-service-006-notebook-custom-stamp-kit.png",
+                "price": 20.0,
+                "archived": False,
+                "bundle": False,
+            },
+            {
+                "serviceId": "service-007",
+                "name": "Rice Pantry Starter",
+                "description": "Pantry starter bundle for small household retail baskets.",
+                "imagePath": "banji-dev-service-007-rice-pantry-starter.png",
+                "price": 18.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-008",
+                "name": "Ceramic Cup Coffee Set",
+                "description": "Coffee gift set centered on handmade blue ceramic cups.",
+                "imagePath": "banji-dev-service-008-ceramic-cup-coffee-set.png",
+                "price": 32.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-009",
+                "name": "Honey Breakfast Bundle",
+                "description": "Breakfast gift bundle built around Kampong Speu honey.",
+                "imagePath": "banji-dev-service-009-honey-breakfast-bundle.png",
+                "price": 27.0,
+                "archived": False,
+                "bundle": True,
+            },
+            {
+                "serviceId": "service-010",
+                "name": "Festival Candle Table Set",
+                "description": "Seasonal candle table set for festive retail displays.",
+                "imagePath": "banji-dev-service-010-festival-candle-table-set.png",
+                "price": 34.0,
                 "archived": False,
                 "bundle": True,
             },
         ],
         "bundles": [
-            {"bundleId": "bundle-service-002", "serviceId": "service-002", "name": "Family Krama Bundle"},
-            {"bundleId": "bundle-service-004", "serviceId": "service-004", "name": "Wedding Premium Bundle"},
+            {"bundleId": "bundle-service-002", "serviceId": "service-002", "name": "Rattan Picnic Pack"},
+            {"bundleId": "bundle-service-004", "serviceId": "service-004", "name": "Silk Ribbon Styling Kit"},
+            {"bundleId": "bundle-service-005", "serviceId": "service-005", "name": "Palm Sugar Tea Pairing"},
+            {"bundleId": "bundle-service-007", "serviceId": "service-007", "name": "Rice Pantry Starter"},
+            {"bundleId": "bundle-service-008", "serviceId": "service-008", "name": "Ceramic Cup Coffee Set"},
+            {"bundleId": "bundle-service-009", "serviceId": "service-009", "name": "Honey Breakfast Bundle"},
+            {"bundleId": "bundle-service-010", "serviceId": "service-010", "name": "Festival Candle Table Set"},
         ],
         "sharingMask": [
             {"serviceId": "service-001", "skuId": "sku-001", "enabled": True, "usageProbability": 1.0},
             {"serviceId": "service-002", "skuId": "sku-002", "enabled": True, "usageProbability": 1.0},
-            {"serviceId": "service-002", "skuId": "sku-003", "enabled": True, "usageProbability": 0.8},
+            {"serviceId": "service-002", "skuId": "sku-005", "enabled": True, "usageProbability": 0.35},
             {"serviceId": "service-003", "skuId": "sku-003", "enabled": True, "usageProbability": 1.0},
-            {"serviceId": "service-003", "skuId": "sku-004", "enabled": True, "usageProbability": 0.75},
-            {"serviceId": "service-004", "skuId": "sku-005", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-004", "skuId": "sku-004", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-004", "skuId": "sku-001", "enabled": True, "usageProbability": 0.35},
+            {"serviceId": "service-005", "skuId": "sku-005", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-005", "skuId": "sku-008", "enabled": True, "usageProbability": 0.45},
+            {"serviceId": "service-006", "skuId": "sku-006", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-007", "skuId": "sku-007", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-007", "skuId": "sku-005", "enabled": True, "usageProbability": 0.25},
+            {"serviceId": "service-008", "skuId": "sku-008", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-008", "skuId": "sku-003", "enabled": True, "usageProbability": 0.2},
+            {"serviceId": "service-009", "skuId": "sku-009", "enabled": True, "usageProbability": 1.0},
+            {"serviceId": "service-009", "skuId": "sku-005", "enabled": True, "usageProbability": 0.25},
+            {"serviceId": "service-010", "skuId": "sku-010", "enabled": True, "usageProbability": 1.0},
         ],
     }
+
+
+def sync_bundled_catalog_assets(repo_root: Path, data_dir: Path, catalog: dict[str, Any]) -> None:
+    source_dir = repo_root / "src" / "renderer" / "src" / "assets" / "dev-catalog"
+    target_dir = data_dir / "assets"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    for item in [*catalog.get("skus", []), *catalog.get("services", [])]:
+        image_path = item.get("imagePath")
+        if not image_path:
+            continue
+        source_path = source_dir / image_path
+        if not source_path.is_file():
+            raise RuntimeError(f"bundled dev catalog asset is missing: {source_path}")
+        shutil.copy2(source_path, target_dir / image_path)
 
 
 def load_current_sena_catalog(repo_root: Path, db_path: Path) -> dict[str, Any]:
@@ -1102,6 +1282,7 @@ def history_marker_payload(args: argparse.Namespace) -> dict[str, Any]:
         "version": DEV_HISTORY_VERSION,
         "years": args.years,
         "intervalDays": args.interval_days,
+        "useBundledDevCatalog": bool(getattr(args, "use_bundled_dev_catalog", False)),
         "startupOnlyReadModel": bool(getattr(args, "startup_only_read_model", False)),
     }
 
@@ -1369,6 +1550,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional current-schema SENA catalog JSON. Defaults to the catalog already stored in the target SENA DB, or a bundled current-schema catalog when the DB is empty.",
     )
+    parser.add_argument(
+        "--use-bundled-dev-catalog",
+        action="store_true",
+        help="Use Banji's bundled screenshot/dev catalog instead of preserving the current desktop catalog.",
+    )
     parser.add_argument("--store", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--sena-db", type=Path, default=None)
     parser.add_argument("--seed-marker", type=Path, default=None)
@@ -1405,6 +1591,9 @@ def main() -> None:
 
     if args.source_catalog_json:
         source_catalog = json.loads(args.source_catalog_json.read_text())
+    elif args.use_bundled_dev_catalog:
+        source_catalog = bundled_current_sena_catalog()
+        sync_bundled_catalog_assets(repo_root, data_dir, source_catalog)
     else:
         source_catalog = load_current_sena_catalog(repo_root, sena_db_path)
 
