@@ -309,7 +309,7 @@ The SKU operational ribbon គឺជា the compact metric strip below the hero.
 
 The trading chart ledger គឺជា the detail chart surface for SKU, service, or analysis signals. វា combines timeline controls, indicators, selected interval behavior, and saved evidence overlays. ប្រើវា នៅពេល you need to inspect how a headline changed over time.
 
-ប្រើ **Settings** សម្រាប់ indicator style, value, និង input-source choices; **Indicators** ដើម្បីជ្រើស signals ដែល visible; និង **Layout** ដើម្បី arrange indicators across panes។ Layout rows move from the drag handle ដូច្នេះ axis-side menus និង delete buttons នៅតែជា normal controls។ **New pane** adds a temporary empty pane សម្រាប់ staging a layout; វា save តែបន្ទាប់ពី indicator មួយត្រូវបាន placed there និង layout ត្រូវបាន confirmed។
+ប្រើ **ការកំណត់** សម្រាប់ indicator style, value, និង input-source choices; **Indicators** ដើម្បីជ្រើស signals ដែល visible; និង **Layout** ដើម្បី arrange indicators across panes។ Layout rows move from the drag handle ដូច្នេះ axis-side menus និង delete buttons នៅតែជា normal controls។ **New pane** adds a temporary empty pane សម្រាប់ staging a layout; វា save តែបន្ទាប់ពី indicator មួយត្រូវបាន placed there និង layout ត្រូវបាន confirmed។
 
 បើអ្នក switch chart dialogs ឬ click outside ជាមួយ unsaved chart changes, បញ្ជី asks whether to apply, discard, or keep editing មុនពេល continuing។
 

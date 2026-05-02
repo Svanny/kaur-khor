@@ -5776,7 +5776,7 @@ export function SkuTradingChart({
                               type="button"
                               onClick={segment.onClick}
                             >
-                              <span className="sr-only">
+                              <span className="sr-only" data-icon="color-marker">
                                 {segment.indicatorId === 'regime' ? shortRegimeLabel(segment.label) : segment.label}
                               </span>
                             </button>
