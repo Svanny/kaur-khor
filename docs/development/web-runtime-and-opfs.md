@@ -19,8 +19,27 @@ Do not expose Electron or Node APIs in the browser renderer. Browser runtime cod
 
 The demo path may use the seeded browser mock bridge. The real browser app path must require supported browser persistence. If SQLite WASM or OPFS initialization fails, show an unsupported state rather than falling back to weaker storage for real data.
 
+Browser SENA is single-threaded in this phase. `apps/sena-core` has a browser-safe feature path for pure analysis code without the desktop SQLite repository, filesystem artifacts, or Rayon thread pool. The web bridge keeps the startup contract compact, recomputes browser summary/detail/diagnostics on SENA runs, and persists the resulting read models into OPFS.
+
 ## OPFS notes
 
 GitHub Pages does not provide custom COOP/COEP headers for this site, so browser persistence should prefer SQLite WASM modes that do not require cross-origin isolation. The intended durable storage target is OPFS in the user's browser profile.
 
 Browser data is not the same as desktop app data. Clearing site data, browser profile data, or private browsing sessions can remove browser data.
+
+The backup/import envelope remains a JSON document snapshot for compatibility. On every browser mutation, the storage worker also mirrors active state into structured tables for preferences, catalog, observations, order batches, analysis runs, workspace summary, diagnostics, detail caches, and automation workspace state.
+
+## Desktop-only surfaces in the browser app
+
+The browser bridge must not invent filesystem paths or pretend native tooling exists. Keep these boundaries visible in browser mode:
+
+- Local data settings: display OPFS/browser-profile locations as text; use the browser app banner for backup import/export/reset.
+- Native snapshots, restore-from-snapshot, folder reveal, and log export: desktop-only.
+- Benchmark runner, Playwright trace capture, flame graphs, and native dev diagnostics: desktop-only.
+- Item image persistence: desktop-only until browser assets are backed by durable storage.
+
+## While-tab automation
+
+Browser Telegram automation is a foreground tab workflow. The browser bridge stores the token in the browser profile and uses direct Telegram API fetches only while `/app` is open, visible, and awake. If the browser or network blocks Telegram fetch, the connection should move to an error/browser-blocked state and direct users to desktop for persistent automation.
+
+Do not run a desktop app and a browser tab against the same Telegram bot token unless the operator has coordinated the handoff. Telegram update cursors are stateful, and two runtimes polling the same bot can steal updates from each other.

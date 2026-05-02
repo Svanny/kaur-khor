@@ -102,6 +102,18 @@ The transport layer is responsible for:
   desktop `userData` asset root; arbitrary filesystem paths and URLs are not
   valid Telegram photo payloads
 
+Browser mode is intentionally different. The browser app can save a Telegram
+bot token in the browser profile and poll Telegram directly only while the
+`/app` tab is open, visible, and awake. It is not a persistent background
+transport. The UI must warn that clearing browser data can remove token/state,
+that SENA is single-threaded in browser mode, and that operators should not run
+the same bot token in desktop and browser at the same time unless they
+coordinate the handoff.
+
+If browser fetch to Telegram is blocked by the browser, network, or Telegram
+response policy, the renderer should surface a browser-blocked/desktop-required
+state instead of pretending the bot is healthy.
+
 If you change the command surface or bot lifecycle, update this page and keep
 the connection-card UI and IPC contract aligned.
 

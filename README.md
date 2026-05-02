@@ -50,6 +50,8 @@ The demo route uses seeded browser data for preview. Browser storage is tied to 
 
 Browser app data is stored locally in this browser using SQLite WASM + OPFS when available. Export backups regularly. Clearing browser data may delete your Banji browser workspace.
 
+Browser mode keeps the main workflow visible, but it is not the desktop runtime. Telegram polling is while-tab-open only, the token is stored in the browser profile, benchmark/dev diagnostics stay desktop-only, and persistent item image assets require desktop.
+
 ## What's Included
 
 - Catalog management for SKUs and services.

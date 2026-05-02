@@ -2,6 +2,8 @@
 
 Use official release assets from [GitHub Releases](https://github.com/Svanny/banji/releases/latest). Each release should include platform artifacts and a `SHA256SUMS` file.
 
+The browser app at <https://svanny.github.io/banji/app> is useful when OPFS storage is available, but it is not the full desktop runtime. Browser Telegram automation only polls while the tab is open and awake, benchmark/dev diagnostics are desktop-only, and browser data lives in the current browser profile. Install the desktop app for persistent Telegram automation, native backups/snapshots, folder reveal, logs, image assets, and benchmark runner diagnostics.
+
 ## Safety rules
 
 - Do not disable Gatekeeper globally on macOS.
