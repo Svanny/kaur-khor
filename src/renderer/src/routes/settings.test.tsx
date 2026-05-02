@@ -126,6 +126,7 @@ function benchmarkRunWithTargets(targets: Array<{
 describe('SettingsRoute', () => {
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
+  const getAppContext = vi.fn();
   const getLocalDataInfo = vi.fn();
   const createBackupSnapshot = vi.fn();
   const restoreBackupSnapshot = vi.fn();
@@ -147,6 +148,7 @@ describe('SettingsRoute', () => {
     vi.unstubAllEnvs();
     getPreferences.mockReset();
     savePreferences.mockReset();
+    getAppContext.mockReset();
     getLocalDataInfo.mockReset();
     createBackupSnapshot.mockReset();
     restoreBackupSnapshot.mockReset();
@@ -261,6 +263,7 @@ describe('SettingsRoute', () => {
       assetDirectoryPath: '/tmp/banji/assets',
       storageFormat: 'sqlite',
     });
+    getAppContext.mockResolvedValue({ appVersion: 'test', platform: 'darwin' });
     createBackupSnapshot.mockResolvedValue({
       createdAt: '2026-04-10T10:00:00.000Z',
       fileCount: 3,
@@ -354,6 +357,7 @@ describe('SettingsRoute', () => {
       },
       system: {
         ...(window.banjiDesktop?.system ?? {}),
+        getAppContext,
         getLocalDataInfo,
         createBackupSnapshot,
         restoreBackupSnapshot,
@@ -551,6 +555,16 @@ describe('SettingsRoute', () => {
 
     await screen.findByText('Regional preferences');
     expect(screen.queryByRole('button', { name: 'Inject onboarding stage' })).not.toBeInTheDocument();
+  });
+
+  it('keeps benchmark runner diagnostics desktop-only in browser mode', async () => {
+    getAppContext.mockResolvedValue({ appVersion: 'browser-test', platform: 'web' });
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Benchmark runner is desktop-only')).toBeInTheDocument();
+    expect(screen.getByText(/GUI benchmark runs, Playwright traces, flame graphs/i)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Run selected' })).not.toBeInTheDocument();
   });
 
   it('filters benchmark targets by result status from the checklist menu', async () => {
@@ -1548,6 +1562,27 @@ describe('SettingsRoute', () => {
     expect(revealPath).toHaveBeenNthCalledWith(2, '/tmp/banji/workspace.sqlite');
     expect(revealPath).toHaveBeenNthCalledWith(3, '/tmp/banji/desktop-preferences.json');
     expect(revealPath).toHaveBeenNthCalledWith(4, '/tmp/banji/backup-snapshots');
+  });
+
+  it('shows browser local data guidance without native reveal or snapshot actions', async () => {
+    getAppContext.mockResolvedValue({ appVersion: 'browser-test', platform: 'web' });
+    getLocalDataInfo.mockResolvedValue({
+      dataDirectoryPath: 'OPFS / banji browser workspace',
+      workspaceStorePath: 'banji_browser_app_v1.sqlite3',
+      preferencesPath: 'SQLite preferences table',
+      backupDirectoryPath: 'downloaded backups',
+      assetDirectoryPath: 'Browser image storage unavailable in this release',
+      storageFormat: 'sqlite',
+    });
+
+    renderSettingsRoute('/settings/local-data');
+
+    expect(await screen.findByText('Browser data lives in this browser profile.')).toBeInTheDocument();
+    expect(screen.getByText('OPFS / banji browser workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /OPFS \/ banji browser workspace/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /create backup snapshot/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Export logs/i })).not.toBeInTheDocument();
+    expect(revealPath).not.toHaveBeenCalled();
   });
 
   it('creates a manual backup snapshot from local workspace data settings', async () => {

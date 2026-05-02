@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import { EditorField } from './editor-form-primitives';
 
 const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -66,6 +67,8 @@ export function CatalogImageField({
   onChange: (value: string | null) => void;
 }) {
   const { language } = usePreferences();
+  const { isBrowserRuntime } = useRuntimeMode();
+  const browserFileInputRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +85,8 @@ export function CatalogImageField({
       });
       if (nextImagePath) {
         onChange(nextImagePath);
+      } else if (isBrowserRuntime) {
+        setError(translateUiLiteral(language, 'Browser image storage is unavailable in this release. Use the desktop app to attach persistent item pictures.'));
       }
     } catch (nextError) {
       setError(imageIngestErrorMessage(nextError));
@@ -91,6 +96,10 @@ export function CatalogImageField({
   }
 
   async function handleChooseImage() {
+    if (isBrowserRuntime) {
+      browserFileInputRef.current?.click();
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -179,7 +188,27 @@ export function CatalogImageField({
                 {translateUiLiteral(language, 'Remove image')}
               </Button>
             ) : null}
+            {isBrowserRuntime ? (
+              <input
+                ref={browserFileInputRef}
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                type="file"
+                onChange={(event) => {
+                  const file = event.currentTarget.files?.[0];
+                  event.currentTarget.value = '';
+                  if (file) {
+                    void storeImageFile(file);
+                  }
+                }}
+              />
+            ) : null}
           </div>
+          {isBrowserRuntime ? (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {translateUiLiteral(language, 'Browser mode keeps catalog data in OPFS, but persistent image assets are desktop-only for now.')}
+            </p>
+          ) : null}
         </div>
       </div>
     </EditorField>

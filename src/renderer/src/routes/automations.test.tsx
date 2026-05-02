@@ -123,6 +123,15 @@ function makeAutomationState(hasBotToken: boolean, overrides: Partial<Automation
 describe('AutomationsRoute', () => {
   beforeEach(() => {
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    Object.defineProperty(window, 'banjiDesktop', {
+      configurable: true,
+      value: {
+        system: {
+          getAppContext: vi.fn().mockResolvedValue({ appVersion: 'test', platform: 'darwin' }),
+          openExternalUrl: vi.fn(),
+        },
+      },
+    });
     inventoryHook.mockReturnValue({
       catalog: {
         schemaVersion: 1,
@@ -216,6 +225,44 @@ describe('AutomationsRoute', () => {
     expect(screen.getByText('Connection')).toBeInTheDocument();
   });
 
+  it('shows browser while-tab-open messaging and polling action in browser mode', async () => {
+    Object.defineProperty(window, 'banjiDesktop', {
+      configurable: true,
+      value: {
+        system: {
+          getAppContext: vi.fn().mockResolvedValue({ appVersion: 'browser-test', platform: 'web' }),
+          openExternalUrl: vi.fn(),
+        },
+      },
+    });
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderRoute();
+
+    expect(await screen.findByText('Browser automation runs only while this tab is open.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Poll Telegram now' })).toBeInTheDocument();
+  });
+
+  it('shows browser-blocked state when direct Telegram polling fails in browser mode', async () => {
+    Object.defineProperty(window, 'banjiDesktop', {
+      configurable: true,
+      value: {
+        system: {
+          getAppContext: vi.fn().mockResolvedValue({ appVersion: 'browser-test', platform: 'web' }),
+          openExternalUrl: vi.fn(),
+        },
+      },
+    });
+    const testTelegramConnection = vi.fn().mockRejectedValue(new Error('Telegram browser fetch was blocked.'));
+    automationHook.mockReturnValue(makeAutomationState(true, { testTelegramConnection }));
+
+    renderRoute();
+    fireEvent.click(await screen.findByRole('button', { name: 'Poll Telegram now' }));
+
+    await waitFor(() => expect(screen.getByText('Telegram browser fetch blocked')).toBeInTheDocument());
+    expect(screen.getByText('Telegram browser fetch was blocked.')).toBeInTheDocument();
+  });
+
   it('uses the Work intake window height frame with bottom breathing room', () => {
     automationHook.mockReturnValue(makeAutomationState(true));
 
@@ -290,14 +337,7 @@ describe('AutomationsRoute', () => {
 
   it('opens the bot through the Telegram app deep link instead of a browser window', () => {
     const openExternalUrl = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(window, 'banjiDesktop', {
-      configurable: true,
-      value: {
-        system: {
-          openExternalUrl,
-        },
-      },
-    });
+    window.banjiDesktop.system.openExternalUrl = openExternalUrl;
     automationHook.mockReturnValue(makeAutomationState(true));
 
     renderRoute();

@@ -1,6 +1,7 @@
 import type { BrowserStorageCapability } from './capability';
 import type { BanjiBrowserDatabaseName } from './constants';
 import type { BrowserStorageDocumentRecord, BrowserStorageJsonBackup } from './backup';
+import type { BrowserSenaPersistState } from './sena-persistence';
 
 export type BrowserStorageInitRequest = {
   type: 'init';
@@ -30,13 +31,19 @@ export type BrowserStorageClearRequest = {
   type: 'clear';
 };
 
+export type BrowserStoragePersistSenaStateRequest = {
+  type: 'persistSenaState';
+  state: BrowserSenaPersistState;
+};
+
 export type BrowserStorageWorkerRequest =
   | BrowserStorageInitRequest
   | BrowserStorageExportBackupRequest
   | BrowserStorageImportBackupRequest
   | BrowserStorageListDocumentsRequest
   | BrowserStoragePutDocumentsRequest
-  | BrowserStorageClearRequest;
+  | BrowserStorageClearRequest
+  | BrowserStoragePersistSenaStateRequest;
 
 export type BrowserStorageWorkerEnvelope = {
   id: number;
@@ -56,7 +63,8 @@ export type BrowserStorageWorkerResult =
   | { type: 'importBackup'; result: { importedRecords: number } }
   | { type: 'listDocuments'; result: BrowserStorageDocumentRecord[] }
   | { type: 'putDocuments'; result: { storedRecords: number } }
-  | { type: 'clear'; result: { cleared: true } };
+  | { type: 'clear'; result: { cleared: true } }
+  | { type: 'persistSenaState'; result: { storedTables: number } };
 
 export type BrowserStorageWorkerResponse =
   | {
@@ -70,4 +78,3 @@ export type BrowserStorageWorkerResponse =
       error: string;
       capability?: BrowserStorageCapability;
     };
-

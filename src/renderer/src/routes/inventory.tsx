@@ -463,10 +463,11 @@ export function InventoryRoute() {
           </WorkspaceActionRow>
         }
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
-          <div className="w-full max-w-xl">
+        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-3">
+          <div className="min-w-0 flex-1 basis-40">
             <SearchInput
               ariaLabel={translateUiLiteral(language, 'Search catalog')}
+              className="h-12 min-w-0 rounded-full"
               placeholder={t('searchPlaceholder')}
               value={query}
               onChange={(event) => {
@@ -480,6 +481,8 @@ export function InventoryRoute() {
             ariaLabel={t('searchItems')}
             options={catalogFilterOptions}
             value={view}
+            className="lg:shrink-0"
+            triggerClassName="max-w-[9rem]"
             onValueChange={(nextView) => {
               setSearchParams(
                 updateCatalogSearchParams(searchParams, { view: nextView }),
@@ -488,7 +491,7 @@ export function InventoryRoute() {
           />
           <SupplierFilter
             catalog={catalog}
-            className={compactFilterControlClassName}
+            className={`${compactFilterControlClassName} lg:shrink-0`}
             value={supplierFilter}
             onChange={(nextSupplier) => {
               setSearchParams(
@@ -562,6 +565,7 @@ export function InventoryRoute() {
             <WorkspacePanel
               title={translateUiLiteral(language, 'SKUs ({count})', { count: filteredSkus.length })}
               descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
+              helperExemptReason="Catalog list panel descriptor supplies the active section guidance."
             >
               <div className="grid">
                 {filteredSkus.map((sku) => {
@@ -656,6 +660,7 @@ export function InventoryRoute() {
             <WorkspacePanel
               title={`${translateUiLiteral(language, 'Services')} (${filteredServices.length})`}
               descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
+              helperExemptReason="Catalog list panel descriptor supplies the active section guidance."
             >
               <div className="grid">
                 {filteredServices.map((service) => {

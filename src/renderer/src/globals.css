@@ -327,6 +327,60 @@
   .liquid-grid-card-frame > div[style*="mix-blend-mode"] {
     display: none !important;
   }
+
+  .command-action-tile {
+    container-type: size;
+  }
+
+  @container (max-height: 18rem) {
+    .command-action-description {
+      display: none;
+    }
+
+    .command-action-content {
+      gap: 1rem;
+    }
+
+    .command-action-copy {
+      display: contents;
+    }
+  }
+
+  @container (max-width: 15rem) {
+    .command-action-description {
+      display: none;
+    }
+
+    .command-action-content {
+      gap: 1rem;
+    }
+
+    .command-action-copy {
+      display: contents;
+    }
+  }
+
+  @container (max-height: 12rem) {
+    .command-action-label {
+      display: none;
+    }
+
+    .command-action-icon {
+      width: min(45%, 4rem);
+      height: min(45%, 4rem);
+    }
+  }
+
+  @container (max-width: 10.5rem) {
+    .command-action-label {
+      display: none;
+    }
+
+    .command-action-icon {
+      width: min(45%, 4rem);
+      height: min(45%, 4rem);
+    }
+  }
 }
 
 .dark {

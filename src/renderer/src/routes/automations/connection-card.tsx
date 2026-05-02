@@ -26,6 +26,7 @@ export function AutomationConnectionCard({
   botUsername,
   externalLink,
   isSaving,
+  isBrowserRuntime = false,
   language,
   onBotDisplayNameChange,
   onBotTokenChange,
@@ -39,6 +40,7 @@ export function AutomationConnectionCard({
   botUsername: string;
   externalLink: string;
   isSaving: boolean;
+  isBrowserRuntime?: boolean;
   language: AppLanguage;
   onBotDisplayNameChange: (value: string) => void;
   onBotTokenChange: (value: string) => void;
@@ -81,6 +83,21 @@ export function AutomationConnectionCard({
           <p className="text-sm leading-6 text-muted-foreground">{literal('Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to banji.')}</p>
         </div>
       </div>
+
+      {isBrowserRuntime ? (
+        <div className="grid gap-2 rounded-[1.25rem] border border-amber-300/60 bg-amber-50/80 p-4 text-sm leading-6 text-amber-950">
+          <p className="font-semibold">{literal('Browser Telegram is while-tab-open only')}</p>
+          <p>
+            {literal('SENA is single-threaded in browser mode. Telegram polling only runs while this tab is open, visible, and awake.')}
+          </p>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>{literal('The bot token is stored in this browser profile.')}</li>
+            <li>{literal('Clearing browser data can remove browser automation state and the saved token.')}</li>
+            <li>{literal('Do not run the same bot token in desktop and browser at the same time unless you coordinate the handoff.')}</li>
+            <li>{literal('If Telegram blocks browser fetch, banji will show a browser-blocked state and require the desktop app.')}</li>
+          </ul>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 rounded-[1.25rem] border border-border/60 bg-background/70 p-4">
         <Input placeholder={literal('Bot display name')} value={botDisplayName} onChange={(event) => onBotDisplayNameChange(event.target.value)} />

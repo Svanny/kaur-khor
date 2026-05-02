@@ -13,6 +13,9 @@ describe('browser storage schema', () => {
     expect(BROWSER_STORAGE_MIGRATIONS[0]?.version).toBe(BANJI_BROWSER_SCHEMA_VERSION);
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS banji_metadata');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS banji_documents');
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS observations');
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS analysis_runs');
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS diagnostics_cache');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CHECK (json_valid(json))');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('WITHOUT ROWID');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('idx_banji_documents_collection_updated');
@@ -29,4 +32,3 @@ describe('browser storage schema', () => {
     expect(() => migrationsAfter(1.5)).toThrow('Current schema version must be a non-negative integer.');
   });
 });
-

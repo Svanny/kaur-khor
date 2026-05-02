@@ -18,7 +18,11 @@ const app = relativePath === '/demo' || relativePath === '/app'
   );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    {app}
-  </React.StrictMode>,
+  relativePath === '/demo' || relativePath === '/app'
+    ? app
+    : (
+      <React.StrictMode>
+        {app}
+      </React.StrictMode>
+    ),
 );

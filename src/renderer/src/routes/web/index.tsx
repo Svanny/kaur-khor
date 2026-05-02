@@ -10,8 +10,22 @@ import {
   type BrowserMockState,
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
+import brandLogo from '@/assets/banji-logo.svg';
+import {
+  ClipboardCopy,
+  Download,
+  Globe2,
+  HardDrive,
+  PackageCheck,
+  RotateCcw,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+  WifiOff,
+} from 'lucide-react';
 import {
   ActionContinueIcon,
+  ActionClipboardAddIcon,
   ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
@@ -20,9 +34,20 @@ import {
   ActionResumeIcon,
   ActionSaveIcon,
 } from '@icons/actions';
-import { EntityPackageSearchIcon, EntitySafetyStockIcon } from '@icons/entities';
+import {
+  EntityCustomerIcon,
+  EntityPackageSearchIcon,
+  EntityReceiptDocumentIcon,
+  EntityRevenueIcon,
+  EntitySafetyStockIcon,
+} from '@icons/entities';
+import { NavigationSidebarIcon } from '@icons/navigation';
 import { StatusWarningIcon } from '@icons/status';
-import overviewImageUrl from '../../../../../docs/readme/overview-fullscreen.png';
+import analysisImageUrl from '../../../../../docs/readme/web-current-analysis.png';
+import catalogImageUrl from '../../../../../docs/readme/web-current-catalog.png';
+import overviewImageUrl from '../../../../../docs/readme/web-current-overview.png';
+import performanceImageUrl from '../../../../../docs/readme/web-current-performance.png';
+import recordUpdateImageUrl from '../../../../../docs/readme/web-current-record-update.png';
 import {
   BANJI_BROWSER_APP_DATABASE,
   BANJI_BROWSER_DEMO_DATABASE,
@@ -52,6 +77,38 @@ type StorageUiState = {
 
 const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
 const sourceUrl = 'https://github.com/Svanny/banji';
+const sourceBuildCommands = [
+  'git clone https://github.com/Svanny/banji.git',
+  'cd banji',
+  'scripts/build-mac-from-source.sh',
+] as const;
+const screenshotSlides = [
+  {
+    alt: 'banji mission control overview showing the main work queue',
+    image: overviewImageUrl,
+    label: 'Mission Control',
+  },
+  {
+    alt: 'banji catalog showing searchable SKUs and services',
+    image: catalogImageUrl,
+    label: 'Catalog',
+  },
+  {
+    alt: 'banji record update workflow for stock and order changes',
+    image: recordUpdateImageUrl,
+    label: 'POS and updates',
+  },
+  {
+    alt: 'banji business health dashboard showing pressure and diagnostics',
+    image: performanceImageUrl,
+    label: 'Business health',
+  },
+  {
+    alt: 'banji analysis workspace showing inventory insight tools',
+    image: analysisImageUrl,
+    label: 'Insights',
+  },
+];
 
 function publicPath(path: string) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -60,13 +117,13 @@ function publicPath(path: string) {
 
 function WebNav() {
   return (
-    <header className="sticky top-0 z-50 border-b border-border/70 bg-background/88 backdrop-blur-xl">
-      <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-3 px-4">
-        <Link className="inline-flex items-center gap-2 text-sm font-semibold tracking-normal text-foreground" to="/">
-          <span aria-hidden="true" className="size-2.5 rounded-full bg-primary ring-4 ring-primary/15" />
+    <header className="sticky left-0 right-0 top-0 z-50 w-screen max-w-full overflow-hidden border-b border-border/70 bg-card/92 shadow-panel backdrop-blur-xl">
+      <nav className="flex h-16 w-full max-w-full items-center justify-between gap-3 px-4 sm:h-[4.5rem] sm:px-8">
+        <Link className="inline-flex items-center gap-2 text-3xl font-semibold tracking-normal text-foreground sm:text-4xl" to="/">
+          <img alt="" aria-hidden="true" className="size-7" src={brandLogo} />
           banji
         </Link>
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="hidden min-w-0 items-center gap-3 sm:flex">
           <Button asChild size="sm" variant="ghost">
             <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Demo</a>
           </Button>
@@ -77,6 +134,23 @@ function WebNav() {
             <Link to="/install"><ActionDatabaseDownloadIcon className="size-4" />Install</Link>
           </Button>
         </div>
+        <details className="group relative sm:hidden">
+          <summary className="grid size-12 list-none place-items-center rounded-[0.9rem] border border-border/70 bg-background text-foreground shadow-xs [&::-webkit-details-marker]:hidden">
+            <NavigationSidebarIcon className="size-5" />
+            <span className="sr-only">Open navigation</span>
+          </summary>
+          <div className="absolute right-0 top-14 z-50 grid w-56 gap-2 rounded-[1rem] border border-border/70 bg-card p-2 shadow-panel">
+            <Button asChild className="justify-start" variant="ghost">
+              <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Demo</a>
+            </Button>
+            <Button asChild className="justify-start" variant="ghost">
+              <a href={publicPath('/app')}><ActionSaveIcon className="size-4" />App</a>
+            </Button>
+            <Button asChild className="justify-start">
+              <Link to="/install"><ActionDatabaseDownloadIcon className="size-4" />Install</Link>
+            </Button>
+          </div>
+        </details>
       </nav>
     </header>
   );
@@ -84,72 +158,81 @@ function WebNav() {
 
 function HomeRoute() {
   return (
-    <div className="h-svh overflow-y-auto bg-background text-foreground">
-      <WebNav />
+    <div className="h-svh overflow-x-hidden overflow-y-auto bg-background text-foreground">
       <main>
         <section className="relative overflow-hidden border-b border-border/70">
           <div className="absolute inset-0 hero-mesh opacity-80" aria-hidden="true" />
           <div className="absolute inset-0 bg-[image:var(--noise-paper)] bg-[length:10px_10px] opacity-70" aria-hidden="true" />
-          <div className="relative mx-auto grid min-h-[calc(100svh-3.5rem)] w-full max-w-6xl items-center gap-10 px-4 py-10 sm:py-14 lg:grid-cols-[0.92fr_1.08fr]">
-            <div className="max-w-2xl">
-              <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground shadow-xs">
-                <EntitySafetyStockIcon className="size-3.5 text-primary" />
-                Local-first inventory workspace
-              </p>
-              <h1 className="mt-5 text-6xl font-semibold leading-[0.9] tracking-normal text-foreground sm:text-8xl">
-                banji
-              </h1>
+          <div className="relative mx-auto grid min-h-svh w-full max-w-6xl items-center gap-10 px-4 py-10 sm:py-14 lg:grid-cols-[0.92fr_1.08fr]">
+            <div className="max-w-2xl text-center sm:text-left">
+              <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
+                <img alt="" aria-hidden="true" className="h-14 w-auto sm:h-16" src={brandLogo} />
+                <h1 className="text-7xl font-semibold leading-[0.9] tracking-normal text-foreground sm:text-8xl">
+                  banji
+                </h1>
+              </div>
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
                 A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.
               </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Button asChild size="lg">
-                  <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Try Demo</a>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <a href={publicPath('/app')}><ActionSaveIcon className="size-4" />Use Browser App</a>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <Link to="/install">
-                    <ActionDatabaseDownloadIcon className="size-4" />
-                    Download Desktop App
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <a href="#build-from-source">
-                    Build From Source
-                    <ActionContinueIcon className="size-4" />
-                  </a>
-                </Button>
-              </div>
-              <div className="mt-8 max-w-xl rounded-2xl border border-primary/20 bg-card/80 p-4 text-sm leading-6 text-muted-foreground shadow-panel">
-                <p className="flex gap-2 font-medium text-foreground">
-                  <StatusWarningIcon className="mt-0.5 size-4 shrink-0 text-primary" />
-                  Browser data lives in this browser.
-                </p>
-                <p className="mt-1 pl-6">
-                  Stored locally with SQLite WASM + OPFS when available. Export backups regularly; clearing browser data may delete your banji browser workspace.
-                </p>
-              </div>
+              <Button asChild className="mt-8 h-14 w-full justify-center text-base sm:w-auto sm:min-w-56" size="lg">
+                <a href="#ways-to-start">Get started <ActionContinueIcon className="size-4" /></a>
+              </Button>
             </div>
             <WorkshopIllustration />
           </div>
         </section>
-        <section className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-12 md:grid-cols-3">
-          <Feature
+        <section id="ways-to-start" className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-12 md:grid-cols-2 lg:grid-cols-4">
+          <ProductCard
+            action="Try the sample workspace"
+            href={publicPath('/demo')}
             icon={<ActionResumeIcon className="size-5" />}
-            title="Demo shelves"
-            text="Seeded data stays separate from the browser app workspace and can be reset any time."
+            price="Free"
+            tone="bg-primary/18 text-primary"
+            title="Demo"
+            benefits={[
+              { icon: <PackageCheck className="size-4" />, label: 'Sample shelves included' },
+              { icon: <WifiOff className="size-4" />, label: 'No install or account' },
+              { icon: <RotateCcw className="size-4" />, label: 'Reset whenever you want' },
+            ]}
           />
-          <Feature
+          <ProductCard
+            action="Start in the browser"
+            href={publicPath('/app')}
             icon={<ActionSaveIcon className="size-5" />}
-            title="Browser-local desk"
-            text="Real browser mode only opens when durable SQLite WASM + OPFS storage is available."
+            price="No install"
+            tone="bg-[#DDE8B5] text-foreground"
+            title="Browser App"
+            benefits={[
+              { icon: <Globe2 className="size-4" />, label: 'Real workspace in this profile' },
+              { icon: <HardDrive className="size-4" />, label: 'SQLite WASM + OPFS when available' },
+              { icon: <Download className="size-4" />, label: 'Export backups regularly' },
+            ]}
           />
-          <Feature
+          <ProductCard
+            action="Install the desktop app"
+            href="/install"
             icon={<EntitySafetyStockIcon className="size-5" />}
-            title="Honest desktop install"
-            text="Unsigned downloads can show OS warnings. Use official releases and do not disable security globally."
+            price="Full power"
+            tone="bg-[#E8DDF2] text-foreground"
+            title="Desktop App"
+            benefits={[
+              { icon: <ShieldCheck className="size-4" />, label: 'Full offline runtime' },
+              { icon: <HardDrive className="size-4" />, label: 'Local files and snapshots' },
+              { icon: <Sparkles className="size-4" />, label: 'Desktop automation support' },
+            ]}
+          />
+          <ProductCard
+            action="Build it yourself"
+            href="#build-from-source"
+            icon={<ActionDatabaseDownloadIcon className="size-5" />}
+            price="Advanced"
+            tone="bg-[#F6D9BE] text-foreground"
+            title="Source Build"
+            benefits={[
+              { icon: <Terminal className="size-4" />, label: 'Inspect the source-visible code' },
+              { icon: <PackageCheck className="size-4" />, label: 'Build locally on macOS' },
+              { icon: <StatusWarningIcon className="size-4" />, label: 'Unsigned output with OS warnings' },
+            ]}
           />
         </section>
         <section id="build-from-source" className="mx-auto w-full max-w-6xl border-t border-border/70 px-4 py-14">
@@ -161,11 +244,7 @@ function HomeRoute() {
                 Inspect the source and run <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-mac-from-source.sh</code> on macOS. Building locally avoids downloading a prebuilt app, but it does not magically make software safe.
               </p>
             </div>
-            <div className="rounded-[1rem] border border-border/70 bg-foreground p-4 font-mono text-xs leading-6 text-background shadow-sm">
-              <p>$ git clone https://github.com/Svanny/banji.git</p>
-              <p>$ cd banji</p>
-              <p>$ scripts/build-mac-from-source.sh</p>
-            </div>
+            <SourceBuildSnippet />
           </div>
         </section>
       </main>
@@ -174,57 +253,56 @@ function HomeRoute() {
 }
 
 function WorkshopIllustration() {
+  const [activeSlide, setActiveSlide] = useState(0);
+  const slide = screenshotSlides[activeSlide] ?? screenshotSlides[0]!;
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setActiveSlide((current) => (current + 1) % screenshotSlides.length);
+    }, 4500);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   return (
-    <div className="relative min-h-[28rem] overflow-hidden rounded-[1.45rem] border border-border/70 bg-card/72 p-4 shadow-panel">
+    <div className="relative min-h-[28rem] overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
       <div className="absolute inset-0 paper-grid opacity-45" aria-hidden="true" />
-      <div className="absolute left-8 top-7 flex gap-2" aria-hidden="true">
-        <span className="h-3 w-10 rounded-full bg-primary/70" />
-        <span className="h-3 w-6 rounded-full bg-accent" />
-        <span className="h-3 w-14 rounded-full bg-secondary" />
-      </div>
-      <div className="absolute right-7 top-7 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-xs">
-        OPFS ready
-      </div>
-      <div className="relative mt-12 grid gap-4 lg:grid-cols-[0.58fr_1fr]">
+      <div className="relative grid gap-4 lg:grid-cols-[0.52fr_1fr]">
         <div className="space-y-3">
           <div className="rounded-[1.1rem] border border-border/70 bg-background/86 p-4 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">today shelf</span>
-              <span aria-hidden="true" className="size-2 rounded-full bg-accent" />
+            <div className="mb-4">
+              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">what teams can do</span>
             </div>
-            {['Supplier queue', 'Low-stock scarf', 'Receipt landed'].map((label, index) => (
+            {[
+              { icon: EntityCustomerIcon, label: 'Track customer orders' },
+              { icon: ActionClipboardAddIcon, label: 'Run a lightweight POS' },
+              { icon: EntityRevenueIcon, label: 'Watch business health' },
+              { icon: EntityReceiptDocumentIcon, label: 'Plan supplier receipts' },
+            ].map(({ icon: Icon, label }) => (
               <div key={label} className="mt-3 flex items-center gap-3 rounded-xl bg-muted/45 px-3 py-2">
-                <span aria-hidden="true" className={`size-3 rounded-full ${index === 1 ? 'bg-primary' : 'bg-accent'}`} />
+                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-background text-primary shadow-xs">
+                  <Icon className="size-4" />
+                </span>
                 <span className="text-sm font-medium text-foreground">{label}</span>
               </div>
             ))}
           </div>
-          <div className="rounded-[1.1rem] border border-border/70 bg-accent/30 p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-2xl bg-background text-primary shadow-xs">
-                <EntityPackageSearchIcon className="size-6" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">little inventory marker</p>
-                <p className="text-xs leading-5 text-muted-foreground">tags, counts, and gentle nudges</p>
-              </div>
-            </div>
-          </div>
         </div>
-        <div className="relative rounded-[1.2rem] border border-border/70 bg-background p-2 shadow-float">
+        <div className="relative">
           <img
-            alt="banji overview workspace showing inventory queue, local tasks, and status"
-            className="aspect-[16/11] h-full w-full rounded-[0.9rem] object-cover object-left-top"
-            src={overviewImageUrl}
+            alt={slide.alt}
+            className="w-full rounded-[1.05rem] shadow-float ring-1 ring-border/50"
+            src={slide.image}
           />
-          <div className="absolute -bottom-4 left-6 right-6 rounded-[1rem] border border-border/70 bg-card/95 p-3 shadow-panel backdrop-blur">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">local workspace</p>
-                <p className="text-sm font-semibold text-foreground">browser preview, desktop depth</p>
-              </div>
-              <span aria-hidden="true" className="h-9 w-14 rounded-full bg-primary/85" />
-            </div>
+          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label="Screenshot carousel">
+            {screenshotSlides.map((item, index) => (
+              <button
+                key={item.label}
+                aria-label={`Show ${item.label}`}
+                className={`size-2.5 rounded-full transition-colors ${index === activeSlide ? 'bg-primary' : 'bg-muted-foreground/25'}`}
+                type="button"
+                onClick={() => setActiveSlide(index)}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -232,21 +310,97 @@ function WorkshopIllustration() {
   );
 }
 
-function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
-  return (
-    <section className="rounded-[1.15rem] border border-border/70 bg-card/70 p-5 shadow-panel">
-      <div className="mb-4 grid size-10 place-items-center rounded-[0.9rem] bg-accent/45 text-foreground">
+function ProductCard({
+  action,
+  benefits,
+  href,
+  icon,
+  price,
+  title,
+  tone,
+}: {
+  action: string;
+  benefits: Array<{ icon: ReactNode; label: string }>;
+  href: string;
+  icon: ReactNode;
+  price: string;
+  title: string;
+  tone: string;
+}) {
+  const content = (
+    <>
+      <div className={`mx-auto grid size-16 place-items-center rounded-[1.25rem] shadow-xs ${tone}`}>
         {icon}
       </div>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mt-3 text-sm leading-6 text-muted-foreground">{text}</p>
-    </section>
+      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{price}</p>
+      <h2 className="mt-2 text-xl font-semibold">{title}</h2>
+      <span className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-xs">
+        {action}
+        <ActionContinueIcon className="size-4" />
+      </span>
+      <ul className="mt-6 grid w-full gap-2 text-sm leading-5 text-muted-foreground">
+        {benefits.map((benefit) => (
+          <li key={benefit.label} className="flex items-center gap-4 rounded-xl bg-muted/35 px-3 py-2.5">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-background text-primary shadow-xs">
+              {benefit.icon}
+            </span>
+            <span className="text-left font-medium">{benefit.label}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+
+  const className = 'flex min-h-80 flex-col items-center justify-center rounded-[1.15rem] border border-border/70 bg-card p-6 text-center shadow-panel transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+
+  if (href === '/install') {
+    return (
+      <Link className={className} to={href}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <a className={className} href={href}>
+      {content}
+    </a>
+  );
+}
+
+function SourceBuildSnippet() {
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  async function copyCommands() {
+    try {
+      await navigator.clipboard.writeText(sourceBuildCommands.join('\n'));
+      setCopyStatus('copied');
+    } catch {
+      setCopyStatus('failed');
+    }
+    window.setTimeout(() => setCopyStatus('idle'), 1800);
+  }
+
+  const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy';
+
+  return (
+    <div className="relative rounded-[1rem] border border-border/70 bg-foreground p-4 font-mono text-xs leading-6 text-background shadow-sm">
+      <button
+        className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-background/15 bg-background/10 px-2.5 py-1 text-[0.68rem] font-semibold text-background/90 shadow-xs transition-colors hover:bg-background/16 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/40"
+        type="button"
+        onClick={copyCommands}
+      >
+        <ClipboardCopy className="size-3.5" data-icon />
+        {copyLabel}
+      </button>
+      <pre className="overflow-x-auto pb-8 whitespace-pre-wrap"><code>{sourceBuildCommands.join('\n')}</code></pre>
+    </div>
   );
 }
 
 function InstallRoute() {
   return (
-    <div className="h-svh overflow-y-auto bg-background text-foreground">
+    <div className="h-svh overflow-x-hidden overflow-y-auto bg-background text-foreground">
       <WebNav />
       <main className="mx-auto w-full max-w-5xl px-4 py-12">
         <section className="rounded-[1.45rem] border border-border/70 bg-card/72 p-6 shadow-panel sm:p-8">
@@ -261,23 +415,26 @@ function InstallRoute() {
                 Download desktop artifacts only from GitHub Releases, verify SHA256 checksums, and use normal OS trust prompts. Warnings are real security signals, not bugs.
               </p>
             </div>
-            <div className="flex flex-wrap gap-3 lg:justify-end">
-              <Button asChild size="lg">
-                <a href={releasesUrl} rel="noreferrer" target="_blank">
-                  <ActionDatabaseDownloadIcon className="size-4" />
-                  Latest release
-                </a>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <a href={sourceUrl} rel="noreferrer" target="_blank">
-                  <ActionOpenExternalIcon className="size-4" />
-                  Source
-                </a>
-              </Button>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3 lg:justify-end">
+                <Button asChild size="lg">
+                  <a href={releasesUrl} rel="noreferrer" target="_blank">
+                    <ActionDatabaseDownloadIcon className="size-4" />
+                    Latest release
+                  </a>
+                </Button>
+                <Button asChild size="lg" variant="outline">
+                  <a href={sourceUrl} rel="noreferrer" target="_blank">
+                    <ActionOpenExternalIcon className="size-4" />
+                    Source
+                  </a>
+                </Button>
+              </div>
+              <InstallHeroSketch />
             </div>
           </div>
         </section>
-        <div className="mt-8 grid gap-4">
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
           <InstallSection icon={<EntityPackageSearchIcon className="size-5" />} title="macOS DMG">
             <StepList
               steps={[
@@ -303,9 +460,14 @@ function InstallRoute() {
               AppImage and deb artifacts are provided when the release includes them. Mark AppImages executable, or install local deb files with your package manager.
             </p>
           </InstallSection>
-          <InstallSection icon={<EntitySafetyStockIcon className="size-5" />} title="Checksums and honest warnings">
+          <InstallSection className="lg:col-span-2" icon={<EntitySafetyStockIcon className="size-5" />} title="Checksums and honest warnings">
             <p className="text-sm leading-6 text-muted-foreground">
               Verify release files against the <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">SHA256SUMS</code> asset on the same release. The repository is source-visible, but <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">package.json</code> currently declares <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">UNLICENSED</code>. Do not run copies from mirrors or reposts.
+            </p>
+          </InstallSection>
+          <InstallSection icon={<ActionSaveIcon className="size-5" />} title="Browser app limits">
+            <p className="text-sm leading-6 text-muted-foreground">
+              The browser app stores data in the current browser profile when OPFS is available. Telegram automation polls only while the tab is open, visible, and awake; the token is stored in that browser profile; benchmark diagnostics, native logs, snapshots, folder reveal, and persistent image assets require the desktop app.
             </p>
           </InstallSection>
         </div>
@@ -314,17 +476,35 @@ function InstallRoute() {
   );
 }
 
+function InstallHeroSketch() {
+  return (
+    <div className="relative ml-auto hidden min-h-44 w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-border/70 bg-background/72 p-5 shadow-sm lg:block">
+      <div className="absolute inset-0 paper-grid opacity-35" aria-hidden="true" />
+      <div className="relative mx-auto mt-4 h-24 w-44 rounded-b-[1.2rem] border border-primary/30 bg-primary/18">
+        <div className="absolute -top-7 left-3 h-8 w-20 origin-bottom -rotate-12 rounded-t-xl border border-primary/25 bg-secondary" />
+        <div className="absolute -top-7 right-3 h-8 w-20 origin-bottom rotate-12 rounded-t-xl border border-primary/25 bg-secondary" />
+        <div className="absolute -top-12 left-1/2 h-16 w-2 -translate-x-1/2 rounded-full bg-accent" />
+        <div className="absolute -top-11 left-[44%] h-12 w-7 -rotate-[35deg] rounded-full bg-accent/70" />
+        <div className="absolute -top-10 right-[40%] h-12 w-7 rotate-[35deg] rounded-full bg-accent/70" />
+        <p className="absolute inset-x-0 bottom-4 text-center text-2xl font-semibold text-foreground">banji</p>
+      </div>
+    </div>
+  );
+}
+
 function InstallSection({
   children,
+  className = '',
   icon,
   title,
 }: {
   children: ReactNode;
+  className?: string;
   icon: ReactNode;
   title: string;
 }) {
   return (
-    <section className="grid gap-4 rounded-[1.15rem] border border-border/70 bg-card/68 p-5 shadow-panel sm:grid-cols-[2.5rem_1fr]">
+    <section className={`grid gap-4 rounded-[1.15rem] border border-border/70 bg-card/68 p-5 shadow-panel sm:grid-cols-[2.5rem_1fr] ${className}`}>
       <div className="grid size-10 place-items-center rounded-[0.9rem] bg-accent/45 text-foreground">{icon}</div>
       <div>
         <h2 className="text-xl font-semibold">{title}</h2>
@@ -396,7 +576,9 @@ function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: 
 }
 
 async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: BanjiBrowserDatabaseName) {
-  await handle.putDocuments([stateRecord(databaseName, getBrowserDesktopBridgeMockState())]);
+  const state = getBrowserDesktopBridgeMockState();
+  await handle.persistSenaState(state);
+  await handle.putDocuments([stateRecord(databaseName, state)]);
 }
 
 function wrapMutation<T extends object, K extends keyof T>(
@@ -445,6 +627,7 @@ function installPersistenceHooks(
   wrapMutation(bridge.automation, 'patchExposureRow', persist);
   wrapMutation(bridge.automation, 'resolveIntake', persist);
   wrapMutation(bridge.automation, 'promoteIntake', persist);
+  wrapMutation(bridge.automation, 'testTelegramConnection', persist);
 
   bridge.system.clearCurrentData = async () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode(mode));
@@ -459,6 +642,14 @@ function installPersistenceHooks(
       },
     };
   };
+}
+
+function shouldPollBrowserTelegram(mode: EmbeddedMode) {
+  if (mode !== 'app' || document.visibilityState !== 'visible') {
+    return false;
+  }
+  const connection = getBrowserDesktopBridgeMockState().automation.connection;
+  return connection.status === 'connected' && connection.hasBotToken;
 }
 
 async function requestPersistentStorage(): Promise<StorageUiState['persistence']> {
@@ -478,6 +669,26 @@ function downloadJson(filename: string, value: unknown) {
   URL.revokeObjectURL(url);
 }
 
+function storageStatusLabel(status: PersistenceStatus) {
+  if (status === 'ready') {
+    return 'ready';
+  }
+  if (status === 'loading') {
+    return 'starting';
+  }
+  return 'not available';
+}
+
+function persistenceStatusLabel(status: StorageUiState['persistence']) {
+  if (status === 'granted') {
+    return 'on';
+  }
+  if (status === 'not-granted') {
+    return 'off';
+  }
+  return 'not checked';
+}
+
 function WebAppBanner({
   mode,
   storage,
@@ -493,40 +704,49 @@ function WebAppBanner({
 }) {
   const isDemo = mode === 'demo';
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const displayMessage = storage.status === 'error'
+    ? (isDemo ? 'Demo is running with temporary sample data because durable browser storage could not start.' : 'Browser storage could not start.')
+    : storage.message;
   return (
-    <div className="border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)]">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-panel lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-[0.85rem] bg-accent/45 text-foreground">
+    <div className="border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:fixed md:bottom-[6.2rem] md:left-2 md:z-40 md:w-[calc(12.8rem-1rem)] md:border-0 md:bg-transparent md:p-0 md:shadow-none">
+      <div className="mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-panel md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5">
+        <div className="flex gap-3 md:gap-2">
+          <span className="grid size-9 shrink-0 place-items-center rounded-[0.85rem] bg-accent/45 text-foreground md:size-7 md:rounded-lg">
             <StatusWarningIcon className="size-4" />
           </span>
-          <div>
-            <p className="font-semibold">
-              {isDemo ? 'Demo data - not your real workspace.' : 'Your banji browser data lives in this browser profile. Export backups regularly.'}
+          <div className="min-w-0">
+            <p className="font-semibold md:leading-4">
+              {isDemo ? 'Demo data - not your real workspace.' : 'banji saves your work in this browser. Back it up regularly.'}
             </p>
-            <p>
-              {storage.message} OPFS: {storage.status === 'ready' ? 'available' : storage.status}. Persistence: {storage.persistence.replace('-', ' ')}.
+            <p className="md:hidden">
+              {displayMessage} Storage: {storageStatusLabel(storage.status)}. Extra browser protection: {persistenceStatusLabel(storage.persistence)}.
               {storage.lastBackupAt ? ` Last backup: ${new Date(storage.lastBackupAt).toLocaleString()}.` : ''}
+            </p>
+            <p className="hidden text-muted-foreground md:block">
+              {isDemo ? 'Sample workspace. Reset anytime.' : 'Local browser workspace.'}
+            </p>
+            <p className="md:hidden">
+              Reports and Telegram checks only keep running while this tab is open and awake. Use the desktop app for always-on automation.
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
+        <div className="grid grid-cols-1 gap-2 md:gap-1.5">
+          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
             <ActionExportIcon className="size-4" />
-            Export backup
+            <span>Export backup</span>
           </Button>
-          <Button size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
+          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
             <ActionDatabaseUploadIcon className="size-4" />
-            Import backup
+            <span>Import backup</span>
           </Button>
-          <Button size="sm" type="button" variant="outline" onClick={onReset}>
+          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon className="size-4" />
-            {isDemo ? 'Reset demo' : 'Reset workspace'}
+            <span>{isDemo ? 'Reset demo' : 'Reset workspace'}</span>
           </Button>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" variant="outline">
             <a href={publicPath(isDemo ? '/app' : '/install')}>
               {isDemo ? <ActionSaveIcon className="size-4" /> : <ActionDatabaseDownloadIcon className="size-4" />}
-              {isDemo ? 'Use browser app' : 'Download desktop app'}
+              <span>{isDemo ? 'Use browser app' : 'Download desktop app'}</span>
             </a>
           </Button>
           <input
@@ -599,8 +819,8 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         setStorage({
           status: 'ready',
           message: mode === 'demo'
-            ? 'Demo is isolated in banji_browser_demo_v1.sqlite3.'
-            : 'Browser app data is stored locally in this browser using SQLite WASM + OPFS.',
+            ? 'This demo uses a separate sample workspace.'
+            : 'Your workspace is saved in this browser on this device.',
           databaseName,
           vfs: handle.init.vfs,
           sqliteVersion: handle.init.sqliteVersion,
@@ -628,6 +848,33 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       mounted = false;
     };
   }, [databaseName, mode]);
+
+  useEffect(() => {
+    if (!isReady || mode !== 'app') {
+      return;
+    }
+
+    let inFlight = false;
+    const poll = () => {
+      if (!shouldPollBrowserTelegram(mode) || inFlight) {
+        return;
+      }
+      inFlight = true;
+      window.banjiDesktop.automation?.testTelegramConnection()
+        .catch(() => undefined)
+        .finally(() => {
+          inFlight = false;
+        });
+    };
+    const intervalId = window.setInterval(poll, 30_000);
+    document.addEventListener('visibilitychange', poll);
+    poll();
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', poll);
+    };
+  }, [isReady, mode]);
 
   function handleExport() {
     void (async () => {

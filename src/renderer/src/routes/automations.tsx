@@ -63,6 +63,7 @@ import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import { AutomationConnectionCard } from './automations/connection-card';
 import { AutomationEmptyState } from './automations/empty-state';
 import { AutomationExceptionTable } from './automations/exception-table';
@@ -329,6 +330,7 @@ export function AutomationsRoute({
     metrics,
   } = useAutomation();
   const { currency, language, showAutomationsPage, usdToKhrExchangeRate } = usePreferences();
+  const { isBrowserRuntime } = useRuntimeMode();
   const [exposureTypeFilter, setExposureTypeFilter] = useState<ExposureTypeFilter>('all');
   const [issueFilter, setIssueFilter] = useState<ExceptionIssueFilter>('all');
   const [confidenceFilter, setConfidenceFilter] = useState<ExceptionConfidenceFilter>('all');
@@ -562,6 +564,22 @@ export function AutomationsRoute({
     }
   }
 
+  async function handleTestTelegramConnection() {
+    try {
+      await testTelegramConnection();
+    } catch (error) {
+      setSaveResultDialog({
+        title: isBrowserRuntime
+          ? translateUiLiteral(language, 'Telegram browser fetch blocked')
+          : translateUiLiteral(language, 'Telegram test failed'),
+        description: error instanceof Error
+          ? error.message
+          : translateUiLiteral(language, 'banji could not test the Telegram connection.'),
+        tone: 'error',
+      });
+    }
+  }
+
   const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
   const section = forcedSection ?? (hasSavedTelegramConfiguration ? routeState.section : 'settings');
   const workIntakeWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`intake:${intakeTab}:${section}:${hasSavedTelegramConfiguration}`);
@@ -661,10 +679,10 @@ export function AutomationsRoute({
         size="sm"
         type="button"
         variant="outline"
-        onClick={() => { void testTelegramConnection(); }}
+        onClick={() => { void handleTestTelegramConnection(); }}
       >
         <StatusSendIcon className="size-4" />
-        {translateUiLiteral(language, 'Test message')}
+        {translateUiLiteral(language, isBrowserRuntime ? 'Poll Telegram now' : 'Test message')}
       </Button>
       {openBotUrl ? (
         <Button
@@ -690,6 +708,7 @@ export function AutomationsRoute({
     return (
       <WorkspacePage>
         <WorkspaceTitleCard
+          helperExemptReason="Automation title card descriptor supplies route-level guidance."
           title={
             <span className="flex min-w-0 items-center gap-3">
               <RouteBackButton className="shrink-0" />
@@ -707,6 +726,7 @@ export function AutomationsRoute({
       <WorkspaceTitleCard
         actions={hasSavedTelegramConfiguration ? titleActions : undefined}
         eyebrow={forcedSection === 'settings' ? getTranslation(language, 'settingsTitle') : undefined}
+        helperExemptReason="Automation title card descriptor supplies route-level guidance."
         title={
           <span className="flex min-w-0 items-center gap-3">
             <RouteBackButton className="shrink-0" />
@@ -715,6 +735,16 @@ export function AutomationsRoute({
         }
         descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.')}
       >
+        {isBrowserRuntime ? (
+          <div className="mt-4 rounded-[1rem] border border-amber-300/60 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-950">
+            <p className="font-semibold">
+              {translateUiLiteral(language, 'Browser automation runs only while this tab is open.')}
+            </p>
+            <p>
+              {translateUiLiteral(language, 'SENA is single-threaded in browser mode, and live Telegram polling pauses when the tab is closed, hidden, asleep, or blocked by the browser. Use desktop for persistent automation.')}
+            </p>
+          </div>
+        ) : null}
         {hasSavedTelegramConfiguration && model ? (
           <MetricRibbon
             columns={5}
@@ -845,6 +875,7 @@ export function AutomationsRoute({
                 botUsername={botUsername}
                 connection={connection}
                 externalLink={externalLink}
+                isBrowserRuntime={isBrowserRuntime}
                 isSaving={isSaving}
                 language={language}
                 onBotDisplayNameChange={setBotDisplayName}

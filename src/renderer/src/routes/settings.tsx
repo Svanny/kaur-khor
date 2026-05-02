@@ -55,6 +55,7 @@ import {
 import { resolveSettingsSection } from '@/lib/settings-navigation';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
 import { BenchmarkSettingsPage } from './benchmark-settings';
@@ -409,24 +410,30 @@ function LanguageOptionLabel({
 }
 
 function LocalDataLocationLink({
+  isBrowserRuntime,
   label,
   path,
 }: {
+  isBrowserRuntime: boolean;
   label: string;
   path: string;
 }) {
   return (
     <div>
       <p className="text-sm font-medium text-foreground">{label}</p>
-      <Button
-        className="h-auto justify-start px-0 py-0 text-left text-sm font-normal text-muted-foreground whitespace-normal break-all hover:text-foreground"
-        type="button"
-        variant="link"
-        onClick={() => void window.banjiDesktop.system.revealPath(path)}
-      >
-        <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
-        <span>{path}</span>
-      </Button>
+      {isBrowserRuntime ? (
+        <p className="mt-1 break-all text-sm text-muted-foreground">{path}</p>
+      ) : (
+        <Button
+          className="h-auto justify-start px-0 py-0 text-left text-sm font-normal text-muted-foreground whitespace-normal break-all hover:text-foreground"
+          type="button"
+          variant="link"
+          onClick={() => void window.banjiDesktop.system.revealPath(path)}
+        >
+          <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
+          <span>{path}</span>
+        </Button>
+      )}
     </div>
   );
 }
@@ -1068,6 +1075,8 @@ function LocalWorkspaceDataPage({
   handleExportLogs,
   handleExportSenaData,
   handleRestoreSnapshot,
+  isBrowserRuntime,
+  language,
   localDataError,
   localDataInfo,
   logExportFormat,
@@ -1084,6 +1093,8 @@ function LocalWorkspaceDataPage({
   handleExportLogs: (format: ExportFormat) => Promise<void>;
   handleExportSenaData: (format: ExportFormat) => Promise<void>;
   handleRestoreSnapshot: () => Promise<void>;
+  isBrowserRuntime: boolean;
+  language: 'en' | 'km';
   localDataError: string | null;
   localDataInfo: DesktopLocalDataInfo | null;
   logExportFormat: ExportFormat;
@@ -1099,22 +1110,46 @@ function LocalWorkspaceDataPage({
     <WorkspacePanel>
       {localDataInfo ? (
         <div className="grid gap-4">
+          {isBrowserRuntime ? (
+            <div className="rounded-[1rem] border border-amber-300/60 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-950">
+              <p className="font-semibold">{translateUiLiteral(language, 'Browser data lives in this browser profile.')}</p>
+              <p>
+                {translateUiLiteral(language, 'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.')}
+              </p>
+            </div>
+          ) : null}
           <LocalDataLocationLink
+            isBrowserRuntime={isBrowserRuntime}
             label={t('settingsDataDirectoryLabel')}
             path={localDataInfo.dataDirectoryPath}
           />
           <LocalDataLocationLink
+            isBrowserRuntime={isBrowserRuntime}
             label={t('settingsWorkspaceStoreLabel')}
             path={localDataInfo.workspaceStorePath}
           />
           <LocalDataLocationLink
+            isBrowserRuntime={isBrowserRuntime}
             label={t('settingsPreferencesFileLabel')}
             path={localDataInfo.preferencesPath}
           />
           <LocalDataLocationLink
+            isBrowserRuntime={isBrowserRuntime}
             label={t('settingsBackupDirectoryLabel')}
             path={localDataInfo.backupDirectoryPath}
           />
+          {isBrowserRuntime ? (
+            <WorkspaceActionRow>
+              <ExportFormatSelect
+                ariaLabel={t('settingsSenaDataExportFormatLabel')}
+                icon={<ActionDatabaseDownloadIcon className="size-4" />}
+                label={t('settingsExportSenaDataAction')}
+                onExport={() => void handleExportSenaData(senaExportFormat)}
+                value={senaExportFormat}
+                onValueChange={setSenaExportFormat}
+              />
+            </WorkspaceActionRow>
+          ) : (
           <WorkspaceActionRow>
             <Button
               disabled={localDataOperationInFlight}
@@ -1151,6 +1186,7 @@ function LocalWorkspaceDataPage({
               onValueChange={setSenaExportFormat}
             />
           </WorkspaceActionRow>
+          )}
           {backupStatus ? <p className="text-sm text-muted-foreground">{backupStatus}</p> : null}
           {exportStatus ? <p className="text-sm text-muted-foreground">{exportStatus}</p> : null}
         </div>
@@ -1202,6 +1238,7 @@ export function SettingsRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const currentSection = resolveSettingsSection(location.pathname);
+  const { isBrowserRuntime } = useRuntimeMode();
   const {
     currency,
     hasPendingChanges,
@@ -1537,6 +1574,7 @@ export function SettingsRoute() {
             }
             descriptor={t(currentSection.descriptionKey)}
             eyebrow={t('settingsTitle')}
+            helperExemptReason="Settings section descriptor supplies route-level guidance."
             title={t(currentSection.titleKey)}
           />
         )}
@@ -1625,6 +1663,8 @@ export function SettingsRoute() {
                   handleExportLogs={handleExportLogs}
                   handleExportSenaData={handleExportSenaData}
                   handleRestoreSnapshot={handleRestoreSnapshot}
+                  isBrowserRuntime={isBrowserRuntime}
+                  language={language}
                   localDataError={localDataError}
                   localDataInfo={localDataInfo}
                   logExportFormat={logExportFormat}

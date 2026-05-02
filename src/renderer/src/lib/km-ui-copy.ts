@@ -3203,6 +3203,30 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Set language to Khmer': 'ប្តូរភាសាទៅខ្មែរ',
   'Set currency to USD': 'ប្តូររូបិយប័ណ្ណទៅដុល្លារ',
   'Set currency to KHR': 'ប្តូររូបិយប័ណ្ណទៅរៀល',
+  'Telegram browser fetch blocked': 'ការទាញទិន្នន័យតេលេក្រាមពីកម្មវិធីរុករកត្រូវបានរារាំង',
+  'Telegram test failed': 'ការសាកល្បងតេលេក្រាមបរាជ័យ',
+  'banji could not test the Telegram connection.': 'បញ្ជីមិនអាចសាកល្បងការភ្ជាប់តេលេក្រាមបានទេ។',
+  'Browser Telegram is while-tab-open only': 'តេលេក្រាមក្នុងកម្មវិធីរុករកប្រើបានតែពេលផ្ទាំងបើក',
+  'SENA is single-threaded in browser mode. Telegram polling only runs while this tab is open, visible, and awake.':
+    'ស៊ីណាដំណើរការខ្សែតែមួយក្នុងរបៀបកម្មវិធីរុករក។ ការស្ទង់តេលេក្រាមដំណើរការតែពេលផ្ទាំងនេះបើក មើលឃើញ និងមិនសម្រាក។',
+  'The bot token is stored in this browser profile.': 'ថូខិនប៊ុតត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
+  'Clearing browser data can remove browser automation state and the saved token.':
+    'ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបស្ថានភាពអូតូម៉ាស្យុង និងថូខិនដែលបានរក្សាទុក។',
+  'Do not run the same bot token in desktop and browser at the same time unless you coordinate the handoff.':
+    'កុំប្រើថូខិនប៊ុតដូចគ្នានៅកម្មវិធីកុំព្យូទ័រ និងកម្មវិធីរុករកក្នុងពេលតែមួយ លុះត្រាតែបានសម្របសម្រួលការផ្ទេរ។',
+  'If Telegram blocks browser fetch, banji will show a browser-blocked state and require the desktop app.':
+    'បើតេលេក្រាមរារាំងការទាញទិន្នន័យពីកម្មវិធីរុករក បញ្ជីនឹងបង្ហាញស្ថានភាពត្រូវបានរារាំង ហើយត្រូវការកម្មវិធីកុំព្យូទ័រ។',
+  'Browser automation runs only while this tab is open.': 'អូតូម៉ាស្យុងក្នុងកម្មវិធីរុករកដំណើរការតែពេលផ្ទាំងនេះបើកប៉ុណ្ណោះ។',
+  'SENA is single-threaded in browser mode, and live Telegram polling pauses when the tab is closed, hidden, asleep, or blocked by the browser. Use desktop for persistent automation.':
+    'ស៊ីណាដំណើរការខ្សែតែមួយក្នុងរបៀបកម្មវិធីរុករក ហើយការស្ទង់តេលេក្រាមផ្ទាល់នឹងផ្អាកនៅពេលផ្ទាំងត្រូវបានបិទ លាក់ សម្រាក ឬត្រូវបានកម្មវិធីរុករករារាំង។ ប្រើកម្មវិធីកុំព្យូទ័រសម្រាប់អូតូម៉ាស្យុងអចិន្ត្រៃយ៍។',
+  'Poll Telegram now': 'ស្ទង់តេលេក្រាមឥឡូវនេះ',
+  'Browser image storage is unavailable in this release. Use the desktop app to attach persistent item pictures.':
+    'ការផ្ទុករូបភាពក្នុងកម្មវិធីរុករកមិនទាន់អាចប្រើបានក្នុងកំណែនេះទេ។ ប្រើកម្មវិធីកុំព្យូទ័រ ដើម្បីភ្ជាប់រូបភាពធាតុអចិន្ត្រៃយ៍។',
+  'Browser mode keeps catalog data in OPFS, but persistent image assets are desktop-only for now.':
+    'របៀបកម្មវិធីរុករករក្សាទិន្នន័យកាតាឡុកក្នុងអូភីអេហ្វអេស ប៉ុន្តែទ្រព្យសកម្មរូបភាពអចិន្ត្រៃយ៍នៅតែប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រឥឡូវនេះ។',
+  'Browser data lives in this browser profile.': 'ទិន្នន័យកម្មវិធីរុករកស្ថិតនៅក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
+  'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.':
+    'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នាមថតចម្លងកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
   'Excel file': 'ឯកសារអិចសែល',
   Pane: 'ផ្ទាំងក្រាប',
   'New pane': 'ផ្ទាំងក្រាបថ្មី',

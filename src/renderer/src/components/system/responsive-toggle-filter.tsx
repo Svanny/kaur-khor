@@ -193,7 +193,7 @@ export function ResponsiveToggleFilter<TValue extends string>({
           <SelectTrigger
             aria-label={ariaLabel}
             className={cn(
-              'min-w-[12rem] justify-between rounded-full border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+              'min-w-0 w-full max-w-[9.5rem] justify-between rounded-full border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
               triggerClassName,
             )}
           >

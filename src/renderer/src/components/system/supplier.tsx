@@ -160,12 +160,14 @@ export function SupplierField({
 export function SupplierFilter({
   catalog,
   className,
+  disabled = false,
   label = 'Filter by supplier',
   value,
   onChange,
 }: {
   catalog: SenaCatalog | null | undefined;
   className?: string;
+  disabled?: boolean;
   label?: string;
   value: SupplierFilterValue;
   onChange: (value: SupplierFilterValue) => void;
@@ -174,11 +176,11 @@ export function SupplierFilter({
   const supplierNames = supplierNamesFromCatalog(catalog);
 
   return (
-    <Select value={supplierFilterQueryValue(value) ?? 'all'} onValueChange={(nextValue) => onChange(supplierFilterValueForQuery(nextValue))}>
+    <Select disabled={disabled} value={supplierFilterQueryValue(value) ?? 'all'} onValueChange={(nextValue) => onChange(supplierFilterValueForQuery(nextValue))}>
       <SelectTrigger
         aria-label={translateUiLiteral(language, label)}
         className={cn(
-          'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
+          'min-w-0 w-full max-w-[9.5rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_span]:truncate [&_svg]:opacity-100',
           className,
         )}
       >

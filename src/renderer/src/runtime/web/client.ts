@@ -9,6 +9,7 @@ import type {
   BrowserStorageWorkerResponse,
   BrowserStorageWorkerResult,
 } from './protocol';
+import type { BrowserSenaPersistState } from './sena-persistence';
 
 type PendingRequest = {
   resolve: (result: BrowserStorageWorkerResult) => void;
@@ -28,6 +29,7 @@ export type BrowserStorageSupportedHandle = {
   putDocuments: (records: BrowserStorageDocumentRecord[]) => Promise<number>;
   exportBackup: () => Promise<BrowserStorageJsonBackup>;
   importBackup: (backup: BrowserStorageJsonBackup) => Promise<number>;
+  persistSenaState: (state: BrowserSenaPersistState) => Promise<number>;
   clear: () => Promise<void>;
   seedDemo: () => Promise<number>;
   close: () => void;
@@ -87,6 +89,15 @@ class BrowserStorageClient implements BrowserStorageSupportedHandle {
         throw new Error('Unexpected importBackup response.');
       }
       return response.result.importedRecords;
+    });
+  }
+
+  persistSenaState(state: BrowserSenaPersistState) {
+    return this.request({ type: 'persistSenaState', state }).then((response) => {
+      if (response.type !== 'persistSenaState') {
+        throw new Error('Unexpected persistSenaState response.');
+      }
+      return response.result.storedTables;
     });
   }
 

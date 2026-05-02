@@ -5,4 +5,5 @@ export * from './constants';
 export * from './demo-seed';
 export * from './protocol';
 export * from './schema';
-
+export * from './sena-analysis';
+export * from './sena-persistence';

@@ -143,8 +143,8 @@ export function ArchiveRoute() {
         }
         descriptor={translateUiLiteral(language, 'Review archived catalog items and restore anything that should return to active workspaces.')}
       >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
-          <div className="w-full max-w-xl">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(12rem,1fr)_auto_minmax(8rem,10.5rem)] lg:items-center lg:gap-4">
+          <div className="min-w-0">
             <SearchInput
               ariaLabel={translateUiLiteral(language, 'Search archive')}
               placeholder={t('searchPlaceholder')}

@@ -5,7 +5,7 @@ export function SearchInput({
   addonClassName,
   ariaLabel,
   autoComplete,
-  className = 'h-12 rounded-full',
+  className = 'h-12 min-w-0 rounded-full',
   inputClassName,
   inputRef,
   onKeyDown,

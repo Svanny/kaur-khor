@@ -7,14 +7,14 @@ use crate::types::{
 };
 use anyhow::{anyhow, Result};
 use rand::{rngs::StdRng, Rng, SeedableRng};
+#[cfg(feature = "desktop")]
 use rayon::{prelude::*, ThreadPool, ThreadPoolBuilder};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        OnceLock,
-    },
+use std::collections::{BTreeMap, HashMap};
+#[cfg(feature = "desktop")]
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    OnceLock,
 };
 use time::{format_description::well_known::Rfc3339, Month, OffsetDateTime};
 
@@ -277,10 +277,14 @@ pub fn particle_count_for_algorithm(algorithm_version: &str) -> usize {
     }
 }
 
+#[cfg(feature = "desktop")]
 static PARTICLE_WORKER_COUNT: OnceLock<usize> = OnceLock::new();
+#[cfg(feature = "desktop")]
 static PARTICLE_THREAD_POOL: OnceLock<ThreadPool> = OnceLock::new();
+#[cfg(feature = "desktop")]
 static PARTICLE_POOL_INIT_COUNT: AtomicUsize = AtomicUsize::new(0);
 
+#[cfg(feature = "desktop")]
 fn available_particle_workers() -> usize {
     *PARTICLE_WORKER_COUNT.get_or_init(|| {
         std::thread::available_parallelism()
@@ -291,6 +295,7 @@ fn available_particle_workers() -> usize {
     })
 }
 
+#[cfg(feature = "desktop")]
 fn particle_thread_pool() -> &'static ThreadPool {
     PARTICLE_THREAD_POOL.get_or_init(|| {
         PARTICLE_POOL_INIT_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -303,10 +308,12 @@ fn particle_thread_pool() -> &'static ThreadPool {
 }
 
 #[cfg(test)]
+#[cfg(feature = "desktop")]
 fn particle_pool_init_count() -> usize {
     PARTICLE_POOL_INIT_COUNT.load(Ordering::SeqCst)
 }
 
+#[cfg(feature = "desktop")]
 fn particle_batch_ranges(particle_count: usize) -> Vec<(usize, usize)> {
     if particle_count == 0 {
         return Vec::new();
@@ -1242,36 +1249,62 @@ fn execute_particle_batches(
     service_index: &HashMap<&str, usize>,
 ) -> Vec<IntervalParticleResult> {
     let particle_count = particles.len();
-    let ranges = particle_batch_ranges(particles.len());
-    let pool = particle_thread_pool();
-    pool.install(|| {
-        ranges
-            .into_par_iter()
-            .map(|(start, end)| {
-                let mut batch_results = Vec::with_capacity(end - start);
-                for (particle_index, particle) in particles[start..end].iter().enumerate() {
-                    let absolute_index = start + particle_index;
-                    batch_results.push(step_particle(
-                        absolute_index,
-                        particle_count,
-                        particle,
-                        owner_sub,
-                        catalog,
-                        interval,
-                        &preprocessed.usage_map,
-                        &preprocessed.sku_capacity_hints,
-                        &preprocessed.observation_sigma,
-                        sku_index,
-                        service_index,
-                    ));
-                }
-                batch_results
+    #[cfg(not(feature = "desktop"))]
+    {
+        return particles
+            .iter()
+            .enumerate()
+            .map(|(particle_index, particle)| {
+                step_particle(
+                    particle_index,
+                    particle_count,
+                    particle,
+                    owner_sub,
+                    catalog,
+                    interval,
+                    &preprocessed.usage_map,
+                    &preprocessed.sku_capacity_hints,
+                    &preprocessed.observation_sigma,
+                    sku_index,
+                    service_index,
+                )
             })
-            .reduce(Vec::new, |mut left, mut right| {
-                left.append(&mut right);
-                left
-            })
-    })
+            .collect();
+    }
+
+    #[cfg(feature = "desktop")]
+    {
+        let ranges = particle_batch_ranges(particles.len());
+        let pool = particle_thread_pool();
+        pool.install(|| {
+            ranges
+                .into_par_iter()
+                .map(|(start, end)| {
+                    let mut batch_results = Vec::with_capacity(end - start);
+                    for (particle_index, particle) in particles[start..end].iter().enumerate() {
+                        let absolute_index = start + particle_index;
+                        batch_results.push(step_particle(
+                            absolute_index,
+                            particle_count,
+                            particle,
+                            owner_sub,
+                            catalog,
+                            interval,
+                            &preprocessed.usage_map,
+                            &preprocessed.sku_capacity_hints,
+                            &preprocessed.observation_sigma,
+                            sku_index,
+                            service_index,
+                        ));
+                    }
+                    batch_results
+                })
+                .reduce(Vec::new, |mut left, mut right| {
+                    left.append(&mut right);
+                    left
+                })
+        })
+    }
 }
 
 pub fn run_analysis(
@@ -2434,11 +2467,13 @@ fn stable_seed(value: &impl std::fmt::Debug) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "desktop")]
+    use super::{available_particle_workers, particle_pool_init_count};
     use super::{
-        available_particle_workers, compute_reorder_quantity_recommendation, compute_stockout_hit,
-        effective_sample_size, fingerprint_catalog, fingerprint_observations, normalize_weights,
-        particle_pool_init_count, preprocess_workspace, run_analysis, run_preprocessed_analysis,
-        weighted_mean, weighted_quantile, SenaEngineParameters,
+        compute_reorder_quantity_recommendation, compute_stockout_hit, effective_sample_size,
+        fingerprint_catalog, fingerprint_observations, normalize_weights, preprocess_workspace,
+        run_analysis, run_preprocessed_analysis, weighted_mean, weighted_quantile,
+        SenaEngineParameters,
     };
     use crate::types::{
         SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaObservationRecord,
@@ -2776,6 +2811,7 @@ mod tests {
         assert_eq!(first.result.diagnostics, second.result.diagnostics);
     }
 
+    #[cfg(feature = "desktop")]
     #[test]
     fn particle_pool_is_reused_and_worker_count_has_floor() {
         let catalog = sample_catalog();

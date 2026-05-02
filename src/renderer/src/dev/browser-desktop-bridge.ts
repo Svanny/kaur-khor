@@ -1,5 +1,14 @@
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { SENA_SCHEMA_VERSION } from '@shared/sena';
+import {
+  browserSenaObservationFingerprint,
+  browserSenaObservationPage,
+  browserSenaRecordUpdateContext,
+  pageBrowserSenaServiceDetail,
+  pageBrowserSenaSkuDetail,
+  runBrowserSenaAnalysisJson,
+  type BrowserSenaAnalysisOutput,
+} from '@/runtime/web/sena-analysis';
 import type {
   AutomationChannelConnection,
   AutomationConversationSummary,
@@ -23,24 +32,18 @@ import type {
   DesktopPreferences,
   PromoteAutomationIntakePayload,
   SenaRunLookupPayload,
-  SenaServiceLookupPayload,
-  SenaSkuLookupPayload,
   SenaTriggerRunPayload,
 } from '@shared/ipc';
 import type {
   type SenaAnalysisRunRecord,
   type SenaCatalog,
   type SenaDiagnostics,
-  type SenaObservationFingerprint,
   type SenaObservationInput,
   type SenaOrderBatchRecord,
   type SenaOrderChildRecord,
   type SenaOrderFieldValues,
-  type SenaObservationPage,
   type SenaObservationPageRequest,
   type SenaObservationRecord,
-  type SenaRecordUpdateAnchor,
-  type SenaRecordUpdateContext,
   type SenaServiceDetail,
   type SenaSkuDetail,
   type SenaWorkspaceSummary,
@@ -55,192 +58,6 @@ function clone<T>(value: T): T {
 
 function nowIso() {
   return new Date().toISOString();
-}
-
-function observationFingerprint(observations: SenaObservationRecord[]): SenaObservationFingerprint {
-  const latest = [...observations].sort((left, right) => {
-    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
-    if (timeDelta !== 0) {
-      return timeDelta;
-    }
-    return right.observationId.localeCompare(left.observationId);
-  })[0];
-  return {
-    count: observations.length,
-    latestObservedAt: latest?.input.observedAt ?? null,
-    latestObservationId: latest?.observationId ?? null,
-  };
-}
-
-function recordUpdateAnchor<T>(
-  observation: SenaObservationRecord,
-  value: T,
-): SenaRecordUpdateAnchor<T> {
-  return {
-    observationId: observation.observationId,
-    observedAt: observation.input.observedAt,
-    value: clone(value),
-  };
-}
-
-function recordUpdateContext(observations: SenaObservationRecord[]): SenaRecordUpdateContext {
-  const sorted = [...observations].sort((left, right) => {
-    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
-    if (timeDelta !== 0) {
-      return timeDelta;
-    }
-    return right.observationId.localeCompare(left.observationId);
-  });
-  const latestStockBySku: SenaRecordUpdateContext['latestStockBySku'] = {};
-  const latestRetailSaleBySku: SenaRecordUpdateContext['latestRetailSaleBySku'] = {};
-  const latestServiceSaleByService: SenaRecordUpdateContext['latestServiceSaleByService'] = {};
-  const latestOrderBySku: SenaRecordUpdateContext['latestOrderBySku'] = {};
-  const latestReceiptBySku: SenaRecordUpdateContext['latestReceiptBySku'] = {};
-  const latestTicketsById: SenaRecordUpdateContext['latestTicketsById'] = {};
-  const latestDeliveryFeeByBucket: SenaRecordUpdateContext['latestDeliveryFeeByBucket'] = {};
-  const recentActivity: SenaRecordUpdateContext['recentActivity'] = [];
-
-  for (const observation of sorted) {
-    for (const snapshot of observation.input.stockSnapshot) {
-      latestStockBySku[snapshot.skuId] ??= recordUpdateAnchor(observation, snapshot);
-    }
-    for (const sale of observation.input.retailSalesSnapshot ?? []) {
-      if (sale.unitsSold > 0) {
-        latestRetailSaleBySku[sale.skuId] ??= recordUpdateAnchor(observation, sale);
-      }
-    }
-    for (const sale of observation.input.serviceSalesSnapshot ?? []) {
-      if (sale.unitsSold > 0) {
-        latestServiceSaleByService[sale.serviceId] ??= recordUpdateAnchor(observation, sale);
-      }
-    }
-    for (const signal of observation.input.orderSignals ?? []) {
-      if (signal.orderPlaced || signal.approximateOrderQuantity != null) {
-        latestOrderBySku[signal.skuId] ??= {
-          ...recordUpdateAnchor(observation, signal),
-          observedAt: signal.placementTimestamp ?? observation.input.observedAt,
-        };
-      }
-      if (signal.receiptArrived || signal.approximateReceiptQuantity != null) {
-        latestReceiptBySku[signal.skuId] ??= {
-          ...recordUpdateAnchor(observation, signal),
-          observedAt: signal.receiptTimestamp ?? observation.input.observedAt,
-        };
-      }
-    }
-    if (observation.input.deliveryFee) {
-      latestDeliveryFeeByBucket[observation.input.deliveryFee.bucket] ??= recordUpdateAnchor(observation, observation.input.deliveryFee);
-      recentActivity.push({
-        activityId: `${observation.observationId}:delivery-fee:${observation.input.deliveryFee.bucket}`,
-        activityType: 'delivery_fee',
-        entityId: observation.input.deliveryFee.bucket,
-        observationId: observation.observationId,
-        observedAt: observation.input.observedAt,
-        summary: 'Delivery fee captured',
-      });
-    }
-    for (const event of observation.input.ticketEvents ?? []) {
-      const summary = {
-        ticketId: event.ticketId,
-        ticketFamily: event.ticketFamily,
-        lifecycle: event.lifecycle,
-        stage: event.stage,
-        revision: event.revision,
-        eventType: event.eventType,
-        occurredAt: event.occurredAt,
-        nextTouchAt: event.nextTouchAt,
-        party: event.party,
-        lines: event.lines,
-        deliveryFee: event.deliveryFee,
-        note: event.note,
-      };
-      latestTicketsById[event.ticketId] ??= {
-        observationId: observation.observationId,
-        observedAt: event.occurredAt,
-        value: summary,
-      };
-      recentActivity.push({
-        activityId: `${observation.observationId}:ticket:${event.ticketId}:${event.revision}`,
-        activityType: 'ticket',
-        entityId: event.ticketId,
-        eventType: event.eventType,
-        lifecycle: event.lifecycle,
-        observationId: observation.observationId,
-        observedAt: event.occurredAt,
-        summary: `${event.ticketFamily === 'customer' ? 'Customer' : event.ticketFamily === 'supplier' ? 'Supplier' : 'Adjustment'} ticket updated`,
-        ticketFamily: event.ticketFamily,
-        ticketId: event.ticketId,
-        detail: event.note,
-      });
-      if (event.deliveryFee) {
-        latestDeliveryFeeByBucket[event.deliveryFee.bucket] ??= {
-          observationId: observation.observationId,
-          observedAt: event.occurredAt,
-          value: event.deliveryFee,
-        };
-      }
-    }
-  }
-
-  const fingerprint = observationFingerprint(observations);
-  const openTicketSummaries = Object.values(latestTicketsById)
-    .map((anchor) => anchor.value)
-    .filter((ticket) => ticket.lifecycle === 'open')
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt) || right.ticketId.localeCompare(left.ticketId));
-  return {
-    observationFingerprint: fingerprint,
-    latestObservedAt: fingerprint.latestObservedAt,
-    latestStockBySku,
-    latestRetailSaleBySku,
-    latestServiceSaleByService,
-    latestOrderBySku,
-    latestReceiptBySku,
-    openTicketsByFamily: {
-      customer: openTicketSummaries.filter((ticket) => ticket.ticketFamily === 'customer'),
-      supplier: openTicketSummaries.filter((ticket) => ticket.ticketFamily === 'supplier'),
-    },
-    latestTicketsById,
-    latestDeliveryFeeByBucket,
-    recentActivity: recentActivity
-      .sort((left, right) => right.observedAt.localeCompare(left.observedAt) || right.activityId.localeCompare(left.activityId))
-      .slice(0, 24),
-  };
-}
-
-function observationPage(
-  observations: SenaObservationRecord[],
-  request?: SenaObservationPageRequest,
-): SenaObservationPage {
-  const limit = Math.min(500, Math.max(1, request?.limit ?? 100));
-  const sorted = [...observations].sort((left, right) => {
-    const timeDelta = right.input.observedAt.localeCompare(left.input.observedAt);
-    if (timeDelta !== 0) {
-      return timeDelta;
-    }
-    return right.observationId.localeCompare(left.observationId);
-  });
-  const filtered = request?.beforeObservedAt
-    ? sorted.filter((observation) => {
-        if (observation.input.observedAt < request.beforeObservedAt!) {
-          return true;
-        }
-        return observation.input.observedAt === request.beforeObservedAt
-          && request.beforeObservationId != null
-          && observation.observationId < request.beforeObservationId;
-      })
-    : sorted;
-  const rows = filtered.slice(0, limit + 1);
-  const observationsPage = rows.slice(0, limit);
-  const hasOlder = rows.length > limit;
-  const last = hasOlder ? observationsPage.at(-1) : null;
-  const fingerprint = observationFingerprint(observations);
-  return {
-    observations: clone(observationsPage),
-    nextCursor: last ? { observedAt: last.input.observedAt, observationId: last.observationId } : null,
-    hasOlder,
-    totalCount: observations.length,
-    latestObservedAt: fingerprint.latestObservedAt,
-  };
 }
 
 function makeOrderFieldValues(overrides: Partial<SenaOrderFieldValues> = {}): SenaOrderFieldValues {
@@ -316,6 +133,28 @@ function syncMockWorkspaceSummary(state: BrowserMockState) {
     observationCount: state.observations.length,
     summary: clone(state.workspaceSummary),
   };
+}
+
+function applyBrowserSenaAnalysis(output: BrowserSenaAnalysisOutput) {
+  browserMockState.workspaceSummary = clone(output.workspaceSummary);
+  browserMockState.diagnostics = clone(output.diagnostics);
+  browserMockState.skuDetails = clone(output.skuDetails);
+  browserMockState.serviceDetails = clone(output.serviceDetails);
+  browserMockState.latestRun = clone(output.run);
+}
+
+function runBrowserSenaStateAnalysis(runId: string, payload?: SenaTriggerRunPayload) {
+  const createdAt = nowIso();
+  const output = JSON.parse(runBrowserSenaAnalysisJson(JSON.stringify({
+    ownerSub: MOCK_OWNER_SUB,
+    runId,
+    createdAt,
+    catalog: browserMockState.catalog,
+    observations: browserMockState.observations,
+    payload,
+  }))) as BrowserSenaAnalysisOutput;
+  applyBrowserSenaAnalysis(output);
+  return output.run;
 }
 
 const mockCatalog: SenaCatalog = {
@@ -817,6 +656,8 @@ export type BrowserMockState = {
   appContext: DesktopAppContext;
   automation: AutomationWorkspace;
   automationMessages: Record<string, AutomationMessageRecord[]>;
+  browserTelegramToken: string | null;
+  browserTelegramUpdateOffset: number | null;
   catalog: SenaCatalog;
   diagnostics: SenaDiagnostics;
   latestRun: SenaAnalysisRunRecord;
@@ -968,6 +809,8 @@ export function createMockState(): BrowserMockState {
         parseConfidence: 'high',
       }],
     },
+    browserTelegramToken: null,
+    browserTelegramUpdateOffset: null,
     catalog: clone(mockCatalog),
     diagnostics: clone(mockDiagnostics),
     latestRun,
@@ -1038,6 +881,202 @@ function resetBrowserMockCounters() {
   automationTicketCounter = 1;
   orderBatchCounter = browserMockState.orderBatches.length + 1;
   orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
+}
+
+type BrowserTelegramUpdate = {
+  update_id: number;
+  message?: {
+    message_id: number;
+    date?: number;
+    text?: string;
+    chat: {
+      id: number | string;
+      username?: string;
+      first_name?: string;
+      last_name?: string;
+      title?: string;
+    };
+    from?: {
+      username?: string;
+      first_name?: string;
+      last_name?: string;
+    };
+  };
+};
+
+type BrowserTelegramResponse<T> = {
+  ok: boolean;
+  result?: T;
+  description?: string;
+};
+
+function browserTelegramBlockedError() {
+  return 'Telegram browser fetch was blocked or unavailable. Use the desktop app for persistent Telegram automation, or keep this browser tab open and awake in a browser that allows direct Telegram API requests.';
+}
+
+function browserTelegramConversationId(chatId: string | number) {
+  return `conv_browser_telegram_${String(chatId).replace(/[^\w-]/g, '_')}`;
+}
+
+function browserTelegramDisplayName(update: BrowserTelegramUpdate) {
+  const actor = update.message?.from ?? update.message?.chat;
+  const fullName = [actor?.first_name, actor?.last_name].filter(Boolean).join(' ').trim();
+  return fullName || update.message?.chat.title || actor?.username || 'Telegram customer';
+}
+
+function browserTelegramHandle(update: BrowserTelegramUpdate) {
+  const username = update.message?.from?.username ?? update.message?.chat.username;
+  return username ? `@${username.replace(/^@/, '')}` : null;
+}
+
+function markBrowserTelegramError(message: string) {
+  browserMockState.automation.connection = {
+    ...browserMockState.automation.connection,
+    status: 'error',
+    lastErrorAt: nowIso(),
+    lastErrorMessage: message,
+  };
+}
+
+async function browserTelegramRequest<T>(method: string, body: Record<string, unknown> = {}): Promise<T> {
+  const token = browserMockState.browserTelegramToken;
+  if (!token) {
+    throw new Error('Save a Telegram bot token before polling from the browser tab.');
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(browserTelegramBlockedError());
+  }
+
+  let payload: BrowserTelegramResponse<T>;
+  try {
+    payload = await response.json() as BrowserTelegramResponse<T>;
+  } catch {
+    throw new Error('Telegram returned a non-JSON response to the browser tab.');
+  }
+
+  if (!response.ok || !payload.ok || payload.result == null) {
+    throw new Error(payload.description || `Telegram ${method} failed in the browser tab.`);
+  }
+
+  return payload.result;
+}
+
+function ingestBrowserTelegramUpdates(updates: BrowserTelegramUpdate[]) {
+  for (const update of updates) {
+    browserMockState.browserTelegramUpdateOffset = Math.max(
+      browserMockState.browserTelegramUpdateOffset ?? 0,
+      update.update_id + 1,
+    );
+    if (!update.message?.text) {
+      continue;
+    }
+
+    const chatId = update.message.chat.id;
+    const conversationId = browserTelegramConversationId(chatId);
+    const existingConversation = browserMockState.automation.conversations.find((entry) => entry.conversationId === conversationId);
+    const sentAt = update.message.date
+      ? new Date(update.message.date * 1000).toISOString()
+      : nowIso();
+    const messageId = `browser-telegram-message-${update.message.message_id}`;
+    const rawText = update.message.text;
+
+    if (!existingConversation) {
+      browserMockState.automation.conversations.push({
+        conversationId,
+        channel: 'telegram',
+        externalConversationKey: `telegram-chat-${chatId}`,
+        customerDisplayName: browserTelegramDisplayName(update),
+        customerHandle: browserTelegramHandle(update),
+        phone: null,
+        lastMessageAt: sentAt,
+        messageCount: 1,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      });
+    } else {
+      existingConversation.lastMessageAt = sentAt;
+      existingConversation.messageCount += 1;
+      existingConversation.latestIntakeStatus = 'new';
+    }
+
+    const messages = browserMockState.automationMessages[conversationId] ?? [];
+    if (!messages.some((entry) => entry.externalMessageKey === messageId)) {
+      messages.push({
+        messageId,
+        conversationId,
+        externalMessageKey: messageId,
+        direction: 'inbound',
+        sentAt,
+        rawText,
+        normalizedText: rawText.trim().toLowerCase(),
+        parseConfidence: 'low',
+      });
+      browserMockState.automationMessages[conversationId] = messages;
+    }
+
+    const intakeId = `browser-telegram-intake-${update.update_id}`;
+    if (!browserMockState.automation.intakes.some((entry) => entry.intakeId === intakeId)) {
+      browserMockState.automation.intakes.push({
+        intakeId,
+        conversationId,
+        channel: 'telegram',
+        status: 'needs_review',
+        parseConfidence: 'low',
+        customerDisplayName: browserTelegramDisplayName(update),
+        customerHandle: browserTelegramHandle(update),
+        phone: null,
+        notes: 'Browser tab Telegram polling intake. Review and resolve before promoting.',
+        quotedSubtotal: null,
+        currencyCode: 'USD',
+        deliveryFee: null,
+        quotedTotal: null,
+        createdAt: sentAt,
+        updatedAt: sentAt,
+        promotedTicketId: null,
+        lines: [{
+          lineId: `${intakeId}:line:1`,
+          requestedLabel: rawText,
+          resolvedLabel: null,
+          entityType: 'sku',
+          entityId: null,
+          quantity: null,
+          unitPrice: null,
+          lineTotal: null,
+          availabilityStatus: 'unknown',
+          ambiguityReason: 'parser_failed',
+        }],
+      });
+    }
+  }
+
+  browserMockState.automation.metrics.ordersToday = browserMockState.automation.intakes.length;
+  browserMockState.automation.metrics.needsReview = browserMockState.automation.intakes.filter((entry) => entry.status === 'needs_review').length;
+}
+
+async function pollBrowserTelegramOnce() {
+  const updates = await browserTelegramRequest<BrowserTelegramUpdate[]>('getUpdates', {
+    allowed_updates: ['message'],
+    limit: 20,
+    offset: browserMockState.browserTelegramUpdateOffset ?? undefined,
+    timeout: 0,
+  });
+  ingestBrowserTelegramUpdates(updates);
+  browserMockState.automation.connection = {
+    ...browserMockState.automation.connection,
+    status: 'connected',
+    connectedAt: browserMockState.automation.connection.connectedAt ?? nowIso(),
+    lastWebhookAt: updates.length > 0 ? nowIso() : browserMockState.automation.connection.lastWebhookAt,
+    lastErrorAt: null,
+    lastErrorMessage: null,
+  };
 }
 
 export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockState {
@@ -1119,6 +1158,8 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
     exposedSellables: 0,
   };
   state.automationMessages = {};
+  state.browserTelegramToken = null;
+  state.browserTelegramUpdateOffset = null;
   state.localDataInfo = {
     dataDirectoryPath: 'OPFS / banji browser workspace',
     workspaceStorePath: 'banji_browser_app_v1.sqlite3',
@@ -1263,6 +1304,9 @@ function installBrowserDesktopBridge() {
       getWorkspace: async () => clone(browserMockState.automation),
       getConnection: async () => clone(browserMockState.automation.connection),
       saveConnection: async (payload: AutomationConnectionPatch) => {
+        if (payload.botToken !== undefined) {
+          browserMockState.browserTelegramToken = payload.botToken?.trim() || null;
+        }
         browserMockState.automation.connection = {
           ...browserMockState.automation.connection,
           status: payload.status ?? browserMockState.automation.connection.status,
@@ -1371,8 +1415,13 @@ function installBrowserDesktopBridge() {
         return result;
       },
       testTelegramConnection: async () => {
-        browserMockState.automation.connection.status = 'connected';
-        browserMockState.automation.connection.lastWebhookAt = nowIso();
+        try {
+          await browserTelegramRequest('getMe');
+          await pollBrowserTelegramOnce();
+        } catch (error) {
+          markBrowserTelegramError(error instanceof Error ? error.message : browserTelegramBlockedError());
+          throw error;
+        }
         return clone(browserMockState.automation.connection);
       },
     },
@@ -1406,7 +1455,7 @@ function installBrowserDesktopBridge() {
       revealPath: async () => {},
       openExternalUrl: async () => {},
       pickAndStoreImage: async () => null,
-      storeDroppedImage: async () => '/tmp/browser-dropped-image.png',
+      storeDroppedImage: async () => null,
     },
     preferences: {
       get: async () => clone(browserMockState.preferences),
@@ -1420,16 +1469,16 @@ function installBrowserDesktopBridge() {
     },
     sena: {
       getCatalog: async () => clone(browserMockState.catalog),
-      getObservationFingerprint: async () => observationFingerprint(browserMockState.observations),
-      getRecordUpdateContext: async () => recordUpdateContext(browserMockState.observations),
+      getObservationFingerprint: async () => browserSenaObservationFingerprint(browserMockState.observations),
+      getRecordUpdateContext: async () => browserSenaRecordUpdateContext(browserMockState.observations),
       getStartupWorkspace: async () => ({
         catalog: clone(browserMockState.catalog),
         workspaceSummary: clone(browserMockState.workspaceSummary),
         latestRun: clone(browserMockState.latestRun),
-        observationFingerprint: observationFingerprint(browserMockState.observations),
+        observationFingerprint: browserSenaObservationFingerprint(browserMockState.observations),
       }),
       listObservationPage: async (payload?: SenaObservationPageRequest) =>
-        observationPage(browserMockState.observations, payload),
+        browserSenaObservationPage(browserMockState.observations, payload),
       listObservations: async () => clone(browserMockState.observations),
       listOrderBatches: async (payload) =>
         clone(browserMockState.orderBatches.filter((batch) => orderBatchMatchesLookup(batch, payload))),
@@ -1586,35 +1635,25 @@ function installBrowserDesktopBridge() {
       },
       triggerRun: async (payload?: SenaTriggerRunPayload) => {
         const runId = `browser-run-${runCounter++}`;
-        browserMockState.workspaceSummary.runId = runId;
-        browserMockState.latestRun = {
-          runId,
-          ownerSub: MOCK_OWNER_SUB,
-          algorithmVersion: payload?.algorithmVersion ?? 'sena-analysis-v3',
-          status: 'succeeded',
-          observationCount: browserMockState.observations.length,
-          createdAt: nowIso(),
-          completedAt: nowIso(),
-          summary: clone(browserMockState.workspaceSummary),
-          diagnostics: clone(browserMockState.diagnostics),
-          primaryArtifactKey: null,
-          error: null,
-        };
-        return clone(browserMockState.latestRun);
+        return clone(runBrowserSenaStateAnalysis(runId, payload));
       },
       retryRun: async ({ runId }: SenaRunLookupPayload) => {
-        browserMockState.latestRun = {
-          ...browserMockState.latestRun,
-          runId,
-          status: 'succeeded',
-          completedAt: nowIso(),
-        };
-        return clone(browserMockState.latestRun);
+        return clone(runBrowserSenaStateAnalysis(runId, {
+          algorithmVersion: browserMockState.latestRun.algorithmVersion,
+          parameters: browserMockState.preferences.senaEngineParameters,
+        }));
       },
       getWorkspaceSummary: async () => clone(browserMockState.workspaceSummary),
-      getSkuDetail: async ({ skuId }: SenaSkuLookupPayload) => clone(browserMockState.skuDetails[skuId] ?? null),
-      getServiceDetail: async ({ serviceId }: SenaServiceLookupPayload) =>
-        clone(browserMockState.serviceDetails[serviceId] ?? null),
+      getSkuDetail: async ({ skuId, beforeIntervalIndex, limit }) => {
+        const detail = browserMockState.skuDetails[skuId];
+        return clone(detail ? pageBrowserSenaSkuDetail(detail, beforeIntervalIndex, limit) : null);
+      },
+      getServiceDetail: async ({ serviceId, beforeIntervalIndex, limit }) =>
+        clone(
+          browserMockState.serviceDetails[serviceId]
+            ? pageBrowserSenaServiceDetail(browserMockState.serviceDetails[serviceId], beforeIntervalIndex, limit)
+            : null,
+        ),
       getDiagnostics: async () => clone(browserMockState.diagnostics),
       getRunStatus: async ({ runId }: SenaRunLookupPayload) =>
         clone(browserMockState.latestRun.runId === runId ? browserMockState.latestRun : null),

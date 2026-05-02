@@ -88,6 +88,12 @@ export const BROWSER_STORAGE_MIGRATIONS: BrowserStorageMigration[] = [
         updated_at TEXT NOT NULL
       );
 
+      CREATE TABLE IF NOT EXISTS diagnostics_cache (
+        singleton_id TEXT PRIMARY KEY,
+        diagnostics_json TEXT NOT NULL CHECK (json_valid(diagnostics_json)),
+        updated_at TEXT NOT NULL
+      );
+
       CREATE TABLE IF NOT EXISTS sku_detail_cache (
         sku_id TEXT PRIMARY KEY,
         detail_json TEXT NOT NULL CHECK (json_valid(detail_json)),

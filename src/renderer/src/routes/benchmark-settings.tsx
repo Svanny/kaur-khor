@@ -19,6 +19,7 @@ import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import { cn } from '@/lib/utils';
 
 const statusClassName = {
@@ -305,6 +306,7 @@ function ComparisonTable({ comparison }: { comparison: BanjiBenchmarkComparison 
 }
 
 export function BenchmarkSettingsPage() {
+  const { isBrowserRuntime } = useRuntimeMode();
   const [runs, setRuns] = useState<BanjiBenchmarkRunRecord[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [selectedScenarios, setSelectedScenarios] = useState<BanjiBenchmarkScenarioId[]>(
@@ -529,6 +531,26 @@ export function BenchmarkSettingsPage() {
 
   function toggleTargetResultSort() {
     setTargetResultSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'));
+  }
+
+  if (isBrowserRuntime) {
+    return (
+      <WorkspacePanel>
+        <div className="grid gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+              <NavigationPerformanceIcon className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-foreground">Benchmark runner is desktop-only</p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                GUI benchmark runs, Playwright traces, flame graphs, and native dev diagnostics require the Electron desktop runtime. Browser mode keeps these diagnostics unavailable instead of running partial web-only checks.
+              </p>
+            </div>
+          </div>
+        </div>
+      </WorkspacePanel>
+    );
   }
 
   return (

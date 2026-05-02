@@ -14,6 +14,9 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    exclude: ['@sqlite.org/sqlite-wasm'],
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
