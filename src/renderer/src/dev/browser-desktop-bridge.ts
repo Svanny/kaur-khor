@@ -813,7 +813,7 @@ const mockLocalDataInfo: DesktopLocalDataInfo = {
   storageFormat: 'sqlite',
 };
 
-type BrowserMockState = {
+export type BrowserMockState = {
   appContext: DesktopAppContext;
   automation: AutomationWorkspace;
   automationMessages: Record<string, AutomationMessageRecord[]>;
@@ -1031,6 +1031,113 @@ let runCounter = 2;
 let automationTicketCounter = 1;
 let orderBatchCounter = browserMockState.orderBatches.length + 1;
 let orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
+
+function resetBrowserMockCounters() {
+  observationCounter = browserMockState.observations.length + 1;
+  runCounter = 2;
+  automationTicketCounter = 1;
+  orderBatchCounter = browserMockState.orderBatches.length + 1;
+  orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
+}
+
+export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockState {
+  const state = createMockState();
+  state.appContext = {
+    appVersion: 'browser-opfs',
+    platform: 'web',
+  };
+  state.catalog = {
+    schemaVersion: SENA_SCHEMA_VERSION,
+    skus: [],
+    services: [],
+    bundles: [],
+    sharingMask: [],
+  };
+  state.diagnostics = {
+    effectiveSampleSizeMean: 0,
+    resamplingCount: 0,
+    smoothingEnabled: false,
+    changePointProbability: 0,
+    seasonalityActive: false,
+    posteriorPredictiveErrorMean: 0,
+    coverageEstimate: 0,
+    regimeHistory: [],
+  };
+  state.observations = [];
+  state.orderBatches = [];
+  state.serviceDetails = {};
+  state.skuDetails = {};
+  state.workspaceSummary = {
+    ownerSub: MOCK_OWNER_SUB,
+    runId: 'browser-empty-run',
+    latestObservedAt: null,
+    skuCount: 0,
+    serviceCount: 0,
+    intervalCount: 0,
+    pendingReorderCount: 0,
+    topRegime: 'not_enough_data',
+    highRiskSkuIds: [],
+    skuSummaries: [],
+  };
+  state.latestRun = {
+    runId: 'browser-empty-run',
+    ownerSub: MOCK_OWNER_SUB,
+    algorithmVersion: 'sena-analysis-v3',
+    status: 'succeeded',
+    observationCount: 0,
+    createdAt,
+    completedAt: createdAt,
+    summary: clone(state.workspaceSummary),
+    diagnostics: clone(state.diagnostics),
+    primaryArtifactKey: null,
+    error: null,
+  };
+  state.preferences = {
+    ...state.preferences,
+    onboardingCompletedAt: null,
+    showAutomationsPage: false,
+    customShowAutomationsPage: false,
+  };
+  state.automation = createMockAutomationWorkspace();
+  state.automation.connection = {
+    ...state.automation.connection,
+    status: 'disconnected',
+    hasBotToken: false,
+    connectedAt: null,
+    lastWebhookAt: null,
+    lastErrorAt: createdAt,
+    lastErrorMessage: 'Browser mode cannot run a persistent Telegram bot. Use the desktop app for automation.',
+  };
+  state.automation.intakes = [];
+  state.automation.conversations = [];
+  state.automation.metrics = {
+    ordersToday: 0,
+    needsReview: 0,
+    quotedToday: 0,
+    ticketedToday: 0,
+    completedToday: 0,
+    exposedSellables: 0,
+  };
+  state.automationMessages = {};
+  state.localDataInfo = {
+    dataDirectoryPath: 'OPFS / banji browser workspace',
+    workspaceStorePath: 'banji_browser_app_v1.sqlite3',
+    preferencesPath: 'SQLite preferences table',
+    backupDirectoryPath: 'downloaded backups',
+    assetDirectoryPath: 'Browser image storage unavailable in this release',
+    storageFormat: 'sqlite',
+  };
+  return state;
+}
+
+export function getBrowserDesktopBridgeMockState(): BrowserMockState {
+  return clone(browserMockState);
+}
+
+export function setBrowserDesktopBridgeMockState(nextState: BrowserMockState): void {
+  browserMockState = clone(nextState);
+  resetBrowserMockCounters();
+}
 
 export function createMockAutomationWorkspace(): AutomationWorkspace {
   const connection: AutomationChannelConnection = {
@@ -1519,13 +1626,8 @@ function installBrowserDesktopBridge() {
   console.info('[browser-mock] installed mock banjiDesktop bridge');
 }
 
-function resetBrowserDesktopBridgeMock() {
-  browserMockState = createMockState();
-  observationCounter = browserMockState.observations.length + 1;
-  runCounter = 2;
-  automationTicketCounter = 1;
-  orderBatchCounter = browserMockState.orderBatches.length + 1;
-  orderChildCounter = browserMockState.orderBatches.reduce((count, batch) => count + batch.children.length, 0) + 1;
+function resetBrowserDesktopBridgeMock(nextState: BrowserMockState = createMockState()) {
+  setBrowserDesktopBridgeMockState(nextState);
 }
 
 export { installBrowserDesktopBridge, resetBrowserDesktopBridgeMock };
