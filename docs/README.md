@@ -6,6 +6,10 @@ This directory is the contributor-facing entrypoint for banji as a local Electro
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md)
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
+- [Browser app](/Users/svanny/banji/docs/browser-app.md)
+- [Install guide](/Users/svanny/banji/docs/install-guide.md)
+- [Web runtime and OPFS](/Users/svanny/banji/docs/development/web-runtime-and-opfs.md)
+- [GitHub Pages](/Users/svanny/banji/docs/development/github-pages.md)
 - [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md)
 - [Intent-first UI overhaul](/Users/svanny/banji/docs/development/intent-first-ui-overhaul.md)
@@ -36,6 +40,7 @@ banji is a desktop-first Electron app with a local Rust runtime:
 - `src/main`: Electron main-process boot, IPC handlers, local data paths, desktop backup/restore flow
 - `src/preload`: preload bridge exposed to the renderer
 - `src/renderer`: React UI, routes, command palette, settings flows, automation workspace, exported workspace actions
+- `src/renderer/src/routes/web`: GitHub Pages public routes and browser-app mounting shell
 - `src/shared`: IPC contracts and shared TypeScript types
 - `apps/desktop-core`: Rust desktop persistence/runtime
 - `apps/sena-core`: Rust SENA analysis engine
@@ -51,6 +56,7 @@ pnpm install
 pnpm dev
 pnpm test
 pnpm build
+pnpm run build:web
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
 
@@ -68,6 +74,10 @@ pnpm package:win:native
 
 - [Contributor quickstart](/Users/svanny/banji/docs/development/contributor-quickstart.md): environment setup, repo shape, and day-one workflow
 - [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md): Electron layers, user data paths, automation storage, backup snapshots, restore, and clear-data behavior
+- [Browser app](/Users/svanny/banji/docs/browser-app.md): public browser routes, demo behavior, and browser storage warnings
+- [Install guide](/Users/svanny/banji/docs/install-guide.md): release downloads, checksum verification, and safe unsigned-build launch flows
+- [Web runtime and OPFS](/Users/svanny/banji/docs/development/web-runtime-and-opfs.md): browser entrypoint, HashRouter boundary, runtime bridge, and OPFS expectations
+- [GitHub Pages](/Users/svanny/banji/docs/development/github-pages.md): Pages workflow, build output, SPA fallback, and `/banji/` route contract
 - [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md): Telegram transport, automation staging store, route sections, promotion flow, and focused verification commands
 - [Ticketing architecture](/Users/svanny/banji/docs/development/ticketing-architecture.md): ticket event model, Work capture authoring contract, Work queue behavior, and downstream projections
 - [Intent-first UI overhaul](/Users/svanny/banji/docs/development/intent-first-ui-overhaul.md): canonical Home, Work, Catalog, Insights, Settings IA and legacy redirect boundaries

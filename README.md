@@ -4,7 +4,7 @@ banji is a desktop inventory workspace for small teams that want a local-first t
 
 It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app for keeping a catalog, recording stock changes and real-world signals, and letting banji's local analysis layer turn those updates into practical next actions.
 
-[Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
+[Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browser preview](https://svanny.github.io/banji/) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
 
 ## User Guide
 
@@ -36,6 +36,19 @@ The guides explain banji's current workspaces, lane-based update flows, importan
 - A workflow centered on catalog management, lane-based update capture, operational follow-up, money views, and analysis.
 - A product that is opinionated about banji's current inventory model rather than a blank-slate platform.
 - A repository where the README is the top-level overview and the deeper developer docs live in `docs/`.
+
+## Browser Preview
+
+The public web surface is published with GitHub Pages under `/banji/`:
+
+- Overview: <https://svanny.github.io/banji/>
+- Demo: <https://svanny.github.io/banji/demo>
+- Browser app entry: <https://svanny.github.io/banji/app>
+- Install guide: <https://svanny.github.io/banji/install>
+
+The demo route uses seeded browser data for preview. Browser storage is tied to the browser profile and is not the same as the desktop app's local data directory. See [docs/browser-app.md](docs/browser-app.md) for details.
+
+Browser app data is stored locally in this browser using SQLite WASM + OPFS when available. Export backups regularly. Clearing browser data may delete your Banji browser workspace.
 
 ## What's Included
 
@@ -70,6 +83,8 @@ Releases are published through GitHub Releases:
 
 Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `banji-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
 
+Verify release downloads against the `SHA256SUMS` asset on the same GitHub Release when it is present. Do not disable Gatekeeper or SmartScreen globally, and do not strip macOS quarantine attributes to force a launch. For more detail, see [docs/install-guide.md](docs/install-guide.md).
+
 ### Running Unsigned Builds On macOS
 
 If macOS blocks banji because the app is unsigned:
@@ -84,7 +99,7 @@ This allows banji to run without disabling Gatekeeper globally.
 
 To install banji on Windows:
 
-1. Download the `.exe` installer from the `v0.1.5` GitHub release.
+1. Download the `.exe` installer from the latest GitHub release.
 2. Double-click the installer to start setup.
 
 If Windows shows a SmartScreen warning because the build is unsigned:
@@ -100,26 +115,25 @@ This allows banji to install without changing SmartScreen system-wide.
 If you downloaded the `.deb` package on Ubuntu or Debian:
 
 ```bash
-sudo apt install ./banji-0.1.5-linux-x64.deb
+sudo apt install ./banji-<version>-linux-<arch>.deb
 ```
 
 Example:
 
-- `0.1.5` is the current release version in this repo
-- `x64` is the x64 Linux build artifact name
-- ARM Linux builds use `arm64`, for example `banji-0.1.5-linux-arm64.deb`
+- `<version>` is the release version from GitHub Releases
+- `<arch>` is the artifact architecture, such as `x64` or `arm64`
 
 If you downloaded the AppImage:
 
 ```bash
-chmod +x banji-0.1.5-linux-x64.AppImage
-./banji-0.1.5-linux-x64.AppImage
+chmod +x banji-<version>-linux-<arch>.AppImage
+./banji-<version>-linux-<arch>.AppImage
 ```
 
 Example:
 
-- `banji-0.1.5-linux-x64.AppImage` is for x64 Linux
-- `banji-0.1.5-linux-arm64.AppImage` is for ARM64 Linux
+- `banji-<version>-linux-x64.AppImage` is for x64 Linux
+- `banji-<version>-linux-arm64.AppImage` is for ARM64 Linux
 
 If Linux blocks the AppImage or warns that it is untrusted:
 
@@ -153,6 +167,14 @@ pnpm install
 pnpm dev
 ```
 
+### Web Build
+
+```bash
+pnpm run build:web
+pnpm run pages:build
+pnpm run preview:web
+```
+
 ### Tests
 
 ```bash
@@ -167,11 +189,14 @@ The current local app is organized around these paths:
 - `src/main`: Electron main process, app boot, IPC handlers, local data paths, backup and restore behavior
 - `src/preload`: preload bridge that exposes `window.banjiDesktop`
 - `src/renderer`: React routes, settings flows, workspace UI, and command palette behavior
+- `src/renderer/src/routes/web`: public web routes for GitHub Pages
 - `src/shared`: shared IPC contracts and TypeScript types
 - `apps/desktop-core`: Rust desktop runtime used for local persistence and core workflows
 - `apps/sena-core`: Rust SENA analysis engine
 - `tool/security`: desktop security gate scripts
 - `tool/sync_design_tokens.sh`: design-token sync helper
+
+The repository is source-visible for inspection, but `package.json` currently declares `UNLICENSED`.
 
 For contributor-oriented documentation, see [docs/README.md](docs/README.md).
 
