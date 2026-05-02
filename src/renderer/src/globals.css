@@ -98,6 +98,16 @@
   }
 }
 
+@keyframes banji-teams-rail {
+  from {
+    transform: translateX(-50%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Noto Sans Oriya", "Noto Sans Khmer", "Helvetica Neue", "Segoe UI", sans-serif;

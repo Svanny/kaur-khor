@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import App from '@/App';
 import {
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import brandLogo from '@/assets/banji-logo.svg';
 import {
+  Check,
   ClipboardCopy,
   Download,
   Globe2,
@@ -22,6 +23,7 @@ import {
   Sparkles,
   Terminal,
   WifiOff,
+  X,
 } from 'lucide-react';
 import {
   ActionContinueIcon,
@@ -109,10 +111,77 @@ const screenshotSlides = [
     label: 'Insights',
   },
 ];
+const teamUseCases = [
+  { icon: EntityCustomerIcon, label: 'Track customer orders' },
+  { icon: ActionClipboardAddIcon, label: 'Run a lightweight POS' },
+  { icon: EntityRevenueIcon, label: 'Watch business health' },
+  { icon: EntityReceiptDocumentIcon, label: 'Plan supplier receipts' },
+] as const;
 
 function publicPath(path: string) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   return `${basePath}${path}`;
+}
+
+function scrollToSection(sectionId: string) {
+  const target = document.getElementById(sectionId);
+  if (!target) {
+    return;
+  }
+  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function onSectionAnchorClick(sectionId: string) {
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    window.history.replaceState(null, '', `#${sectionId}`);
+    scrollToSection(sectionId);
+  };
+}
+
+async function writeClipboardText(text: string) {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  try {
+    if (document.execCommand('copy')) {
+      return true;
+    }
+  } catch {
+    // Fall through to the async Clipboard API when selection copying is unavailable.
+  } finally {
+    document.body.removeChild(textarea);
+  }
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
+function selectElementText(element: HTMLElement | null) {
+  if (!element) {
+    return false;
+  }
+  const selection = window.getSelection();
+  if (!selection) {
+    return false;
+  }
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
 }
 
 function WebNav() {
@@ -163,7 +232,7 @@ function HomeRoute() {
         <section className="relative overflow-hidden border-b border-border/70">
           <div className="absolute inset-0 hero-mesh opacity-80" aria-hidden="true" />
           <div className="absolute inset-0 bg-[image:var(--noise-paper)] bg-[length:10px_10px] opacity-70" aria-hidden="true" />
-          <div className="relative mx-auto grid min-h-svh w-full max-w-6xl items-center gap-10 px-4 py-10 sm:py-14 lg:grid-cols-[0.92fr_1.08fr]">
+          <div className="relative grid min-h-[78svh] w-screen max-w-full items-center gap-10 px-4 py-6 sm:px-8 sm:py-8 lg:grid-cols-[0.92fr_1.08fr] xl:px-12">
             <div className="max-w-2xl text-center sm:text-left">
               <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
                 <img alt="" aria-hidden="true" className="h-14 w-auto sm:h-16" src={brandLogo} />
@@ -175,19 +244,20 @@ function HomeRoute() {
                 A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.
               </p>
               <Button asChild className="mt-8 h-14 w-full justify-center text-base sm:w-auto sm:min-w-56" size="lg">
-                <a href="#ways-to-start">Get started <ActionContinueIcon className="size-4" /></a>
+                <a href="#ways-to-start" onClick={onSectionAnchorClick('ways-to-start')}>Get started <ActionContinueIcon className="size-4" /></a>
               </Button>
             </div>
             <WorkshopIllustration />
           </div>
+          <TeamsCanDoRail />
         </section>
-        <section id="ways-to-start" className="mx-auto grid w-full max-w-6xl gap-4 px-4 py-12 md:grid-cols-2 lg:grid-cols-4">
+        <section id="ways-to-start" className="grid w-screen max-w-full gap-4 overflow-hidden px-4 py-12 sm:px-6 md:grid-cols-4 md:px-8 xl:px-12">
           <ProductCard
-            action="Try the sample workspace"
+            action="Start Quick Demo"
             href={publicPath('/demo')}
             icon={<ActionResumeIcon className="size-5" />}
             price="Free"
-            tone="bg-primary/18 text-primary"
+            tone="bg-[#D6E9F8] text-[#1F5F86]"
             title="Demo"
             benefits={[
               { icon: <PackageCheck className="size-4" />, label: 'Sample shelves included' },
@@ -200,7 +270,7 @@ function HomeRoute() {
             href={publicPath('/app')}
             icon={<ActionSaveIcon className="size-5" />}
             price="No install"
-            tone="bg-[#DDE8B5] text-foreground"
+            tone="bg-[#DDE8B5] text-[#42511F]"
             title="Browser App"
             benefits={[
               { icon: <Globe2 className="size-4" />, label: 'Real workspace in this profile' },
@@ -213,7 +283,7 @@ function HomeRoute() {
             href="/install"
             icon={<EntitySafetyStockIcon className="size-5" />}
             price="Full power"
-            tone="bg-[#E8DDF2] text-foreground"
+            tone="bg-[#E8DDF2] text-[#554178]"
             title="Desktop App"
             benefits={[
               { icon: <ShieldCheck className="size-4" />, label: 'Full offline runtime' },
@@ -226,7 +296,7 @@ function HomeRoute() {
             href="#build-from-source"
             icon={<ActionDatabaseDownloadIcon className="size-5" />}
             price="Advanced"
-            tone="bg-[#F6D9BE] text-foreground"
+            tone="bg-[#F6D9BE] text-[#70420D]"
             title="Source Build"
             benefits={[
               { icon: <Terminal className="size-4" />, label: 'Inspect the source-visible code' },
@@ -235,7 +305,7 @@ function HomeRoute() {
             ]}
           />
         </section>
-        <section id="build-from-source" className="mx-auto w-full max-w-6xl border-t border-border/70 px-4 py-14">
+        <section id="build-from-source" className="w-screen max-w-full border-t border-border/70 px-4 py-14 sm:px-8 xl:px-12">
           <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel md:grid-cols-[1fr_0.78fr]">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Advanced users</p>
@@ -254,7 +324,6 @@ function HomeRoute() {
 
 function WorkshopIllustration() {
   const [activeSlide, setActiveSlide] = useState(0);
-  const slide = screenshotSlides[activeSlide] ?? screenshotSlides[0]!;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => {
@@ -264,48 +333,64 @@ function WorkshopIllustration() {
   }, []);
 
   return (
-    <div className="relative min-h-[28rem] overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
+    <div className="relative overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
       <div className="absolute inset-0 paper-grid opacity-45" aria-hidden="true" />
-      <div className="relative grid gap-4 lg:grid-cols-[0.52fr_1fr]">
-        <div className="space-y-3">
-          <div className="rounded-[1.1rem] border border-border/70 bg-background/86 p-4 shadow-sm">
-            <div className="mb-4">
-              <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">what teams can do</span>
-            </div>
-            {[
-              { icon: EntityCustomerIcon, label: 'Track customer orders' },
-              { icon: ActionClipboardAddIcon, label: 'Run a lightweight POS' },
-              { icon: EntityRevenueIcon, label: 'Watch business health' },
-              { icon: EntityReceiptDocumentIcon, label: 'Plan supplier receipts' },
-            ].map(({ icon: Icon, label }) => (
-              <div key={label} className="mt-3 flex items-center gap-3 rounded-xl bg-muted/45 px-3 py-2">
-                <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-background text-primary shadow-xs">
-                  <Icon className="size-4" />
-                </span>
-                <span className="text-sm font-medium text-foreground">{label}</span>
-              </div>
-            ))}
-          </div>
+      <div className="relative grid gap-3">
+        <div className="relative overflow-hidden rounded-[1.05rem] shadow-float ring-1 ring-border/50">
+          <img alt="" aria-hidden="true" className="block w-full opacity-0" src={screenshotSlides[0]!.image} />
+          {screenshotSlides.map((item, index) => (
+            <img
+              key={item.label}
+              alt={index === activeSlide ? item.alt : ''}
+              aria-hidden={index === activeSlide ? undefined : 'true'}
+              className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ease-out ${index === activeSlide ? 'opacity-100' : 'opacity-0'}`}
+              src={item.image}
+            />
+          ))}
         </div>
-        <div className="relative">
-          <img
-            alt={slide.alt}
-            className="w-full rounded-[1.05rem] shadow-float ring-1 ring-border/50"
-            src={slide.image}
-          />
-          <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label="Screenshot carousel">
-            {screenshotSlides.map((item, index) => (
-              <button
-                key={item.label}
-                aria-label={`Show ${item.label}`}
-                className={`size-2.5 rounded-full transition-colors ${index === activeSlide ? 'bg-primary' : 'bg-muted-foreground/25'}`}
-                type="button"
-                onClick={() => setActiveSlide(index)}
-              />
-            ))}
-          </div>
+        <div className="mx-auto flex w-fit gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label="Screenshot carousel">
+          {screenshotSlides.map((item, index) => (
+            <button
+              key={item.label}
+              aria-label={`Show ${item.label}`}
+              className={`size-2.5 rounded-full transition-colors ${index === activeSlide ? 'bg-primary' : 'bg-muted-foreground/25'}`}
+              type="button"
+              onClick={() => setActiveSlide(index)}
+            />
+          ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function TeamsCanDoRail() {
+  const railGroups = [teamUseCases, teamUseCases];
+
+  return (
+    <div className="relative -mt-4 w-screen max-w-full pb-10">
+      <div className="overflow-hidden border-y border-border/70 bg-card/84 py-3 backdrop-blur">
+        <div className="flex w-[200%] items-center motion-safe:animate-[banji-teams-rail_34s_linear_infinite] motion-reduce:w-full motion-reduce:flex-wrap">
+          {railGroups.map((group, groupIndex) => (
+            <div
+              key={groupIndex}
+              className="grid w-1/2 shrink-0 grid-cols-4 gap-3 px-4 motion-reduce:w-full sm:px-8 xl:px-12"
+              aria-hidden={groupIndex > 0 ? 'true' : undefined}
+            >
+              {group.map(({ icon: Icon, label }) => (
+                <div key={`${label}-${groupIndex}`} className="flex min-w-0 items-center gap-3 rounded-xl bg-background/72 px-4 py-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary">
+                    <Icon className="size-4.5" />
+                  </span>
+                  <span className="min-w-0 truncate text-sm font-semibold text-foreground">{label}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-12 bg-linear-to-r from-background to-transparent" aria-hidden="true" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-12 bg-linear-to-l from-background to-transparent" aria-hidden="true" />
     </div>
   );
 }
@@ -334,30 +419,39 @@ function ProductCard({
       </div>
       <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{price}</p>
       <h2 className="mt-2 text-xl font-semibold">{title}</h2>
-      <span className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-border/70 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-xs">
-        {action}
-        <ActionContinueIcon className="size-4" />
+      <span className="mt-4 inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-border/70 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-xs">
+        <span className="min-w-0 text-balance">{action}</span>
+        <ActionContinueIcon className="size-4 shrink-0" />
       </span>
-      <ul className="mt-6 grid w-full gap-2 text-sm leading-5 text-muted-foreground">
+      <ul className="mt-6 grid w-full rounded-xl bg-muted/35 p-2 text-sm leading-5 text-muted-foreground">
         {benefits.map((benefit) => (
-          <li key={benefit.label} className="flex items-center gap-4 rounded-xl bg-muted/35 px-3 py-2.5">
+          <li key={benefit.label} className="flex min-w-0 items-center gap-4 px-3 py-2.5">
             <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-background text-primary shadow-xs">
               {benefit.icon}
             </span>
-            <span className="text-left font-medium">{benefit.label}</span>
+            <span className="min-w-0 text-left font-medium">{benefit.label}</span>
           </li>
         ))}
       </ul>
     </>
   );
 
-  const className = 'flex min-h-80 flex-col items-center justify-center rounded-[1.15rem] border border-border/70 bg-card p-6 text-center shadow-panel transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+  const className = 'flex min-h-80 min-w-0 flex-col items-center justify-center rounded-[1.15rem] border border-border/70 bg-card p-5 text-center shadow-panel transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none xl:p-6';
 
   if (href === '/install') {
     return (
       <Link className={className} to={href}>
         {content}
       </Link>
+    );
+  }
+
+  if (href.startsWith('#')) {
+    const sectionId = href.slice(1);
+    return (
+      <a className={className} href={href} onClick={onSectionAnchorClick(sectionId)}>
+        {content}
+      </a>
     );
   }
 
@@ -369,19 +463,25 @@ function ProductCard({
 }
 
 function SourceBuildSnippet() {
+  const codeRef = useRef<HTMLElement | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copyCommands() {
-    try {
-      await navigator.clipboard.writeText(sourceBuildCommands.join('\n'));
+    if (await writeClipboardText(sourceBuildCommands.join('\n'))) {
       setCopyStatus('copied');
-    } catch {
+    } else {
+      selectElementText(codeRef.current);
       setCopyStatus('failed');
     }
-    window.setTimeout(() => setCopyStatus('idle'), 1800);
+    window.setTimeout(() => setCopyStatus('idle'), 2200);
   }
 
   const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy';
+  const copyIcon = copyStatus === 'copied'
+    ? <Check className="size-3.5" data-icon />
+    : copyStatus === 'failed'
+      ? <X className="size-3.5" data-icon />
+      : <ClipboardCopy className="size-3.5" data-icon />;
 
   return (
     <div className="relative rounded-[1rem] border border-border/70 bg-foreground p-4 font-mono text-xs leading-6 text-background shadow-sm">
@@ -390,10 +490,10 @@ function SourceBuildSnippet() {
         type="button"
         onClick={copyCommands}
       >
-        <ClipboardCopy className="size-3.5" data-icon />
+        {copyIcon}
         {copyLabel}
       </button>
-      <pre className="overflow-x-auto pb-8 whitespace-pre-wrap"><code>{sourceBuildCommands.join('\n')}</code></pre>
+      <pre className="overflow-x-auto pb-8 whitespace-pre-wrap"><code ref={codeRef}>{sourceBuildCommands.join('\n')}</code></pre>
     </div>
   );
 }
