@@ -52,6 +52,15 @@ Browser app data is stored locally in this browser using SQLite WASM + OPFS when
 
 Browser mode keeps the main workflow visible, but it is not the desktop runtime. Telegram polling is while-tab-open only, the token is stored in the browser profile, benchmark/dev diagnostics stay desktop-only, and persistent item image assets require desktop.
 
+The public landing page now presents the ways to start in plain user terms:
+
+- Demo: try sample shelves, see the workflow, and reset anytime.
+- Browser App: save real work in this browser, then export and import backups.
+- Desktop App: everything in the browser app plus local app files, snapshots, automation, item images, and logs.
+- Source Build: everything in the desktop app plus code inspection and a local macOS source build path.
+
+All entry points are free, require no sign-up or login, and keep data on the user's device.
+
 ## What's Included
 
 - Catalog management for SKUs and services.
