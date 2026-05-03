@@ -19,3 +19,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Chart flag overlay pills must read time-scale coordinates on the next animation frame after range/layout changes so attached pill widths track zoom.
 - Dense chart flag fallbacks must preserve pill/button geometry; replace icons with color-only rounded pills rather than flat interval rectangles.
 - Expanded trading charts must keep the pane-count minimum render height so extra indicator panes scroll instead of collapsing.
+- Banji auto-zoom thresholds must be grounded in common desktop/window-size tiers; use `1600x900` as normal density and zoom out around `1440`, `1280`, `1120`, and sub-`900` heights instead of treating `1280x800` as normal.

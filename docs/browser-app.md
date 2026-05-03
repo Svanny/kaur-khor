@@ -21,7 +21,7 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
 - The app banner is the browser backup/import/reset surface.
 - In the main browser and demo app views, the banner sits on the left rail and keeps the same vertical button coordinates when the navigation rail expands or collapses. On onboarding routes only, the banner becomes a floating top nav overlay so it does not push down the onboarding canvas.
 - Settings / Local data shows OPFS and browser-profile storage labels instead of filesystem reveal links, desktop snapshots, or log export.
-- Settings / Benchmarks keeps GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics desktop-only.
+- Production browser and demo builds hide Settings / Benchmarks. Development builds keep it available for GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics.
 - Catalog image attachment is desktop-only until browser image assets are persisted durably.
 
 SENA analysis runs in the browser tab and is single-threaded there. Keep the tab open and awake while work is running.
@@ -39,6 +39,8 @@ The browser app can save Telegram bot settings and poll Telegram directly from t
 ## Storage warnings
 
 Browser storage is tied to the current browser profile. Clearing site data, switching profiles, or using private browsing can remove local browser data. Export backups regularly from the browser banner.
+
+The real browser app route (`/app`) installs the browser's native leave-site warning after storage is ready. Browsers control the native dialog text, so banji keeps the explicit warning in the app banner: export a backup before closing, and remember that browser cleanup, site-data removal, or private browsing cleanup can remove the workspace. When a Telegram bot is connected, the banner also states that closing the tab stops live Telegram listening and automation intake until `/app` is opened again.
 
 The browser app keeps a JSON document snapshot inside SQLite for backup/import compatibility and also mirrors the active workspace into structured OPFS tables for preferences, catalog, observations, order batches, analysis runs, summary/detail caches, diagnostics, and automation workspace state. The desktop app keeps using the Electron local data directory and backup flow documented in [Desktop runtime and local data](development/desktop-runtime-and-local-data.md).
 

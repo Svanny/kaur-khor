@@ -36,6 +36,8 @@ banji is for teams that want a practical inventory command app on one machine. I
 
 banji is not a full ERP, accounting system, or blank workflow builder.
 
+banji automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app present the product workspace in a landscape-first shell so dense controls stay usable.
+
 ## Daily Workflow
 
 Most operators should use banji in this order:
@@ -699,6 +701,8 @@ Alias is the customer-facing name automation uses instead of the internal catalo
 ### Configuration {#automation-configuration}
 
 Configuration is the Telegram connection panel. It holds bot identity, token, username, and external link settings that let banji receive or route customer intake. Use it only after catalog prices, exposure, and operator review expectations are ready.
+
+When Telegram automation is connected and live listening in the desktop app, banji warns before the app closes because Telegram listening, automation intake, and automatic checks stop until the app is opened again. The desktop app automatically creates a close-safety snapshot before showing that warning.
 
 ### Sellables Exposed {#automation-sellables-exposed}
 

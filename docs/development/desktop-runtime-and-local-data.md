@@ -148,6 +148,8 @@ Two snapshot flows exist today:
 - Automatic snapshot:
   triggered in the main process before workspace mutations
 
+When Telegram automation is connected and enabled, quitting the desktop app shows a close warning because listening, intake, and automatic checks stop when the process exits. Before that warning appears, the main process creates an unthrottled automatic snapshot with the reason `before-close-automation`. On the next successful startup, banji keeps the newest close-safety snapshot and removes older close-safety snapshots; normal snapshot pruning still enforces the overall snapshot cap.
+
 Automatic snapshots are currently attempted before these mutations:
 
 - inventory report submission

@@ -66,3 +66,9 @@ Persist only safe page-level controls. Do not persist selected rows, open drawer
 Use `src/renderer/src/lib/page-state-memory.ts` for page-state persistence and remembered href builders. The memory is local-first and reload-safe via `localStorage`; resetting a page to its canonical default state must clear that page's remembered entry.
 
 Page memory can also store small scoped values such as chart layout preferences through `readRememberedPageValue()` and `writeRememberedPageValue()`. Use validators for these values and clear default values from storage so the remembered record remains small and route-focused. Chart pane heights are only restorable when they are marked as manual user resizes; passive chart measurements should not become persisted layout preferences.
+
+## Cross-Runtime Auto-Zoom Rule
+
+Use `src/shared/responsive-zoom.ts` as the single threshold model for desktop, web demo, and browser app responsive zoom. The model must consider available width, height, and viewport area, with width as the primary design signal and height/area allowed to tighten the resulting scale. Treat `1600x900` as the normal full-density product viewport; step down around the common `1440`, `1280`, and `1120` width tiers, the `900`, `800`, `720`, and `640` height tiers, and their paired areas. Desktop must apply that model through Electron `webContents.setZoomLevel()` so the whole app scales consistently. The web demo and browser app must apply it only inside the embedded product wrapper, not on the public landing page.
+
+For phone portrait browser views, render the embedded product shell through the landscape-first wrapper instead of depending on `screen.orientation.lock()`. Normal component-level responsive swaps, container queries, and measured controls still belong inside their local components; do not duplicate app-wide threshold math in route code.

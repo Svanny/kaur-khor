@@ -36,6 +36,8 @@
 
 បញ្ជី មិនមែនជា ERP ពេញលេញ, accounting system, ឬ workflow builder ទូទៅទេ។
 
+នៅពេល window desktop, demo ក្នុង browser, ឬ browser app តូចតាមទទឹង តាមកម្ពស់ ឬតាមផ្ទៃ viewport បញ្ជី នឹងបន្ថយ scale របស់ app ដោយស្វ័យប្រវត្តិ។ លើទូរស័ព្ទ portrait, demo និង browser app បង្ហាញ workspace ជា landscape-first ដើម្បីឲ្យ controls ក្រាស់ៗនៅតែប្រើបាន។
+
 ## លំហូរការងារប្រចាំថ្ងៃ
 
 លំដាប់ធម្មតា៖
@@ -694,6 +696,8 @@ Alias គឺជា customer-facing name ដែល automation ប្រើជំ�
 ### ការកំណត់រចនាសម្ព័ន្ធ {#automation-configuration}
 
 Configuration គឺជា the Telegram connection panel. វា holds bot identity, token, username, and external link settings that let បញ្ជី receive or route customer intake. ប្រើវា only បន្ទាប់ពី catalog prices, exposure, and operator review expectations គឺជា ready.
+
+នៅពេល Telegram automation connected និង live listening ក្នុង desktop app, បញ្ជី នឹង warning មុនពេល app បិទ ព្រោះ Telegram listening, automation intake, និង automatic checks នឹងឈប់ រហូតដល់បើក app ម្តងទៀត។ Desktop app បង្កើត close-safety snapshot ដោយស្វ័យប្រវត្តិ មុនពេលបង្ហាញ warning នោះ។
 
 ### ទំនិញលក់បានដែលបានបង្ហាញ {#automation-sellables-exposed}
 
