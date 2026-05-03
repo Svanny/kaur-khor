@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { WebRoutes } from './index';
+import { fallbackStateForMode, WebRoutes } from './index';
 
 const operatorFeatureLabels = [
   'Review Work Queue',
@@ -39,14 +39,19 @@ const previousNounLabels = [
   'Telegram Intake',
 ] as const;
 
-const sharedProductPromise = 'Free. No sign-up or login. Your data stays on your device.';
+const sharedProductBenefits = [
+  'Free',
+  'No sign-up or login. Your data stays on your device.',
+] as const;
 const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
+const sourceUrl = 'https://github.com/Svanny/banji';
 
 const productCardCopy = {
   actions: ['Start Quick Demo', 'Start in the browser', 'Install the desktop app', 'Build it yourself'],
   titles: ['Demo', 'Browser App', 'Desktop App', 'Source Build'],
   summaries: ['Try sample data', 'Use it in this browser', 'Install the full app', 'Build from source'],
   includes: [
+    'Everything in Demo and:',
     'Everything in Browser App and:',
     'Everything in Desktop App and:',
   ],
@@ -127,6 +132,12 @@ function renderWebPath(path: string) {
 
 function getProductCardsSection(container: HTMLElement) {
   const section = container.querySelector('#ways-to-start');
+  expect(section).not.toBeNull();
+  return section as HTMLElement;
+}
+
+function getBuildFromSourceSection(container: HTMLElement) {
+  const section = container.querySelector('#build-from-source');
   expect(section).not.toBeNull();
   return section as HTMLElement;
 }
@@ -396,10 +407,16 @@ describe('WebRoutes product cards', () => {
   test('renders simple tier copy with benefits first and drawbacks last', () => {
     const { container } = renderWebHome();
     const section = getProductCardsSection(container);
-    const cards = within(section).getAllByRole('link');
+    const cards = Array.from(section.querySelectorAll('.liquid-grid-card-frame'));
 
     expect(cards).toHaveLength(productCardCopy.titles.length);
-    expect(within(section).getAllByText(sharedProductPromise)).toHaveLength(productCardCopy.titles.length);
+    for (const label of sharedProductBenefits) {
+      expect(within(section).getAllByText(label)).toHaveLength(productCardCopy.titles.length);
+    }
+    expect(within(section).getAllByText('What you get:')).toHaveLength(1);
+    for (const include of productCardCopy.includes) {
+      expect(within(section).getByText(include)).toBeInTheDocument();
+    }
     for (const label of [
       ...productCardCopy.titles,
       ...productCardCopy.summaries,
@@ -418,7 +435,29 @@ describe('WebRoutes product cards', () => {
       const drawbackHeading = cardQueries.getByText('Keep in mind:');
       expect(benefit.compareDocumentPosition(drawbackHeading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
-    expect(section).not.toHaveTextContent('Everything in Demo and:');
+    const desktopCard = within(section)
+      .getByRole('heading', { name: 'Desktop App' })
+      .closest('.liquid-grid-card-frame');
+    const sourceCard = within(section)
+      .getByRole('heading', { name: 'Source Build' })
+      .closest('.liquid-grid-card-frame');
+    expect(desktopCard).not.toBeNull();
+    expect(sourceCard).not.toBeNull();
+    for (const inheritedBrowserBenefit of [
+      'Export backups',
+      'Import backups',
+    ]) {
+      expect(within(desktopCard as HTMLElement).queryByText(inheritedBrowserBenefit)).not.toBeInTheDocument();
+    }
+    for (const inheritedDesktopBenefit of [
+      'Save work in local app files',
+      'Make app snapshots',
+      'Keep automation running',
+      'Attach item images',
+      'View logs',
+    ]) {
+      expect(within(sourceCard as HTMLElement).queryByText(inheritedDesktopBenefit)).not.toBeInTheDocument();
+    }
   });
 
   test('removes old product-card labels and technical storage terms from the cards', () => {
@@ -438,23 +477,61 @@ describe('WebRoutes product cards', () => {
     const { container } = renderWebHome();
     const section = getProductCardsSection(container);
 
-    for (const card of within(section).getAllByRole('link')) {
+    for (const card of section.querySelectorAll('.liquid-grid-card-frame')) {
       expect(card).toHaveClass('liquid-grid-card-frame', 'backdrop-blur-md');
     }
   });
 
-  test('renders shared privacy copy as list items and uses white card buttons', () => {
+  test('renders shared privacy copy as list items and uses only the card buttons as links', () => {
     const { container } = renderWebHome();
     const section = getProductCardsSection(container);
 
-    for (const promise of within(section).getAllByText(sharedProductPromise)) {
-      expect(promise.closest('li')).not.toBeNull();
+    for (const label of sharedProductBenefits) {
+      for (const benefit of within(section).getAllByText(label)) {
+        expect(benefit.closest('li')).not.toBeNull();
+      }
     }
 
     for (const action of productCardCopy.actions) {
-      const button = within(section).getByLabelText(action).closest('span');
+      const button = within(section).getByRole('link', { name: action });
       expect(button).toHaveClass('bg-white', 'text-foreground');
       expect(button).not.toHaveClass('bg-primary');
     }
+    expect(within(section).getAllByRole('link')).toHaveLength(productCardCopy.actions.length);
+    for (const card of section.querySelectorAll('.liquid-grid-card-frame')) {
+      expect(card.tagName).not.toBe('A');
+    }
+  });
+});
+
+describe('WebRoutes embedded app fallback state', () => {
+  test('keeps fresh demo and browser fallbacks eligible for onboarding', () => {
+    const demoState = fallbackStateForMode('demo');
+    const browserState = fallbackStateForMode('app');
+
+    expect(demoState.preferences.onboardingCompletedAt).toBeNull();
+    expect(browserState.preferences.onboardingCompletedAt).toBeNull();
+    expect(demoState.workspaceSummary.skuCount).toBeGreaterThan(0);
+    expect(browserState.workspaceSummary.skuCount).toBe(0);
+  });
+});
+
+describe('WebRoutes build from source section', () => {
+  test('links to the official source page and uses zip-based build commands', () => {
+    const { container } = renderWebHome();
+    const section = getBuildFromSourceSection(container);
+
+    expect(within(section).getByRole('link', { name: 'official GitHub page' })).toHaveAttribute('href', sourceUrl);
+    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-mac-from-source.sh on macOS.');
+    expect(section).toHaveTextContent('Open the Terminal app.');
+    expect(section).toHaveTextContent('Copy the code below and paste it inside Terminal.');
+    expect(section).toHaveTextContent('Bash');
+    expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip');
+    expect(section).toHaveTextContent('unzip banji.zip');
+    expect(section).toHaveTextContent('mv banji-main banji');
+    expect(section).toHaveTextContent('chmod +x scripts/build-mac-from-source.sh');
+    expect(section).toHaveTextContent('./scripts/build-mac-from-source.sh');
+    expect(section).not.toHaveTextContent('git clone https://github.com/Svanny/banji.git');
   });
 });

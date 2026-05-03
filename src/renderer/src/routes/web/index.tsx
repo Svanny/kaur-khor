@@ -19,9 +19,9 @@ import {
   Bot,
   Check,
   CirclePlay,
-  ClipboardCopy,
   ClipboardList,
   Code2,
+  Copy,
   Clock,
   DatabaseBackup,
   Download,
@@ -101,11 +101,15 @@ type StorageUiState = {
 };
 
 const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
+const sourceUrl = 'https://github.com/Svanny/banji';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/banji/releases/latest';
 const sourceBuildCommands = [
-  'git clone https://github.com/Svanny/banji.git',
+  'curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip',
+  'unzip banji.zip',
+  'mv banji-main banji',
   'cd banji',
-  'scripts/build-mac-from-source.sh',
+  'chmod +x scripts/build-mac-from-source.sh',
+  './scripts/build-mac-from-source.sh',
 ] as const;
 const screenshotSlides = [
   {
@@ -154,7 +158,7 @@ type ProductTier = {
   drawbacks: ProductCardItem[];
   href: string;
   icon: LucideIcon;
-  includes?: string | null;
+  includes?: string;
   summary: string;
   title: string;
   tone: ProductCardTone;
@@ -225,7 +229,10 @@ const railFeatures: RailFeature[] = [
   { icon: Bot, label: 'Review Telegram Intake', tone: 'bg-[#229ED9] text-white' },
 ];
 
-const sharedProductPromise = 'Free. No sign-up or login. Your data stays on your device.';
+const sharedProductBenefits: ProductCardItem[] = [
+  { icon: BadgeDollarSign, label: 'Free' },
+  { icon: ShieldCheck, label: 'No sign-up or login. Your data stays on your device.' },
+];
 
 const productTiers: ProductTier[] = [
   {
@@ -259,6 +266,7 @@ const productTiers: ProductTier[] = [
     ],
     href: publicPath('/app'),
     icon: Globe,
+    includes: 'Everything in Demo and:',
     summary: 'Use it in this browser',
     title: 'Browser App',
     tone: 'browser',
@@ -508,19 +516,41 @@ function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['p
   }
 }
 
-function scrollToSection(sectionId: string) {
+function scrollBlockForSection(sectionId: string): ScrollLogicalPosition {
+  return sectionId === 'build-from-source' ? 'end' : 'start';
+}
+
+function scrollToSection(
+  sectionId: string,
+  block: ScrollLogicalPosition = scrollBlockForSection(sectionId),
+  behavior: ScrollBehavior = 'smooth',
+) {
   const target = document.getElementById(sectionId);
   if (!target) {
     return;
   }
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  target.scrollIntoView({ behavior, block });
 }
 
-function onSectionAnchorClick(sectionId: string) {
+function onSectionAnchorClick(sectionId: string, block?: ScrollLogicalPosition) {
   return (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     window.history.replaceState(null, '', `#${sectionId}`);
-    scrollToSection(sectionId);
+    scrollToSection(sectionId, block);
+  };
+}
+
+function scheduleHashSectionScroll(sectionId: string) {
+  const block = scrollBlockForSection(sectionId);
+  const frameId = window.requestAnimationFrame(() => scrollToSection(sectionId, block, 'auto'));
+  const timeoutIds = [120, 520].map((delay) => (
+    window.setTimeout(() => scrollToSection(sectionId, block, 'auto'), delay)
+  ));
+  return () => {
+    window.cancelAnimationFrame(frameId);
+    for (const timeoutId of timeoutIds) {
+      window.clearTimeout(timeoutId);
+    }
   };
 }
 
@@ -611,13 +641,34 @@ function WebNav() {
 }
 
 function HomeRoute() {
+  useEffect(() => {
+    let cancelScheduledScroll = () => {};
+
+    function handleHashSectionScroll() {
+      cancelScheduledScroll();
+      const sectionId = window.location.hash.replace(/^#/, '');
+      if (!sectionId) {
+        cancelScheduledScroll = () => {};
+        return;
+      }
+      cancelScheduledScroll = scheduleHashSectionScroll(sectionId);
+    }
+
+    handleHashSectionScroll();
+    window.addEventListener('hashchange', handleHashSectionScroll);
+    return () => {
+      cancelScheduledScroll();
+      window.removeEventListener('hashchange', handleHashSectionScroll);
+    };
+  }, []);
+
   return (
     <div className="h-svh overflow-x-hidden overflow-y-auto bg-background text-foreground">
       <main>
         <section className="relative overflow-hidden border-b border-border/70">
           <div className="absolute inset-0 hero-mesh opacity-80" aria-hidden="true" />
           <div className="absolute inset-0 bg-[image:var(--noise-paper)] bg-[length:10px_10px] opacity-70" aria-hidden="true" />
-          <div className="relative grid min-h-[78svh] w-screen max-w-full items-center gap-10 px-4 py-6 sm:px-8 sm:py-8 lg:grid-cols-[0.92fr_1.08fr] xl:px-12">
+          <div className="relative grid min-h-[calc(100svh-7.5rem)] w-screen max-w-full items-center gap-10 px-4 py-6 sm:px-8 sm:py-8 lg:grid-cols-[0.92fr_1.08fr] xl:px-12">
             <div className="max-w-2xl text-center sm:text-left">
               <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
                 <img alt="" aria-hidden="true" className="h-14 w-auto sm:h-16" src={brandLogo} />
@@ -642,14 +693,24 @@ function HomeRoute() {
           ))}
         </section>
         <ReleasesSection />
-        <section id="build-from-source" className="w-screen max-w-full border-t border-border/70 px-4 py-14 sm:px-8 xl:px-12">
-          <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel md:grid-cols-[1fr_0.78fr]">
-            <div>
+        <section id="build-from-source" className="w-full max-w-full scroll-mt-20 border-t border-border/70 py-14">
+          <div className="mx-4 grid min-w-0 max-w-full gap-6 overflow-hidden rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel sm:mx-8 xl:mx-12">
+            <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Advanced users</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-normal">Build From Source</h2>
-              <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Inspect the source and run <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-mac-from-source.sh</code> on macOS. Building locally avoids downloading a prebuilt app, but it does not magically make software safe.
+              <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
+                Inspect the source on the <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">official GitHub page</a> and run <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-mac-from-source.sh</code> on macOS. Building locally avoids downloading a prebuilt app, but it does not magically make software safe.
               </p>
+              <ul className="mt-4 grid gap-2 text-sm leading-6 text-muted-foreground">
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+                  <span>Open the Terminal app.</span>
+                </li>
+                <li className="flex gap-3">
+                  <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+                  <span>Copy the code below and paste it inside Terminal.</span>
+                </li>
+              </ul>
             </div>
             <SourceBuildSnippet />
           </div>
@@ -869,11 +930,36 @@ function ProductCard({ tier }: { tier: ProductTier }) {
     title,
     tone,
   } = tier;
-  const benefitsHeading = includes === undefined ? 'What you get:' : includes;
   const benefitsWithPromise: ProductCardItem[] = [
-    { icon: ShieldCheck, label: sharedProductPromise },
+    ...sharedProductBenefits,
     ...benefits,
   ];
+  const actionButtonClassName = 'inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70';
+  const actionButtonContent = (
+    <>
+      <span className="hidden min-w-0 text-balance leading-5 xl:inline">{action}</span>
+      <span className="grid min-w-0 justify-items-center leading-5 xl:hidden" aria-hidden="true">
+        {actionLines.map((line) => (
+          <span key={line}>{line}</span>
+        ))}
+      </span>
+      <ActionContinueIcon className="size-4 shrink-0" />
+    </>
+  );
+  const actionButton = href.startsWith('#') ? (
+    <a
+      aria-label={action}
+      className={actionButtonClassName}
+      href={href}
+      onClick={onSectionAnchorClick(href.slice(1))}
+    >
+      {actionButtonContent}
+    </a>
+  ) : (
+    <a aria-label={action} className={actionButtonClassName} href={href}>
+      {actionButtonContent}
+    </a>
+  );
   const content = (
     <>
       <LiquidGridCardLayer />
@@ -885,21 +971,9 @@ function ProductCard({ tier }: { tier: ProductTier }) {
           <h2 className="text-xl font-semibold leading-7 text-foreground">{title}</h2>
           <p className="text-sm font-semibold leading-5 text-muted-foreground">{summary}</p>
         </div>
-        <span className="inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-xs" aria-label={action}>
-          <span className="hidden min-w-0 text-balance leading-5 xl:inline">{action}</span>
-          <span className="grid min-w-0 justify-items-center leading-5 xl:hidden" aria-hidden="true">
-            {actionLines.map((line) => (
-              <span key={line}>{line}</span>
-            ))}
-          </span>
-          <ActionContinueIcon className="size-4 shrink-0" />
-        </span>
+        {actionButton}
         <div className="w-full text-left">
-          {benefitsHeading === null ? (
-            <p aria-hidden="true" className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">&nbsp;</p>
-          ) : (
-            <p className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">{benefitsHeading}</p>
-          )}
+          <p className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">{includes ?? 'What you get:'}</p>
           <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
             {benefitsWithPromise.map(({ icon: Icon, label }) => (
               <li key={label} className="flex min-w-0 items-start gap-3">
@@ -925,23 +999,14 @@ function ProductCard({ tier }: { tier: ProductTier }) {
   );
 
   const className = cn(
-    'liquid-grid-card-frame group relative block h-full min-h-[45rem] min-w-0 overflow-hidden rounded-[1.15rem] border shadow-[0_16px_36px_rgba(48,31,20,0.08)] transition-[border-color,box-shadow,transform] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-white/7 before:backdrop-blur-xl before:content-[\'\'] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(1.15rem-1px)] after:bg-[linear-gradient(135deg,rgba(255,255,255,0.24),rgba(255,255,255,0.06)_42%,rgba(255,255,255,0.16))] after:mix-blend-screen after:content-[\'\'] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_22px_48px_rgba(48,31,20,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 xl:min-h-[39rem]',
+    'liquid-grid-card-frame group relative block h-full min-h-[45rem] min-w-0 overflow-hidden rounded-[1.15rem] border shadow-[0_16px_36px_rgba(48,31,20,0.08)] transition-[border-color,box-shadow,transform] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-white/7 before:backdrop-blur-xl before:content-[\'\'] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(1.15rem-1px)] after:bg-[linear-gradient(135deg,rgba(255,255,255,0.24),rgba(255,255,255,0.06)_42%,rgba(255,255,255,0.16))] after:mix-blend-screen after:content-[\'\'] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_22px_48px_rgba(48,31,20,0.12)] xl:min-h-[39rem]',
     productCardSurfaceClassName(tone),
   );
 
-  if (href.startsWith('#')) {
-    const sectionId = href.slice(1);
-    return (
-      <a className={className} href={href} onClick={onSectionAnchorClick(sectionId)}>
-        {content}
-      </a>
-    );
-  }
-
   return (
-    <a className={className} href={href}>
+    <article className={className}>
       {content}
-    </a>
+    </article>
   );
 }
 
@@ -961,24 +1026,60 @@ function SourceBuildSnippet() {
 
   const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy';
   const copyIcon = copyStatus === 'copied'
-    ? <Check className="size-3.5" data-icon />
+    ? <Check className="size-4" data-icon />
     : copyStatus === 'failed'
-      ? <X className="size-3.5" data-icon />
-      : <ClipboardCopy className="size-3.5" data-icon />;
+      ? <X className="size-4" data-icon />
+      : <Copy className="size-4" data-icon />;
 
   return (
-    <div className="relative rounded-[1rem] border border-border/70 bg-foreground p-4 font-mono text-xs leading-6 text-background shadow-sm">
-      <button
-        className="absolute bottom-3 right-3 inline-flex items-center gap-1.5 rounded-lg border border-background/15 bg-background/10 px-2.5 py-1 text-[0.68rem] font-semibold text-background/90 shadow-xs transition-colors hover:bg-background/16 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/40"
-        type="button"
-        onClick={copyCommands}
-      >
-        {copyIcon}
-        {copyLabel}
-      </button>
-      <pre className="overflow-x-auto pb-8 whitespace-pre-wrap"><code ref={codeRef}>{sourceBuildCommands.join('\n')}</code></pre>
+    <div className="w-full min-w-0 max-w-full overflow-hidden rounded-[1rem] border border-white/10 bg-foreground font-mono text-xs leading-6 text-background shadow-sm">
+      <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-4 py-3">
+        <span className="inline-flex items-center gap-2 font-sans text-sm font-semibold text-background">
+          <Code2 className="size-4" />
+          Bash
+        </span>
+        <button
+          aria-label={copyLabel}
+          className="grid size-9 place-items-center rounded-lg text-background/90 transition-colors hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/40"
+          type="button"
+          onClick={copyCommands}
+        >
+          {copyIcon}
+        </button>
+      </div>
+      <pre className="min-w-0 max-w-full overflow-x-auto whitespace-pre-wrap px-4 py-5 [overflow-wrap:anywhere]">
+        <code ref={codeRef}>
+          {sourceBuildCommands.map((command, index) => (
+            <span key={command}>
+              {renderSourceBuildCommand(command)}
+              {index < sourceBuildCommands.length - 1 ? '\n' : null}
+            </span>
+          ))}
+        </code>
+      </pre>
     </div>
   );
+}
+
+function renderSourceBuildCommand(command: string) {
+  const parts = command.split(/(\s+)/);
+  return parts.map((part, index) => {
+    if (/^\s+$/.test(part)) {
+      return part;
+    }
+
+    const className = index === 0
+      ? 'text-[#ff9d5c]'
+      : part.startsWith('-') || part === '+x'
+        ? 'text-[#f6b35c]'
+        : undefined;
+
+    return (
+      <span key={`${part}-${index}`} className={className}>
+        {part}
+      </span>
+    );
+  });
 }
 
 function StepList({ steps }: { steps: Array<string | { href: string; label: string }> }) {
@@ -1005,7 +1106,7 @@ function databaseForMode(mode: EmbeddedMode): BanjiBrowserDatabaseName {
   return mode === 'demo' ? BANJI_BROWSER_DEMO_DATABASE : BANJI_BROWSER_APP_DATABASE;
 }
 
-function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
+export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
   const state = mode === 'demo' ? createMockState() : createEmptyBrowserMockState();
   state.appContext = {
     ...state.appContext,
@@ -1019,12 +1120,6 @@ function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
     backupDirectoryPath: 'downloaded backups',
     assetDirectoryPath: 'Browser image storage unavailable in this release',
   };
-  if (mode === 'demo') {
-    state.preferences = {
-      ...state.preferences,
-      onboardingCompletedAt: state.preferences.onboardingCompletedAt ?? new Date().toISOString(),
-    };
-  }
   return state;
 }
 
@@ -1163,13 +1258,55 @@ function persistenceStatusLabel(status: StorageUiState['persistence']) {
   return 'not checked';
 }
 
+function useEmbeddedSidebarCollapsed() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  useEffect(() => {
+    const readSidebarState = () => {
+      const sidebar = document.querySelector<HTMLElement>('[data-slot="sidebar"][data-state]');
+      setIsCollapsed(sidebar?.dataset.state === 'collapsed');
+      return sidebar;
+    };
+
+    let sidebar = readSidebarState();
+    const observer = new MutationObserver(() => {
+      readSidebarState();
+    });
+
+    if (sidebar) {
+      observer.observe(sidebar, { attributes: true, attributeFilter: ['data-state'] });
+    }
+
+    const documentObserver = new MutationObserver(() => {
+      const nextSidebar = document.querySelector<HTMLElement>('[data-slot="sidebar"][data-state]');
+      if (nextSidebar && nextSidebar !== sidebar) {
+        observer.disconnect();
+        observer.observe(nextSidebar, { attributes: true, attributeFilter: ['data-state'] });
+        sidebar = nextSidebar;
+        setIsCollapsed(nextSidebar.dataset.state === 'collapsed');
+      }
+    });
+
+    documentObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      documentObserver.disconnect();
+    };
+  }, []);
+
+  return isCollapsed;
+}
+
 function WebAppBanner({
+  isOnboarding,
   mode,
   storage,
   onExport,
   onImport,
   onReset,
 }: {
+  isOnboarding?: boolean;
   mode: EmbeddedMode;
   storage: StorageUiState;
   onExport: () => void;
@@ -1178,17 +1315,27 @@ function WebAppBanner({
 }) {
   const isDemo = mode === 'demo';
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const sidebarCollapsed = useEmbeddedSidebarCollapsed();
   const displayMessage = storage.status === 'error'
     ? (isDemo ? 'Demo is running with temporary sample data because durable browser storage could not start.' : 'Browser storage could not start.')
     : storage.message;
   return (
-    <div className="border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:fixed md:bottom-[6.2rem] md:left-2 md:z-40 md:w-[calc(12.8rem-1rem)] md:border-0 md:bg-transparent md:p-0 md:shadow-none">
-      <div className="mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-panel md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5">
-        <div className="flex gap-3 md:gap-2">
-          <span className="grid size-9 shrink-0 place-items-center rounded-[0.85rem] bg-accent/45 text-foreground md:size-7 md:rounded-lg">
+    <div
+      className={cn(
+        'border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:fixed md:bottom-[6.2rem] md:left-2 md:z-40 md:w-[calc(12.8rem-1rem)] md:border-0 md:bg-transparent md:p-0 md:shadow-none',
+        sidebarCollapsed ? 'md:w-12' : null,
+        isOnboarding ? 'fixed left-3 top-3 z-50 w-[13.25rem] border-0 bg-transparent p-0 shadow-none md:bottom-auto md:left-3 md:top-3 md:w-[13.25rem]' : null,
+      )}
+    >
+      <div className={cn(
+        'mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-none md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5',
+        sidebarCollapsed ? 'md:px-1.5' : null,
+      )}>
+        <div className="grid gap-2">
+          <span className="grid size-9 shrink-0 place-items-center justify-self-center rounded-[0.85rem] bg-amber-100 text-amber-950 md:size-7 md:rounded-lg">
             <StatusWarningIcon className="size-4" />
           </span>
-          <div className="min-w-0">
+          <div className={cn('min-w-0 text-left', sidebarCollapsed ? 'md:sr-only' : null)}>
             <p className="font-semibold md:leading-4">
               {isDemo ? 'Demo data - not your real workspace.' : 'banji saves your work in this browser. Back it up regularly.'}
             </p>
@@ -1196,31 +1343,31 @@ function WebAppBanner({
               {displayMessage} Storage: {storageStatusLabel(storage.status)}. Extra browser protection: {persistenceStatusLabel(storage.persistence)}.
               {storage.lastBackupAt ? ` Last backup: ${new Date(storage.lastBackupAt).toLocaleString()}.` : ''}
             </p>
-            <p className="hidden text-muted-foreground md:block">
-              {isDemo ? 'Sample workspace. Reset anytime.' : 'Local browser workspace.'}
-            </p>
+            {isDemo ? (
+              <p className="hidden text-muted-foreground md:block">Sample workspace. Reset anytime.</p>
+            ) : null}
             <p className="md:hidden">
               Reports and Telegram checks only keep running while this tab is open and awake. Use the desktop app for always-on automation.
             </p>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-2 md:gap-1.5">
-          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
+          <Button aria-label="Export backup" className={cn('w-full justify-start md:h-8 md:min-w-0 md:px-2', sidebarCollapsed ? 'md:justify-center' : null)} size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
             <ActionExportIcon className="size-4" />
-            <span>Export backup</span>
+            <span className={sidebarCollapsed ? 'md:sr-only' : undefined}>Export backup</span>
           </Button>
-          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
+          <Button aria-label="Import backup" className={cn('w-full justify-start md:h-8 md:min-w-0 md:px-2', sidebarCollapsed ? 'md:justify-center' : null)} size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
             <ActionDatabaseUploadIcon className="size-4" />
-            <span>Import backup</span>
+            <span className={sidebarCollapsed ? 'md:sr-only' : undefined}>Import backup</span>
           </Button>
-          <Button className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" type="button" variant="outline" onClick={onReset}>
+          <Button aria-label={isDemo ? 'Reset demo' : 'Reset workspace'} className={cn('w-full justify-start md:h-8 md:min-w-0 md:px-2', sidebarCollapsed ? 'md:justify-center' : null)} size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon className="size-4" />
-            <span>{isDemo ? 'Reset demo' : 'Reset workspace'}</span>
+            <span className={sidebarCollapsed ? 'md:sr-only' : undefined}>{isDemo ? 'Reset demo' : 'Reset workspace'}</span>
           </Button>
-          <Button asChild className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" variant="outline">
-            <a href={publicPath(isDemo ? '/app' : '/#releases')}>
-              {isDemo ? <ActionSaveIcon className="size-4" /> : <Download className="size-4" />}
-              <span>{isDemo ? 'Use browser app' : 'Download desktop app'}</span>
+          <Button asChild className={cn('w-full justify-start md:h-8 md:min-w-0 md:px-2', sidebarCollapsed ? 'md:justify-center' : null)} size="sm" variant="outline">
+            <a aria-label={isDemo ? 'Use browser app' : 'Download app'} href={publicPath(isDemo ? '/app' : '/#releases')}>
+              {isDemo ? <Globe className="size-4" /> : <Download className="size-4" />}
+              <span className={sidebarCollapsed ? 'md:sr-only' : undefined}>{isDemo ? 'Use browser app' : 'Download app'}</span>
             </a>
           </Button>
           <input
@@ -1244,6 +1391,7 @@ function WebAppBanner({
 
 export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   const databaseName = databaseForMode(mode);
+  const [hash, setHash] = useState(() => window.location.hash);
   const [storage, setStorage] = useState<StorageUiState>({
     status: 'loading',
     message: 'Opening SQLite WASM storage.',
@@ -1255,6 +1403,12 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     handle: null,
   });
   const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const updateHash = () => setHash(window.location.hash);
+    window.addEventListener('hashchange', updateHash);
+    return () => window.removeEventListener('hashchange', updateHash);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -1430,7 +1584,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
                 <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Try demo</a>
               </Button>
               <Button asChild variant="outline">
-                <a href={publicPath('/#releases')}><Download className="size-4" />Download desktop app</a>
+                <a href={publicPath('/#releases')}><Download className="size-4" />Download app</a>
               </Button>
             </div>
           </div>
@@ -1450,6 +1604,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   return (
     <div className="min-h-svh bg-background">
       <WebAppBanner
+        isOnboarding={hash.replace(/^#/, '').startsWith('/onboarding')}
         mode={mode}
         storage={storage}
         onExport={handleExport}
