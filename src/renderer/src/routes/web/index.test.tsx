@@ -604,7 +604,7 @@ describe('WebRoutes embedded app fallback state', () => {
 
     const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
     expect(bannerCard).not.toBeNull();
-    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/90', 'backdrop-blur-xl');
+    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/90', 'text-sm', 'md:text-sm', 'backdrop-blur-xl');
     expect(screen.getByText('Demo data - not your real workspace.')).toHaveClass('whitespace-normal', 'break-words');
     expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
   });

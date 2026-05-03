@@ -277,7 +277,7 @@ function WebAppBanner({
           'mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-none md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5',
           !isOnboarding ? embeddedBannerRailHeightClassName : null,
           sidebarCollapsed && !isOnboarding ? 'md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0' : null,
-          isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/90 px-3 py-2 shadow-[0_18px_48px_rgba(48,31,20,0.14)] backdrop-blur-xl' : null,
+          isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/90 px-3 py-2 text-sm leading-6 shadow-[0_18px_48px_rgba(48,31,20,0.14)] backdrop-blur-xl md:text-sm md:leading-6' : null,
         )}
       >
         <div className={cn('grid gap-2', sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null, isOnboarding ? 'flex min-w-0 flex-1 items-center gap-3' : null)}>
