@@ -270,7 +270,7 @@
   }
 
   [data-language="km"],
-  [data-language="km"] :where(:not(code):not(pre):not(kbd):not(samp)) {
+  [data-language="km"] :where(:not(code):not(pre):not(kbd):not(samp):not(.source-code-island):not(.source-code-island *)) {
     font-family: "Noto Sans Khmer", var(--font-sans);
   }
 

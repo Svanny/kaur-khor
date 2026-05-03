@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { fallbackStateForMode, WebRoutes } from './index';
+import { fallbackStateForMode, formatBrowserStorageErrorMessage, WebRoutes } from './index';
 
 const operatorFeatureLabels = [
   'Review Work Queue',
@@ -41,6 +41,9 @@ const previousNounLabels = [
 
 const sharedProductBenefits = [
   'Free',
+] as const;
+
+const sharedProductDrawbacks = [
   'No sign-up or login. Your data stays on your device.',
 ] as const;
 const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
@@ -76,8 +79,7 @@ const productCardCopy = {
     'Browser cleanup can remove data',
     'Automatic checks only run while the tab is open',
     'Your computer may show safety prompts',
-    'Requires developer tools',
-    'Currently focused on macOS',
+    'Need to use the Terminal app',
     'The app you build may still show safety prompts',
   ],
 } as const;
@@ -192,6 +194,42 @@ async function expectRecommendedDownload(expectedAssetName: string, expectedHref
 }
 
 describe('WebRoutes landing rail', () => {
+  test('renders a top-right language selector for the browser main page', () => {
+    const { container } = renderWebHome();
+
+    const languageSelect = screen.getByRole('combobox', { name: 'Choose your language' });
+
+    expect(languageSelect).toHaveTextContent('English');
+    expect(container.querySelector('[data-language="en"]')).not.toBeNull();
+
+    fireEvent.click(languageSelect);
+    fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
+
+    expect(screen.getByRole('combobox', { name: 'Choose your language' })).toHaveTextContent('ខ្មែរ');
+    expect(container.querySelector('[data-language="km"]')).not.toBeNull();
+  });
+
+  test('translates the visible landing page copy into Khmer', () => {
+    const { container } = renderWebHome();
+
+    fireEvent.click(screen.getByRole('combobox', { name: 'Choose your language' }));
+    fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
+
+    expect(screen.getByRole('heading', { name: 'បញ្ជី' })).toBeInTheDocument();
+    expect(screen.getByText(/អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ចាប់ផ្តើម' })).toBeInTheDocument();
+
+    const cardsSection = getProductCardsSection(container);
+    expect(cardsSection).toHaveTextContent('អេបក្នុងប្រោសឺរ');
+    expect(cardsSection).not.toHaveTextContent('ជ្រើសរើសភាសា រូបិយប័ណ្ណ និងចំណូលចិត្តអេប');
+    expect(cardsSection).toHaveTextContent('ចងចាំ៖');
+
+    const releasesSection = container.querySelector('#releases');
+    expect(releasesSection).not.toBeNull();
+    expect(releasesSection).toHaveTextContent('ទាញយកដេសថបអេប');
+    expect(releasesSection).toHaveTextContent('កំណត់សម្គាល់ដំឡើង');
+  });
+
   test('renders every operator-facing feature once in the accessible rail', () => {
     renderWebHome();
 
@@ -413,6 +451,9 @@ describe('WebRoutes product cards', () => {
     for (const label of sharedProductBenefits) {
       expect(within(section).getAllByText(label)).toHaveLength(productCardCopy.titles.length);
     }
+    for (const label of sharedProductDrawbacks) {
+      expect(within(section).getAllByText(label)).toHaveLength(productCardCopy.titles.length);
+    }
     expect(within(section).getAllByText('What you get:')).toHaveLength(1);
     for (const include of productCardCopy.includes) {
       expect(within(section).getByText(include)).toBeInTheDocument();
@@ -422,6 +463,7 @@ describe('WebRoutes product cards', () => {
       ...productCardCopy.summaries,
       ...productCardCopy.includes,
       ...productCardCopy.benefits,
+      ...sharedProductDrawbacks,
       ...productCardCopy.drawbacks,
     ]) {
       expect(section).toHaveTextContent(label);
@@ -486,10 +528,16 @@ describe('WebRoutes product cards', () => {
     const { container } = renderWebHome();
     const section = getProductCardsSection(container);
 
-    for (const label of sharedProductBenefits) {
-      for (const benefit of within(section).getAllByText(label)) {
-        expect(benefit.closest('li')).not.toBeNull();
+    for (const label of [...sharedProductBenefits, ...sharedProductDrawbacks]) {
+      for (const item of within(section).getAllByText(label)) {
+        expect(item.closest('li')).not.toBeNull();
       }
+    }
+    for (const privacyItem of within(section).getAllByText('No sign-up or login. Your data stays on your device.')) {
+      const card = privacyItem.closest('.liquid-grid-card-frame');
+      expect(card).not.toBeNull();
+      const keepInMindHeading = within(card as HTMLElement).getByText('Keep in mind:');
+      expect(keepInMindHeading.compareDocumentPosition(privacyItem) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
 
     for (const action of productCardCopy.actions) {
@@ -513,6 +561,17 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(browserState.preferences.onboardingCompletedAt).toBeNull();
     expect(demoState.workspaceSummary.skuCount).toBeGreaterThan(0);
     expect(browserState.workspaceSummary.skuCount).toBe(0);
+  });
+
+  test('uses a friendly message for browser storage access-handle contention', () => {
+    const rawMessage = "Failed to execute 'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles cannot be created if there is another open Access Handle or Writable stream associated with the same file.";
+
+    expect(formatBrowserStorageErrorMessage(rawMessage)).toBe(
+      'Cannot have two banji browser tabs open at the same time. Close the other tab, then reload this page.',
+    );
+    expect(formatBrowserStorageErrorMessage('Backup did not contain a browser workspace state.')).toBe(
+      'Backup did not contain a browser workspace state.',
+    );
   });
 });
 
