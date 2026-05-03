@@ -44,7 +44,7 @@ The public web surface is published with GitHub Pages under `/banji/`:
 - Overview: <https://svanny.github.io/banji/>
 - Demo: <https://svanny.github.io/banji/demo>
 - Browser app entry: <https://svanny.github.io/banji/app>
-- Install guide: <https://svanny.github.io/banji/install>
+- Downloads and install notes: <https://svanny.github.io/banji/#releases>
 
 The demo route uses seeded browser data for preview. Browser storage is tied to the browser profile and is not the same as the desktop app's local data directory. See [docs/browser-app.md](docs/browser-app.md) for details.
 

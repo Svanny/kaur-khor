@@ -9,7 +9,8 @@ The public web build uses Vite with `base: '/banji/'` for GitHub Pages. Public r
 - `/banji/`
 - `/banji/demo`
 - `/banji/app`
-- `/banji/install`
+
+Desktop download and install guidance is part of the overview page at `/banji/#releases`; there is no standalone `/install` route.
 
 When the existing product app is mounted from `/demo` or `/app`, it is wrapped in a `HashRouter`. Product routes then live after the hash so GitHub Pages can serve the public entry while the existing app keeps its desktop route assumptions.
 

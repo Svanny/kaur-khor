@@ -10,7 +10,7 @@ The web build uses:
 pnpm run pages:build
 ```
 
-The build output is `out/web`. `pages:build` copies `out/web/index.html` to `out/web/404.html` so direct visits to `/banji/demo`, `/banji/app`, and `/banji/install` can fall back to the React router.
+The build output is `out/web`. `pages:build` copies `out/web/index.html` to `out/web/404.html` so direct visits to `/banji/demo` and `/banji/app` can fall back to the React router.
 
 ## Deployment
 

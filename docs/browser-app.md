@@ -5,9 +5,8 @@ The public web build is a GitHub Pages surface for banji. It exposes:
 - `/` for the public overview
 - `/demo` for a seeded browser preview
 - `/app` for the browser app entry
-- `/install` for desktop install guidance
 
-GitHub Pages serves the site under `/banji/`, so the deployed URLs are `/banji/`, `/banji/demo`, `/banji/app`, and `/banji/install`.
+GitHub Pages serves the site under `/banji/`, so the deployed URLs are `/banji/`, `/banji/demo`, and `/banji/app`. Desktop downloads and install notes live on the overview page at `/banji/#releases`.
 
 ## Runtime behavior
 
