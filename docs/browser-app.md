@@ -19,6 +19,7 @@ The app route opens `banji_browser_app_v1.sqlite3` through SQLite WASM in a Web 
 Browser mode keeps major product surfaces visible, but native-only desktop tools are shown as unavailable or replaced with browser equivalents:
 
 - The app banner is the browser backup/import/reset surface.
+- In the main browser and demo app views, the banner sits on the left rail and keeps the same vertical button coordinates when the navigation rail expands or collapses. On onboarding routes only, the banner becomes a floating top nav overlay so it does not push down the onboarding canvas.
 - Settings / Local data shows OPFS and browser-profile storage labels instead of filesystem reveal links, desktop snapshots, or log export.
 - Settings / Benchmarks keeps GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics desktop-only.
 - Catalog image attachment is desktop-only until browser image assets are persisted durably.
