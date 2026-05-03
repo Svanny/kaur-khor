@@ -10,33 +10,46 @@ import {
   type BrowserMockState,
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
+import { LiquidGridCardLayer } from '@/components/system/liquid-grid-card';
 import brandLogo from '@/assets/banji-logo.svg';
 import {
   Archive,
   BadgeDollarSign,
+  BadgeAlert,
   Bot,
   Check,
+  CirclePlay,
   ClipboardCopy,
   ClipboardList,
+  Code2,
+  Clock,
+  DatabaseBackup,
   Download,
+  EyeOff,
   FileSearch,
-  Globe2,
-  HardDrive,
+  FileText,
+  Globe,
+  Image,
+  Laptop,
+  MonitorDown,
   Package,
   PackageCheck,
   PackagePlus,
+  PackageX,
   ReceiptText,
-  RotateCcw,
+  RefreshCcw,
   ScanLine,
   Search,
+  ShieldAlert,
   ShieldCheck,
   ShoppingBag,
-  Sparkles,
   Store,
   Terminal,
   TrendingUp,
+  Trash2,
+  Upload,
   Users,
-  WifiOff,
+  Wrench,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -56,6 +69,7 @@ import {
 } from '@icons/entities';
 import { NavigationSidebarIcon } from '@icons/navigation';
 import { StatusWarningIcon } from '@icons/status';
+import { cn } from '@/lib/utils';
 import analysisImageUrl from '../../../../../docs/readme/web-current-analysis.png';
 import catalogImageUrl from '../../../../../docs/readme/web-current-catalog.png';
 import overviewImageUrl from '../../../../../docs/readme/web-current-overview.png';
@@ -128,6 +142,26 @@ type RailFeature = {
   tone: string;
 };
 
+type ProductCardItem = {
+  icon: LucideIcon;
+  label: string;
+};
+
+type ProductCardTone = 'demo' | 'browser' | 'desktop' | 'source-build';
+
+type ProductTier = {
+  action: string;
+  actionLines: [string, string];
+  benefits: ProductCardItem[];
+  drawbacks: ProductCardItem[];
+  href: string;
+  icon: LucideIcon;
+  includes?: string | null;
+  summary: string;
+  title: string;
+  tone: ProductCardTone;
+};
+
 const railFeatures: RailFeature[] = [
   { icon: ClipboardList, label: 'Review Work Queue', tone: 'bg-[#DC2626] text-white' },
   { icon: ShoppingBag, label: 'Run Point-of-Sale', tone: 'bg-[#16A34A] text-white' },
@@ -145,6 +179,99 @@ const railFeatures: RailFeature[] = [
   { icon: FileSearch, label: 'Explain Inventory Signals', tone: 'bg-[#C026D3] text-white' },
   { icon: Bot, label: 'Review Telegram Intake', tone: 'bg-[#229ED9] text-white' },
 ];
+
+const sharedProductPromise = 'Free. No sign-up or login. Your data stays on your device.';
+
+const productTiers: ProductTier[] = [
+  {
+    action: 'Start Quick Demo',
+    actionLines: ['Start Quick', 'Demo'],
+    benefits: [
+      { icon: PackageCheck, label: 'Try sample shelves' },
+      { icon: ScanLine, label: 'See the main workflow' },
+      { icon: RefreshCcw, label: 'Reset anytime' },
+    ],
+    drawbacks: [
+      { icon: EyeOff, label: 'Not your real workspace' },
+    ],
+    href: publicPath('/demo'),
+    icon: CirclePlay,
+    summary: 'Try sample data',
+    title: 'Demo',
+    tone: 'demo',
+  },
+  {
+    action: 'Start in the browser',
+    actionLines: ['Start in', 'the browser'],
+    benefits: [
+      { icon: Globe, label: 'Save real work in this browser' },
+      { icon: Download, label: 'Export backups' },
+      { icon: Upload, label: 'Import backups' },
+    ],
+    drawbacks: [
+      { icon: Trash2, label: 'Browser cleanup can remove data' },
+      { icon: Clock, label: 'Automatic checks only run while the tab is open' },
+    ],
+    href: publicPath('/app'),
+    icon: Globe,
+    summary: 'Use it in this browser',
+    title: 'Browser App',
+    tone: 'browser',
+  },
+  {
+    action: 'Install the desktop app',
+    actionLines: ['Install the', 'desktop app'],
+    benefits: [
+      { icon: FileText, label: 'Save work in local app files' },
+      { icon: DatabaseBackup, label: 'Make app snapshots' },
+      { icon: Bot, label: 'Keep automation running' },
+      { icon: Image, label: 'Attach item images' },
+      { icon: FileSearch, label: 'View logs' },
+    ],
+    drawbacks: [
+      { icon: ShieldAlert, label: 'Your computer may show safety prompts' },
+    ],
+    href: '/install',
+    icon: MonitorDown,
+    includes: 'Everything in Browser App and:',
+    summary: 'Install the full app',
+    title: 'Desktop App',
+    tone: 'desktop',
+  },
+  {
+    action: 'Build it yourself',
+    actionLines: ['Build it', 'yourself'],
+    benefits: [
+      { icon: Code2, label: 'Inspect the code' },
+      { icon: Terminal, label: 'Build the app yourself' },
+      { icon: PackageX, label: 'Avoid prebuilt downloads' },
+    ],
+    drawbacks: [
+      { icon: Wrench, label: 'Requires developer tools' },
+      { icon: Laptop, label: 'Currently focused on macOS' },
+      { icon: BadgeAlert, label: 'The app you build may still show safety prompts' },
+    ],
+    href: '#build-from-source',
+    icon: Code2,
+    includes: 'Everything in Desktop App and:',
+    summary: 'Build from source',
+    title: 'Source Build',
+    tone: 'source-build',
+  },
+];
+
+function productCardSurfaceClassName(tone: ProductCardTone) {
+  switch (tone) {
+    case 'demo':
+      return 'backdrop-blur-md saturate-[1.3] border-[#D97706]/35 bg-[#D97706]/[0.08]';
+    case 'browser':
+      return 'backdrop-blur-md saturate-[1.3] border-[#2563EB]/35 bg-[#2563EB]/[0.08]';
+    case 'desktop':
+      return 'backdrop-blur-md saturate-[1.3] border-[#9333EA]/35 bg-[#9333EA]/[0.08]';
+    case 'source-build':
+      return 'backdrop-blur-md saturate-[1.3] border-black/35 bg-black/[0.08]';
+  }
+}
 
 function publicPath(path: string) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -279,59 +406,10 @@ function HomeRoute() {
           </div>
           <TeamsCanDoRail />
         </section>
-        <section id="ways-to-start" className="grid w-screen max-w-full gap-4 overflow-hidden px-4 py-12 sm:px-6 md:grid-cols-4 md:px-8 xl:px-12">
-          <ProductCard
-            action="Start Quick Demo"
-            href={publicPath('/demo')}
-            icon={<ActionResumeIcon className="size-5" />}
-            price="Free"
-            tone="bg-[#D6E9F8] text-[#1F5F86]"
-            title="Demo"
-            benefits={[
-              { icon: <PackageCheck className="size-4" />, label: 'Sample shelves included' },
-              { icon: <WifiOff className="size-4" />, label: 'No install or account' },
-              { icon: <RotateCcw className="size-4" />, label: 'Reset whenever you want' },
-            ]}
-          />
-          <ProductCard
-            action="Start in the browser"
-            href={publicPath('/app')}
-            icon={<ActionSaveIcon className="size-5" />}
-            price="No install"
-            tone="bg-[#DDE8B5] text-[#42511F]"
-            title="Browser App"
-            benefits={[
-              { icon: <Globe2 className="size-4" />, label: 'Real workspace in this profile' },
-              { icon: <HardDrive className="size-4" />, label: 'SQLite WASM + OPFS when available' },
-              { icon: <Download className="size-4" />, label: 'Export backups regularly' },
-            ]}
-          />
-          <ProductCard
-            action="Install the desktop app"
-            href="/install"
-            icon={<EntitySafetyStockIcon className="size-5" />}
-            price="Full power"
-            tone="bg-[#E8DDF2] text-[#554178]"
-            title="Desktop App"
-            benefits={[
-              { icon: <ShieldCheck className="size-4" />, label: 'Full offline runtime' },
-              { icon: <HardDrive className="size-4" />, label: 'Local files and snapshots' },
-              { icon: <Sparkles className="size-4" />, label: 'Desktop automation support' },
-            ]}
-          />
-          <ProductCard
-            action="Build it yourself"
-            href="#build-from-source"
-            icon={<ActionDatabaseDownloadIcon className="size-5" />}
-            price="Advanced"
-            tone="bg-[#F6D9BE] text-[#70420D]"
-            title="Source Build"
-            benefits={[
-              { icon: <Terminal className="size-4" />, label: 'Inspect the source-visible code' },
-              { icon: <PackageCheck className="size-4" />, label: 'Build locally on macOS' },
-              { icon: <StatusWarningIcon className="size-4" />, label: 'Unsigned output with OS warnings' },
-            ]}
-          />
+        <section id="ways-to-start" className="grid w-screen max-w-full items-stretch gap-4 overflow-hidden px-4 py-12 sm:px-6 md:grid-cols-4 md:px-8 xl:px-12">
+          {productTiers.map((tier) => (
+            <ProductCard key={tier.title} tier={tier} />
+          ))}
         </section>
         <section id="build-from-source" className="w-screen max-w-full border-t border-border/70 px-4 py-14 sm:px-8 xl:px-12">
           <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel md:grid-cols-[1fr_0.78fr]">
@@ -425,48 +503,78 @@ function TeamsCanDoRail() {
   );
 }
 
-function ProductCard({
-  action,
-  benefits,
-  href,
-  icon,
-  price,
-  title,
-  tone,
-}: {
-  action: string;
-  benefits: Array<{ icon: ReactNode; label: string }>;
-  href: string;
-  icon: ReactNode;
-  price: string;
-  title: string;
-  tone: string;
-}) {
+function ProductCard({ tier }: { tier: ProductTier }) {
+  const {
+    action,
+    actionLines,
+    benefits,
+    drawbacks,
+    href,
+    icon: MainIcon,
+    includes,
+    summary,
+    title,
+    tone,
+  } = tier;
+  const benefitsHeading = includes === undefined ? 'What you get:' : includes;
+  const benefitsWithPromise: ProductCardItem[] = [
+    { icon: ShieldCheck, label: sharedProductPromise },
+    ...benefits,
+  ];
   const content = (
     <>
-      <div className={`mx-auto grid size-16 place-items-center rounded-[1.25rem] shadow-xs ${tone}`}>
-        {icon}
+      <LiquidGridCardLayer />
+      <div className="relative z-10 grid h-full grid-rows-[3rem_4.25rem_4rem_25rem_1fr] items-start gap-y-4 p-5 text-center xl:grid-rows-[3rem_4.25rem_4rem_18rem_1fr] xl:p-6">
+        <div className="grid h-12 place-items-center text-foreground">
+          <MainIcon aria-hidden="true" className="size-10 text-current" strokeWidth={1.8} />
+        </div>
+        <div className="grid content-start gap-2">
+          <h2 className="text-xl font-semibold leading-7 text-foreground">{title}</h2>
+          <p className="text-sm font-semibold leading-5 text-muted-foreground">{summary}</p>
+        </div>
+        <span className="inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-xs" aria-label={action}>
+          <span className="hidden min-w-0 text-balance leading-5 xl:inline">{action}</span>
+          <span className="grid min-w-0 justify-items-center leading-5 xl:hidden" aria-hidden="true">
+            {actionLines.map((line) => (
+              <span key={line}>{line}</span>
+            ))}
+          </span>
+          <ActionContinueIcon className="size-4 shrink-0" />
+        </span>
+        <div className="w-full text-left">
+          {benefitsHeading === null ? (
+            <p aria-hidden="true" className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">&nbsp;</p>
+          ) : (
+            <p className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">{benefitsHeading}</p>
+          )}
+          <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
+            {benefitsWithPromise.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex min-w-0 items-start gap-3">
+                <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
+                <span className="min-w-0 font-medium">{label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="w-full border-t border-white/70 pt-4 text-left">
+          <p className="text-sm font-semibold leading-5 text-muted-foreground">Keep in mind:</p>
+          <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
+            {drawbacks.map(({ icon: Icon, label }) => (
+              <li key={label} className="flex min-w-0 items-start gap-3">
+                <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
+                <span className="min-w-0 font-medium">{label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <p className="mt-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">{price}</p>
-      <h2 className="mt-2 text-xl font-semibold">{title}</h2>
-      <span className="mt-4 inline-flex w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-border/70 bg-background px-4 py-2 text-sm font-semibold text-foreground shadow-xs">
-        <span className="min-w-0 text-balance">{action}</span>
-        <ActionContinueIcon className="size-4 shrink-0" />
-      </span>
-      <ul className="mt-6 grid w-full rounded-xl bg-muted/35 p-2 text-sm leading-5 text-muted-foreground">
-        {benefits.map((benefit) => (
-          <li key={benefit.label} className="flex min-w-0 items-center gap-4 px-3 py-2.5">
-            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-background text-primary shadow-xs">
-              {benefit.icon}
-            </span>
-            <span className="min-w-0 text-left font-medium">{benefit.label}</span>
-          </li>
-        ))}
-      </ul>
     </>
   );
 
-  const className = 'flex min-h-80 min-w-0 flex-col items-center justify-center rounded-[1.15rem] border border-border/70 bg-card p-5 text-center shadow-panel transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none xl:p-6';
+  const className = cn(
+    'liquid-grid-card-frame group relative block h-full min-h-[45rem] min-w-0 overflow-hidden rounded-[1.15rem] border shadow-[0_16px_36px_rgba(48,31,20,0.08)] transition-[border-color,box-shadow,transform] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-white/7 before:backdrop-blur-xl before:content-[\'\'] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(1.15rem-1px)] after:bg-[linear-gradient(135deg,rgba(255,255,255,0.24),rgba(255,255,255,0.06)_42%,rgba(255,255,255,0.16))] after:mix-blend-screen after:content-[\'\'] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_22px_48px_rgba(48,31,20,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 xl:min-h-[39rem]',
+    productCardSurfaceClassName(tone),
+  );
 
   if (href === '/install') {
     return (
