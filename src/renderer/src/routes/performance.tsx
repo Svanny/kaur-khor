@@ -17,7 +17,7 @@ import { StatusAchievementIcon, StatusSavingsIcon, StatusScheduleIcon, StatusWar
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { WorkspaceActionRow, WorkspaceEmpty, WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
-import { compactActionButtonClassName, compactFilterControlClassName } from '@/components/system/compact-controls';
+import { compactActionButtonClassName, compactFilterControlClassName, compactTimeframeControlClassName } from '@/components/system/compact-controls';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
@@ -597,12 +597,12 @@ export function PerformanceRoute() {
                 aria-label={translateUiLiteral(language, 'Select performance time range')}
                 className={cn(
                   'min-w-[12rem] justify-between border border-border/70 bg-card text-sm font-medium text-foreground shadow-xs [&_svg]:opacity-100',
-                  compactFilterControlClassName,
+                  compactTimeframeControlClassName,
                 )}
               >
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex min-w-0 items-center gap-2">
                   <StatusScheduleIcon className="size-4" />
-                  <span>
+                  <span className="truncate">
                     {translateUiLiteral(
                       language,
                       'Timeframe: {value}',

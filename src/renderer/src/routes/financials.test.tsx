@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { compactTimeframeControlClassName } from '@/components/system/compact-controls';
 import { getTranslation } from '@/lib/translations';
 import { FinancialsRoute } from './financials';
 
@@ -330,6 +331,9 @@ describe('FinancialsRoute', () => {
     expect(screen.getAllByText('Money').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Money').length).toBeGreaterThan(0);
     expect(screen.getByRole('combobox', { name: /Select financials time range/i })).toHaveTextContent('1D');
+    expect(screen.getByRole('combobox', { name: /Select financials time range/i })).toHaveClass(
+      compactTimeframeControlClassName,
+    );
     expect(screen.getAllByText('Net sales').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Gross profit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Inventory capital').length).toBeGreaterThan(0);

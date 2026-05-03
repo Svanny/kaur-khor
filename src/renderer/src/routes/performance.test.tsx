@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { AppLanguage } from '@shared/inventory';
+import { compactTimeframeControlClassName } from '@/components/system/compact-controls';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { getTranslation } from '@/lib/translations';
 import { AnalysisRoute } from './analysis';
@@ -534,6 +535,9 @@ describe('PerformanceRoute', () => {
   test('renders the performance steering surface', async () => {
     await renderPerformanceRouteSettled();
 
+    expect(screen.getByRole('combobox', { name: /Select performance time range/i })).toHaveClass(
+      compactTimeframeControlClassName,
+    );
     expect(screen.getAllByText('Pressure')[0]).toBeInTheDocument();
     expect(screen.getByText('Demand, available capacity, incoming stock, and pricing in one business view.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Move now' })).toBeInTheDocument();
