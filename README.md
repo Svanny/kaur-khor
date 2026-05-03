@@ -55,7 +55,7 @@ Browser mode keeps the main workflow visible, but it is not the desktop runtime.
 The public landing page now presents the ways to start in plain user terms:
 
 - Demo: try sample shelves, see the workflow, and reset anytime.
-- Browser App: save real work in this browser, then export and import backups.
+- Browser App: everything in the demo plus real work in this browser, then export and import backups.
 - Desktop App: everything in the browser app plus local app files, snapshots, automation, item images, and logs.
 - Source Build: everything in the desktop app plus code inspection and a local macOS source build path.
 
@@ -105,6 +105,8 @@ If macOS blocks banji because the app is unsigned:
 3. Re-open the app and confirm the final prompt.
 
 This allows banji to run without disabling Gatekeeper globally.
+
+If you need a walkthrough, see this [YouTube tutorial for opening macOS app from unidentified developer](https://youtu.be/sLox8h-6BVw).
 
 ### Running Unsigned Builds On Windows
 

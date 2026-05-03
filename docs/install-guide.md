@@ -28,13 +28,19 @@ Approved flow:
 6. Choose `Open`.
 7. Confirm `Open`.
 8. If blocked, open `System Settings` -> `Privacy & Security` -> `Open Anyway`.
+9. If you need a walkthrough, use this [YouTube tutorial for opening macOS app from unidentified developer](https://youtu.be/sLox8h-6BVw).
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source on macOS:
+To build from source on macOS, inspect the source on the [official GitHub page](https://github.com/Svanny/banji), then open the Terminal app. Copy the code below and paste it inside Terminal:
 
 ```bash
-bash scripts/build-mac-from-source.sh
+curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip
+unzip banji.zip
+mv banji-main banji
+cd banji
+chmod +x scripts/build-mac-from-source.sh
+./scripts/build-mac-from-source.sh
 ```
 
 ## Windows
