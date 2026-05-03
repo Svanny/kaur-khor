@@ -95,6 +95,42 @@ describe('desktop runtime security contract', () => {
     );
   });
 
+  it('warns before quitting while Telegram automation is live listening', () => {
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close banji and stop automations?';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing banji stops Telegram listening, automation intake, and automatic checks until you open banji again.';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep banji open';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close banji';");
+    expect(mainSource).toContain("return process.env.BANJI_BENCHMARK === '1';");
+    expect(mainSource).toContain('async function isDesktopTelegramAutomationLiveListening()');
+    expect(mainSource).toContain('if (!preferences.showAutomationsPage) {');
+    expect(mainSource).toContain("transport.connection.status === 'connected'");
+    expect(mainSource).toContain('transport.connection.hasBotToken');
+    expect(mainSource).toContain('Boolean(transport.botToken?.trim())');
+    expect(mainSource).toContain('await createCloseSafetyDesktopBackupSnapshot(desktopDataPath);');
+    expect(mainSource).toContain("console.warn('[desktop-data] close-safety backup snapshot skipped for before-close-automation', error);");
+    expect(mainSource).toContain('buttons: [');
+    expect(mainSource).toContain('defaultId: 0,');
+    expect(mainSource).toContain('cancelId: 0,');
+    expect(mainSource).not.toContain('detail: DESKTOP_CLOSE_AUTOMATION');
+    expect(mainSource).toContain('function requestDesktopQuit()');
+    expect(mainSource).toContain("label: 'Quit banji'");
+    expect(mainSource).toContain('click: requestDesktopQuit,');
+    expect(mainSource).toContain("mainWindow.on('close', (event) => {");
+    expect(mainSource).not.toContain("process.platform === 'darwin' || desktopQuitConfirmed");
+    expect(mainSource).toContain('app.quit();');
+    expect(mainSource).toContain("app.on('before-quit', (event) => {");
+    expect(mainSource).toContain('await cleanupCloseSafetyDesktopBackupSnapshots(desktopDataPath);');
+  });
+
+  it('keeps the GUI benchmark runner out of packaged production builds', () => {
+    expect(mainSource).toContain('if (!app.isPackaged) {');
+    expect(mainSource).toContain('registerBenchmarkRunnerIpc({');
+    expect(preloadSource).toContain("const benchmarkRunnerBridge: DesktopBridge['benchmarkRunner'] | undefined = process.env.NODE_ENV === 'development'");
+    expect(preloadSource).toContain('...(benchmarkRunnerBridge ? { benchmarkRunner: benchmarkRunnerBridge } : {}),');
+    expect(preloadSource).toContain('benchmark: {');
+    expect(preloadSource).toContain('getEventCount: (name: string): Promise<number> =>');
+  });
+
   it('blocks renderer-created windows and top-level external navigation', () => {
     expect(mainSource).toContain("import { installMainWindowNavigationGuards } from './navigation-guards';");
     expect(mainSource).toContain('installMainWindowNavigationGuards(mainWindow);');

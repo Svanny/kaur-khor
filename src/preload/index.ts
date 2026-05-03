@@ -118,6 +118,36 @@ async function invokeWithBenchmark<T>(channel: string, payload?: unknown): Promi
   }
 }
 
+const benchmarkRunnerBridge: DesktopBridge['benchmarkRunner'] | undefined = process.env.NODE_ENV === 'development'
+  ? {
+      getAvailability: (): Promise<BanjiBenchmarkRunnerAvailability> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGetAvailability),
+      listRuns: (): Promise<BanjiBenchmarkRunRecord[]> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerListRuns),
+      readRun: (runId: string): Promise<BanjiBenchmarkRunRecord | null> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerReadRun, runId),
+      startRun: (payload: BanjiBenchmarkRunOptions): Promise<BanjiBenchmarkRunRecord> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerStartRun, payload),
+      cancelRun: (runId: string): Promise<BanjiBenchmarkRunRecord> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCancelRun, runId),
+      compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<BanjiBenchmarkComparison> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCompareRuns, payload),
+      generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest): Promise<BanjiBenchmarkFlamegraphArtifact> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, payload),
+      revealRun: (runId: string): Promise<void> =>
+        invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerRevealRun, runId),
+      onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => {
+        const handler = (_event: IpcRendererEvent, payload: BanjiBenchmarkRunEvent) => {
+          listener(payload);
+        };
+        ipcRenderer.on(IPC_CHANNELS.benchmarkRunnerEvent, handler);
+        return () => {
+          ipcRenderer.removeListener(IPC_CHANNELS.benchmarkRunnerEvent, handler);
+        };
+      },
+    }
+  : undefined;
+
 const desktopBridge: DesktopBridge = {
   automation: {
     getWorkspace: () => invokeWithBenchmark(IPC_CHANNELS.automationGetWorkspace),
@@ -159,33 +189,7 @@ const desktopBridge: DesktopBridge = {
     }): Promise<{ count: number; ts: number | null }> =>
       invokeWithBenchmark(IPC_CHANNELS.benchmarkWaitForEventCount, payload),
   },
-  benchmarkRunner: {
-    getAvailability: (): Promise<BanjiBenchmarkRunnerAvailability> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGetAvailability),
-    listRuns: (): Promise<BanjiBenchmarkRunRecord[]> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerListRuns),
-    readRun: (runId: string): Promise<BanjiBenchmarkRunRecord | null> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerReadRun, runId),
-    startRun: (payload: BanjiBenchmarkRunOptions): Promise<BanjiBenchmarkRunRecord> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerStartRun, payload),
-    cancelRun: (runId: string): Promise<BanjiBenchmarkRunRecord> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCancelRun, runId),
-    compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<BanjiBenchmarkComparison> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCompareRuns, payload),
-    generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest): Promise<BanjiBenchmarkFlamegraphArtifact> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, payload),
-    revealRun: (runId: string): Promise<void> =>
-      invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerRevealRun, runId),
-    onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => {
-      const handler = (_event: IpcRendererEvent, payload: BanjiBenchmarkRunEvent) => {
-        listener(payload);
-      };
-      ipcRenderer.on(IPC_CHANNELS.benchmarkRunnerEvent, handler);
-      return () => {
-        ipcRenderer.removeListener(IPC_CHANNELS.benchmarkRunnerEvent, handler);
-      };
-    },
-  },
+  ...(benchmarkRunnerBridge ? { benchmarkRunner: benchmarkRunnerBridge } : {}),
   system: {
     getAppContext: () => invokeWithBenchmark(IPC_CHANNELS.systemGetAppContext),
     getLocalDataInfo: () => invokeWithBenchmark(IPC_CHANNELS.systemGetLocalDataInfo),

@@ -34,7 +34,7 @@ import {
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { buildRememberedPageHref, usePageStateMemoryVersion } from '@/lib/page-state-memory';
-import { SETTINGS_SECTIONS, resolveSettingsSection, type SettingsSectionConfig } from '@/lib/settings-navigation';
+import { resolveSettingsSection, visibleSettingsSections, type SettingsSectionConfig } from '@/lib/settings-navigation';
 import {
   deriveNavigationAvailability,
   isUnlockedNavItemNew,
@@ -139,21 +139,21 @@ const SETTINGS_SECTION: ShellSectionConfig = {
   matches: (pathname) => matchesSection(pathname, '/settings'),
 };
 
-const SETTINGS_CREDITS_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'credits');
-const SETTINGS_HELP_SECTION = SETTINGS_SECTIONS.find((section) => section.id === 'help');
-const SETTINGS_SECTION_LOOKUP = new Map(SETTINGS_SECTIONS.filter((section) => section.id !== 'credits').map((section) => [section.id, section]));
-const orderedSettingsSections = (ids: Array<SettingsSectionConfig['id']>) =>
-  ids
-    .map((id) => SETTINGS_SECTION_LOOKUP.get(id))
+const orderedSettingsSections = (ids: Array<SettingsSectionConfig['id']>, sections: SettingsSectionConfig[]) => {
+  const sectionLookup = new Map(sections.filter((section) => section.id !== 'credits').map((section) => [section.id, section]));
+  return ids
+    .map((id) => sectionLookup.get(id))
     .filter((section): section is SettingsSectionConfig => section != null);
-const SETTINGS_NAVIGATION_GROUPS: SettingsSidebarGroupConfig[] = [
+};
+
+const settingsNavigationGroups = (sections: SettingsSectionConfig[]): SettingsSidebarGroupConfig[] => [
   {
     labelKey: 'sidebarSectionMain',
-    sections: orderedSettingsSections(['workspace', 'interface', 'automation', 'history']),
+    sections: orderedSettingsSections(['workspace', 'interface', 'automation', 'history'], sections),
   },
   {
     labelKey: 'sidebarSectionOther',
-    sections: orderedSettingsSections(['local-data', 'planning', 'benchmarks', 'danger-zone']),
+    sections: orderedSettingsSections(['local-data', 'planning', 'benchmarks', 'danger-zone'], sections),
   },
 ];
 
@@ -367,7 +367,10 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
   const showGlobalLoadingScreen =
     isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
   const navigationAvailability = deriveNavigationAvailability(inventory);
-  const visibleSettingsGroups = SETTINGS_NAVIGATION_GROUPS.map((group) => ({
+  const settingsSections = visibleSettingsSections();
+  const settingsCreditsSection = settingsSections.find((section) => section.id === 'credits');
+  const settingsHelpSection = settingsSections.find((section) => section.id === 'help');
+  const visibleSettingsGroups = settingsNavigationGroups(settingsSections).map((group) => ({
     ...group,
     sections: group.sections.filter(
       (section) => section.id !== 'history' || navigationAvailability.hasHistory,
@@ -533,21 +536,21 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                   <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
                 </div>
               ) : null}
-              {isSettingsRoute && SETTINGS_HELP_SECTION ? (
+              {isSettingsRoute && settingsHelpSection ? (
                 <SettingsSidebarMenu
                   location={location}
                   pathname={location.pathname}
-                  sections={[SETTINGS_HELP_SECTION]}
+                  sections={[settingsHelpSection]}
                   showSidebarText={showSidebarText}
                   t={t}
                   onNavigate={handleSidebarNavigation}
                 />
               ) : null}
-              {isSettingsRoute && SETTINGS_CREDITS_SECTION ? (
+              {isSettingsRoute && settingsCreditsSection ? (
                 <SettingsSidebarMenu
                   location={location}
                   pathname={location.pathname}
-                  sections={[SETTINGS_CREDITS_SECTION]}
+                  sections={[settingsCreditsSection]}
                   showSidebarText={showSidebarText}
                   t={t}
                   onNavigate={handleSidebarNavigation}

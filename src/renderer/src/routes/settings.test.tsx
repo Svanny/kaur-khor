@@ -567,6 +567,16 @@ describe('SettingsRoute', () => {
     expect(screen.queryByRole('button', { name: 'Run selected' })).not.toBeInTheDocument();
   });
 
+  it('redirects the benchmark settings route outside dev builds', async () => {
+    vi.stubEnv('DEV', false);
+
+    renderSettingsRoute('/settings/benchmarks');
+
+    expect(await screen.findByText('Regional preferences')).toBeInTheDocument();
+    expect(screen.queryByText('Benchmark runner is desktop-only')).not.toBeInTheDocument();
+    expect(benchmarkAvailability).not.toHaveBeenCalled();
+  });
+
   it('filters benchmark targets by result status from the checklist menu', async () => {
     benchmarkListRuns.mockResolvedValue([
       benchmarkRunWithTargets([

@@ -178,10 +178,12 @@ const managedCore = createManagedCoreController({
   resourcesPath: process.resourcesPath,
 });
 
-registerBenchmarkRunnerIpc({
-  appIsPackaged: app.isPackaged,
-  projectRoot,
-});
+if (!app.isPackaged) {
+  registerBenchmarkRunnerIpc({
+    appIsPackaged: app.isPackaged,
+    projectRoot,
+  });
+}
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;

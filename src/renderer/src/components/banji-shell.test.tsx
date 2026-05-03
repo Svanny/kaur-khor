@@ -25,6 +25,7 @@ vi.mock('@/state/preferences', () => ({
 
 describe('BanjiShell', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs();
     window.localStorage.clear();
     setViewport({ width: 375, isMobile: true });
     Object.defineProperty(window.navigator, 'platform', {
@@ -283,6 +284,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Local data' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Benchmarks' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
@@ -312,6 +314,32 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
+  });
+
+  test('hides benchmark settings navigation outside dev builds', () => {
+    vi.stubEnv('DEV', false);
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/interface']}>
+        <BanjiShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings/*" />
+          </Routes>
+        </BanjiShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Preferences' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Interface' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Advanced' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Local data' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Automations' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Credits' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Danger' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Benchmarks' })).not.toBeInTheDocument();
   });
 
   test('returns from settings to the originating app route', async () => {

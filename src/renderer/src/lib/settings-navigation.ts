@@ -32,6 +32,18 @@ export type SettingsSectionConfig = {
   titleKey: TranslationKey;
 };
 
+export function isBenchmarkSettingsEnabled() {
+  return import.meta.env.DEV;
+}
+
+const BENCHMARK_SETTINGS_SECTION: SettingsSectionConfig = {
+  id: 'benchmarks',
+  path: '/settings/benchmarks',
+  titleKey: 'settingsBenchmarksTitle',
+  descriptionKey: 'settingsBenchmarksDescription',
+  icon: NavigationPerformanceIcon,
+};
+
 export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
   {
     id: 'workspace',
@@ -75,13 +87,7 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     descriptionKey: 'navHistory',
     icon: NavigationHistoryIcon,
   },
-  {
-    id: 'benchmarks',
-    path: '/settings/benchmarks',
-    titleKey: 'settingsBenchmarksTitle',
-    descriptionKey: 'settingsBenchmarksDescription',
-    icon: NavigationPerformanceIcon,
-  },
+  ...(import.meta.env.DEV ? [BENCHMARK_SETTINGS_SECTION] : []),
   {
     id: 'help',
     path: '/settings/help',
@@ -105,10 +111,19 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
   },
 ];
 
+export function isSettingsSectionEnabled(section: SettingsSectionConfig) {
+  return section.id !== 'benchmarks' || isBenchmarkSettingsEnabled();
+}
+
+export function visibleSettingsSections() {
+  return SETTINGS_SECTIONS.filter(isSettingsSectionEnabled);
+}
+
 export function matchesSettingsPath(pathname: string, path: string) {
   return pathname === path || pathname.startsWith(`${path}/`);
 }
 
 export function resolveSettingsSection(pathname: string) {
-  return SETTINGS_SECTIONS.find((section) => matchesSettingsPath(pathname, section.path)) ?? SETTINGS_SECTIONS[0];
+  const sections = visibleSettingsSections();
+  return sections.find((section) => matchesSettingsPath(pathname, section.path)) ?? sections[0];
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { lazy, Suspense, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ActionDatabaseDownloadIcon,
@@ -52,16 +52,19 @@ import {
   restoreBackupSnapshotAction,
   type SettingsExportFormat,
 } from '@/lib/settings-workspace-actions';
-import { resolveSettingsSection } from '@/lib/settings-navigation';
+import { isBenchmarkSettingsEnabled, resolveSettingsSection } from '@/lib/settings-navigation';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { usePreferences } from '@/state/preferences';
-import { BenchmarkSettingsPage } from './benchmark-settings';
 import { AutomationsRoute } from './automations';
 import { HelpRoute } from './help';
 import { StockUpdateRoute } from './stock-update';
+
+const BenchmarkSettingsPage = isBenchmarkSettingsEnabled()
+  ? lazy(() => import('./benchmark-settings').then((module) => ({ default: module.BenchmarkSettingsPage })))
+  : null;
 
 const numberInputClassName =
   'h-11 w-full rounded-xl border border-border bg-background px-3 text-base shadow-none outline-none';
@@ -1678,7 +1681,15 @@ export function SettingsRoute() {
               path="local-data"
             />
             <Route
-              element={<BenchmarkSettingsPage />}
+              element={
+                isBenchmarkSettingsEnabled() && BenchmarkSettingsPage
+                  ? (
+                      <Suspense fallback={null}>
+                        <BenchmarkSettingsPage />
+                      </Suspense>
+                    )
+                  : <Navigate replace to="/settings/workspace" />
+              }
               path="benchmarks"
             />
             <Route
