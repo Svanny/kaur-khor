@@ -604,8 +604,9 @@ describe('WebRoutes embedded app fallback state', () => {
 
     const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
     expect(bannerCard).not.toBeNull();
-    expect(bannerCard).toHaveClass('md:flex-row', 'md:rounded-xl', 'md:bg-background/90', 'md:backdrop-blur-xl');
-    expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('md:w-44', 'md:rounded-lg');
+    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/90', 'backdrop-blur-xl');
+    expect(screen.getByText('Demo data - not your real workspace.')).toHaveClass('whitespace-normal', 'break-words');
+    expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
   });
 
   test('keeps browser app banner copy compact on mobile', () => {

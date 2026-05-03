@@ -261,7 +261,7 @@ function WebAppBanner({
   const actionButtonClassName = cn(
     'w-full justify-start md:h-8 md:min-w-0 md:px-2',
     sidebarCollapsed && !isOnboarding ? 'md:size-8 md:justify-center md:p-2' : null,
-    isOnboarding ? 'md:h-9 md:w-44 md:justify-center md:rounded-lg md:px-3' : null,
+    isOnboarding ? 'h-9 w-36 justify-center rounded-lg px-3 sm:w-44' : null,
   );
   return (
     <div
@@ -277,15 +277,15 @@ function WebAppBanner({
           'mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-none md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5',
           !isOnboarding ? embeddedBannerRailHeightClassName : null,
           sidebarCollapsed && !isOnboarding ? 'md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0' : null,
-          isOnboarding ? 'md:flex-row md:items-center md:justify-between md:gap-4 md:rounded-xl md:border-border/70 md:bg-background/90 md:px-3 md:py-2 md:shadow-[0_18px_48px_rgba(48,31,20,0.14)] md:backdrop-blur-xl' : null,
+          isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/90 px-3 py-2 shadow-[0_18px_48px_rgba(48,31,20,0.14)] backdrop-blur-xl' : null,
         )}
       >
-        <div className={cn('grid gap-2', sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null, isOnboarding ? 'md:flex md:min-w-0 md:flex-1 md:items-center md:gap-3' : null)}>
-          <span className={cn('grid size-9 shrink-0 place-items-center justify-self-center rounded-[0.85rem] bg-amber-100 text-amber-950 md:size-8 md:rounded-md', isOnboarding ? 'md:size-9 md:rounded-lg' : null)}>
+        <div className={cn('grid gap-2', sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null, isOnboarding ? 'flex min-w-0 flex-1 items-center gap-3' : null)}>
+          <span className={cn('grid size-9 shrink-0 place-items-center justify-self-center rounded-[0.85rem] bg-amber-100 text-amber-950 md:size-8 md:rounded-md', isOnboarding ? 'size-9 rounded-lg' : null)}>
             <StatusWarningIcon className="size-4" />
           </span>
-          <div className={cn('min-w-0 text-left', sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'md:max-w-[24rem]' : null)}>
-            <p className={cn('font-semibold md:leading-4', isOnboarding ? 'md:truncate' : null)}>
+          <div className={cn('min-w-0 text-left', sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'max-w-[18rem] sm:max-w-[24rem]' : null)}>
+            <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)}>
               {isDemo ? 'Demo data - not your real workspace.' : 'banji saves your work in this browser. Back it up regularly.'}
             </p>
             {isDemo ? (
@@ -293,7 +293,7 @@ function WebAppBanner({
             ) : null}
           </div>
         </div>
-        <div className={cn('grid grid-cols-1 gap-2 md:gap-1.5', isOnboarding ? 'md:grid-cols-2 md:justify-items-end md:justify-self-end' : null)}>
+        <div className={cn('grid grid-cols-1 gap-2 md:gap-1.5', isOnboarding ? 'grid-cols-2 justify-items-end justify-self-end' : null)}>
           <Button aria-label="Export backup" className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
             <ActionExportIcon className="size-4" />
             <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>Export backup</span>
