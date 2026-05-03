@@ -11,7 +11,8 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Buttons that open popups, drawers, modals, or sheets must not navigate before the user submits the popup action; keep popup state local or route-neutral until submit.
 - Sheets and dialogs containing helper tooltip triggers must control initial focus so opening the surface never auto-focuses a tooltip trigger.
 - Interface view preset cards must keep fixed square card tracks with even outer gutters, and their wireframes must fill the preview/title space with proportional internal density rather than leaving blank frame area.
-- Khmer UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
+- Khmer Banji app UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
+- Khmer web landing copy must use Khmer pronunciations for app, browser, desktop, backup, snapshots, automations, and code; keep proper nouns and platform/tool names like GitHub, Terminal, macOS, OPFS, and Bash in English.
 - Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
 - Work and Explain window surfaces must stretch to the viewport, with scrolling breathing room rendered outside the window rather than as inner padding.
 - Web landing-page browser annotations must map each selected element to a concrete source change; verify the rendered localhost page when browser tooling is available before claiming the annotation is addressed.
