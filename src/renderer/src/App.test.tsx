@@ -269,6 +269,17 @@ describe('LoadedApp', () => {
     expect(screen.queryByText('Work screen')).not.toBeInTheDocument();
   });
 
+  it('lets completed users explicitly reopen onboarding', async () => {
+    render(
+      <MemoryRouter initialEntries={['/onboarding']}>
+        <LoadedApp />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Onboarding screen')).toBeInTheDocument();
+    expect(screen.queryByText('Home screen')).not.toBeInTheDocument();
+  });
+
   it('marks the hydrated app shell with the active Khmer language', async () => {
     preferencesHook.mockReturnValue({
       isHydrated: true,

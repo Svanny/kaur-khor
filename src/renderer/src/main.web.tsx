@@ -1,8 +1,10 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { EmbeddedAppRoute, WebRoutes } from '@/routes/web';
 import './globals.css';
+
+const EmbeddedAppRoute = React.lazy(() => import('@/routes/web/embedded-app').then((module) => ({ default: module.EmbeddedAppRoute })));
+const WebRoutes = React.lazy(() => import('@/routes/web/landing').then((module) => ({ default: module.WebRoutes })));
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const relativePath = basePath && window.location.pathname.startsWith(basePath)
@@ -19,10 +21,10 @@ const app = relativePath === '/demo' || relativePath === '/app'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   relativePath === '/demo' || relativePath === '/app'
-    ? app
+    ? <React.Suspense fallback={null}>{app}</React.Suspense>
     : (
       <React.StrictMode>
-        {app}
+        <React.Suspense fallback={null}>{app}</React.Suspense>
       </React.StrictMode>
     ),
 );

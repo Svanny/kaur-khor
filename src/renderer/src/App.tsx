@@ -213,6 +213,7 @@ export function AppRoutes() {
 
 function AppFrame() {
   const { isHydrated, language, onboardingCompletedAt } = usePreferences();
+  const location = useLocation();
   const preferencesHydrationRecordedRef = useRef(false);
 
   useEffect(() => {
@@ -245,6 +246,10 @@ function AppFrame() {
         <Route element={<Navigate replace to="/onboarding" />} path="*" />
       </Routes>
     );
+  }
+
+  if (location.pathname === '/onboarding') {
+    return <OnboardingRoute allowCompleted />;
   }
 
   return (

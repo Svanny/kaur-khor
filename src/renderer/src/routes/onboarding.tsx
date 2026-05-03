@@ -133,7 +133,7 @@ function LocalizedOnboardingCopy({
   return <span className={className}>{copy[language]}</span>;
 }
 
-export function OnboardingRoute() {
+export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: boolean } = {}) {
   const navigate = useNavigate();
   const {
     currency,
@@ -195,7 +195,7 @@ export function OnboardingRoute() {
     );
   }
 
-  if (onboardingCompletedAt) {
+  if (onboardingCompletedAt && !allowCompleted) {
     return <Navigate replace to="/" />;
   }
 

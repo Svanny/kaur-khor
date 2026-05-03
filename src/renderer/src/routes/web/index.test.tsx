@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { fallbackStateForMode, formatBrowserStorageErrorMessage, WebRoutes } from './index';
+import { EmbeddedAppBanner, fallbackStateForMode, formatBrowserStorageErrorMessage, WebRoutes } from './index';
 
 const operatorFeatureLabels = [
   'Review Work Queue',
@@ -82,6 +82,17 @@ const productCardCopy = {
     'Need to use the Terminal app',
     'The app you build may still show safety prompts',
   ],
+} as const;
+
+const embeddedStorage = {
+  databaseName: 'banji-browser-demo',
+  handle: null,
+  lastBackupAt: null,
+  message: 'This demo uses a separate sample workspace.',
+  persistence: 'unknown',
+  sqliteVersion: 'pending',
+  status: 'ready',
+  vfs: 'opfs-sahpool',
 } as const;
 
 const releaseAssets = [
@@ -189,8 +200,15 @@ function mockNavigator({
 
 async function expectRecommendedDownload(expectedAssetName: string, expectedHref: string) {
   const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+  fireEvent.focus(select);
   await waitFor(() => expect(select.value).toBe(expectedAssetName));
   expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute('href', expectedHref);
+}
+
+async function startReleaseDownloadLoad() {
+  const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+  fireEvent.focus(select);
+  return select;
 }
 
 describe('WebRoutes landing rail', () => {
@@ -261,6 +279,15 @@ describe('WebRoutes landing rail', () => {
 });
 
 describe('WebRoutes releases section', () => {
+  test('does not request release assets before the releases section is requested', () => {
+    const fetchMock = vi.fn(() => new Promise(() => {}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWebHome();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   test('selects the macOS Apple Silicon DMG for macOS ARM browsers', async () => {
     mockLatestReleaseFetch();
     mockNavigator({
@@ -354,7 +381,7 @@ describe('WebRoutes releases section', () => {
 
     renderWebHome();
 
-    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    const select = await startReleaseDownloadLoad();
     await waitFor(() => expect(select.value).toBe(''));
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
   });
@@ -369,7 +396,7 @@ describe('WebRoutes releases section', () => {
 
     renderWebHome();
 
-    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    const select = await startReleaseDownloadLoad();
     await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
 
     fireEvent.change(select, { target: { value: 'banji-1.2.3-linux-arm64.AppImage' } });
@@ -390,6 +417,7 @@ describe('WebRoutes releases section', () => {
 
     renderWebHome();
 
+    await startReleaseDownloadLoad();
     expect(await screen.findByText('Release downloads are unavailable right now.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open latest release/i })).not.toBeInTheDocument();
@@ -418,7 +446,7 @@ describe('WebRoutes releases section', () => {
 
     renderWebHome();
 
-    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    const select = await startReleaseDownloadLoad();
     await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
     expect(screen.getByText('Windows install notes')).toBeInTheDocument();
     expect(screen.getByText('Do not disable SmartScreen globally.')).toBeInTheDocument();
@@ -550,9 +578,83 @@ describe('WebRoutes product cards', () => {
       expect(card.tagName).not.toBe('A');
     }
   });
+
+  test('routes browser product card starts through onboarding', () => {
+    const { container } = renderWebHome();
+    const section = getProductCardsSection(container);
+
+    expect(within(section).getByRole('link', { name: 'Start Quick Demo' })).toHaveAttribute('href', '/demo#/onboarding');
+    expect(within(section).getByRole('link', { name: 'Start in the browser' })).toHaveAttribute('href', '/app#/onboarding');
+  });
 });
 
 describe('WebRoutes embedded app fallback state', () => {
+  test('renders the embedded onboarding banner as a top nav overlay', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/onboarding']}>
+        <EmbeddedAppBanner
+          mode="demo"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
+    expect(bannerCard).not.toBeNull();
+    expect(bannerCard).toHaveClass('md:flex-row', 'md:rounded-xl', 'md:bg-background/90', 'md:backdrop-blur-xl');
+    expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('md:w-44', 'md:rounded-lg');
+  });
+
+  test('keeps browser app banner copy compact on mobile', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <EmbeddedAppBanner
+          mode="app"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('banji saves your work in this browser. Back it up regularly.')).toBeInTheDocument();
+    expect(screen.queryByText(/Your workspace is saved in this browser/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reports and Telegram checks only keep running/)).not.toBeInTheDocument();
+  });
+
+  test('removes the embedded banner backing card when the sidebar is collapsed', async () => {
+    const sidebar = document.createElement('div');
+    sidebar.dataset.slot = 'sidebar';
+    sidebar.dataset.state = 'collapsed';
+    document.body.appendChild(sidebar);
+    try {
+      const { container } = render(
+        <MemoryRouter initialEntries={['/']}>
+          <EmbeddedAppBanner
+            mode="demo"
+            storage={embeddedStorage}
+            onExport={vi.fn()}
+            onImport={vi.fn()}
+            onReset={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
+      expect(bannerCard).not.toBeNull();
+      await waitFor(() => {
+        expect(bannerCard).toHaveClass('md:min-h-[13.5rem]', 'md:border-0', 'md:bg-transparent', 'md:px-0', 'md:py-0');
+      });
+      expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('md:size-8', 'md:justify-center', 'md:p-2');
+    } finally {
+      sidebar.remove();
+    }
+  });
+
   test('keeps fresh demo and browser fallbacks eligible for onboarding', () => {
     const demoState = fallbackStateForMode('demo');
     const browserState = fallbackStateForMode('app');
