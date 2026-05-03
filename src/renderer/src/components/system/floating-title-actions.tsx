@@ -26,10 +26,12 @@ export function useFloatingTitleActions(enabled: boolean) {
     updateVisibility();
     window.addEventListener('scroll', updateVisibility, { passive: true });
     window.addEventListener('resize', updateVisibility);
+    document.addEventListener('scroll', updateVisibility, { capture: true, passive: true });
 
     return () => {
       window.removeEventListener('scroll', updateVisibility);
       window.removeEventListener('resize', updateVisibility);
+      document.removeEventListener('scroll', updateVisibility, true);
     };
   }, [anchorElement, enabled]);
 

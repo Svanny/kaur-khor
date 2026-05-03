@@ -31,6 +31,7 @@ import {
   type BrowserStorageSupportedHandle,
 } from '@/runtime/web';
 import type { DesktopBridge } from '@shared/ipc';
+import { EmbeddedAutoZoomViewport } from './embedded-viewport';
 
 type EmbeddedMode = 'app' | 'demo';
 type PersistenceStatus = 'loading' | 'ready' | 'unsupported' | 'error';
@@ -629,7 +630,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <div className="min-h-svh bg-background">
+    <EmbeddedAutoZoomViewport>
       <HashRouter>
         <EmbeddedAppBanner
           mode={mode}
@@ -640,6 +641,6 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         />
         <App />
       </HashRouter>
-    </div>
+    </EmbeddedAutoZoomViewport>
   );
 }

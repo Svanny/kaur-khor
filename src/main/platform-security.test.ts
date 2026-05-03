@@ -6,22 +6,23 @@ const mainSource = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
 const preloadSource = readFileSync(new URL('../preload/index.ts', import.meta.url), 'utf8');
 const rendererHtml = readFileSync(new URL('../renderer/index.html', import.meta.url), 'utf8');
 const windowActivationSource = readFileSync(new URL('./window-activation.ts', import.meta.url), 'utf8');
+const windowZoomSource = readFileSync(new URL('./window-zoom.ts', import.meta.url), 'utf8');
 const benchmarkRunnerSource = readFileSync(new URL('./benchmark-runner.ts', import.meta.url), 'utf8');
 
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
-    expect(mainSource).toContain('function createMainWindowWebPreferences()');
+    expect(mainSource).toContain("contentBounds: Pick<Electron.Rectangle, 'height' | 'width'>,");
     expect(mainSource).toContain("const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';");
     expect(mainSource).toContain("preload: join(__dirname, '../preload/index.mjs')");
     expect(mainSource).toContain('contextIsolation: true');
     expect(mainSource).toContain('nodeIntegration: false');
-    expect(mainSource).toContain('zoomFactor: PREFERRED_BASELINE_ZOOM_FACTOR,');
+    expect(mainSource).toContain('zoomFactor: initialWindowZoomFactor(contentBounds),');
     expect(mainSource).toContain('screen.getPrimaryDisplay().workArea');
-    expect(mainSource).toContain('const PREFERRED_BASELINE_ZOOM_LEVEL = 0;');
-    expect(mainSource).toContain('const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;');
-    expect(mainSource).toContain('const ZOOM_LEVEL_STEP = 0.5;');
-    expect(mainSource).toContain('const windowZoomLevels = new WeakMap<BrowserWindow, number>();');
+    expect(windowZoomSource).toContain('export const PREFERRED_BASELINE_ZOOM_LEVEL = 0;');
+    expect(windowZoomSource).toContain('export const ZOOM_LEVEL_STEP = 0.5;');
+    expect(mainSource).toContain('const windowZoomStates = new WeakMap<BrowserWindow, ManagedWindowZoomState>();');
     expect(mainSource).toContain('installPreferredWindowZoomBehavior(mainWindow);');
+    expect(mainSource).toContain('minWidth: 720,');
     expect(mainSource).toContain('show: false,');
     expect(mainSource).toContain('focusable: !benchmarkWindowBackgroundMode,');
     expect(mainSource).toContain('skipTaskbar: benchmarkWindowBackgroundMode,');
@@ -47,8 +48,8 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain("label: 'Actual Size'");
     expect(mainSource).toContain("accelerator: 'CmdOrCtrl+0'");
     expect(mainSource).toContain('setFocusedWindowToActualSize();');
-    expect(mainSource).toContain("banji's \"Actual Size\" restores the app's preferred baseline zoom");
-    expect(mainSource).toContain('setManagedWindowZoomLevel(window, PREFERRED_BASELINE_ZOOM_LEVEL);');
+    expect(mainSource).toContain("banji's \"Actual Size\" resets the manual zoom offset while preserving automatic viewport zoom");
+    expect(mainSource).toContain('resetManualWindowZoomLevel(state);');
     expect(mainSource).toContain("label: 'Zoom In'");
     expect(mainSource).toContain("label: 'Zoom Out'");
     expect(mainSource).toContain('changeFocusedWindowZoom(1);');
@@ -69,8 +70,11 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain("webContents.on('did-navigate-in-page', () => {");
     expect(mainSource).toContain("webContents.on('dom-ready', () => {");
     expect(mainSource).toContain("webContents.on('did-finish-load', () => {");
+    expect(mainSource).toContain('applyManagedWindowZoomLevel(window, { force: true });');
     expect(mainSource).toContain("window.on('focus', () => {");
     expect(mainSource).toContain('applyManagedWindowZoomLevel(window);');
+    expect(windowZoomSource).toContain("window.on('resize', apply);");
+    expect(windowZoomSource).toContain("window.on('enter-full-screen', apply);");
   });
 
   it('installs a renderer content security policy without unsafe-eval', () => {

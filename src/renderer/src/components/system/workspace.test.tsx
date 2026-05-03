@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { PreferencesProvider } from '@/state/preferences';
@@ -141,6 +141,51 @@ describe('WorkspacePanel', () => {
         </WorkspaceTitleCard>
       </PreferencesProvider>,
     );
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="floating-title-actions"]')).not.toBeNull();
+    });
+  });
+
+  test('updates a floating action island when an embedded scroll container moves', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValueOnce({
+        bottom: 24,
+        height: 120,
+        left: 0,
+        right: 800,
+        top: -96,
+        width: 800,
+        x: 0,
+        y: -96,
+        toJSON: () => ({}),
+      } as DOMRect)
+      .mockReturnValue({
+        bottom: -12,
+        height: 120,
+        left: 0,
+        right: 800,
+        top: -132,
+        width: 800,
+        x: 0,
+        y: -132,
+        toJSON: () => ({}),
+      } as DOMRect);
+
+    const { container } = render(
+      <div data-testid="embedded-scroll-container">
+        <PreferencesProvider>
+          <WorkspaceTitleCard
+            actions={<button type="button">Quick action</button>}
+            title="Panel title"
+          />
+        </PreferencesProvider>
+      </div>,
+    );
+
+    expect(container.querySelector('[data-slot="floating-title-actions"]')).toBeNull();
+
+    fireEvent.scroll(screen.getByTestId('embedded-scroll-container'));
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="floating-title-actions"]')).not.toBeNull();

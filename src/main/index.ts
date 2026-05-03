@@ -117,6 +117,16 @@ import {
   shouldPrepareInactiveMacDevWindowLaunch,
   showWindowWithoutStealingFocus,
 } from './window-activation';
+import {
+  changeManualWindowZoomLevel,
+  createManagedWindowZoomState,
+  initialWindowZoomFactor,
+  installWindowResizeZoomListeners,
+  managedWindowZoomLevel,
+  resetManualWindowZoomLevel,
+  updateAutomaticWindowZoomLevel,
+  type ManagedWindowZoomState,
+} from './window-zoom';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
@@ -175,23 +185,17 @@ registerBenchmarkRunnerIpc({
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
+const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
 const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close banji and stop automations?';
 const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing banji stops Telegram listening, automation intake, and automatic checks until you open banji again.';
 const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep banji open';
 const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close banji';
-const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
-const PREFERRED_BASELINE_ZOOM_LEVEL = 0;
-const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
-const ZOOM_LEVEL_STEP = 0.5;
-const MIN_WINDOW_ZOOM_LEVEL = -3;
-const MAX_WINDOW_ZOOM_LEVEL = 3;
-
 function restoreSnapshotDialogProperties(): Electron.OpenDialogOptions['properties'] {
   return process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openDirectory'];
 }
 const senaReadCache = new Map<string, unknown>();
 const senaInflightReads = new Map<string, Promise<unknown>>();
-const windowZoomLevels = new WeakMap<BrowserWindow, number>();
+const windowZoomStates = new WeakMap<BrowserWindow, ManagedWindowZoomState>();
 let senaObservationFingerprint: string | null = null;
 let senaFreshnessCheck: Promise<void> | null = null;
 let senaReadCacheValidated = false;
@@ -786,43 +790,57 @@ async function loadStartupWorkspace(): Promise<SenaStartupWorkspace> {
   return workspace;
 }
 
-function clampWindowZoomLevel(level: number) {
-  return Math.max(MIN_WINDOW_ZOOM_LEVEL, Math.min(MAX_WINDOW_ZOOM_LEVEL, level));
-}
-
-function getManagedWindowZoomLevel(window: BrowserWindow | null | undefined) {
+function getManagedWindowZoomState(window: BrowserWindow | null | undefined) {
   if (!window) {
-    return PREFERRED_BASELINE_ZOOM_LEVEL;
+    return null;
   }
-  return windowZoomLevels.get(window) ?? PREFERRED_BASELINE_ZOOM_LEVEL;
+  const existing = windowZoomStates.get(window);
+  if (existing) {
+    return existing;
+  }
+  const state = createManagedWindowZoomState(window.getContentBounds());
+  windowZoomStates.set(window, state);
+  return state;
 }
 
-function applyManagedWindowZoomLevel(window: BrowserWindow | null | undefined) {
-  if (!window) {
+function updateManagedWindowAutomaticZoomLevel(window: BrowserWindow | null | undefined) {
+  const state = getManagedWindowZoomState(window);
+  if (!window || !state) {
+    return null;
+  }
+  return updateAutomaticWindowZoomLevel(state, window.getContentBounds());
+}
+
+function applyManagedWindowZoomLevel(window: BrowserWindow | null | undefined, { force = false }: { force?: boolean } = {}) {
+  const state = updateManagedWindowAutomaticZoomLevel(window);
+  if (!window || !state) {
     return;
   }
-  const zoomLevel = getManagedWindowZoomLevel(window);
+  const zoomLevel = managedWindowZoomLevel(state);
+  if (!force && state.appliedLevel === zoomLevel) {
+    return;
+  }
+  state.appliedLevel = zoomLevel;
   window.webContents.setZoomLevel(zoomLevel);
-}
-
-function setManagedWindowZoomLevel(window: BrowserWindow | null | undefined, level: number) {
-  if (!window) {
-    return;
-  }
-  windowZoomLevels.set(window, clampWindowZoomLevel(level));
-  applyManagedWindowZoomLevel(window);
 }
 
 function changeFocusedWindowZoom(stepDelta: number) {
   const window = BrowserWindow.getFocusedWindow();
-  if (!window) {
+  const state = getManagedWindowZoomState(window);
+  if (!window || !state) {
     return;
   }
-  setManagedWindowZoomLevel(window, getManagedWindowZoomLevel(window) + stepDelta * ZOOM_LEVEL_STEP);
+  changeManualWindowZoomLevel(state, stepDelta);
+  applyManagedWindowZoomLevel(window);
 }
 
 function applyPreferredWindowZoomLevel(window: BrowserWindow | null | undefined) {
-  setManagedWindowZoomLevel(window, PREFERRED_BASELINE_ZOOM_LEVEL);
+  const state = getManagedWindowZoomState(window);
+  if (!window || !state) {
+    return;
+  }
+  resetManualWindowZoomLevel(state);
+  applyManagedWindowZoomLevel(window);
 }
 
 function installOptionalWindowZoomLimits(window: BrowserWindow) {
@@ -849,30 +867,35 @@ function installPreferredWindowZoomBehavior(window: BrowserWindow) {
   // banji owns zoom state itself so Chromium cannot drift to a different per-origin level and then
   // snap back later. Reapply the managed zoom across every lifecycle edge that can recreate or
   // reattach the renderer.
-  windowZoomLevels.set(window, PREFERRED_BASELINE_ZOOM_LEVEL);
+  windowZoomStates.set(window, createManagedWindowZoomState(window.getContentBounds()));
   installOptionalWindowZoomLimits(window);
+  installWindowResizeZoomListeners(window, () => {
+    applyManagedWindowZoomLevel(window);
+  });
   applyManagedWindowZoomLevel(window);
   webContents.on('did-start-loading', () => {
-    applyManagedWindowZoomLevel(window);
+    applyManagedWindowZoomLevel(window, { force: true });
   });
   webContents.on('did-navigate', () => {
-    applyManagedWindowZoomLevel(window);
+    applyManagedWindowZoomLevel(window, { force: true });
   });
   webContents.on('did-navigate-in-page', () => {
-    applyManagedWindowZoomLevel(window);
+    applyManagedWindowZoomLevel(window, { force: true });
   });
   webContents.on('dom-ready', () => {
-    applyManagedWindowZoomLevel(window);
+    applyManagedWindowZoomLevel(window, { force: true });
   });
   webContents.on('did-finish-load', () => {
-    applyManagedWindowZoomLevel(window);
+    applyManagedWindowZoomLevel(window, { force: true });
   });
   window.on('focus', () => {
     applyManagedWindowZoomLevel(window);
   });
 }
 
-function createMainWindowWebPreferences(): Electron.BrowserWindowConstructorOptions['webPreferences'] {
+function createMainWindowWebPreferences(
+  contentBounds: Pick<Electron.Rectangle, 'height' | 'width'>,
+): Electron.BrowserWindowConstructorOptions['webPreferences'] {
   return {
     preload: join(__dirname, '../preload/index.mjs'),
     contextIsolation: true,
@@ -880,7 +903,7 @@ function createMainWindowWebPreferences(): Electron.BrowserWindowConstructorOpti
     sandbox: false,
     // Seed the preferred baseline into Chromium before the first paint so banji never flashes at
     // Electron's default 100% zoom and then snaps back out after load.
-    zoomFactor: PREFERRED_BASELINE_ZOOM_FACTOR,
+    zoomFactor: initialWindowZoomFactor(contentBounds),
   };
 }
 
@@ -909,7 +932,7 @@ async function installReactDevToolsForDevelopment() {
 }
 
 function setFocusedWindowToActualSize() {
-  // banji's "Actual Size" restores the app's preferred baseline zoom, not Electron's literal 100%.
+  // banji's "Actual Size" resets the manual zoom offset while preserving automatic viewport zoom.
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
 }
 
@@ -1060,7 +1083,7 @@ async function createMainWindow() {
     y,
     width,
     height,
-    minWidth: 1180,
+    minWidth: 720,
     minHeight: 760,
     backgroundColor: '#f2e8d8',
     title: 'banji desktop',
@@ -1068,7 +1091,7 @@ async function createMainWindow() {
     show: false,
     focusable: !benchmarkWindowBackgroundMode,
     skipTaskbar: benchmarkWindowBackgroundMode,
-    webPreferences: createMainWindowWebPreferences(),
+    webPreferences: createMainWindowWebPreferences({ height, width }),
   });
   endCreate({ ok: true });
 

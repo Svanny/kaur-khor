@@ -1,7 +1,18 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { EmbeddedAppBanner, fallbackStateForMode, formatBrowserStorageErrorMessage, WebRoutes } from './index';
+import { setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
+import {
+  BROWSER_WORKSPACE_CLOSE_WARNING,
+  BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING,
+  browserWorkspaceCloseWarningMessage,
+  EmbeddedAppBanner,
+  EmbeddedAutoZoomViewport,
+  fallbackStateForMode,
+  formatBrowserStorageErrorMessage,
+  installBrowserBeforeUnloadWarning,
+  WebRoutes,
+} from './index';
 
 const operatorFeatureLabels = [
   'Review Work Queue',
@@ -124,6 +135,7 @@ const releaseAssets = [
 
 beforeEach(() => {
   mockNavigator();
+  setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
 });
 
@@ -195,6 +207,28 @@ function mockNavigator({
   Object.defineProperty(window.navigator, 'userAgentData', {
     configurable: true,
     value: userAgentData,
+  });
+}
+
+function mockViewport(width: number, height: number) {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: width,
+  });
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    writable: true,
+    value: height,
+  });
+  Object.defineProperty(window, 'visualViewport', {
+    configurable: true,
+    value: {
+      addEventListener: vi.fn(),
+      height,
+      removeEventListener: vi.fn(),
+      width,
+    },
   });
 }
 
@@ -589,6 +623,166 @@ describe('WebRoutes product cards', () => {
 });
 
 describe('WebRoutes embedded app fallback state', () => {
+  test('uses the standard beforeunload prompt for real browser workspace close warnings', () => {
+    const cleanup = installBrowserBeforeUnloadWarning();
+    const event = new Event('beforeunload', { cancelable: true });
+
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+
+    cleanup();
+    const cleanEvent = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(cleanEvent);
+    expect(cleanEvent.defaultPrevented).toBe(false);
+  });
+
+  test('keeps Telegram-specific browser close copy state-aware', () => {
+    expect(browserWorkspaceCloseWarningMessage(false)).toBe(BROWSER_WORKSPACE_CLOSE_WARNING);
+    expect(browserWorkspaceCloseWarningMessage(true)).toBe(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING);
+  });
+
+  test('shows browser workspace data-risk copy without Telegram copy when no bot is connected', () => {
+    setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <EmbeddedAppBanner
+          mode="app"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Export a backup before closing.')).toBeInTheDocument();
+    expect(screen.getByText(BROWSER_WORKSPACE_CLOSE_WARNING)).toBeInTheDocument();
+    expect(screen.queryByText(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING)).not.toBeInTheDocument();
+  });
+
+  test('shows Telegram live-listening browser close copy when the bot is connected', () => {
+    const state = fallbackStateForMode('app');
+    state.automation.connection = {
+      ...state.automation.connection,
+      status: 'connected',
+      hasBotToken: true,
+    };
+    setBrowserDesktopBridgeMockState(state);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <EmbeddedAppBanner
+          mode="app"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING)).toBeInTheDocument();
+    expect(screen.queryByText(BROWSER_WORKSPACE_CLOSE_WARNING)).not.toBeInTheDocument();
+  });
+
+  test('does not show real browser workspace close copy for demo mode', () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <EmbeddedAppBanner
+          mode="demo"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Demo data - not your real workspace.')).toBeInTheDocument();
+    expect(screen.queryByText(BROWSER_WORKSPACE_CLOSE_WARNING)).not.toBeInTheDocument();
+    expect(screen.queryByText(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING)).not.toBeInTheDocument();
+  });
+
+  test('does not apply embedded product auto zoom to the public landing route', () => {
+    const { container } = renderWebHome();
+
+    expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toBeNull();
+  });
+
+  test('applies embedded product auto zoom at narrow browser widths', async () => {
+    mockViewport(900, 800);
+
+    const { container } = render(
+      <EmbeddedAutoZoomViewport>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const surface = container.querySelector('[data-slot="embedded-auto-zoom-surface"]');
+    expect(viewport).not.toBeNull();
+    expect(surface).not.toBeNull();
+    expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
+    expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+    expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(800 / (1.2 ** -2))));
+    expect(viewport).toHaveAttribute('data-measured-area', String(900 * 800));
+    expect(surface).toHaveStyle({ width: `${900 / (1.2 ** -2)}px` });
+    await waitFor(() => {
+      expect(document.documentElement.dataset.banjiEffectiveViewportWidth).toBe(String(Math.round(900 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.banjiEffectiveViewportHeight).toBe(String(Math.round(800 / (1.2 ** -2))));
+    });
+  });
+
+  test('applies embedded product auto zoom when height and area are cramped', async () => {
+    mockViewport(1440, 799);
+
+    const { container } = render(
+      <EmbeddedAutoZoomViewport>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const surface = container.querySelector('[data-slot="embedded-auto-zoom-surface"]');
+    expect(viewport).not.toBeNull();
+    expect(surface).not.toBeNull();
+    expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
+    expect(viewport).toHaveAttribute('data-zoom-level', '-1');
+    expect(viewport).toHaveAttribute('data-effective-width', String(Math.round(1440 / (1.2 ** -1))));
+    expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(799 / (1.2 ** -1))));
+    expect(viewport).toHaveAttribute('data-measured-area', String(1440 * 799));
+    expect(surface).toHaveStyle({
+      minHeight: `${799 / (1.2 ** -1)}px`,
+      width: `${1440 / (1.2 ** -1)}px`,
+    });
+  });
+
+  test('uses a landscape-first embedded product shell for portrait phones', async () => {
+    mockViewport(390, 844);
+
+    const { container } = render(
+      <EmbeddedAutoZoomViewport>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
+    expect(viewport).not.toBeNull();
+    expect(frame).not.toBeNull();
+    expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
+    expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+    expect(frame).toHaveStyle({
+      height: '390px',
+      transform: 'rotate(90deg) translateY(-100%)',
+      width: '844px',
+    });
+    await waitFor(() => {
+      expect(Number(document.documentElement.dataset.banjiEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
+    });
+  });
+
   test('renders the embedded onboarding banner as a top nav overlay', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/onboarding']}>
@@ -622,8 +816,8 @@ describe('WebRoutes embedded app fallback state', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('banji saves your work in this browser. Back it up regularly.')).toBeInTheDocument();
-    expect(screen.queryByText(/Your workspace is saved in this browser/)).not.toBeInTheDocument();
+    expect(screen.getByText('Export a backup before closing.')).toBeInTheDocument();
+    expect(screen.getByText(BROWSER_WORKSPACE_CLOSE_WARNING)).toBeInTheDocument();
     expect(screen.queryByText(/Reports and Telegram checks only keep running/)).not.toBeInTheDocument();
   });
 
