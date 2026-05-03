@@ -5,7 +5,9 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  cleanupCloseSafetyDesktopBackupSnapshots,
   createAutomaticDesktopBackupSnapshot,
+  createCloseSafetyDesktopBackupSnapshot,
   createDesktopBackupSnapshot,
   desktopBackupDirectoryPath,
   restoreWorkspaceFiles,
@@ -72,6 +74,52 @@ describe('desktop local backup snapshots', () => {
       .map((entry) => entry.name);
     expect(snapshotDirectories).toHaveLength(1);
     expect(snapshotDirectories[0]).toContain('automatic-sena-trigger-run');
+  });
+
+  it('creates an unthrottled close-safety snapshot for live automation shutdown', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-close-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+
+    const snapshot = await createCloseSafetyDesktopBackupSnapshot(userDataPath);
+
+    expect(snapshot.trigger).toBe('automatic');
+    expect(snapshot.snapshotPath).toContain('automatic-before-close-automation');
+    await expect(readFile(join(snapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('sqlite-data');
+  });
+
+  it('keeps the newest close-safety snapshot and removes older close snapshots', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-close-cleanup-'));
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
+
+    await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:00:00.000Z'),
+      reason: 'before-close-automation',
+      trigger: 'automatic',
+      userDataPath,
+    });
+    await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:01:00.000Z'),
+      reason: 'before-close-automation',
+      trigger: 'automatic',
+      userDataPath,
+    });
+    await createDesktopBackupSnapshot({
+      now: () => new Date('2026-04-10T10:02:00.000Z'),
+      reason: 'preferences-save',
+      trigger: 'automatic',
+      userDataPath,
+    });
+
+    await cleanupCloseSafetyDesktopBackupSnapshots(userDataPath);
+
+    const snapshotDirectories = (await readdir(desktopBackupDirectoryPath(userDataPath), { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+    expect(snapshotDirectories).toEqual([
+      '2026-04-10T10-01-00-000Z-automatic-before-close-automation',
+      '2026-04-10T10-02-00-000Z-automatic-preferences-save',
+    ]);
   });
 
   it('creates a safety snapshot and restores workspace files from a saved snapshot', async () => {

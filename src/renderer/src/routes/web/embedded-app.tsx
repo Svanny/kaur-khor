@@ -47,6 +47,34 @@ type StorageUiState = {
 };
 
 const embeddedBannerRailHeightClassName = 'md:min-h-[13.5rem]';
+export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your banji workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
+export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your banji workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
+
+export function isBrowserTelegramLiveListening() {
+  const connection = getBrowserDesktopBridgeMockState().automation.connection;
+  return connection.status === 'connected' && connection.hasBotToken;
+}
+
+export function browserWorkspaceCloseWarningMessage(isTelegramLiveListening: boolean) {
+  return isTelegramLiveListening
+    ? BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING
+    : BROWSER_WORKSPACE_CLOSE_WARNING;
+}
+
+export function installBrowserBeforeUnloadWarning(
+  target: Window = window,
+  message = BROWSER_WORKSPACE_CLOSE_WARNING,
+) {
+  const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    event.preventDefault();
+    event.returnValue = message;
+    return message;
+  };
+  target.addEventListener('beforeunload', handleBeforeUnload);
+  return () => {
+    target.removeEventListener('beforeunload', handleBeforeUnload);
+  };
+}
 
 function publicPath(path: string) {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -116,6 +144,7 @@ function wrapMutation<T extends object, K extends keyof T>(
   owner[key] = (async (...args: unknown[]) => {
     const result = await (original as (...methodArgs: unknown[]) => Promise<unknown>)(...args);
     await persist();
+    window.dispatchEvent(new Event('banji-browser-state-changed'));
     return result;
   }) as T[K];
 }
@@ -152,6 +181,7 @@ function installPersistenceHooks(
   bridge.system.clearCurrentData = async () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode(mode));
     await persist();
+    window.dispatchEvent(new Event('banji-browser-state-changed'));
     return {
       clearedFileCount: 1,
       safetySnapshot: {
@@ -168,8 +198,7 @@ function shouldPollBrowserTelegram(mode: EmbeddedMode) {
   if (mode !== 'app' || document.visibilityState !== 'visible') {
     return false;
   }
-  const connection = getBrowserDesktopBridgeMockState().automation.connection;
-  return connection.status === 'connected' && connection.hasBotToken;
+  return isBrowserTelegramLiveListening();
 }
 
 async function requestPersistentStorage(): Promise<StorageUiState['persistence']> {
@@ -240,6 +269,31 @@ function useEmbeddedSidebarCollapsed() {
   return isCollapsed;
 }
 
+function useBrowserTelegramLiveListening(mode: EmbeddedMode) {
+  const [isLiveListening, setIsLiveListening] = useState(() =>
+    mode === 'app' && isBrowserTelegramLiveListening(),
+  );
+
+  useEffect(() => {
+    if (mode !== 'app') {
+      setIsLiveListening(false);
+      return;
+    }
+
+    const readLiveState = () => {
+      setIsLiveListening(isBrowserTelegramLiveListening());
+    };
+
+    readLiveState();
+    window.addEventListener('banji-browser-state-changed', readLiveState);
+    return () => {
+      window.removeEventListener('banji-browser-state-changed', readLiveState);
+    };
+  }, [mode]);
+
+  return isLiveListening;
+}
+
 function WebAppBanner({
   isOnboarding,
   mode,
@@ -256,6 +310,8 @@ function WebAppBanner({
   onReset: () => void;
 }) {
   const isDemo = mode === 'demo';
+  const isTelegramLiveListening = useBrowserTelegramLiveListening(mode);
+  const appWarningMessage = browserWorkspaceCloseWarningMessage(isTelegramLiveListening);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const sidebarCollapsed = useEmbeddedSidebarCollapsed();
   const actionButtonClassName = cn(
@@ -286,11 +342,13 @@ function WebAppBanner({
           </span>
           <div className={cn('min-w-0 text-left', sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'max-w-[18rem] sm:max-w-[24rem]' : null)}>
             <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)}>
-              {isDemo ? 'Demo data - not your real workspace.' : 'banji saves your work in this browser. Back it up regularly.'}
+              {isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.'}
             </p>
             {isDemo ? (
               <p className="hidden text-muted-foreground md:block">Sample workspace. Reset anytime.</p>
-            ) : null}
+            ) : (
+              <p className="text-muted-foreground">{appWarningMessage}</p>
+            )}
           </div>
         </div>
         <div className={cn('grid grid-cols-1 gap-2 md:gap-1.5', isOnboarding ? 'grid-cols-2 justify-items-end justify-self-end' : null)}>
@@ -465,6 +523,13 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       document.removeEventListener('visibilitychange', poll);
     };
   }, [isReady, mode]);
+
+  useEffect(() => {
+    if (!isReady || mode !== 'app' || storage.status !== 'ready') {
+      return;
+    }
+    return installBrowserBeforeUnloadWarning(window, browserWorkspaceCloseWarningMessage(isBrowserTelegramLiveListening()));
+  }, [isReady, mode, storage.status]);
 
   function handleExport() {
     void (async () => {

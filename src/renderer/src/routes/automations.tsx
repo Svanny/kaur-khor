@@ -513,7 +513,7 @@ export function AutomationsRoute({
   }
 
   async function handleSubmitTelegramSettings() {
-    if (!botToken.trim() && !connection?.hasBotToken) {
+    if (!botToken.trim()) {
       setSaveResultDialog({
         title: translateUiLiteral(language, 'Telegram settings not saved'),
         description: translateUiLiteral(language, 'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.'),

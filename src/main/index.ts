@@ -7,8 +7,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
 import {
+  cleanupCloseSafetyDesktopBackupSnapshots,
   clearCurrentDesktopData,
   createAutomaticDesktopBackupSnapshot,
+  createCloseSafetyDesktopBackupSnapshot,
   createDesktopBackupSnapshot,
   desktopBackupDirectoryPath,
   restoreDesktopBackupSnapshot,
@@ -26,6 +28,7 @@ import {
   listAutomationIntakes,
   patchAutomationExposureRow,
   prepareAutomationPromotion,
+  readAutomationTransportState,
   readAutomationConnection,
   readAutomationConversation,
   readAutomationIntake,
@@ -172,6 +175,10 @@ registerBenchmarkRunnerIpc({
 
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
+const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close banji and stop automations?';
+const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing banji stops Telegram listening, automation intake, and automatic checks until you open banji again.';
+const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep banji open';
+const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close banji';
 const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
 const PREFERRED_BASELINE_ZOOM_LEVEL = 0;
 const PREFERRED_BASELINE_ZOOM_FACTOR = 1.2 ** PREFERRED_BASELINE_ZOOM_LEVEL;
@@ -190,6 +197,9 @@ let senaFreshnessCheck: Promise<void> | null = null;
 let senaReadCacheValidated = false;
 let senaReadCachePersistTimer: ReturnType<typeof setTimeout> | null = null;
 let telegramAutomationLoop: ReturnType<typeof startTelegramAutomationLoop> | null = null;
+let desktopQuitConfirmed = false;
+let desktopQuitConfirmationInFlight: Promise<boolean> | null = null;
+let desktopShutdownPromise: Promise<void> | null = null;
 
 recordBenchmarkEvent({
   layer: 'main',
@@ -255,6 +265,90 @@ async function snapshotBeforeWorkspaceMutation(reason: string) {
   } catch (error) {
     console.warn(`[desktop-data] automatic backup snapshot skipped for ${reason}`, error);
   }
+}
+
+function shouldBypassDesktopCloseAutomationWarning() {
+  return process.env.BANJI_BENCHMARK === '1';
+}
+
+async function isDesktopTelegramAutomationLiveListening() {
+  const preferences = await loadDesktopPreferences(desktopDataPath);
+  if (!preferences.showAutomationsPage) {
+    return false;
+  }
+  const transport = await readAutomationTransportState(desktopDataPath);
+  return transport.connection.status === 'connected'
+    && transport.connection.hasBotToken
+    && Boolean(transport.botToken?.trim());
+}
+
+async function createCloseSafetySnapshotBeforeQuit() {
+  try {
+    await createCloseSafetyDesktopBackupSnapshot(desktopDataPath);
+  } catch (error) {
+    console.warn('[desktop-data] close-safety backup snapshot skipped for before-close-automation', error);
+  }
+}
+
+async function confirmDesktopQuitForLiveAutomation() {
+  if (desktopQuitConfirmed || shouldBypassDesktopCloseAutomationWarning()) {
+    return true;
+  }
+  if (desktopQuitConfirmationInFlight) {
+    return desktopQuitConfirmationInFlight;
+  }
+
+  desktopQuitConfirmationInFlight = (async () => {
+    let isLiveListening = false;
+    try {
+      isLiveListening = await isDesktopTelegramAutomationLiveListening();
+    } catch (error) {
+      console.warn('[automation] close live-listening check skipped', error);
+    }
+    if (!isLiveListening) {
+      return true;
+    }
+    await createCloseSafetySnapshotBeforeQuit();
+    const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+      type: 'warning',
+      title: DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE,
+      message: DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE,
+      buttons: [
+        DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON,
+        DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON,
+      ],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    });
+    if (result.response === 1) {
+      desktopQuitConfirmed = true;
+      return true;
+    }
+    return false;
+  })().finally(() => {
+    desktopQuitConfirmationInFlight = null;
+  });
+
+  return desktopQuitConfirmationInFlight;
+}
+
+function stopDesktopRuntimeForShutdown() {
+  desktopShutdownPromise ??= (async () => {
+    telegramAutomationLoop?.stop();
+    await managedCore.stop();
+  })();
+  return desktopShutdownPromise;
+}
+
+function requestDesktopQuit() {
+  void confirmDesktopQuitForLiveAutomation().then((shouldQuit) => {
+    if (!shouldQuit) {
+      return;
+    }
+    desktopQuitConfirmed = true;
+    app.quit();
+  });
 }
 
 async function seedAutomationBenchmarkWorkspace(
@@ -846,14 +940,24 @@ function installApplicationMenu() {
               { role: 'hideOthers' },
               { role: 'unhide' },
               { type: 'separator' },
-              { role: 'quit' },
+              {
+                label: 'Quit banji',
+                accelerator: 'CmdOrCtrl+Q',
+                click: requestDesktopQuit,
+              },
             ],
           },
         ]
       : []),
     {
       label: 'File',
-      submenu: process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }],
+      submenu: process.platform === 'darwin'
+        ? [{ role: 'close' }]
+        : [{
+            label: 'Quit banji',
+            accelerator: 'CmdOrCtrl+Q',
+            click: requestDesktopQuit,
+          }],
     },
     {
       label: 'Edit',
@@ -970,6 +1074,19 @@ async function createMainWindow() {
 
   installMainWindowNavigationGuards(mainWindow);
   installPreferredWindowZoomBehavior(mainWindow);
+  mainWindow.on('close', (event) => {
+    if (desktopQuitConfirmed || shouldBypassDesktopCloseAutomationWarning()) {
+      return;
+    }
+    event.preventDefault();
+    void confirmDesktopQuitForLiveAutomation().then((shouldQuit) => {
+      if (!shouldQuit) {
+        return;
+      }
+      desktopQuitConfirmed = true;
+      app.quit();
+    });
+  });
 
   const endLoad = startBenchmarkSpan({
     category: 'startup',
@@ -1100,6 +1217,11 @@ async function boot() {
     },
   });
   await createMainWindow();
+  try {
+    await cleanupCloseSafetyDesktopBackupSnapshots(desktopDataPath);
+  } catch (error) {
+    console.warn('[desktop-data] close-safety backup snapshot cleanup skipped', error);
+  }
   snapshotProcessMemory('main.boot.ready');
 }
 
@@ -1623,13 +1745,24 @@ app.on('activate', async () => {
 
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
-    telegramAutomationLoop?.stop();
-    await managedCore.stop();
+    await stopDesktopRuntimeForShutdown();
     app.quit();
   }
 });
 
-app.on('before-quit', async () => {
-  telegramAutomationLoop?.stop();
-  await managedCore.stop();
+app.on('before-quit', (event) => {
+  if (desktopQuitConfirmed || shouldBypassDesktopCloseAutomationWarning()) {
+    void stopDesktopRuntimeForShutdown();
+    return;
+  }
+  event.preventDefault();
+  void confirmDesktopQuitForLiveAutomation().then((shouldQuit) => {
+    if (!shouldQuit) {
+      return;
+    }
+    desktopQuitConfirmed = true;
+    void stopDesktopRuntimeForShutdown().finally(() => {
+      app.quit();
+    });
+  });
 });

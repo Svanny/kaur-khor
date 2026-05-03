@@ -393,4 +393,15 @@ describe('AutomationsRoute', () => {
     await waitFor(() => expect(screen.getByText('Telegram settings not saved')).toBeInTheDocument());
     expect(screen.queryByRole('tab', { name: /Overview/i })).not.toBeInTheDocument();
   });
+
+  it('shows a failure popup when saving saved telegram settings without providing the token again', async () => {
+    const saveConnection = vi.fn();
+    automationHook.mockReturnValue(makeAutomationState(true, { saveConnection }));
+
+    renderRoute('/automations?section=settings');
+    fireEvent.click(screen.getByRole('button', { name: 'Save Telegram settings' }));
+
+    await waitFor(() => expect(screen.getByText('Telegram settings not saved')).toBeInTheDocument());
+    expect(saveConnection).not.toHaveBeenCalled();
+  });
 });

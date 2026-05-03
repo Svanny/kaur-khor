@@ -30,6 +30,8 @@ interface RestoreDesktopBackupSnapshotOptions {
 
 const BACKUP_DIRECTORY_NAME = 'backup-snapshots';
 const SNAPSHOT_MANIFEST_FILENAME = 'snapshot-manifest.json';
+const CLOSE_AUTOMATION_SNAPSHOT_REASON = 'before-close-automation';
+const CLOSE_AUTOMATION_SNAPSHOT_SUFFIX = `automatic-${CLOSE_AUTOMATION_SNAPSHOT_REASON}`;
 const DEFAULT_AUTOMATIC_SNAPSHOT_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_BACKUP_SNAPSHOTS = 24;
 const backupQueues = new Map<string, Promise<unknown>>();
@@ -257,6 +259,31 @@ export async function createAutomaticDesktopBackupSnapshot({
     });
     lastAutomaticSnapshotAt.set(userDataPath, nowValue.getTime());
     return snapshot;
+  });
+}
+
+export async function createCloseSafetyDesktopBackupSnapshot(
+  userDataPath: string,
+): Promise<DesktopBackupSnapshotResult> {
+  return createDesktopBackupSnapshot({
+    reason: CLOSE_AUTOMATION_SNAPSHOT_REASON,
+    trigger: 'automatic',
+    userDataPath,
+  });
+}
+
+export async function cleanupCloseSafetyDesktopBackupSnapshots(userDataPath: string) {
+  return runBackupQueue(userDataPath, async () => {
+    const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
+    const entries = await fs.readdir(backupDirectoryPath, { withFileTypes: true }).catch(() => []);
+    const closeSafetySnapshotNames = entries
+      .filter((entry) => entry.isDirectory() && entry.name.endsWith(CLOSE_AUTOMATION_SNAPSHOT_SUFFIX))
+      .map((entry) => entry.name)
+      .sort((left, right) => right.localeCompare(left));
+
+    for (const snapshotName of closeSafetySnapshotNames.slice(1)) {
+      await fs.rm(join(backupDirectoryPath, snapshotName), { force: true, recursive: true });
+    }
   });
 }
 
