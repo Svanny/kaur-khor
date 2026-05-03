@@ -12,22 +12,36 @@ import {
 import { Button } from '@/components/ui/button';
 import brandLogo from '@/assets/banji-logo.svg';
 import {
+  Archive,
+  BadgeDollarSign,
+  Bot,
   Check,
   ClipboardCopy,
+  ClipboardList,
   Download,
+  FileSearch,
   Globe2,
   HardDrive,
+  Package,
   PackageCheck,
+  PackagePlus,
+  ReceiptText,
   RotateCcw,
+  ScanLine,
+  Search,
   ShieldCheck,
+  ShoppingBag,
   Sparkles,
+  Store,
   Terminal,
+  TrendingUp,
+  Users,
   WifiOff,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   ActionContinueIcon,
-  ActionClipboardAddIcon,
   ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
@@ -37,10 +51,7 @@ import {
   ActionSaveIcon,
 } from '@icons/actions';
 import {
-  EntityCustomerIcon,
   EntityPackageSearchIcon,
-  EntityReceiptDocumentIcon,
-  EntityRevenueIcon,
   EntitySafetyStockIcon,
 } from '@icons/entities';
 import { NavigationSidebarIcon } from '@icons/navigation';
@@ -98,7 +109,7 @@ const screenshotSlides = [
   {
     alt: 'banji record update workflow for stock and order changes',
     image: recordUpdateImageUrl,
-    label: 'POS and updates',
+    label: 'Point-of-Sale and updates',
   },
   {
     alt: 'banji business health dashboard showing pressure and diagnostics',
@@ -111,12 +122,29 @@ const screenshotSlides = [
     label: 'Insights',
   },
 ];
-const teamUseCases = [
-  { icon: EntityCustomerIcon, label: 'Track customer orders' },
-  { icon: ActionClipboardAddIcon, label: 'Run a lightweight POS' },
-  { icon: EntityRevenueIcon, label: 'Watch business health' },
-  { icon: EntityReceiptDocumentIcon, label: 'Plan supplier receipts' },
-] as const;
+type RailFeature = {
+  icon: LucideIcon;
+  label: string;
+  tone: string;
+};
+
+const railFeatures: RailFeature[] = [
+  { icon: ClipboardList, label: 'Review Work Queue', tone: 'bg-[#DC2626] text-white' },
+  { icon: ShoppingBag, label: 'Run Point-of-Sale', tone: 'bg-[#16A34A] text-white' },
+  { icon: ScanLine, label: 'Count Stock', tone: 'bg-[#D97706] text-white' },
+  { icon: Users, label: 'Track Customer Orders', tone: 'bg-[#2563EB] text-white' },
+  { icon: BadgeDollarSign, label: 'Record Immediate Sales', tone: 'bg-[#7C3AED] text-white' },
+  { icon: PackagePlus, label: 'Place Supplier Orders', tone: 'bg-[#0891B2] text-white' },
+  { icon: ReceiptText, label: 'Receive Supplier Orders', tone: 'bg-[#0D9488] text-white' },
+  { icon: Search, label: 'Search Catalog', tone: 'bg-[#65A30D] text-white' },
+  { icon: Package, label: 'Manage Products', tone: 'bg-[#EA580C] text-white' },
+  { icon: Store, label: 'Manage Services', tone: 'bg-[#4338CA] text-white' },
+  { icon: Archive, label: 'Browse Archived Items', tone: 'bg-[#059669] text-white' },
+  { icon: TrendingUp, label: 'Analyze Pressure', tone: 'bg-[#334155] text-white' },
+  { icon: BadgeDollarSign, label: 'Review Money', tone: 'bg-[#0284C7] text-white' },
+  { icon: FileSearch, label: 'Explain Inventory Signals', tone: 'bg-[#C026D3] text-white' },
+  { icon: Bot, label: 'Review Telegram Intake', tone: 'bg-[#229ED9] text-white' },
+];
 
 function publicPath(path: string) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -365,24 +393,26 @@ function WorkshopIllustration() {
 }
 
 function TeamsCanDoRail() {
-  const railGroups = [teamUseCases, teamUseCases];
+  const railGroups = [railFeatures, railFeatures];
 
   return (
     <div className="relative -mt-4 w-screen max-w-full pb-10">
-      <div className="overflow-hidden border-y border-border/70 bg-card/84 py-3 backdrop-blur">
-        <div className="flex w-[200%] items-center motion-safe:animate-[banji-teams-rail_34s_linear_infinite] motion-reduce:w-full motion-reduce:flex-wrap">
+      <div className="overflow-hidden border-y border-border/70 bg-card/84 px-4 py-3 backdrop-blur sm:px-8 xl:px-12">
+        <div className="flex w-max items-center motion-safe:animate-[banji-teams-rail_68s_linear_infinite] motion-reduce:w-full motion-reduce:flex-wrap">
           {railGroups.map((group, groupIndex) => (
             <div
               key={groupIndex}
-              className="grid w-1/2 shrink-0 grid-cols-4 gap-3 px-4 motion-reduce:w-full sm:px-8 xl:px-12"
+              aria-label={groupIndex === 0 ? 'Operator-facing banji features' : undefined}
+              className="flex shrink-0 gap-3 pr-3 motion-reduce:flex-wrap"
+              role="list"
               aria-hidden={groupIndex > 0 ? 'true' : undefined}
             >
-              {group.map(({ icon: Icon, label }) => (
-                <div key={`${label}-${groupIndex}`} className="flex min-w-0 items-center gap-3 rounded-xl bg-background/72 px-4 py-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary">
-                    <Icon className="size-4.5" />
+              {group.map(({ icon: Icon, label, tone }) => (
+                <div key={`${label}-${groupIndex}`} className="flex min-w-[14.5rem] items-center gap-3 rounded-xl bg-background/78 px-4 py-3 shadow-xs ring-1 ring-border/55 sm:min-w-[15.5rem]" role="listitem">
+                  <span className={`grid size-9 shrink-0 place-items-center rounded-lg ${tone}`}>
+                    <Icon aria-hidden="true" className="size-4.5" />
                   </span>
-                  <span className="min-w-0 truncate text-sm font-semibold text-foreground">{label}</span>
+                  <span className="min-w-0 text-sm font-semibold leading-5 text-foreground">{label}</span>
                 </div>
               ))}
             </div>
