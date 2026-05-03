@@ -1,6 +1,6 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { WebRoutes } from './index';
 
 const operatorFeatureLabels = [
@@ -40,6 +40,7 @@ const previousNounLabels = [
 ] as const;
 
 const sharedProductPromise = 'Free. No sign-up or login. Your data stays on your device.';
+const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
 
 const productCardCopy = {
   actions: ['Start Quick Demo', 'Start in the browser', 'Install the desktop app', 'Build it yourself'],
@@ -76,9 +77,49 @@ const productCardCopy = {
   ],
 } as const;
 
+const releaseAssets = [
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-darwin-arm64.dmg',
+    name: 'banji-1.2.3-darwin-arm64.dmg',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-darwin-x64.dmg',
+    name: 'banji-1.2.3-darwin-x64.dmg',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-win-x64.exe',
+    name: 'banji-1.2.3-win-x64.exe',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-linux-x64.AppImage',
+    name: 'banji-1.2.3-linux-x64.AppImage',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-linux-arm64.AppImage',
+    name: 'banji-1.2.3-linux-arm64.AppImage',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/SHA256SUMS',
+    name: 'SHA256SUMS',
+  },
+] as const;
+
+beforeEach(() => {
+  mockNavigator();
+  vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+});
+
 function renderWebHome() {
   return render(
     <MemoryRouter initialEntries={['/']}>
+      <WebRoutes />
+    </MemoryRouter>,
+  );
+}
+
+function renderWebPath(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
       <WebRoutes />
     </MemoryRouter>,
   );
@@ -88,6 +129,55 @@ function getProductCardsSection(container: HTMLElement) {
   const section = container.querySelector('#ways-to-start');
   expect(section).not.toBeNull();
   return section as HTMLElement;
+}
+
+function mockLatestReleaseFetch() {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      assets: releaseAssets,
+      tag_name: 'v1.2.3',
+    }),
+  })));
+}
+
+function mockFailedReleaseFetch() {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: false,
+    status: 403,
+  })));
+}
+
+function mockNavigator({
+  platform = 'unknown',
+  userAgent = 'unknown',
+  userAgentData,
+}: {
+  platform?: string;
+  userAgent?: string;
+  userAgentData?: {
+    getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }>;
+    platform?: string;
+  };
+} = {}) {
+  Object.defineProperty(window.navigator, 'platform', {
+    configurable: true,
+    value: platform,
+  });
+  Object.defineProperty(window.navigator, 'userAgent', {
+    configurable: true,
+    value: userAgent,
+  });
+  Object.defineProperty(window.navigator, 'userAgentData', {
+    configurable: true,
+    value: userAgentData,
+  });
+}
+
+async function expectRecommendedDownload(expectedAssetName: string, expectedHref: string) {
+  const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+  await waitFor(() => expect(select.value).toBe(expectedAssetName));
+  expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute('href', expectedHref);
 }
 
 describe('WebRoutes landing rail', () => {
@@ -118,6 +208,187 @@ describe('WebRoutes landing rail', () => {
       expect(screen.queryByText(label, { exact: true })).not.toBeInTheDocument();
     }
     expect(screen.getAllByText('Run Point-of-Sale')).toHaveLength(2);
+  });
+});
+
+describe('WebRoutes releases section', () => {
+  test('selects the macOS Apple Silicon DMG for macOS ARM browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        getHighEntropyValues: vi.fn(async () => ({ architecture: 'arm' })),
+        platform: 'macOS',
+      },
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'banji-1.2.3-darwin-arm64.dmg',
+      releaseAssets[0]!.browser_download_url,
+    );
+    expect(screen.getByText(/Recommended for macOS Apple Silicon from v1\.2\.3\./)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'YouTube tutorial for opening macOS app from unidentified developer' })).toHaveAttribute(
+      'href',
+      'https://youtu.be/sLox8h-6BVw',
+    );
+  });
+
+  test('selects the macOS Intel DMG for macOS x64 browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        getHighEntropyValues: vi.fn(async () => ({ architecture: 'x86' })),
+        platform: 'macOS',
+      },
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'banji-1.2.3-darwin-x64.dmg',
+      releaseAssets[1]!.browser_download_url,
+    );
+  });
+
+  test('selects the Windows x64 installer for Windows browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Windows',
+      },
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'banji-1.2.3-win-x64.exe',
+      releaseAssets[2]!.browser_download_url,
+    );
+  });
+
+  test('selects the Linux x64 AppImage for Linux x64 browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      platform: 'Linux x86_64',
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64)',
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'banji-1.2.3-linux-x64.AppImage',
+      releaseAssets[3]!.browser_download_url,
+    );
+  });
+
+  test('selects the Linux ARM64 AppImage for Linux ARM64 browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        getHighEntropyValues: vi.fn(async () => ({ architecture: 'arm' })),
+        platform: 'Linux',
+      },
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'banji-1.2.3-linux-arm64.AppImage',
+      releaseAssets[4]!.browser_download_url,
+    );
+  });
+
+  test('leaves the download unselected for unknown platforms', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator();
+
+    renderWebHome();
+
+    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe(''));
+    expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
+  });
+
+  test('updates the download button when the dropdown changes', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Windows',
+      },
+    });
+
+    renderWebHome();
+
+    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
+
+    fireEvent.change(select, { target: { value: 'banji-1.2.3-linux-arm64.AppImage' } });
+
+    expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute(
+      'href',
+      releaseAssets[4]!.browser_download_url,
+    );
+  });
+
+  test('falls back to the latest release page when the release API fails', async () => {
+    mockFailedReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Windows',
+      },
+    });
+
+    renderWebHome();
+
+    expect(await screen.findByText('Release downloads are unavailable right now.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open latest release/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'GitHub Releases' })).toHaveAttribute('href', releasesUrl);
+  });
+
+  test('includes merged install guidance on the landing releases section', () => {
+    const { container } = renderWebHome();
+    const releasesSection = container.querySelector('#releases');
+
+    expect(releasesSection).not.toBeNull();
+    expect(releasesSection).toHaveTextContent('Install notes');
+    expect(releasesSection).toHaveTextContent('Choose a download to see the matching install notes.');
+    expect(releasesSection).toHaveTextContent('Download only from the official GitHub release.');
+    expect(releasesSection).not.toHaveTextContent('Browser app limits');
+    expect(releasesSection).not.toHaveTextContent('Checksums and honest warnings');
+  });
+
+  test('changes install guidance with the selected download platform', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Windows',
+      },
+    });
+
+    renderWebHome();
+
+    const select = await screen.findByLabelText('Download') as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
+    expect(screen.getByText('Windows install notes')).toBeInTheDocument();
+    expect(screen.getByText('Do not disable SmartScreen globally.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /YouTube tutorial for opening macOS app/i })).not.toBeInTheDocument();
+
+    fireEvent.change(select, { target: { value: 'banji-1.2.3-linux-arm64.AppImage' } });
+
+    expect(screen.getByText('Linux install notes')).toBeInTheDocument();
+    expect(screen.getByText('Mark AppImages executable before opening them.')).toBeInTheDocument();
+    expect(screen.queryByText('Windows install notes')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /YouTube tutorial for opening macOS app/i })).not.toBeInTheDocument();
+  });
+
+  test('removes the standalone install page and install links', async () => {
+    const { container } = renderWebPath('/install');
+
+    expect(await screen.findByRole('heading', { name: 'banji' })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Install banji from official releases.');
+    expect(container.querySelectorAll('a[href*="/install"]')).toHaveLength(0);
   });
 });
 

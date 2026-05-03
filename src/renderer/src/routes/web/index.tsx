@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { HashRouter, Link, Navigate, Route, Routes } from 'react-router-dom';
 import App from '@/App';
 import {
@@ -55,7 +55,6 @@ import {
 } from 'lucide-react';
 import {
   ActionContinueIcon,
-  ActionDatabaseDownloadIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
   ActionOpenExternalIcon,
@@ -64,10 +63,9 @@ import {
   ActionSaveIcon,
 } from '@icons/actions';
 import {
-  EntityPackageSearchIcon,
-  EntitySafetyStockIcon,
-} from '@icons/entities';
-import { NavigationSidebarIcon } from '@icons/navigation';
+  NavigationSelectExpandIcon,
+  NavigationSidebarIcon,
+} from '@icons/navigation';
 import { StatusWarningIcon } from '@icons/status';
 import { cn } from '@/lib/utils';
 import analysisImageUrl from '../../../../../docs/readme/web-current-analysis.png';
@@ -103,7 +101,7 @@ type StorageUiState = {
 };
 
 const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
-const sourceUrl = 'https://github.com/Svanny/banji';
+const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/banji/releases/latest';
 const sourceBuildCommands = [
   'git clone https://github.com/Svanny/banji.git',
   'cd banji',
@@ -160,6 +158,53 @@ type ProductTier = {
   summary: string;
   title: string;
   tone: ProductCardTone;
+};
+
+type DetectedPlatform =
+  | 'linux-arm64'
+  | 'linux-x64'
+  | 'mac-arm64'
+  | 'mac-x64'
+  | 'unknown'
+  | 'windows-x64';
+
+type GitHubReleaseAsset = {
+  browser_download_url: string;
+  name: string;
+};
+
+type GitHubLatestRelease = {
+  assets?: GitHubReleaseAsset[];
+  tag_name?: string;
+};
+
+type DownloadOption = {
+  asset: GitHubReleaseAsset;
+  label: string;
+  platform: DetectedPlatform | 'other';
+};
+
+type ReleaseInstallGuide = {
+  steps: Array<string | { href: string; label: string }>;
+  title: string;
+};
+
+type ReleaseDownloadState =
+  | {
+    detectedPlatform: DetectedPlatform;
+    error: string | null;
+    options: DownloadOption[];
+    releaseName: string | null;
+    status: 'error' | 'loaded' | 'loading';
+  };
+
+type NavigatorUserAgentData = {
+  getHighEntropyValues?: (hints: string[]) => Promise<{ architecture?: string }>;
+  platform?: string;
+};
+
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: NavigatorUserAgentData;
 };
 
 const railFeatures: RailFeature[] = [
@@ -231,7 +276,7 @@ const productTiers: ProductTier[] = [
     drawbacks: [
       { icon: ShieldAlert, label: 'Your computer may show safety prompts' },
     ],
-    href: '/install',
+    href: '#releases',
     icon: MonitorDown,
     includes: 'Everything in Browser App and:',
     summary: 'Install the full app',
@@ -276,6 +321,191 @@ function productCardSurfaceClassName(tone: ProductCardTone) {
 function publicPath(path: string) {
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
   return `${basePath}${path}`;
+}
+
+async function fetchLatestRelease(signal?: AbortSignal): Promise<GitHubLatestRelease> {
+  const response = await fetch(latestReleaseApiUrl, {
+    headers: { Accept: 'application/vnd.github+json' },
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(`GitHub latest release request failed with ${response.status}`);
+  }
+  return await response.json() as GitHubLatestRelease;
+}
+
+async function detectDownloadPlatform(): Promise<DetectedPlatform> {
+  if (typeof navigator === 'undefined') {
+    return 'unknown';
+  }
+
+  const userAgentData = (navigator as NavigatorWithUserAgentData).userAgentData;
+  const userAgentDataPlatform = userAgentData?.platform?.toLowerCase() ?? '';
+  if (userAgentDataPlatform.includes('mac')) {
+    const architecture = await readUserAgentArchitecture(userAgentData);
+    return architecture.includes('arm') ? 'mac-arm64' : 'mac-x64';
+  }
+  if (userAgentDataPlatform.includes('windows')) {
+    return 'windows-x64';
+  }
+  if (userAgentDataPlatform.includes('linux')) {
+    const architecture = await readUserAgentArchitecture(userAgentData);
+    return architecture.includes('arm') || architecture.includes('aarch64') ? 'linux-arm64' : 'linux-x64';
+  }
+
+  const platform = navigator.platform.toLowerCase();
+  const userAgent = navigator.userAgent.toLowerCase();
+  const platformSignal = `${platform} ${userAgent}`;
+
+  if (platformSignal.includes('mac')) {
+    return 'mac-x64';
+  }
+  if (platformSignal.includes('win')) {
+    return 'windows-x64';
+  }
+  if (platformSignal.includes('linux')) {
+    return platformSignal.includes('arm64') || platformSignal.includes('aarch64') ? 'linux-arm64' : 'linux-x64';
+  }
+  return 'unknown';
+}
+
+async function readUserAgentArchitecture(userAgentData?: NavigatorUserAgentData) {
+  try {
+    const highEntropyValues = await userAgentData?.getHighEntropyValues?.(['architecture']);
+    return highEntropyValues?.architecture?.toLowerCase() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function buildDownloadOptions(assets: GitHubReleaseAsset[] = []): DownloadOption[] {
+  return assets
+    .filter((asset) => /\.(appimage|deb|dmg|exe)$/i.test(asset.name))
+    .map((asset) => ({
+      asset,
+      label: formatReleaseAssetLabel(asset.name),
+      platform: detectAssetPlatform(asset.name),
+    }))
+    .sort((first, second) => first.label.localeCompare(second.label));
+}
+
+function detectAssetPlatform(assetName: string): DownloadOption['platform'] {
+  const lowerName = assetName.toLowerCase();
+  if (/darwin-arm64\.dmg$/.test(lowerName)) {
+    return 'mac-arm64';
+  }
+  if (/darwin-x64\.dmg$/.test(lowerName)) {
+    return 'mac-x64';
+  }
+  if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
+    return 'windows-x64';
+  }
+  if (/linux-arm64\.appimage$/.test(lowerName)) {
+    return 'linux-arm64';
+  }
+  if (/linux-x64\.appimage$/.test(lowerName)) {
+    return 'linux-x64';
+  }
+  if (/linux-arm64\.deb$/.test(lowerName)) {
+    return 'linux-arm64';
+  }
+  if (/linux-x64\.deb$/.test(lowerName)) {
+    return 'linux-x64';
+  }
+  return 'other';
+}
+
+function formatReleaseAssetLabel(assetName: string) {
+  const lowerName = assetName.toLowerCase();
+  if (/darwin-arm64\.dmg$/.test(lowerName)) {
+    return 'macOS Apple Silicon DMG';
+  }
+  if (/darwin-x64\.dmg$/.test(lowerName)) {
+    return 'macOS Intel DMG';
+  }
+  if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
+    return 'Windows x64 installer';
+  }
+  if (/linux-arm64\.appimage$/.test(lowerName)) {
+    return 'Linux ARM64 AppImage';
+  }
+  if (/linux-x64\.appimage$/.test(lowerName)) {
+    return 'Linux x64 AppImage';
+  }
+  if (/linux-arm64\.deb$/.test(lowerName)) {
+    return 'Linux ARM64 deb package';
+  }
+  if (/linux-x64\.deb$/.test(lowerName)) {
+    return 'Linux x64 deb package';
+  }
+  return assetName;
+}
+
+function describeDetectedPlatform(platform: DetectedPlatform) {
+  switch (platform) {
+    case 'linux-arm64':
+      return 'Recommended for Linux ARM64';
+    case 'linux-x64':
+      return 'Recommended for Linux x64';
+    case 'mac-arm64':
+      return 'Recommended for macOS Apple Silicon';
+    case 'mac-x64':
+      return 'Recommended for macOS Intel';
+    case 'windows-x64':
+      return 'Recommended for Windows x64';
+    case 'unknown':
+      return 'Choose the download for your computer';
+  }
+}
+
+function findRecommendedOption(options: DownloadOption[], platform: DetectedPlatform) {
+  if (platform === 'unknown') {
+    return null;
+  }
+  return options.find((option) => option.platform === platform) ?? null;
+}
+
+function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['platform']): ReleaseInstallGuide {
+  switch (platform) {
+    case 'mac-arm64':
+    case 'mac-x64':
+      return {
+        steps: [
+          'Open the DMG and drag banji to Applications if prompted.',
+          'Control-click banji, choose Open, then confirm Open.',
+          'If blocked, use System Settings -> Privacy & Security -> Open Anyway.',
+          {
+            href: 'https://youtu.be/sLox8h-6BVw',
+            label: 'YouTube tutorial for opening macOS app from unidentified developer',
+          },
+        ],
+        title: 'macOS install notes',
+      };
+    case 'windows-x64':
+      return {
+        steps: [
+          'Run the installer.',
+          'If SmartScreen appears, choose More info -> Run anyway.',
+          'Do not disable SmartScreen globally.',
+        ],
+        title: 'Windows install notes',
+      };
+    case 'linux-arm64':
+    case 'linux-x64':
+      return {
+        steps: [
+          'Mark AppImages executable before opening them.',
+          'If you choose a deb file, install it with your package manager.',
+        ],
+        title: 'Linux install notes',
+      };
+    case 'other':
+    case 'unknown':
+      return {
+        steps: ['Choose a download to see the matching install notes.'],
+        title: 'Install notes',
+      };
+  }
 }
 
 function scrollToSection(sectionId: string) {
@@ -355,7 +585,7 @@ function WebNav() {
             <a href={publicPath('/app')}><ActionSaveIcon className="size-4" />App</a>
           </Button>
           <Button asChild size="sm">
-            <Link to="/install"><ActionDatabaseDownloadIcon className="size-4" />Install</Link>
+            <a href="#releases" onClick={onSectionAnchorClick('releases')}><Download className="size-4" />Install</a>
           </Button>
         </div>
         <details className="group relative sm:hidden">
@@ -371,7 +601,7 @@ function WebNav() {
               <a href={publicPath('/app')}><ActionSaveIcon className="size-4" />App</a>
             </Button>
             <Button asChild className="justify-start">
-              <Link to="/install"><ActionDatabaseDownloadIcon className="size-4" />Install</Link>
+              <a href="#releases" onClick={onSectionAnchorClick('releases')}><Download className="size-4" />Install</a>
             </Button>
           </div>
         </details>
@@ -411,6 +641,7 @@ function HomeRoute() {
             <ProductCard key={tier.title} tier={tier} />
           ))}
         </section>
+        <ReleasesSection />
         <section id="build-from-source" className="w-screen max-w-full border-t border-border/70 px-4 py-14 sm:px-8 xl:px-12">
           <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel md:grid-cols-[1fr_0.78fr]">
             <div>
@@ -503,6 +734,128 @@ function TeamsCanDoRail() {
   );
 }
 
+function ReleasesSection() {
+  const [downloadState, setDownloadState] = useState<ReleaseDownloadState>({
+    detectedPlatform: 'unknown',
+    error: null,
+    options: [],
+    releaseName: null,
+    status: 'loading',
+  });
+  const [selectedAssetName, setSelectedAssetName] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let cancelled = false;
+
+    async function loadReleaseDownloads() {
+      const detectedPlatform = await detectDownloadPlatform();
+      try {
+        const release = await fetchLatestRelease(controller.signal);
+        if (cancelled) {
+          return;
+        }
+        const options = buildDownloadOptions(release.assets);
+        const recommendedOption = findRecommendedOption(options, detectedPlatform);
+        setSelectedAssetName(recommendedOption?.asset.name ?? '');
+        setDownloadState({
+          detectedPlatform,
+          error: null,
+          options,
+          releaseName: release.tag_name ?? null,
+          status: 'loaded',
+        });
+      } catch (error) {
+        if (cancelled || controller.signal.aborted) {
+          return;
+        }
+        setSelectedAssetName('');
+        setDownloadState({
+          detectedPlatform,
+          error: error instanceof Error ? error.message : 'Release downloads are unavailable right now.',
+          options: [],
+          releaseName: null,
+          status: 'error',
+        });
+      }
+    }
+
+    void loadReleaseDownloads();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, []);
+
+  const selectedOption = downloadState.options.find((option) => option.asset.name === selectedAssetName) ?? null;
+  const platformDescription = describeDetectedPlatform(downloadState.detectedPlatform);
+  const installGuide = guideForDownloadPlatform(selectedOption?.platform ?? downloadState.detectedPlatform);
+  const isLoading = downloadState.status === 'loading';
+
+  return (
+    <section id="releases" className="w-screen max-w-full border-t border-border/70 px-4 py-12 sm:px-8 xl:px-12">
+      <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Releases</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-normal">Download the desktop app</h2>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">
+            Downloads come from <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={releasesUrl} rel="noreferrer" target="_blank">GitHub Releases</a>. Verify SHA256SUMS when available and keep normal OS safety prompts on.
+          </p>
+        </div>
+        <div className="grid max-w-4xl gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="grid min-w-0 gap-2 text-sm font-semibold text-foreground sm:w-full sm:max-w-md sm:flex-none">
+              <span className="sr-only">Download</span>
+              <span className="relative">
+                <select
+                  aria-label="Download"
+                  className="h-12 w-full min-w-0 appearance-none rounded-xl border border-border/70 bg-background px-4 pr-11 text-sm font-medium text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isLoading || downloadState.status === 'error' || downloadState.options.length === 0}
+                  onChange={(event) => setSelectedAssetName(event.target.value)}
+                  value={selectedAssetName}
+                >
+                  <option value="">{isLoading ? 'Checking latest release...' : 'Choose a download'}</option>
+                  {downloadState.options.map((option) => (
+                    <option key={option.asset.name} value={option.asset.name}>
+                      {option.platform === downloadState.detectedPlatform ? `${option.label} - recommended` : option.label}
+                    </option>
+                  ))}
+                </select>
+                <NavigationSelectExpandIcon className="pointer-events-none absolute right-4 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              </span>
+            </label>
+            {selectedOption ? (
+              <Button asChild className="h-12 w-full min-w-0 justify-center rounded-xl sm:w-auto sm:min-w-56" size="lg">
+                <a href={selectedOption.asset.browser_download_url} rel="noreferrer" target="_blank">
+                  <Download className="size-4" />
+                  Download selected
+                </a>
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {downloadState.status === 'error'
+              ? 'Release downloads are unavailable right now.'
+              : `${platformDescription}${downloadState.releaseName ? ` from ${downloadState.releaseName}` : ''}.`}
+          </p>
+        </div>
+        <div className="border-t border-border/70 pt-5">
+          <div>
+            <h3 className="text-xl font-semibold">{installGuide.title}</h3>
+            <div className="mt-2">
+              <StepList steps={installGuide.steps} />
+            </div>
+            <p className="mt-4 text-sm leading-6 text-muted-foreground">
+              Download only from the official GitHub release. Verify release files against <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">SHA256SUMS</code> when available, and do not run copies from mirrors or reposts.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ProductCard({ tier }: { tier: ProductTier }) {
   const {
     action,
@@ -576,14 +929,6 @@ function ProductCard({ tier }: { tier: ProductTier }) {
     productCardSurfaceClassName(tone),
   );
 
-  if (href === '/install') {
-    return (
-      <Link className={className} to={href}>
-        {content}
-      </Link>
-    );
-  }
-
   if (href.startsWith('#')) {
     const sectionId = href.slice(1);
     return (
@@ -636,129 +981,20 @@ function SourceBuildSnippet() {
   );
 }
 
-function InstallRoute() {
-  return (
-    <div className="h-svh overflow-x-hidden overflow-y-auto bg-background text-foreground">
-      <WebNav />
-      <main className="mx-auto w-full max-w-5xl px-4 py-12">
-        <section className="rounded-[1.45rem] border border-border/70 bg-card/72 p-6 shadow-panel sm:p-8">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            <ActionDatabaseDownloadIcon className="size-3.5 text-primary" />
-            Install
-          </p>
-          <div className="mt-5 grid gap-8 lg:grid-cols-[1fr_0.72fr] lg:items-end">
-            <div>
-              <h1 className="max-w-2xl text-4xl font-semibold tracking-normal sm:text-6xl">Install banji from official releases.</h1>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground">
-                Download desktop artifacts only from GitHub Releases, verify SHA256 checksums, and use normal OS trust prompts. Warnings are real security signals, not bugs.
-              </p>
-            </div>
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-3 lg:justify-end">
-                <Button asChild size="lg">
-                  <a href={releasesUrl} rel="noreferrer" target="_blank">
-                    <ActionDatabaseDownloadIcon className="size-4" />
-                    Latest release
-                  </a>
-                </Button>
-                <Button asChild size="lg" variant="outline">
-                  <a href={sourceUrl} rel="noreferrer" target="_blank">
-                    <ActionOpenExternalIcon className="size-4" />
-                    Source
-                  </a>
-                </Button>
-              </div>
-              <InstallHeroSketch />
-            </div>
-          </div>
-        </section>
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
-          <InstallSection icon={<EntityPackageSearchIcon className="size-5" />} title="macOS DMG">
-            <StepList
-              steps={[
-                'Download only from the official GitHub release.',
-                'Open the DMG and drag banji to Applications if prompted.',
-                'Control-click banji, choose Open, then confirm Open.',
-                'If blocked, use System Settings -> Privacy & Security -> Open Anyway.',
-              ]}
-            />
-          </InstallSection>
-          <InstallSection icon={<ActionDatabaseDownloadIcon className="size-5" />} title="Windows EXE">
-            <StepList
-              steps={[
-                'Download only from the official GitHub release.',
-                'Verify the checksum when SHA256SUMS is available.',
-                'Run the installer. If SmartScreen appears, choose More info -> Run anyway.',
-                'Do not disable SmartScreen globally.',
-              ]}
-            />
-          </InstallSection>
-          <InstallSection icon={<ActionOpenExternalIcon className="size-5" />} title="Linux packages">
-            <p className="text-sm leading-6 text-muted-foreground">
-              AppImage and deb artifacts are provided when the release includes them. Mark AppImages executable, or install local deb files with your package manager.
-            </p>
-          </InstallSection>
-          <InstallSection className="lg:col-span-2" icon={<EntitySafetyStockIcon className="size-5" />} title="Checksums and honest warnings">
-            <p className="text-sm leading-6 text-muted-foreground">
-              Verify release files against the <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">SHA256SUMS</code> asset on the same release. The repository is source-visible, but <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">package.json</code> currently declares <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">UNLICENSED</code>. Do not run copies from mirrors or reposts.
-            </p>
-          </InstallSection>
-          <InstallSection icon={<ActionSaveIcon className="size-5" />} title="Browser app limits">
-            <p className="text-sm leading-6 text-muted-foreground">
-              The browser app stores data in the current browser profile when OPFS is available. Telegram automation polls only while the tab is open, visible, and awake; the token is stored in that browser profile; benchmark diagnostics, native logs, snapshots, folder reveal, and persistent image assets require the desktop app.
-            </p>
-          </InstallSection>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function InstallHeroSketch() {
-  return (
-    <div className="relative ml-auto hidden min-h-44 w-full max-w-sm overflow-hidden rounded-[1.25rem] border border-border/70 bg-background/72 p-5 shadow-sm lg:block">
-      <div className="absolute inset-0 paper-grid opacity-35" aria-hidden="true" />
-      <div className="relative mx-auto mt-4 h-24 w-44 rounded-b-[1.2rem] border border-primary/30 bg-primary/18">
-        <div className="absolute -top-7 left-3 h-8 w-20 origin-bottom -rotate-12 rounded-t-xl border border-primary/25 bg-secondary" />
-        <div className="absolute -top-7 right-3 h-8 w-20 origin-bottom rotate-12 rounded-t-xl border border-primary/25 bg-secondary" />
-        <div className="absolute -top-12 left-1/2 h-16 w-2 -translate-x-1/2 rounded-full bg-accent" />
-        <div className="absolute -top-11 left-[44%] h-12 w-7 -rotate-[35deg] rounded-full bg-accent/70" />
-        <div className="absolute -top-10 right-[40%] h-12 w-7 rotate-[35deg] rounded-full bg-accent/70" />
-        <p className="absolute inset-x-0 bottom-4 text-center text-2xl font-semibold text-foreground">banji</p>
-      </div>
-    </div>
-  );
-}
-
-function InstallSection({
-  children,
-  className = '',
-  icon,
-  title,
-}: {
-  children: ReactNode;
-  className?: string;
-  icon: ReactNode;
-  title: string;
-}) {
-  return (
-    <section className={`grid gap-4 rounded-[1.15rem] border border-border/70 bg-card/68 p-5 shadow-panel sm:grid-cols-[2.5rem_1fr] ${className}`}>
-      <div className="grid size-10 place-items-center rounded-[0.9rem] bg-accent/45 text-foreground">{icon}</div>
-      <div>
-        <h2 className="text-xl font-semibold">{title}</h2>
-        <div className="mt-2">{children}</div>
-      </div>
-    </section>
-  );
-}
-
-function StepList({ steps }: { steps: string[] }) {
+function StepList({ steps }: { steps: Array<string | { href: string; label: string }> }) {
   return (
     <ol className="space-y-2 text-sm leading-6 text-muted-foreground">
       {steps.map((step) => (
-        <li key={step} className="flex gap-3">
+        <li key={typeof step === 'string' ? step : step.href} className="flex gap-3">
           <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-          <span>{step}</span>
+          {typeof step === 'string' ? (
+            <span>{step}</span>
+          ) : (
+            <a className="inline-flex items-center gap-1.5 font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={step.href} rel="noreferrer" target="_blank">
+              {step.label}
+              <ActionOpenExternalIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            </a>
+          )}
         </li>
       ))}
     </ol>
@@ -982,8 +1218,8 @@ function WebAppBanner({
             <span>{isDemo ? 'Reset demo' : 'Reset workspace'}</span>
           </Button>
           <Button asChild className="w-full justify-start md:h-8 md:min-w-0 md:px-2" size="sm" variant="outline">
-            <a href={publicPath(isDemo ? '/app' : '/install')}>
-              {isDemo ? <ActionSaveIcon className="size-4" /> : <ActionDatabaseDownloadIcon className="size-4" />}
+            <a href={publicPath(isDemo ? '/app' : '/#releases')}>
+              {isDemo ? <ActionSaveIcon className="size-4" /> : <Download className="size-4" />}
               <span>{isDemo ? 'Use browser app' : 'Download desktop app'}</span>
             </a>
           </Button>
@@ -1194,7 +1430,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
                 <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Try demo</a>
               </Button>
               <Button asChild variant="outline">
-                <a href={publicPath('/install')}><ActionDatabaseDownloadIcon className="size-4" />Download desktop app</a>
+                <a href={publicPath('/#releases')}><Download className="size-4" />Download desktop app</a>
               </Button>
             </div>
           </div>
@@ -1231,7 +1467,6 @@ export function WebRoutes() {
   return (
     <Routes>
       <Route element={<HomeRoute />} path="/" />
-      <Route element={<InstallRoute />} path="/install" />
       <Route element={<Navigate replace to="/" />} path="*" />
     </Routes>
   );
