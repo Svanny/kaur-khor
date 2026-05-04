@@ -17,7 +17,7 @@ The demo seed uses the same 10 Khmer SKUs, 10 Khmer services, catalog prices, su
 
 The app route opens `kaur_khor_browser_app_v1.sqlite3` through SQLite WASM in a Web Worker. The runtime prefers SQLite's OPFS SyncAccessHandle Pool VFS (`opfs-sahpool`) so it can run on static hosting without requiring COOP/COEP headers. If OPFS or SQLite initialization is unavailable, the real app route shows an unsupported-browser state and does not silently fall back to weaker storage.
 
-Browser mode keeps major product surfaces visible, but native-only desktop tools are shown as unavailable or replaced with browser equivalents:
+Browser mode keeps major product surfaces visible, but native-only desktop tools are shown as unavailable or replaced with browser equivalents. Browser-only banner copy uses the active workspace language, including Khmer translations for demo/reset/backup controls and browser close warnings:
 
 - The app banner is the browser backup/import/reset surface.
 - In the main browser and demo app views, the banner sits on the left rail and keeps the same vertical button coordinates when the navigation rail expands or collapses. On onboarding routes only, the banner becomes a floating top nav overlay so it does not push down the onboarding canvas.

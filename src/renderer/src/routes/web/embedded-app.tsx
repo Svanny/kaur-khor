@@ -19,6 +19,7 @@ import {
 import { StatusWarningIcon } from '@icons/status';
 import { WebDownloadIcon, WebGlobeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
+import { translateUiLiteral } from '@/lib/translations';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
   KAUR_KHOR_BROWSER_DEMO_DATABASE,
@@ -30,6 +31,7 @@ import {
   type BrowserStorageHandle,
   type BrowserStorageSupportedHandle,
 } from '@/runtime/web';
+import type { AppLanguage } from '@shared/inventory';
 import type { DesktopBridge } from '@shared/ipc';
 import { EmbeddedAutoZoomViewport } from './embedded-viewport';
 
@@ -295,6 +297,26 @@ function useBrowserTelegramLiveListening(mode: EmbeddedMode) {
   return isLiveListening;
 }
 
+function useBrowserWorkspaceLanguage() {
+  const [language, setLanguage] = useState<AppLanguage>(() =>
+    getBrowserDesktopBridgeMockState().preferences.language,
+  );
+
+  useEffect(() => {
+    const readLanguage = () => {
+      setLanguage(getBrowserDesktopBridgeMockState().preferences.language);
+    };
+
+    readLanguage();
+    window.addEventListener('kaur-khor-browser-state-changed', readLanguage);
+    return () => {
+      window.removeEventListener('kaur-khor-browser-state-changed', readLanguage);
+    };
+  }, []);
+
+  return language;
+}
+
 function WebAppBanner({
   isOnboarding,
   mode,
@@ -311,8 +333,13 @@ function WebAppBanner({
   onReset: () => void;
 }) {
   const isDemo = mode === 'demo';
+  const language = useBrowserWorkspaceLanguage();
   const isTelegramLiveListening = useBrowserTelegramLiveListening(mode);
-  const appWarningMessage = browserWorkspaceCloseWarningMessage(isTelegramLiveListening);
+  const appWarningMessage = translateUiLiteral(language, browserWorkspaceCloseWarningMessage(isTelegramLiveListening));
+  const exportBackupLabel = translateUiLiteral(language, 'Export backup');
+  const importBackupLabel = translateUiLiteral(language, 'Import backup');
+  const resetLabel = translateUiLiteral(language, isDemo ? 'Reset demo' : 'Reset workspace');
+  const destinationLabel = translateUiLiteral(language, isDemo ? 'Use browser app' : 'Download app');
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const sidebarCollapsed = useEmbeddedSidebarCollapsed();
   const actionButtonClassName = cn(
@@ -343,32 +370,32 @@ function WebAppBanner({
           </span>
           <div className={cn('min-w-0 text-left', sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'max-w-[18rem] sm:max-w-[24rem]' : null)}>
             <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)}>
-              {isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.'}
+              {translateUiLiteral(language, isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.')}
             </p>
             {isDemo ? (
-              <p className="hidden text-muted-foreground md:block">Sample workspace. Reset anytime.</p>
+              <p className="hidden text-muted-foreground md:block">{translateUiLiteral(language, 'Sample workspace. Reset anytime.')}</p>
             ) : (
               <p className="text-muted-foreground">{appWarningMessage}</p>
             )}
           </div>
         </div>
         <div className={cn('grid grid-cols-1 gap-2 md:gap-1.5', isOnboarding ? 'grid-cols-2 justify-items-end justify-self-end' : null)}>
-          <Button aria-label="Export backup" className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
+          <Button aria-label={exportBackupLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
             <ActionExportIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>Export backup</span>
+            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{exportBackupLabel}</span>
           </Button>
-          <Button aria-label="Import backup" className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
+          <Button aria-label={importBackupLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
             <ActionDatabaseUploadIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>Import backup</span>
+            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{importBackupLabel}</span>
           </Button>
-          <Button aria-label={isDemo ? 'Reset demo' : 'Reset workspace'} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onReset}>
+          <Button aria-label={resetLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{isDemo ? 'Reset demo' : 'Reset workspace'}</span>
+            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{resetLabel}</span>
           </Button>
           <Button asChild className={actionButtonClassName} size="sm" variant="outline">
-            <a aria-label={isDemo ? 'Use browser app' : 'Download app'} href={publicPath(isDemo ? '/app' : '/#releases')}>
+            <a aria-label={destinationLabel} href={publicPath(isDemo ? '/app' : '/#releases')}>
               {isDemo ? <WebGlobeIcon className="size-4" /> : <WebDownloadIcon className="size-4" />}
-              <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{isDemo ? 'Use browser app' : 'Download app'}</span>
+              <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{destinationLabel}</span>
             </a>
           </Button>
           <input

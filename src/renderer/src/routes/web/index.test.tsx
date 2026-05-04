@@ -806,6 +806,56 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByText(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING)).not.toBeInTheDocument();
   });
 
+  test('localizes demo browser banner copy to Khmer', () => {
+    const state = fallbackStateForMode('demo');
+    state.preferences.language = 'km';
+    setBrowserDesktopBridgeMockState(state);
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <EmbeddedAppBanner
+          mode="demo"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('ទិន្នន័យសាកល្បង មិនមែនកន្លែងធ្វើការពិតរបស់អ្នកទេ។')).toBeInTheDocument();
+    expect(screen.getByText('កន្លែងធ្វើការគំរូ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'នាំចូលច្បាប់បម្រុង' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'កំណត់សាកល្បងឡើងវិញ' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ប្រើកម្មវិធីរុករក' })).toBeInTheDocument();
+    expect(screen.queryByText('Demo data - not your real workspace.')).not.toBeInTheDocument();
+  });
+
+  test('localizes browser app warning banner copy to Khmer', () => {
+    const state = fallbackStateForMode('app');
+    state.preferences.language = 'km';
+    setBrowserDesktopBridgeMockState(state);
+
+    render(
+      <MemoryRouter initialEntries={['/onboarding']}>
+        <EmbeddedAppBanner
+          mode="app"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('នាំចេញច្បាប់បម្រុងមុនពេលបិទ។')).toBeInTheDocument();
+    expect(screen.getByText(/កន្លែងធ្វើការកខរបស់អ្នកត្រូវបានរក្សាទុក/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'កំណត់កន្លែងធ្វើការឡើងវិញ' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ទាញយកកម្មវិធី' })).toBeInTheDocument();
+    expect(screen.queryByText('Export a backup before closing.')).not.toBeInTheDocument();
+  });
+
   test('does not apply embedded product auto zoom to the public landing route', () => {
     const { container } = renderWebHome();
 

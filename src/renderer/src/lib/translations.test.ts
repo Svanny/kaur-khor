@@ -81,6 +81,7 @@ describe('getTranslation', () => {
     expect(getTranslation('km', 'appBrand')).toBe('កខ');
     expect(translateUiLiteral('km', 'Kaur Khor')).toBe('កខ');
     expect(translateUiLiteral('km', 'KAUR KHOR')).toBe('កខ');
+    expect(Object.values(kmUiCopy).filter((value) => /Kaur Khor|KAUR KHOR/.test(value))).toEqual([]);
   });
 
   test('preserves interpolation placeholders across the full Khmer map', () => {

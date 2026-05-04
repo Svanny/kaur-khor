@@ -3227,6 +3227,19 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Browser data lives in this browser profile.': 'ទិន្នន័យកម្មវិធីរុករកស្ថិតនៅក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
   'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.':
     'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នេបស្ហតកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
+  'Demo data - not your real workspace.': 'ទិន្នន័យសាកល្បង មិនមែនកន្លែងធ្វើការពិតរបស់អ្នកទេ។',
+  'Sample workspace. Reset anytime.': 'កន្លែងធ្វើការគំរូ។ អាចកំណត់ឡើងវិញបានគ្រប់ពេល។',
+  'Export a backup before closing.': 'នាំចេញច្បាប់បម្រុងមុនពេលបិទ។',
+  'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.':
+    'កន្លែងធ្វើការ កខ របស់អ្នកត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។ ការសម្អាតកម្មវិធីរុករក ការលុបទិន្នន័យគេហទំព័រ ឬការសម្អាតរបៀបឯកជនអាចលុបវាបាន។ នាំចេញច្បាប់បម្រុងមុនពេលបិទ ប្រសិនបើអ្នកត្រូវការកន្លែងធ្វើការនេះ។',
+  'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.':
+    'កន្លែងធ្វើការ កខ របស់អ្នកត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។ នាំចេញច្បាប់បម្រុងមុនពេលបិទ។ ការបិទផ្ទាំងនេះក៏បញ្ឈប់ការស្តាប់តេលេក្រាមផ្ទាល់ និងការទទួលការបញ្ជាទិញស្វ័យប្រវត្តិ រហូតដល់អ្នកបើក /app ម្តងទៀត។',
+  'Export backup': 'នាំចេញច្បាប់បម្រុង',
+  'Import backup': 'នាំចូលច្បាប់បម្រុង',
+  'Reset demo': 'កំណត់សាកល្បងឡើងវិញ',
+  'Reset workspace': 'កំណត់កន្លែងធ្វើការឡើងវិញ',
+  'Use browser app': 'ប្រើកម្មវិធីរុករក',
+  'Download app': 'ទាញយកកម្មវិធី',
   'Excel file': 'ឯកសារអិចសែល',
   Pane: 'ផ្ទាំងក្រាហ្វ',
   'New pane': 'ផ្ទាំងក្រាហ្វថ្មី',
