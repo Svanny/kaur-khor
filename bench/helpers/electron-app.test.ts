@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { benchmarkChildEnv, clickWithBrowserStartTime, closeBanjiBenchmarkSession } from './electron-app';
+import { benchmarkChildEnv, clickWithBrowserStartTime, closeKaurKhorBenchmarkSession } from './electron-app';
 
 interface MockChildProcess extends EventEmitter {
   exitCode: number | null;
@@ -24,7 +24,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('closeBanjiBenchmarkSession', () => {
+describe('closeKaurKhorBenchmarkSession', () => {
   it('force-kills when app.close hangs', async () => {
     vi.useFakeTimers();
     const process = createMockChildProcess({
@@ -38,7 +38,7 @@ describe('closeBanjiBenchmarkSession', () => {
       close: vi.fn(() => new Promise<void>(() => {})),
     };
 
-    const closePromise = closeBanjiBenchmarkSession({ app } as never);
+    const closePromise = closeKaurKhorBenchmarkSession({ app } as never);
     await vi.advanceTimersByTimeAsync(10_001);
     await closePromise;
 
@@ -54,7 +54,7 @@ describe('closeBanjiBenchmarkSession', () => {
       close: vi.fn(async () => undefined),
     };
 
-    const closePromise = closeBanjiBenchmarkSession({ app } as never);
+    const closePromise = closeKaurKhorBenchmarkSession({ app } as never);
     await closePromise;
 
     expect(app.close).toHaveBeenCalledTimes(1);
@@ -76,7 +76,7 @@ describe('closeBanjiBenchmarkSession', () => {
       }),
     };
 
-    await closeBanjiBenchmarkSession({ app } as never);
+    await closeKaurKhorBenchmarkSession({ app } as never);
 
     expect(app.close).toHaveBeenCalledTimes(1);
     expect(process.kill).toHaveBeenCalledWith('SIGKILL');
@@ -93,9 +93,9 @@ describe('closeBanjiBenchmarkSession', () => {
       close: vi.fn(async () => undefined),
     };
 
-    await closeBanjiBenchmarkSession({ app, tracePath: '/tmp/banji-trace.zip' } as never);
+    await closeKaurKhorBenchmarkSession({ app, tracePath: '/tmp/kaur-khor-trace.zip' } as never);
 
-    expect(tracing.stop).toHaveBeenCalledWith({ path: '/tmp/banji-trace.zip' });
+    expect(tracing.stop).toHaveBeenCalledWith({ path: '/tmp/kaur-khor-trace.zip' });
     expect(app.close).toHaveBeenCalledTimes(1);
   });
 });
@@ -106,10 +106,10 @@ describe('benchmarkChildEnv', () => {
     process.env.NO_COLOR = '1';
 
     try {
-      const env = benchmarkChildEnv({ BANJI_BENCHMARK: '1' });
+      const env = benchmarkChildEnv({ KAUR_KHOR_BENCHMARK: '1' });
 
       expect(env.NO_COLOR).toBeUndefined();
-      expect(env.BANJI_BENCHMARK).toBe('1');
+      expect(env.KAUR_KHOR_BENCHMARK).toBe('1');
     } finally {
       if (previousNoColor == null) {
         delete process.env.NO_COLOR;
@@ -120,19 +120,19 @@ describe('benchmarkChildEnv', () => {
   });
 
   it('does not inherit unrelated shell environment into the launched app', () => {
-    const previousValue = process.env.BANJI_BENCHMARK_FIXTURE_SIZE;
-    process.env.BANJI_BENCHMARK_FIXTURE_SIZE = 'power-user';
+    const previousValue = process.env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE;
+    process.env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE = 'power-user';
 
     try {
-      const env = benchmarkChildEnv({ BANJI_BENCHMARK: '1' });
+      const env = benchmarkChildEnv({ KAUR_KHOR_BENCHMARK: '1' });
 
-      expect(env.BANJI_BENCHMARK_FIXTURE_SIZE).toBeUndefined();
-      expect(env.BANJI_BENCHMARK).toBe('1');
+      expect(env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE).toBeUndefined();
+      expect(env.KAUR_KHOR_BENCHMARK).toBe('1');
     } finally {
       if (previousValue == null) {
-        delete process.env.BANJI_BENCHMARK_FIXTURE_SIZE;
+        delete process.env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE;
       } else {
-        process.env.BANJI_BENCHMARK_FIXTURE_SIZE = previousValue;
+        process.env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE = previousValue;
       }
     }
   });

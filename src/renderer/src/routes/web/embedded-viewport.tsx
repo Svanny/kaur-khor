@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { deriveResponsiveViewportPolicy, isPhonePortraitViewport } from '@shared/responsive-zoom';
 import { cn } from '@/lib/utils';
 
-export const EMBEDDED_VIEWPORT_CHANGE_EVENT = 'banji:embedded-viewport-change';
+export const EMBEDDED_VIEWPORT_CHANGE_EVENT = 'kaur-khor:embedded-viewport-change';
 
 function readViewportSize() {
   const visualViewport = window.visualViewport;
@@ -50,24 +50,24 @@ export function EmbeddedAutoZoomViewport({ children }: { children: ReactNode }) 
 
   useEffect(() => {
     const root = document.documentElement;
-    root.dataset.banjiEffectiveViewportWidth = String(Math.round(policy.effectiveWidth));
-    root.dataset.banjiEffectiveViewportHeight = String(Math.round(policy.effectiveHeight));
-    root.style.setProperty('--banji-effective-viewport-width', `${policy.effectiveWidth}px`);
-    root.style.setProperty('--banji-effective-viewport-height', `${policy.effectiveHeight}px`);
+    root.dataset.kaurKhorEffectiveViewportWidth = String(Math.round(policy.effectiveWidth));
+    root.dataset.kaurKhorEffectiveViewportHeight = String(Math.round(policy.effectiveHeight));
+    root.style.setProperty('--kaur-khor-effective-viewport-width', `${policy.effectiveWidth}px`);
+    root.style.setProperty('--kaur-khor-effective-viewport-height', `${policy.effectiveHeight}px`);
     root.dispatchEvent(new CustomEvent(EMBEDDED_VIEWPORT_CHANGE_EVENT));
     return () => {
-      delete root.dataset.banjiEffectiveViewportWidth;
-      delete root.dataset.banjiEffectiveViewportHeight;
-      root.style.removeProperty('--banji-effective-viewport-width');
-      root.style.removeProperty('--banji-effective-viewport-height');
+      delete root.dataset.kaurKhorEffectiveViewportWidth;
+      delete root.dataset.kaurKhorEffectiveViewportHeight;
+      root.style.removeProperty('--kaur-khor-effective-viewport-width');
+      root.style.removeProperty('--kaur-khor-effective-viewport-height');
       root.dispatchEvent(new CustomEvent(EMBEDDED_VIEWPORT_CHANGE_EVENT));
     };
   }, [policy.effectiveHeight, policy.effectiveWidth]);
 
   const surfaceStyle = {
-    '--banji-embedded-effective-height': `${policy.effectiveHeight}px`,
-    '--banji-embedded-effective-width': `${policy.effectiveWidth}px`,
-    '--banji-embedded-scale': String(policy.scale),
+    '--kaur-khor-embedded-effective-height': `${policy.effectiveHeight}px`,
+    '--kaur-khor-embedded-effective-width': `${policy.effectiveWidth}px`,
+    '--kaur-khor-embedded-scale': String(policy.scale),
     minHeight: `${policy.effectiveHeight}px`,
     transform: cssZoomSupported ? undefined : `scale(${policy.scale})`,
     transformOrigin: 'top left',
@@ -88,8 +88,8 @@ export function EmbeddedAutoZoomViewport({ children }: { children: ReactNode }) 
       data-measured-area={Math.round(policy.measuredArea)}
       data-zoom-level={policy.zoomLevel}
       style={{
-        '--banji-embedded-measured-height': `${policy.measuredHeight}px`,
-        '--banji-embedded-measured-width': `${policy.measuredWidth}px`,
+        '--kaur-khor-embedded-measured-height': `${policy.measuredHeight}px`,
+        '--kaur-khor-embedded-measured-width': `${policy.measuredWidth}px`,
       } as CSSProperties}
     >
       {policy.phoneLandscape ? (

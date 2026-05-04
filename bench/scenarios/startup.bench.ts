@@ -1,10 +1,10 @@
 import { test } from '@playwright/test';
 import {
   benchmarkEventCount,
-  closeBanjiBenchmarkSession,
-  finalizeBanjiBenchmarkScenario,
-  type LaunchedBanjiBenchmarkApp,
-  launchBanjiForBenchmark,
+  closeKaurKhorBenchmarkSession,
+  finalizeKaurKhorBenchmarkScenario,
+  type LaunchedKaurKhorBenchmarkApp,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
   recordPlaywrightDuration,
@@ -13,7 +13,7 @@ import {
 } from '../helpers/electron-app';
 
 test('cold dev launch reaches a usable workspace', async ({}, testInfo) => {
-  const launched: LaunchedBanjiBenchmarkApp = await launchBanjiForBenchmark('startup-cold-dev', testInfo);
+  const launched: LaunchedKaurKhorBenchmarkApp = await launchKaurKhorForBenchmark('startup-cold-dev', testInfo);
   await markBenchmarkMeasurementStart(launched, {
     workflow: 'startup',
     launchType: 'cold+warm-reload',
@@ -44,10 +44,10 @@ test('cold dev launch reaches a usable workspace', async ({}, testInfo) => {
       ok: true,
     });
   } finally {
-    await closeBanjiBenchmarkSession(launched);
+    await closeKaurKhorBenchmarkSession(launched);
   }
 
-  await finalizeBanjiBenchmarkScenario({
+  await finalizeKaurKhorBenchmarkScenario({
     outputDirectory: launched.outputDirectory,
     runId: launched.runId,
     scenario: 'startup',

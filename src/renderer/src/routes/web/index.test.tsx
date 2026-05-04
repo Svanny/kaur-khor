@@ -96,7 +96,7 @@ const productCardCopy = {
 } as const;
 
 const embeddedStorage = {
-  databaseName: 'banji-browser-demo',
+  databaseName: 'kaur-khor-browser-demo',
   handle: null,
   lastBackupAt: null,
   message: 'This demo uses a separate sample workspace.',
@@ -296,7 +296,7 @@ describe('WebRoutes landing rail', () => {
 
     switchLandingToKhmer();
 
-    expect(screen.getByRole('heading', { name: 'បញ្ជី' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'កខ' })).toBeInTheDocument();
     expect(screen.getByText(/អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ចាប់ផ្តើម' })).toBeInTheDocument();
 
@@ -329,7 +329,7 @@ describe('WebRoutes landing rail', () => {
   test('renders every operator-facing feature once in the accessible rail', () => {
     renderWebHome();
 
-    const rail = screen.getByRole('list', { name: 'Operator-facing banji features' });
+    const rail = screen.getByRole('list', { name: 'Operator-facing Kaur Khor features' });
     const accessibleItems = within(rail).getAllByRole('listitem');
 
     expect(accessibleItems).toHaveLength(operatorFeatureLabels.length);
@@ -362,7 +362,7 @@ describe('WebRoutes landing rail', () => {
 
     renderWebHome();
 
-    expect(screen.getByAltText('banji mission control overview showing the main work queue')).toBeInTheDocument();
+    expect(screen.getByAltText('Kaur Khor mission control overview showing the main work queue')).toBeInTheDocument();
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 });
@@ -573,8 +573,8 @@ describe('WebRoutes releases section', () => {
   test('removes the standalone install page and install links', async () => {
     const { container } = renderWebPath('/install');
 
-    expect(await screen.findByRole('heading', { name: 'banji' })).toBeInTheDocument();
-    expect(container).not.toHaveTextContent('Install banji from official releases.');
+    expect(await screen.findByRole('heading', { name: 'KAUR KHOR' })).toBeInTheDocument();
+    expect(container).not.toHaveTextContent('Install Kaur Khor from official releases.');
     expect(container.querySelectorAll('a[href*="/install"]')).toHaveLength(0);
   });
 });
@@ -831,8 +831,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(viewport).toHaveAttribute('data-measured-area', String(900 * 800));
     expect(surface).toHaveStyle({ width: `${900 / (1.2 ** -2)}px` });
     await waitFor(() => {
-      expect(document.documentElement.dataset.banjiEffectiveViewportWidth).toBe(String(Math.round(900 / (1.2 ** -2))));
-      expect(document.documentElement.dataset.banjiEffectiveViewportHeight).toBe(String(Math.round(800 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(900 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(800 / (1.2 ** -2))));
     });
   });
 
@@ -881,7 +881,7 @@ describe('WebRoutes embedded app fallback state', () => {
       width: '844px',
     });
     await waitFor(() => {
-      expect(Number(document.documentElement.dataset.banjiEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
+      expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
     });
   });
 
@@ -966,7 +966,7 @@ describe('WebRoutes embedded app fallback state', () => {
     const rawMessage = "Failed to execute 'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles cannot be created if there is another open Access Handle or Writable stream associated with the same file.";
 
     expect(formatBrowserStorageErrorMessage(rawMessage)).toBe(
-      'Cannot have two banji browser tabs open at the same time. Close the other tab, then reload this page.',
+      'Cannot have two Kaur Khor browser tabs open at the same time. Close the other tab, then reload this page.',
     );
     expect(formatBrowserStorageErrorMessage('Backup did not contain a browser workspace state.')).toBe(
       'Backup did not contain a browser workspace state.',

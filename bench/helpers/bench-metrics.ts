@@ -2,14 +2,14 @@ import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   evaluateBenchmarkTargets,
-  type BanjiBenchmarkEvent,
-  type BanjiBenchmarkMetricSummary,
-  type BanjiBenchmarkScenarioId,
-  type BanjiBenchmarkScenarioSummary,
+  type KaurKhorBenchmarkEvent,
+  type KaurKhorBenchmarkMetricSummary,
+  type KaurKhorBenchmarkScenarioId,
+  type KaurKhorBenchmarkScenarioSummary,
 } from '../../src/shared/benchmark';
 
-export type BenchmarkMetricSummary = BanjiBenchmarkMetricSummary;
-export type BenchmarkScenarioSummary = BanjiBenchmarkScenarioSummary;
+export type BenchmarkMetricSummary = KaurKhorBenchmarkMetricSummary;
+export type BenchmarkScenarioSummary = KaurKhorBenchmarkScenarioSummary;
 
 const MEASUREMENT_START_MARKER = 'benchmark.phase.measurement_start';
 const MEASUREMENT_END_MARKER = 'benchmark.phase.measurement_end';
@@ -21,11 +21,11 @@ function wait(ms: number) {
 }
 
 function parseBenchmarkEventLines(fileName: string, raw: string) {
-  const events: BanjiBenchmarkEvent[] = [];
+  const events: KaurKhorBenchmarkEvent[] = [];
   const errors: string[] = [];
   for (const line of raw.split('\n').filter(Boolean)) {
     try {
-      events.push(JSON.parse(line) as BanjiBenchmarkEvent);
+      events.push(JSON.parse(line) as KaurKhorBenchmarkEvent);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push(`[benchmark] skipped malformed event line in ${fileName}: ${message}`);
@@ -81,12 +81,12 @@ export function summarizeDurations(values: number[]): BenchmarkMetricSummary {
   };
 }
 
-function firstEventTime(events: BanjiBenchmarkEvent[], name: string) {
+function firstEventTime(events: KaurKhorBenchmarkEvent[], name: string) {
   return events.find((event) => event.name === name)?.ts ?? null;
 }
 
 function firstEventTimeAfter(
-  events: BanjiBenchmarkEvent[],
+  events: KaurKhorBenchmarkEvent[],
   name: string,
   afterTs: number,
 ) {
@@ -94,7 +94,7 @@ function firstEventTimeAfter(
 }
 
 function durationMetric(
-  events: BanjiBenchmarkEvent[],
+  events: KaurKhorBenchmarkEvent[],
   startName: string,
   endName: string,
 ) {
@@ -106,7 +106,7 @@ function durationMetric(
   return end - start;
 }
 
-function measurementWindowBounds(events: BanjiBenchmarkEvent[]) {
+function measurementWindowBounds(events: KaurKhorBenchmarkEvent[]) {
   const measurementStartTs = firstEventTime(events, MEASUREMENT_START_MARKER);
   if (measurementStartTs == null) {
     return null;
@@ -118,12 +118,12 @@ function measurementWindowBounds(events: BanjiBenchmarkEvent[]) {
   };
 }
 
-function detailNumber(event: BanjiBenchmarkEvent, key: string) {
+function detailNumber(event: KaurKhorBenchmarkEvent, key: string) {
   const value = event.detail?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-function measurementPerformanceWindowBounds(events: BanjiBenchmarkEvent[]) {
+function measurementPerformanceWindowBounds(events: KaurKhorBenchmarkEvent[]) {
   const measurementStart = events.find((event) => event.name === MEASUREMENT_START_MARKER);
   const measurementStartNow = measurementStart ? detailNumber(measurementStart, 'performanceNow') : null;
   if (measurementStart == null || measurementStartNow == null) {
@@ -140,8 +140,8 @@ function measurementPerformanceWindowBounds(events: BanjiBenchmarkEvent[]) {
 }
 
 function rendererEventsInMeasurementWindow(
-  events: BanjiBenchmarkEvent[],
-  measurementEvents: BanjiBenchmarkEvent[],
+  events: KaurKhorBenchmarkEvent[],
+  measurementEvents: KaurKhorBenchmarkEvent[],
 ) {
   const window = measurementPerformanceWindowBounds(events);
   if (!window) {
@@ -157,7 +157,7 @@ function rendererEventsInMeasurementWindow(
   });
 }
 
-function eventsInMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+function eventsInMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {
   const window = measurementWindowBounds(events);
   if (!window) {
     return events;
@@ -168,7 +168,7 @@ function eventsInMeasurementWindow(events: BanjiBenchmarkEvent[]) {
       && (measurementEndTs == null || event.ts <= measurementEndTs));
 }
 
-function eventsBeforeMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+function eventsBeforeMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {
   const window = measurementWindowBounds(events);
   if (!window) {
     return [];
@@ -176,7 +176,7 @@ function eventsBeforeMeasurementWindow(events: BanjiBenchmarkEvent[]) {
   return events.filter((event) => event.ts < window.measurementStartTs);
 }
 
-function hasMeasurementWindow(events: BanjiBenchmarkEvent[]) {
+function hasMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {
   return measurementWindowBounds(events) != null;
 }
 
@@ -190,7 +190,7 @@ function firstSummaryMetric(metrics: Record<string, BenchmarkMetricSummary>, nam
   return null;
 }
 
-function maxDetailMetric(events: BanjiBenchmarkEvent[], eventName: string, detailKey: string) {
+function maxDetailMetric(events: KaurKhorBenchmarkEvent[], eventName: string, detailKey: string) {
   const values = events
     .filter((event) => event.name === eventName)
     .map((event) => event.detail?.[detailKey])
@@ -198,7 +198,7 @@ function maxDetailMetric(events: BanjiBenchmarkEvent[], eventName: string, detai
   return values.length > 0 ? Math.max(...values) : null;
 }
 
-function p95DetailMetric(events: BanjiBenchmarkEvent[], eventName: string, detailKey: string) {
+function p95DetailMetric(events: KaurKhorBenchmarkEvent[], eventName: string, detailKey: string) {
   const values = events
     .filter((event) => event.name === eventName)
     .map((event) => event.detail?.[detailKey])
@@ -207,10 +207,10 @@ function p95DetailMetric(events: BanjiBenchmarkEvent[], eventName: string, detai
 }
 
 function p95DetailMetricWhere(
-  events: BanjiBenchmarkEvent[],
+  events: KaurKhorBenchmarkEvent[],
   eventName: string,
   detailKey: string,
-  predicate: (event: BanjiBenchmarkEvent) => boolean,
+  predicate: (event: KaurKhorBenchmarkEvent) => boolean,
 ) {
   const values = events
     .filter((event) => event.name === eventName && predicate(event))
@@ -219,7 +219,7 @@ function p95DetailMetricWhere(
   return summarizeDurations(values).p95;
 }
 
-function hasMeasuredUserAction(events: BanjiBenchmarkEvent[]) {
+function hasMeasuredUserAction(events: KaurKhorBenchmarkEvent[]) {
   return events.some((event) =>
     event.phase === 'end'
       && typeof event.durationMs === 'number'
@@ -227,8 +227,8 @@ function hasMeasuredUserAction(events: BanjiBenchmarkEvent[]) {
 }
 
 function queueWaitP95OrZeroWhenMeasured(
-  events: BanjiBenchmarkEvent[],
-  predicate?: (event: BanjiBenchmarkEvent) => boolean,
+  events: KaurKhorBenchmarkEvent[],
+  predicate?: (event: KaurKhorBenchmarkEvent) => boolean,
 ) {
   const value = predicate
     ? p95DetailMetricWhere(events, 'backend.core.request.resolve', 'queueWaitMs', predicate)
@@ -247,7 +247,7 @@ function isReadOnlyBenchmarkCommand(command: string | null | undefined) {
     || command?.startsWith('inventory.list') === true;
 }
 
-function memoryValue(event: BanjiBenchmarkEvent | undefined) {
+function memoryValue(event: KaurKhorBenchmarkEvent | undefined) {
   const detail = event?.detail;
   const usedHeap = detail?.usedJSHeapSizeMb;
   const heapUsed = detail?.heapUsedMb;
@@ -261,11 +261,11 @@ function memoryValue(event: BanjiBenchmarkEvent | undefined) {
 }
 
 function deriveBenchmarkMetrics(
-  events: BanjiBenchmarkEvent[],
-  measurementEvents: BanjiBenchmarkEvent[],
-  setupEvents: BanjiBenchmarkEvent[],
+  events: KaurKhorBenchmarkEvent[],
+  measurementEvents: KaurKhorBenchmarkEvent[],
+  setupEvents: KaurKhorBenchmarkEvent[],
   metrics: Record<string, BenchmarkMetricSummary>,
-  scenario: BanjiBenchmarkScenarioId,
+  scenario: KaurKhorBenchmarkScenarioId,
 ) {
   const derived: Record<string, number> = {};
   const hasIsolatedMeasurementWindow = hasMeasurementWindow(events);
@@ -282,24 +282,24 @@ function deriveBenchmarkMetrics(
     maybeSet('startup.app_to_first_route_ready_ms', durationMetric(events, 'main.boot.start', 'route.home.ready'));
     maybeSet(
       'ipc.system_get_app_context_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:system:get-app-context.handle', 'preload.invoke.banji:system:get-app-context']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:system:get-app-context.handle', 'preload.invoke.kaur-khor:system:get-app-context']),
     );
     maybeSet(
       'ipc.sena_get_startup_workspace_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-startup-workspace.handle', 'preload.invoke.banji:sena:get-startup-workspace']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:get-startup-workspace.handle', 'preload.invoke.kaur-khor:sena:get-startup-workspace']),
     );
   }
 
   if (scenario === 'navigation' || scenario === 'capture' || scenario === 'stability') {
     maybeSet(
       'ipc.sena_get_workspace_summary_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-workspace-summary.handle', 'preload.invoke.banji:sena:get-workspace-summary']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:get-workspace-summary.handle', 'preload.invoke.kaur-khor:sena:get-workspace-summary']),
     );
     maybeSet(
       'ipc.sena_get_capture_context_ms',
       firstSummaryMetric(metrics, [
-        'ipc.banji:sena:get-record-update-context.handle',
-        'preload.invoke.banji:sena:get-record-update-context',
+        'ipc.kaur-khor:sena:get-record-update-context.handle',
+        'preload.invoke.kaur-khor:sena:get-record-update-context',
       ]),
     );
   }
@@ -307,18 +307,18 @@ function deriveBenchmarkMetrics(
   if (scenario === 'navigation' || scenario === 'stability') {
     maybeSet(
       'ipc.sena_get_diagnostics_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-diagnostics.handle', 'preload.invoke.banji:sena:get-diagnostics']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:get-diagnostics.handle', 'preload.invoke.kaur-khor:sena:get-diagnostics']),
     );
   }
 
   if (scenario === 'detail-pages') {
     maybeSet(
       'ipc.sena_get_sku_detail_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-sku-detail.handle', 'preload.invoke.banji:sena:get-sku-detail']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:get-sku-detail.handle', 'preload.invoke.kaur-khor:sena:get-sku-detail']),
     );
     maybeSet(
       'ipc.sena_get_service_detail_ms',
-      firstSummaryMetric(metrics, ['ipc.banji:sena:get-service-detail.handle', 'preload.invoke.banji:sena:get-service-detail']),
+      firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:get-service-detail.handle', 'preload.invoke.kaur-khor:sena:get-service-detail']),
     );
   }
 
@@ -398,7 +398,7 @@ function deriveBenchmarkMetrics(
   );
   maybeSet(
     'ipc.sena_list_observation_page_ms',
-    firstSummaryMetric(metrics, ['ipc.banji:sena:list-observation-page.handle', 'preload.invoke.banji:sena:list-observation-page']),
+    firstSummaryMetric(metrics, ['ipc.kaur-khor:sena:list-observation-page.handle', 'preload.invoke.kaur-khor:sena:list-observation-page']),
   );
 
   if (scenario === 'stability') {
@@ -439,9 +439,9 @@ export function buildScenarioSummary({
   runId,
   scenario,
 }: {
-  events: BanjiBenchmarkEvent[];
+  events: KaurKhorBenchmarkEvent[];
   runId: string;
-  scenario: BanjiBenchmarkScenarioId;
+  scenario: KaurKhorBenchmarkScenarioId;
 }): BenchmarkScenarioSummary {
   const measurementEvents = eventsInMeasurementWindow(events);
   const setupEvents = eventsBeforeMeasurementWindow(events);

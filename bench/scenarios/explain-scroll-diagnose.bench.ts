@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { launchBanjiForBenchmark, closeBanjiBenchmarkSession, navigateBenchmarkRoute, waitForBenchmarkEventCount } from '../helpers/electron-app';
+import { launchKaurKhorForBenchmark, closeKaurKhorBenchmarkSession, navigateBenchmarkRoute, waitForBenchmarkEventCount } from '../helpers/electron-app';
 
 test('diagnose insights explain scroll source', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('explain-scroll-diagnose', testInfo, {
+  const launched = await launchKaurKhorForBenchmark('explain-scroll-diagnose', testInfo, {
     fixtureSize: 'minimal',
     prepareWorkspace: true,
   });
@@ -47,6 +47,6 @@ test('diagnose insights explain scroll source', async ({}, testInfo) => {
     console.log(JSON.stringify(sizes, null, 2));
     expect(sizes.main).not.toBeNull();
   } finally {
-    await closeBanjiBenchmarkSession(launched);
+    await closeKaurKhorBenchmarkSession(launched);
   }
 });

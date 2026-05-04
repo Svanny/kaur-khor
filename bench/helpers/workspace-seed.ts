@@ -27,7 +27,7 @@ export { normalizeBenchmarkWorkspaceSize, type BenchmarkWorkspaceSize };
 
 export async function prepareBenchmarkWorkspace(seed: GeneratedWorkspaceSeed) {
   return prepareGeneratedWorkspace(seed, {
-    fixtureSize: process.env.BANJI_BENCHMARK_FIXTURE_SIZE,
+    fixtureSize: process.env.KAUR_KHOR_BENCHMARK_FIXTURE_SIZE,
     repoRoot: process.cwd(),
   });
 }

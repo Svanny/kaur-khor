@@ -11,14 +11,14 @@ import {
 } from './bench-metrics';
 import { prepareBenchmarkWorkspace } from './workspace-seed';
 import type {
-  BanjiBenchmarkCategory,
-  BanjiBenchmarkEventInput,
-  BanjiBenchmarkScenarioId,
+  KaurKhorBenchmarkCategory,
+  KaurKhorBenchmarkEventInput,
+  KaurKhorBenchmarkScenarioId,
 } from '../../src/shared/benchmark';
 
 delete process.env.NO_COLOR;
 
-export interface LaunchedBanjiBenchmarkApp {
+export interface LaunchedKaurKhorBenchmarkApp {
   app: ElectronApplication;
   dataDirectory: string;
   outputDirectory: string;
@@ -27,7 +27,7 @@ export interface LaunchedBanjiBenchmarkApp {
   tracePath: string | null;
 }
 
-interface LaunchBanjiBenchmarkOptions {
+interface LaunchKaurKhorBenchmarkOptions {
   backgroundWindow?: boolean;
   dataDirectory?: string;
   fixtureSize?: 'minimal' | 'medium' | 'heavy' | 'power-user';
@@ -52,7 +52,7 @@ export function benchmarkChildEnv(extraEnv: NodeJS.ProcessEnv) {
     'USER',
     'XPC_FLAGS',
     'XPC_SERVICE_NAME',
-    'BANJI_DESKTOP_CORE_BINARY',
+    'KAUR_KHOR_DESKTOP_CORE_BINARY',
   ];
   const env = {
     ...Object.fromEntries(
@@ -68,15 +68,15 @@ export function benchmarkChildEnv(extraEnv: NodeJS.ProcessEnv) {
   return env;
 }
 
-export async function launchBanjiForBenchmark(
+export async function launchKaurKhorForBenchmark(
   scenarioName: string,
   testInfo: TestInfo,
-  options?: LaunchBanjiBenchmarkOptions,
-): Promise<LaunchedBanjiBenchmarkApp> {
+  options?: LaunchKaurKhorBenchmarkOptions,
+): Promise<LaunchedKaurKhorBenchmarkApp> {
   const runId = options?.runId ?? benchmarkRunId(`${scenarioName}-${testInfo.retry}`);
   const outputDirectory = options?.outputDirectory ?? await benchmarkOutputDirectory(runId);
   const dataDirectory = options?.dataDirectory ?? await benchmarkDataDirectory(runId);
-  const tracePath = process.env.BANJI_BENCHMARK_TRACE === '1'
+  const tracePath = process.env.KAUR_KHOR_BENCHMARK_TRACE === '1'
     ? join(outputDirectory, 'playwright-trace.zip')
     : null;
   if (options?.prepareWorkspace !== false) {
@@ -91,14 +91,14 @@ export async function launchBanjiForBenchmark(
         args: ['.'],
         timeout: BENCHMARK_APP_LAUNCH_TIMEOUT_MS,
         env: benchmarkChildEnv({
-          BANJI_BENCHMARK: '1',
-          BANJI_BENCHMARK_TRACE: '0',
-          BANJI_BENCHMARK_BACKGROUND: options?.backgroundWindow === false ? '0' : '1',
-          BANJI_BENCHMARK_RUN_ID: runId,
-          BANJI_BENCHMARK_OUTPUT_DIR: outputDirectory,
-          BANJI_BENCHMARK_DATA_DIR: dataDirectory,
-          BANJI_BENCHMARK_DISABLE_DEV_SEED: '1',
-          BANJI_DESKTOP_TRACE_IPC: '1',
+          KAUR_KHOR_BENCHMARK: '1',
+          KAUR_KHOR_BENCHMARK_TRACE: '0',
+          KAUR_KHOR_BENCHMARK_BACKGROUND: options?.backgroundWindow === false ? '0' : '1',
+          KAUR_KHOR_BENCHMARK_RUN_ID: runId,
+          KAUR_KHOR_BENCHMARK_OUTPUT_DIR: outputDirectory,
+          KAUR_KHOR_BENCHMARK_DATA_DIR: dataDirectory,
+          KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED: '1',
+          KAUR_KHOR_DESKTOP_TRACE_IPC: '1',
         }),
       });
       if (tracePath) {
@@ -122,8 +122,8 @@ export async function launchBanjiForBenchmark(
   return { app, dataDirectory, outputDirectory, page, runId, tracePath };
 }
 
-export async function closeBanjiBenchmarkSession(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'app'> & Partial<Pick<LaunchedBanjiBenchmarkApp, 'tracePath'>>,
+export async function closeKaurKhorBenchmarkSession(
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'app'> & Partial<Pick<LaunchedKaurKhorBenchmarkApp, 'tracePath'>>,
 ) {
   if (launched.tracePath) {
     await launched.app.context().tracing.stop({ path: launched.tracePath }).catch(() => undefined);
@@ -168,14 +168,14 @@ export async function closeBanjiBenchmarkSession(
   }
 }
 
-export async function finalizeBanjiBenchmarkScenario({
+export async function finalizeKaurKhorBenchmarkScenario({
   outputDirectory,
   runId,
   scenario,
 }: {
   outputDirectory: string;
   runId: string;
-  scenario: BanjiBenchmarkScenarioId;
+  scenario: KaurKhorBenchmarkScenarioId;
 }): Promise<BenchmarkScenarioSummary> {
   const events = await readBenchmarkEvents(outputDirectory);
   const summary = buildScenarioSummary({
@@ -187,12 +187,12 @@ export async function finalizeBanjiBenchmarkScenario({
   return summary;
 }
 
-export async function closeBanjiBenchmarkApp(
-  launched: LaunchedBanjiBenchmarkApp,
-  scenarioName: BanjiBenchmarkScenarioId,
+export async function closeKaurKhorBenchmarkApp(
+  launched: LaunchedKaurKhorBenchmarkApp,
+  scenarioName: KaurKhorBenchmarkScenarioId,
 ): Promise<BenchmarkScenarioSummary> {
-  await closeBanjiBenchmarkSession(launched);
-  return finalizeBanjiBenchmarkScenario({
+  await closeKaurKhorBenchmarkSession(launched);
+  return finalizeKaurKhorBenchmarkScenario({
     outputDirectory: launched.outputDirectory,
     runId: launched.runId,
     scenario: scenarioName,
@@ -200,7 +200,7 @@ export async function closeBanjiBenchmarkApp(
 }
 
 export async function persistedBenchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory'>,
   name: string,
 ) {
   const events = await readBenchmarkEvents(launched.outputDirectory);
@@ -208,7 +208,7 @@ export async function persistedBenchmarkEventCount(
 }
 
 export async function persistedCompletedBenchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory'>,
   name: string,
 ) {
   const events = await readBenchmarkEvents(launched.outputDirectory);
@@ -216,7 +216,7 @@ export async function persistedCompletedBenchmarkEventCount(
 }
 
 export async function waitForPersistedCompletedBenchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory'>,
   name: string,
   minimumCount = 1,
   options?: { timeoutMs?: number },
@@ -234,32 +234,32 @@ export async function waitForPersistedCompletedBenchmarkEventCount(
 }
 
 export async function benchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   name: string,
 ) {
   return launched.page.evaluate(async (eventName) => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_EVENTS__?: Array<{ name?: string }>;
-      banjiDesktop?: {
+      __KAUR_KHOR_BENCHMARK_EVENTS__?: Array<{ name?: string }>;
+      kaurKhorDesktop?: {
         benchmark?: {
           getEventCount?: (name: string) => Promise<number>;
         };
       };
     };
     const preferRendererMemory = eventName.startsWith('route.');
-    if (!preferRendererMemory && benchmarkWindow.banjiDesktop?.benchmark?.getEventCount) {
+    if (!preferRendererMemory && benchmarkWindow.kaurKhorDesktop?.benchmark?.getEventCount) {
       try {
-        return await benchmarkWindow.banjiDesktop.benchmark.getEventCount(eventName);
+        return await benchmarkWindow.kaurKhorDesktop.benchmark.getEventCount(eventName);
       } catch {
         // Fall back to renderer-memory events when IPC waiters are unavailable.
       }
     }
-    return (benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ?? []).filter((event) => event?.name === eventName).length;
+    return (benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__ ?? []).filter((event) => event?.name === eventName).length;
   }, name);
 }
 
 export async function waitForBenchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   name: string,
   minimumCount = 1,
   options?: { timeoutMs?: number },
@@ -274,8 +274,8 @@ export async function waitForBenchmarkEventCount(
     timeoutMs: number;
   }) => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_EVENTS__?: Array<{ name?: string; ts?: number }>;
-      banjiDesktop?: {
+      __KAUR_KHOR_BENCHMARK_EVENTS__?: Array<{ name?: string; ts?: number }>;
+      kaurKhorDesktop?: {
         benchmark?: {
           waitForEventCount?: (payload: {
             name: string;
@@ -286,8 +286,8 @@ export async function waitForBenchmarkEventCount(
         };
       };
     const preferRendererMemory = eventName.startsWith('route.');
-    if (!preferRendererMemory && benchmarkWindow.banjiDesktop?.benchmark?.waitForEventCount) {
-      return benchmarkWindow.banjiDesktop.benchmark.waitForEventCount({
+    if (!preferRendererMemory && benchmarkWindow.kaurKhorDesktop?.benchmark?.waitForEventCount) {
+      return benchmarkWindow.kaurKhorDesktop.benchmark.waitForEventCount({
         name: eventName,
         minimumCount: nextMinimumCount,
         timeoutMs,
@@ -295,7 +295,7 @@ export async function waitForBenchmarkEventCount(
     }
     const startedAt = Date.now();
     while (Date.now() - startedAt < timeoutMs) {
-      const matchingEvents = (benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ?? [])
+      const matchingEvents = (benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__ ?? [])
         .filter((event) => event?.name === eventName);
       const count = matchingEvents.length;
       if (count >= nextMinimumCount) {
@@ -315,7 +315,7 @@ export async function waitForBenchmarkEventCount(
 }
 
 export async function waitForPersistedBenchmarkEventCount(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory' | 'page'>,
   name: string,
   minimumCount = 1,
   options?: { timeoutMs?: number },
@@ -336,7 +336,7 @@ export async function assertLocatorCountAtLeast(
 }
 
 export async function clickWaitReadyAndRecordDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   {
     action,
     readyEvent,
@@ -351,7 +351,7 @@ export async function clickWaitReadyAndRecordDuration(
     readyEvent?: string;
     metricName?: string;
     route: `/${string}`;
-    category?: BanjiBenchmarkCategory;
+    category?: KaurKhorBenchmarkCategory;
     detail?: Record<string, unknown>;
     timeoutMs?: number;
     waitFor?: () => Promise<void>;
@@ -391,7 +391,7 @@ export async function clickWaitReadyAndRecordDuration(
 }
 
 export async function clickSidebarNavigationAndMeasureDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   {
     category = 'navigation',
     detail,
@@ -406,7 +406,7 @@ export async function clickSidebarNavigationAndMeasureDuration(
     readyEvent: string;
     route: `/${string}`;
     metricName?: string;
-    category?: BanjiBenchmarkCategory;
+    category?: KaurKhorBenchmarkCategory;
     detail?: Record<string, unknown>;
     timeoutMs?: number;
     waitFor?: () => Promise<void>;
@@ -425,7 +425,7 @@ export async function clickSidebarNavigationAndMeasureDuration(
 }
 
 export async function navigateBenchmarkRouteAndMeasureDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   {
     category = 'interaction',
     detail,
@@ -438,7 +438,7 @@ export async function navigateBenchmarkRouteAndMeasureDuration(
     route: `/${string}`;
     readyEvent: string;
     metricName?: string;
-    category?: BanjiBenchmarkCategory;
+    category?: KaurKhorBenchmarkCategory;
     detail?: Record<string, unknown>;
     timeoutMs?: number;
     waitFor?: () => Promise<void>;
@@ -482,31 +482,31 @@ export async function currentBenchmarkRoute(page: Page) {
 export async function clickWithBrowserStartTime(locator: Locator) {
   await locator.evaluate((element) => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number;
+      __KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__?: number;
     };
-    benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = undefined;
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__ = undefined;
     element.addEventListener('pointerdown', () => {
-      benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
+      benchmarkWindow.__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
     }, { capture: true, once: true });
   });
   const fallbackStartedAt = Date.now();
   await locator.click();
   return await locator.page().evaluate((fallback) =>
-    (window as Window & { __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number })
-      .__BANJI_BENCHMARK_ACTION_STARTED_AT__ ?? fallback, fallbackStartedAt);
+    (window as Window & { __KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__?: number })
+      .__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__ ?? fallback, fallbackStartedAt);
 }
 
 async function armDialogOpenedTimestamp(page: Page) {
   await page.evaluate(() => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_DIALOG_OPENED_AT__?: number;
-      __BANJI_BENCHMARK_DIALOG_OBSERVER__?: MutationObserver;
+      __KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__?: number;
+      __KAUR_KHOR_BENCHMARK_DIALOG_OBSERVER__?: MutationObserver;
     };
-    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ = undefined;
-    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__ = undefined;
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
 
     const markIfDialogExists = () => {
-      if (benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ != null) {
+      if (benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__ != null) {
         return true;
       }
       const dialog = document.querySelector('[role="dialog"]');
@@ -517,9 +517,9 @@ async function armDialogOpenedTimestamp(page: Page) {
       if (style.display === 'none' || style.visibility === 'hidden') {
         return false;
       }
-      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OPENED_AT__ = Date.now();
-      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
-      benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__ = undefined;
+      benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__ = Date.now();
+      benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OBSERVER__?.disconnect();
+      benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OBSERVER__ = undefined;
       return true;
     };
 
@@ -535,14 +535,14 @@ async function armDialogOpenedTimestamp(page: Page) {
       childList: true,
       subtree: true,
     });
-    benchmarkWindow.__BANJI_BENCHMARK_DIALOG_OBSERVER__ = observer;
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_DIALOG_OBSERVER__ = observer;
   });
 }
 
 async function dialogOpenedTimestamp(page: Page) {
   return await page.evaluate(() =>
-    (window as Window & { __BANJI_BENCHMARK_DIALOG_OPENED_AT__?: number })
-      .__BANJI_BENCHMARK_DIALOG_OPENED_AT__);
+    (window as Window & { __KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__?: number })
+      .__KAUR_KHOR_BENCHMARK_DIALOG_OPENED_AT__);
 }
 
 export async function closeVisibleDialog(page: Page) {
@@ -559,7 +559,7 @@ export async function closeVisibleDialog(page: Page) {
 }
 
 export async function openWorkSupplierDrawerAndRecordDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory' | 'page'>,
   metricName = 'interaction.open_work_supplier_drawer_ms',
 ) {
   const actionButtons = launched.page.locator('[data-slot="overview-task-row"] button[type="button"]');
@@ -578,7 +578,7 @@ export async function openWorkSupplierDrawerAndRecordDuration(
 }
 
 export async function openWorkCustomerIntakeDrawerAndRecordDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory' | 'page'>,
   metricName = 'interaction.open_work_customer_intake_drawer_ms',
 ) {
   const intakeButtons = launched.page.locator('[data-customer-task-id] button');
@@ -597,7 +597,7 @@ export async function openWorkCustomerIntakeDrawerAndRecordDuration(
 }
 
 export async function openAutomationIntakeDrawerAndRecordDuration(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory' | 'page'>,
   metricName = 'interaction.open_automation_intake_drawer_ms',
 ) {
   const intakeButtons = launched.page.getByRole('button', { name: /Open intake/i });
@@ -615,7 +615,7 @@ export async function openAutomationIntakeDrawerAndRecordDuration(
 }
 
 export async function ensureAutomationBenchmarkSeed(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'outputDirectory' | 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'outputDirectory' | 'page'>,
   {
     minimumExposedRows = 2,
     minimumIntakes = 2,
@@ -626,7 +626,7 @@ export async function ensureAutomationBenchmarkSeed(
 ) {
   const seedSummary = await launched.page.evaluate(async ({ minimumExposedRows: nextMinimumExposedRows, minimumIntakes: nextMinimumIntakes }) => {
     const benchmarkWindow = window as Window & {
-      banjiDesktop?: {
+      kaurKhorDesktop?: {
         automation?: {
           seedBenchmarkWorkspace?: (payload?: {
             minimumExposedRows?: number;
@@ -640,7 +640,7 @@ export async function ensureAutomationBenchmarkSeed(
         };
       };
     };
-    const automation = benchmarkWindow.banjiDesktop?.automation;
+    const automation = benchmarkWindow.kaurKhorDesktop?.automation;
     if (!automation?.seedBenchmarkWorkspace) {
       throw new Error('Automations bridge is unavailable in benchmark mode.');
     }
@@ -679,15 +679,15 @@ export function assertScenarioTargetCoverage(
   }
 }
 
-export async function closeBanjiBenchmarkAppWithTargetCoverage(
-  launched: LaunchedBanjiBenchmarkApp,
-  scenarioName: BanjiBenchmarkScenarioId,
+export async function closeKaurKhorBenchmarkAppWithTargetCoverage(
+  launched: LaunchedKaurKhorBenchmarkApp,
+  scenarioName: KaurKhorBenchmarkScenarioId,
   expectedMetricNames: string[],
   priorError: unknown = null,
 ) {
   let summary: BenchmarkScenarioSummary;
   try {
-    summary = await closeBanjiBenchmarkApp(launched, scenarioName);
+    summary = await closeKaurKhorBenchmarkApp(launched, scenarioName);
   } catch (closeError) {
     if (priorError != null) {
       throw priorError;
@@ -705,12 +705,12 @@ export async function closeBanjiBenchmarkAppWithTargetCoverage(
 
 export async function recordPlaywrightBenchmarkEvent(
   page: Page,
-  event: Omit<BanjiBenchmarkEventInput, 'layer'>,
+  event: Omit<KaurKhorBenchmarkEventInput, 'layer'>,
 ) {
   await page.evaluate((input) => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_EVENTS__?: unknown[];
-      banjiDesktop: {
+      __KAUR_KHOR_BENCHMARK_EVENTS__?: unknown[];
+      kaurKhorDesktop: {
         benchmark?: {
           runId: string;
           recordEvent: (event: unknown) => void;
@@ -726,7 +726,7 @@ export async function recordPlaywrightBenchmarkEvent(
       detail: {},
       ...input,
       layer: 'playwright' as const,
-      runId: input.runId ?? benchmarkWindow.banjiDesktop.benchmark?.runId ?? 'playwright',
+      runId: input.runId ?? benchmarkWindow.kaurKhorDesktop.benchmark?.runId ?? 'playwright',
       ts: input.ts ?? Date.now(),
     };
     if (typeof normalized.name === 'string' && normalized.name.startsWith('benchmark.phase.')) {
@@ -735,9 +735,9 @@ export async function recordPlaywrightBenchmarkEvent(
         performanceNow: performance.now(),
       };
     }
-    benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ??= [];
-    benchmarkWindow.__BANJI_BENCHMARK_EVENTS__.push(normalized);
-    benchmarkWindow.banjiDesktop.benchmark?.recordEvent(normalized);
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__ ??= [];
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__.push(normalized);
+    benchmarkWindow.kaurKhorDesktop.benchmark?.recordEvent(normalized);
   }, event);
 }
 
@@ -755,7 +755,7 @@ export async function recordPlaywrightDuration(
     metricName: string;
     durationMs: number;
     route?: string;
-    category?: BanjiBenchmarkCategory;
+    category?: KaurKhorBenchmarkCategory;
     detail?: Record<string, unknown>;
     entityId?: string;
     entityType?: 'sku' | 'service';
@@ -790,14 +790,14 @@ export async function recordBenchmarkPhaseMarker(
 }
 
 export async function markBenchmarkMeasurementStart(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   detail?: Record<string, unknown>,
 ) {
   await recordBenchmarkPhaseMarker(launched.page, 'measurement_start', detail);
 }
 
 export async function markBenchmarkMeasurementEnd(
-  launched: Pick<LaunchedBanjiBenchmarkApp, 'page'>,
+  launched: Pick<LaunchedKaurKhorBenchmarkApp, 'page'>,
   detail?: Record<string, unknown>,
 ) {
   await recordBenchmarkPhaseMarker(launched.page, 'measurement_end', detail);
@@ -806,15 +806,15 @@ export async function markBenchmarkMeasurementEnd(
 export async function snapshotRendererBenchmarkMemory(page: Page, name: string) {
   await page.evaluate((snapshotName) => {
     const benchmarkWindow = window as Window & {
-      __BANJI_BENCHMARK_EVENTS__?: unknown[];
-      banjiDesktop: {
+      __KAUR_KHOR_BENCHMARK_EVENTS__?: unknown[];
+      kaurKhorDesktop: {
         benchmark?: {
           runId: string;
           recordEvent: (event: unknown) => void;
         };
       };
     };
-    benchmarkWindow.__BANJI_BENCHMARK_EVENTS__ ??= [];
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__ ??= [];
     const memory = (performance as Performance & {
       memory?: {
         jsHeapSizeLimit: number;
@@ -826,7 +826,7 @@ export async function snapshotRendererBenchmarkMemory(page: Page, name: string) 
       ? window.location.hash.slice(1) || '/'
       : `${window.location.pathname}${window.location.search}` || '/';
     const event = {
-      runId: benchmarkWindow.banjiDesktop.benchmark?.runId ?? 'playwright',
+      runId: benchmarkWindow.kaurKhorDesktop.benchmark?.runId ?? 'playwright',
       ts: Date.now(),
       layer: 'playwright' as const,
       category: 'memory' as const,
@@ -843,7 +843,7 @@ export async function snapshotRendererBenchmarkMemory(page: Page, name: string) 
         totalJSHeapSizeMb: memory ? memory.totalJSHeapSize / 1024 / 1024 : null,
       },
     };
-    benchmarkWindow.__BANJI_BENCHMARK_EVENTS__.push(event);
-    benchmarkWindow.banjiDesktop.benchmark?.recordEvent(event);
+    benchmarkWindow.__KAUR_KHOR_BENCHMARK_EVENTS__.push(event);
+    benchmarkWindow.kaurKhorDesktop.benchmark?.recordEvent(event);
   }, name);
 }

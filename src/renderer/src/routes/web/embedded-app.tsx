@@ -20,12 +20,12 @@ import { StatusWarningIcon } from '@icons/status';
 import { WebDownloadIcon, WebGlobeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
 import {
-  BANJI_BROWSER_APP_DATABASE,
-  BANJI_BROWSER_DEMO_DATABASE,
+  KAUR_KHOR_BROWSER_APP_DATABASE,
+  KAUR_KHOR_BROWSER_DEMO_DATABASE,
   createBrowserStorageBackup,
   openBrowserStorage,
   parseBrowserStorageBackupJson,
-  type BanjiBrowserDatabaseName,
+  type KaurKhorBrowserDatabaseName,
   type BrowserStorageDocumentRecord,
   type BrowserStorageHandle,
   type BrowserStorageSupportedHandle,
@@ -39,7 +39,7 @@ type PersistenceStatus = 'loading' | 'ready' | 'unsupported' | 'error';
 type StorageUiState = {
   status: PersistenceStatus;
   message: string;
-  databaseName: BanjiBrowserDatabaseName;
+  databaseName: KaurKhorBrowserDatabaseName;
   vfs: string;
   sqliteVersion: string;
   persistence: 'granted' | 'not-granted' | 'unknown';
@@ -48,8 +48,8 @@ type StorageUiState = {
 };
 
 const embeddedBannerRailHeightClassName = 'md:min-h-[13.5rem]';
-export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your banji workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
-export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your banji workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
+export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
+export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -82,8 +82,8 @@ function publicPath(path: string) {
   return base + path;
 }
 
-function databaseForMode(mode: EmbeddedMode): BanjiBrowserDatabaseName {
-  return mode === 'demo' ? BANJI_BROWSER_DEMO_DATABASE : BANJI_BROWSER_APP_DATABASE;
+function databaseForMode(mode: EmbeddedMode): KaurKhorBrowserDatabaseName {
+  return mode === 'demo' ? KAUR_KHOR_BROWSER_DEMO_DATABASE : KAUR_KHOR_BROWSER_APP_DATABASE;
 }
 
 export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
@@ -94,7 +94,7 @@ export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
   };
   state.localDataInfo = {
     ...state.localDataInfo,
-    dataDirectoryPath: 'OPFS / banji browser workspace',
+    dataDirectoryPath: 'OPFS / Kaur Khor browser workspace',
     workspaceStorePath: databaseForMode(mode),
     preferencesPath: 'SQLite preferences table',
     backupDirectoryPath: 'downloaded backups',
@@ -104,7 +104,7 @@ export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
 }
 
 function stateRecord(
-  databaseName: BanjiBrowserDatabaseName,
+  databaseName: KaurKhorBrowserDatabaseName,
   state: BrowserMockState,
   updatedAt = new Date().toISOString(),
 ): BrowserStorageDocumentRecord {
@@ -116,7 +116,7 @@ function stateRecord(
   };
 }
 
-function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: BanjiBrowserDatabaseName): BrowserMockState | null {
+function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: KaurKhorBrowserDatabaseName): BrowserMockState | null {
   const record = records.find((entry) => entry.collection === 'browser_state' && entry.id === databaseName);
   if (!record || typeof record.json !== 'object' || record.json === null) {
     return null;
@@ -124,7 +124,7 @@ function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: 
   return record.json as BrowserMockState;
 }
 
-async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: BanjiBrowserDatabaseName) {
+async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: KaurKhorBrowserDatabaseName) {
   const state = getBrowserDesktopBridgeMockState();
   await handle.persistSenaState(state);
   await handle.putDocuments([stateRecord(databaseName, state)]);
@@ -145,21 +145,21 @@ function wrapMutation<T extends object, K extends keyof T>(
   owner[key] = (async (...args: unknown[]) => {
     const result = await (original as (...methodArgs: unknown[]) => Promise<unknown>)(...args);
     await persist();
-    window.dispatchEvent(new Event('banji-browser-state-changed'));
+    window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
     return result;
   }) as T[K];
 }
 
 function installPersistenceHooks(
   handle: BrowserStorageSupportedHandle,
-  databaseName: BanjiBrowserDatabaseName,
+  databaseName: KaurKhorBrowserDatabaseName,
   mode: EmbeddedMode,
 ) {
-  const bridge = window.banjiDesktop as DesktopBridge & { __banjiWebPersistenceWrapped?: boolean };
-  if (bridge.__banjiWebPersistenceWrapped) {
+  const bridge = window.kaurKhorDesktop as DesktopBridge & { __kaurKhorWebPersistenceWrapped?: boolean };
+  if (bridge.__kaurKhorWebPersistenceWrapped) {
     return;
   }
-  bridge.__banjiWebPersistenceWrapped = true;
+  bridge.__kaurKhorWebPersistenceWrapped = true;
   const persist = () => persistCurrentState(handle, databaseName);
 
   wrapMutation(bridge.preferences, 'save', persist);
@@ -182,7 +182,7 @@ function installPersistenceHooks(
   bridge.system.clearCurrentData = async () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode(mode));
     await persist();
-    window.dispatchEvent(new Event('banji-browser-state-changed'));
+    window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
     return {
       clearedFileCount: 1,
       safetySnapshot: {
@@ -225,7 +225,7 @@ export function formatBrowserStorageErrorMessage(message: string) {
     message.includes('Access Handles cannot be created') ||
     message.includes('another open Access Handle')
   ) {
-    return 'Cannot have two banji browser tabs open at the same time. Close the other tab, then reload this page.';
+    return 'Cannot have two Kaur Khor browser tabs open at the same time. Close the other tab, then reload this page.';
   }
   return message;
 }
@@ -286,9 +286,9 @@ function useBrowserTelegramLiveListening(mode: EmbeddedMode) {
     };
 
     readLiveState();
-    window.addEventListener('banji-browser-state-changed', readLiveState);
+    window.addEventListener('kaur-khor-browser-state-changed', readLiveState);
     return () => {
-      window.removeEventListener('banji-browser-state-changed', readLiveState);
+      window.removeEventListener('kaur-khor-browser-state-changed', readLiveState);
     };
   }, [mode]);
 
@@ -509,7 +509,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         return;
       }
       inFlight = true;
-      window.banjiDesktop.automation?.testTelegramConnection()
+      window.kaurKhorDesktop.automation?.testTelegramConnection()
         .catch(() => undefined)
         .finally(() => {
           inFlight = false;
@@ -542,7 +542,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         databaseName,
         [stateRecord(databaseName, getBrowserDesktopBridgeMockState())],
       );
-      downloadJson(`banji-${mode}-backup-${new Date().toISOString().slice(0, 10)}.banji-backup.json`, backup);
+      downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
       setStorage((current) => ({
         ...current,
         lastBackupAt: backup.exportedAt,
@@ -603,9 +603,9 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
               <StatusWarningIcon className="size-3.5 text-primary" />
               Unsupported browser storage
             </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-normal">banji cannot store real browser-app data here.</h1>
+            <h1 className="mt-4 text-4xl font-semibold tracking-normal">Kaur Khor cannot store real browser-app data here.</h1>
             <p className="mt-4 text-base leading-7 text-muted-foreground">
-              {storage.message} Use demo mode, download the desktop app, or build from source. banji does not silently fall back to weak storage for real browser data.
+              {storage.message} Use demo mode, download the desktop app, or build from source. Kaur Khor does not silently fall back to weak storage for real browser data.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button asChild>
@@ -622,7 +622,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     return (
       <div className="flex min-h-svh items-center justify-center bg-background px-6 text-foreground">
         <div className="w-full max-w-md text-center">
-          <p className="text-sm font-semibold text-primary">banji</p>
+          <p className="text-sm font-semibold text-primary">KAUR KHOR</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-normal">Preparing browser workspace...</h1>
         </div>
       </div>

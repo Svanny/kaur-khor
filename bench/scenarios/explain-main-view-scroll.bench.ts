@@ -1,6 +1,6 @@
 import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import type { DesktopPreferences } from '../../src/shared/ipc';
-import { launchBanjiForBenchmark, closeBanjiBenchmarkSession, navigateBenchmarkRoute, waitForBenchmarkEventCount } from '../helpers/electron-app';
+import { launchKaurKhorForBenchmark, closeKaurKhorBenchmarkSession, navigateBenchmarkRoute, waitForBenchmarkEventCount } from '../helpers/electron-app';
 
 type ExplainSectionId = 'workbench' | 'pressure' | 'fragility' | 'settings';
 
@@ -92,12 +92,12 @@ const EXPLAIN_LAYOUT_STATES: ExplainLayoutState[] = [
 async function forceMaximalPreferences(page: Page) {
   const preferences = await page.evaluate(async () => {
     const desktop = (window as Window & {
-      banjiDesktop?: {
+      kaurKhorDesktop?: {
         preferences?: {
           save: (payload: Partial<DesktopPreferences>) => Promise<DesktopPreferences>;
         };
       };
-    }).banjiDesktop;
+    }).kaurKhorDesktop;
     if (!desktop?.preferences) {
       throw new Error('Desktop preferences bridge is unavailable');
     }
@@ -157,12 +157,12 @@ async function explainLayoutSnapshot(page: Page): Promise<ExplainLayoutSnapshot>
       };
     };
     const desktop = (window as Window & {
-      banjiDesktop?: {
+      kaurKhorDesktop?: {
         preferences?: {
           get: () => Promise<DesktopPreferences>;
         };
       };
-    }).banjiDesktop;
+    }).kaurKhorDesktop;
     const preferences = await desktop?.preferences?.get().catch(() => null) ?? null;
     return {
       activeSection: document.querySelector<HTMLElement>('[data-analysis-workbench-root="true"]')
@@ -320,7 +320,7 @@ function assertExplainLayoutState(state: ExplainLayoutState, snapshot: ExplainLa
 }
 
 test('insights explain layout stays visible across maximal route states', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('explain-main-view-scroll', testInfo, {
+  const launched = await launchKaurKhorForBenchmark('explain-main-view-scroll', testInfo, {
     fixtureSize: 'minimal',
     prepareWorkspace: true,
   });
@@ -337,6 +337,6 @@ test('insights explain layout stays visible across maximal route states', async 
       assertExplainLayoutState(state, snapshot);
     }
   } finally {
-    await closeBanjiBenchmarkSession(launched);
+    await closeKaurKhorBenchmarkSession(launched);
   }
 });

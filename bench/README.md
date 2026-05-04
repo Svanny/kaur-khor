@@ -1,6 +1,6 @@
-# Banji Desktop Benchmarks
+# Kaur Khor Desktop Benchmarks
 
-This benchmark stack measures Banji as a desktop system: Electron main process,
+This benchmark stack measures Kaur Khor as a desktop system: Electron main process,
 preload bridge, React renderer, IPC queueing, and the Rust desktop core.
 
 Run the full local suite:
@@ -32,14 +32,14 @@ pnpm bench:stability
 
 Benchmark runs set these environment variables for the launched app:
 
-- `BANJI_BENCHMARK=1`
-- `BANJI_BENCHMARK_RUN_ID=<scenario-run-id>`
-- `BANJI_BENCHMARK_OUTPUT_DIR=bench-results/<scenario-run-id>`
-- `BANJI_BENCHMARK_DATA_DIR=bench-results/data/<scenario-run-id>`
-- `BANJI_DESKTOP_TRACE_IPC=1`
-- `BANJI_BENCHMARK_DISABLE_DEV_SEED=1`
+- `KAUR_KHOR_BENCHMARK=1`
+- `KAUR_KHOR_BENCHMARK_RUN_ID=<scenario-run-id>`
+- `KAUR_KHOR_BENCHMARK_OUTPUT_DIR=bench-results/<scenario-run-id>`
+- `KAUR_KHOR_BENCHMARK_DATA_DIR=bench-results/data/<scenario-run-id>`
+- `KAUR_KHOR_DESKTOP_TRACE_IPC=1`
+- `KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED=1`
 
-Fixture size can be selected with `BANJI_BENCHMARK_FIXTURE_SIZE`.
+Fixture size can be selected with `KAUR_KHOR_BENCHMARK_FIXTURE_SIZE`.
 
 | Fixture | History | Interval | Expected observations |
 | --- | ---: | ---: | ---: |
@@ -51,13 +51,13 @@ Fixture size can be selected with `BANJI_BENCHMARK_FIXTURE_SIZE`.
 Run the Power User startup benchmark:
 
 ```bash
-BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup
+KAUR_KHOR_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup
 ```
 
 Run every scenario against the Power User fixture and retain Playwright traces:
 
 ```bash
-BANJI_BENCHMARK_FIXTURE_SIZE=power-user BANJI_BENCHMARK_TRACE=1 pnpm bench --repeat-each=1
+KAUR_KHOR_BENCHMARK_FIXTURE_SIZE=power-user KAUR_KHOR_BENCHMARK_TRACE=1 pnpm bench --repeat-each=1
 ```
 
 The terminal runner and the in-app benchmark runner share the same scenario
@@ -91,11 +91,11 @@ pnpm bench:compare bench-results/<baseline> bench-results/<candidate>
 ```
 
 The benchmark data directory and GUI runner output directory are isolated per
-run. GUI runs set `BANJI_BENCHMARK_OUTPUT_DIR` to `bench-results/<runId>` so
+run. GUI runs set `KAUR_KHOR_BENCHMARK_OUTPUT_DIR` to `bench-results/<runId>` so
 summary and event collection cannot mix artifacts from another active or prior
 run. The benchmark seed helper and the development boot path now share the same
 generated-history seeding script. Benchmark runs still prepare the workspace
-first, then launch Banji with dev seeding disabled so the measured startup path
+first, then launch Kaur Khor with dev seeding disabled so the measured startup path
 uses the prepared fixture instead of reseeding during startup. Scenario
 summaries now isolate setup from measured interaction windows using
 `benchmark.phase.seed_end`,

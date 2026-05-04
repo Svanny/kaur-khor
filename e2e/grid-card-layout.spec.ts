@@ -8,7 +8,7 @@ const ARTIFACTS_DIR = join(process.cwd(), 'e2e-results');
 const DESKTOP_CORE_BINARY = resolve(
   process.cwd(),
   'apps/desktop-core/target/debug',
-  process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core',
+  process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core',
 );
 
 interface PageTestCase {
@@ -34,10 +34,10 @@ test.describe('Grid card layout', () => {
         timeout: 120_000,
         env: {
           ...process.env,
-          BANJI_BENCHMARK: '1',
-          BANJI_BENCHMARK_BACKGROUND: '0',
-          BANJI_BENCHMARK_DISABLE_DEV_SEED: '0',
-          BANJI_DESKTOP_CORE_BINARY: DESKTOP_CORE_BINARY,
+          KAUR_KHOR_BENCHMARK: '1',
+          KAUR_KHOR_BENCHMARK_BACKGROUND: '0',
+          KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED: '0',
+          KAUR_KHOR_DESKTOP_CORE_BINARY: DESKTOP_CORE_BINARY,
         },
       });
 

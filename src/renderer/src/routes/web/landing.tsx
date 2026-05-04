@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import brandLogo from '@/assets/banji-logo.svg';
+import brandLogo from '@/assets/kaur-khor-logo.svg';
 import {
   Archive,
   BadgeDollarSign,
@@ -71,35 +71,35 @@ const screenshotWidth = 3456;
 const screenshotHeight = 1992;
 const screenshotSlides = [
   {
-    alt: 'banji mission control overview showing the main work queue',
+    alt: 'Kaur Khor mission control overview showing the main work queue',
     image: overviewImageUrl,
     label: 'Mission Control',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
-    alt: 'banji catalog showing searchable SKUs and services',
+    alt: 'Kaur Khor catalog showing searchable SKUs and services',
     image: catalogImageUrl,
     label: 'Catalog',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
-    alt: 'banji record update workflow for stock and order changes',
+    alt: 'Kaur Khor record update workflow for stock and order changes',
     image: recordUpdateImageUrl,
     label: 'Point-of-Sale and updates',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
-    alt: 'banji business health dashboard showing pressure and diagnostics',
+    alt: 'Kaur Khor business health dashboard showing pressure and diagnostics',
     image: performanceImageUrl,
     label: 'Business health',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
-    alt: 'banji analysis workspace showing inventory insight tools',
+    alt: 'Kaur Khor analysis workspace showing inventory insight tools',
     image: analysisImageUrl,
     label: 'Insights',
     width: screenshotWidth,
@@ -176,7 +176,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Attach item images': 'ភ្ជាប់រូបភាពទំនិញ',
   'Automatic checks only run while the tab is open': 'ការត្រួតពិនិត្យស្វ័យប្រវត្តិដំណើរការតែពេលផ្ទាំងនេះបើកប៉ុណ្ណោះ',
   'Avoid prebuilt downloads': 'ជៀសវាងការទាញយកដែលបានសាងសង់រួច',
-  banji: 'បញ្ជី',
+  'KAUR KHOR': 'កខ',
   Bash: 'Bash',
   'Browser App': 'អេបក្នុងប្រោសឺរ',
   'Browser cleanup can remove data': 'ការសម្អាតប្រោសឺរអាចលុបទិន្នន័យ',
@@ -185,14 +185,14 @@ const landingKhmerCopy: Record<string, string> = {
   'Build it': 'សាងសង់',
   'Build it yourself': 'សាងសង់ដោយខ្លួនឯង',
   'Build the app yourself': 'សាងសង់អេបដោយខ្លួនឯង',
-  'build dependencies before packaging banji.': 'ឧបករណ៍សាងសង់ មុនពេលវេចខ្ចប់ បញ្ជី។',
+  'build dependencies before packaging Kaur Khor.': 'ឧបករណ៍សាងសង់ មុនពេលវេចខ្ចប់ កខ។',
   'Browse Archived Items': 'មើលធាតុដែលបានរក្សាទុក',
   'Choose a download': 'ជ្រើសរើសឯកសារទាញយក',
   'Choose a download to see the matching install notes.': 'ជ្រើសរើសឯកសារទាញយក ដើម្បីមើលកំណត់សម្គាល់ដំឡើងដែលត្រូវគ្នា។',
   'Choose the download for your computer': 'ជ្រើសរើសឯកសារទាញយកសម្រាប់កុំព្យូទ័ររបស់អ្នក',
   'Choose your language': 'ជ្រើសរើសភាសារបស់អ្នក',
   'Checking latest release...': 'កំពុងពិនិត្យកំណែចុងក្រោយ...',
-  'Control-click banji, choose Open, then confirm Open.': 'Control-click លើ បញ្ជី ជ្រើស Open រួចបញ្ជាក់ Open។',
+  'Control-click Kaur Khor, choose Open, then confirm Open.': 'Control-click លើ កខ ជ្រើស Open រួចបញ្ជាក់ Open។',
   'Copied': 'បានចម្លង',
   'Copy': 'ចម្លង',
   'Copy failed': 'ចម្លងមិនបាន',
@@ -245,10 +245,10 @@ const landingKhmerCopy: Record<string, string> = {
   'Mark AppImages executable before opening them.': 'កំណត់ឯកសារ AppImage ឱ្យអាចដំណើរការបាន មុនបើកវា។',
   'No sign-up or login. Your data stays on your device.': 'មិនចាំបាច់ចុះឈ្មោះ ឬចូលគណនីទេ។ ទិន្នន័យរបស់អ្នកនៅលើឧបករណ៍របស់អ្នក។',
   'Not your real workspace': 'មិនមែនកន្លែងធ្វើការពិតរបស់អ្នក',
-  'Operator-facing banji features': 'មុខងារបញ្ជីសម្រាប់អ្នកប្រតិបត្តិការ',
+  'Operator-facing Kaur Khor features': 'មុខងារ កខ សម្រាប់អ្នកប្រតិបត្តិការ',
   'official GitHub page': 'ទំព័រ GitHub ផ្លូវការ',
   'Official source page': 'ទំព័រកូដប្រភពផ្លូវការ',
-  'Open the DMG and drag banji to Applications if prompted.': 'បើក DMG ហើយអូស បញ្ជី ទៅ Applications បើមានសារ។',
+  'Open the DMG and drag Kaur Khor to Applications if prompted.': 'បើក DMG ហើយអូស កខ ទៅ Applications បើមានសារ។',
   'Open the Terminal app.': 'បើក Terminal អេប។',
   'for your platform.': 'សម្រាប់ប្រព័ន្ធរបស់អ្នក។',
   'Place Supplier Orders': 'បញ្ជាទិញពីអ្នកផ្គត់ផ្គង់',
@@ -622,8 +622,8 @@ function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['p
     case 'mac-x64':
       return {
         steps: [
-          'Open the DMG and drag banji to Applications if prompted.',
-          'Control-click banji, choose Open, then confirm Open.',
+          'Open the DMG and drag Kaur Khor to Applications if prompted.',
+          'Control-click Kaur Khor, choose Open, then confirm Open.',
           'If blocked, use System Settings -> Privacy & Security -> Open Anyway.',
           {
             href: 'https://youtu.be/sLox8h-6BVw',
@@ -903,7 +903,7 @@ function HomeRoute() {
               <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
                 <img alt="" aria-hidden="true" className="h-14 w-auto sm:h-16" src={brandLogo} />
                 <h1 className="text-7xl font-semibold leading-[0.9] tracking-normal text-foreground sm:text-8xl">
-                  {landingText(language, 'banji')}
+                  {landingText(language, 'KAUR KHOR')}
                 </h1>
               </div>
               <p className="mt-6 max-w-xl text-lg leading-8 text-muted-foreground sm:text-xl">
@@ -929,7 +929,7 @@ function HomeRoute() {
               <p className={cn('text-xs font-semibold text-muted-foreground', language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.16em]')}>{landingText(language, 'Advanced users')}</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-normal">{landingText(language, 'Build From Source')}</h2>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-from-source.sh</code> {landingText(language, 'for your platform.')} {landingText(language, 'It detects your computer and installs')} {landingText(language, 'build dependencies before packaging banji.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
+                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-from-source.sh</code> {landingText(language, 'for your platform.')} {landingText(language, 'It detects your computer and installs')} {landingText(language, 'build dependencies before packaging Kaur Khor.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
               </p>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
                 {landingText(language, 'To choose a native build explicitly, pass a platform flag such as')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">./scripts/build-from-source.sh --platform=linux-x64</code>.
@@ -1020,11 +1020,11 @@ function TeamsCanDoRail({ language }: { language: AppLanguage }) {
   return (
     <div className="relative -mt-4 w-screen max-w-full pb-10">
       <div className="overflow-hidden border-y border-border/70 bg-card/84 px-4 py-3 backdrop-blur sm:px-8 xl:px-12">
-        <div className="flex w-max items-center motion-safe:animate-[banji-teams-rail_68s_linear_infinite] motion-reduce:w-full motion-reduce:flex-wrap">
+        <div className="flex w-max items-center motion-safe:animate-[kaur-khor-teams-rail_68s_linear_infinite] motion-reduce:w-full motion-reduce:flex-wrap">
           {railGroups.map((group, groupIndex) => (
             <div
               key={groupIndex}
-              aria-label={groupIndex === 0 ? landingText(language, 'Operator-facing banji features') : undefined}
+              aria-label={groupIndex === 0 ? landingText(language, 'Operator-facing Kaur Khor features') : undefined}
               className="flex shrink-0 gap-3 pr-3 motion-reduce:flex-wrap"
               role="list"
               aria-hidden={groupIndex > 0 ? 'true' : undefined}

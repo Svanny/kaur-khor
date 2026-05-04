@@ -1,8 +1,8 @@
 import { test } from '@playwright/test';
 import {
-  closeBanjiBenchmarkApp,
+  closeKaurKhorBenchmarkApp,
   currentBenchmarkRoute,
-  launchBanjiForBenchmark,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
   persistedBenchmarkEventCount,
@@ -48,7 +48,7 @@ const HUB_LANES: Array<{
 ];
 
 async function waitForRecordUpdateReady(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   previousCount?: number,
 ) {
   const count = previousCount ?? await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
@@ -56,7 +56,7 @@ async function waitForRecordUpdateReady(
 }
 
 async function returnToRecordUpdateHub(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
 ) {
   const currentRoute = await currentBenchmarkRoute(launched.page);
   const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
@@ -83,7 +83,7 @@ async function returnToRecordUpdateHub(
 }
 
 async function openHubLane(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   lane: (typeof HUB_LANES)[number],
 ) {
   const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
@@ -115,7 +115,7 @@ async function openHubLane(
 }
 
 async function openFirstWorkbenchTile(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
 ) {
   const tileVisual = launched.page.locator('[data-slot="workbench-tile-visual"]').first();
   await tileVisual.waitFor({ state: 'visible', timeout: 30_000 });
@@ -123,7 +123,7 @@ async function openFirstWorkbenchTile(
 }
 
 async function completeReviewSaveFlow(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   {
     metricName,
     reviewDialogTitle,
@@ -137,7 +137,7 @@ async function completeReviewSaveFlow(
   },
 ) {
   const startedAt = Date.now();
-  await launched.page.getByRole('button', { name: reviewLabel, exact: true }).click();
+  await launched.page.getByRole('button', { name: reviewLabel, exact: true }).first().click();
   const reviewDialog = launched.page.getByRole('dialog', { name: reviewDialogTitle });
   await reviewDialog.waitFor({ state: 'visible', timeout: 30_000 });
   await reviewDialog.getByRole('button', { name: 'Confirm save', exact: true }).click();
@@ -157,14 +157,14 @@ async function completeReviewSaveFlow(
 }
 
 async function benchmarkStockCountSave(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
 ) {
   await returnToRecordUpdateHub(launched);
   await openHubLane(launched, HUB_LANES[0]!);
 
   await openFirstWorkbenchTile(launched);
   const itemDialog = launched.page.getByRole('dialog').first();
-  await itemDialog.getByLabel('Units in stock').fill('7');
+  await itemDialog.getByRole('textbox', { name: 'Units in stock' }).fill('7');
   await itemDialog.getByRole('button', { name: 'Done', exact: true }).click();
   await completeReviewSaveFlow(launched, {
     metricName: 'interaction.save_stock_count_ms',
@@ -175,7 +175,7 @@ async function benchmarkStockCountSave(
 }
 
 async function benchmarkSupplierReceiptSave(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
 ) {
   await returnToRecordUpdateHub(launched);
   const previousCount = await persistedBenchmarkEventCount(launched, 'route.work.capture.ready');
@@ -207,7 +207,7 @@ async function benchmarkSupplierReceiptSave(
 }
 
 test('capture hub opens current lanes and saves current flows', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('capture-hub-current-flows', testInfo);
+  const launched = await launchKaurKhorForBenchmark('capture-hub-current-flows', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
@@ -228,7 +228,7 @@ test('capture hub opens current lanes and saves current flows', async ({}, testI
       workflow: 'capture',
       ok: scenarioError == null,
     });
-    await closeBanjiBenchmarkApp(launched, 'capture');
+    await closeKaurKhorBenchmarkApp(launched, 'capture');
   }
   if (scenarioError) {
     throw scenarioError;

@@ -2,10 +2,10 @@ import { test } from '@playwright/test';
 import {
   assertLocatorCountAtLeast,
   clickWaitReadyAndRecordDuration,
-  closeBanjiBenchmarkAppWithTargetCoverage,
+  closeKaurKhorBenchmarkAppWithTargetCoverage,
   closeVisibleDialog,
   ensureAutomationBenchmarkSeed,
-  launchBanjiForBenchmark,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
   recordBenchmarkPhaseMarker,
@@ -16,7 +16,7 @@ import {
 } from '../helpers/electron-app';
 
 test('work measures current supplier and customer workflows', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('work-current-workflows', testInfo);
+  const launched = await launchKaurKhorForBenchmark('work-current-workflows', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
@@ -89,17 +89,17 @@ test('work measures current supplier and customer workflows', async ({}, testInf
       action: async () => {
         await targetSupplierOption.evaluate((element) => {
           const benchmarkWindow = window as Window & {
-            __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number;
+            __KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__?: number;
           };
-          benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = undefined;
+          benchmarkWindow.__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__ = undefined;
           element.addEventListener('pointerdown', () => {
-            benchmarkWindow.__BANJI_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
+            benchmarkWindow.__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__ = Date.now();
           }, { capture: true, once: true });
         });
         await targetSupplierOption.click();
         const startedAt = await launched.page.evaluate(() =>
-          (window as Window & { __BANJI_BENCHMARK_ACTION_STARTED_AT__?: number })
-            .__BANJI_BENCHMARK_ACTION_STARTED_AT__);
+          (window as Window & { __KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__?: number })
+            .__KAUR_KHOR_BENCHMARK_ACTION_STARTED_AT__);
         return { startedAt };
       },
       readyEvent: 'route.work.queue.ready',
@@ -116,7 +116,7 @@ test('work measures current supplier and customer workflows', async ({}, testInf
     });
   }
 
-  await closeBanjiBenchmarkAppWithTargetCoverage(
+  await closeKaurKhorBenchmarkAppWithTargetCoverage(
     launched,
     'work',
     [

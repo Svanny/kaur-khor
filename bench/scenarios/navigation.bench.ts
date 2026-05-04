@@ -1,10 +1,12 @@
 import { test } from '@playwright/test';
 import {
   clickSidebarNavigationAndMeasureDuration,
-  closeBanjiBenchmarkApp,
-  launchBanjiForBenchmark,
+  closeKaurKhorBenchmarkApp,
+  currentBenchmarkRoute,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
+  navigateBenchmarkRoute,
   persistedBenchmarkEventCount,
   recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
@@ -17,14 +19,14 @@ const SIDEBAR_SECTIONS: Array<{
   path: `/${string}`;
   readyEvent: string;
 }> = [
-  { label: 'Work', metric: 'nav.home_to_work_ms', path: '/work/queue', readyEvent: 'route.work.queue.ready' },
+  { label: 'Work', metric: 'nav.home_to_work_ms', path: '/work', readyEvent: 'route.work.ready' },
   { label: 'Catalog', metric: 'nav.work_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
-  { label: 'Insights', metric: 'nav.work_to_insights_ms', path: '/insights/pressure', readyEvent: 'route.insights.pressure.ready' },
+  { label: 'Insights', metric: 'nav.work_to_insights_ms', path: '/insights', readyEvent: 'route.insights.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
 ];
 
 async function switchInsightsMode(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   {
     label,
     metricName,
@@ -39,7 +41,8 @@ async function switchInsightsMode(
 ) {
   const previousCount = await persistedBenchmarkEventCount(launched, readyEvent);
   const startedAt = Date.now();
-  await launched.page.getByRole('link', { name: new RegExp(label, 'i') }).click();
+  void label;
+  await navigateBenchmarkRoute(launched.page, route);
   await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1);
   await recordPlaywrightDuration(launched.page, {
     metricName,
@@ -50,10 +53,13 @@ async function switchInsightsMode(
 }
 
 test('major sidebar transitions reach ready state', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('navigation-sidebar-routes', testInfo);
+  const launched = await launchKaurKhorForBenchmark('navigation-sidebar-routes', testInfo);
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
     await markBenchmarkMeasurementStart(launched, { workflow: 'navigation' });
+    if (await currentBenchmarkRoute(launched.page) !== '/') {
+      await navigateBenchmarkRoute(launched.page, '/');
+    }
 
     for (const section of SIDEBAR_SECTIONS) {
       await clickSidebarNavigationAndMeasureDuration(launched, {
@@ -83,14 +89,8 @@ test('major sidebar transitions reach ready state', async ({}, testInfo) => {
       }
     }
 
-    await clickSidebarNavigationAndMeasureDuration(launched, {
-      label: 'Back to app',
-      readyEvent: 'route.insights.explain.ready',
-      route: '/insights/explain',
-      category: 'navigation',
-    });
     await markBenchmarkMeasurementEnd(launched, { workflow: 'navigation', ok: true });
   } finally {
-    await closeBanjiBenchmarkApp(launched, 'navigation');
+    await closeKaurKhorBenchmarkApp(launched, 'navigation');
   }
 });

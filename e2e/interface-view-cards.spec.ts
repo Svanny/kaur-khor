@@ -8,20 +8,20 @@ const ARTIFACTS_DIR = join(process.cwd(), 'e2e-results');
 const DESKTOP_CORE_BINARY = resolve(
   process.cwd(),
   'apps/desktop-core/target/debug',
-  process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core',
+  process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core',
 );
 
 async function launchApp(dataDir?: string) {
   await mkdir(ARTIFACTS_DIR, { recursive: true });
   const env: Record<string, string> = {
     ...process.env as Record<string, string>,
-    BANJI_BENCHMARK: '1',
-    BANJI_BENCHMARK_BACKGROUND: '0',
-    BANJI_BENCHMARK_DISABLE_DEV_SEED: '0',
-    BANJI_DESKTOP_CORE_BINARY: DESKTOP_CORE_BINARY,
+    KAUR_KHOR_BENCHMARK: '1',
+    KAUR_KHOR_BENCHMARK_BACKGROUND: '0',
+    KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED: '0',
+    KAUR_KHOR_DESKTOP_CORE_BINARY: DESKTOP_CORE_BINARY,
   };
   if (dataDir) {
-    env.BANJI_BENCHMARK_DATA_DIR = dataDir;
+    env.KAUR_KHOR_BENCHMARK_DATA_DIR = dataDir;
   }
   return electron.launch({
     executablePath: electronPath as string,
@@ -42,7 +42,7 @@ test.describe('Interface view preset cards', () => {
 
       // Skip onboarding so we can reach Settings
       await page.evaluate(async () => {
-        await (window as any).banjiDesktop?.preferences?.save({ onboardingCompletedAt: new Date().toISOString() });
+        await (window as any).kaurKhorDesktop?.preferences?.save({ onboardingCompletedAt: new Date().toISOString() });
       });
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
@@ -86,7 +86,7 @@ test.describe('Interface view preset cards', () => {
 
       // Skip onboarding so we can reach Settings
       await page.evaluate(async () => {
-        await (window as any).banjiDesktop?.preferences?.save({ onboardingCompletedAt: new Date().toISOString() });
+        await (window as any).kaurKhorDesktop?.preferences?.save({ onboardingCompletedAt: new Date().toISOString() });
       });
       await page.reload();
       await page.waitForLoadState('domcontentloaded');
@@ -130,7 +130,7 @@ test.describe('Interface view preset cards', () => {
 
       // Prevent dev-seed from redirecting away from onboarding by forcing it incomplete
       await page.evaluate(async () => {
-        await (window as any).banjiDesktop?.preferences?.save({ onboardingCompletedAt: null });
+        await (window as any).kaurKhorDesktop?.preferences?.save({ onboardingCompletedAt: null });
       });
       await page.reload();
       await page.waitForLoadState('domcontentloaded');

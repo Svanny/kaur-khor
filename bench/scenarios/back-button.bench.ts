@@ -1,14 +1,14 @@
 import { test } from '@playwright/test';
 import {
   clickSidebarNavigation,
-  closeBanjiBenchmarkApp,
+  closeKaurKhorBenchmarkApp,
   currentBenchmarkRoute,
-  launchBanjiForBenchmark,
+  launchKaurKhorForBenchmark,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
 
 test('back button skips intra-page state changes and returns to previous page', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('back-button', testInfo);
+  const launched = await launchKaurKhorForBenchmark('back-button', testInfo);
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
 
@@ -65,6 +65,6 @@ test('back button skips intra-page state changes and returns to previous page', 
       );
     }
   } finally {
-    await closeBanjiBenchmarkApp(launched, 'back-button');
+    await closeKaurKhorBenchmarkApp(launched, 'back-button');
   }
 });

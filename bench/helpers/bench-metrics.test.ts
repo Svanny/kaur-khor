@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import { buildScenarioSummary, readBenchmarkEvents } from './bench-metrics';
 import { BENCHMARK_WORKSPACE_HISTORY_SIZES, normalizeBenchmarkWorkspaceSize } from './workspace-seed';
-import type { BanjiBenchmarkEvent } from '../../src/shared/benchmark';
+import type { KaurKhorBenchmarkEvent } from '../../src/shared/benchmark';
 
 function benchmarkEvent(
-  overrides: Partial<BanjiBenchmarkEvent>,
-): BanjiBenchmarkEvent {
+  overrides: Partial<KaurKhorBenchmarkEvent>,
+): KaurKhorBenchmarkEvent {
   return {
     runId: 'run-1',
     ts: 0,
@@ -28,7 +28,7 @@ function benchmarkEvent(
 
 describe('buildScenarioSummary', () => {
   it('ignores malformed trailing event lines from interrupted benchmark writers', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'banji-bench-events-'));
+    const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-bench-events-'));
     await writeFile(
       join(directory, 'events.jsonl'),
       `${JSON.stringify(benchmarkEvent({ name: 'good-event', ts: 10 }))}\n{"broken":\n`,
@@ -43,7 +43,7 @@ describe('buildScenarioSummary', () => {
   });
 
   it('retries transient partial event writes before warning', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'banji-bench-events-'));
+    const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-bench-events-'));
     const path = join(directory, 'core-events-read-1.jsonl');
     const firstEvent = benchmarkEvent({ name: 'first-event', ts: 10 });
     const secondEvent = benchmarkEvent({ name: 'second-event', ts: 20 });
@@ -86,13 +86,13 @@ describe('buildScenarioSummary', () => {
         }),
         benchmarkEvent({
           category: 'ipc',
-          name: 'ipc.banji:system:get-app-context.handle',
+          name: 'ipc.kaur-khor:system:get-app-context.handle',
           phase: 'end',
           durationMs: 35,
         }),
         benchmarkEvent({
           category: 'ipc',
-          name: 'ipc.banji:sena:get-startup-workspace.handle',
+          name: 'ipc.kaur-khor:sena:get-startup-workspace.handle',
           phase: 'end',
           durationMs: 40,
         }),
@@ -237,7 +237,7 @@ describe('buildScenarioSummary', () => {
       events: [
         benchmarkEvent({
           category: 'ipc',
-          name: 'ipc.banji:sena:get-record-update-context.handle',
+          name: 'ipc.kaur-khor:sena:get-record-update-context.handle',
           phase: 'end',
           durationMs: 42,
         }),

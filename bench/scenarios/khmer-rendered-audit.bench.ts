@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
-  closeBanjiBenchmarkSession,
-  launchBanjiForBenchmark,
+  closeKaurKhorBenchmarkSession,
+  launchKaurKhorForBenchmark,
   navigateBenchmarkRoute,
   waitForPersistedBenchmarkEventCount,
 } from '../helpers/electron-app';
@@ -33,7 +33,7 @@ interface UnreachableAuditState {
 interface AuditArtifact {
   entries: AuditEntry[];
   metadata: {
-    app: 'banji';
+    app: 'Kaur Khor';
     artifactVersion: 1;
     currency: 'KHR';
     generatedAt: string;
@@ -49,7 +49,7 @@ interface AuditArtifact {
   unreachable: UnreachableAuditState[];
 }
 
-type LaunchedAuditApp = Awaited<ReturnType<typeof launchBanjiForBenchmark>>;
+type LaunchedAuditApp = Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>;
 
 const REQUESTED_STATIC_ROUTES = [
   '/',
@@ -131,7 +131,7 @@ async function launchKhmerAuditApp(testInfo: Parameters<Parameters<typeof test>[
   const dataDirectory = await benchmarkDataDirectory(runId);
   await prepareBenchmarkWorkspace({ dataDirectory, size: 'medium' });
   await seedKhmerPreferences(dataDirectory);
-  return launchBanjiForBenchmark('khmer-rendered-audit', testInfo, {
+  return launchKaurKhorForBenchmark('khmer-rendered-audit', testInfo, {
     dataDirectory,
     fixtureSize: 'medium',
     outputDirectory,
@@ -143,7 +143,7 @@ async function launchKhmerAuditApp(testInfo: Parameters<Parameters<typeof test>[
 async function activeCatalogRoutes(launched: LaunchedAuditApp): Promise<Array<{ label: string; route: string }>> {
   const targets = await launched.page.evaluate(async () => {
     const desktop = window as Window & {
-      banjiDesktop?: {
+      kaurKhorDesktop?: {
         sena?: {
           getCatalog?: () => Promise<{
             services: Array<{ archived: boolean; serviceId: string }>;
@@ -152,7 +152,7 @@ async function activeCatalogRoutes(launched: LaunchedAuditApp): Promise<Array<{ 
         };
       };
     };
-    const catalog = await desktop.banjiDesktop?.sena?.getCatalog?.();
+    const catalog = await desktop.kaurKhorDesktop?.sena?.getCatalog?.();
     return {
       serviceId: catalog?.services.find((service) => !service.archived)?.serviceId ?? null,
       skuId: catalog?.skus.find((sku) => !sku.archived)?.skuId ?? null,
@@ -575,7 +575,7 @@ test('captures rendered Khmer DOM copy audit evidence', async ({}, testInfo) => 
     await writeArtifact(artifactPath, {
       entries,
       metadata: {
-        app: 'banji',
+        app: 'Kaur Khor',
         artifactVersion: 1,
         currency: 'KHR',
         generatedAt: new Date().toISOString(),
@@ -586,7 +586,7 @@ test('captures rendered Khmer DOM copy audit evidence', async ({}, testInfo) => 
       unreachable,
     });
   } finally {
-    await closeBanjiBenchmarkSession(launched);
+    await closeKaurKhorBenchmarkSession(launched);
   }
 
   testInfo.attachments.push({

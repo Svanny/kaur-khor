@@ -1,8 +1,8 @@
 import { test } from '@playwright/test';
 import {
   benchmarkEventCount,
-  closeBanjiBenchmarkApp,
-  launchBanjiForBenchmark,
+  closeKaurKhorBenchmarkApp,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
   navigateBenchmarkRoute,
@@ -14,7 +14,7 @@ import {
 } from '../helpers/electron-app';
 
 async function recordPlaywrightDuration(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   metricName: string,
   durationMs: number,
   path: string,
@@ -24,7 +24,7 @@ async function recordPlaywrightDuration(
   await launched.page.evaluate(
     ({ duration, entity, id, metric, route }) => {
       const event = {
-        runId: window.banjiDesktop.benchmark?.runId ?? 'playwright',
+        runId: window.kaurKhorDesktop.benchmark?.runId ?? 'playwright',
         ts: Date.now(),
         layer: 'playwright' as const,
         category: 'navigation' as const,
@@ -37,23 +37,23 @@ async function recordPlaywrightDuration(
         durationMs: duration,
         detail: {},
       };
-      window.__BANJI_BENCHMARK_EVENTS__ ??= [];
-      window.__BANJI_BENCHMARK_EVENTS__.push(event);
-      window.banjiDesktop.benchmark?.recordEvent(event);
+      window.__KAUR_KHOR_BENCHMARK_EVENTS__ ??= [];
+      window.__KAUR_KHOR_BENCHMARK_EVENTS__.push(event);
+      window.kaurKhorDesktop.benchmark?.recordEvent(event);
     },
     { duration: durationMs, entity: entityType, id: entityId, metric: metricName, route: path },
   );
 }
 
 test('SKU and service detail pages expose first and repeat load timings', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('detail-pages', testInfo);
+  const launched = await launchKaurKhorForBenchmark('detail-pages', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
     await markBenchmarkMeasurementStart(launched, { workflow: 'detail-pages' });
     const targets = await launched.page.evaluate(async () => {
       const benchmarkWindow = window as Window & {
-        banjiDesktop: {
+        kaurKhorDesktop: {
           sena: {
             getCatalog: () => Promise<{
               skus: Array<{ archived: boolean; skuId: string }>;
@@ -62,7 +62,7 @@ test('SKU and service detail pages expose first and repeat load timings', async 
           };
         };
       };
-      const catalog = await benchmarkWindow.banjiDesktop.sena.getCatalog();
+      const catalog = await benchmarkWindow.kaurKhorDesktop.sena.getCatalog();
       return {
         skuId: catalog?.skus.find((sku) => !sku.archived)?.skuId ?? null,
         serviceId: catalog?.services.find((service) => !service.archived)?.serviceId ?? null,
@@ -71,12 +71,12 @@ test('SKU and service detail pages expose first and repeat load timings', async 
 
     if (targets.skuId) {
       const firstSkuCount = await benchmarkEventCount(launched, 'route.sku-detail.ready');
-      const firstSkuDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-sku-detail.handle');
+      const firstSkuDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.kaur-khor:sena:get-sku-detail.handle');
       const skuPath = `/catalog/skus/${targets.skuId}` as const;
       const firstStartedAt = Date.now();
       await navigateBenchmarkRoute(launched.page, skuPath);
       await waitForPersistedBenchmarkEventCount(launched, 'route.sku-detail.ready', firstSkuCount + 1);
-      await waitForPersistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-sku-detail.handle', firstSkuDetailIpcCount + 1);
+      await waitForPersistedCompletedBenchmarkEventCount(launched, 'ipc.kaur-khor:sena:get-sku-detail.handle', firstSkuDetailIpcCount + 1);
       await recordPlaywrightDuration(launched, 'detail.sku_first_load_ms', Date.now() - firstStartedAt, skuPath, 'sku', targets.skuId);
       await snapshotRendererBenchmarkMemory(launched.page, 'memory.renderer_after_sku_detail_first_mb');
 
@@ -93,7 +93,7 @@ test('SKU and service detail pages expose first and repeat load timings', async 
 
     if (targets.serviceId) {
       const firstServiceCount = await benchmarkEventCount(launched, 'route.service-detail.ready');
-      const firstServiceDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.banji:sena:get-service-detail.handle');
+      const firstServiceDetailIpcCount = await persistedCompletedBenchmarkEventCount(launched, 'ipc.kaur-khor:sena:get-service-detail.handle');
       const servicePath = `/catalog/services/${targets.serviceId}` as const;
       const firstStartedAt = Date.now();
       await navigateBenchmarkRoute(launched.page, servicePath);
@@ -104,7 +104,7 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       );
       await waitForPersistedCompletedBenchmarkEventCount(
         launched,
-        'ipc.banji:sena:get-service-detail.handle',
+        'ipc.kaur-khor:sena:get-service-detail.handle',
         firstServiceDetailIpcCount + 1,
       );
       await recordPlaywrightDuration(launched, 'detail.service_first_load_ms', Date.now() - firstStartedAt, servicePath, 'service', targets.serviceId);
@@ -123,7 +123,7 @@ test('SKU and service detail pages expose first and repeat load timings', async 
       workflow: 'detail-pages',
       ok: scenarioError == null,
     });
-    await closeBanjiBenchmarkApp(launched, 'detail-pages');
+    await closeKaurKhorBenchmarkApp(launched, 'detail-pages');
   }
   if (scenarioError) {
     throw scenarioError;

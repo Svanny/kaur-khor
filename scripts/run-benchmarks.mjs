@@ -163,12 +163,12 @@ if (coreBuildCode !== 0) {
 
 const desktopCoreBinary = resolve(
   'apps/desktop-core/target/debug',
-  process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core',
+  process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core',
 );
 const testEnv = {
   ...process.env,
-  BANJI_DESKTOP_CORE_BINARY: process.env.BANJI_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
-  BANJI_BENCHMARK_TRACE: process.env.BANJI_BENCHMARK_TRACE ?? '0',
+  KAUR_KHOR_DESKTOP_CORE_BINARY: process.env.KAUR_KHOR_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
+  KAUR_KHOR_BENCHMARK_TRACE: process.env.KAUR_KHOR_BENCHMARK_TRACE ?? '0',
 };
 if (testEnv.NO_COLOR) {
   delete testEnv.NO_COLOR;

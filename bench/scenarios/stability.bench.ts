@@ -1,8 +1,8 @@
 import { test } from '@playwright/test';
 import {
   clickSidebarNavigation,
-  closeBanjiBenchmarkApp,
-  launchBanjiForBenchmark,
+  closeKaurKhorBenchmarkApp,
+  launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
   persistedBenchmarkEventCount,
@@ -25,7 +25,7 @@ const CYCLE_SECTIONS: Array<{
 ];
 
 async function switchInsightsMode(
-  launched: Awaited<ReturnType<typeof launchBanjiForBenchmark>>,
+  launched: Awaited<ReturnType<typeof launchKaurKhorForBenchmark>>,
   {
     cycle,
     label,
@@ -54,7 +54,7 @@ async function switchInsightsMode(
 }
 
 test('repeated sidebar navigation stays crash-free and records memory slope inputs', async ({}, testInfo) => {
-  const launched = await launchBanjiForBenchmark('stability-sidebar-cycle', testInfo);
+  const launched = await launchKaurKhorForBenchmark('stability-sidebar-cycle', testInfo);
   let scenarioError: unknown = null;
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
@@ -124,7 +124,7 @@ test('repeated sidebar navigation stays crash-free and records memory slope inpu
       workflow: 'stability',
       ok: scenarioError == null,
     });
-    await closeBanjiBenchmarkApp(launched, 'stability');
+    await closeKaurKhorBenchmarkApp(launched, 'stability');
   }
   if (scenarioError) {
     throw scenarioError;
