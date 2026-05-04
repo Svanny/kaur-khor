@@ -1007,7 +1007,7 @@ describe('SettingsRoute', () => {
     expect(await screen.findByText('ចំណូលចិត្តតំបន់')).toBeInTheDocument();
     expect(screen.getByText('រូបភាពធាតុ')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'ទំហំរូបភាពធាតុ' })).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'បន្ថយពន្លឺក្រាបពេលកំពុងផ្ទុក' })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'បន្ថយពន្លឺក្រាហ្វពេលកំពុងផ្ទុក' })).toBeInTheDocument();
     expect(screen.getByText('លំនាំដើមសកម្មភាពជួរការងារ')).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'កត់ត្រាការបញ្ជាទិញពីអ្នកផ្គត់ផ្គង់' })).toBeInTheDocument();
     expect(screen.getByText('ខ្មែរ')).toBeInTheDocument();

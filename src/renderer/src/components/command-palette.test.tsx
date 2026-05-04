@@ -294,11 +294,11 @@ describe('CommandPaletteProvider', () => {
           navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
           navSettings: 'ការកំណត់',
           navHelp: 'ជំនួយ',
-          settingsBackupSnapshotAction: 'បង្កើតស្នាមចម្លងបម្រុងទុក',
+          settingsBackupSnapshotAction: 'បង្កើតស្នេបស្ហតបម្រុងទុក',
           settingsExportLogsAction: 'នាំចេញកំណត់ហេតុ',
           settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
           settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន',
-          settingsRestoreSnapshotAction: 'ស្តារស្នាមចម្លងដែលបានរក្សាទុក',
+          settingsRestoreSnapshotAction: 'ស្តារស្នេបស្ហតដែលបានរក្សាទុក',
           settingsPreferencesControlsTitle: 'ចំណូលចិត្តកន្លែងធ្វើការ',
           settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
         }[key] ?? key),
@@ -317,7 +317,7 @@ describe('CommandPaletteProvider', () => {
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
 
     expect(screen.getByRole('searchbox', { name: 'ស្វែងរកពាក្យបញ្ជា' })).toBeInTheDocument();
-    expect(screen.getByText('ទំព័រដើមបញ្ជា និងច្រកចូលប្រចាំថ្ងៃ')).toBeInTheDocument();
+    expect(screen.getByText('ទំព័រដើម និងច្រកចូលការងារប្រចាំថ្ងៃ')).toBeInTheDocument();
     expect(screen.getAllByText('ទំព័រ').length).toBeGreaterThan(0);
     expect(screen.queryByText('Page')).not.toBeInTheDocument();
     expect(screen.queryByText('Command home and daily entry point')).not.toBeInTheDocument();

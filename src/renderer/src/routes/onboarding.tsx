@@ -29,12 +29,12 @@ function onboardingCopy(englishText: string) {
     'Set up banji': 'រៀបចំបញ្ជី',
     'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.':
       'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលការគ្រប់គ្រងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
-    'Choose interface view': 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ',
+    'Choose interface view': 'ជ្រើសរើសទិដ្ឋភាពចំណុចប្រទាក់',
     'Pick how much guidance and status detail banji keeps visible in your workspace.':
       'ជ្រើសរើសថាតើ បញ្ជី ត្រូវបង្ហាញការណែនាំ និងសេចក្តីលម្អិតស្ថានភាពច្រើនប៉ុណ្ណានៅក្នុងកន្លែងធ្វើការ។',
     Language: 'ភាសា',
     Currency: 'រូបិយប័ណ្ណ',
-    'Interface view': 'ទិដ្ឋភាពផ្ទៃមុខ',
+    'Interface view': 'ទិដ្ឋភាពចំណុចប្រទាក់',
     Back: 'ត្រឡប់ក្រោយ',
     Continue: 'បន្ត',
   };

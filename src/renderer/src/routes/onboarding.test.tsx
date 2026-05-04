@@ -193,7 +193,7 @@ describe('OnboardingRoute', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'បន្ត' }));
 
-    expect(await screen.findByRole('heading', { name: 'ជ្រើសរើសទិដ្ឋភាពផ្ទៃមុខ' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'ជ្រើសរើសទិដ្ឋភាពចំណុចប្រទាក់' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Choose interface view' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'ត្រឡប់ក្រោយ' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'បន្ត' })).toBeInTheDocument();

@@ -1420,8 +1420,8 @@ describe('SkuTradingChart settings', () => {
     });
 
     expect(screen.getByText('42 ឯកតា')).toBeInTheDocument();
-    expect(screen.getByLabelText('រយៈពេលក្រាប')).toBeInTheDocument();
-    expect(screen.getByLabelText('ចន្លោះពេលក្រាប')).toBeInTheDocument();
+    expect(screen.getByLabelText('រយៈពេលក្រាហ្វ')).toBeInTheDocument();
+    expect(screen.getByLabelText('ចន្លោះពេលក្រាហ្វ')).toBeInTheDocument();
     expect(await screen.findByLabelText('សញ្ញាក្រាហ្វ')).toBeInTheDocument();
     expect(screen.queryByLabelText('Chart flags')).not.toBeInTheDocument();
     expect(screen.getByText('រយៈពេល')).not.toHaveClass('uppercase', 'tracking-[0.12em]');

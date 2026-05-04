@@ -38,7 +38,7 @@ const interfaceViewCardCopy: Record<AppLanguage, Record<InterfaceViewMode, {
       label: 'ទិដ្ឋភាពលំនាំដើម',
     },
     minimal: {
-      description: 'លាក់ស្រទាប់ផ្ទៃមុខបន្ថែម ដើម្បីឱ្យកន្លែងធ្វើការស្ងប់បំផុត។',
+      description: 'លាក់ស្រទាប់ចំណុចប្រទាក់បន្ថែម ដើម្បីឱ្យកន្លែងធ្វើការស្ងប់បំផុត។',
       label: 'ទិដ្ឋភាពសាមញ្ញ',
     },
     maximal: {

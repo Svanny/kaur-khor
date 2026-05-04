@@ -14,6 +14,7 @@ import { normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { hasActiveSenaSku } from '@/lib/sena-catalog';
 import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
+import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { useInventory } from '@/state/inventory';
 import { DetailHeroWireframe, WireframeRightRailLayout, WireframeRows } from '../loading-wireframes';
@@ -394,7 +395,8 @@ function SkuDetailScreen() {
       </div>
       {isLedgerExpanded ? (
         <ChartLedgerOverlay
-          ariaLabel={`Expanded ledger for ${model.identity.name}`}
+          ariaLabel={translateUiLiteral(language, 'Expanded ledger for {name}', { name: model.identity.name })}
+          closeAriaLabel={translateUiLiteral(language, 'Close expanded chart overlay')}
           onClose={() => setLedgerExpanded(false, true)}
         >
             <SkuDetailLedger

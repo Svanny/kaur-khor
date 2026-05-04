@@ -11,7 +11,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   navCapture: 'កត់ត្រា',
   navInsights: 'ការយល់ដឹង',
   navHistory: 'ប្រវត្តិ',
-  navAutomations: 'អូតូម៉ាស្យុង',
+  navAutomations: 'ស្វ័យប្រវត្តិកម្ម',
   navArchive: 'បណ្ណសារ',
   navHelp: 'ជំនួយ',
   helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
@@ -353,7 +353,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsBody:
     'កែប្រែរបៀបដំណើរការក្នុងម៉ាស៊ីន ជំនួយស្រេចចិត្ត និងចំណូលចិត្តសម្រាប់កន្លែងធ្វើការពីទំព័រតែមួយ។',
   settingsStorage:
-    'ភាសា និងរូបិយប័ណ្ណត្រូវបានរក្សាទុកក្នុងផ្ទៃមុខក្នុងម៉ាស៊ីន ខណៈទិន្នន័យស្តុកនៅតែស្ថិតក្នុងថតទិន្នន័យរបស់កម្មវិធីលើ desktop។',
+    'ភាសា និងរូបិយប័ណ្ណត្រូវបានរក្សាទុកក្នុងចំណុចប្រទាក់ក្នុងម៉ាស៊ីន ខណៈទិន្នន័យស្តុកនៅតែស្ថិតក្នុងថតទិន្នន័យរបស់កម្មវិធីលើកុំព្យូទ័រ។',
   settingsDisclaimer: 'ម៉ាស៊ីននេះនៅតែជាចំណុចសំខាន់សម្រាប់ prototype បច្ចុប្បន្ន។',
   settingsWorkspacePreferencesDescription:
     'ភាសា និងរូបិយប័ណ្ណបង្ហាញភ្លាមៗ ប៉ុន្តែត្រូវបានរក្សាទុកតែពេលអ្នករក្សាទុកចំណូលចិត្តប៉ុណ្ណោះ។',
@@ -367,7 +367,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsLocalDataRawFormatNote:
     'ឯកសារដើមប្រើទម្រង់ JSON ខាងក្នុងរបស់ banji។ ការនាំចេញ CSV សម្រាប់ពិនិត្យក្នុងសៀវភៅតារាង។',
   settingsTargetServiceLevelTooltip:
-    'កម្រិតភាពមានស្រាប់ដែលគោលដៅ គឺជាគោលដៅស្តុកដែល banji ប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវកាន់ស្តុកច្រើនជាងមុន។',
+    'កម្រិតភាពមានស្រាប់គោលដៅ គឺជាគោលដៅស្តុកដែលបញ្ជីប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវរក្សាស្តុកច្រើនជាងមុន។',
   settingsForecastHorizonTooltip:
     'រយៈពេលព្យាករណ៍ បង្ហាញថា banji មើលទៅមុខឆ្ងាយប៉ុន្មាន សម្រាប់តម្រូវការ និងហានិភ័យស្តុក។',
   settingsParticleCountTooltip:
@@ -378,7 +378,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ជ្រើសថា banji គួរបង្ហាញការណែនាំស្រេចចិត្តប៉ុន្មាន និងឲ្យឧបករណ៍នេះដំណើរការយ៉ាងដូចម្តេច។',
   settingsPreferencesControlsTitle: 'ចំណូលចិត្ត',
   settingsPreferencesControlsDescription: 'ការកំណត់ទាំងនេះប៉ះពាល់តែឧបករណ៍នេះប៉ុណ្ណោះ។',
-  settingsInterfaceVisibilityTitle: 'ផ្ទៃមុខ',
+  settingsInterfaceVisibilityTitle: 'ចំណុចប្រទាក់',
   settingsExchangeRateHelp: 'ប្រើសម្រាប់បង្ហាញចំនួន KHR ប៉ុណ្ណោះ។ តម្លៃដែលបានរក្សាទុកនៅតែជាដុល្លារ USD។',
   settingsInterfaceVisibilityDescription:
     'ជ្រើសរើសរបៀបបង្ហាញដែលបានរក្សាទុក ឬកែប៊ូតុងបើកបិទចំណុចប្រទាក់ខាងក្រោមតាមតម្រូវការ។',
@@ -412,7 +412,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsShowRightRailCardsHelp:
     'បង្ហាញផ្ទាំងព័ត៌មានខាងស្ដាំលើទំព័រវិភាគ សុខភាពអាជីវកម្ម ហិរញ្ញវត្ថុ និងទំព័រលម្អិត។',
   settingsSenaParametersPanelDescription:
-    'កែថា banji ប្រើព័ត៌មានលម្អិតប៉ុន្មាន នៅពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញបន្ថែម។',
+    'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
   settingsExplainProfileTooltip:
     'វាជ្រើសកំណែម៉ាស៊ីនវិភាគក្នុងម៉ាស៊ីន។ ទុកវាដដែល លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការរត់ផ្សេងៗ។',
   settingsExplainProfileHelp: 'កំណែវិភាគក្នុងម៉ាស៊ីន ដែល banji នឹងប្រើនៅពេលផ្ទុកឡើងវិញបន្ទាប់។',
@@ -431,7 +431,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsReviewDelayDaysHelp:
     'ចំនួនថ្ងៃបន្ថែមដែល banji ការពារ មុនសេចក្តីសម្រេចបញ្ជាទិញបន្ថែមបន្ទាប់ទំនងកើតឡើង។',
   settingsReviewDelayDaysTooltip:
-    'banji បន្ថែមចំនួនថ្ងៃទាំងនេះលើពេលវេលាមកដល់ នៅពេលគណនាបរិមាណណែនាំឱ្យបញ្ជាទិញ។',
+    'បន្ថែមចំនួនថ្ងៃនេះទៅពេលវេលាដឹកមកដល់ ដើម្បីឲ្យការណែនាំគ្របដណ្តប់ដល់ពេលដែលអាចសម្រេចបំពេញស្តុកជាក់ស្តែងបន្ទាប់បាន។',
   settingsEnableSmoothingHelp: 'ធ្វើឲ្យខ្សែបន្ទាត់រលោង មុនពេល banji សង្ខេបលទ្ធផល។',
   settingsEnableSmoothingTooltip:
     'វាអាចធ្វើឲ្យប្រវត្តិដែលខ្វះៗមើលងាយស្រួល ប៉ុន្តែក៏អាចលាក់ការផ្លាស់ប្តូរខ្លាំងៗបានដែរ។',
@@ -441,32 +441,32 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsExportSenaDataAction: 'នាំចេញទិន្នន័យផែនការ',
   settingsLocalWorkspaceStorageTitle: 'ទិន្នន័យ',
   settingsLocalWorkspaceStorageDescription:
-    'banji រក្សាទុកទិន្នន័យកន្លែងធ្វើការនៅលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
+    'បញ្ជីរក្សាទុកទិន្នន័យកន្លែងធ្វើការលើឧបករណ៍នេះ ក្នុងឯកសារ SQLite ក្នុងម៉ាស៊ីន ហើយបង្កើតស្នេបស្ហតបម្រុងទុកក្នុងម៉ាស៊ីនដោយស្វ័យប្រវត្តិ។',
   settingsBenchmarksTitle: 'ការវាស់ល្បឿន',
   settingsBenchmarksDescription:
     'រត់ការវាស់ល្បឿន desktop មើលស្ថានភាពគោលដៅ និងប្រៀបធៀបលទ្ធផលក្នុងម៉ាស៊ីន។',
-  settingsBackupDirectoryLabel: 'ស្នាមចម្លងបម្រុងទុក',
-  settingsBackupSnapshotAction: 'បង្កើតស្នាមចម្លងបម្រុងទុក',
-  settingsBackupSnapshotCreating: 'កំពុងបង្កើតស្នាមចម្លង…',
-  settingsBackupSnapshotCreated: 'បានបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីននៅ {path}។',
-  settingsBackupSnapshotFailed: 'មិនអាចបង្កើតស្នាមចម្លងបម្រុងទុកក្នុងម៉ាស៊ីនបានទេ។',
-  settingsRestoreSnapshotAction: 'ស្តារស្នាមចម្លងដែលបានរក្សាទុក',
-  settingsRestoreSnapshotRestoring: 'កំពុងស្តារស្នាមចម្លង…',
+  settingsBackupDirectoryLabel: 'ស្នេបស្ហតបម្រុងទុក',
+  settingsBackupSnapshotAction: 'បង្កើតស្នេបស្ហតបម្រុងទុក',
+  settingsBackupSnapshotCreating: 'កំពុងបង្កើតស្នេបស្ហត…',
+  settingsBackupSnapshotCreated: 'បានបង្កើតស្នេបស្ហតបម្រុងទុកក្នុងម៉ាស៊ីននៅ {path}។',
+  settingsBackupSnapshotFailed: 'មិនអាចបង្កើតស្នេបស្ហតបម្រុងទុកក្នុងម៉ាស៊ីនបានទេ។',
+  settingsRestoreSnapshotAction: 'ស្តារស្នេបស្ហតដែលបានរក្សាទុក',
+  settingsRestoreSnapshotRestoring: 'កំពុងស្តារស្នេបស្ហត…',
   settingsRestoreSnapshotCompleted: 'បានស្តារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនពី {path}។',
-  settingsRestoreSnapshotFailed: 'មិនអាចស្តារស្នាមចម្លងដែលបានរក្សាទុកបានទេ។',
-  settingsRestoreSnapshotCancelled: 'បានបោះបង់ការស្តារស្នាមចម្លង។',
-  settingsDangerZoneTitle: 'គ្រោះថ្នាក់',
+  settingsRestoreSnapshotFailed: 'មិនអាចស្តារស្នេបស្ហតដែលបានរក្សាទុកបានទេ។',
+  settingsRestoreSnapshotCancelled: 'បានបោះបង់ការស្តារស្នេបស្ហត។',
+  settingsDangerZoneTitle: 'តំបន់ប្រយ័ត្ន',
   settingsDangerZoneDescription:
-    'លុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាទុកស្នាមចម្លងដែលបានរក្សាទុករួច។',
+    'លុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន និងចំណូលចិត្តបច្ចុប្បន្ន ខណៈពេលរក្សាស្នេបស្ហតដែលបានរក្សាទុករួច។',
   settingsClearCurrentDataTitle: 'លុបទិន្នន័យក្នុងម៉ាស៊ីនបច្ចុប្បន្ន',
   settingsClearCurrentDataDescription:
-    'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ banji នឹងរក្សាទុកស្នាមចម្លងដែលមានស្រាប់ ហើយបង្កើតស្នាមចម្លងសុវត្ថិភាពមួយទៀតជាមុន។',
+    'វាយពាក្យ DELETE CURRENT DATA ដើម្បីលុបឯកសារទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ បញ្ជីនឹងរក្សាស្នេបស្ហតដែលមានស្រាប់ ហើយបង្កើតស្នេបស្ហតសុវត្ថិភាពមួយទៀតជាមុន។',
   settingsClearCurrentDataAction: 'លុបទិន្នន័យបច្ចុប្បន្ន',
   settingsClearCurrentDataCancel: 'បោះបង់',
   settingsClearCurrentDataCompleted:
-    'បានលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ ស្នាមចម្លងសុវត្ថិភាពត្រូវបានរក្សាទុកនៅ {path}។',
+    'បានលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្ន។ ស្នេបស្ហតសុវត្ថិភាពត្រូវបានរក្សាទុកនៅ {path}។',
   settingsClearCurrentDataFailed: 'មិនអាចលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្នបានទេ។',
-  settingsCreditsTitle: 'កិត្តិយស',
+  settingsCreditsTitle: 'អំពីអ្នកបង្កើត',
   settingsCreditsDescription: 'សារខ្លីពីអ្នកបង្កើត។',
   settingsParameterRunStatusExported: 'បាននាំចេញទិន្នន័យផែនការជា {format}។',
   settingsParameterRunStatusFailed: 'មិនអាចនាំចេញទិន្នន័យផែនការបានទេ។',
@@ -1352,7 +1352,7 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   operationsResumeSession: 'បន្តវគ្គអាប់ដេត',
   operationsResumeDetails: 'បន្តព័ត៌មានលម្អិត',
   settingsExchangeRateInputLabel: 'អត្រាប្ដូរប្រាក់សម្រាប់ 1 USD ជា KHR',
-  settingsMadeWith: 'បង្កើតដោយក្តីស្រឡាញ់',
+  settingsMadeWith: 'បង្កើតដោយយកចិត្តទុកដាក់',
   settingsMadeBy: '— លី មុនីសុវណ្ណ',
   overviewReceiptAwaitingSupplierDetail:
     'បញ្ជីគិតថាមានស្តុកកំពុងមកដល់ ប៉ុន្តែរយៈពេលមកដល់នៅមិនទាន់ច្បាស់នៅឡើយទេ។',
@@ -1425,7 +1425,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   settingsSenaParametersPanelTitle: 'ការកំណត់លម្អិតផែនការ',
   searchPlaceholder: 'ស្វែងរកឈ្មោះ ការពិពណ៌នា ឬលេខសម្គាល់…',
   settingsSenaParametersPanelDescription:
-    'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
+    'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
   settingsExplainProfileTooltip:
     'វាជ្រើសកំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន។ ទុកទម្រង់បច្ចុប្បន្ន លុះត្រាតែអ្នកកំពុងប្រៀបធៀបលទ្ធផលពីការវិភាគផ្សេងៗ។',
   settingsExplainProfileHelp: 'កំណែម៉ាស៊ីនផែនការក្នុងម៉ាស៊ីន ដែលនឹងប្រើសម្រាប់ការផ្ទុកឡើងវិញបន្ទាប់។',
@@ -1687,7 +1687,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       stockUpdateRegimeNormalDetail: 'រយៈពេលធម្មតា ដែលមិនមានសញ្ញាប្រែប្រួលខ្លាំងណាមួយទេ។',
       stockUpdateReviewTooltipLabel: 'ព័ត៌មានលម្អិតសង្ខេបមុនរក្សាទុក',
       stockUpdateReviewBody:
-        'បញ្ជីនឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារទិដ្ឋភាពទូទៅ ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅការវិភាគ។',
+        'បញ្ជីនឹងផ្ទុកស្តុក និងភាពអាចលក់បានឡើងវិញ អាប់ដេតការងារសង្ខេប ផ្ទុកសកម្មភាពសុខភាពអាជីវកម្មឡើងវិញ និងបន្ថែមភស្តុតាងនេះទៅការវិភាគ។',
       stockUpdateDescriptorIntervalSuffix: '· រយៈពេល {days} ថ្ងៃ',
       stockUpdateContextTooltipLabel: 'ព័ត៌មានលម្អិតអំពីរយៈពេលដែលបានកត់ត្រា',
       stockUpdateRankingsTooltipLabel: 'ព័ត៌មានលម្អិតអំពីលំដាប់',
@@ -1910,10 +1910,10 @@ const exactValueTranslations: Record<string, string> = {
   'Delete {name}': 'លុប {name}',
   'New pane': 'ផ្ទាំងថ្មី',
   'No data': 'គ្មានទិន្នន័យ',
-  'Chart duration': 'រយៈពេលក្រាប',
-  'Chart timeframe': 'ចន្លោះពេលក្រាប',
+  'Chart duration': 'រយៈពេលក្រាហ្វ',
+  'Chart timeframe': 'ចន្លោះពេលក្រាហ្វ',
   'Chart flags': 'សញ្ញាក្រាហ្វ',
-  'Ledger for {name}': 'កំណត់ត្រាក្រាបសម្រាប់ {name}',
+  'Ledger for {name}': 'កំណត់ត្រាក្រាហ្វសម្រាប់ {name}',
   adjustments: 'ការកែសម្រួល',
   'Supplier order recorded': 'បានកត់ត្រាការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
   'Supplier receipt recorded': 'បានកត់ត្រាការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
@@ -2283,7 +2283,7 @@ const exactValueTranslations: Record<string, string> = {
   'Save preferences': 'រក្សាទុកចំណូលចិត្ត',
   'Workspace preferences': 'ចំណូលចិត្តកន្លែងធ្វើការ',
   'Exchange rate': 'អត្រាប្ដូរប្រាក់',
-  'Interface visibility': 'ការបង្ហាញផ្ទៃមុខ',
+  'Interface visibility': 'ការបង្ហាញចំណុចប្រទាក់',
   'Show extra guidance': 'បង្ហាញការណែនាំបន្ថែម',
   'Keep actions pinned': 'រក្សាសកម្មភាពឲ្យនៅជាប់',
   'Reset to defaults': 'កំណត់តម្លៃលំនាំដើមឡើងវិញ',
@@ -2293,7 +2293,7 @@ const exactValueTranslations: Record<string, string> = {
   'Suggested range end': 'ចំណុចបញ្ចប់នៃជួរណែនាំ',
   'Reorder signal threshold': 'កម្រិតសញ្ញាបញ្ជាទិញបន្ថែម',
   'Extra safety days': 'ថ្ងៃសុវត្ថិភាពបន្ថែម',
-  'Soften noisy charts': 'ធ្វើឲ្យក្រាបរលោង',
+  'Soften noisy charts': 'ធ្វើឲ្យក្រាហ្វរលោង',
   'Local workspace data': 'ទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីន',
   'Data directory': 'ថតទិន្នន័យ',
   'Workspace store': 'កន្លែងផ្ទុកទិន្នន័យ',
@@ -2420,7 +2420,7 @@ const exactValueTranslations: Record<string, string> = {
   'No SKUs match this stock view yet.': 'មិនទាន់មាន SKU ណាត្រូវនឹងទិដ្ឋភាពស្តុកនេះទេ។',
   Archive: 'ដាក់បណ្ណសារ',
   Unarchive: 'ដកចេញពីបណ្ណសារ',
-  Credits: 'កិត្តិយស',
+  Credits: 'អំពីអ្នកបង្កើត',
   Service: 'សេវាកម្ម',
   Retail: 'លក់រាយ',
   'Latest price': 'តម្លៃចុងក្រោយ',
@@ -2876,11 +2876,11 @@ const exactValueTranslations: Record<string, string> = {
   'Detailed analysis tools': 'ឧបករណ៍ Explain លម្អិត',
   'Browse SKUs and services': 'រកមើល SKU និងសេវាកម្ម',
   'Observation history and logs': 'ប្រវត្តិការសង្កេត និងកំណត់ហេតុ',
-  'All work items': 'ធាតុទិដ្ឋភាពទូទៅទាំងអស់',
-  'Work SKU tasks': 'ការងារ SKU ក្នុងទិដ្ឋភាពទូទៅ',
-  'Work service tasks': 'ការងារសេវាកម្មក្នុងទិដ្ឋភាពទូទៅ',
+  'All work items': 'ធាតុការងារទាំងអស់',
+  'Work SKU tasks': 'ការងារអេសខេយូ',
+  'Work service tasks': 'ការងារសេវាកម្ម',
   'Work scope': 'វិសាលភាពទិដ្ឋភាពទូទៅ',
-  'All work tasks': 'ការងារទិដ្ឋភាពទូទៅទាំងអស់',
+  'All work tasks': 'ការងារទាំងអស់',
   'Work filter': 'តម្រងទិដ្ឋភាពទូទៅ',
   'Catalog / All items': 'កាតាឡុក / ធាតុទាំងអស់',
   'Catalog / SKUs': 'កាតាឡុក / SKU',
@@ -2948,7 +2948,7 @@ const exactValueTranslations: Record<string, string> = {
   'Settings / View mode': 'ការកំណត់ / របៀបបង្ហាញ',
   'Set view mode to Custom View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពផ្ទាល់ខ្លួន',
   'Set view mode to Compact View': 'ប្ដូររបៀបបង្ហាញទៅទិដ្ឋភាពបង្រួម',
-  'Settings / Interface visibility': 'ការកំណត់ / ការបង្ហាញផ្ទៃមុខ',
+  'Settings / Interface visibility': 'ការកំណត់ / ការបង្ហាញចំណុចប្រទាក់',
   'Hide optional help': 'លាក់ជំនួយស្រេចចិត្ត',
   'Show optional help': 'បង្ហាញជំនួយស្រេចចិត្ត',
   'Hide floating title actions': 'លាក់សកម្មភាពចំណងជើងដែលអណ្ដែត',
@@ -2970,7 +2970,7 @@ const exactValueTranslations: Record<string, string> = {
   'See what needs attention next, what is already in motion, and when banji will check back.':
     'មើលថាតើអ្វីត្រូវការការយកចិត្តទុកដាក់បន្ទាប់ អ្វីកំពុងដំណើរការ និងពេលណាបញ្ជីនឹងត្រឡប់មកពិនិត្យម្តងទៀត។',
   'Search overview': 'ស្វែងរកក្នុងទិដ្ឋភាពទូទៅ',
-  'Filter overview tasks': 'តម្រងការងារទិដ្ឋភាពទូទៅ',
+  'Filter overview tasks': 'តម្រងការងារសង្ខេប',
   "The human task ledger on top of SENA's order, receipt, and lead-time loop.":
     'បញ្ជីការងារតាមដានលើការបញ្ជាទិញ ការទទួលទំនិញ និងពេលវេលាមកដល់។',
   'Item / impact': 'ទំនិញ / ផលប៉ះពាល់',
@@ -3172,8 +3172,8 @@ const runtimeLiteralTranslations: Record<string, string> = {
   Entity: 'ធាតុ',
   Action: 'សកម្មភាព',
   Sheet: 'សន្លឹក',
-  'Command home and daily entry point': 'ទំព័រដើមបញ្ជា និងច្រកចូលប្រចាំថ្ងៃ',
-  'Queue, capture, and intake work': 'ជួរការងារ ការកត់ត្រា និងសំណើចូល',
+  'Command home and daily entry point': 'ទំព័រដើម និងច្រកចូលការងារប្រចាំថ្ងៃ',
+  'Queue, capture, and intake work': 'ជួរការងារ ការកត់ត្រា និងការទទួលសំណើ',
   'Pressure, money, and explanation views': 'ទិដ្ឋភាពសម្ពាធ ហិរញ្ញវត្ថុ និងការពន្យល់',
   'Browse active and archived SKUs and services': 'រកមើលអេសខេយូ និងសេវាកម្មសកម្ម ឬក្នុងបណ្ណសារ',
   'Saved update history and reports': 'ប្រវត្តិអាប់ដេត និងរបាយការណ៍ដែលបានរក្សាទុក',
@@ -3209,16 +3209,16 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Browser Telegram is while-tab-open only': 'តេលេក្រាមក្នុងកម្មវិធីរុករកប្រើបានតែពេលផ្ទាំងបើក',
   'SENA is single-threaded in browser mode. Telegram polling only runs while this tab is open, visible, and awake.':
     'ស៊ីណាដំណើរការខ្សែតែមួយក្នុងរបៀបកម្មវិធីរុករក។ ការស្ទង់តេលេក្រាមដំណើរការតែពេលផ្ទាំងនេះបើក មើលឃើញ និងមិនសម្រាក។',
-  'The bot token is stored in this browser profile.': 'ថូខិនប៊ុតត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
+  'The bot token is stored in this browser profile.': 'ថូខិនបូតត្រូវបានរក្សាទុកក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
   'Clearing browser data can remove browser automation state and the saved token.':
-    'ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបស្ថានភាពអូតូម៉ាស្យុង និងថូខិនដែលបានរក្សាទុក។',
+    'ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបស្ថានភាពស្វ័យប្រវត្តិកម្ម និងថូខិនដែលបានរក្សាទុក។',
   'Do not run the same bot token in desktop and browser at the same time unless you coordinate the handoff.':
-    'កុំប្រើថូខិនប៊ុតដូចគ្នានៅកម្មវិធីកុំព្យូទ័រ និងកម្មវិធីរុករកក្នុងពេលតែមួយ លុះត្រាតែបានសម្របសម្រួលការផ្ទេរ។',
+    'កុំប្រើថូខិនបូតដូចគ្នានៅកម្មវិធីកុំព្យូទ័រ និងកម្មវិធីរុករកក្នុងពេលតែមួយ លុះត្រាតែបានសម្របសម្រួលការផ្ទេរ។',
   'If Telegram blocks browser fetch, banji will show a browser-blocked state and require the desktop app.':
     'បើតេលេក្រាមរារាំងការទាញទិន្នន័យពីកម្មវិធីរុករក បញ្ជីនឹងបង្ហាញស្ថានភាពត្រូវបានរារាំង ហើយត្រូវការកម្មវិធីកុំព្យូទ័រ។',
-  'Browser automation runs only while this tab is open.': 'អូតូម៉ាស្យុងក្នុងកម្មវិធីរុករកដំណើរការតែពេលផ្ទាំងនេះបើកប៉ុណ្ណោះ។',
+  'Browser automation runs only while this tab is open.': 'ស្វ័យប្រវត្តិកម្មក្នុងកម្មវិធីរុករកដំណើរការតែពេលផ្ទាំងនេះបើកប៉ុណ្ណោះ។',
   'SENA is single-threaded in browser mode, and live Telegram polling pauses when the tab is closed, hidden, asleep, or blocked by the browser. Use desktop for persistent automation.':
-    'ស៊ីណាដំណើរការខ្សែតែមួយក្នុងរបៀបកម្មវិធីរុករក ហើយការស្ទង់តេលេក្រាមផ្ទាល់នឹងផ្អាកនៅពេលផ្ទាំងត្រូវបានបិទ លាក់ សម្រាក ឬត្រូវបានកម្មវិធីរុករករារាំង។ ប្រើកម្មវិធីកុំព្យូទ័រសម្រាប់អូតូម៉ាស្យុងអចិន្ត្រៃយ៍។',
+    'ស៊ីណាដំណើរការខ្សែតែមួយក្នុងរបៀបកម្មវិធីរុករក ហើយការស្ទង់តេលេក្រាមផ្ទាល់នឹងផ្អាកនៅពេលផ្ទាំងត្រូវបានបិទ លាក់ សម្រាក ឬត្រូវបានកម្មវិធីរុករករារាំង។ ប្រើកម្មវិធីកុំព្យូទ័រសម្រាប់ស្វ័យប្រវត្តិកម្មអចិន្ត្រៃយ៍។',
   'Poll Telegram now': 'ស្ទង់តេលេក្រាមឥឡូវនេះ',
   'Browser image storage is unavailable in this release. Use the desktop app to attach persistent item pictures.':
     'ការផ្ទុករូបភាពក្នុងកម្មវិធីរុករកមិនទាន់អាចប្រើបានក្នុងកំណែនេះទេ។ ប្រើកម្មវិធីកុំព្យូទ័រ ដើម្បីភ្ជាប់រូបភាពធាតុអចិន្ត្រៃយ៍។',
@@ -3226,15 +3226,18 @@ const runtimeLiteralTranslations: Record<string, string> = {
     'របៀបកម្មវិធីរុករករក្សាទិន្នន័យកាតាឡុកក្នុងអូភីអេហ្វអេស ប៉ុន្តែទ្រព្យសកម្មរូបភាពអចិន្ត្រៃយ៍នៅតែប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រឥឡូវនេះ។',
   'Browser data lives in this browser profile.': 'ទិន្នន័យកម្មវិធីរុករកស្ថិតនៅក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
   'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.':
-    'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នាមថតចម្លងកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
+    'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នេបស្ហតកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
   'Excel file': 'ឯកសារអិចសែល',
-  Pane: 'ផ្ទាំងក្រាប',
-  'New pane': 'ផ្ទាំងក្រាបថ្មី',
-  'Drop on a pane or New pane.': 'ទម្លាក់លើផ្ទាំងក្រាប ឬផ្ទាំងក្រាបថ្មី។',
+  Pane: 'ផ្ទាំងក្រាហ្វ',
+  'New pane': 'ផ្ទាំងក្រាហ្វថ្មី',
+  'Drop on a pane or New pane.': 'ទម្លាក់លើផ្ទាំងក្រាហ្វ ឬផ្ទាំងក្រាហ្វថ្មី។',
   'Drag rows to reorder their pane and draw layer.':
-    'អូសជួរ ដើម្បីរៀបលំដាប់ផ្ទាំងក្រាប និងស្រទាប់គូរឡើងវិញ។',
-  'Collapse chart': 'បង្រួមក្រាប',
-  'Expand chart': 'ពង្រីកក្រាប',
+    'អូសជួរ ដើម្បីរៀបលំដាប់ផ្ទាំងក្រាហ្វ និងស្រទាប់គូរឡើងវិញ។',
+  'Collapse chart': 'បង្រួមក្រាហ្វ',
+  'Expand chart': 'ពង្រីកក្រាហ្វ',
+  'Close expanded chart overlay': 'បិទស្រទាប់ក្រាហ្វដែលបានពង្រីក',
+  'Expanded system ledger': 'បញ្ជីតារាងប្រព័ន្ធដែលបានពង្រីក',
+  'Expanded ledger for {name}': 'បញ្ជីតារាងដែលបានពង្រីកសម្រាប់ {name}',
   'not sellable': 'មិនអាចលក់បាន',
   'Pending quantities': 'បរិមាណកំពុងរង់ចាំ',
   'Exact counts': 'ការរាប់ជាក់លាក់',
@@ -3258,12 +3261,12 @@ const runtimeLiteralTranslations: Record<string, string> = {
   Thumbnail: 'រូបភាពតូច',
   Small: 'តូច',
   Medium: 'មធ្យម',
-  'Chart loading': 'ការផ្ទុកក្រាប',
+  'Chart loading': 'ការផ្ទុកក្រាហ្វ',
   'Control whether chart surfaces visually soften while background data refreshes.':
-    'គ្រប់គ្រងថាផ្ទៃក្រាបត្រូវបន្ទន់ការបង្ហាញឬអត់ ខណៈទិន្នន័យខាងក្រោយកំពុងផ្ទុកឡើងវិញ។',
+    'គ្រប់គ្រងថាផ្ទៃក្រាហ្វត្រូវបន្ទន់ការបង្ហាញឬអត់ ខណៈទិន្នន័យខាងក្រោយកំពុងផ្ទុកឡើងវិញ។',
   'Applies a loading dim to all charting surfaces while data is refreshing or older intervals are loading.':
-    'អនុវត្តការបន្ថយពន្លឺពេលផ្ទុកលើផ្ទៃក្រាបទាំងអស់ ខណៈទិន្នន័យកំពុងផ្ទុកឡើងវិញ ឬចន្លោះពេលចាស់កំពុងផ្ទុក។',
-  'Dim charts while loading': 'បន្ថយពន្លឺក្រាបពេលកំពុងផ្ទុក',
+    'អនុវត្តការបន្ថយពន្លឺពេលផ្ទុកលើផ្ទៃក្រាហ្វទាំងអស់ ខណៈទិន្នន័យកំពុងផ្ទុកឡើងវិញ ឬចន្លោះពេលចាស់កំពុងផ្ទុក។',
+  'Dim charts while loading': 'បន្ថយពន្លឺក្រាហ្វពេលកំពុងផ្ទុក',
   'Optional guidance': 'ការណែនាំស្រេចចិត្ត',
   'Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible.':
     'បង្ហាញស្លាកពន្យល់ស្រេចចិត្ត អត្ថបទជំនួយ និងគន្លឹះជំនួយ។ ការណែនាំវាលចាំបាច់នៅតែមើលឃើញ។',
@@ -3276,7 +3279,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Work queue filter tabs': 'ផ្ទាំងតម្រងជួរការងារ',
   'Shows task-status filter tabs above the Work queue. When off, Work uses a single All Tasks queue.':
     'បង្ហាញផ្ទាំងតម្រងស្ថានភាពការងារខាងលើជួរការងារ។ ពេលបិទ ទំព័រការងារប្រើជួរការងារទាំងអស់តែមួយ។',
-  'Automations and intake': 'អូតូម៉ាស្យុង និងការទទួលសំណើ',
+  'Automations and intake': 'ស្វ័យប្រវត្តិកម្ម និងការទទួលសំណើ',
   'Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused.':
     'បង្ហាញការងារ / ការទទួលសំណើ ហើយអនុញ្ញាតឱ្យបូតតេលេក្រាមទទួលសំណើអតិថិជន។ ពេលបិទ ការទទួលសំណើត្រូវបានលាក់ ហើយបូតត្រូវបានផ្អាក។',
   'Comparison view switch': 'ប៊ូតុងប្ដូរទិដ្ឋភាពប្រៀបធៀប',
@@ -3294,6 +3297,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.':
     'ជ្រើសថាបញ្ជីគួរសួរ បើកអេសខេយូម្តងមួយ ឬចូលត្រង់ទៅការអាប់ដេតជាក្រុម សម្រាប់ប៊ូតុងសកម្មភាពជួរនីមួយៗ។',
   'Record Supplier order': 'កត់ត្រាការបញ្ជាទិញពីអ្នកផ្គត់ផ្គង់',
+  'Capture update': 'កត់ត្រាការអាប់ដេត',
   'Update ETA': 'អាប់ដេតពេលមកដល់',
   'Follow up': 'តាមដានបន្ត',
   Receive: 'ទទួល',
@@ -3614,7 +3618,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Review customer and supplier work that needs attention next.':
     'ពិនិត្យការងារអតិថិជន និងអ្នកផ្គត់ផ្គង់ ដែលត្រូវយកចិត្តទុកដាក់បន្ទាប់។',
   'Search queue': 'ស្វែងរកជួរ',
-  'Select overview ticket family': 'ជ្រើសក្រុមសំបុត្រការងារទិដ្ឋភាពទូទៅ',
+  'Select overview ticket family': 'ជ្រើសក្រុមសំបុត្រការងារសង្ខេប',
   'Customer queue': 'ជួរអតិថិជន',
   'Open customer commitments, blocked work, and today’s completion signals.':
     'បើកការប្តេជ្ញារបស់អតិថិជន ការងារដែលត្រូវរារាំង និងសញ្ញាបញ្ចប់ថ្ងៃនេះ។',
@@ -4086,7 +4090,7 @@ function localizeKhmerProductWords(text: string): string {
         a: 'មួយ',
         as: 'ជា',
         at: 'នៅ',
-        Automations: 'អូតូម៉ាស្យុង',
+        Automations: 'ស្វ័យប្រវត្តិកម្ម',
         availability: 'ភាពអាចប្រើបាន',
         above: 'ខាងលើ',
         actions: 'សកម្មភាព',

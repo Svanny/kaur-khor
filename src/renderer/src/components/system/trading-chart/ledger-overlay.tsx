@@ -4,12 +4,14 @@ import { cn } from '@/lib/utils';
 export function ChartLedgerOverlay({
   ariaLabel,
   children,
+  closeAriaLabel = 'Close expanded chart overlay',
   onClose,
   panelClassName,
   ...props
 }: {
   ariaLabel: string;
   children: ReactNode;
+  closeAriaLabel?: string;
   onClose: () => void;
   panelClassName?: string;
 } & Omit<ComponentProps<'div'>, 'aria-label' | 'children' | 'role'>) {
@@ -22,7 +24,7 @@ export function ChartLedgerOverlay({
       {...props}
     >
       <button
-        aria-label="Close expanded chart overlay"
+        aria-label={closeAriaLabel}
         className="absolute inset-0 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm"
         onClick={onClose}
         type="button"

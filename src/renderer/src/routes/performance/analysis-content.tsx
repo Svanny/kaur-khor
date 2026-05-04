@@ -13,6 +13,7 @@ import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController,
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { deriveSavedObservationCount } from '@/lib/observation-count';
+import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisWorkbench } from './analysis-workbench';
 import { AnalysisTradingChartLedger } from './trading-chart-ledger';
@@ -301,7 +302,8 @@ function AnalysisContentInner({
       ) : null}
       {isLedgerExpanded ? (
         <ChartLedgerOverlay
-          ariaLabel="Expanded system ledger"
+          ariaLabel={translateUiLiteral(language, 'Expanded system ledger')}
+          closeAriaLabel={translateUiLiteral(language, 'Close expanded chart overlay')}
           onClose={() => setLedgerExpanded(false, true)}
         >
             <AnalysisTradingChartLedger

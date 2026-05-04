@@ -117,7 +117,7 @@ describe('getTranslation', () => {
       'ការប៉ាន់ស្មានស្តុកត្រូវបានបង្ហាញបន្តគ្នា ខណៈតម្រូវការសេវាកម្ម តម្រូវការលក់រាយ ការទទួលទំនិញ និងការកែសម្រួល នៅតែភ្ជាប់នឹងចន្លោះពេលនីមួយៗ។',
     );
     expect(getTranslation('km', 'settingsSenaParametersPanelDescription' as never)).toBe(
-      'កែថា ផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់យ៉ាងដូចម្តេច ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
+      'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
     );
     expect(getTranslation('km', 'stockUpdateGuidanceFirstUpdateNeedsCount' as never)).toBe(
       'ការអាប់ដេតលើកដំបូង ត្រូវមាន អេសខេយូ ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យបញ្ជីចាប់យកស្តុកបាន។',
@@ -191,6 +191,20 @@ describe('getTranslation', () => {
     expect(translateUiLiteral('km', 'Create new SKU')).toBe('បង្កើតអេសខេយូ');
     expect(translateUiLiteral('km', 'Create a new SKU')).toBe('បង្កើតអេសខេយូ');
     expect(translateUiLiteral('km', 'Create a new service')).toBe('បង្កើតសេវាកម្ម');
+  });
+
+  test('uses natural Khmer for rendered command palette literals', () => {
+    expect(translateUiLiteral('km', 'Command home and daily entry point')).toBe(
+      'ទំព័រដើម និងច្រកចូលការងារប្រចាំថ្ងៃ',
+    );
+    expect(translateUiLiteral('km', 'Queue, capture, and intake work')).toBe(
+      'ជួរការងារ ការកត់ត្រា និងការទទួលសំណើ',
+    );
+    expect(translateUiLiteral('km', 'All work items')).toBe('ធាតុការងារទាំងអស់');
+    expect(translateUiLiteral('km', 'Work SKU tasks')).toBe('ការងារអេសខេយូ');
+    expect(translateUiLiteral('km', 'Work service tasks')).toBe('ការងារសេវាកម្ម');
+    expect(translateUiLiteral('km', 'All work tasks')).toBe('ការងារទាំងអស់');
+    expect(translateUiLiteral('km', 'Capture update')).toBe('កត់ត្រាការអាប់ដេត');
   });
 
   test('localizes bounded Khmer runtime literals without scanner leaks', () => {
@@ -382,6 +396,26 @@ describe('getTranslation', () => {
     expect(getTranslation('km', 'navFinancials' as never)).toBe('ហិរញ្ញវត្ថុ');
     expect(getTranslation('km', 'financialsRouteTitle' as never)).toBe('ហិរញ្ញវត្ថុ');
     expect(translateUiLiteral('km', 'Money')).toBe('ហិរញ្ញវត្ថុ');
+  });
+
+  test('keeps Khmer settings route copy natural on rendered route surfaces', () => {
+    expect(getTranslation('km', 'settingsInterfaceVisibilityTitle' as never)).toBe(
+      'ចំណុចប្រទាក់',
+    );
+    expect(getTranslation('km', 'settingsCreditsTitle' as never)).toBe('អំពីអ្នកបង្កើត');
+    expect(getTranslation('km', 'settingsMadeWith' as never)).toBe(
+      'បង្កើតដោយយកចិត្តទុកដាក់',
+    );
+    expect(getTranslation('km', 'settingsDangerZoneTitle' as never)).toBe('តំបន់ប្រយ័ត្ន');
+    expect(getTranslation('km', 'settingsSenaParametersPanelDescription' as never)).toBe(
+      'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
+    );
+    expect(getTranslation('km', 'settingsTargetServiceLevelTooltip' as never)).toBe(
+      'កម្រិតភាពមានស្រាប់គោលដៅ គឺជាគោលដៅស្តុកដែលបញ្ជីប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវរក្សាស្តុកច្រើនជាងមុន។',
+    );
+    expect(getTranslation('km', 'settingsReviewDelayDaysTooltip' as never)).toBe(
+      'បន្ថែមចំនួនថ្ងៃនេះទៅពេលវេលាដឹកមកដល់ ដើម្បីឲ្យការណែនាំគ្របដណ្តប់ដល់ពេលដែលអាចសម្រេចបំពេញស្តុកជាក់ស្តែងបន្ទាប់បាន។',
+    );
   });
 
   test('still falls back to English defensively if a Khmer entry is unavailable at runtime', () => {

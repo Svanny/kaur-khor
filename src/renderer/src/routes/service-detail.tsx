@@ -17,6 +17,7 @@ import { activeSenaCatalog } from '@/lib/sena-catalog';
 import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
 import { deriveSenaDetailCacheFreshnessFingerprint, readPersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
+import { translateUiLiteral } from '@/lib/translations';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { buildRememberedCatalogHref, useRememberedPageValue } from '@/lib/page-state-memory';
 import { traceRenderer } from '@/lib/trace';
@@ -579,7 +580,8 @@ export function ServiceDetailRoute() {
       </div>
       {isLedgerExpanded ? (
         <ChartLedgerOverlay
-          ariaLabel={`Expanded ledger for ${model.identity.name}`}
+          ariaLabel={translateUiLiteral(language, 'Expanded ledger for {name}', { name: model.identity.name })}
+          closeAriaLabel={translateUiLiteral(language, 'Close expanded chart overlay')}
           panelClassName="grid"
           onClose={() => setLedgerExpanded(false, true)}
         >
