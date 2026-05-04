@@ -33,7 +33,7 @@ export function normalizeAllowedExternalUrl(targetUrl: string): string {
 
   if (parsedUrl.protocol === 'https:') {
     if (!ALLOWED_HTTPS_HOSTS.has(parsedUrl.hostname)) {
-      throw new Error('Only Banji GitHub and Telegram links can be opened.');
+      throw new Error('Only Kaur Khor GitHub and Telegram links can be opened.');
     }
     return normalizedUrl;
   }
@@ -42,5 +42,5 @@ export function normalizeAllowedExternalUrl(targetUrl: string): string {
     return normalizedUrl;
   }
 
-  throw new Error('Only Banji GitHub and Telegram links can be opened.');
+  throw new Error('Only Kaur Khor GitHub and Telegram links can be opened.');
 }

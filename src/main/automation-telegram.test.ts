@@ -188,15 +188,15 @@ describe('telegram automation connection setup', () => {
   });
 
   it('validates the bot token and registers commands when saving settings', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
@@ -219,10 +219,10 @@ describe('telegram automation connection setup', () => {
   });
 
   it('resolves relative catalog image paths from the desktop assets directory', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-assets-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-assets-'));
     const assetsDir = join(userDataPath, 'assets');
     await mkdir(assetsDir, { recursive: true });
-    const relativeName = 'banji-dev-service-008-back-to-school-family-promo.png';
+    const relativeName = 'kaur-khor-dev-service-008-back-to-school-family-promo.png';
     const absolutePath = join(assetsDir, relativeName);
     await writeFile(absolutePath, new Uint8Array([137, 80, 78, 71]));
 
@@ -230,18 +230,18 @@ describe('telegram automation connection setup', () => {
   });
 
   it('rejects Telegram photo paths outside the managed assets directory', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-assets-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-assets-'));
 
     await expect(resolveTelegramPhotoPath(userDataPath, '/tmp/file.png')).rejects.toThrow(
-      'Telegram photo paths must point to a managed banji asset.',
+      'Telegram photo paths must point to a managed Kaur Khor asset.',
     );
     await expect(resolveTelegramPhotoPath(userDataPath, '../outside.png')).rejects.toThrow(
-      'Telegram photo paths must point to a managed banji asset.',
+      'Telegram photo paths must point to a managed Kaur Khor asset.',
     );
   });
 
   it('allows canonical managed asset paths for Telegram photos', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-assets-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-assets-'));
     const assetsDir = join(userDataPath, 'assets');
     await mkdir(assetsDir, { recursive: true });
     const assetPath = join(assetsDir, 'cotton-scarf.png');
@@ -251,15 +251,15 @@ describe('telegram automation connection setup', () => {
   });
 
   it('does not poll Telegram while automations are disabled and resumes when re-enabled', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-loop-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-loop-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
@@ -269,8 +269,8 @@ describe('telegram automation connection setup', () => {
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: [] })));
@@ -310,15 +310,15 @@ describe('telegram automation connection setup', () => {
   });
 
   it('notifies the Telegram customer after an intake is promoted to a ticket', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
@@ -391,15 +391,15 @@ describe('telegram automation connection setup', () => {
   });
 
   it('notifies the Telegram customer after a Telegram customer ticket is updated', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
@@ -478,15 +478,15 @@ describe('telegram automation connection setup', () => {
   });
 
   it('renders Khmer promotion and ticket update notifications without unintended Latin UI copy', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-km-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-km-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
         ok: true,
         result: {
           id: 1,
           is_bot: true,
-          first_name: 'banji bot',
-          username: 'banji_bot',
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
         },
       })))
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
@@ -570,9 +570,9 @@ describe('telegram automation connection setup', () => {
     });
     const updateText = telegramSendMessageText(fetchMock);
 
-    expect(promotionText).toContain('<b>បាន់ជីបានទទួលការបញ្ជាទិញរបស់អ្នក</b>');
+    expect(promotionText).toContain('<b>កខបានទទួលការបញ្ជាទិញរបស់អ្នក</b>');
     expect(promotionText).toContain('តម្លៃសរុប៖ KHR 100000');
-    expect(updateText).toContain('<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីបាន់ជី</b>');
+    expect(updateText).toContain('<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីកខ</b>');
     expect(updateText).toContain('សំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាព');
     expectNoUnexpectedKhmerLatin(`${promotionText}\n${updateText}`, ['KHR']);
   });

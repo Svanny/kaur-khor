@@ -1,5 +1,5 @@
-use banji_desktop_core::store;
-use banji_sena_core::{
+use kaur_khor_desktop_core::store;
+use kaur_khor_sena_core::{
     fingerprint_catalog, SenaCatalog, SenaObservationInput, SenaRepository, SqliteSenaRepository,
 };
 use futures::executor::block_on;
@@ -21,15 +21,15 @@ fn temp_store_path(label: &str) -> PathBuf {
         .duration_since(UNIX_EPOCH)
         .expect("system time should be after epoch")
         .as_nanos();
-    env::temp_dir().join(format!("banji-sena-{label}-{nonce}.sqlite3"))
+    env::temp_dir().join(format!("kaur-khor-sena-{label}-{nonce}.sqlite3"))
 }
 
 fn reset_benchmark_env() {
-    env::remove_var("BANJI_BENCHMARK");
-    env::remove_var("BANJI_BENCHMARK_RUN_ID");
-    env::remove_var("BANJI_BENCHMARK_OUTPUT_DIR");
-    env::remove_var("BANJI_CORE_WORKER_ROLE");
-    env::remove_var("BANJI_CORE_WORKER_INDEX");
+    env::remove_var("KAUR_KHOR_BENCHMARK");
+    env::remove_var("KAUR_KHOR_BENCHMARK_RUN_ID");
+    env::remove_var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR");
+    env::remove_var("KAUR_KHOR_CORE_WORKER_ROLE");
+    env::remove_var("KAUR_KHOR_CORE_WORKER_INDEX");
 }
 
 fn sample_catalog() -> SenaCatalog {
@@ -114,7 +114,7 @@ fn observation(at: &str, sku1: f64, sku2: f64) -> SenaObservationInput {
 fn desktop_core_runs_sena_analysis_and_reads_summary() {
     let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("summary");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
     store::ingest_observation(
@@ -144,7 +144,7 @@ fn desktop_core_runs_sena_analysis_and_reads_summary() {
 fn desktop_core_exposes_sku_service_and_diagnostics_reads() {
     let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("details");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
     store::ingest_observation(
@@ -192,13 +192,13 @@ fn desktop_core_records_service_detail_benchmark_events() {
     let store_path = temp_store_path("service-detail-benchmark");
     let output_path = temp_store_path("service-detail-events");
     let _ = std::fs::remove_dir_all(&output_path);
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
     reset_benchmark_env();
-    env::set_var("BANJI_BENCHMARK", "1");
-    env::set_var("BANJI_BENCHMARK_RUN_ID", "service-detail-test");
-    env::set_var("BANJI_BENCHMARK_OUTPUT_DIR", &output_path);
-    env::set_var("BANJI_CORE_WORKER_ROLE", "writer");
-    env::set_var("BANJI_CORE_WORKER_INDEX", "0");
+    env::set_var("KAUR_KHOR_BENCHMARK", "1");
+    env::set_var("KAUR_KHOR_BENCHMARK_RUN_ID", "service-detail-test");
+    env::set_var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR", &output_path);
+    env::set_var("KAUR_KHOR_CORE_WORKER_ROLE", "writer");
+    env::set_var("KAUR_KHOR_CORE_WORKER_INDEX", "0");
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
     store::ingest_observation(
@@ -250,7 +250,7 @@ fn desktop_core_records_service_detail_benchmark_events() {
 fn desktop_core_dev_seed_is_idempotent_and_populates_workspace() {
     let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("seeded-dev");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
 
     let seeded = store::ensure_dev_seed(store::default_owner()).expect("seed should succeed");
     assert!(seeded);
@@ -306,7 +306,7 @@ fn desktop_core_dev_seed_is_idempotent_and_populates_workspace() {
 fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
     let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("append-rerun");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
 
     let catalog = sample_catalog();
     store::upsert_catalog(store::default_owner(), &catalog).expect("catalog should save");
@@ -358,7 +358,7 @@ fn desktop_core_append_only_rerun_keeps_checkpoint_state_available() {
 fn desktop_core_updates_and_deletes_observations() {
     let _guard = env_lock().lock().expect("env lock should acquire");
     let store_path = temp_store_path("mutate-observation");
-    env::set_var("BANJI_DESKTOP_DATA_PATH", &store_path);
+    env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", &store_path);
 
     store::upsert_catalog(store::default_owner(), &sample_catalog()).expect("catalog should save");
     let inserted = store::ingest_observation(

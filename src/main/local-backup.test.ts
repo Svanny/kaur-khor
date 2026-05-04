@@ -21,7 +21,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('copies current workspace files into a manual snapshot directory', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
     await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
 
@@ -40,7 +40,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('throttles automatic snapshots and prunes old snapshot directories', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-auto-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-auto-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
 
     const first = await createAutomaticDesktopBackupSnapshot({
@@ -77,7 +77,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('creates an unthrottled close-safety snapshot for live automation shutdown', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-close-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-close-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
 
     const snapshot = await createCloseSafetyDesktopBackupSnapshot(userDataPath);
@@ -88,7 +88,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('keeps the newest close-safety snapshot and removes older close snapshots', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-close-cleanup-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-close-cleanup-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
 
     await createDesktopBackupSnapshot({
@@ -123,7 +123,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('creates a safety snapshot and restores workspace files from a saved snapshot', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-restore-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-restore-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
     await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
 
@@ -149,7 +149,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('does not prune the selected snapshot while creating the restore safety snapshot', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-restore-prune-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-restore-prune-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'old-sqlite', 'utf8');
     await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
 
@@ -185,7 +185,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('captures SQLite sidecar files in the snapshot directory', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-wal-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-wal-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3-wal'), 'wal-data', 'utf8');
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3-shm'), 'shm-data', 'utf8');
@@ -202,7 +202,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('captures and restores nested workspace directories', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-nested-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-nested-'));
     await mkdir(join(userDataPath, 'sena-checkpoints', 'sku-1'), { recursive: true });
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
     await writeFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'checkpoint-v1', 'utf8');
@@ -226,7 +226,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('clears nested workspace directories after creating a safety snapshot', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-clear-nested-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-clear-nested-'));
     await mkdir(join(userDataPath, 'sena-checkpoints', 'sku-1'), { recursive: true });
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'sqlite-data', 'utf8');
     await writeFile(join(userDataPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'checkpoint-v1', 'utf8');
@@ -239,7 +239,7 @@ describe('desktop local backup snapshots', () => {
   });
 
   it('restores the original workspace files if writing the snapshot back fails', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-backup-rollback-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-rollback-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
     await writeFile(join(userDataPath, 'desktop-preferences.json'), '{"language":"en"}', 'utf8');
 
@@ -257,7 +257,7 @@ describe('desktop local backup snapshots', () => {
     const fileOps = {
       ...await import('node:fs/promises'),
       rename: async (sourcePath: string | Buffer | URL, destinationPath: string | Buffer | URL) => {
-        if (typeof sourcePath === 'string' && sourcePath.includes('.banji-restore-staging-')) {
+        if (typeof sourcePath === 'string' && sourcePath.includes('.kaur-khor-restore-staging-')) {
           restoreRenameCount += 1;
           if (restoreRenameCount === 1) {
             throw new Error('disk full');

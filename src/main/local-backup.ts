@@ -65,7 +65,7 @@ async function listSnapshotSourceFiles(userDataPath: string, fileOps: FileOps = 
     .filter((entry) =>
       (entry.isFile() || entry.isDirectory())
       && entry.name !== BACKUP_DIRECTORY_NAME
-      && !entry.name.startsWith('.banji-')
+      && !entry.name.startsWith('.kaur-khor-')
       && !entry.name.endsWith('.tmp'),
     )
     .map((entry) => join(userDataPath, entry.name))
@@ -115,7 +115,7 @@ function runBackupQueue<T>(userDataPath: string, task: () => Promise<T>): Promis
 }
 
 function temporaryWorkspaceDirectoryPath(userDataPath: string, label: string, now = new Date()) {
-  return join(userDataPath, `.banji-${label}-${timestampToken(now)}`);
+  return join(userDataPath, `.kaur-khor-${label}-${timestampToken(now)}`);
 }
 
 async function removePaths(paths: string[], fileOps: FileOps = fs) {

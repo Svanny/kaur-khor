@@ -13,7 +13,7 @@ describe('mac icon assets', () => {
 
     expect(assets.dockIconPath).toBe(join(projectRoot, 'resources', 'mac', 'icon.png'));
     expect(assets.retinaDockIconPath).toBe(join(projectRoot, 'resources', 'mac', 'icon@2x.png'));
-    expect(assets.packagedIconPath).toBe(join(projectRoot, 'resources', 'mac', 'banji.icns'));
+    expect(assets.packagedIconPath).toBe(join(projectRoot, 'resources', 'mac', 'kaur-khor.icns'));
   });
 
   it('expects the macOS dock icon pair to exist in the repo', () => {

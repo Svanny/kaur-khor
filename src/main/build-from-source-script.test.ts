@@ -48,7 +48,7 @@ describe('build-from-source script', () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('Usage:');
     expect(result.stdout).toContain('--platform=<target>');
-    expect(result.stdout).toContain('BANJI_BUILD_DIR');
+    expect(result.stdout).toContain('KAUR_KHOR_BUILD_DIR');
   });
 
   test('resolves the native host platform without packaging', () => {

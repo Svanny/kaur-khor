@@ -52,13 +52,13 @@ export async function resolveTelegramPhotoPath(userDataPath: string, photoPath: 
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
-    throw new Error('Telegram photo paths must point to a managed banji asset.');
+    throw new Error('Telegram photo paths must point to a managed Kaur Khor asset.');
   }
 
   const assertManagedAssetPath = (candidatePath: string, rootPath: string) => {
     const relativePath = relative(rootPath, candidatePath);
     if (relativePath === '' || relativePath.startsWith('..') || isAbsolute(relativePath)) {
-      throw new Error('Telegram photo paths must point to a managed banji asset.');
+      throw new Error('Telegram photo paths must point to a managed Kaur Khor asset.');
     }
   };
 
@@ -209,7 +209,7 @@ export async function runTelegramConnectionTest(
 
   await telegramSendMessage(token, {
     chatId: latestConversationChatId,
-    text: '<b>banji test message</b>\nTelegram transport is connected and ready for customer intake.',
+    text: '<b>Kaur Khor test message</b>\nTelegram transport is connected and ready for customer intake.',
     parseMode: 'HTML',
   });
 
@@ -230,8 +230,8 @@ function buildPromotionNotification(
       : `\nQuoted total: ${formatTelegramMoney(intake.quotedTotal, preferences)}`
     : '';
   return isKhmer(preferences.language)
-    ? `<b>បាន់ជីបានទទួលការបញ្ជាទិញរបស់អ្នក</b>\nការបញ្ជាទិញរបស់អ្នកត្រូវបានបន្ថែមទៅសំបុត្រការងារអតិថិជន ហើយកំពុងស្ថិតនៅក្រុមប្រតិបត្តិករ។${totalLabel}\n\nបាន់ជីនឹងបន្តតាមដានតាមសំបុត្រការងារនេះ។`
-    : `<b>Order received by banji</b>\nYour order was added to a customer ticket and is now with the operator team.${totalLabel}\n\nbanji will continue the follow-up from this ticket.`;
+    ? `<b>កខបានទទួលការបញ្ជាទិញរបស់អ្នក</b>\nការបញ្ជាទិញរបស់អ្នកត្រូវបានបន្ថែមទៅសំបុត្រការងារអតិថិជន ហើយកំពុងស្ថិតនៅក្រុមប្រតិបត្តិករ។${totalLabel}\n\nកខនឹងបន្តតាមដានតាមសំបុត្រការងារនេះ។`
+    : `<b>Order received by Kaur Khor</b>\nYour order was added to a customer ticket and is now with the operator team.${totalLabel}\n\nKaur Khor will continue the follow-up from this ticket.`;
 }
 
 function buildTicketUpdateNotification(ticketEvent: SenaTicketEvent, language: 'en' | 'km') {
@@ -248,8 +248,8 @@ function buildTicketUpdateNotification(ticketEvent: SenaTicketEvent, language: '
       : `\nNote: ${ticketEvent.note.trim()}`
     : '';
   return isKhmer(language)
-    ? `<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីបាន់ជី</b>\nស្ថានភាព៖ ${statusLabel}\nសំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយក្រុមប្រតិបត្តិករ។${noteLabel}`
-    : `<b>Order update from banji</b>\nStatus: ${statusLabel}\nYour ticket was updated by the operator team.${noteLabel}`;
+    ? `<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីកខ</b>\nស្ថានភាព៖ ${statusLabel}\nសំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយក្រុមប្រតិបត្តិករ។${noteLabel}`
+    : `<b>Order update from Kaur Khor</b>\nStatus: ${statusLabel}\nYour ticket was updated by the operator team.${noteLabel}`;
 }
 
 export async function notifyTelegramCustomerOfPromotion(

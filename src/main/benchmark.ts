@@ -2,9 +2,9 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
   isTruthyBenchmarkEnvValue,
-  type BanjiBenchmarkCategory,
-  type BanjiBenchmarkEvent,
-  type BanjiBenchmarkEventInput,
+  type KaurKhorBenchmarkCategory,
+  type KaurKhorBenchmarkEvent,
+  type KaurKhorBenchmarkEventInput,
 } from '@shared/benchmark';
 
 const DEFAULT_RUN_ID = `local-${Date.now()}`;
@@ -22,21 +22,21 @@ const benchmarkEventWaiters = new Map<string, Array<{
 }>>();
 
 export function benchmarkEnabled() {
-  return isTruthyBenchmarkEnvValue(process.env.BANJI_BENCHMARK);
+  return isTruthyBenchmarkEnvValue(process.env.KAUR_KHOR_BENCHMARK);
 }
 
 export function benchmarkTraceEnabled() {
-  return isTruthyBenchmarkEnvValue(process.env.BANJI_BENCHMARK_TRACE);
+  return isTruthyBenchmarkEnvValue(process.env.KAUR_KHOR_BENCHMARK_TRACE);
 }
 
 export function benchmarkRunId() {
-  cachedRunId ??= process.env.BANJI_BENCHMARK_RUN_ID?.trim() || DEFAULT_RUN_ID;
+  cachedRunId ??= process.env.KAUR_KHOR_BENCHMARK_RUN_ID?.trim() || DEFAULT_RUN_ID;
   return cachedRunId;
 }
 
 export function benchmarkOutputDirectory() {
   cachedOutputDirectory ??= resolve(
-    process.env.BANJI_BENCHMARK_OUTPUT_DIR?.trim() || join(process.cwd(), 'bench-results', benchmarkRunId()),
+    process.env.KAUR_KHOR_BENCHMARK_OUTPUT_DIR?.trim() || join(process.cwd(), 'bench-results', benchmarkRunId()),
   );
   return cachedOutputDirectory;
 }
@@ -69,7 +69,7 @@ function hydrateBenchmarkEventCountsFromDisk() {
       continue;
     }
     try {
-      const event = JSON.parse(line) as Partial<BanjiBenchmarkEvent>;
+      const event = JSON.parse(line) as Partial<KaurKhorBenchmarkEvent>;
       const name = typeof event.name === 'string' ? event.name : null;
       if (!name) {
         continue;
@@ -86,7 +86,7 @@ function hydrateBenchmarkEventCountsFromDisk() {
   }
 }
 
-export function normalizeBenchmarkEvent(event: BanjiBenchmarkEventInput): BanjiBenchmarkEvent {
+export function normalizeBenchmarkEvent(event: KaurKhorBenchmarkEventInput): KaurKhorBenchmarkEvent {
   return {
     ...event,
     runId: event.runId ?? benchmarkRunId(),
@@ -125,7 +125,7 @@ function resolveBenchmarkEventWaiters(name: string) {
   benchmarkEventWaiters.set(name, unresolved);
 }
 
-function registerBenchmarkEvent(normalized: BanjiBenchmarkEvent) {
+function registerBenchmarkEvent(normalized: KaurKhorBenchmarkEvent) {
   const current = benchmarkEventCounts.get(normalized.name) ?? { count: 0, lastTs: null };
   benchmarkEventCounts.set(normalized.name, {
     count: current.count + 1,
@@ -134,7 +134,7 @@ function registerBenchmarkEvent(normalized: BanjiBenchmarkEvent) {
   resolveBenchmarkEventWaiters(normalized.name);
 }
 
-export function recordBenchmarkEvent(event: BanjiBenchmarkEventInput) {
+export function recordBenchmarkEvent(event: KaurKhorBenchmarkEventInput) {
   if (!benchmarkEnabled()) {
     return;
   }
@@ -150,7 +150,7 @@ export function recordBenchmarkEvent(event: BanjiBenchmarkEventInput) {
   }
 }
 
-export function recordExternalBenchmarkEvent(event: BanjiBenchmarkEvent) {
+export function recordExternalBenchmarkEvent(event: KaurKhorBenchmarkEvent) {
   if (!benchmarkEnabled()) {
     return;
   }
@@ -213,9 +213,9 @@ export function startBenchmarkSpan({
   detail,
   command,
 }: {
-  category: BanjiBenchmarkCategory;
+  category: KaurKhorBenchmarkCategory;
   name: string;
-  layer?: BanjiBenchmarkEvent['layer'];
+  layer?: KaurKhorBenchmarkEvent['layer'];
   detail?: Record<string, unknown>;
   command?: string | null;
 }) {

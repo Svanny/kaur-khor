@@ -5,12 +5,12 @@ import {
   parseBrowserStorageBackupJson,
   validateBrowserStorageBackup,
 } from './backup';
-import { BANJI_BROWSER_APP_DATABASE, BANJI_BROWSER_SCHEMA_VERSION } from './constants';
+import { KAUR_KHOR_BROWSER_APP_DATABASE, KAUR_KHOR_BROWSER_SCHEMA_VERSION } from './constants';
 
 describe('browser storage backup helpers', () => {
   it('creates and validates a JSON backup envelope', () => {
     const backup = createBrowserStorageBackup(
-      BANJI_BROWSER_APP_DATABASE,
+      KAUR_KHOR_BROWSER_APP_DATABASE,
       [{
         collection: 'preferences',
         id: 'current',
@@ -21,7 +21,7 @@ describe('browser storage backup helpers', () => {
     );
 
     expect(backup.version).toBe(BROWSER_STORAGE_BACKUP_VERSION);
-    expect(backup.schemaVersion).toBe(BANJI_BROWSER_SCHEMA_VERSION);
+    expect(backup.schemaVersion).toBe(KAUR_KHOR_BROWSER_SCHEMA_VERSION);
     expect(validateBrowserStorageBackup(backup)).toEqual({ ok: true, backup });
     expect(parseBrowserStorageBackupJson(JSON.stringify(backup))).toEqual({ ok: true, backup });
   });
@@ -41,7 +41,7 @@ describe('browser storage backup helpers', () => {
       expect(validation.errors).toEqual([
         'Backup format is not supported.',
         'Backup version is not supported.',
-        'Database name must be banji_browser_app_v1.sqlite3 or banji_browser_demo_v1.sqlite3.',
+        'Database name must be kaur_khor_browser_app_v1.sqlite3 or kaur_khor_browser_demo_v1.sqlite3.',
         'Backup schema version is not supported.',
         'Backup exportedAt must be an ISO timestamp.',
         'records[0].collection must be a non-empty string.',

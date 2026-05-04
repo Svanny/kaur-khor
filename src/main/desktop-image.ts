@@ -45,12 +45,12 @@ export function normalizeDesktopImage(sourcePath: string) {
 
   const importedImage = nativeImage.createFromPath(sourcePath);
   if (importedImage.isEmpty()) {
-    throw new Error('banji could not read that image file.');
+    throw new Error('Kaur Khor could not read that image file.');
   }
 
   const { width, height } = importedImage.getSize();
   if (width <= 0 || height <= 0) {
-    throw new Error('banji could not determine the image dimensions.');
+    throw new Error('Kaur Khor could not determine the image dimensions.');
   }
 
   let bestBytes = encodeDesktopImage(importedImage, targetExtension);

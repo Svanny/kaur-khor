@@ -1,8 +1,8 @@
 import benchmarkScenarios from './benchmark-scenarios.json' with { type: 'json' };
 
-export type BanjiBenchmarkLayer = 'renderer' | 'main' | 'preload' | 'core' | 'playwright';
+export type KaurKhorBenchmarkLayer = 'renderer' | 'main' | 'preload' | 'core' | 'playwright';
 
-export type BanjiBenchmarkCategory =
+export type KaurKhorBenchmarkCategory =
   | 'startup'
   | 'navigation'
   | 'interaction'
@@ -11,15 +11,15 @@ export type BanjiBenchmarkCategory =
   | 'memory'
   | 'stability';
 
-export type BanjiBenchmarkPhase = 'instant' | 'start' | 'end';
+export type KaurKhorBenchmarkPhase = 'instant' | 'start' | 'end';
 
-export interface BanjiBenchmarkEvent {
+export interface KaurKhorBenchmarkEvent {
   runId: string;
   ts: number;
-  layer: BanjiBenchmarkLayer;
-  category: BanjiBenchmarkCategory;
+  layer: KaurKhorBenchmarkLayer;
+  category: KaurKhorBenchmarkCategory;
   name: string;
-  phase: BanjiBenchmarkPhase;
+  phase: KaurKhorBenchmarkPhase;
   route?: string | null;
   entityType?: 'sku' | 'service' | null;
   entityId?: string | null;
@@ -28,17 +28,17 @@ export interface BanjiBenchmarkEvent {
   detail?: Record<string, unknown>;
 }
 
-export type BanjiBenchmarkEventInput = Omit<BanjiBenchmarkEvent, 'runId' | 'ts'> & {
+export type KaurKhorBenchmarkEventInput = Omit<KaurKhorBenchmarkEvent, 'runId' | 'ts'> & {
   runId?: string;
   ts?: number;
 };
 
-export interface BanjiBenchmarkMetadata {
+export interface KaurKhorBenchmarkMetadata {
   enabled: boolean;
   runId: string;
 }
 
-export type BanjiBenchmarkScenarioId =
+export type KaurKhorBenchmarkScenarioId =
   | 'startup'
   | 'navigation'
   | 'work'
@@ -46,13 +46,13 @@ export type BanjiBenchmarkScenarioId =
   | 'detail-pages'
   | 'stability';
 
-export type BanjiBenchmarkFixtureSize = 'minimal' | 'medium' | 'heavy' | 'power-user';
+export type KaurKhorBenchmarkFixtureSize = 'minimal' | 'medium' | 'heavy' | 'power-user';
 
-export type BanjiBenchmarkRunStatus = 'queued' | 'running' | 'passed' | 'warning' | 'failed' | 'cancelled';
+export type KaurKhorBenchmarkRunStatus = 'queued' | 'running' | 'passed' | 'warning' | 'failed' | 'cancelled';
 
-export type BanjiBenchmarkTargetStatus = 'pass' | 'watch' | 'fail' | 'missing';
+export type KaurKhorBenchmarkTargetStatus = 'pass' | 'watch' | 'fail' | 'missing';
 
-export interface BanjiBenchmarkMetricSummary {
+export interface KaurKhorBenchmarkMetricSummary {
   count: number;
   max: number | null;
   median: number | null;
@@ -60,7 +60,7 @@ export interface BanjiBenchmarkMetricSummary {
   p95: number | null;
 }
 
-export interface BanjiBenchmarkDistributionSummary {
+export interface KaurKhorBenchmarkDistributionSummary {
   count: number;
   iqr: number | null;
   max: number | null;
@@ -72,11 +72,11 @@ export interface BanjiBenchmarkDistributionSummary {
   q3: number | null;
 }
 
-export interface BanjiBenchmarkTarget {
+export interface KaurKhorBenchmarkTarget {
   metricName: string;
   label: string;
-  category: BanjiBenchmarkCategory;
-  scenarios: BanjiBenchmarkScenarioId[];
+  category: KaurKhorBenchmarkCategory;
+  scenarios: KaurKhorBenchmarkScenarioId[];
   unit: 'ms' | 'percent' | 'boolean';
   nonNegotiable: number;
   acceptable: number;
@@ -85,59 +85,59 @@ export interface BanjiBenchmarkTarget {
   rationale: string;
 }
 
-export interface BanjiBenchmarkTargetEvaluation {
+export interface KaurKhorBenchmarkTargetEvaluation {
   metricName: string;
   label: string;
   value: number | null;
-  distribution?: BanjiBenchmarkDistributionSummary;
+  distribution?: KaurKhorBenchmarkDistributionSummary;
   p95?: number | null;
   jitterBudget?: number | null;
-  unit: BanjiBenchmarkTarget['unit'];
-  status: BanjiBenchmarkTargetStatus;
+  unit: KaurKhorBenchmarkTarget['unit'];
+  status: KaurKhorBenchmarkTargetStatus;
   nonNegotiable: number;
   acceptable: number;
   source: string;
   rationale: string;
 }
 
-export interface BanjiBenchmarkScenarioSummary {
-  scenario: BanjiBenchmarkScenarioId;
+export interface KaurKhorBenchmarkScenarioSummary {
+  scenario: KaurKhorBenchmarkScenarioId;
   runId: string;
   generatedAt: string;
-  metrics: Record<string, BanjiBenchmarkMetricSummary>;
+  metrics: Record<string, KaurKhorBenchmarkMetricSummary>;
   derivedMetrics?: Record<string, number>;
-  targets?: BanjiBenchmarkTargetEvaluation[];
+  targets?: KaurKhorBenchmarkTargetEvaluation[];
   slowestIpc: Array<{ name: string; durationMs: number }>;
   slowestCore: Array<{ name: string; command: string | null; durationMs: number }>;
 }
 
-export interface BanjiBenchmarkRunRecord {
+export interface KaurKhorBenchmarkRunRecord {
   runId: string;
-  scenarios: BanjiBenchmarkScenarioId[];
-  status: BanjiBenchmarkRunStatus;
+  scenarios: KaurKhorBenchmarkScenarioId[];
+  status: KaurKhorBenchmarkRunStatus;
   startedAt: string;
   completedAt: string | null;
-  fixtureSize: BanjiBenchmarkFixtureSize;
+  fixtureSize: KaurKhorBenchmarkFixtureSize;
   traceEnabled: boolean;
   repeatCount: number;
   buildBeforeRun: boolean;
   outputDirectory: string;
   exitCode: number | null;
-  summaries: BanjiBenchmarkScenarioSummary[];
+  summaries: KaurKhorBenchmarkScenarioSummary[];
   stdoutTail: string[];
   stderrTail: string[];
   error: string | null;
 }
 
-export interface BanjiBenchmarkRunOptions {
-  scenarios: BanjiBenchmarkScenarioId[];
-  fixtureSize: BanjiBenchmarkFixtureSize;
+export interface KaurKhorBenchmarkRunOptions {
+  scenarios: KaurKhorBenchmarkScenarioId[];
+  fixtureSize: KaurKhorBenchmarkFixtureSize;
   traceEnabled: boolean;
   repeatCount: number;
   buildBeforeRun: boolean;
 }
 
-export interface BanjiBenchmarkRunnerAvailability {
+export interface KaurKhorBenchmarkRunnerAvailability {
   available: boolean;
   reason: string | null;
   projectRoot: string;
@@ -145,16 +145,16 @@ export interface BanjiBenchmarkRunnerAvailability {
   activeRunId: string | null;
 }
 
-export interface BanjiBenchmarkRunEvent {
+export interface KaurKhorBenchmarkRunEvent {
   runId: string;
-  status: BanjiBenchmarkRunStatus;
+  status: KaurKhorBenchmarkRunStatus;
   message: string;
   stream?: 'stdout' | 'stderr';
   line?: string;
-  record?: BanjiBenchmarkRunRecord;
+  record?: KaurKhorBenchmarkRunRecord;
 }
 
-export interface BanjiBenchmarkComparisonMetric {
+export interface KaurKhorBenchmarkComparisonMetric {
   metricName: string;
   baseline: number | null;
   candidate: number | null;
@@ -163,43 +163,43 @@ export interface BanjiBenchmarkComparisonMetric {
   status: 'regression' | 'improvement' | 'same' | 'missing';
 }
 
-export interface BanjiBenchmarkComparison {
+export interface KaurKhorBenchmarkComparison {
   baselineRunId: string;
   candidateRunId: string;
-  metrics: BanjiBenchmarkComparisonMetric[];
+  metrics: KaurKhorBenchmarkComparisonMetric[];
 }
 
-export interface BanjiBenchmarkFlamegraphRequest {
+export interface KaurKhorBenchmarkFlamegraphRequest {
   runId: string;
-  scenario: BanjiBenchmarkScenarioId;
+  scenario: KaurKhorBenchmarkScenarioId;
 }
 
-export interface BanjiBenchmarkFlamegraphArtifact {
+export interface KaurKhorBenchmarkFlamegraphArtifact {
   runId: string;
-  scenario: BanjiBenchmarkScenarioId;
+  scenario: KaurKhorBenchmarkScenarioId;
   artifactPath: string;
 }
 
-export interface BanjiBenchmarkRunnerBridge {
-  getAvailability: () => Promise<BanjiBenchmarkRunnerAvailability>;
-  listRuns: () => Promise<BanjiBenchmarkRunRecord[]>;
-  readRun: (runId: string) => Promise<BanjiBenchmarkRunRecord | null>;
-  startRun: (options: BanjiBenchmarkRunOptions) => Promise<BanjiBenchmarkRunRecord>;
-  cancelRun: (runId: string) => Promise<BanjiBenchmarkRunRecord>;
-  compareRuns: (payload: { baselineRunId: string; candidateRunId: string }) => Promise<BanjiBenchmarkComparison>;
-  generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest) => Promise<BanjiBenchmarkFlamegraphArtifact>;
+export interface KaurKhorBenchmarkRunnerBridge {
+  getAvailability: () => Promise<KaurKhorBenchmarkRunnerAvailability>;
+  listRuns: () => Promise<KaurKhorBenchmarkRunRecord[]>;
+  readRun: (runId: string) => Promise<KaurKhorBenchmarkRunRecord | null>;
+  startRun: (options: KaurKhorBenchmarkRunOptions) => Promise<KaurKhorBenchmarkRunRecord>;
+  cancelRun: (runId: string) => Promise<KaurKhorBenchmarkRunRecord>;
+  compareRuns: (payload: { baselineRunId: string; candidateRunId: string }) => Promise<KaurKhorBenchmarkComparison>;
+  generateFlamegraph: (payload: KaurKhorBenchmarkFlamegraphRequest) => Promise<KaurKhorBenchmarkFlamegraphArtifact>;
   revealRun: (runId: string) => Promise<void>;
-  onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => () => void;
+  onRunEvent: (listener: (event: KaurKhorBenchmarkRunEvent) => void) => () => void;
 }
 
-export const BANJI_BENCHMARK_SCENARIOS = benchmarkScenarios as Array<{
+export const KAUR_KHOR_BENCHMARK_SCENARIOS = benchmarkScenarios as Array<{
   file: string;
-  id: BanjiBenchmarkScenarioId;
+  id: KaurKhorBenchmarkScenarioId;
   label: string;
   script: string;
 }>;
 
-export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
+export const KAUR_KHOR_BENCHMARK_TARGETS: KaurKhorBenchmarkTarget[] = [
   {
     metricName: 'startup.app_to_workspace_ready_ms',
     label: 'App to usable workspace',
@@ -578,8 +578,8 @@ export const BANJI_BENCHMARK_TARGETS: BanjiBenchmarkTarget[] = [
 
 export function classifyBenchmarkTarget(
   value: number | null | undefined,
-  target: BanjiBenchmarkTarget,
-): BanjiBenchmarkTargetStatus {
+  target: KaurKhorBenchmarkTarget,
+): KaurKhorBenchmarkTargetStatus {
   if (value == null || Number.isNaN(value)) {
     return 'missing';
   }
@@ -604,7 +604,7 @@ function percentileValue(values: number[], p: number) {
   return sorted[index] ?? null;
 }
 
-export function summarizeBenchmarkDistribution(values: number[]): BanjiBenchmarkDistributionSummary {
+export function summarizeBenchmarkDistribution(values: number[]): KaurKhorBenchmarkDistributionSummary {
   const finiteValues = values.filter((value) => Number.isFinite(value)).sort((left, right) => left - right);
   const q1 = percentileValue(finiteValues, 25);
   const q3 = percentileValue(finiteValues, 75);
@@ -625,8 +625,8 @@ export function summarizeBenchmarkDistribution(values: number[]): BanjiBenchmark
 
 function classifyBenchmarkDistributionTarget(
   value: number | null | undefined,
-  target: BanjiBenchmarkTarget,
-  distribution?: BanjiBenchmarkDistributionSummary,
+  target: KaurKhorBenchmarkTarget,
+  distribution?: KaurKhorBenchmarkDistributionSummary,
 ) {
   if (!distribution || target.unit === 'boolean') {
     return {
@@ -673,14 +673,14 @@ function classifyBenchmarkDistributionTarget(
   } as const;
 }
 
-export function benchmarkTargetsForScenario(scenario: BanjiBenchmarkScenarioId) {
-  return BANJI_BENCHMARK_TARGETS.filter((target) => target.scenarios.includes(scenario));
+export function benchmarkTargetsForScenario(scenario: KaurKhorBenchmarkScenarioId) {
+  return KAUR_KHOR_BENCHMARK_TARGETS.filter((target) => target.scenarios.includes(scenario));
 }
 
 export function evaluateBenchmarkTargets(
   metrics: Record<string, number>,
-  scenario: BanjiBenchmarkScenarioId,
-  distributions?: Record<string, BanjiBenchmarkDistributionSummary>,
+  scenario: KaurKhorBenchmarkScenarioId,
+  distributions?: Record<string, KaurKhorBenchmarkDistributionSummary>,
 ) {
   return benchmarkTargetsForScenario(scenario).map((target) => {
     const distribution = distributions?.[target.metricName];
@@ -699,13 +699,13 @@ export function evaluateBenchmarkTargets(
       acceptable: target.acceptable,
       source: target.source,
       rationale: target.rationale,
-    } satisfies BanjiBenchmarkTargetEvaluation;
+    } satisfies KaurKhorBenchmarkTargetEvaluation;
   });
 }
 
 export function benchmarkTargetStatusCounts(
-  summaries: BanjiBenchmarkScenarioSummary[],
-  requestedScenarios: BanjiBenchmarkScenarioId[] = [],
+  summaries: KaurKhorBenchmarkScenarioSummary[],
+  requestedScenarios: KaurKhorBenchmarkScenarioId[] = [],
 ) {
   const targets = summaries.flatMap((summary) => summary.targets ?? []);
   const summarizedScenarios = new Set(summaries.map((summary) => summary.scenario));
@@ -724,9 +724,9 @@ export function benchmarkTargetStatusCounts(
 }
 
 export function benchmarkRunStatusForTargets(
-  summaries: BanjiBenchmarkScenarioSummary[],
-  requestedScenarios: BanjiBenchmarkScenarioId[] = [],
-): BanjiBenchmarkRunStatus {
+  summaries: KaurKhorBenchmarkScenarioSummary[],
+  requestedScenarios: KaurKhorBenchmarkScenarioId[] = [],
+): KaurKhorBenchmarkRunStatus {
   const counts = benchmarkTargetStatusCounts(summaries, requestedScenarios);
   if (
     counts.summaries === 0 ||
@@ -749,9 +749,9 @@ export function aggregateBenchmarkScenarioSummaries({
   summaries,
 }: {
   runId: string;
-  summaries: BanjiBenchmarkScenarioSummary[];
+  summaries: KaurKhorBenchmarkScenarioSummary[];
 }) {
-  const summariesByScenario = new Map<BanjiBenchmarkScenarioId, BanjiBenchmarkScenarioSummary[]>();
+  const summariesByScenario = new Map<KaurKhorBenchmarkScenarioId, KaurKhorBenchmarkScenarioSummary[]>();
   for (const summary of summaries) {
     const bucket = summariesByScenario.get(summary.scenario) ?? [];
     bucket.push(summary);
@@ -805,7 +805,7 @@ export function aggregateBenchmarkScenarioSummaries({
           .flatMap((summary) => summary.slowestCore)
           .sort((left, right) => right.durationMs - left.durationMs)
           .slice(0, 10),
-      } satisfies BanjiBenchmarkScenarioSummary;
+      } satisfies KaurKhorBenchmarkScenarioSummary;
     })
     .sort((left, right) => left.generatedAt.localeCompare(right.generatedAt));
 }

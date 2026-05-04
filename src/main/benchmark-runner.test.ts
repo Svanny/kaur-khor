@@ -2,7 +2,7 @@
 
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { BANJI_BENCHMARK_SCENARIOS } from '@shared/benchmark';
+import { KAUR_KHOR_BENCHMARK_SCENARIOS } from '@shared/benchmark';
 import {
   benchmarkChildSpawnOptions,
   benchmarkOutputDirectoryForRun,
@@ -13,25 +13,25 @@ import {
 
 describe('benchmark runner helpers', () => {
   it('keeps GUI scenario files aligned with shared benchmark metadata', () => {
-    for (const scenario of BANJI_BENCHMARK_SCENARIOS) {
+    for (const scenario of KAUR_KHOR_BENCHMARK_SCENARIOS) {
       expect(SCENARIO_FILE_BY_ID[scenario.id]).toBe(scenario.file);
     }
   });
 
   it('isolates each GUI run under its own output directory', () => {
-    expect(benchmarkOutputDirectoryForRun('/tmp/banji/bench-results', 'gui-123')).toBe(
-      join('/tmp/banji/bench-results', 'gui-123'),
+    expect(benchmarkOutputDirectoryForRun('/tmp/kaur-khor/bench-results', 'gui-123')).toBe(
+      join('/tmp/kaur-khor/bench-results', 'gui-123'),
     );
-    expect(() => benchmarkOutputDirectoryForRun('/tmp/banji/bench-results', '../bad')).toThrow(
+    expect(() => benchmarkOutputDirectoryForRun('/tmp/kaur-khor/bench-results', '../bad')).toThrow(
       'Invalid benchmark run id.',
     );
   });
 
   it('uses process groups for benchmark children on POSIX', () => {
-    expect(benchmarkChildSpawnOptions('/repo', { BANJI_BENCHMARK: '1' })).toMatchObject({
+    expect(benchmarkChildSpawnOptions('/repo', { KAUR_KHOR_BENCHMARK: '1' })).toMatchObject({
       cwd: '/repo',
       detached: process.platform !== 'win32',
-      env: { BANJI_BENCHMARK: '1' },
+      env: { KAUR_KHOR_BENCHMARK: '1' },
       stdio: 'pipe',
     });
   });
@@ -75,7 +75,7 @@ describe('benchmark runner helpers', () => {
         traceEnabled: false,
         repeatCount: 1,
         buildBeforeRun: false,
-        outputDirectory: '/tmp/banji/bench-results/gui-test',
+        outputDirectory: '/tmp/kaur-khor/bench-results/gui-test',
         exitCode: 0,
         summaries: [],
         stdoutTail: [],

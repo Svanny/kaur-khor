@@ -1,6 +1,6 @@
 import sqlite3InitModule from '@sqlite.org/sqlite-wasm';
 import { detectBrowserStorageCapability } from './capability';
-import { BANJI_BROWSER_PREFERRED_VFS, BANJI_BROWSER_SCHEMA_VERSION, type BanjiBrowserDatabaseName } from './constants';
+import { KAUR_KHOR_BROWSER_PREFERRED_VFS, KAUR_KHOR_BROWSER_SCHEMA_VERSION, type KaurKhorBrowserDatabaseName } from './constants';
 import { createBrowserStorageBackup, validateBrowserStorageBackup, type BrowserStorageDocumentRecord } from './backup';
 import { BROWSER_STORAGE_SCHEMA_SQL } from './schema';
 import type {
@@ -25,7 +25,7 @@ type SqliteDatabase = {
 };
 
 let db: SqliteDatabase | null = null;
-let databaseName: BanjiBrowserDatabaseName | null = null;
+let databaseName: KaurKhorBrowserDatabaseName | null = null;
 let sqliteVersion = '';
 
 function post(response: BrowserStorageWorkerResponse) {
@@ -47,7 +47,7 @@ function jsonStringify(value: unknown) {
   return JSON.stringify(value);
 }
 
-async function initStorage(name: BanjiBrowserDatabaseName): Promise<BrowserStorageInitResult> {
+async function initStorage(name: KaurKhorBrowserDatabaseName): Promise<BrowserStorageInitResult> {
   const capability = detectBrowserStorageCapability(globalThis, { requireWorker: false });
   if (capability.status !== 'supported') {
     throw new Error(capability.reasons.join(' '));
@@ -57,35 +57,35 @@ async function initStorage(name: BanjiBrowserDatabaseName): Promise<BrowserStora
       databaseName: name,
       filename: db.filename,
       sqliteVersion,
-      vfs: BANJI_BROWSER_PREFERRED_VFS,
+      vfs: KAUR_KHOR_BROWSER_PREFERRED_VFS,
     };
   }
 
   const sqlite3 = await sqlite3InitModule();
   sqliteVersion = sqlite3.version.libVersion;
   const sahPool = await sqlite3.installOpfsSAHPoolVfs({
-    name: BANJI_BROWSER_PREFERRED_VFS,
-    directory: '.banji-browser-opfs-sahpool',
+    name: KAUR_KHOR_BROWSER_PREFERRED_VFS,
+    directory: '.kaur-khor-browser-opfs-sahpool',
     initialCapacity: 8,
   });
   db = new sahPool.OpfsSAHPoolDb(name) as SqliteDatabase;
   databaseName = name;
   db.exec(BROWSER_STORAGE_SCHEMA_SQL);
-  db.exec(`PRAGMA user_version = ${BANJI_BROWSER_SCHEMA_VERSION};`);
+  db.exec(`PRAGMA user_version = ${KAUR_KHOR_BROWSER_SCHEMA_VERSION};`);
 
   return {
     databaseName: name,
     filename: db.filename,
     sqliteVersion,
-    vfs: BANJI_BROWSER_PREFERRED_VFS,
+    vfs: KAUR_KHOR_BROWSER_PREFERRED_VFS,
   };
 }
 
 function listDocuments(collection?: string): BrowserStorageDocumentRecord[] {
   const rows: unknown[] = [];
   const sql = collection
-    ? 'SELECT collection, id, json, updated_at AS updatedAt FROM banji_documents WHERE collection = $collection ORDER BY collection, id'
-    : 'SELECT collection, id, json, updated_at AS updatedAt FROM banji_documents ORDER BY collection, id';
+    ? 'SELECT collection, id, json, updated_at AS updatedAt FROM kaur_khor_documents WHERE collection = $collection ORDER BY collection, id'
+    : 'SELECT collection, id, json, updated_at AS updatedAt FROM kaur_khor_documents ORDER BY collection, id';
   assertDb().exec({
     sql,
     bind: collection ? { $collection: collection } : undefined,
@@ -111,7 +111,7 @@ function putDocuments(records: BrowserStorageDocumentRecord[]) {
     for (const record of records) {
       storage.exec({
         sql: `
-          INSERT INTO banji_documents(collection, id, json, updated_at)
+          INSERT INTO kaur_khor_documents(collection, id, json, updated_at)
           VALUES ($collection, $id, json($json), $updatedAt)
           ON CONFLICT(collection, id) DO UPDATE SET
             json = excluded.json,
@@ -282,7 +282,7 @@ function persistSenaState(state: BrowserSenaPersistState) {
 
 function clearDocuments() {
   const storage = assertDb();
-  storage.exec('DELETE FROM banji_documents;');
+  storage.exec('DELETE FROM kaur_khor_documents;');
   storage.exec('DELETE FROM app_metadata;');
   storage.exec('DELETE FROM preferences;');
   storage.exec('DELETE FROM catalog;');

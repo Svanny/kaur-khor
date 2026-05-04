@@ -235,7 +235,7 @@ function expectNoUnexpectedKhmerLatin(renderedParts: string[]) {
 
 describe('automation telegram ingestion', () => {
   it('creates quoted intake and reply jobs for matched exposed telegram items', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -287,7 +287,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('creates needs-review intake when telegram text does not resolve to an exposed sellable', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -324,8 +324,8 @@ describe('automation telegram ingestion', () => {
 
     expect(result.replyJobs).toHaveLength(1);
     expect(result.replyJobs[0]?.text).toContain('Needs review');
-    expect(result.replyJobs[0]?.text).toContain('banji needs an operator to review it');
-    expect(result.replyJobs[0]?.text).toContain('Please wait while banji reviews it.');
+    expect(result.replyJobs[0]?.text).toContain('Kaur Khor needs an operator to review it');
+    expect(result.replyJobs[0]?.text).toContain('Please wait while Kaur Khor reviews it.');
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes[0]?.status).toBe('needs_review');
@@ -333,7 +333,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('counts ticketed and completed metrics from updatedAt day boundaries', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const today = new Date();
     today.setHours(12, 0, 0, 0);
     const yesterday = new Date(today);
@@ -427,7 +427,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -533,7 +533,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('sends an item photo when a customer opens an item and deletes it when leaving the item view', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -659,7 +659,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('omits availability labels from customer-facing catalog and item wizard messages', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -740,7 +740,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('runs first-contact onboarding and uses the selected display currency in wizard replies', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -856,7 +856,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('renders representative Khmer Telegram wizard messages without unintended Latin UI copy', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-km-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-km-'));
     const renderedParts: string[] = [];
     const collect = (result: Awaited<ReturnType<typeof ingestAutomationTelegramUpdates>>) => {
       renderedParts.push(...telegramRenderedParts(result));
@@ -1088,7 +1088,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('reopens customer preferences with the /preferences command after setup', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
@@ -1178,7 +1178,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('recognizes Telegram bot commands when they include the bot username suffix', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1230,7 +1230,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('sends a fresh wizard message for typed commands when an older wizard already exists', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await completePreferencesOnboarding(userDataPath, {
       chatId: 555_341,
       firstName: 'Kiri',
@@ -1271,7 +1271,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('sends a fresh wizard message when Start order is clicked from an older wizard', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await completePreferencesOnboarding(userDataPath, {
       chatId: 555_342,
       firstName: 'Lina',
@@ -1315,7 +1315,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('requires every fresh wizard send to retire the older wizard first', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1452,7 +1452,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('keeps the active wizard as the last outbound message even when item media is included', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1512,7 +1512,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('submits a cart checkout after optional phone capture and keeps free-text fallback working', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1641,7 +1641,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('normalizes shared Telegram contact phones before intake and promotion writes', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1755,7 +1755,7 @@ describe('automation telegram ingestion', () => {
   });
 
   it('ignores stale confirm callbacks once checkout has already been submitted', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
@@ -1870,14 +1870,14 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    expect(staleResult.outboundJobs.some((job) => job.kind === 'answer_callback' && job.text === 'This order was already sent to banji.')).toBe(true);
+    expect(staleResult.outboundJobs.some((job) => job.kind === 'answer_callback' && job.text === 'This order was already sent to Kaur Khor.')).toBe(true);
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes).toHaveLength(1);
   });
 
   it('finds the Telegram conversation for a promoted customer ticket update', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',

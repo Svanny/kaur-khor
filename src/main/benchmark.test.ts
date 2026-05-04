@@ -6,9 +6,9 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const BASE_ENV = {
-  BANJI_BENCHMARK: process.env.BANJI_BENCHMARK,
-  BANJI_BENCHMARK_OUTPUT_DIR: process.env.BANJI_BENCHMARK_OUTPUT_DIR,
-  BANJI_BENCHMARK_RUN_ID: process.env.BANJI_BENCHMARK_RUN_ID,
+  KAUR_KHOR_BENCHMARK: process.env.KAUR_KHOR_BENCHMARK,
+  KAUR_KHOR_BENCHMARK_OUTPUT_DIR: process.env.KAUR_KHOR_BENCHMARK_OUTPUT_DIR,
+  KAUR_KHOR_BENCHMARK_RUN_ID: process.env.KAUR_KHOR_BENCHMARK_RUN_ID,
 };
 
 async function loadBenchmarkModule() {
@@ -20,13 +20,13 @@ describe('benchmark event counter hydration', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.resetModules();
-    process.env.BANJI_BENCHMARK = BASE_ENV.BANJI_BENCHMARK;
-    process.env.BANJI_BENCHMARK_OUTPUT_DIR = BASE_ENV.BANJI_BENCHMARK_OUTPUT_DIR;
-    process.env.BANJI_BENCHMARK_RUN_ID = BASE_ENV.BANJI_BENCHMARK_RUN_ID;
+    process.env.KAUR_KHOR_BENCHMARK = BASE_ENV.KAUR_KHOR_BENCHMARK;
+    process.env.KAUR_KHOR_BENCHMARK_OUTPUT_DIR = BASE_ENV.KAUR_KHOR_BENCHMARK_OUTPUT_DIR;
+    process.env.KAUR_KHOR_BENCHMARK_RUN_ID = BASE_ENV.KAUR_KHOR_BENCHMARK_RUN_ID;
   });
 
   it('hydrates prior persisted event counts so warm-launch waiters can use cumulative targets', async () => {
-    const outputDirectory = await mkdtemp(join(tmpdir(), 'banji-benchmark-events-'));
+    const outputDirectory = await mkdtemp(join(tmpdir(), 'kaur-khor-benchmark-events-'));
     await writeFile(
       join(outputDirectory, 'events.jsonl'),
       `${JSON.stringify({
@@ -39,9 +39,9 @@ describe('benchmark event counter hydration', () => {
       })}\n`,
       'utf8',
     );
-    process.env.BANJI_BENCHMARK = '1';
-    process.env.BANJI_BENCHMARK_OUTPUT_DIR = outputDirectory;
-    process.env.BANJI_BENCHMARK_RUN_ID = 'startup-cold-dev';
+    process.env.KAUR_KHOR_BENCHMARK = '1';
+    process.env.KAUR_KHOR_BENCHMARK_OUTPUT_DIR = outputDirectory;
+    process.env.KAUR_KHOR_BENCHMARK_RUN_ID = 'startup-cold-dev';
 
     const {
       benchmarkEventCount,

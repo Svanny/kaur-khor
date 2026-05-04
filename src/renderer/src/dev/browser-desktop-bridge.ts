@@ -644,11 +644,11 @@ const mockDiagnostics: SenaDiagnostics = {
 };
 
 const mockLocalDataInfo: DesktopLocalDataInfo = {
-  dataDirectoryPath: '/tmp/banji-browser-mock',
-  workspaceStorePath: '/tmp/banji-browser-mock/sena.sqlite',
-  preferencesPath: '/tmp/banji-browser-mock/preferences.json',
-  backupDirectoryPath: '/tmp/banji-browser-mock/backup-snapshots',
-  assetDirectoryPath: '/tmp/banji-browser-mock/assets',
+  dataDirectoryPath: '/tmp/kaur-khor-browser-mock',
+  workspaceStorePath: '/tmp/kaur-khor-browser-mock/sena.sqlite',
+  preferencesPath: '/tmp/kaur-khor-browser-mock/preferences.json',
+  backupDirectoryPath: '/tmp/kaur-khor-browser-mock/backup-snapshots',
+  assetDirectoryPath: '/tmp/kaur-khor-browser-mock/assets',
   storageFormat: 'sqlite',
 };
 
@@ -1161,8 +1161,8 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
   state.browserTelegramToken = null;
   state.browserTelegramUpdateOffset = null;
   state.localDataInfo = {
-    dataDirectoryPath: 'OPFS / banji browser workspace',
-    workspaceStorePath: 'banji_browser_app_v1.sqlite3',
+    dataDirectoryPath: 'OPFS / Kaur Khor browser workspace',
+    workspaceStorePath: 'kaur_khor_browser_app_v1.sqlite3',
     preferencesPath: 'SQLite preferences table',
     backupDirectoryPath: 'downloaded backups',
     assetDirectoryPath: 'Browser image storage unavailable in this release',
@@ -1185,9 +1185,9 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
     channel: 'telegram',
     status: 'connected',
     hasBotToken: true,
-    botDisplayName: 'banji demo bot',
-    botUsername: 'banji_demo_bot',
-    externalLink: 'https://t.me/banji_demo_bot',
+    botDisplayName: 'Kaur Khor demo bot',
+    botUsername: 'kaur_khor_demo_bot',
+    externalLink: 'https://t.me/kaur_khor_demo_bot',
     connectedAt: nowIso(),
     pausedAt: null,
     lastWebhookAt: nowIso(),
@@ -1295,7 +1295,7 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
 }
 
 function installBrowserDesktopBridge() {
-  if (typeof window === 'undefined' || window.banjiDesktop) {
+  if (typeof window === 'undefined' || window.kaurKhorDesktop) {
     return;
   }
 
@@ -1661,8 +1661,8 @@ function installBrowserDesktopBridge() {
     },
   };
 
-  window.banjiDesktop = bridge;
-  console.info('[browser-mock] installed mock banjiDesktop bridge');
+  window.kaurKhorDesktop = bridge;
+  console.info('[browser-mock] installed mock kaurKhorDesktop bridge');
 }
 
 function resetBrowserDesktopBridgeMock(nextState: BrowserMockState = createMockState()) {

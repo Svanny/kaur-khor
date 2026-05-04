@@ -1,10 +1,10 @@
 import {
-  BANJI_BROWSER_APP_DATABASE,
-  BANJI_BROWSER_DEMO_DATABASE,
-  BANJI_BROWSER_SCHEMA_VERSION,
-  type BanjiBrowserDatabaseName,
+  KAUR_KHOR_BROWSER_APP_DATABASE,
+  KAUR_KHOR_BROWSER_DEMO_DATABASE,
+  KAUR_KHOR_BROWSER_SCHEMA_VERSION,
+  type KaurKhorBrowserDatabaseName,
 } from './constants';
-import { isBanjiBrowserDatabaseName } from './capability';
+import { isKaurKhorBrowserDatabaseName } from './capability';
 
 export const BROWSER_STORAGE_BACKUP_VERSION = 1;
 
@@ -16,10 +16,10 @@ export type BrowserStorageDocumentRecord = {
 };
 
 export type BrowserStorageJsonBackup = {
-  format: 'banji.browser.storage.backup';
+  format: 'kaur-khor.browser.storage.backup';
   version: typeof BROWSER_STORAGE_BACKUP_VERSION;
-  databaseName: BanjiBrowserDatabaseName;
-  schemaVersion: typeof BANJI_BROWSER_SCHEMA_VERSION;
+  databaseName: KaurKhorBrowserDatabaseName;
+  schemaVersion: typeof KAUR_KHOR_BROWSER_SCHEMA_VERSION;
   exportedAt: string;
   records: BrowserStorageDocumentRecord[];
 };
@@ -75,16 +75,16 @@ export function validateBrowserStorageBackup(value: unknown): BrowserStorageBack
   if (!isRecord(value)) {
     return { ok: false, errors: ['Backup must be a JSON object.'] };
   }
-  if (value.format !== 'banji.browser.storage.backup') {
+  if (value.format !== 'kaur-khor.browser.storage.backup') {
     errors.push('Backup format is not supported.');
   }
   if (value.version !== BROWSER_STORAGE_BACKUP_VERSION) {
     errors.push('Backup version is not supported.');
   }
-  if (typeof value.databaseName !== 'string' || !isBanjiBrowserDatabaseName(value.databaseName)) {
-    errors.push(`Database name must be ${BANJI_BROWSER_APP_DATABASE} or ${BANJI_BROWSER_DEMO_DATABASE}.`);
+  if (typeof value.databaseName !== 'string' || !isKaurKhorBrowserDatabaseName(value.databaseName)) {
+    errors.push(`Database name must be ${KAUR_KHOR_BROWSER_APP_DATABASE} or ${KAUR_KHOR_BROWSER_DEMO_DATABASE}.`);
   }
-  if (value.schemaVersion !== BANJI_BROWSER_SCHEMA_VERSION) {
+  if (value.schemaVersion !== KAUR_KHOR_BROWSER_SCHEMA_VERSION) {
     errors.push('Backup schema version is not supported.');
   }
   if (!isIsoString(value.exportedAt)) {
@@ -104,10 +104,10 @@ export function validateBrowserStorageBackup(value: unknown): BrowserStorageBack
   return {
     ok: true,
     backup: {
-      format: 'banji.browser.storage.backup',
+      format: 'kaur-khor.browser.storage.backup',
       version: BROWSER_STORAGE_BACKUP_VERSION,
-      databaseName: value.databaseName as BanjiBrowserDatabaseName,
-      schemaVersion: BANJI_BROWSER_SCHEMA_VERSION,
+      databaseName: value.databaseName as KaurKhorBrowserDatabaseName,
+      schemaVersion: KAUR_KHOR_BROWSER_SCHEMA_VERSION,
       exportedAt: value.exportedAt as string,
       records,
     },
@@ -123,15 +123,15 @@ export function parseBrowserStorageBackupJson(json: string): BrowserStorageBacku
 }
 
 export function createBrowserStorageBackup(
-  databaseName: BanjiBrowserDatabaseName,
+  databaseName: KaurKhorBrowserDatabaseName,
   records: BrowserStorageDocumentRecord[],
   exportedAt = new Date().toISOString(),
 ): BrowserStorageJsonBackup {
   return {
-    format: 'banji.browser.storage.backup',
+    format: 'kaur-khor.browser.storage.backup',
     version: BROWSER_STORAGE_BACKUP_VERSION,
     databaseName,
-    schemaVersion: BANJI_BROWSER_SCHEMA_VERSION,
+    schemaVersion: KAUR_KHOR_BROWSER_SCHEMA_VERSION,
     exportedAt,
     records,
   };

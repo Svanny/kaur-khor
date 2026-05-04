@@ -16,7 +16,7 @@ if (options.arch && process.arch !== options.arch) {
   fail(`desktop-core staging expected architecture ${options.arch}, but current architecture is ${process.arch}`);
 }
 
-const binaryName = process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
+const binaryName = process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core';
 const cargoTargetDir = resolve(root, 'build', 'cargo-target', `${process.platform}-${process.arch}`);
 const stageDir = resolve(root, 'build', 'release-resources', 'bin');
 

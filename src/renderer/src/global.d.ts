@@ -1,10 +1,10 @@
 import type { DesktopBridge } from '@shared/ipc';
-import type { BanjiBenchmarkEvent } from '@shared/benchmark';
+import type { KaurKhorBenchmarkEvent } from '@shared/benchmark';
 
 declare global {
   interface Window {
-    banjiDesktop: DesktopBridge;
-    __BANJI_BENCHMARK_EVENTS__?: BanjiBenchmarkEvent[];
+    kaurKhorDesktop: DesktopBridge;
+    __KAUR_KHOR_BENCHMARK_EVENTS__?: KaurKhorBenchmarkEvent[];
   }
 }
 

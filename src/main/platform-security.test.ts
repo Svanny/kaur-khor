@@ -12,7 +12,7 @@ const benchmarkRunnerSource = readFileSync(new URL('./benchmark-runner.ts', impo
 describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
     expect(mainSource).toContain("contentBounds: Pick<Electron.Rectangle, 'height' | 'width'>,");
-    expect(mainSource).toContain("const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';");
+    expect(mainSource).toContain("const benchmarkWindowBackgroundMode = process.env.KAUR_KHOR_BENCHMARK_BACKGROUND === '1';");
     expect(mainSource).toContain("preload: join(__dirname, '../preload/index.mjs')");
     expect(mainSource).toContain('contextIsolation: true');
     expect(mainSource).toContain('nodeIntegration: false');
@@ -48,7 +48,7 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain("label: 'Actual Size'");
     expect(mainSource).toContain("accelerator: 'CmdOrCtrl+0'");
     expect(mainSource).toContain('setFocusedWindowToActualSize();');
-    expect(mainSource).toContain("banji's \"Actual Size\" resets the manual zoom offset while preserving automatic viewport zoom");
+    expect(mainSource).toContain("Kaur Khor's \"Actual Size\" resets the manual zoom offset while preserving automatic viewport zoom");
     expect(mainSource).toContain('resetManualWindowZoomLevel(state);');
     expect(mainSource).toContain("label: 'Zoom In'");
     expect(mainSource).toContain("label: 'Zoom Out'");
@@ -96,11 +96,11 @@ describe('desktop runtime security contract', () => {
   });
 
   it('warns before quitting while Telegram automation is live listening', () => {
-    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close banji and stop automations?';");
-    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing banji stops Telegram listening, automation intake, and automatic checks until you open banji again.';");
-    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep banji open';");
-    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close banji';");
-    expect(mainSource).toContain("return process.env.BANJI_BENCHMARK === '1';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close Kaur Khor and stop automations?';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing Kaur Khor stops Telegram listening, automation intake, and automatic checks until you open Kaur Khor again.';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep Kaur Khor open';");
+    expect(mainSource).toContain("const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close Kaur Khor';");
+    expect(mainSource).toContain("return process.env.KAUR_KHOR_BENCHMARK === '1';");
     expect(mainSource).toContain('async function isDesktopTelegramAutomationLiveListening()');
     expect(mainSource).toContain('if (!preferences.showAutomationsPage) {');
     expect(mainSource).toContain("transport.connection.status === 'connected'");
@@ -113,7 +113,7 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('cancelId: 0,');
     expect(mainSource).not.toContain('detail: DESKTOP_CLOSE_AUTOMATION');
     expect(mainSource).toContain('function requestDesktopQuit()');
-    expect(mainSource).toContain("label: 'Quit banji'");
+    expect(mainSource).toContain("label: 'Quit Kaur Khor'");
     expect(mainSource).toContain('click: requestDesktopQuit,');
     expect(mainSource).toContain("mainWindow.on('close', (event) => {");
     expect(mainSource).not.toContain("process.platform === 'darwin' || desktopQuitConfirmed");
@@ -148,7 +148,7 @@ describe('desktop runtime security contract', () => {
   });
 
   it('exposes a named preload bridge through contextBridge', () => {
-    expect(preloadSource).toContain("contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge)");
+    expect(preloadSource).toContain("contextBridge.exposeInMainWorld('kaurKhorDesktop', desktopBridge)");
     expect(preloadSource).toContain('ipcRenderer.invoke');
   });
 

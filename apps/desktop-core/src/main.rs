@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
-use banji_desktop_core::{benchmark, store};
-use banji_sena_core::{
+use kaur_khor_desktop_core::{benchmark, store};
+use kaur_khor_sena_core::{
     SenaCatalog, SenaCreateOrderBatchPayload, SenaEngineParameters, SenaObservationInput,
     SenaObservationPageRequest, SenaObservationRecord, SenaOrderLookupPayload,
     SenaSplitOrderChildPayload, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
@@ -355,18 +355,18 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be after epoch")
             .as_nanos();
-        env::temp_dir().join(format!("banji-desktop-core-{label}-{nonce}.sqlite3"))
+        env::temp_dir().join(format!("kaur-khor-desktop-core-{label}-{nonce}.sqlite3"))
     }
 
     fn with_temp_store<T>(label: &str, task: impl FnOnce() -> T) -> T {
         let _guard = env_lock().lock().expect("env lock should be available");
-        let previous = env::var_os("BANJI_DESKTOP_DATA_PATH");
-        env::set_var("BANJI_DESKTOP_DATA_PATH", temp_store_path(label));
+        let previous = env::var_os("KAUR_KHOR_DESKTOP_DATA_PATH");
+        env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", temp_store_path(label));
         let result = task();
         if let Some(value) = previous {
-            env::set_var("BANJI_DESKTOP_DATA_PATH", value);
+            env::set_var("KAUR_KHOR_DESKTOP_DATA_PATH", value);
         } else {
-            env::remove_var("BANJI_DESKTOP_DATA_PATH");
+            env::remove_var("KAUR_KHOR_DESKTOP_DATA_PATH");
         }
         result
     }

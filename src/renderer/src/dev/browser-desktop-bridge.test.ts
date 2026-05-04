@@ -10,20 +10,20 @@ describe('installBrowserDesktopBridge', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    delete (window as Partial<Window>).banjiDesktop;
+    delete (window as Partial<Window>).kaurKhorDesktop;
     resetBrowserDesktopBridgeMock();
   });
 
   it('installs a seeded desktop bridge when preload is missing', async () => {
     installBrowserDesktopBridge();
 
-    expect(window.banjiDesktop).toBeDefined();
+    expect(window.kaurKhorDesktop).toBeDefined();
 
     const [context, preferences, catalog, summary] = await Promise.all([
-      window.banjiDesktop.system.getAppContext(),
-      window.banjiDesktop.preferences.get(),
-      window.banjiDesktop.sena.getCatalog(),
-      window.banjiDesktop.sena.getWorkspaceSummary(),
+      window.kaurKhorDesktop.system.getAppContext(),
+      window.kaurKhorDesktop.preferences.get(),
+      window.kaurKhorDesktop.sena.getCatalog(),
+      window.kaurKhorDesktop.sena.getWorkspaceSummary(),
     ]);
 
     expect(context.platform).toBe('browser');
@@ -35,11 +35,11 @@ describe('installBrowserDesktopBridge', () => {
   it('seeds the automation bridge and promotes mock intake into a ticket', async () => {
     installBrowserDesktopBridge();
 
-    const workspace = await window.banjiDesktop.automation!.getWorkspace();
+    const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
     expect(workspace.connection.status).toBe('connected');
     expect(workspace.exposures.some((row) => row.exposed)).toBe(true);
 
-    const result = await window.banjiDesktop.automation!.promoteIntake({
+    const result = await window.kaurKhorDesktop.automation!.promoteIntake({
       intakeId: 'intake-demo',
       mode: 'create_ticket',
     });
@@ -62,7 +62,7 @@ describe('installBrowserDesktopBridge', () => {
   it('builds automation workspace fixtures with exposed sellables', () => {
     const workspace = createMockAutomationWorkspace();
 
-    expect(workspace.connection.botUsername).toBe('banji_demo_bot');
+    expect(workspace.connection.botUsername).toBe('kaur_khor_demo_bot');
     expect(workspace.exposures.some((row) => row.entityType === 'sku' && row.exposed)).toBe(true);
     expect(workspace.metrics.exposedSellables).toBeGreaterThan(0);
   });
@@ -70,7 +70,7 @@ describe('installBrowserDesktopBridge', () => {
   it('supports current order-batch reads and edits in the browser bridge', async () => {
     installBrowserDesktopBridge();
 
-    const batches = await window.banjiDesktop.sena.listOrderBatches();
+    const batches = await window.kaurKhorDesktop.sena.listOrderBatches();
     expect(batches.length).toBeGreaterThan(0);
 
     const firstChild = batches[0]?.children[0];
@@ -79,7 +79,7 @@ describe('installBrowserDesktopBridge', () => {
       return;
     }
 
-    const updatedBatch = await window.banjiDesktop.sena.updateOrderChild({
+    const updatedBatch = await window.kaurKhorDesktop.sena.updateOrderChild({
       childOrderId: firstChild.childOrderId,
       overrides: { receivedQuantity: 6, receiptTimestamp: '2026-04-11T00:00:00.000Z' },
       status: 'received',
@@ -87,15 +87,15 @@ describe('installBrowserDesktopBridge', () => {
 
     expect(updatedBatch.children.find((child) => child.childOrderId === firstChild.childOrderId)?.effective.receivedQuantity).toBe(6);
     expect(
-      await window.banjiDesktop.sena.listOrderBatches({ childOrderId: firstChild.childOrderId }),
+      await window.kaurKhorDesktop.sena.listOrderBatches({ childOrderId: firstChild.childOrderId }),
     ).toHaveLength(1);
   });
 
   it('recomputes browser SENA run summary and detail from current observations', async () => {
     installBrowserDesktopBridge();
 
-    const before = await window.banjiDesktop.sena.getWorkspaceSummary();
-    const observation = await window.banjiDesktop.sena.ingestObservation({
+    const before = await window.kaurKhorDesktop.sena.getWorkspaceSummary();
+    const observation = await window.kaurKhorDesktop.sena.ingestObservation({
       observedAt: '2026-05-02T00:00:00.000Z',
       stockSnapshot: [{
         skuId: 'sku-1',
@@ -125,9 +125,9 @@ describe('installBrowserDesktopBridge', () => {
       regimeHint: 'stockout_constrained',
       notes: null,
     });
-    const run = await window.banjiDesktop.sena.triggerRun();
-    const after = await window.banjiDesktop.sena.getWorkspaceSummary();
-    const detailPage = await window.banjiDesktop.sena.getSkuDetail({ skuId: 'sku-1', limit: 5 });
+    const run = await window.kaurKhorDesktop.sena.triggerRun();
+    const after = await window.kaurKhorDesktop.sena.getWorkspaceSummary();
+    const detailPage = await window.kaurKhorDesktop.sena.getSkuDetail({ skuId: 'sku-1', limit: 5 });
 
     expect(observation.observationId).toBeTruthy();
     expect(run.status).toBe('succeeded');
@@ -159,13 +159,13 @@ describe('installBrowserDesktopBridge', () => {
     vi.stubGlobal('fetch', fetchMock);
     installBrowserDesktopBridge();
 
-    await window.banjiDesktop.automation!.saveConnection({
+    await window.kaurKhorDesktop.automation!.saveConnection({
       channel: 'telegram',
       botToken: 'browser-token',
       status: 'connected',
     });
-    const connection = await window.banjiDesktop.automation!.testTelegramConnection();
-    const workspace = await window.banjiDesktop.automation!.getWorkspace();
+    const connection = await window.kaurKhorDesktop.automation!.testTelegramConnection();
+    const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
 
     expect(connection.status).toBe('connected');
     expect(workspace.intakes.some((intake) => intake.intakeId === 'browser-telegram-intake-42')).toBe(true);
@@ -181,16 +181,16 @@ describe('installBrowserDesktopBridge', () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
     installBrowserDesktopBridge();
 
-    await window.banjiDesktop.automation!.saveConnection({
+    await window.kaurKhorDesktop.automation!.saveConnection({
       channel: 'telegram',
       botToken: 'browser-token',
       status: 'connected',
     });
-    await expect(window.banjiDesktop.automation!.testTelegramConnection()).rejects.toThrow(
+    await expect(window.kaurKhorDesktop.automation!.testTelegramConnection()).rejects.toThrow(
       'Telegram browser fetch was blocked or unavailable.',
     );
 
-    const connection = await window.banjiDesktop.automation!.getConnection();
+    const connection = await window.kaurKhorDesktop.automation!.getConnection();
     expect(connection.status).toBe('error');
     expect(connection.lastErrorMessage).toContain('browser fetch was blocked');
   });

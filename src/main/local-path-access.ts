@@ -17,7 +17,7 @@ export function normalizeAllowedLocalDataPath(targetPath: string, allowedRoots: 
 
   const normalizedPath = resolve(targetPath.trim());
   if (!allowedRoots.some((rootPath) => isPathInsideRoot(normalizedPath, rootPath))) {
-    throw new Error('Only banji workspace paths can be revealed.');
+    throw new Error('Only kaur khor workspace paths can be revealed.');
   }
 
   return normalizedPath;

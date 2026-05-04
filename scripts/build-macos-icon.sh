@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAC_DIR="$ROOT_DIR/resources/mac"
 MASTER_ICON="$MAC_DIR/master-1024.png"
-ICONSET_DIR="$MAC_DIR/banji.iconset"
-ICNS_PATH="$MAC_DIR/banji.icns"
+ICONSET_DIR="$MAC_DIR/kaur-khor.iconset"
+ICNS_PATH="$MAC_DIR/kaur-khor.icns"
 
 if [[ ! -f "$MASTER_ICON" ]]; then
   echo "missing master icon: $MASTER_ICON" >&2

@@ -1,14 +1,14 @@
-import { benchmarkTargetStatusCounts, type BanjiBenchmarkRunRecord, type BanjiBenchmarkRunStatus } from '@shared/benchmark';
+import { benchmarkTargetStatusCounts, type KaurKhorBenchmarkRunRecord, type KaurKhorBenchmarkRunStatus } from '@shared/benchmark';
 
-export function isBenchmarkRunInFlight(status: BanjiBenchmarkRunStatus) {
+export function isBenchmarkRunInFlight(status: KaurKhorBenchmarkRunStatus) {
   return status === 'queued' || status === 'running';
 }
 
-export function isBenchmarkRunTerminal(status: BanjiBenchmarkRunStatus) {
+export function isBenchmarkRunTerminal(status: KaurKhorBenchmarkRunStatus) {
   return status === 'passed' || status === 'warning' || status === 'failed' || status === 'cancelled';
 }
 
-export function benchmarkRunCompletionNotification(record: BanjiBenchmarkRunRecord) {
+export function benchmarkRunCompletionNotification(record: KaurKhorBenchmarkRunRecord) {
   if (!isBenchmarkRunTerminal(record.status)) {
     return null;
   }
@@ -40,7 +40,7 @@ export function benchmarkRunCompletionNotification(record: BanjiBenchmarkRunReco
 }
 
 export function reconcileBenchmarkRunRecord(
-  record: BanjiBenchmarkRunRecord,
+  record: KaurKhorBenchmarkRunRecord,
   activeRunId: string | null,
   now = new Date().toISOString(),
 ) {
@@ -57,7 +57,7 @@ export function reconcileBenchmarkRunRecord(
 }
 
 export function cancelBenchmarkRunRecord(
-  record: BanjiBenchmarkRunRecord,
+  record: KaurKhorBenchmarkRunRecord,
   now = new Date().toISOString(),
 ) {
   if (!isBenchmarkRunInFlight(record.status)) {

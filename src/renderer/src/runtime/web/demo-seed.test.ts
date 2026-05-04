@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMockState } from '@/dev/browser-desktop-bridge';
 import { createBrowserDemoSeedBackup, createBrowserDemoSeedRecords } from './demo-seed';
-import { BANJI_BROWSER_DEMO_DATABASE } from './constants';
+import { KAUR_KHOR_BROWSER_DEMO_DATABASE } from './constants';
 
 describe('browser demo seed helpers', () => {
   it('builds seed records from the browser desktop bridge mock state', () => {
@@ -21,7 +21,7 @@ describe('browser demo seed helpers', () => {
   it('wraps demo seed records in a demo database backup envelope', () => {
     const backup = createBrowserDemoSeedBackup(createMockState(), '2026-05-01T00:00:00.000Z');
 
-    expect(backup.databaseName).toBe(BANJI_BROWSER_DEMO_DATABASE);
+    expect(backup.databaseName).toBe(KAUR_KHOR_BROWSER_DEMO_DATABASE);
     expect(backup.records.length).toBeGreaterThan(0);
     expect(backup.exportedAt).toBe('2026-05-01T00:00:00.000Z');
   });

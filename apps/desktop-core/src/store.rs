@@ -1,6 +1,6 @@
 use crate::benchmark;
 use anyhow::Result;
-use banji_sena_core::{
+use kaur_khor_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
     execute_analysis_run_with_parameters, trigger_analysis_run, SenaAdjustmentSignal,
     SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics,
@@ -170,9 +170,9 @@ fn page_service_detail(
 }
 
 fn db_path() -> PathBuf {
-    env::var_os("BANJI_DESKTOP_DATA_PATH")
+    env::var_os("KAUR_KHOR_DESKTOP_DATA_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| env::temp_dir().join("banji-sena.sqlite3"))
+        .unwrap_or_else(|| env::temp_dir().join("kaur-khor-sena.sqlite3"))
 }
 
 fn repository() -> Result<SqliteSenaRepository> {
@@ -578,30 +578,30 @@ fn sample_catalog() -> SenaCatalog {
 
 fn seed_sku_image_path(sku_id: &str) -> Option<&'static str> {
     match sku_id {
-        "sku-001" => Some("banji-dev-sku-001-krama-cotton-scarf.png"),
-        "sku-002" => Some("banji-dev-sku-002-silk-sampot-skirt.png"),
-        "sku-003" => Some("banji-dev-sku-003-linen-sarong-pants.png"),
-        "sku-004" => Some("banji-dev-sku-004-temple-white-blouse.png"),
-        "sku-005" => Some("banji-dev-sku-005-indigo-farmer-shirt.png"),
-        "sku-006" => Some("banji-dev-sku-006-rattan-market-tote.png"),
-        "sku-007" => Some("banji-dev-sku-007-festival-silk-shawl.png"),
-        "sku-008" => Some("banji-dev-sku-008-childrens-krama-set.png"),
-        "sku-009" => Some("banji-dev-sku-009-handwoven-belt.png"),
+        "sku-001" => Some("kaur-khor-dev-sku-001-krama-cotton-scarf.png"),
+        "sku-002" => Some("kaur-khor-dev-sku-002-silk-sampot-skirt.png"),
+        "sku-003" => Some("kaur-khor-dev-sku-003-linen-sarong-pants.png"),
+        "sku-004" => Some("kaur-khor-dev-sku-004-temple-white-blouse.png"),
+        "sku-005" => Some("kaur-khor-dev-sku-005-indigo-farmer-shirt.png"),
+        "sku-006" => Some("kaur-khor-dev-sku-006-rattan-market-tote.png"),
+        "sku-007" => Some("kaur-khor-dev-sku-007-festival-silk-shawl.png"),
+        "sku-008" => Some("kaur-khor-dev-sku-008-childrens-krama-set.png"),
+        "sku-009" => Some("kaur-khor-dev-sku-009-handwoven-belt.png"),
         _ => None,
     }
 }
 
 fn seed_service_image_path(service_id: &str) -> Option<&'static str> {
     match service_id {
-        "service-001" => Some("banji-dev-service-001-office-blouse-styling.png"),
-        "service-002" => Some("banji-dev-service-002-tourist-gift-pairing.png"),
-        "service-003" => Some("banji-dev-service-003-weekend-linen-look.png"),
-        "service-004" => Some("banji-dev-service-004-wedding-guest-edit.png"),
-        "service-005" => Some("banji-dev-service-005-market-tote-add-on.png"),
-        "service-006" => Some("banji-dev-service-006-khmer-new-year-capsule.png"),
-        "service-007" => Some("banji-dev-service-007-wedding-premium-bundle.png"),
-        "service-008" => Some("banji-dev-service-008-back-to-school-family-promo.png"),
-        "service-009" => Some("banji-dev-service-009-water-festival-streetwear-promo.png"),
+        "service-001" => Some("kaur-khor-dev-service-001-office-blouse-styling.png"),
+        "service-002" => Some("kaur-khor-dev-service-002-tourist-gift-pairing.png"),
+        "service-003" => Some("kaur-khor-dev-service-003-weekend-linen-look.png"),
+        "service-004" => Some("kaur-khor-dev-service-004-wedding-guest-edit.png"),
+        "service-005" => Some("kaur-khor-dev-service-005-market-tote-add-on.png"),
+        "service-006" => Some("kaur-khor-dev-service-006-khmer-new-year-capsule.png"),
+        "service-007" => Some("kaur-khor-dev-service-007-wedding-premium-bundle.png"),
+        "service-008" => Some("kaur-khor-dev-service-008-back-to-school-family-promo.png"),
+        "service-009" => Some("kaur-khor-dev-service-009-water-festival-streetwear-promo.png"),
         _ => None,
     }
 }
@@ -1656,7 +1656,7 @@ mod tests {
                 .iter()
                 .find(|sku| sku.sku_id == "sku-001")
                 .and_then(|sku| sku.image_path.as_deref()),
-            Some("banji-dev-sku-001-krama-cotton-scarf.png")
+            Some("kaur-khor-dev-sku-001-krama-cotton-scarf.png")
         );
         assert_eq!(
             catalog
@@ -1664,7 +1664,7 @@ mod tests {
                 .iter()
                 .find(|service| service.service_id == "service-001")
                 .and_then(|service| service.image_path.as_deref()),
-            Some("banji-dev-service-001-office-blouse-styling.png")
+            Some("kaur-khor-dev-service-001-office-blouse-styling.png")
         );
         assert_eq!(
             catalog

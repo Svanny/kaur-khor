@@ -1,5 +1,5 @@
 import { createMockState } from '@/dev/browser-desktop-bridge';
-import { BANJI_BROWSER_DEMO_DATABASE } from './constants';
+import { KAUR_KHOR_BROWSER_DEMO_DATABASE } from './constants';
 import {
   createBrowserStorageBackup,
   type BrowserStorageDocumentRecord,
@@ -47,7 +47,7 @@ export function createBrowserDemoSeedBackup(
   seededAt = new Date().toISOString(),
 ): BrowserStorageJsonBackup {
   return createBrowserStorageBackup(
-    BANJI_BROWSER_DEMO_DATABASE,
+    KAUR_KHOR_BROWSER_DEMO_DATABASE,
     createBrowserDemoSeedRecords(state, seededAt),
     seededAt,
   );

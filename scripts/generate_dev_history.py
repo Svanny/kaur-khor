@@ -909,7 +909,7 @@ def start_desktop_core(repo_root: Path, db_path: Path) -> subprocess.Popen[str]:
     return subprocess.Popen(
         ["cargo", "run", "--quiet", "--manifest-path", str(repo_root / "apps/desktop-core/Cargo.toml")],
         cwd=repo_root,
-        env={**os.environ, "BANJI_DESKTOP_DATA_PATH": str(db_path)},
+        env={**os.environ, "KAUR_KHOR_DESKTOP_DATA_PATH": str(db_path)},
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -949,7 +949,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-001",
                 "name": "Phnom Penh Krama Scarf",
                 "description": "Soft cotton scarf for everyday market shelves and gift wraps.",
-                "imagePath": "banji-dev-sku-001-phnom-penh-krama-scarf.png",
+                "imagePath": "kaur-khor-dev-sku-001-phnom-penh-krama-scarf.png",
                 "supplierName": "Mekong Loom House",
                 "costPerUnit": 8.5,
                 "archived": False,
@@ -962,7 +962,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-002",
                 "name": "Siem Reap Rattan Tote",
                 "description": "Handwoven tote for market days, errands, and picnic packs.",
-                "imagePath": "banji-dev-sku-002-siem-reap-rattan-tote.png",
+                "imagePath": "kaur-khor-dev-sku-002-siem-reap-rattan-tote.png",
                 "supplierName": "Siem Reap Rattan",
                 "costPerUnit": 18.0,
                 "archived": False,
@@ -975,7 +975,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-003",
                 "name": "Kampot Pepper Gift Tin",
                 "description": "Premium pepper tin for tasting sets and travel gifts.",
-                "imagePath": "banji-dev-sku-003-kampot-pepper-gift-tin.png",
+                "imagePath": "kaur-khor-dev-sku-003-kampot-pepper-gift-tin.png",
                 "supplierName": "Kampot Spice Co-op",
                 "costPerUnit": 6.75,
                 "archived": False,
@@ -988,7 +988,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-004",
                 "name": "Lotus Silk Hair Ribbon",
                 "description": "Lotus-pink silk ribbon for styling kits and counter displays.",
-                "imagePath": "banji-dev-sku-004-lotus-silk-hair-ribbon.png",
+                "imagePath": "kaur-khor-dev-sku-004-lotus-silk-hair-ribbon.png",
                 "supplierName": "Phnom Silk Collective",
                 "costPerUnit": 5.25,
                 "archived": False,
@@ -1001,7 +1001,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-005",
                 "name": "Tonle Sap Palm Sugar Jar",
                 "description": "Amber palm sugar jar for tea pairings and pantry bundles.",
-                "imagePath": "banji-dev-sku-005-tonle-sap-palm-sugar-jar.png",
+                "imagePath": "kaur-khor-dev-sku-005-tonle-sap-palm-sugar-jar.png",
                 "supplierName": "Tonle Sap Pantry",
                 "costPerUnit": 4.0,
                 "archived": False,
@@ -1014,7 +1014,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-006",
                 "name": "Angkor Market Notebook",
                 "description": "Handmade notebook for stamp kits and visitor counter baskets.",
-                "imagePath": "banji-dev-sku-006-angkor-market-notebook.png",
+                "imagePath": "kaur-khor-dev-sku-006-angkor-market-notebook.png",
                 "supplierName": "Angkor Paper Studio",
                 "costPerUnit": 3.8,
                 "archived": False,
@@ -1027,7 +1027,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-007",
                 "name": "Battambang Rice Pouch",
                 "description": "Small rice pouch for pantry starter bundles and shelf displays.",
-                "imagePath": "banji-dev-sku-007-battambang-rice-pouch.png",
+                "imagePath": "kaur-khor-dev-sku-007-battambang-rice-pouch.png",
                 "supplierName": "Battambang Rice Mill",
                 "costPerUnit": 2.4,
                 "archived": False,
@@ -1040,7 +1040,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-008",
                 "name": "Mekong Blue Ceramic Cup",
                 "description": "Blue glazed cup for coffee sets and gift table edits.",
-                "imagePath": "banji-dev-sku-008-mekong-blue-ceramic-cup.png",
+                "imagePath": "kaur-khor-dev-sku-008-mekong-blue-ceramic-cup.png",
                 "supplierName": "Mekong Clay Works",
                 "costPerUnit": 7.25,
                 "archived": False,
@@ -1053,7 +1053,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-009",
                 "name": "Kampong Speu Honey Bottle",
                 "description": "Golden honey bottle for breakfast bundles and checkout shelves.",
-                "imagePath": "banji-dev-sku-009-kampong-speu-honey-bottle.png",
+                "imagePath": "kaur-khor-dev-sku-009-kampong-speu-honey-bottle.png",
                 "supplierName": "Kampong Speu Honey",
                 "costPerUnit": 5.5,
                 "archived": False,
@@ -1066,7 +1066,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "skuId": "sku-010",
                 "name": "Water Festival Candle Set",
                 "description": "Hand-poured candle set for seasonal table displays.",
-                "imagePath": "banji-dev-sku-010-water-festival-candle-set.png",
+                "imagePath": "kaur-khor-dev-sku-010-water-festival-candle-set.png",
                 "supplierName": "Chaktomuk Candle Studio",
                 "costPerUnit": 6.6,
                 "archived": False,
@@ -1081,7 +1081,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-001",
                 "name": "Krama Gift Wrap",
                 "description": "Gift wrap flow that pairs a krama with small retail goods.",
-                "imagePath": "banji-dev-service-001-krama-gift-wrap.png",
+                "imagePath": "kaur-khor-dev-service-001-krama-gift-wrap.png",
                 "price": 9.0,
                 "archived": False,
                 "bundle": False,
@@ -1090,7 +1090,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-002",
                 "name": "Rattan Picnic Pack",
                 "description": "Tote-led pack for weekend outings and market-day add-ons.",
-                "imagePath": "banji-dev-service-002-rattan-picnic-pack.png",
+                "imagePath": "kaur-khor-dev-service-002-rattan-picnic-pack.png",
                 "price": 52.0,
                 "archived": False,
                 "bundle": True,
@@ -1099,7 +1099,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-003",
                 "name": "Pepper Tasting Set",
                 "description": "Small counter set built around Kampot pepper samples.",
-                "imagePath": "banji-dev-service-003-pepper-tasting-set.png",
+                "imagePath": "kaur-khor-dev-service-003-pepper-tasting-set.png",
                 "price": 24.0,
                 "archived": False,
                 "bundle": False,
@@ -1108,7 +1108,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-004",
                 "name": "Silk Ribbon Styling Kit",
                 "description": "Ribbon styling kit for quick gifting and accessory displays.",
-                "imagePath": "banji-dev-service-004-silk-ribbon-styling-kit.png",
+                "imagePath": "kaur-khor-dev-service-004-silk-ribbon-styling-kit.png",
                 "price": 28.0,
                 "archived": False,
                 "bundle": True,
@@ -1117,7 +1117,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-005",
                 "name": "Palm Sugar Tea Pairing",
                 "description": "Tea counter pairing anchored on palm sugar jars.",
-                "imagePath": "banji-dev-service-005-palm-sugar-tea-pairing.png",
+                "imagePath": "kaur-khor-dev-service-005-palm-sugar-tea-pairing.png",
                 "price": 22.0,
                 "archived": False,
                 "bundle": True,
@@ -1126,7 +1126,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-006",
                 "name": "Notebook Custom Stamp Kit",
                 "description": "Notebook and stamp kit for personal gifting shelves.",
-                "imagePath": "banji-dev-service-006-notebook-custom-stamp-kit.png",
+                "imagePath": "kaur-khor-dev-service-006-notebook-custom-stamp-kit.png",
                 "price": 20.0,
                 "archived": False,
                 "bundle": False,
@@ -1135,7 +1135,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-007",
                 "name": "Rice Pantry Starter",
                 "description": "Pantry starter bundle for small household retail baskets.",
-                "imagePath": "banji-dev-service-007-rice-pantry-starter.png",
+                "imagePath": "kaur-khor-dev-service-007-rice-pantry-starter.png",
                 "price": 18.0,
                 "archived": False,
                 "bundle": True,
@@ -1144,7 +1144,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-008",
                 "name": "Ceramic Cup Coffee Set",
                 "description": "Coffee gift set centered on handmade blue ceramic cups.",
-                "imagePath": "banji-dev-service-008-ceramic-cup-coffee-set.png",
+                "imagePath": "kaur-khor-dev-service-008-ceramic-cup-coffee-set.png",
                 "price": 32.0,
                 "archived": False,
                 "bundle": True,
@@ -1153,7 +1153,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-009",
                 "name": "Honey Breakfast Bundle",
                 "description": "Breakfast gift bundle built around Kampong Speu honey.",
-                "imagePath": "banji-dev-service-009-honey-breakfast-bundle.png",
+                "imagePath": "kaur-khor-dev-service-009-honey-breakfast-bundle.png",
                 "price": 27.0,
                 "archived": False,
                 "bundle": True,
@@ -1162,7 +1162,7 @@ def bundled_current_sena_catalog() -> dict[str, Any]:
                 "serviceId": "service-010",
                 "name": "Festival Candle Table Set",
                 "description": "Seasonal candle table set for festive retail displays.",
-                "imagePath": "banji-dev-service-010-festival-candle-table-set.png",
+                "imagePath": "kaur-khor-dev-service-010-festival-candle-table-set.png",
                 "price": 34.0,
                 "archived": False,
                 "bundle": True,
@@ -1539,7 +1539,7 @@ def rebuild_startup_fixture_workspace(
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate plausible SENA dev history for the current Banji app schema.")
+    parser = argparse.ArgumentParser(description="Generate plausible SENA dev history for the current Kaur Khor app schema.")
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--owner", default=DEFAULT_OWNER, help="Owner id reported in the summary; desktop-core uses its default owner internally.")
     parser.add_argument("--years", type=int, default=DEFAULT_YEARS)
@@ -1553,7 +1553,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--use-bundled-dev-catalog",
         action="store_true",
-        help="Use Banji's bundled screenshot/dev catalog instead of preserving the current desktop catalog.",
+        help="Use Kaur Khor's bundled screenshot/dev catalog instead of preserving the current desktop catalog.",
     )
     parser.add_argument("--store", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--sena-db", type=Path, default=None)
@@ -1570,9 +1570,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     repo_root = args.repo_root.resolve()
-    data_dir = repo_root / ".banji-dev-data"
+    data_dir = repo_root / ".kaur-khor-dev-data"
     sena_db_path = args.sena_db or (data_dir / "desktop-sena-store.sqlite3")
     seed_marker_path = args.seed_marker or (data_dir / "desktop-sena-dev-history.json")
+    sena_db_path.parent.mkdir(parents=True, exist_ok=True)
 
     if history_marker_current(seed_marker_path, sena_db_path, args):
         print(

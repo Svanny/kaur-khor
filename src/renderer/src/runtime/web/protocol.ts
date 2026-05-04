@@ -1,11 +1,11 @@
 import type { BrowserStorageCapability } from './capability';
-import type { BanjiBrowserDatabaseName } from './constants';
+import type { KaurKhorBrowserDatabaseName } from './constants';
 import type { BrowserStorageDocumentRecord, BrowserStorageJsonBackup } from './backup';
 import type { BrowserSenaPersistState } from './sena-persistence';
 
 export type BrowserStorageInitRequest = {
   type: 'init';
-  databaseName: BanjiBrowserDatabaseName;
+  databaseName: KaurKhorBrowserDatabaseName;
 };
 
 export type BrowserStorageExportBackupRequest = {
@@ -51,7 +51,7 @@ export type BrowserStorageWorkerEnvelope = {
 };
 
 export type BrowserStorageInitResult = {
-  databaseName: BanjiBrowserDatabaseName;
+  databaseName: KaurKhorBrowserDatabaseName;
   filename: string;
   sqliteVersion: string;
   vfs: 'opfs-sahpool';

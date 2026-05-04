@@ -65,7 +65,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('stores a normalized image and returns the target path on success', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'test.png',
       data: buildPngHeader(100, 100),
@@ -90,7 +90,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('cleans up the temp file when normalization fails', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'test.jpg',
       data: buildJpegHeader(100, 100),
@@ -108,7 +108,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('stores a normalized WebP image as PNG', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'test.webp',
       data: buildWebpHeader(100, 100),
@@ -129,7 +129,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('accepts extensionless image payloads when the MIME type is supported', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'clipboard-image',
       type: 'image/png',
@@ -148,7 +148,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('rejects oversized image payloads before normalization', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'too-large.png',
       data: new ArrayBuffer((20 * 1024 * 1024) + 1),
@@ -162,7 +162,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('rejects tiny encoded images with oversized PNG dimensions before normalization', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'too-many-pixels.png',
       data: buildPngHeader(50_000, 50_000),
@@ -176,7 +176,7 @@ describe('storeDroppedImageHandler', () => {
   });
 
   it('sniffs oversized JPEG bytes labeled as PNG before normalization', async () => {
-    const assetDir = await mkdtemp(join(tmpdir(), 'banji-store-dropped-image-'));
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
       name: 'mislabeled.png',
       type: 'image/png',

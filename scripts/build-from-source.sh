@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 set -eu
 
-NODE_VERSION="${BANJI_NODE_VERSION:-22.21.1}"
-TOOLS_DIR="${BANJI_BUILD_TOOLS_DIR:-"${HOME}/.banji-build-tools"}"
+NODE_VERSION="${KAUR_KHOR_NODE_VERSION:-22.21.1}"
+TOOLS_DIR="${KAUR_KHOR_BUILD_TOOLS_DIR:-"${HOME}/.kaur-khor-build-tools"}"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 
 find_node() {
@@ -52,11 +52,11 @@ install_node() {
 
   archive_name="node-v${NODE_VERSION}-${node_platform}.tar.xz"
   archive_url="https://nodejs.org/dist/v${NODE_VERSION}/${archive_name}"
-  temp_dir="${TMPDIR:-/tmp}/banji-node-bootstrap-$$"
+  temp_dir="${TMPDIR:-/tmp}/kaur-khor-node-bootstrap-$$"
   archive_path="${temp_dir}/${archive_name}"
   mkdir -p "${temp_dir}" "${TOOLS_DIR}"
 
-  echo "Installing local Node ${NODE_VERSION} for Banji source build..." >&2
+  echo "Installing local Node ${NODE_VERSION} for Kaur Khor source build..." >&2
   download_file "${archive_url}" "${archive_path}"
   tar -xJf "${archive_path}" -C "${temp_dir}"
   rm -rf "${TOOLS_DIR}/node-v${NODE_VERSION}"

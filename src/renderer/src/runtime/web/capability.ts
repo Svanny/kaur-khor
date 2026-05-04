@@ -1,18 +1,18 @@
 import {
-  BANJI_BROWSER_APP_DATABASE,
-  BANJI_BROWSER_DEMO_DATABASE,
-  BANJI_BROWSER_PREFERRED_VFS,
-  type BanjiBrowserDatabaseName,
+  KAUR_KHOR_BROWSER_APP_DATABASE,
+  KAUR_KHOR_BROWSER_DEMO_DATABASE,
+  KAUR_KHOR_BROWSER_PREFERRED_VFS,
+  type KaurKhorBrowserDatabaseName,
 } from './constants';
 
 export type BrowserStorageCapabilityStatus = 'supported' | 'unsupported';
 
 export type BrowserStorageCapability = {
   status: BrowserStorageCapabilityStatus;
-  preferredVfs: typeof BANJI_BROWSER_PREFERRED_VFS;
+  preferredVfs: typeof KAUR_KHOR_BROWSER_PREFERRED_VFS;
   databaseNames: {
-    app: typeof BANJI_BROWSER_APP_DATABASE;
-    demo: typeof BANJI_BROWSER_DEMO_DATABASE;
+    app: typeof KAUR_KHOR_BROWSER_APP_DATABASE;
+    demo: typeof KAUR_KHOR_BROWSER_DEMO_DATABASE;
   };
   reasons: string[];
   details: {
@@ -39,8 +39,8 @@ export type BrowserStorageCapabilityOptions = {
   requireWorker?: boolean;
 };
 
-export function isBanjiBrowserDatabaseName(value: string): value is BanjiBrowserDatabaseName {
-  return value === BANJI_BROWSER_APP_DATABASE || value === BANJI_BROWSER_DEMO_DATABASE;
+export function isKaurKhorBrowserDatabaseName(value: string): value is KaurKhorBrowserDatabaseName {
+  return value === KAUR_KHOR_BROWSER_APP_DATABASE || value === KAUR_KHOR_BROWSER_DEMO_DATABASE;
 }
 
 export function detectBrowserStorageCapability(
@@ -71,10 +71,10 @@ export function detectBrowserStorageCapability(
 
   return {
     status: reasons.length === 0 ? 'supported' : 'unsupported',
-    preferredVfs: BANJI_BROWSER_PREFERRED_VFS,
+    preferredVfs: KAUR_KHOR_BROWSER_PREFERRED_VFS,
     databaseNames: {
-      app: BANJI_BROWSER_APP_DATABASE,
-      demo: BANJI_BROWSER_DEMO_DATABASE,
+      app: KAUR_KHOR_BROWSER_APP_DATABASE,
+      demo: KAUR_KHOR_BROWSER_DEMO_DATABASE,
     },
     reasons,
     details: {

@@ -24,7 +24,7 @@ describe('desktop core host helpers', () => {
       dataFilePath: '/tmp/desktop-sena-store.sqlite3',
     });
 
-    expect(env.BANJI_DESKTOP_DATA_PATH).toBe('/tmp/desktop-sena-store.sqlite3');
+    expect(env.KAUR_KHOR_DESKTOP_DATA_PATH).toBe('/tmp/desktop-sena-store.sqlite3');
     expect(env.API_BIND_ADDR).toBeUndefined();
     expect(env.EDGE_CORS_ALLOWED_ORIGINS).toBeUndefined();
   });
@@ -41,8 +41,8 @@ describe('desktop core host helpers', () => {
   });
 
   it('prefers a bundled packaged core binary when present', () => {
-    const resourcesPath = mkdtempSync(join(tmpdir(), 'banji-packaged-core-'));
-    const binaryName = process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
+    const resourcesPath = mkdtempSync(join(tmpdir(), 'kaur-khor-packaged-core-'));
+    const binaryName = process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core';
     const packagedBinary = join(resourcesPath, 'bin', binaryName);
 
     mkdirSync(join(resourcesPath, 'bin'), { recursive: true });
@@ -59,7 +59,7 @@ describe('desktop core host helpers', () => {
   });
 
   it('ignores an invalid explicit core binary path and falls back to cargo', () => {
-    vi.stubEnv('BANJI_DESKTOP_CORE_BINARY', join(projectRoot, 'apps', 'desktop-core', 'Cargo.toml', 'missing'));
+    vi.stubEnv('KAUR_KHOR_DESKTOP_CORE_BINARY', join(projectRoot, 'apps', 'desktop-core', 'Cargo.toml', 'missing'));
 
     try {
       const commands = resolveCoreLaunchCommands(projectRoot);
@@ -74,10 +74,10 @@ describe('desktop core host helpers', () => {
   });
 
   it('prefers a valid explicit core binary path', () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), 'banji-explicit-core-'));
-    const explicitBinary = join(tmpDir, 'banji-desktop-core');
+    const tmpDir = mkdtempSync(join(tmpdir(), 'kaur-khor-explicit-core-'));
+    const explicitBinary = join(tmpDir, 'kaur-khor-desktop-core');
     writeFileSync(explicitBinary, 'stub');
-    vi.stubEnv('BANJI_DESKTOP_CORE_BINARY', explicitBinary);
+    vi.stubEnv('KAUR_KHOR_DESKTOP_CORE_BINARY', explicitBinary);
 
     try {
       const command = resolveCoreLaunchCommand(projectRoot);
@@ -93,7 +93,7 @@ describe('desktop core host helpers', () => {
   });
 
   it('uses the resources directory as the working directory in packaged builds', () => {
-    const resourcesPath = mkdtempSync(join(tmpdir(), 'banji-packaged-resources-'));
+    const resourcesPath = mkdtempSync(join(tmpdir(), 'kaur-khor-packaged-resources-'));
 
     try {
       expect(
@@ -110,7 +110,7 @@ describe('desktop core host helpers', () => {
   });
 
   it('falls back to the parent directory when projectRoot points to a file', () => {
-    const root = mkdtempSync(join(tmpdir(), 'banji-project-root-'));
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-project-root-'));
     const projectRootFile = join(root, 'app.asar');
     writeFileSync(projectRootFile, 'stub');
 

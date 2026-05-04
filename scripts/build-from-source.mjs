@@ -57,8 +57,8 @@ const cargo = await ensureCargo(target);
 
 runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot);
 
-if (process.env.BANJI_SKIP_RUST_TESTS === '1') {
-  console.log('Skipping Rust desktop-core tests because BANJI_SKIP_RUST_TESTS=1.');
+if (process.env.KAUR_KHOR_SKIP_RUST_TESTS === '1') {
+  console.log('Skipping Rust desktop-core tests because KAUR_KHOR_SKIP_RUST_TESTS=1.');
 } else {
   run(cargo, ['test', '--manifest-path', resolve(sourceRoot, 'apps/desktop-core/Cargo.toml')], {
     cwd: sourceRoot,
@@ -98,7 +98,7 @@ function parseArgs(args) {
 }
 
 function printHelp() {
-  console.log(`Banji source build
+  console.log(`Kaur Khor source build
 
 Usage:
   node scripts/build-from-source.mjs [--platform=<target>] [--resolve-only]
@@ -113,15 +113,15 @@ Targets:
 The build is native-only. Omit --platform to autodetect this computer.
 
 Environment:
-  BANJI_REPO             Source repository. Defaults to ${DEFAULT_REPO}.
-  BANJI_REF              Source ref. Defaults to ${DEFAULT_REF}.
-  BANJI_BUILD_DIR        Directory used when the script must download source.
-  BANJI_SKIP_RUST_TESTS  Set to 1 to skip desktop-core cargo tests.
+  KAUR_KHOR_REPO             Source repository. Defaults to ${DEFAULT_REPO}.
+  KAUR_KHOR_REF              Source ref. Defaults to ${DEFAULT_REF}.
+  KAUR_KHOR_BUILD_DIR        Directory used when the script must download source.
+  KAUR_KHOR_SKIP_RUST_TESTS  Set to 1 to skip desktop-core cargo tests.
 `);
 }
 
 function printWarning(targetId) {
-  console.log(`Banji source-build warning
+  console.log(`Kaur Khor source-build warning
 
 Do not run build commands from the internet unless you trust the source and understand what they do.
 This script builds ${targetId}, installs project build dependencies when they are missing, and creates an unsigned local app/package.
@@ -139,7 +139,7 @@ function resolveTarget(requestedPlatform) {
 
   if (requested !== detected.id) {
     fail(
-      `Banji source builds are native-only. This host is ${process.platform}/${process.arch} (${detected.id}), so it cannot build ${requested}. Run the script on a ${requested} computer or omit --platform.`,
+      `Kaur Khor source builds are native-only. This host is ${process.platform}/${process.arch} (${detected.id}), so it cannot build ${requested}. Run the script on a ${requested} computer or omit --platform.`,
     );
   }
 
@@ -194,12 +194,12 @@ async function resolveSourceRoot() {
     return currentRoot;
   }
 
-  const buildDir = resolve(process.env.BANJI_BUILD_DIR || join(tmpdir(), 'banji-source-build'));
-  const repo = process.env.BANJI_REPO || DEFAULT_REPO;
-  const ref = process.env.BANJI_REF || DEFAULT_REF;
+  const buildDir = resolve(process.env.KAUR_KHOR_BUILD_DIR || join(tmpdir(), 'kaur-khor-source-build'));
+  const repo = process.env.KAUR_KHOR_REPO || DEFAULT_REPO;
+  const ref = process.env.KAUR_KHOR_REF || DEFAULT_REF;
   const archiveUrl = githubArchiveUrl(repo, ref);
 
-  console.log(`Downloading Banji source from ${archiveUrl}`);
+  console.log(`Downloading Kaur Khor source from ${archiveUrl}`);
   rmSync(buildDir, { recursive: true, force: true });
   mkdirSync(buildDir, { recursive: true });
 
@@ -224,7 +224,7 @@ function findCurrentSourceRoot(start) {
     if (existsSync(packageJsonPath)) {
       try {
         const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
-        if (packageJson.name === 'banji' && existsSync(scriptPath)) {
+        if (packageJson.name === 'kaur-khor' && existsSync(scriptPath)) {
           return current;
         }
       } catch {
@@ -243,7 +243,7 @@ function findCurrentSourceRoot(start) {
 function githubArchiveUrl(repo, ref) {
   const match = repo.match(/^https:\/\/github\.com\/([^/]+)\/([^/.]+)(?:\.git)?\/?$/);
   if (!match) {
-    fail(`BANJI_REPO must be a GitHub HTTPS repository URL when source download is needed. Received: ${repo}`);
+    fail(`KAUR_KHOR_REPO must be a GitHub HTTPS repository URL when source download is needed. Received: ${repo}`);
   }
 
   const [, owner, name] = match;
@@ -253,7 +253,7 @@ function githubArchiveUrl(repo, ref) {
 
 async function download(url) {
   return new Promise((resolveDownload, rejectDownload) => {
-    const request = httpsRequest(url, { headers: { 'User-Agent': 'banji-source-build' } }, (response) => {
+    const request = httpsRequest(url, { headers: { 'User-Agent': 'kaur-khor-source-build' } }, (response) => {
       if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
         download(new URL(response.headers.location, url).toString()).then(resolveDownload, rejectDownload);
@@ -439,7 +439,7 @@ function installRustup(target) {
   const rustupTarget = RUSTUP_TARGETS[target.id];
   const executableName = target.os === 'windows' ? 'rustup-init.exe' : 'rustup-init';
   const rustupUrl = `https://static.rust-lang.org/rustup/dist/${rustupTarget}/${executableName}`;
-  const tempDir = mkdtempSync(join(tmpdir(), 'banji-rustup-'));
+  const tempDir = mkdtempSync(join(tmpdir(), 'kaur-khor-rustup-'));
   const rustupPath = join(tempDir, executableName);
 
   console.log(`Installing Rust toolchain with rustup for ${rustupTarget}...`);

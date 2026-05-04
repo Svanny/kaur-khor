@@ -23,7 +23,7 @@ describe('prepareDesktopImageUpload', () => {
   });
 
   it('keeps the original image bytes when the source is not high definition', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-desktop-image-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-desktop-image-'));
     const imagePath = join(userDataPath, 'belt.jpg');
     const originalBytes = new Uint8Array([1, 2, 3, 4]);
     await writeFile(imagePath, originalBytes);
@@ -40,7 +40,7 @@ describe('prepareDesktopImageUpload', () => {
   });
 
   it('compresses oversized high-definition images before Telegram upload', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-desktop-image-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-desktop-image-'));
     const imagePath = join(userDataPath, 'shawl.jpg');
     const originalBytes = new Uint8Array(1_600_100).fill(7);
     const resizedImage = {
@@ -67,7 +67,7 @@ describe('prepareDesktopImageUpload', () => {
   });
 
   it('normalizes WebP images to PNG for safe upload', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-desktop-image-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-desktop-image-'));
     const imagePath = join(userDataPath, 'badge.webp');
     const originalBytes = new Uint8Array(1_600_100).fill(7);
     const resizedImage = {

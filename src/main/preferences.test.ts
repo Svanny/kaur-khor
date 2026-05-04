@@ -30,7 +30,7 @@ describe('desktop preferences store', () => {
   });
 
   it('returns defaults when no file exists', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences } = await loadPreferencesModule();
 
     await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual({
@@ -80,7 +80,7 @@ describe('desktop preferences store', () => {
   });
 
   it('persists and merges preference updates', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
 
     await expect(
@@ -278,7 +278,7 @@ describe('desktop preferences store', () => {
   });
 
   it('derives interface view presets from stored visibility combinations', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const preferencesPath = join(userDataPath, 'desktop-preferences.json');
     const { loadDesktopPreferences } = await loadPreferencesModule();
 
@@ -335,7 +335,7 @@ describe('desktop preferences store', () => {
   });
 
   it('serializes concurrent preference writes so later updates merge correctly', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     let releaseFirstWrite: (() => void) | null = null;
     const firstWriteBlocked = new Promise<void>((resolve) => {
       releaseFirstWrite = resolve;
@@ -513,7 +513,7 @@ describe('desktop preferences store', () => {
   });
 
   it('normalizes invalid exchange rates back to the default', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
 
     await writeFile(
@@ -534,7 +534,7 @@ describe('desktop preferences store', () => {
   });
 
   it('round-trips and normalizes workbench tile order by lane', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
 
     await expect(
@@ -584,7 +584,7 @@ describe('desktop preferences store', () => {
   });
 
   it('treats existing preference files without onboarding metadata as already onboarded', async () => {
-    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-preferences-'));
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     await writeFile(
       join(userDataPath, 'desktop-preferences.json'),
       JSON.stringify({

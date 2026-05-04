@@ -3,21 +3,21 @@ import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { BrowserWindow, Notification, ipcMain, shell } from 'electron';
 import {
-  BANJI_BENCHMARK_SCENARIOS,
+  KAUR_KHOR_BENCHMARK_SCENARIOS,
   aggregateBenchmarkScenarioSummaries,
   benchmarkRunStatusForTargets,
   benchmarkTargetStatusCounts,
-  type BanjiBenchmarkComparison,
-  type BanjiBenchmarkComparisonMetric,
-  type BanjiBenchmarkEvent,
-  type BanjiBenchmarkFlamegraphArtifact,
-  type BanjiBenchmarkFlamegraphRequest,
-  type BanjiBenchmarkRunEvent,
-  type BanjiBenchmarkRunOptions,
-  type BanjiBenchmarkRunRecord,
-  type BanjiBenchmarkRunStatus,
-  type BanjiBenchmarkScenarioId,
-  type BanjiBenchmarkScenarioSummary,
+  type KaurKhorBenchmarkComparison,
+  type KaurKhorBenchmarkComparisonMetric,
+  type KaurKhorBenchmarkEvent,
+  type KaurKhorBenchmarkFlamegraphArtifact,
+  type KaurKhorBenchmarkFlamegraphRequest,
+  type KaurKhorBenchmarkRunEvent,
+  type KaurKhorBenchmarkRunOptions,
+  type KaurKhorBenchmarkRunRecord,
+  type KaurKhorBenchmarkRunStatus,
+  type KaurKhorBenchmarkScenarioId,
+  type KaurKhorBenchmarkScenarioSummary,
 } from '@shared/benchmark';
 import { IPC_CHANNELS } from '@shared/ipc';
 import {
@@ -34,12 +34,12 @@ const RUN_RECORD_DIRECTORY = 'gui-runs';
 const FLAMEGRAPH_DIRECTORY = 'flamegraphs';
 
 export const SCENARIO_FILE_BY_ID = Object.fromEntries(
-  BANJI_BENCHMARK_SCENARIOS.map((scenario) => [scenario.id, scenario.file]),
-) as Record<BanjiBenchmarkScenarioId, string>;
+  KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => [scenario.id, scenario.file]),
+) as Record<KaurKhorBenchmarkScenarioId, string>;
 
 type ActiveBenchmarkRun = {
   children: Set<ChildProcessWithoutNullStreams>;
-  record: BanjiBenchmarkRunRecord;
+  record: KaurKhorBenchmarkRunRecord;
   cancelled: boolean;
 };
 
@@ -81,8 +81,8 @@ export interface FlamegraphNode {
 
 interface ScenarioEventBundle {
   directory: string;
-  events: BanjiBenchmarkEvent[];
-  summary: BanjiBenchmarkScenarioSummary;
+  events: KaurKhorBenchmarkEvent[];
+  summary: KaurKhorBenchmarkScenarioSummary;
 }
 
 function boundedTail(lines: string[], nextLine: string) {
@@ -96,7 +96,7 @@ function safeRunId(runId: string) {
   return runId;
 }
 
-function summarizeMetricValue(summary: BanjiBenchmarkScenarioSummary, name: string) {
+function summarizeMetricValue(summary: KaurKhorBenchmarkScenarioSummary, name: string) {
   return summary.derivedMetrics?.[name] ?? summary.metrics?.[name]?.median ?? null;
 }
 
@@ -136,8 +136,8 @@ async function walkFiles(directory: string): Promise<string[]> {
   return files.flat();
 }
 
-function normalizeRunOptions(options: BanjiBenchmarkRunOptions): BanjiBenchmarkRunOptions {
-  const validScenarioIds = new Set(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
+function normalizeRunOptions(options: KaurKhorBenchmarkRunOptions): KaurKhorBenchmarkRunOptions {
+  const validScenarioIds = new Set(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
   const scenarios = options.scenarios.filter((scenario) => validScenarioIds.has(scenario));
   if (scenarios.length === 0) {
     throw new Error('Select at least one benchmark scenario.');
@@ -175,13 +175,13 @@ function flamegraphHue(depth: number) {
   return [203, 168, 28, 338, 252, 145][depth % 6];
 }
 
-function eventDuration(event: BanjiBenchmarkEvent) {
+function eventDuration(event: KaurKhorBenchmarkEvent) {
   return typeof event.durationMs === 'number' && Number.isFinite(event.durationMs) && event.durationMs > 0
     ? event.durationMs
     : null;
 }
 
-function eventLabel(event: BanjiBenchmarkEvent) {
+function eventLabel(event: KaurKhorBenchmarkEvent) {
   const command = event.command ? ` (${event.command})` : '';
   return `${event.layer}/${event.category}: ${event.name}${command}`;
 }
@@ -193,7 +193,7 @@ function metricNode(name: string, value: number | null | undefined): FlamegraphN
   return { name: `${name} - ${formatMs(value)}`, value };
 }
 
-function groupDurationNodes(events: BanjiBenchmarkEvent[], groupName: string, predicate: (event: BanjiBenchmarkEvent) => boolean) {
+function groupDurationNodes(events: KaurKhorBenchmarkEvent[], groupName: string, predicate: (event: KaurKhorBenchmarkEvent) => boolean) {
   const totals = new Map<string, number>();
   for (const event of events) {
     if (!predicate(event)) {
@@ -220,7 +220,7 @@ function groupDurationNodes(events: BanjiBenchmarkEvent[], groupName: string, pr
   } satisfies FlamegraphNode;
 }
 
-function observedTimelineMs(events: BanjiBenchmarkEvent[]) {
+function observedTimelineMs(events: KaurKhorBenchmarkEvent[]) {
   const firstTs = events[0]?.ts ?? 0;
   const lastTs = events.at(-1)?.ts ?? firstTs;
   return Math.max(1, lastTs - firstTs);
@@ -300,8 +300,8 @@ export function buildFlamegraphHtml({
   scenario,
 }: {
   data: FlamegraphNode;
-  record: BanjiBenchmarkRunRecord;
-  scenario: BanjiBenchmarkScenarioId;
+  record: KaurKhorBenchmarkRunRecord;
+  scenario: KaurKhorBenchmarkScenarioId;
 }) {
   const title = `${scenario} flame graph - ${record.runId}`;
   return `<!doctype html>
@@ -411,7 +411,7 @@ export function buildFlamegraphHtml({
   <main>
     <section class="meta">
       <h1>${escapeHtml(title)}</h1>
-      <p>Generated from persisted Banji benchmark events for one scope only: <strong>${escapeHtml(scenario)}</strong>. Fixture: ${escapeHtml(record.fixtureSize)}. Repeat count: ${record.repeatCount}. When repeats exist, this artifact uses the worst-case repeat by longest observed timeline.</p>
+      <p>Generated from persisted Kaur Khor benchmark events for one scope only: <strong>${escapeHtml(scenario)}</strong>. Fixture: ${escapeHtml(record.fixtureSize)}. Repeat count: ${record.repeatCount}. When repeats exist, this artifact uses the worst-case repeat by longest observed timeline.</p>
       <p>This self-contained static flame graph uses benchmark event durations and derived target metrics; it is not a sampled CPU profiler capture.</p>
     </section>
     <section class="chart-shell">
@@ -434,7 +434,7 @@ export function registerBenchmarkRunnerIpc({
   const desktopCoreBinary = join(
     projectRoot,
     'apps/desktop-core/target/debug',
-    process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core',
+    process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core',
   );
   const runRecordsDirectory = join(resultsDirectory, RUN_RECORD_DIRECTORY);
   let activeRun: ActiveBenchmarkRun | null = null;
@@ -444,18 +444,18 @@ export function registerBenchmarkRunnerIpc({
     return join(runRecordsDirectory, `${safeRunId(runId)}.json`);
   }
 
-  async function persistRecord(record: BanjiBenchmarkRunRecord) {
+  async function persistRecord(record: KaurKhorBenchmarkRunRecord) {
     await mkdir(runRecordsDirectory, { recursive: true });
     await writeFile(recordPath(record.runId), `${JSON.stringify(record, null, 2)}\n`, 'utf8');
   }
 
-  function emitRunEvent(event: BanjiBenchmarkRunEvent) {
+  function emitRunEvent(event: KaurKhorBenchmarkRunEvent) {
     for (const window of BrowserWindow.getAllWindows()) {
       window.webContents.send(IPC_CHANNELS.benchmarkRunnerEvent, event);
     }
   }
 
-  function notifyRunCompletion(record: BanjiBenchmarkRunRecord) {
+  function notifyRunCompletion(record: KaurKhorBenchmarkRunRecord) {
     if (!isBenchmarkRunTerminal(record.status) || notifiedRunIds.has(record.runId)) {
       return;
     }
@@ -479,9 +479,9 @@ export function registerBenchmarkRunnerIpc({
 
   async function setRunStatus(
     run: ActiveBenchmarkRun,
-    status: BanjiBenchmarkRunStatus,
+    status: KaurKhorBenchmarkRunStatus,
     message: string,
-    extra?: Partial<BanjiBenchmarkRunRecord>,
+    extra?: Partial<KaurKhorBenchmarkRunRecord>,
   ) {
     run.record = {
       ...run.record,
@@ -495,7 +495,7 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readRun(runId: string) {
-    const record = await readJsonFile<BanjiBenchmarkRunRecord>(recordPath(runId));
+    const record = await readJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
     if (!record) {
       return null;
     }
@@ -510,10 +510,10 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readStoredRun(runId: string) {
-    return readJsonFile<BanjiBenchmarkRunRecord>(recordPath(runId));
+    return readJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
   }
 
-  async function collectSummaries(record: BanjiBenchmarkRunRecord): Promise<BanjiBenchmarkScenarioSummary[]> {
+  async function collectSummaries(record: KaurKhorBenchmarkRunRecord): Promise<KaurKhorBenchmarkScenarioSummary[]> {
     const startedMs = new Date(record.startedAt).getTime();
     const files = await walkFiles(record.outputDirectory);
     const summaries = await Promise.all(
@@ -524,11 +524,11 @@ export function registerBenchmarkRunnerIpc({
           if (!fileStat || fileStat.mtimeMs < startedMs) {
             return null;
           }
-          return readJsonFile<BanjiBenchmarkScenarioSummary>(file);
+          return readJsonFile<KaurKhorBenchmarkScenarioSummary>(file);
         }),
     );
     const freshSummaries = summaries
-      .filter((summary): summary is BanjiBenchmarkScenarioSummary => Boolean(summary))
+      .filter((summary): summary is KaurKhorBenchmarkScenarioSummary => Boolean(summary))
       .sort((left, right) => left.generatedAt.localeCompare(right.generatedAt));
     return aggregateBenchmarkScenarioSummaries({
       runId: record.runId,
@@ -537,8 +537,8 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function collectScenarioEventBundles(
-    record: BanjiBenchmarkRunRecord,
-    scenario: BanjiBenchmarkScenarioId,
+    record: KaurKhorBenchmarkRunRecord,
+    scenario: KaurKhorBenchmarkScenarioId,
   ): Promise<ScenarioEventBundle[]> {
     if (!record.scenarios.includes(scenario)) {
       throw new Error(`Benchmark run ${record.runId} did not include ${scenario}.`);
@@ -553,7 +553,7 @@ export function registerBenchmarkRunnerIpc({
         if (!fileStat || fileStat.mtimeMs < startedMs || fileStat.mtimeMs > completedMs + 120_000) {
           return null;
         }
-        const summary = await readJsonFile<BanjiBenchmarkScenarioSummary>(summaryFile);
+        const summary = await readJsonFile<KaurKhorBenchmarkScenarioSummary>(summaryFile);
         if (!summary || summary.scenario !== scenario) {
           return null;
         }
@@ -563,8 +563,8 @@ export function registerBenchmarkRunnerIpc({
           .filter((entry) => entry === 'core-events.jsonl' || /^core-events-.+\.jsonl$/.test(entry))
           .map((entry) => join(directory, entry));
         const [rendererEvents, ...coreEventStreams] = await Promise.all([
-          readJsonlFile<BanjiBenchmarkEvent>(join(directory, 'events.jsonl')),
-          ...coreEventFiles.map((file) => readJsonlFile<BanjiBenchmarkEvent>(file)),
+          readJsonlFile<KaurKhorBenchmarkEvent>(join(directory, 'events.jsonl')),
+          ...coreEventFiles.map((file) => readJsonlFile<KaurKhorBenchmarkEvent>(file)),
         ]);
         const coreEvents = coreEventStreams.flat();
         const events = [...rendererEvents, ...coreEvents].sort((left, right) => left.ts - right.ts);
@@ -580,8 +580,8 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function generateFlamegraphArtifact(
-    payload: BanjiBenchmarkFlamegraphRequest,
-  ): Promise<BanjiBenchmarkFlamegraphArtifact> {
+    payload: KaurKhorBenchmarkFlamegraphRequest,
+  ): Promise<KaurKhorBenchmarkFlamegraphArtifact> {
     const run = await readRun(payload.runId);
     if (!run) {
       throw new Error('Benchmark run not found.');
@@ -590,7 +590,7 @@ export function registerBenchmarkRunnerIpc({
       throw new Error('Wait for the benchmark run to finish before generating a flame graph.');
     }
     const scenario = payload.scenario;
-    if (!BANJI_BENCHMARK_SCENARIOS.some((entry) => entry.id === scenario)) {
+    if (!KAUR_KHOR_BENCHMARK_SCENARIOS.some((entry) => entry.id === scenario)) {
       throw new Error('Choose a single benchmark scope before generating a flame graph.');
     }
     const bundles = await collectScenarioEventBundles(run, scenario);
@@ -682,7 +682,7 @@ export function registerBenchmarkRunnerIpc({
 
   async function spawnScenarioRepeat(
     run: ActiveBenchmarkRun,
-    scenario: BanjiBenchmarkScenarioId,
+    scenario: KaurKhorBenchmarkScenarioId,
     repeatIndex: number,
     env: NodeJS.ProcessEnv,
   ) {
@@ -699,12 +699,12 @@ export function registerBenchmarkRunnerIpc({
     await mkdir(artifactsDirectory, { recursive: true });
     const repeatEnv = {
       ...env,
-      BANJI_BENCHMARK_REPEAT_INDEX: String(repeatIndex),
-      BANJI_BENCHMARK_PLAYWRIGHT_REPORT: join(
+      KAUR_KHOR_BENCHMARK_REPEAT_INDEX: String(repeatIndex),
+      KAUR_KHOR_BENCHMARK_PLAYWRIGHT_REPORT: join(
         reportDirectory,
         `${run.record.runId}-${scenario}-repeat-${repeatIndex + 1}.json`,
       ),
-      BANJI_BENCHMARK_PLAYWRIGHT_ARTIFACTS_DIR: artifactsDirectory,
+      KAUR_KHOR_BENCHMARK_PLAYWRIGHT_ARTIFACTS_DIR: artifactsDirectory,
     };
 
     await spawnStep(
@@ -727,17 +727,17 @@ export function registerBenchmarkRunnerIpc({
     });
   }
 
-  async function runBenchmark(record: BanjiBenchmarkRunRecord) {
+  async function runBenchmark(record: KaurKhorBenchmarkRunRecord) {
     if (!activeRun || activeRun.record.runId !== record.runId) {
       return;
     }
     const run = activeRun;
     const env = {
       ...process.env,
-      BANJI_DESKTOP_CORE_BINARY: process.env.BANJI_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
-      BANJI_BENCHMARK_OUTPUT_DIR: record.outputDirectory,
-      BANJI_BENCHMARK_TRACE: record.traceEnabled ? '1' : '0',
-      BANJI_BENCHMARK_FIXTURE_SIZE: record.fixtureSize,
+      KAUR_KHOR_DESKTOP_CORE_BINARY: process.env.KAUR_KHOR_DESKTOP_CORE_BINARY ?? desktopCoreBinary,
+      KAUR_KHOR_BENCHMARK_OUTPUT_DIR: record.outputDirectory,
+      KAUR_KHOR_BENCHMARK_TRACE: record.traceEnabled ? '1' : '0',
+      KAUR_KHOR_BENCHMARK_FIXTURE_SIZE: record.fixtureSize,
     };
 
     try {
@@ -810,7 +810,7 @@ export function registerBenchmarkRunnerIpc({
       entries
         .filter((entry) => entry.endsWith('.json'))
         .map(async (entry) => {
-          const record = await readJsonFile<BanjiBenchmarkRunRecord>(join(runRecordsDirectory, entry));
+          const record = await readJsonFile<KaurKhorBenchmarkRunRecord>(join(runRecordsDirectory, entry));
           if (!record) {
             return null;
           }
@@ -825,7 +825,7 @@ export function registerBenchmarkRunnerIpc({
         }),
     );
     return runs
-      .filter((run): run is BanjiBenchmarkRunRecord => Boolean(run))
+      .filter((run): run is KaurKhorBenchmarkRunRecord => Boolean(run))
       .sort((left, right) => right.startedAt.localeCompare(left.startedAt));
   });
 
@@ -833,7 +833,7 @@ export function registerBenchmarkRunnerIpc({
     readRun(runId),
   );
 
-  ipcMain.handle(IPC_CHANNELS.benchmarkRunnerStartRun, async (_event, options: BanjiBenchmarkRunOptions) => {
+  ipcMain.handle(IPC_CHANNELS.benchmarkRunnerStartRun, async (_event, options: KaurKhorBenchmarkRunOptions) => {
     if (appIsPackaged) {
       throw new Error('Benchmark runner is disabled in packaged builds.');
     }
@@ -844,7 +844,7 @@ export function registerBenchmarkRunnerIpc({
     const normalizedOptions = normalizeRunOptions(options);
     const runId = `gui-${Date.now()}`;
     const outputDirectory = benchmarkOutputDirectoryForRun(resultsDirectory, runId);
-    const record: BanjiBenchmarkRunRecord = {
+    const record: KaurKhorBenchmarkRunRecord = {
       runId,
       scenarios: normalizedOptions.scenarios,
       status: 'queued',
@@ -914,7 +914,7 @@ export function registerBenchmarkRunnerIpc({
       }
     }
 
-    function valueFor(run: BanjiBenchmarkRunRecord, metricName: string) {
+    function valueFor(run: KaurKhorBenchmarkRunRecord, metricName: string) {
       for (const summary of run.summaries) {
         const value = summarizeMetricValue(summary, metricName);
         if (value != null) {
@@ -924,7 +924,7 @@ export function registerBenchmarkRunnerIpc({
       return null;
     }
 
-    const metrics: BanjiBenchmarkComparisonMetric[] = [...metricNames].sort().map((metricName) => {
+    const metrics: KaurKhorBenchmarkComparisonMetric[] = [...metricNames].sort().map((metricName) => {
       const baselineValue = valueFor(baseline, metricName);
       const candidateValue = valueFor(candidate, metricName);
       if (baselineValue == null || candidateValue == null) {
@@ -953,10 +953,10 @@ export function registerBenchmarkRunnerIpc({
       baselineRunId: baseline.runId,
       candidateRunId: candidate.runId,
       metrics,
-    } satisfies BanjiBenchmarkComparison;
+    } satisfies KaurKhorBenchmarkComparison;
   });
 
-  ipcMain.handle(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, async (_event, payload: BanjiBenchmarkFlamegraphRequest) =>
+  ipcMain.handle(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, async (_event, payload: KaurKhorBenchmarkFlamegraphRequest) =>
     generateFlamegraphArtifact(payload),
   );
 

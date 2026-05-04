@@ -338,23 +338,23 @@ impl SenaRepository for SqliteSenaStore {
 }
 
 pub fn default_store_path() -> PathBuf {
-    if let Ok(path) = env::var("BANJI_SENA_DATA_PATH") {
+    if let Ok(path) = env::var("KAUR_KHOR_SENA_DATA_PATH") {
         return PathBuf::from(path);
     }
-    if let Ok(path) = env::var("BANJI_DESKTOP_DATA_PATH") {
+    if let Ok(path) = env::var("KAUR_KHOR_DESKTOP_DATA_PATH") {
         return PathBuf::from(path);
     }
-    env::temp_dir().join("banji-sena-store.sqlite3")
+    env::temp_dir().join("kaur-khor-sena-store.sqlite3")
 }
 
 fn artifact_dir_for_store_path(path: &Path) -> PathBuf {
-    if let Ok(value) = env::var("BANJI_SENA_ARTIFACT_DIR") {
+    if let Ok(value) = env::var("KAUR_KHOR_SENA_ARTIFACT_DIR") {
         return PathBuf::from(value);
     }
     let stem = path
         .file_stem()
         .and_then(|stem| stem.to_str())
-        .unwrap_or("banji-sena-store");
+        .unwrap_or("kaur-khor-sena-store");
     path.with_file_name(format!("{stem}-artifacts"))
 }
 

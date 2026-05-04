@@ -13,22 +13,22 @@ fn truthy_env(name: &str) -> bool {
 }
 
 pub fn enabled() -> bool {
-    truthy_env("BANJI_BENCHMARK")
+    truthy_env("KAUR_KHOR_BENCHMARK")
 }
 
 fn run_id() -> String {
-    env::var("BANJI_BENCHMARK_RUN_ID").unwrap_or_else(|_| "core-local".to_string())
+    env::var("KAUR_KHOR_BENCHMARK_RUN_ID").unwrap_or_else(|_| "core-local".to_string())
 }
 
 fn output_dir() -> PathBuf {
-    env::var("BANJI_BENCHMARK_OUTPUT_DIR")
+    env::var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|_| PathBuf::from("bench-results").join(run_id()))
 }
 
 fn event_file_name() -> String {
-    let role = env::var("BANJI_CORE_WORKER_ROLE").unwrap_or_else(|_| "core".to_string());
-    let index = env::var("BANJI_CORE_WORKER_INDEX").unwrap_or_else(|_| "0".to_string());
+    let role = env::var("KAUR_KHOR_CORE_WORKER_ROLE").unwrap_or_else(|_| "core".to_string());
+    let index = env::var("KAUR_KHOR_CORE_WORKER_INDEX").unwrap_or_else(|_| "0".to_string());
     format!("core-events-{role}-{index}-{}.jsonl", std::process::id())
 }
 
@@ -196,17 +196,17 @@ mod tests {
 
     fn temp_output_dir(name: &str) -> PathBuf {
         env::temp_dir().join(format!(
-            "banji-desktop-core-benchmark-{name}-{}",
+            "kaur-khor-desktop-core-benchmark-{name}-{}",
             std::process::id()
         ))
     }
 
     fn reset_benchmark_env() {
-        env::remove_var("BANJI_BENCHMARK");
-        env::remove_var("BANJI_BENCHMARK_RUN_ID");
-        env::remove_var("BANJI_BENCHMARK_OUTPUT_DIR");
-        env::remove_var("BANJI_CORE_WORKER_ROLE");
-        env::remove_var("BANJI_CORE_WORKER_INDEX");
+        env::remove_var("KAUR_KHOR_BENCHMARK");
+        env::remove_var("KAUR_KHOR_BENCHMARK_RUN_ID");
+        env::remove_var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR");
+        env::remove_var("KAUR_KHOR_CORE_WORKER_ROLE");
+        env::remove_var("KAUR_KHOR_CORE_WORKER_INDEX");
     }
 
     #[test]
@@ -215,11 +215,11 @@ mod tests {
         reset_benchmark_env();
         let output = temp_output_dir("duration");
         let _ = fs::remove_dir_all(&output);
-        env::set_var("BANJI_BENCHMARK", "1");
-        env::set_var("BANJI_BENCHMARK_RUN_ID", "test-run");
-        env::set_var("BANJI_BENCHMARK_OUTPUT_DIR", &output);
-        env::set_var("BANJI_CORE_WORKER_ROLE", "read");
-        env::set_var("BANJI_CORE_WORKER_INDEX", "2");
+        env::set_var("KAUR_KHOR_BENCHMARK", "1");
+        env::set_var("KAUR_KHOR_BENCHMARK_RUN_ID", "test-run");
+        env::set_var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR", &output);
+        env::set_var("KAUR_KHOR_CORE_WORKER_ROLE", "read");
+        env::set_var("KAUR_KHOR_CORE_WORKER_INDEX", "2");
 
         record_duration(
             "core.test.duration",
@@ -253,7 +253,7 @@ mod tests {
         reset_benchmark_env();
         let output = temp_output_dir("disabled");
         let _ = fs::remove_dir_all(&output);
-        env::set_var("BANJI_BENCHMARK_OUTPUT_DIR", &output);
+        env::set_var("KAUR_KHOR_BENCHMARK_OUTPUT_DIR", &output);
 
         record_instant("core.test.instant", None, json!({ "ok": true }));
 

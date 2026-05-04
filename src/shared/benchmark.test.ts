@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  BANJI_BENCHMARK_SCENARIOS,
-  BANJI_BENCHMARK_TARGETS,
+  KAUR_KHOR_BENCHMARK_SCENARIOS,
+  KAUR_KHOR_BENCHMARK_TARGETS,
   aggregateBenchmarkScenarioSummaries,
   benchmarkRunStatusForTargets,
   benchmarkTargetStatusCounts,
@@ -9,11 +9,11 @@ import {
   classifyBenchmarkTarget,
   evaluateBenchmarkTargets,
   summarizeBenchmarkDistribution,
-  type BanjiBenchmarkScenarioSummary,
+  type KaurKhorBenchmarkScenarioSummary,
 } from './benchmark';
 
 describe('benchmark targets', () => {
-  const startupTarget = BANJI_BENCHMARK_TARGETS.find(
+  const startupTarget = KAUR_KHOR_BENCHMARK_TARGETS.find(
     (target) => target.metricName === 'startup.app_to_workspace_ready_ms',
   );
 
@@ -45,11 +45,11 @@ describe('benchmark targets', () => {
   });
 
   it('registers minimal workspace scenarios and removes stale task drawer targets', () => {
-    expect(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('work');
-    expect(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('capture');
-    expect(BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).not.toContain('automations');
-    expect(BANJI_BENCHMARK_TARGETS.some((target) => target.metricName === 'interaction.open_task_drawer_ms')).toBe(false);
-    expect(BANJI_BENCHMARK_TARGETS.some((target) => target.metricName === 'interaction.open_automation_intake_drawer_ms')).toBe(false);
+    expect(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('work');
+    expect(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).toContain('capture');
+    expect(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id)).not.toContain('automations');
+    expect(KAUR_KHOR_BENCHMARK_TARGETS.some((target) => target.metricName === 'interaction.open_task_drawer_ms')).toBe(false);
+    expect(KAUR_KHOR_BENCHMARK_TARGETS.some((target) => target.metricName === 'interaction.open_automation_intake_drawer_ms')).toBe(false);
   });
 
   it('evaluates scenario targets with stable metadata', () => {
@@ -120,7 +120,7 @@ describe('benchmark targets', () => {
   });
 
   it('aggregates repeat scenario summaries into per-target distributions', () => {
-    const summary = (value: number): BanjiBenchmarkScenarioSummary => ({
+    const summary = (value: number): KaurKhorBenchmarkScenarioSummary => ({
       scenario: 'startup',
       runId: `repeat-${value}`,
       generatedAt: `2026-04-18T16:32:${value}.000Z`,
@@ -162,7 +162,7 @@ describe('benchmark targets', () => {
   });
 
   it('derives run warning status from watch targets without treating them as passed', () => {
-    const summaries: BanjiBenchmarkScenarioSummary[] = [
+    const summaries: KaurKhorBenchmarkScenarioSummary[] = [
       {
         scenario: 'startup',
         runId: 'run-1',
@@ -200,7 +200,7 @@ describe('benchmark targets', () => {
   });
 
   it('fails benchmark status when a requested scenario summary is missing', () => {
-    const summaries: BanjiBenchmarkScenarioSummary[] = [
+    const summaries: KaurKhorBenchmarkScenarioSummary[] = [
       {
         scenario: 'startup',
         runId: 'run-1',
@@ -229,7 +229,7 @@ describe('benchmark targets', () => {
   });
 
   it('fails benchmark status when a collected summary has zero targets', () => {
-    const summaries: BanjiBenchmarkScenarioSummary[] = [
+    const summaries: KaurKhorBenchmarkScenarioSummary[] = [
       {
         scenario: 'startup',
         runId: 'run-1',

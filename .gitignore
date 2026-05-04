@@ -48,7 +48,7 @@ tree_dir.txt
 /.pnpm-store/
 /.playwright/
 /.playwright-cli/
-.banji-dev-data/
+.kaur-khor-dev-data/
 .env.local
 .env.*.local
 config/env/*.local

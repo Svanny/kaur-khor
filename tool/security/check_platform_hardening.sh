@@ -38,7 +38,7 @@ else
   fail "Electron renderer must keep Node integration disabled"
 fi
 
-if grep -q "contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge)" "$PRELOAD_ENTRY"; then
+if grep -q "contextBridge.exposeInMainWorld('kaurKhorDesktop', desktopBridge)" "$PRELOAD_ENTRY"; then
   pass "Preload exposes the audited desktop bridge"
 else
   fail "Preload must expose the audited desktop bridge"

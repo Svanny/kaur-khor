@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from 'vitest';
-import type { BanjiBenchmarkRunRecord } from '@shared/benchmark';
+import type { KaurKhorBenchmarkRunRecord } from '@shared/benchmark';
 import {
   benchmarkRunCompletionNotification,
   cancelBenchmarkRunRecord,
@@ -10,7 +10,7 @@ import {
   reconcileBenchmarkRunRecord,
 } from './benchmark-runner-state';
 
-function benchmarkRunRecord(overrides: Partial<BanjiBenchmarkRunRecord> = {}): BanjiBenchmarkRunRecord {
+function benchmarkRunRecord(overrides: Partial<KaurKhorBenchmarkRunRecord> = {}): KaurKhorBenchmarkRunRecord {
   return {
     runId: 'gui-1',
     scenarios: ['startup'],
@@ -21,7 +21,7 @@ function benchmarkRunRecord(overrides: Partial<BanjiBenchmarkRunRecord> = {}): B
     traceEnabled: false,
     repeatCount: 1,
     buildBeforeRun: true,
-    outputDirectory: '/tmp/banji/bench-results',
+    outputDirectory: '/tmp/kaur-khor/bench-results',
     exitCode: null,
     summaries: [],
     stdoutTail: [],

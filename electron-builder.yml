@@ -1,5 +1,5 @@
-appId: com.svanny.banji
-productName: banji
+appId: com.svanny.kaur-khor
+productName: KAUR KHOR
 copyright: Copyright © 2026 Svanny
 
 directories:
@@ -25,7 +25,7 @@ mac:
   target:
     - dmg
   category: public.app-category.business
-  icon: resources/mac/banji.icns
+  icon: resources/mac/kaur-khor.icns
 
 win:
   target:

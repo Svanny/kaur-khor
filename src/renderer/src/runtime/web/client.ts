@@ -1,5 +1,5 @@
 import { detectBrowserStorageCapability, type BrowserStorageCapability } from './capability';
-import { BANJI_BROWSER_APP_DATABASE, type BanjiBrowserDatabaseName } from './constants';
+import { KAUR_KHOR_BROWSER_APP_DATABASE, type KaurKhorBrowserDatabaseName } from './constants';
 import type { BrowserStorageDocumentRecord, BrowserStorageJsonBackup } from './backup';
 import { createBrowserDemoSeedBackup } from './demo-seed';
 import type {
@@ -38,7 +38,7 @@ export type BrowserStorageSupportedHandle = {
 export type BrowserStorageHandle = BrowserStorageUnsupportedHandle | BrowserStorageSupportedHandle;
 
 export type OpenBrowserStorageOptions = {
-  databaseName?: BanjiBrowserDatabaseName;
+  databaseName?: KaurKhorBrowserDatabaseName;
   workerFactory?: () => Worker;
 };
 
@@ -159,7 +159,7 @@ class BrowserStorageClient implements BrowserStorageSupportedHandle {
 function createDefaultWorker(): Worker {
   return new Worker(new URL('./sqlite-worker.ts', import.meta.url), {
     type: 'module',
-    name: 'banji-browser-storage',
+    name: 'kaur-khor-browser-storage',
   });
 }
 
@@ -175,8 +175,8 @@ export async function openBrowserStorage(
   const bootstrap = new BrowserStorageClient(
     capability,
     {
-      databaseName: options.databaseName ?? BANJI_BROWSER_APP_DATABASE,
-      filename: options.databaseName ?? BANJI_BROWSER_APP_DATABASE,
+      databaseName: options.databaseName ?? KAUR_KHOR_BROWSER_APP_DATABASE,
+      filename: options.databaseName ?? KAUR_KHOR_BROWSER_APP_DATABASE,
       sqliteVersion: 'pending',
       vfs: 'opfs-sahpool',
     },
@@ -186,7 +186,7 @@ export async function openBrowserStorage(
   try {
     const response = await bootstrap.request({
       type: 'init',
-      databaseName: options.databaseName ?? BANJI_BROWSER_APP_DATABASE,
+      databaseName: options.databaseName ?? KAUR_KHOR_BROWSER_APP_DATABASE,
     });
     if (response.type !== 'init') {
       throw new Error('Unexpected init response.');

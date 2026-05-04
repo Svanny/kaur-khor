@@ -97,7 +97,7 @@ import type {
   SenaUpdateOrderChildPayload,
   SenaWorkspaceSummary,
 } from '@shared/sena';
-import { summarizeBenchmarkPayload, type BanjiBenchmarkCategory } from '@shared/benchmark';
+import { summarizeBenchmarkPayload, type KaurKhorBenchmarkCategory } from '@shared/benchmark';
 import {
   benchmarkEventCount,
   recordBenchmarkEvent,
@@ -131,9 +131,9 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = join(__dirname, '../..');
 const iconAssets = macIconAssets(projectRoot);
-const configuredDesktopDataPath = process.env.BANJI_BENCHMARK_DATA_DIR?.trim()
-  || process.env.BANJI_DESKTOP_DATA_DIR?.trim();
-const benchmarkWindowBackgroundMode = process.env.BANJI_BENCHMARK_BACKGROUND === '1';
+const configuredDesktopDataPath = process.env.KAUR_KHOR_BENCHMARK_DATA_DIR?.trim()
+  || process.env.KAUR_KHOR_DESKTOP_DATA_DIR?.trim();
+const benchmarkWindowBackgroundMode = process.env.KAUR_KHOR_BENCHMARK_BACKGROUND === '1';
 const shouldUseInactiveMacDevWindowLaunch = shouldPrepareInactiveMacDevWindowLaunch({
   benchmarkWindowBackgroundMode,
   isPackaged: app.isPackaged,
@@ -148,7 +148,7 @@ prepareInactiveMacDevWindowLaunch({
 
 const desktopDataPath = app.isPackaged
   ? app.getPath('userData')
-  : configuredDesktopDataPath || join(projectRoot, '.banji-dev-data');
+  : configuredDesktopDataPath || join(projectRoot, '.kaur-khor-dev-data');
 
 if (!app.isPackaged && configuredDesktopDataPath) {
   app.setPath('userData', configuredDesktopDataPath);
@@ -160,7 +160,7 @@ const SENA_READ_CACHE_FILENAME = 'desktop-sena-read-cache.json';
 const SENA_READ_CACHE_SCHEMA_VERSION = 1;
 const SENA_READ_CACHE_MAX_PERSISTED_ENTRY_BYTES = 512_000;
 const DESKTOP_ASSET_DIRECTORY = 'assets';
-const DESKTOP_ASSET_PROTOCOL = 'banji-asset';
+const DESKTOP_ASSET_PROTOCOL = 'kaur-khor-asset';
 const DESKTOP_ASSET_HOST = 'local';
 const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -188,10 +188,10 @@ if (!app.isPackaged) {
 const LONG_RUNNING_CORE_TIMEOUT_MS = 180_000;
 const SENA_READ_TIMEOUT_MS = 60_000;
 const SENA_READ_CACHE_PERSIST_DEBOUNCE_MS = 500;
-const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close banji and stop automations?';
-const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing banji stops Telegram listening, automation intake, and automatic checks until you open banji again.';
-const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep banji open';
-const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close banji';
+const DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE = 'Close Kaur Khor and stop automations?';
+const DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE = 'Your Telegram bot is connected and live listening. Closing Kaur Khor stops Telegram listening, automation intake, and automatic checks until you open Kaur Khor again.';
+const DESKTOP_CLOSE_AUTOMATION_CANCEL_BUTTON = 'Keep Kaur Khor open';
+const DESKTOP_CLOSE_AUTOMATION_CONFIRM_BUTTON = 'Close Kaur Khor';
 function restoreSnapshotDialogProperties(): Electron.OpenDialogOptions['properties'] {
   return process.platform === 'darwin' ? ['openFile', 'openDirectory'] : ['openDirectory'];
 }
@@ -251,7 +251,7 @@ function benchmarkIpcHandle<TArgs extends unknown[], TResult>(
 function benchmarkCacheEvent(
   name: string,
   detail?: Record<string, unknown>,
-  category: BanjiBenchmarkCategory = 'ipc',
+  category: KaurKhorBenchmarkCategory = 'ipc',
 ) {
   recordBenchmarkEvent({
     layer: 'main',
@@ -274,7 +274,7 @@ async function snapshotBeforeWorkspaceMutation(reason: string) {
 }
 
 function shouldBypassDesktopCloseAutomationWarning() {
-  return process.env.BANJI_BENCHMARK === '1';
+  return process.env.KAUR_KHOR_BENCHMARK === '1';
 }
 
 async function isDesktopTelegramAutomationLiveListening() {
@@ -366,10 +366,10 @@ async function seedAutomationBenchmarkWorkspace(
   await validateAndSaveTelegramAutomationConnection(desktopDataPath, {
     channel: 'telegram',
     status: 'disconnected',
-    botDisplayName: 'banji benchmark bot',
+    botDisplayName: 'kaur khor benchmark bot',
     botToken: 'bench-token:offline',
-    botUsername: 'banji_benchmark_bot',
-    externalLink: 'https://t.me/banji_benchmark_bot',
+    botUsername: 'kaur_khor_benchmark_bot',
+    externalLink: 'https://t.me/kaur_khor_benchmark_bot',
   });
 
   const context = await loadAutomationWorkspaceContext({
@@ -615,7 +615,7 @@ function buildRendererContentSecurityPolicy() {
     "base-uri 'self'",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    "img-src 'self' data: blob: file: banji-asset:",
+    "img-src 'self' data: blob: file: kaur-khor-asset:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
   ];
@@ -866,7 +866,7 @@ function installOptionalWindowZoomLimits(window: BrowserWindow) {
 function installPreferredWindowZoomBehavior(window: BrowserWindow) {
   const { webContents } = window;
 
-  // banji owns zoom state itself so Chromium cannot drift to a different per-origin level and then
+  // Kaur Khor owns zoom state itself so Chromium cannot drift to a different per-origin level and then
   // snap back later. Reapply the managed zoom across every lifecycle edge that can recreate or
   // reattach the renderer.
   windowZoomStates.set(window, createManagedWindowZoomState(window.getContentBounds()));
@@ -903,7 +903,7 @@ function createMainWindowWebPreferences(
     contextIsolation: true,
     nodeIntegration: false,
     sandbox: false,
-    // Seed the preferred baseline into Chromium before the first paint so banji never flashes at
+    // Seed the preferred baseline into Chromium before the first paint so Kaur Khor never flashes at
     // Electron's default 100% zoom and then snaps back out after load.
     zoomFactor: initialWindowZoomFactor(contentBounds),
   };
@@ -934,7 +934,7 @@ async function installReactDevToolsForDevelopment() {
 }
 
 function setFocusedWindowToActualSize() {
-  // banji's "Actual Size" resets the manual zoom offset while preserving automatic viewport zoom.
+  // Kaur Khor's "Actual Size" resets the manual zoom offset while preserving automatic viewport zoom.
   applyPreferredWindowZoomLevel(BrowserWindow.getFocusedWindow());
 }
 
@@ -966,7 +966,7 @@ function installApplicationMenu() {
               { role: 'unhide' },
               { type: 'separator' },
               {
-                label: 'Quit banji',
+                label: 'Quit Kaur Khor',
                 accelerator: 'CmdOrCtrl+Q',
                 click: requestDesktopQuit,
               },
@@ -979,7 +979,7 @@ function installApplicationMenu() {
       submenu: process.platform === 'darwin'
         ? [{ role: 'close' }]
         : [{
-            label: 'Quit banji',
+            label: 'Quit Kaur Khor',
             accelerator: 'CmdOrCtrl+Q',
             click: requestDesktopQuit,
           }],
@@ -1088,7 +1088,7 @@ async function createMainWindow() {
     minWidth: 720,
     minHeight: 760,
     backgroundColor: '#f2e8d8',
-    title: 'banji desktop',
+    title: 'kaur khor desktop',
     icon: process.platform === 'darwin' ? undefined : iconAssets.dockIconPath,
     show: false,
     focusable: !benchmarkWindowBackgroundMode,
@@ -1186,7 +1186,7 @@ async function boot() {
   });
   await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
-    if (process.env.BANJI_BENCHMARK_DISABLE_DEV_SEED !== '1') {
+    if (process.env.KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED !== '1') {
       const endSeed = startBenchmarkSpan({
         category: 'startup',
         name: 'main.boot.dev-seed',
@@ -1507,7 +1507,7 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
 }));
 ipcMain.handle(IPC_CHANNELS.automationTestTelegramConnection, benchmarkIpcHandle(IPC_CHANNELS.automationTestTelegramConnection, async () => {
   await ensureAutomationEnabled();
-  if (process.env.BANJI_BENCHMARK === '1') {
+  if (process.env.KAUR_KHOR_BENCHMARK === '1') {
     const [preferences, context] = await Promise.all([
       loadDesktopPreferences(desktopDataPath),
       loadAutomationWorkspaceContext({

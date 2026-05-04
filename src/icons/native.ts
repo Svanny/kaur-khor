@@ -14,7 +14,7 @@ export function macIconAssets(projectRoot: string): MacIconAssets {
     directory,
     dockIconPath: join(directory, 'icon.png'),
     retinaDockIconPath: join(directory, 'icon@2x.png'),
-    packagedIconPath: join(directory, 'banji.icns'),
+    packagedIconPath: join(directory, 'kaur-khor.icns'),
   };
 }
 

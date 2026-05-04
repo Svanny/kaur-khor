@@ -28,9 +28,9 @@ import type {
   SenaWorkspaceSummary,
 } from './sena';
 import type {
-  BanjiBenchmarkEvent,
-  BanjiBenchmarkMetadata,
-  BanjiBenchmarkRunnerBridge,
+  KaurKhorBenchmarkEvent,
+  KaurKhorBenchmarkMetadata,
+  KaurKhorBenchmarkRunnerBridge,
 } from './benchmark';
 import type {
   AutomationChannelConnection,
@@ -228,8 +228,8 @@ export interface DesktopSystemBridge {
   storeDroppedImage: (payload: DesktopStoreDroppedImagePayload) => Promise<string | null>;
 }
 
-export interface DesktopBenchmarkBridge extends BanjiBenchmarkMetadata {
-  recordEvent: (event: BanjiBenchmarkEvent) => void;
+export interface DesktopBenchmarkBridge extends KaurKhorBenchmarkMetadata {
+  recordEvent: (event: KaurKhorBenchmarkEvent) => void;
   getEventCount?: (name: string) => Promise<number>;
   waitForEventCount?: (payload: {
     name: string;
@@ -311,72 +311,72 @@ export interface DesktopAutomationBridge {
 export interface DesktopBridge {
   automation?: DesktopAutomationBridge;
   benchmark?: DesktopBenchmarkBridge;
-  benchmarkRunner?: BanjiBenchmarkRunnerBridge;
+  benchmarkRunner?: KaurKhorBenchmarkRunnerBridge;
   preferences: DesktopPreferencesBridge;
   sena: DesktopSenaBridge;
   system: DesktopSystemBridge;
 }
 
 export const IPC_CHANNELS = {
-  automationGetWorkspace: 'banji:automation:get-workspace',
-  automationSeedBenchmarkWorkspace: 'banji:automation:seed-benchmark-workspace',
-  automationGetConnection: 'banji:automation:get-connection',
-  automationSaveConnection: 'banji:automation:save-connection',
-  automationListExposureRows: 'banji:automation:list-exposure-rows',
-  automationPatchExposureRow: 'banji:automation:patch-exposure-row',
-  automationListConversations: 'banji:automation:list-conversations',
-  automationReadConversation: 'banji:automation:read-conversation',
-  automationListIntakes: 'banji:automation:list-intakes',
-  automationReadIntake: 'banji:automation:read-intake',
-  automationResolveIntake: 'banji:automation:resolve-intake',
-  automationPromoteIntake: 'banji:automation:promote-intake',
-  automationTestTelegramConnection: 'banji:automation:test-telegram-connection',
-  systemGetAppContext: 'banji:system:get-app-context',
-  systemGetLocalDataInfo: 'banji:system:get-local-data-info',
-  systemCreateBackupSnapshot: 'banji:system:create-backup-snapshot',
-  systemRestoreBackupSnapshot: 'banji:system:restore-backup-snapshot',
-  systemClearCurrentData: 'banji:system:clear-current-data',
-  systemRevealPath: 'banji:system:reveal-path',
-  systemOpenExternalUrl: 'banji:system:open-external-url',
-  systemPickAndStoreImage: 'banji:system:pick-and-store-image',
-  systemStoreDroppedImage: 'banji:system:store-dropped-image',
-  senaGetCatalog: 'banji:sena:get-catalog',
-  senaGetObservationFingerprint: 'banji:sena:get-observation-fingerprint',
-  senaGetStartupWorkspace: 'banji:sena:get-startup-workspace',
-  senaGetRecordUpdateContext: 'banji:sena:get-record-update-context',
-  senaListObservationPage: 'banji:sena:list-observation-page',
-  senaListObservations: 'banji:sena:list-observations',
-  senaListOrderBatches: 'banji:sena:list-order-batches',
-  senaUpsertCatalog: 'banji:sena:upsert-catalog',
-  senaIngestObservation: 'banji:sena:ingest-observation',
-  senaUpdateObservation: 'banji:sena:update-observation',
-  senaDeleteObservation: 'banji:sena:delete-observation',
-  senaCreateOrderBatch: 'banji:sena:create-order-batch',
-  senaUpdateOrderBatch: 'banji:sena:update-order-batch',
-  senaUpdateOrderChild: 'banji:sena:update-order-child',
-  senaSplitOrderChild: 'banji:sena:split-order-child',
-  senaTriggerRun: 'banji:sena:trigger-run',
-  senaRetryRun: 'banji:sena:retry-run',
-  senaGetWorkspaceSummary: 'banji:sena:get-workspace-summary',
-  senaGetSkuDetail: 'banji:sena:get-sku-detail',
-  senaGetDiagnostics: 'banji:sena:get-diagnostics',
-  senaGetServiceDetail: 'banji:sena:get-service-detail',
-  senaClearDetailCache: 'banji:sena:clear-detail-cache',
-  senaGetRunStatus: 'banji:sena:get-run-status',
-  preferencesGet: 'banji:preferences:get',
-  preferencesSave: 'banji:preferences:save',
-  benchmarkRecordEvent: 'banji:benchmark:record-event',
-  benchmarkGetEventCount: 'banji:benchmark:get-event-count',
-  benchmarkWaitForEventCount: 'banji:benchmark:wait-for-event-count',
-  benchmarkRunnerGetAvailability: 'banji:benchmark-runner:get-availability',
-  benchmarkRunnerListRuns: 'banji:benchmark-runner:list-runs',
-  benchmarkRunnerReadRun: 'banji:benchmark-runner:read-run',
-  benchmarkRunnerStartRun: 'banji:benchmark-runner:start-run',
-  benchmarkRunnerCancelRun: 'banji:benchmark-runner:cancel-run',
-  benchmarkRunnerCompareRuns: 'banji:benchmark-runner:compare-runs',
-  benchmarkRunnerGenerateFlamegraph: 'banji:benchmark-runner:generate-flamegraph',
-  benchmarkRunnerRevealRun: 'banji:benchmark-runner:reveal-run',
-  benchmarkRunnerEvent: 'banji:benchmark-runner:event',
+  automationGetWorkspace: 'kaur-khor:automation:get-workspace',
+  automationSeedBenchmarkWorkspace: 'kaur-khor:automation:seed-benchmark-workspace',
+  automationGetConnection: 'kaur-khor:automation:get-connection',
+  automationSaveConnection: 'kaur-khor:automation:save-connection',
+  automationListExposureRows: 'kaur-khor:automation:list-exposure-rows',
+  automationPatchExposureRow: 'kaur-khor:automation:patch-exposure-row',
+  automationListConversations: 'kaur-khor:automation:list-conversations',
+  automationReadConversation: 'kaur-khor:automation:read-conversation',
+  automationListIntakes: 'kaur-khor:automation:list-intakes',
+  automationReadIntake: 'kaur-khor:automation:read-intake',
+  automationResolveIntake: 'kaur-khor:automation:resolve-intake',
+  automationPromoteIntake: 'kaur-khor:automation:promote-intake',
+  automationTestTelegramConnection: 'kaur-khor:automation:test-telegram-connection',
+  systemGetAppContext: 'kaur-khor:system:get-app-context',
+  systemGetLocalDataInfo: 'kaur-khor:system:get-local-data-info',
+  systemCreateBackupSnapshot: 'kaur-khor:system:create-backup-snapshot',
+  systemRestoreBackupSnapshot: 'kaur-khor:system:restore-backup-snapshot',
+  systemClearCurrentData: 'kaur-khor:system:clear-current-data',
+  systemRevealPath: 'kaur-khor:system:reveal-path',
+  systemOpenExternalUrl: 'kaur-khor:system:open-external-url',
+  systemPickAndStoreImage: 'kaur-khor:system:pick-and-store-image',
+  systemStoreDroppedImage: 'kaur-khor:system:store-dropped-image',
+  senaGetCatalog: 'kaur-khor:sena:get-catalog',
+  senaGetObservationFingerprint: 'kaur-khor:sena:get-observation-fingerprint',
+  senaGetStartupWorkspace: 'kaur-khor:sena:get-startup-workspace',
+  senaGetRecordUpdateContext: 'kaur-khor:sena:get-record-update-context',
+  senaListObservationPage: 'kaur-khor:sena:list-observation-page',
+  senaListObservations: 'kaur-khor:sena:list-observations',
+  senaListOrderBatches: 'kaur-khor:sena:list-order-batches',
+  senaUpsertCatalog: 'kaur-khor:sena:upsert-catalog',
+  senaIngestObservation: 'kaur-khor:sena:ingest-observation',
+  senaUpdateObservation: 'kaur-khor:sena:update-observation',
+  senaDeleteObservation: 'kaur-khor:sena:delete-observation',
+  senaCreateOrderBatch: 'kaur-khor:sena:create-order-batch',
+  senaUpdateOrderBatch: 'kaur-khor:sena:update-order-batch',
+  senaUpdateOrderChild: 'kaur-khor:sena:update-order-child',
+  senaSplitOrderChild: 'kaur-khor:sena:split-order-child',
+  senaTriggerRun: 'kaur-khor:sena:trigger-run',
+  senaRetryRun: 'kaur-khor:sena:retry-run',
+  senaGetWorkspaceSummary: 'kaur-khor:sena:get-workspace-summary',
+  senaGetSkuDetail: 'kaur-khor:sena:get-sku-detail',
+  senaGetDiagnostics: 'kaur-khor:sena:get-diagnostics',
+  senaGetServiceDetail: 'kaur-khor:sena:get-service-detail',
+  senaClearDetailCache: 'kaur-khor:sena:clear-detail-cache',
+  senaGetRunStatus: 'kaur-khor:sena:get-run-status',
+  preferencesGet: 'kaur-khor:preferences:get',
+  preferencesSave: 'kaur-khor:preferences:save',
+  benchmarkRecordEvent: 'kaur-khor:benchmark:record-event',
+  benchmarkGetEventCount: 'kaur-khor:benchmark:get-event-count',
+  benchmarkWaitForEventCount: 'kaur-khor:benchmark:wait-for-event-count',
+  benchmarkRunnerGetAvailability: 'kaur-khor:benchmark-runner:get-availability',
+  benchmarkRunnerListRuns: 'kaur-khor:benchmark-runner:list-runs',
+  benchmarkRunnerReadRun: 'kaur-khor:benchmark-runner:read-run',
+  benchmarkRunnerStartRun: 'kaur-khor:benchmark-runner:start-run',
+  benchmarkRunnerCancelRun: 'kaur-khor:benchmark-runner:cancel-run',
+  benchmarkRunnerCompareRuns: 'kaur-khor:benchmark-runner:compare-runs',
+  benchmarkRunnerGenerateFlamegraph: 'kaur-khor:benchmark-runner:generate-flamegraph',
+  benchmarkRunnerRevealRun: 'kaur-khor:benchmark-runner:reveal-run',
+  benchmarkRunnerEvent: 'kaur-khor:benchmark-runner:event',
 } as const;
 
 export const DEFAULT_USD_TO_KHR_EXCHANGE_RATE = 4000;

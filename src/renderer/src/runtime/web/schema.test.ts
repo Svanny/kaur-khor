@@ -5,20 +5,20 @@ import {
   buildMigrationSql,
   migrationsAfter,
 } from './schema';
-import { BANJI_BROWSER_SCHEMA_VERSION } from './constants';
+import { KAUR_KHOR_BROWSER_SCHEMA_VERSION } from './constants';
 
 describe('browser storage schema', () => {
   it('defines a versioned JSON document schema for browser SQLite storage', () => {
     expect(BROWSER_STORAGE_MIGRATIONS).toHaveLength(1);
-    expect(BROWSER_STORAGE_MIGRATIONS[0]?.version).toBe(BANJI_BROWSER_SCHEMA_VERSION);
-    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS banji_metadata');
-    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS banji_documents');
+    expect(BROWSER_STORAGE_MIGRATIONS[0]?.version).toBe(KAUR_KHOR_BROWSER_SCHEMA_VERSION);
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS kaur_khor_metadata');
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS kaur_khor_documents');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS observations');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS analysis_runs');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CREATE TABLE IF NOT EXISTS diagnostics_cache');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('CHECK (json_valid(json))');
     expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('WITHOUT ROWID');
-    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('idx_banji_documents_collection_updated');
+    expect(BROWSER_STORAGE_SCHEMA_SQL).toContain('idx_kaur_khor_documents_collection_updated');
   });
 
   it('returns only migrations newer than the current schema version', () => {

@@ -2830,7 +2830,7 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system time should be after epoch")
             .as_nanos();
-        env::temp_dir().join(format!("banji-sena-core-{label}-{nonce}.sqlite3"))
+        env::temp_dir().join(format!("kaur-khor-sena-core-{label}-{nonce}.sqlite3"))
     }
 
     fn sample_catalog() -> SenaCatalog {

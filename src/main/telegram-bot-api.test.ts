@@ -168,11 +168,11 @@ describe('telegram bot api wrapper', () => {
   });
 
   it('supports sending a local photo upload and deleting a message', async () => {
-    const tempPhotoPath = join(tmpdir(), `banji-telegram-photo-${Date.now()}.png`);
+    const tempPhotoPath = join(tmpdir(), `kaur-khor-telegram-photo-${Date.now()}.png`);
     await writeFile(tempPhotoPath, new Uint8Array([137, 80, 78, 71]));
     vi.mocked(prepareDesktopImageUpload).mockResolvedValue({
       bytes: new Uint8Array([137, 80, 78, 71]),
-      filename: 'banji-telegram-photo.png',
+      filename: 'kaur-khor-telegram-photo.png',
     });
 
     const fetchMock = vi.fn()

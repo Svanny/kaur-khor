@@ -10,17 +10,17 @@ import {
 describe('dev history generator helpers', () => {
   it('builds the power-user startup fixture command against the shared generator', () => {
     expect(buildGenerateDevHistoryArgs({
-      repoRoot: '/tmp/banji',
-      dataDirectory: '/tmp/banji/.banji-dev-data',
+      repoRoot: '/tmp/kaur-khor',
+      dataDirectory: '/tmp/kaur-khor/.kaur-khor-dev-data',
       size: 'power-user',
     })).toEqual([
       './scripts/generate_dev_history.py',
       '--repo-root',
-      '/tmp/banji',
+      '/tmp/kaur-khor',
       '--sena-db',
-      '/tmp/banji/.banji-dev-data/desktop-sena-store.sqlite3',
+      '/tmp/kaur-khor/.kaur-khor-dev-data/desktop-sena-store.sqlite3',
       '--seed-marker',
-      '/tmp/banji/.banji-dev-data/desktop-sena-dev-history.json',
+      '/tmp/kaur-khor/.kaur-khor-dev-data/desktop-sena-dev-history.json',
       '--years',
       '10',
       '--interval-days',

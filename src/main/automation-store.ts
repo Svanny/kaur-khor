@@ -558,7 +558,7 @@ function botDisplayLabel(connection: AutomationConnectionRecord) {
   if (connection.botUsername?.trim()) {
     return `@${connection.botUsername.replace(/^@/, '')}`;
   }
-  return 'banji';
+  return 'Kaur Khor';
 }
 
 function isKhmerLanguage(language: AppLanguage) {
@@ -567,7 +567,7 @@ function isKhmerLanguage(language: AppLanguage) {
 
 function localizedBotDisplayLabel(connection: AutomationConnectionRecord, language: AppLanguage) {
   const label = botDisplayLabel(connection);
-  return isKhmerLanguage(language) && label === 'banji' ? 'បាន់ជី' : label;
+  return isKhmerLanguage(language) && label === 'Kaur Khor' ? 'កខ' : label;
 }
 
 function localizedStatusLabel(
@@ -619,13 +619,13 @@ function buildPreferencesLanguagePrompt(language: AppLanguage) {
 function buildPreferencesCurrencyPrompt(language: AppLanguage) {
   return isKhmerLanguage(language)
     ? '<b>ជ្រើសរើសរូបិយប័ណ្ណ</b>\nសូមជ្រើសរើសរូបិយប័ណ្ណសម្រាប់បង្ហាញតម្លៃ។'
-    : '<b>Choose your display currency</b>\nPick the currency you want banji to show in quotes and cart totals.';
+    : '<b>Choose your display currency</b>\nPick the currency you want Kaur Khor to show in quotes and cart totals.';
 }
 
 function buildPreferencesSavedPrompt(language: AppLanguage) {
   return isKhmerLanguage(language)
-    ? '<b>បានរក្សាទុកចំណូលចិត្ត</b>\nបាន់ជីនឹងប្រើភាសា និងរូបិយប័ណ្ណដែលអ្នកបានជ្រើសរើស។'
-    : '<b>Preferences saved</b>\nbanji will use your selected language and display currency.';
+    ? '<b>បានរក្សាទុកចំណូលចិត្ត</b>\nកខនឹងប្រើភាសា និងរូបិយប័ណ្ណដែលអ្នកបានជ្រើសរើស។'
+    : '<b>Preferences saved</b>\nKaur Khor will use your selected language and display currency.';
 }
 
 function summarizeRequest(lines: AutomationIntakeLine[]) {
@@ -1097,8 +1097,8 @@ function buildWizardMenuPrompt(
   ];
   return {
     text: isKhmerLanguage(preferences.language)
-      ? `<b>ស្វាគមន៍មកកាន់ ${label}</b>\nមើលទំនិញដែលបានអនុម័ត បង្កើតការបញ្ជាទិញ ហើយឲ្យបាន់ជីបញ្ជាក់តម្លៃ និងការរៀបចំជូន។\n\nប្រើប៊ូតុងខាងក្រោម ឬវាយអ្វីដែលអ្នកចង់បានជាអក្សរធម្មតា។`
-      : `<b>Welcome to ${label}</b>\nBrowse approved sellables, build an order, and let banji confirm pricing and fulfillment.\n\nUse the buttons below or type what you need in plain text.`,
+      ? `<b>ស្វាគមន៍មកកាន់ ${label}</b>\nមើលទំនិញដែលបានអនុម័ត បង្កើតការបញ្ជាទិញ ហើយឲ្យកខបញ្ជាក់តម្លៃ និងការរៀបចំជូន។\n\nប្រើប៊ូតុងខាងក្រោម ឬវាយអ្វីដែលអ្នកចង់បានជាអក្សរធម្មតា។`
+      : `<b>Welcome to ${label}</b>\nBrowse approved sellables, build an order, and let Kaur Khor confirm pricing and fulfillment.\n\nUse the buttons below or type what you need in plain text.`,
     replyMarkup: inlineKeyboard(buttons),
   };
 }
@@ -1106,8 +1106,8 @@ function buildWizardMenuPrompt(
 function buildWizardHelpPrompt(preferences: TelegramCustomerPreferences) {
   return {
     text: isKhmerLanguage(preferences.language)
-      ? '<b>របៀបបញ្ជាទិញ</b>\n1. ចុច <b>មើលទំនិញ</b> ដើម្បីមើលកាតាឡុកដែលបានបើក។\n2. ចុចលើទំនិញណាមួយ ដើម្បីមើលព័ត៌មានលម្អិត ហើយកំណត់បរិមាណ។\n3. បើក <b>មើលកន្ត្រក</b> ដើម្បីពិនិត្យបរិមាណ និងបញ្ជូនការបញ្ជាទិញ។\n4. អ្នកក៏អាចវាយសារដូចជា <code>2 Cotton Scarf</code> ហើយបាន់ជីនឹងព្យាយាមបកស្រាយផងដែរ។\n\nប្រតិបត្តិករបាន់ជីនឹងពិនិត្យមុនពេលបង្កើតជាសំបុត្រការងារ។'
-      : '<b>How to order</b>\n1. Tap <b>Show available</b> to browse the exposed catalog.\n2. Tap any item to open its details and set the quantity.\n3. Open <b>View cart</b> to review quantities and checkout.\n4. You can also type messages like <code>2 cotton scarf</code> and banji will still parse them.\n\nbanji operators confirm quoted orders before ticket promotion.',
+      ? '<b>របៀបបញ្ជាទិញ</b>\n1. ចុច <b>មើលទំនិញ</b> ដើម្បីមើលកាតាឡុកដែលបានបើក។\n2. ចុចលើទំនិញណាមួយ ដើម្បីមើលព័ត៌មានលម្អិត ហើយកំណត់បរិមាណ។\n3. បើក <b>មើលកន្ត្រក</b> ដើម្បីពិនិត្យបរិមាណ និងបញ្ជូនការបញ្ជាទិញ។\n4. អ្នកក៏អាចវាយសារដូចជា <code>2 Cotton Scarf</code> ហើយកខនឹងព្យាយាមបកស្រាយផងដែរ។\n\nប្រតិបត្តិករកខនឹងពិនិត្យមុនពេលបង្កើតជាសំបុត្រការងារ។'
+      : '<b>How to order</b>\n1. Tap <b>Show available</b> to browse the exposed catalog.\n2. Tap any item to open its details and set the quantity.\n3. Open <b>View cart</b> to review quantities and checkout.\n4. You can also type messages like <code>2 cotton scarf</code> and Kaur Khor will still parse them.\n\nkaur khor operators confirm quoted orders before ticket promotion.',
     replyMarkup: inlineKeyboard([
       [
         { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Show available', callbackData: buildCallbackData('available', 0) },
@@ -1245,7 +1245,7 @@ function buildWizardCheckoutConfirmPrompt(
     ? `${isKhmerLanguage(preferences.language) ? 'លេខទូរស័ព្ទ' : 'Phone'}: ${escapeTelegramHtml(formatPhoneForDisplay(session.phone))}\n`
     : '';
   return {
-    text: `<b>${isKhmerLanguage(preferences.language) ? 'ត្រៀមបញ្ជាក់' : 'Ready to confirm'}</b>\n${contextLine}${phoneLine}${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\n${isKhmerLanguage(preferences.language) ? 'ចុចបញ្ជាក់ ដើម្បីផ្ញើការបញ្ជាទិញនេះទៅបាន់ជី។' : 'Tap confirm to turn this draft into banji intake.'}`,
+    text: `<b>${isKhmerLanguage(preferences.language) ? 'ត្រៀមបញ្ជាក់' : 'Ready to confirm'}</b>\n${contextLine}${phoneLine}${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\n${isKhmerLanguage(preferences.language) ? 'ចុចបញ្ជាក់ ដើម្បីផ្ញើការបញ្ជាទិញនេះទៅកខ។' : 'Tap confirm to turn this draft into Kaur Khor intake.'}`,
     replyMarkup: inlineKeyboard([
       [{ text: isKhmerLanguage(preferences.language) ? 'បញ្ជាក់ការបញ្ជាទិញ' : 'Confirm order', callbackData: buildCallbackData('confirm') }],
       [
@@ -1294,8 +1294,8 @@ function submitWizardCheckout(
       chatId: conversation.externalConversationKey,
       conversationId: conversation.conversationId,
       text: isKhmerLanguage(preferences.language)
-        ? '<b>មិនមានការបញ្ជាទិញសម្រាប់ផ្ញើ</b>\nសូមបន្ថែមយ៉ាងហោចណាស់មួយមុខមុនពេលផ្ញើទៅបាន់ជី។'
-        : '<b>No order to submit</b>\nAdd at least one item before sending your order to banji.',
+        ? '<b>មិនមានការបញ្ជាទិញសម្រាប់ផ្ញើ</b>\nសូមបន្ថែមយ៉ាងហោចណាស់មួយមុខមុនពេលផ្ញើទៅកខ។'
+        : '<b>No order to submit</b>\nAdd at least one item before sending your order to Kaur Khor.',
       parseMode: 'HTML',
       replyMarkup: removeKeyboard(),
     });
@@ -1338,12 +1338,12 @@ function buildTelegramReply(intake: AutomationOrderIntake, preferences: Telegram
       .map((line) => `• ${line.quantity} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal ?? 0)}`)
       .join('\n');
     return isKhmerLanguage(preferences.language)
-      ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nបាន់ជីនឹងរក្សាសំណើនេះសម្រាប់ឲ្យប្រតិបត្តិករពិនិត្យ និងបង្កើតជាសំបុត្រការងារ។`
-      : `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>Quoted total:</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nbanji will keep this intake ready for operator review and promotion.`;
+      ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nកខនឹងរក្សាសំណើនេះសម្រាប់ឲ្យប្រតិបត្តិករពិនិត្យ និងបង្កើតជាសំបុត្រការងារ។`
+      : `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>Quoted total:</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nKaur Khor will keep this intake ready for operator review and promotion.`;
   }
   return isKhmerLanguage(preferences.language)
-    ? `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nបាន់ជីបានទទួលសាររបស់អ្នកហើយ ប៉ុន្តែត្រូវការឲ្យប្រតិបត្តិករពិនិត្យមុនពេលបញ្ជាក់តម្លៃ។ សូមរង់ចាំ ខណៈពេលបាន់ជីកំពុងពិនិត្យ។`
-    : `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nI received your message, but banji needs an operator to review it before quoting it. Please wait while banji reviews it.`;
+    ? `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nកខបានទទួលសាររបស់អ្នកហើយ ប៉ុន្តែត្រូវការឲ្យប្រតិបត្តិករពិនិត្យមុនពេលបញ្ជាក់តម្លៃ។ សូមរង់ចាំ ខណៈពេលកខកំពុងពិនិត្យ។`
+    : `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nI received your message, but Kaur Khor needs an operator to review it before quoting it. Please wait while Kaur Khor reviews it.`;
 }
 
 function buildWizardItemImageCaption(row: AutomationExposureRow, preferences: TelegramCustomerPreferences) {
@@ -1949,12 +1949,12 @@ function handleWizardCallback(
       return true;
     case 'confirm': {
       if (session.currentStep !== 'checkout_confirm' || session.draftLines.length === 0) {
-        acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅបាន់ជីរួចហើយ។' : 'This order was already sent to banji.');
+        acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅកខរួចហើយ។' : 'This order was already sent to Kaur Khor.');
         return true;
       }
       const intake = submitWizardCheckout(state, outboundJobs, session, conversation, defaults.currency, preferences);
       acknowledge(intake?.status === 'quoted'
-        ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅបាន់ជី។' : 'Sent to banji.')
+        ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅកខ។' : 'Sent to Kaur Khor.')
         : (isKhmerLanguage(preferences.language) ? 'បានផ្ញើសម្រាប់ការពិនិត្យ។' : 'Sent for review.'));
       return true;
     }
@@ -2679,7 +2679,7 @@ export async function prepareAutomationPromotion(
     throw new Error('Automation intake not found.');
   }
   if (observations.length === 0) {
-    throw new Error('Automations needs at least one stock update before it can promote Telegram intake into Banji tickets.');
+    throw new Error('Automations needs at least one stock update before it can promote Telegram intake into Kaur Khor tickets.');
   }
   const unresolvedLine = intake.lines.find((line) =>
     line.entityId == null || line.quantity == null || line.quantity <= 0 || line.unitPrice == null || line.lineTotal == null,

@@ -1,4 +1,4 @@
-import { BANJI_BROWSER_SCHEMA_VERSION } from './constants';
+import { KAUR_KHOR_BROWSER_SCHEMA_VERSION } from './constants';
 
 export type BrowserStorageMigration = {
   version: number;
@@ -11,13 +11,13 @@ export const BROWSER_STORAGE_MIGRATIONS: BrowserStorageMigration[] = [
     sql: `
       PRAGMA foreign_keys = ON;
 
-      CREATE TABLE IF NOT EXISTS banji_metadata (
+      CREATE TABLE IF NOT EXISTS kaur_khor_metadata (
         key TEXT PRIMARY KEY NOT NULL,
         value TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       );
 
-      CREATE TABLE IF NOT EXISTS banji_documents (
+      CREATE TABLE IF NOT EXISTS kaur_khor_documents (
         collection TEXT NOT NULL,
         id TEXT NOT NULL,
         json TEXT NOT NULL CHECK (json_valid(json)),
@@ -25,8 +25,8 @@ export const BROWSER_STORAGE_MIGRATIONS: BrowserStorageMigration[] = [
         PRIMARY KEY (collection, id)
       ) WITHOUT ROWID;
 
-      CREATE INDEX IF NOT EXISTS idx_banji_documents_collection_updated
-        ON banji_documents(collection, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_kaur_khor_documents_collection_updated
+        ON kaur_khor_documents(collection, updated_at DESC);
 
       CREATE TABLE IF NOT EXISTS schema_migrations (
         version INTEGER PRIMARY KEY,
@@ -112,10 +112,10 @@ export const BROWSER_STORAGE_MIGRATIONS: BrowserStorageMigration[] = [
         updated_at TEXT NOT NULL
       );
 
-      INSERT INTO banji_metadata(key, value, updated_at)
+      INSERT INTO kaur_khor_metadata(key, value, updated_at)
       VALUES (
         'schema_version',
-        '${BANJI_BROWSER_SCHEMA_VERSION}',
+        '${KAUR_KHOR_BROWSER_SCHEMA_VERSION}',
         strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
       )
       ON CONFLICT(key) DO UPDATE SET
@@ -123,7 +123,7 @@ export const BROWSER_STORAGE_MIGRATIONS: BrowserStorageMigration[] = [
         updated_at = excluded.updated_at;
 
       INSERT INTO schema_migrations(version, applied_at)
-      VALUES (${BANJI_BROWSER_SCHEMA_VERSION}, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      VALUES (${KAUR_KHOR_BROWSER_SCHEMA_VERSION}, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
       ON CONFLICT(version) DO NOTHING;
     `,
   },

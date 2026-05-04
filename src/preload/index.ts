@@ -23,14 +23,14 @@ import {
 import {
   isTruthyBenchmarkEnvValue,
   summarizeBenchmarkPayload,
-  type BanjiBenchmarkEvent,
-  type BanjiBenchmarkComparison,
-  type BanjiBenchmarkFlamegraphArtifact,
-  type BanjiBenchmarkFlamegraphRequest,
-  type BanjiBenchmarkRunEvent,
-  type BanjiBenchmarkRunOptions,
-  type BanjiBenchmarkRunRecord,
-  type BanjiBenchmarkRunnerAvailability,
+  type KaurKhorBenchmarkEvent,
+  type KaurKhorBenchmarkComparison,
+  type KaurKhorBenchmarkFlamegraphArtifact,
+  type KaurKhorBenchmarkFlamegraphRequest,
+  type KaurKhorBenchmarkRunEvent,
+  type KaurKhorBenchmarkRunOptions,
+  type KaurKhorBenchmarkRunRecord,
+  type KaurKhorBenchmarkRunnerAvailability,
 } from '@shared/benchmark';
 import type {
   SenaAnalysisRunRecord,
@@ -56,11 +56,11 @@ import type {
   SenaWorkspaceSummary,
 } from '@shared/sena';
 
-const benchmarkEnabled = isTruthyBenchmarkEnvValue(process.env.BANJI_BENCHMARK);
-const benchmarkRunId = process.env.BANJI_BENCHMARK_RUN_ID?.trim() || `preload-${Date.now()}`;
+const benchmarkEnabled = isTruthyBenchmarkEnvValue(process.env.KAUR_KHOR_BENCHMARK);
+const benchmarkRunId = process.env.KAUR_KHOR_BENCHMARK_RUN_ID?.trim() || `preload-${Date.now()}`;
 
 function recordPreloadBenchmarkEvent(
-  event: Omit<BanjiBenchmarkEvent, 'runId' | 'ts' | 'layer'>,
+  event: Omit<KaurKhorBenchmarkEvent, 'runId' | 'ts' | 'layer'>,
 ) {
   if (!benchmarkEnabled) {
     return;
@@ -70,7 +70,7 @@ function recordPreloadBenchmarkEvent(
     runId: benchmarkRunId,
     ts: Date.now(),
     layer: 'preload',
-  } satisfies BanjiBenchmarkEvent);
+  } satisfies KaurKhorBenchmarkEvent);
 }
 
 async function invokeWithBenchmark<T>(channel: string, payload?: unknown): Promise<T> {
@@ -120,24 +120,24 @@ async function invokeWithBenchmark<T>(channel: string, payload?: unknown): Promi
 
 const benchmarkRunnerBridge: DesktopBridge['benchmarkRunner'] | undefined = process.env.NODE_ENV === 'development'
   ? {
-      getAvailability: (): Promise<BanjiBenchmarkRunnerAvailability> =>
+      getAvailability: (): Promise<KaurKhorBenchmarkRunnerAvailability> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGetAvailability),
-      listRuns: (): Promise<BanjiBenchmarkRunRecord[]> =>
+      listRuns: (): Promise<KaurKhorBenchmarkRunRecord[]> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerListRuns),
-      readRun: (runId: string): Promise<BanjiBenchmarkRunRecord | null> =>
+      readRun: (runId: string): Promise<KaurKhorBenchmarkRunRecord | null> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerReadRun, runId),
-      startRun: (payload: BanjiBenchmarkRunOptions): Promise<BanjiBenchmarkRunRecord> =>
+      startRun: (payload: KaurKhorBenchmarkRunOptions): Promise<KaurKhorBenchmarkRunRecord> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerStartRun, payload),
-      cancelRun: (runId: string): Promise<BanjiBenchmarkRunRecord> =>
+      cancelRun: (runId: string): Promise<KaurKhorBenchmarkRunRecord> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCancelRun, runId),
-      compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<BanjiBenchmarkComparison> =>
+      compareRuns: (payload: { baselineRunId: string; candidateRunId: string }): Promise<KaurKhorBenchmarkComparison> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerCompareRuns, payload),
-      generateFlamegraph: (payload: BanjiBenchmarkFlamegraphRequest): Promise<BanjiBenchmarkFlamegraphArtifact> =>
+      generateFlamegraph: (payload: KaurKhorBenchmarkFlamegraphRequest): Promise<KaurKhorBenchmarkFlamegraphArtifact> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerGenerateFlamegraph, payload),
       revealRun: (runId: string): Promise<void> =>
         invokeWithBenchmark(IPC_CHANNELS.benchmarkRunnerRevealRun, runId),
-      onRunEvent: (listener: (event: BanjiBenchmarkRunEvent) => void) => {
-        const handler = (_event: IpcRendererEvent, payload: BanjiBenchmarkRunEvent) => {
+      onRunEvent: (listener: (event: KaurKhorBenchmarkRunEvent) => void) => {
+        const handler = (_event: IpcRendererEvent, payload: KaurKhorBenchmarkRunEvent) => {
           listener(payload);
         };
         ipcRenderer.on(IPC_CHANNELS.benchmarkRunnerEvent, handler);
@@ -175,7 +175,7 @@ const desktopBridge: DesktopBridge = {
   benchmark: {
     enabled: benchmarkEnabled,
     runId: benchmarkRunId,
-    recordEvent: (event: BanjiBenchmarkEvent) => {
+    recordEvent: (event: KaurKhorBenchmarkEvent) => {
       if (benchmarkEnabled) {
         ipcRenderer.send(IPC_CHANNELS.benchmarkRecordEvent, event);
       }
@@ -256,7 +256,7 @@ const desktopBridge: DesktopBridge = {
   },
 };
 
-contextBridge.exposeInMainWorld('banjiDesktop', desktopBridge);
+contextBridge.exposeInMainWorld('kaurKhorDesktop', desktopBridge);
 
 recordPreloadBenchmarkEvent({
   category: 'startup',

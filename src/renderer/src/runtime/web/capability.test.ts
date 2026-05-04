@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { detectBrowserStorageCapability, isBanjiBrowserDatabaseName } from './capability';
+import { detectBrowserStorageCapability, isKaurKhorBrowserDatabaseName } from './capability';
 import {
-  BANJI_BROWSER_APP_DATABASE,
-  BANJI_BROWSER_DEMO_DATABASE,
-  BANJI_BROWSER_PREFERRED_VFS,
+  KAUR_KHOR_BROWSER_APP_DATABASE,
+  KAUR_KHOR_BROWSER_DEMO_DATABASE,
+  KAUR_KHOR_BROWSER_PREFERRED_VFS,
 } from './constants';
 
 describe('detectBrowserStorageCapability', () => {
@@ -21,10 +21,10 @@ describe('detectBrowserStorageCapability', () => {
     });
 
     expect(capability.status).toBe('supported');
-    expect(capability.preferredVfs).toBe(BANJI_BROWSER_PREFERRED_VFS);
+    expect(capability.preferredVfs).toBe(KAUR_KHOR_BROWSER_PREFERRED_VFS);
     expect(capability.databaseNames).toEqual({
-      app: BANJI_BROWSER_APP_DATABASE,
-      demo: BANJI_BROWSER_DEMO_DATABASE,
+      app: KAUR_KHOR_BROWSER_APP_DATABASE,
+      demo: KAUR_KHOR_BROWSER_DEMO_DATABASE,
     });
     expect(capability.details.crossOriginIsolated).toBe(false);
   });
@@ -66,10 +66,10 @@ describe('detectBrowserStorageCapability', () => {
   });
 });
 
-describe('isBanjiBrowserDatabaseName', () => {
+describe('isKaurKhorBrowserDatabaseName', () => {
   it('accepts only the production browser database names', () => {
-    expect(isBanjiBrowserDatabaseName(BANJI_BROWSER_APP_DATABASE)).toBe(true);
-    expect(isBanjiBrowserDatabaseName(BANJI_BROWSER_DEMO_DATABASE)).toBe(true);
-    expect(isBanjiBrowserDatabaseName('banji_browser_app.sqlite3')).toBe(false);
+    expect(isKaurKhorBrowserDatabaseName(KAUR_KHOR_BROWSER_APP_DATABASE)).toBe(true);
+    expect(isKaurKhorBrowserDatabaseName(KAUR_KHOR_BROWSER_DEMO_DATABASE)).toBe(true);
+    expect(isKaurKhorBrowserDatabaseName('kaur_khor_browser_app.sqlite3')).toBe(false);
   });
 });

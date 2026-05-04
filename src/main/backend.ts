@@ -164,7 +164,7 @@ export function terminateManagedChildProcess(
 }
 
 function desktopTraceEnabled() {
-  const raw = process.env.BANJI_DESKTOP_TRACE_IPC;
+  const raw = process.env.KAUR_KHOR_DESKTOP_TRACE_IPC;
   if (!raw) {
     return false;
   }
@@ -245,11 +245,11 @@ function traceIpc(message: string) {
   if (!desktopTraceEnabled()) {
     return;
   }
-  console.log(`[banji-desktop-ipc] ${message}`);
+  console.log(`[kaur-khor-desktop-ipc] ${message}`);
 }
 
 function resolveDesktopCoreBinaryName() {
-  return process.platform === 'win32' ? 'banji-desktop-core.exe' : 'banji-desktop-core';
+  return process.platform === 'win32' ? 'kaur-khor-desktop-core.exe' : 'kaur-khor-desktop-core';
 }
 
 function isPathLikeCommand(command: string) {
@@ -285,8 +285,8 @@ export function resolveManagedCoreEnv({
 }): NodeJS.ProcessEnv {
   return {
     ...process.env,
-    BANJI_DESKTOP_DATA_PATH: dataFilePath,
-    ...(role ? { BANJI_CORE_WORKER_ROLE: role } : {}),
+    KAUR_KHOR_DESKTOP_DATA_PATH: dataFilePath,
+    ...(role ? { KAUR_KHOR_CORE_WORKER_ROLE: role } : {}),
   };
 }
 
@@ -325,7 +325,7 @@ export function resolveCoreLaunchCommands(
   isPackaged?: boolean,
 ): CoreLaunchCommand[] {
   const commands: CoreLaunchCommand[] = [];
-  const explicitBinary = process.env.BANJI_DESKTOP_CORE_BINARY;
+  const explicitBinary = process.env.KAUR_KHOR_DESKTOP_CORE_BINARY;
   if (explicitBinary && isValidExecutablePath(explicitBinary)) {
     commands.push({ command: explicitBinary, args: [] });
   }
@@ -445,7 +445,7 @@ export async function startManagedCore(
         });
       })
       .catch((error) => {
-        console.warn(`[banji-desktop-core] read worker ${index + 1} failed to start: ${(error as Error).message}`);
+        console.warn(`[kaur-khor-desktop-core] read worker ${index + 1} failed to start: ${(error as Error).message}`);
         recordBenchmarkEvent({
           layer: 'main',
           category: 'startup',
@@ -685,7 +685,7 @@ export async function startManagedCore(
 }
 
 function resolveReadPoolSize() {
-  const raw = Number.parseInt(process.env.BANJI_READ_CORE_POOL_SIZE ?? '3', 10);
+  const raw = Number.parseInt(process.env.KAUR_KHOR_READ_CORE_POOL_SIZE ?? '3', 10);
   if (!Number.isFinite(raw)) {
     return 3;
   }
@@ -701,8 +701,8 @@ async function startManagedCoreWithFallback(
 ) {
   const workerEnv = {
     ...env,
-    BANJI_CORE_WORKER_ROLE: role,
-    BANJI_CORE_WORKER_INDEX: String(workerIndex),
+    KAUR_KHOR_CORE_WORKER_ROLE: role,
+    KAUR_KHOR_CORE_WORKER_INDEX: String(workerIndex),
   };
   let lastRecoverableError: Error | null = null;
 
@@ -750,7 +750,7 @@ async function startManagedCoreAttempt(
     ok: true,
     pid: child.pid ?? null,
   });
-  traceIpc(`spawn command=${command} args=${JSON.stringify(args)} dataPath=${env.BANJI_DESKTOP_DATA_PATH ?? 'unset'}`);
+  traceIpc(`spawn command=${command} args=${JSON.stringify(args)} dataPath=${env.KAUR_KHOR_DESKTOP_DATA_PATH ?? 'unset'}`);
   recordBenchmarkEvent({
     layer: 'main',
     category: 'startup',
@@ -983,7 +983,7 @@ async function startManagedCoreAttempt(
   child.stderr.on('data', (chunk) => {
     const text = chunk.toString().trimEnd();
     stderr.push(text);
-    console.error(`[banji-desktop-core] ${text}`);
+    console.error(`[kaur-khor-desktop-core] ${text}`);
   });
 
   child.once('error', (error) => {
