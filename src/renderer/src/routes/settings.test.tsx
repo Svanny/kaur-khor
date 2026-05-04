@@ -1649,6 +1649,12 @@ describe('SettingsRoute', () => {
 
     expect(await screen.findByText('Made with')).toBeInTheDocument();
     expect(screen.getByText('by Monysovann Ly.')).toBeInTheDocument();
+    expect(screen.getByText('Kaur Khor desktop')).toBeInTheDocument();
+    expect(screen.getByText('Copyright © 2026 Svanny.')).toBeInTheDocument();
+    expect(
+      screen.getByText('License: GNU General Public License v2.0 only (GPL-2.0-only).'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Full license terms are included in LICENSE.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /credits/i })).not.toBeInTheDocument();
   });
 

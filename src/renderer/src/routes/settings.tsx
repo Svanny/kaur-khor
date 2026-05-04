@@ -1205,11 +1205,19 @@ function LocalWorkspaceDataPage({
 function CreditsPage({ t }: { t: TranslateFn }) {
   return (
     <WorkspacePanel>
-      <p className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-        <span>{t('settingsMadeWith')}</span>
-        <EntityFavoriteIcon aria-hidden="true" className="size-4 fill-current text-rose-500" />
-        <span>{t('settingsMadeBy')}</span>
-      </p>
+      <div className="grid gap-4 text-sm leading-6 text-muted-foreground">
+        <p className="flex items-center gap-2 font-normal">
+          <span>{t('settingsMadeWith')}</span>
+          <EntityFavoriteIcon aria-hidden="true" className="size-4 fill-current text-rose-500" />
+          <span>{t('settingsMadeBy')}</span>
+        </p>
+        <div className="grid gap-2">
+          <p className="font-semibold text-foreground">{t('settingsCreditsAppName')}</p>
+          <p>{t('settingsCreditsCopyright')}</p>
+          <p>{t('settingsCreditsLicense')}</p>
+          <p>{t('settingsCreditsLicenseTerms')}</p>
+        </div>
+      </div>
     </WorkspacePanel>
   );
 }

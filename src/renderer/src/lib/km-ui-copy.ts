@@ -468,6 +468,11 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsClearCurrentDataFailed: 'មិនអាចលុបទិន្នន័យកន្លែងធ្វើការក្នុងម៉ាស៊ីនបច្ចុប្បន្នបានទេ។',
   settingsCreditsTitle: 'អំពីអ្នកបង្កើត',
   settingsCreditsDescription: 'សារខ្លីពីអ្នកបង្កើត។',
+  settingsCreditsAppName: 'កខ សម្រាប់កុំព្យូទ័រ',
+  settingsCreditsCopyright: 'រក្សាសិទ្ធិ © 2026 ស្វាន្នី។',
+  settingsCreditsLicense:
+    'អាជ្ញាបណ្ណ៖ អាជ្ញាបណ្ណសាធារណៈទូទៅ GNU កំណែ 2.0 តែប៉ុណ្ណោះ (GPL-2.0-only)។',
+  settingsCreditsLicenseTerms: 'លក្ខខណ្ឌអាជ្ញាបណ្ណពេញលេញ មានក្នុងឯកសារ LICENSE។',
   settingsParameterRunStatusExported: 'បាននាំចេញទិន្នន័យផែនការជា {format}។',
   settingsParameterRunStatusFailed: 'មិនអាចនាំចេញទិន្នន័យផែនការបានទេ។',
   settingsParameterRangeMessage: 'ជួរត្រឹមត្រូវ: {min} ដល់ {max}។',

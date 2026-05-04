@@ -1252,6 +1252,11 @@ export const enUiCopyV1 = {
   settingsExpandCredits: 'Expand credits',
   settingsMadeWith: 'Made with',
   settingsMadeBy: 'by Monysovann Ly.',
+  settingsCreditsAppName: 'Kaur Khor desktop',
+  settingsCreditsCopyright: 'Copyright © 2026 Svanny.',
+  settingsCreditsLicense:
+    'License: GNU General Public License v2.0 only (GPL-2.0-only).',
+  settingsCreditsLicenseTerms: 'Full license terms are included in LICENSE.',
   settingsParameterRunStatusExported: 'Exported SENA data as {format}.',
   settingsParameterRunStatusFailed: 'Failed to export SENA data.',
   settingsParameterRangeMessage: 'Valid range: {min} to {max}.',

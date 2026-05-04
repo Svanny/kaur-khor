@@ -734,7 +734,7 @@ Settings contains:
 - in-app Help at `/settings/help`
 - benchmarks
 - danger zone
-- credits
+- credits and licensing
 
 Help mirrors this user guide and can be searched inside the app.
 
