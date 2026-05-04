@@ -184,6 +184,55 @@ function expectWizardRemainsLatest(
   ).toBe(false);
 }
 
+function telegramRenderedParts(result: Awaited<ReturnType<typeof ingestAutomationTelegramUpdates>>) {
+  const parts: string[] = [];
+  for (const job of result.outboundJobs) {
+    if ((job.kind === 'send' || job.kind === 'edit') && job.text) {
+      parts.push(job.text);
+    }
+    if (job.kind === 'send_photo' && job.caption) {
+      parts.push(job.caption);
+    }
+    if (job.kind === 'answer_callback' && job.text) {
+      parts.push(job.text);
+    }
+    if ((job.kind === 'send' || job.kind === 'edit') && 'replyMarkup' in job && job.replyMarkup) {
+      if ('inline_keyboard' in job.replyMarkup) {
+        for (const row of job.replyMarkup.inline_keyboard) {
+          for (const button of row) {
+            parts.push(button.text);
+          }
+        }
+      }
+      if ('keyboard' in job.replyMarkup) {
+        for (const row of job.replyMarkup.keyboard) {
+          for (const button of row) {
+            parts.push(typeof button === 'string' ? button : button.text);
+          }
+        }
+      }
+    }
+  }
+  return parts;
+}
+
+function expectNoUnexpectedKhmerLatin(renderedParts: string[]) {
+  const allowedLatinFragments = [
+    '/preferences',
+    '2 Cotton Scarf',
+    'Cotton Scarf',
+    'KHR',
+    'USD',
+  ];
+  const unexpected = renderedParts.flatMap((part) => {
+    const withoutHtmlTags = part.replace(/<\/?[A-Za-z][^>]*>/g, '');
+    const redacted = allowedLatinFragments.reduce((text, fragment) => text.replaceAll(fragment, ''), withoutHtmlTags);
+    const matches = redacted.match(/[A-Za-z][A-Za-z0-9@_./-]*/g) ?? [];
+    return matches.map((match) => `${match} <<< ${part}`);
+  });
+  expect(unexpected).toEqual([]);
+}
+
 describe('automation telegram ingestion', () => {
   it('creates quoted intake and reply jobs for matched exposed telegram items', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-'));
@@ -804,6 +853,238 @@ describe('automation telegram ingestion', () => {
     });
 
     expect(catalogResult.replyJobs[0]?.text).toContain('KHR 50000');
+  });
+
+  it('renders representative Khmer Telegram wizard messages without unintended Latin UI copy', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-store-km-'));
+    const renderedParts: string[] = [];
+    const collect = (result: Awaited<ReturnType<typeof ingestAutomationTelegramUpdates>>) => {
+      renderedParts.push(...telegramRenderedParts(result));
+    };
+    const khmerRenderedParts: string[] = [];
+    const collectKhmer = (result: Awaited<ReturnType<typeof ingestAutomationTelegramUpdates>>) => {
+      const parts = telegramRenderedParts(result);
+      renderedParts.push(...parts);
+      khmerRenderedParts.push(...parts);
+    };
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+
+    collect(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3020,
+          message: {
+            message_id: 4020,
+            date: 1_745_193_720,
+            text: '/start',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3021,
+          callback_query: {
+            id: 'callback-km-language',
+            data: 'w:language:km',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4021,
+              date: 1_745_193_721,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3022,
+          callback_query: {
+            id: 'callback-km-currency',
+            data: 'w:currency:KHR',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4022,
+              date: 1_745_193_722,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3023,
+          message: {
+            message_id: 4023,
+            date: 1_745_193_723,
+            text: '/help',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3024,
+          message: {
+            message_id: 4024,
+            date: 1_745_193_724,
+            text: '/available',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3025,
+          callback_query: {
+            id: 'callback-km-item',
+            data: 'w:item:sku:sku-1',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4025,
+              date: 1_745_193_725,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3026,
+          callback_query: {
+            id: 'callback-km-add',
+            data: 'w:add:sku:sku-1',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4026,
+              date: 1_745_193_726,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3027,
+          callback_query: {
+            id: 'callback-km-cart',
+            data: 'w:cart',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4027,
+              date: 1_745_193_727,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3028,
+          callback_query: {
+            id: 'callback-km-checkout',
+            data: 'w:checkout',
+            from: { id: 555_739, first_name: 'Pov' },
+            message: {
+              message_id: 4028,
+              date: 1_745_193_728,
+              chat: { id: 555_739, type: 'private' },
+            },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3029,
+          message: {
+            message_id: 4029,
+            date: 1_745_193_729,
+            text: 'រំលងលេខទូរស័ព្ទ',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3030,
+          message: {
+            message_id: 4030,
+            date: 1_745_193_730,
+            text: 'need 3 winter gloves',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    expect(renderedParts.join('\n')).toContain('<b>ជ្រើសរើសភាសា</b>');
+    expect(khmerRenderedParts.join('\n')).toContain('<b>កាតាឡុក</b>');
+    expect(khmerRenderedParts.join('\n')).toContain('<b>កន្ត្រករបស់អ្នក</b>');
+    expect(khmerRenderedParts.join('\n')).toContain('<b>សម្រង់តម្លៃការបញ្ជាទិញ</b>');
+    expect(khmerRenderedParts.join('\n')).toContain('<b>ត្រូវការការពិនិត្យ</b>');
+    expectNoUnexpectedKhmerLatin(khmerRenderedParts);
   });
 
   it('reopens customer preferences with the /preferences command after setup', async () => {

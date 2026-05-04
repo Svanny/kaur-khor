@@ -230,7 +230,7 @@ function buildPromotionNotification(
       : `\nQuoted total: ${formatTelegramMoney(intake.quotedTotal, preferences)}`
     : '';
   return isKhmer(preferences.language)
-    ? `<b>banji បានទទួលការបញ្ជាទិញរបស់អ្នក</b>\nការបញ្ជាទិញរបស់អ្នកត្រូវបានបន្ថែមទៅ customer ticket ហើយកំពុងស្ថិតនៅក្រុមប្រតិបត្តិករ។${totalLabel}\n\nbanji នឹងបន្តតាមដានពី ticket នេះ។`
+    ? `<b>បាន់ជីបានទទួលការបញ្ជាទិញរបស់អ្នក</b>\nការបញ្ជាទិញរបស់អ្នកត្រូវបានបន្ថែមទៅសំបុត្រការងារអតិថិជន ហើយកំពុងស្ថិតនៅក្រុមប្រតិបត្តិករ។${totalLabel}\n\nបាន់ជីនឹងបន្តតាមដានតាមសំបុត្រការងារនេះ។`
     : `<b>Order received by banji</b>\nYour order was added to a customer ticket and is now with the operator team.${totalLabel}\n\nbanji will continue the follow-up from this ticket.`;
 }
 
@@ -241,14 +241,14 @@ function buildTicketUpdateNotification(ticketEvent: SenaTicketEvent, language: '
       ? (isKhmer(language) ? 'បានបញ្ចប់' : 'Completed')
       : ticketEvent.stage === 'ready'
         ? (isKhmer(language) ? 'រួចរាល់' : 'Ready')
-        : (isKhmer(language) ? 'បានអាប់ដេត' : 'Updated');
+        : (isKhmer(language) ? 'បានធ្វើបច្ចុប្បន្នភាព' : 'Updated');
   const noteLabel = ticketEvent.note?.trim()
     ? isKhmer(language)
       ? `\nកំណត់ចំណាំ៖ ${ticketEvent.note.trim()}`
       : `\nNote: ${ticketEvent.note.trim()}`
     : '';
   return isKhmer(language)
-    ? `<b>អាប់ដេតការបញ្ជាទិញពី banji</b>\nស្ថានភាព៖ ${statusLabel}\nticket របស់អ្នកត្រូវបានអាប់ដេតដោយក្រុមប្រតិបត្តិករ។${noteLabel}`
+    ? `<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីបាន់ជី</b>\nស្ថានភាព៖ ${statusLabel}\nសំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយក្រុមប្រតិបត្តិករ។${noteLabel}`
     : `<b>Order update from banji</b>\nStatus: ${statusLabel}\nYour ticket was updated by the operator team.${noteLabel}`;
 }
 

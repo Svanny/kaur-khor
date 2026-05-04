@@ -565,6 +565,11 @@ function isKhmerLanguage(language: AppLanguage) {
   return language === 'km';
 }
 
+function localizedBotDisplayLabel(connection: AutomationConnectionRecord, language: AppLanguage) {
+  const label = botDisplayLabel(connection);
+  return isKhmerLanguage(language) && label === 'banji' ? 'បាន់ជី' : label;
+}
+
 function localizedStatusLabel(
   language: AppLanguage,
   value: 'available_now' | 'your_cart' | 'checkout' | 'needs_review' | 'quoted_order' | 'order_canceled' | 'order_updated',
@@ -593,11 +598,11 @@ function localizedStatusLabel(
     case 'your_cart':
       return 'កន្ត្រករបស់អ្នក';
     case 'checkout':
-      return 'បញ្ជាក់ការបញ្ជាទិញ';
+      return 'បញ្ជូនការបញ្ជាទិញ';
     case 'needs_review':
       return 'ត្រូវការការពិនិត្យ';
     case 'quoted_order':
-      return 'តម្លៃដែលបានដកស្រង់';
+      return 'សម្រង់តម្លៃការបញ្ជាទិញ';
     case 'order_canceled':
       return 'បោះបង់ការបញ្ជាទិញ';
     case 'order_updated':
@@ -607,7 +612,7 @@ function localizedStatusLabel(
 
 function buildPreferencesLanguagePrompt(language: AppLanguage) {
   return isKhmerLanguage(language)
-    ? '<b>ជ្រើសរើសភាសា</b>\nសូមជ្រើសរើសភាសាសម្រាប់បង្ហាញសាររបស់ bot។ អ្នកអាចប្តូរវាវិញពេលក្រោយដោយវាយ <code>/preferences</code>។'
+    ? '<b>ជ្រើសរើសភាសា</b>\nសូមជ្រើសរើសភាសាសម្រាប់បង្ហាញសាររបស់បូត។ អ្នកអាចប្តូរវាវិញពេលក្រោយដោយវាយ <code>/preferences</code>។'
     : '<b>Choose your language</b>\nPick the language for bot messages. You can change it later with <code>/preferences</code>.';
 }
 
@@ -619,7 +624,7 @@ function buildPreferencesCurrencyPrompt(language: AppLanguage) {
 
 function buildPreferencesSavedPrompt(language: AppLanguage) {
   return isKhmerLanguage(language)
-    ? '<b>បានរក្សាទុកចំណូលចិត្ត</b>\nbanji នឹងប្រើភាសា និងរូបិយប័ណ្ណដែលអ្នកបានជ្រើសរើស។'
+    ? '<b>បានរក្សាទុកចំណូលចិត្ត</b>\nបាន់ជីនឹងប្រើភាសា និងរូបិយប័ណ្ណដែលអ្នកបានជ្រើសរើស។'
     : '<b>Preferences saved</b>\nbanji will use your selected language and display currency.';
 }
 
@@ -840,11 +845,11 @@ function inlineKeyboard(rows: Array<Array<{ text: string; callbackData?: string 
   } satisfies TelegramInlineKeyboardMarkup;
 }
 
-function phoneKeyboard() {
+function phoneKeyboard(preferences: TelegramCustomerPreferences) {
   return {
     keyboard: [
-      [{ text: 'Share phone', request_contact: true }],
-      ['Skip phone'],
+      [{ text: isKhmerLanguage(preferences.language) ? 'ចែករំលែកលេខទូរស័ព្ទ' : 'Share phone', request_contact: true }],
+      [isKhmerLanguage(preferences.language) ? 'រំលងលេខទូរស័ព្ទ' : 'Skip phone'],
     ],
     one_time_keyboard: true,
     resize_keyboard: true,
@@ -1079,7 +1084,7 @@ function buildWizardMenuPrompt(
   session: AutomationWizardSession | null,
   preferences: TelegramCustomerPreferences,
 ) {
-  const label = escapeTelegramHtml(botDisplayLabel(connection));
+  const label = escapeTelegramHtml(localizedBotDisplayLabel(connection, preferences.language));
   const buttons = [
     [
       { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Show available', callbackData: buildCallbackData('available', 0) },
@@ -1092,7 +1097,7 @@ function buildWizardMenuPrompt(
   ];
   return {
     text: isKhmerLanguage(preferences.language)
-      ? `<b>ស្វាគមន៍មកកាន់ ${label}</b>\nមើលទំនិញដែលបានអនុម័ត បង្កើតការបញ្ជាទិញ ហើយឲ្យ banji បញ្ជាក់តម្លៃ និងការបំពេញការងារ។\n\nប្រើប៊ូតុងខាងក្រោម ឬវាយអ្វីដែលអ្នកចង់បានជាអក្សរធម្មតា។`
+      ? `<b>ស្វាគមន៍មកកាន់ ${label}</b>\nមើលទំនិញដែលបានអនុម័ត បង្កើតការបញ្ជាទិញ ហើយឲ្យបាន់ជីបញ្ជាក់តម្លៃ និងការរៀបចំជូន។\n\nប្រើប៊ូតុងខាងក្រោម ឬវាយអ្វីដែលអ្នកចង់បានជាអក្សរធម្មតា។`
       : `<b>Welcome to ${label}</b>\nBrowse approved sellables, build an order, and let banji confirm pricing and fulfillment.\n\nUse the buttons below or type what you need in plain text.`,
     replyMarkup: inlineKeyboard(buttons),
   };
@@ -1101,7 +1106,7 @@ function buildWizardMenuPrompt(
 function buildWizardHelpPrompt(preferences: TelegramCustomerPreferences) {
   return {
     text: isKhmerLanguage(preferences.language)
-      ? '<b>របៀបបញ្ជាទិញ</b>\n1. ចុច <b>មើលទំនិញ</b> ដើម្បីមើលកាតាឡុកដែលបានបើក។\n2. ចុចលើទំនិញណាមួយ ដើម្បីមើលព័ត៌មានលម្អិត ហើយកំណត់បរិមាណ។\n3. បើក <b>មើលកន្ត្រក</b> ដើម្បីពិនិត្យបរិមាណ និង checkout។\n4. អ្នកក៏អាចវាយសារដូចជា <code>2 cotton scarf</code> ហើយ banji នឹងព្យាយាមបកស្រាយផងដែរ។\n\nប្រតិបត្តិករ banji នឹងពិនិត្យមុនពេលបំលែងទៅ ticket។'
+      ? '<b>របៀបបញ្ជាទិញ</b>\n1. ចុច <b>មើលទំនិញ</b> ដើម្បីមើលកាតាឡុកដែលបានបើក។\n2. ចុចលើទំនិញណាមួយ ដើម្បីមើលព័ត៌មានលម្អិត ហើយកំណត់បរិមាណ។\n3. បើក <b>មើលកន្ត្រក</b> ដើម្បីពិនិត្យបរិមាណ និងបញ្ជូនការបញ្ជាទិញ។\n4. អ្នកក៏អាចវាយសារដូចជា <code>2 Cotton Scarf</code> ហើយបាន់ជីនឹងព្យាយាមបកស្រាយផងដែរ។\n\nប្រតិបត្តិករបាន់ជីនឹងពិនិត្យមុនពេលបង្កើតជាសំបុត្រការងារ។'
       : '<b>How to order</b>\n1. Tap <b>Show available</b> to browse the exposed catalog.\n2. Tap any item to open its details and set the quantity.\n3. Open <b>View cart</b> to review quantities and checkout.\n4. You can also type messages like <code>2 cotton scarf</code> and banji will still parse them.\n\nbanji operators confirm quoted orders before ticket promotion.',
     replyMarkup: inlineKeyboard([
       [
@@ -1125,7 +1130,9 @@ function buildWizardCatalogPrompt(
   const lines = page.rows.length === 0
     ? [isKhmerLanguage(preferences.language) ? 'មិនមានទំនិញដែលបានបើកឥឡូវនេះទេ។' : 'No exposed sellables are available right now.']
     : page.rows.map((row, index) => {
-      const typeLabel = row.entityType === 'service' ? 'Service' : 'SKU';
+      const typeLabel = row.entityType === 'service'
+        ? (isKhmerLanguage(preferences.language) ? 'សេវា' : 'Service')
+        : (isKhmerLanguage(preferences.language) ? 'លេខកូដទំនិញ' : 'SKU');
       return `${index + 1}. <b>${escapeTelegramHtml(formatExposureLabel(row))}</b>\n${typeLabel} · ${escapeTelegramHtml(formatTelegramMoney(preferences, row.price))}`;
     });
 
@@ -1138,12 +1145,12 @@ function buildWizardCatalogPrompt(
     replyMarkup: inlineKeyboard([
       ...itemButtons,
       [
-        { text: 'Prev', callbackData: buildCallbackData('page', Math.max(page.page - 1, 0)) },
-        { text: 'Next', callbackData: buildCallbackData('page', Math.min(page.page + 1, page.pageCount - 1)) },
+        { text: isKhmerLanguage(preferences.language) ? 'មុន' : 'Prev', callbackData: buildCallbackData('page', Math.max(page.page - 1, 0)) },
+        { text: isKhmerLanguage(preferences.language) ? 'បន្ទាប់' : 'Next', callbackData: buildCallbackData('page', Math.min(page.page + 1, page.pageCount - 1)) },
       ],
       [
         { text: isKhmerLanguage(preferences.language) ? 'មើលកន្ត្រក' : 'View cart', callbackData: buildCallbackData('cart') },
-        { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅមឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
+        { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅម៉ឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
       ],
     ]),
   };
@@ -1157,7 +1164,7 @@ function buildWizardItemPrompt(
   const quantity = selectedDraftQuantity(session, row);
   const typeLabel = row.entityType === 'service'
     ? (isKhmerLanguage(preferences.language) ? 'សេវា' : 'Service')
-    : 'SKU';
+    : (isKhmerLanguage(preferences.language) ? 'លេខកូដទំនិញ' : 'SKU');
   const quantityLabel = isKhmerLanguage(preferences.language) ? 'ក្នុងកន្ត្រក' : 'In cart';
   const addLabel = isKhmerLanguage(preferences.language) ? 'បន្ថែម 1' : 'Add 1';
   const backLabel = isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅកាតាឡុក' : 'Back to catalog';
@@ -1198,7 +1205,7 @@ function buildWizardCartPrompt(
       replyMarkup: inlineKeyboard([
         [
           { text: isKhmerLanguage(preferences.language) ? 'មើលទំនិញ' : 'Browse items', callbackData: buildCallbackData('available', session.catalogCursor) },
-          { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅមឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
+          { text: isKhmerLanguage(preferences.language) ? 'ត្រឡប់ទៅម៉ឺនុយ' : 'Back to menu', callbackData: buildCallbackData('menu') },
         ],
       ]),
     };
@@ -1212,7 +1219,7 @@ function buildWizardCartPrompt(
     { text: `-1 ${line.label}`, callbackData: buildCallbackData('dec', line.entityType, line.entityId) },
     { text: `+1 ${line.label}`, callbackData: buildCallbackData('inc', line.entityType, line.entityId) },
   ], [
-    { text: `Remove ${line.label}`, callbackData: buildCallbackData('remove', line.entityType, line.entityId) },
+    { text: `${isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove'} ${line.label}`, callbackData: buildCallbackData('remove', line.entityType, line.entityId) },
   ]]);
 
   return {
@@ -1221,7 +1228,7 @@ function buildWizardCartPrompt(
       ...quantityRows,
       [
         { text: isKhmerLanguage(preferences.language) ? 'បន្ថែមទៀត' : 'Add more', callbackData: buildCallbackData('available', session.catalogCursor) },
-        { text: isKhmerLanguage(preferences.language) ? 'Checkout' : 'Checkout', callbackData: buildCallbackData('checkout') },
+        { text: isKhmerLanguage(preferences.language) ? 'បន្តទៅផ្ញើ' : 'Checkout', callbackData: buildCallbackData('checkout') },
       ],
       [{ text: isKhmerLanguage(preferences.language) ? 'បោះបង់ការបញ្ជាទិញ' : 'Cancel order', callbackData: buildCallbackData('cancel') }],
     ]),
@@ -1234,9 +1241,11 @@ function buildWizardCheckoutConfirmPrompt(
   contextLabel?: string | null,
 ) {
   const contextLine = contextLabel?.trim() ? `${escapeTelegramHtml(contextLabel)}\n` : '';
-  const phoneLine = session.phone ? `Phone: ${escapeTelegramHtml(formatPhoneForDisplay(session.phone))}\n` : '';
+  const phoneLine = session.phone
+    ? `${isKhmerLanguage(preferences.language) ? 'លេខទូរស័ព្ទ' : 'Phone'}: ${escapeTelegramHtml(formatPhoneForDisplay(session.phone))}\n`
+    : '';
   return {
-    text: `<b>${isKhmerLanguage(preferences.language) ? 'ត្រៀមបញ្ជាក់' : 'Ready to confirm'}</b>\n${contextLine}${phoneLine}${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\n${isKhmerLanguage(preferences.language) ? 'ចុច confirm ដើម្បីបញ្ជូនការបញ្ជាទិញនេះទៅ banji។' : 'Tap confirm to turn this draft into banji intake.'}`,
+    text: `<b>${isKhmerLanguage(preferences.language) ? 'ត្រៀមបញ្ជាក់' : 'Ready to confirm'}</b>\n${contextLine}${phoneLine}${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\n${isKhmerLanguage(preferences.language) ? 'ចុចបញ្ជាក់ ដើម្បីផ្ញើការបញ្ជាទិញនេះទៅបាន់ជី។' : 'Tap confirm to turn this draft into banji intake.'}`,
     replyMarkup: inlineKeyboard([
       [{ text: isKhmerLanguage(preferences.language) ? 'បញ្ជាក់ការបញ្ជាទិញ' : 'Confirm order', callbackData: buildCallbackData('confirm') }],
       [
@@ -1285,7 +1294,7 @@ function submitWizardCheckout(
       chatId: conversation.externalConversationKey,
       conversationId: conversation.conversationId,
       text: isKhmerLanguage(preferences.language)
-        ? '<b>មិនមានការបញ្ជាទិញសម្រាប់ផ្ញើ</b>\nសូមបន្ថែមយ៉ាងហោចណាស់មួយមុខមុនពេលផ្ញើទៅ banji។'
+        ? '<b>មិនមានការបញ្ជាទិញសម្រាប់ផ្ញើ</b>\nសូមបន្ថែមយ៉ាងហោចណាស់មួយមុខមុនពេលផ្ញើទៅបាន់ជី។'
         : '<b>No order to submit</b>\nAdd at least one item before sending your order to banji.',
       parseMode: 'HTML',
       replyMarkup: removeKeyboard(),
@@ -1317,9 +1326,9 @@ function buildWizardPhoneCapturePrompt(
 ) {
   return {
     text: isKhmerLanguage(preferences.language)
-      ? `<b>${localizedStatusLabel(preferences.language, 'checkout')}</b>\n${isKhmerLanguage(preferences.language) ? 'សរុបរង៖' : 'Subtotal:'} ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\nចែករំលែកលេខទូរស័ព្ទរបស់អ្នកឥឡូវនេះ ឬចុច Skip phone ដើម្បីបន្តដោយគ្មានវា។`
+      ? `<b>${localizedStatusLabel(preferences.language, 'checkout')}</b>\nសរុបរង៖ ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\nចែករំលែកលេខទូរស័ព្ទរបស់អ្នកឥឡូវនេះ ឬចុចរំលងលេខទូរស័ព្ទ ដើម្បីបន្តដោយមិនបញ្ចូលលេខ។`
       : `<b>${localizedStatusLabel(preferences.language, 'checkout')}</b>\nSubtotal: ${escapeTelegramHtml(formatTelegramMoney(preferences, wizardDraftSubtotal(session)))}\n\nShare your phone number now, or tap Skip phone to continue without it.`,
-    replyMarkup: phoneKeyboard(),
+    replyMarkup: phoneKeyboard(preferences),
   };
 }
 
@@ -1329,11 +1338,11 @@ function buildTelegramReply(intake: AutomationOrderIntake, preferences: Telegram
       .map((line) => `• ${line.quantity} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal ?? 0)}`)
       .join('\n');
     return isKhmerLanguage(preferences.language)
-      ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nbanji នឹងរក្សាការទទួលនេះសម្រាប់ការពិនិត្យ និងបំលែងទៅ ticket ដោយប្រតិបត្តិករ។`
+      ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nបាន់ជីនឹងរក្សាសំណើនេះសម្រាប់ឲ្យប្រតិបត្តិករពិនិត្យ និងបង្កើតជាសំបុត្រការងារ។`
       : `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>Quoted total:</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nbanji will keep this intake ready for operator review and promotion.`;
   }
   return isKhmerLanguage(preferences.language)
-    ? `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nbanji បានទទួលសាររបស់អ្នកហើយ ប៉ុន្តែត្រូវការប្រតិបត្តិករពិនិត្យមុនពេលដកស្រង់តម្លៃ។ សូមរង់ចាំខណៈ banji កំពុងពិនិត្យ។`
+    ? `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nបាន់ជីបានទទួលសាររបស់អ្នកហើយ ប៉ុន្តែត្រូវការឲ្យប្រតិបត្តិករពិនិត្យមុនពេលបញ្ជាក់តម្លៃ។ សូមរង់ចាំ ខណៈពេលបាន់ជីកំពុងពិនិត្យ។`
     : `<b>${localizedStatusLabel(preferences.language, 'needs_review')}</b>\nI received your message, but banji needs an operator to review it before quoting it. Please wait while banji reviews it.`;
 }
 
@@ -1940,12 +1949,12 @@ function handleWizardCallback(
       return true;
     case 'confirm': {
       if (session.currentStep !== 'checkout_confirm' || session.draftLines.length === 0) {
-        acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅ banji រួចហើយ។' : 'This order was already sent to banji.');
+        acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅបាន់ជីរួចហើយ។' : 'This order was already sent to banji.');
         return true;
       }
       const intake = submitWizardCheckout(state, outboundJobs, session, conversation, defaults.currency, preferences);
       acknowledge(intake?.status === 'quoted'
-        ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅ banji។' : 'Sent to banji.')
+        ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅបាន់ជី។' : 'Sent to banji.')
         : (isKhmerLanguage(preferences.language) ? 'បានផ្ញើសម្រាប់ការពិនិត្យ។' : 'Sent for review.'));
       return true;
     }
@@ -1956,7 +1965,7 @@ function handleWizardCallback(
         chatId: conversation.externalConversationKey,
         conversationId: conversation.conversationId,
         text: isKhmerLanguage(preferences.language)
-          ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nការបញ្ជាទិញ draft របស់អ្នកត្រូវបានសម្អាត។'
+          ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nសេចក្តីព្រាងការបញ្ជាទិញរបស់អ្នកត្រូវបានសម្អាត។'
           : '<b>Order canceled</b>\nYour draft order was cleared.',
         parseMode: 'HTML',
         replyMarkup: removeKeyboard(),
@@ -2522,7 +2531,10 @@ export async function ingestAutomationTelegramUpdates(
         conversation.phone = phone;
         session.pendingPromptIntent = null;
         submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
-      } else if (session.pendingPromptIntent === 'share_phone' && normalizedText === 'skip phone') {
+      } else if (
+        session.pendingPromptIntent === 'share_phone'
+        && (normalizedText === 'skip phone' || normalizedText === normalizeTelegramLabel('រំលងលេខទូរស័ព្ទ'))
+      ) {
         session.pendingPromptIntent = null;
         submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
       } else if (command === '/start') {
@@ -2600,7 +2612,7 @@ export async function ingestAutomationTelegramUpdates(
           chatId: conversation.externalConversationKey,
           conversationId: conversation.conversationId,
           text: isKhmerLanguage(preferences.language)
-            ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nការបញ្ជាទិញ draft របស់អ្នកត្រូវបានសម្អាត។'
+            ? '<b>បានបោះបង់ការបញ្ជាទិញ</b>\nសេចក្តីព្រាងការបញ្ជាទិញរបស់អ្នកត្រូវបានសម្អាត។'
             : '<b>Order canceled</b>\nYour draft order was cleared.',
           parseMode: 'HTML',
           replyMarkup: removeKeyboard(),

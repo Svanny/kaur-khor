@@ -99,6 +99,13 @@ async function completePreferencesOnboarding(
   userDataPath: string,
   chatId: number,
   firstName: string,
+  {
+    language = 'en',
+    currency = 'USD',
+  }: {
+    language?: 'en' | 'km';
+    currency?: 'USD' | 'KHR';
+  } = {},
 ) {
   await ingestAutomationTelegramUpdates(userDataPath, {
     context: context as never,
@@ -124,7 +131,7 @@ async function completePreferencesOnboarding(
         update_id: chatId * 10 + 2,
         callback_query: {
           id: `callback-language-${chatId}`,
-          data: 'w:language:en',
+          data: `w:language:${language}`,
           from: {
             id: chatId,
             first_name: firstName,
@@ -143,7 +150,7 @@ async function completePreferencesOnboarding(
         update_id: chatId * 10 + 3,
         callback_query: {
           id: `callback-currency-${chatId}`,
-          data: 'w:currency:USD',
+          data: `w:currency:${currency}`,
           from: {
             id: chatId,
             first_name: firstName,
@@ -160,6 +167,18 @@ async function completePreferencesOnboarding(
       },
     ],
   });
+}
+
+function telegramSendMessageText(fetchMock: ReturnType<typeof vi.fn>) {
+  const body = fetchMock.mock.calls.at(-1)?.[1]?.body;
+  const payload = typeof body === 'string' ? JSON.parse(body) as { text?: string } : {};
+  return payload.text ?? '';
+}
+
+function expectNoUnexpectedKhmerLatin(text: string, allowedLatinFragments: string[] = []) {
+  const withoutHtmlTags = text.replace(/<\/?[A-Za-z][^>]*>/g, '');
+  const redacted = allowedLatinFragments.reduce((current, fragment) => current.replaceAll(fragment, ''), withoutHtmlTags);
+  expect(redacted.match(/[A-Za-z][A-Za-z0-9@_./-]*/g) ?? []).toEqual([]);
 }
 
 describe('telegram automation connection setup', () => {
@@ -456,5 +475,105 @@ describe('telegram automation connection setup', () => {
 
     const updatedConversation = await readAutomationConversation(userDataPath, intake.conversationId);
     expect(updatedConversation.messages.some((entry) => entry.direction === 'outbound' && entry.externalMessageKey === '11')).toBe(true);
+  });
+
+  it('renders Khmer promotion and ticket update notifications without unintended Latin UI copy', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'banji-automation-telegram-km-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'banji bot',
+          username: 'banji_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockImplementation(async () => new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 12,
+          date: 1_745_193_702,
+          text: 'sent',
+          chat: { id: 555_889, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, 555_889, 'Sokha', {
+      language: 'km',
+      currency: 'KHR',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3,
+          message: {
+            message_id: 3,
+            date: 1_745_193_602,
+            text: '2 cotton scarf',
+            chat: {
+              id: 555_889,
+              type: 'private',
+            },
+            from: {
+              id: 555_889,
+              first_name: 'Sokha',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const intake = workspace.intakes[0]!;
+    await notifyTelegramCustomerOfPromotion(userDataPath, {
+      conversationId: intake.conversationId,
+      intake: {
+        ...intake,
+        status: 'ticketed',
+        promotedTicketId: 'ticket-12',
+      },
+    });
+    const promotionText = telegramSendMessageText(fetchMock);
+
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+    await finalizeAutomationPromotion(userDataPath, prepared.updatedIntake);
+    await notifyTelegramCustomerOfTicketUpdate(userDataPath, {
+      ticketEvent: {
+        ...prepared.ticketEvent,
+        eventType: 'revised',
+        note: 'យកទំនិញក្រោយម៉ោង 5 ល្ងាច',
+        revision: 2,
+      },
+    });
+    const updateText = telegramSendMessageText(fetchMock);
+
+    expect(promotionText).toContain('<b>បាន់ជីបានទទួលការបញ្ជាទិញរបស់អ្នក</b>');
+    expect(promotionText).toContain('តម្លៃសរុប៖ KHR 100000');
+    expect(updateText).toContain('<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីបាន់ជី</b>');
+    expect(updateText).toContain('សំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាព');
+    expectNoUnexpectedKhmerLatin(`${promotionText}\n${updateText}`, ['KHR']);
   });
 });
