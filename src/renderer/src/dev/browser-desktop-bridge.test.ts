@@ -53,6 +53,18 @@ describe('installBrowserDesktopBridge', () => {
   it('builds a seeded browser mock state with automation workspace data', () => {
     const state = createMockState();
 
+    expect(state.catalog.skus).toHaveLength(10);
+    expect(state.catalog.services).toHaveLength(10);
+    expect(new Set(state.catalog.skus.map((sku) => sku.name)).size).toBe(10);
+    expect(new Set(state.catalog.services.map((service) => service.name)).size).toBe(10);
+    expect(state.catalog.skus.every((sku) => /[\u1780-\u17ff]/.test(sku.name))).toBe(true);
+    expect(state.catalog.services.every((service) => /[\u1780-\u17ff]/.test(service.name))).toBe(true);
+    expect(state.catalog.skus.every((sku) => sku.imagePath?.includes('kaur-khor-dev-sku-'))).toBe(true);
+    expect(state.catalog.services.every((service) => service.imagePath?.includes('kaur-khor-dev-service-'))).toBe(true);
+    expect(state.workspaceSummary.skuCount).toBe(10);
+    expect(state.workspaceSummary.serviceCount).toBe(10);
+    expect(Object.keys(state.skuDetails)).toHaveLength(10);
+    expect(Object.keys(state.serviceDetails)).toHaveLength(10);
     expect(state.automation.connection.status).toBe('connected');
     expect(state.automationMessages['conv-demo']).toHaveLength(1);
     expect(state.automation.intakes[0]?.intakeId).toBe('intake-demo');
@@ -98,25 +110,25 @@ describe('installBrowserDesktopBridge', () => {
     const observation = await window.kaurKhorDesktop.sena.ingestObservation({
       observedAt: '2026-05-02T00:00:00.000Z',
       stockSnapshot: [{
-        skuId: 'sku-1',
+        skuId: 'sku-001',
         unitsInStock: 0,
         costPerUnit: 18,
         productPrice: 42,
       }],
       retailSalesSnapshot: [{
-        skuId: 'sku-1',
+        skuId: 'sku-001',
         unitsSold: 1000,
       }],
       serviceSalesSnapshot: [],
       serviceRankings: [],
-      retailRankings: ['sku-1'],
+      retailRankings: ['sku-001'],
       serviceStockouts: [],
-      retailStockouts: ['sku-1'],
+      retailStockouts: ['sku-001'],
       orderSignals: [],
       servicePrices: [],
       retailPrices: [],
       leadTimeHints: [{
-        skuId: 'sku-1',
+        skuId: 'sku-001',
         typicalDays: 5,
         lowDays: 4,
         highDays: 6,
@@ -127,7 +139,7 @@ describe('installBrowserDesktopBridge', () => {
     });
     const run = await window.kaurKhorDesktop.sena.triggerRun();
     const after = await window.kaurKhorDesktop.sena.getWorkspaceSummary();
-    const detailPage = await window.kaurKhorDesktop.sena.getSkuDetail({ skuId: 'sku-1', limit: 5 });
+    const detailPage = await window.kaurKhorDesktop.sena.getSkuDetail({ skuId: 'sku-001', limit: 5 });
 
     expect(observation.observationId).toBeTruthy();
     expect(run.status).toBe('succeeded');
@@ -135,7 +147,7 @@ describe('installBrowserDesktopBridge', () => {
     expect(after?.runId).toBe(run.runId);
     expect(after?.intervalCount).toBe(run.observationCount);
     expect(after?.intervalCount ?? 0).toBeGreaterThan(before?.intervalCount ?? 0);
-    expect(detailPage?.detail.summary.skuId).toBe('sku-1');
+    expect(detailPage?.detail.summary.skuId).toBe('sku-001');
     expect(detailPage?.detail.summary.stockoutRisk).toBeGreaterThanOrEqual(0);
     expect(detailPage?.detail.demandPosterior.at(-1)?.retailDemandMean).toBeGreaterThan(0);
   });
@@ -150,7 +162,7 @@ describe('installBrowserDesktopBridge', () => {
           message: {
             message_id: 7,
             date: 1770000000,
-            text: 'two scarves please',
+            text: 'ខ្ញុំចង់បានក្រមា 2',
             chat: { id: 99, username: 'customer' },
             from: { username: 'customer', first_name: 'Dara' },
           },

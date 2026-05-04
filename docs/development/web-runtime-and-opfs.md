@@ -18,7 +18,7 @@ When the existing product app is mounted from `/demo` or `/app`, it is wrapped i
 
 Do not expose Electron or Node APIs in the browser renderer. Browser runtime code must provide a `window.kaurKhorDesktop`-compatible bridge before mounting the existing app.
 
-The demo path may use the seeded browser mock bridge. The real browser app path must require supported browser persistence. If SQLite WASM or OPFS initialization fails, show an unsupported state rather than falling back to weaker storage for real data.
+The demo path may use the seeded browser mock bridge. Its seed data should stay aligned with the generated dev catalog fixture, including the 10 Khmer SKUs, 10 Khmer services, catalog metadata, and bundled generated item images. The real browser app path must require supported browser persistence. If SQLite WASM or OPFS initialization fails, show an unsupported state rather than falling back to weaker storage for real data.
 
 Browser SENA is single-threaded in this phase. `apps/sena-core` has a browser-safe feature path for pure analysis code without the desktop SQLite repository, filesystem artifacts, or Rayon thread pool. The web bridge keeps the startup contract compact, recomputes browser summary/detail/diagnostics on SENA runs, and persists the resulting read models into OPFS.
 

@@ -47,6 +47,10 @@ function filePathToUrl(imagePath: string) {
     return trimmed;
   }
 
+  if (trimmed.startsWith('/assets/') || trimmed.startsWith('/src/renderer/src/assets/')) {
+    return trimmed;
+  }
+
   const normalizedPath = trimmed.replace(/\\/g, '/');
   const pathParts = normalizedPath.split('/').filter(Boolean);
   const assetName = pathParts.at(-1);
