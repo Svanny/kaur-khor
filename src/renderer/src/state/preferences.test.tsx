@@ -295,8 +295,8 @@ describe('preferences state', () => {
         'supplier-order-pending': ['supplier-order:sku-2'],
       },
     }));
-    window.banjiDesktop = {
-      ...window.banjiDesktop,
+    window.kaurKhorDesktop = {
+      ...window.kaurKhorDesktop,
       preferences: {
         get: getPreferences,
         save: savePreferences,

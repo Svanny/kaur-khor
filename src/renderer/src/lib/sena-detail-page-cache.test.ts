@@ -167,7 +167,7 @@ describe('sena detail page cache', () => {
   });
 
   it('ignores malformed payloads and stale fingerprints', () => {
-    window.localStorage.setItem('banji:sena:detail-pages:v1', '{bad json');
+    window.localStorage.setItem('kaur-khor:sena:detail-pages:v1', '{bad json');
     expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
       beforeIntervalIndex: null,
       entityId: 'sku-1',

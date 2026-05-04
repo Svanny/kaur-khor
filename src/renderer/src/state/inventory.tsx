@@ -410,7 +410,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (typeof window !== 'undefined') {
         clearPersistedSenaDetailPagesForEntity({ entityId, entityType, storage: window.localStorage });
       }
-      await window.banjiDesktop.sena.clearDetailCache({ entityId, entityType });
+      await window.kaurKhorDesktop.sena.clearDetailCache({ entityId, entityType });
     },
     [clearLocalSenaDetailCache],
   );
@@ -511,7 +511,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (!runId) {
         return null;
       }
-      const run = await loadWithCache(`sena:run:${runId}`, () => window.banjiDesktop.sena.getRunStatus({ runId }));
+      const run = await loadWithCache(`sena:run:${runId}`, () => window.kaurKhorDesktop.sena.getRunStatus({ runId }));
       if (run?.status === 'succeeded') {
         updateSenaMeta({ lastCompletedRunId: run.runId });
       }
@@ -521,7 +521,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   const refreshRecordUpdateContext = useCallback(async () => {
-    const recordUpdateContext = await window.banjiDesktop.sena.getRecordUpdateContext();
+    const recordUpdateContext = await window.kaurKhorDesktop.sena.getRecordUpdateContext();
     readCacheRef.current.set('sena:record-update-context', recordUpdateContext);
     readCacheRef.current.set('sena:observation-fingerprint', recordUpdateContext.observationFingerprint);
     setStatePartial({
@@ -540,7 +540,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     try {
       readCacheRef.current.clear();
       inflightRef.current.clear();
-      const startupWorkspace = await window.banjiDesktop.sena.getStartupWorkspace();
+      const startupWorkspace = await window.kaurKhorDesktop.sena.getStartupWorkspace();
       const catalog = normalizeSenaCatalog(startupWorkspace.catalog);
       const workspaceSummary = startupWorkspace.workspaceSummary;
       const latestRun = startupWorkspace.latestRun;
@@ -653,7 +653,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       updateSenaMeta,
       upsertSenaCatalog: async (payload) =>
         withSaving(async () => {
-          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(payload));
+          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(payload));
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
@@ -675,16 +675,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             payload.entityType === 'sku'
               ? upsertSenaSku(currentCatalog, payload.nextSku, payload.previousId)
               : upsertSenaService(currentCatalog, payload.nextService, payload.skuIds, payload.previousId);
-          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
 
           const [existingObservations, existingOrderBatches] = await Promise.all([
-            window.banjiDesktop.sena.listObservations(),
-            window.banjiDesktop.sena.listOrderBatches(),
+            window.kaurKhorDesktop.sena.listObservations(),
+            window.kaurKhorDesktop.sena.listOrderBatches(),
           ]);
           for (const observation of existingObservations) {
             const nextInput = rewriteObservationInputForRenamedEntity(observation.input, payload);
             if (nextInput !== observation.input) {
-              await window.banjiDesktop.sena.updateObservation({
+              await window.kaurKhorDesktop.sena.updateObservation({
                 observationId: observation.observationId,
                 input: nextInput,
               });
@@ -696,7 +696,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               for (const child of nextBatch.children) {
                 const original = batch.children.find((entry) => entry.childOrderId === child.childOrderId);
                 if (original && original.skuId !== child.skuId) {
-                  await window.banjiDesktop.sena.updateOrderChild({
+                  await window.kaurKhorDesktop.sena.updateOrderChild({
                     childOrderId: child.childOrderId,
                     skuId: child.skuId,
                   });
@@ -706,18 +706,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           }
 
           const [observations, orderBatches] = await Promise.all([
-            window.banjiDesktop.sena.listObservations(),
-            window.banjiDesktop.sena.listOrderBatches(),
+            window.kaurKhorDesktop.sena.listObservations(),
+            window.kaurKhorDesktop.sena.listOrderBatches(),
           ]);
           const run =
             payload.previousId !== nextId
-              ? await window.banjiDesktop.sena.triggerRun({
+              ? await window.kaurKhorDesktop.sena.triggerRun({
                   algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
                 })
               : null;
           const [workspaceSummary, diagnostics] = await Promise.all([
-            window.banjiDesktop.sena.getWorkspaceSummary(),
-            window.banjiDesktop.sena.getDiagnostics(),
+            window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+            window.kaurKhorDesktop.sena.getDiagnostics(),
           ]);
 
           invalidateSenaReads();
@@ -760,7 +760,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             entityType === 'sku'
               ? archiveSenaSku(currentCatalog, entityId)
               : archiveSenaService(currentCatalog, entityId);
-          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
@@ -780,7 +780,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             entityType === 'sku'
               ? unarchiveSenaSku(currentCatalog, entityId)
               : unarchiveSenaService(currentCatalog, entityId);
-          const catalog = normalizeSenaCatalog(await window.banjiDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
@@ -792,14 +792,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       loadSenaCatalog: async () => {
         const catalog = await loadWithCache('sena:catalog', () =>
-          window.banjiDesktop.sena.getCatalog().then(normalizeSenaCatalog),
+          window.kaurKhorDesktop.sena.getCatalog().then(normalizeSenaCatalog),
         );
         setStatePartial({ catalog });
         return catalog;
       },
       ingestSenaObservation: async (payload) =>
         withSaving(async () => {
-          const observation = await window.banjiDesktop.sena.ingestObservation(payload);
+          const observation = await window.kaurKhorDesktop.sena.ingestObservation(payload);
           invalidateSenaReads();
           const recordUpdateContext = await refreshRecordUpdateContext();
           setState((current) => {
@@ -817,7 +817,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       updateSenaObservation: async (payload) =>
         withSaving(async () => {
-          const observation = await window.banjiDesktop.sena.updateObservation(payload);
+          const observation = await window.kaurKhorDesktop.sena.updateObservation(payload);
           invalidateSenaReads();
           const recordUpdateContext = await refreshRecordUpdateContext();
           setState((current) => ({
@@ -843,7 +843,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       deleteSenaObservation: async (payload) =>
         withSaving(async () => {
-          await window.banjiDesktop.sena.deleteObservation(payload);
+          await window.kaurKhorDesktop.sena.deleteObservation(payload);
           invalidateSenaReads();
           const recordUpdateContext = await refreshRecordUpdateContext();
           if (recordUpdateContext.observationFingerprint.count === 0) {
@@ -876,7 +876,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       listSenaObservationPage: async (payload) => {
         const key = `sena:observation-page:${JSON.stringify(payload ?? {})}`;
-        const page = await loadWithCache(key, () => window.banjiDesktop.sena.listObservationPage(payload));
+        const page = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listObservationPage(payload));
         if (!payload?.beforeObservedAt && !payload?.beforeObservationId) {
           const reports = deriveProjectedReports(page.observations);
           const snapshot = deriveProjectedSnapshot(
@@ -903,11 +903,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const observationLimit = options?.observationLimit ?? DEFAULT_INTERVAL_PAGE_LIMIT;
         const observationRequest = { limit: observationLimit } satisfies SenaObservationPageRequest;
         const [recordUpdateContext, orderBatches, observationPage] = await Promise.all([
-          loadWithCache('sena:record-update-context', () => window.banjiDesktop.sena.getRecordUpdateContext()),
-          loadWithCache('sena:order-batches:{}', () => window.banjiDesktop.sena.listOrderBatches()),
+          loadWithCache('sena:record-update-context', () => window.kaurKhorDesktop.sena.getRecordUpdateContext()),
+          loadWithCache('sena:order-batches:{}', () => window.kaurKhorDesktop.sena.listOrderBatches()),
           includeObservations
             ? loadWithCache(`sena:observation-page:${JSON.stringify(observationRequest)}`, () =>
-                window.banjiDesktop.sena.listObservationPage(observationRequest),
+                window.kaurKhorDesktop.sena.listObservationPage(observationRequest),
               )
             : Promise.resolve(null),
         ]);
@@ -931,7 +931,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       },
       loadSenaRecordUpdateContext: async () => {
         const recordUpdateContext = await loadWithCache('sena:record-update-context', () =>
-          window.banjiDesktop.sena.getRecordUpdateContext(),
+          window.kaurKhorDesktop.sena.getRecordUpdateContext(),
         );
         setStatePartial({
           observationFingerprint: recordUpdateContext.observationFingerprint,
@@ -940,7 +940,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return recordUpdateContext;
       },
       listSenaObservations: async () => {
-        const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
+        const observations = await loadWithCache('sena:observations', () => window.kaurKhorDesktop.sena.listObservations());
         setStatePartial({
           observations,
           reports: deriveProjectedReports(observations),
@@ -953,7 +953,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return observations;
       },
       loadSenaObservations: async () => {
-        const observations = await loadWithCache('sena:observations', () => window.banjiDesktop.sena.listObservations());
+        const observations = await loadWithCache('sena:observations', () => window.kaurKhorDesktop.sena.listObservations());
         setStatePartial({
           observations,
           reports: deriveProjectedReports(observations),
@@ -967,7 +967,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       },
       listSenaOrderBatches: async (payload) => {
         const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
-        const orderBatches = await loadWithCache(key, () => window.banjiDesktop.sena.listOrderBatches(payload));
+        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(payload));
         if (!payload || Object.keys(payload).length === 0) {
           setStatePartial({ orderBatches });
         }
@@ -975,7 +975,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       },
       loadSenaOrderBatches: async (payload) => {
         const key = `sena:order-batches:${JSON.stringify(payload ?? {})}`;
-        const orderBatches = await loadWithCache(key, () => window.banjiDesktop.sena.listOrderBatches(payload));
+        const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(payload));
         if (!payload || Object.keys(payload).length === 0) {
           setStatePartial({ orderBatches });
         }
@@ -983,52 +983,52 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       },
       createSenaOrderBatch: async (payload) =>
         withSaving(async () => {
-          const batch = await window.banjiDesktop.sena.createOrderBatch(payload);
+          const batch = await window.kaurKhorDesktop.sena.createOrderBatch(payload);
           invalidateSenaReads();
-          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          const orderBatches = await window.kaurKhorDesktop.sena.listOrderBatches();
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
           setStatePartial({ orderBatches });
           return batch;
         }),
       updateSenaOrderBatch: async (payload) =>
         withSaving(async () => {
-          const batch = await window.banjiDesktop.sena.updateOrderBatch(payload);
+          const batch = await window.kaurKhorDesktop.sena.updateOrderBatch(payload);
           invalidateSenaReads();
-          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          const orderBatches = await window.kaurKhorDesktop.sena.listOrderBatches();
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
           setStatePartial({ orderBatches });
           return batch;
         }),
       updateSenaOrderChild: async (payload) =>
         withSaving(async () => {
-          const batch = await window.banjiDesktop.sena.updateOrderChild(payload);
+          const batch = await window.kaurKhorDesktop.sena.updateOrderChild(payload);
           invalidateSenaReads();
-          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          const orderBatches = await window.kaurKhorDesktop.sena.listOrderBatches();
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
           setStatePartial({ orderBatches });
           return batch;
         }),
       splitSenaOrderChild: async (payload) =>
         withSaving(async () => {
-          const batch = await window.banjiDesktop.sena.splitOrderChild(payload);
+          const batch = await window.kaurKhorDesktop.sena.splitOrderChild(payload);
           invalidateSenaReads();
-          const orderBatches = await window.banjiDesktop.sena.listOrderBatches();
+          const orderBatches = await window.kaurKhorDesktop.sena.listOrderBatches();
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
           setStatePartial({ orderBatches });
           return batch;
         }),
       triggerSenaRun: async (payload) =>
         withSaving(async () => {
-          const run = await window.banjiDesktop.sena.triggerRun(payload);
+          const run = await window.kaurKhorDesktop.sena.triggerRun(payload);
           invalidateSenaReads();
           readCacheRef.current.set(`sena:run:${run.runId}`, run);
           if (run.status === 'succeeded') {
             updateSenaMeta({ lastCompletedRunId: run.runId });
           }
           const [workspaceSummary, diagnostics, recordUpdateContext] = await Promise.all([
-            window.banjiDesktop.sena.getWorkspaceSummary(),
-            window.banjiDesktop.sena.getDiagnostics(),
-            window.banjiDesktop.sena.getRecordUpdateContext(),
+            window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+            window.kaurKhorDesktop.sena.getDiagnostics(),
+            window.kaurKhorDesktop.sena.getRecordUpdateContext(),
           ]);
           readCacheRef.current.set('sena:summary', workspaceSummary);
           readCacheRef.current.set('sena:diagnostics', diagnostics);
@@ -1051,16 +1051,16 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       retrySenaRun: async (payload) =>
         withSaving(async () => {
-          const run = await window.banjiDesktop.sena.retryRun(payload);
+          const run = await window.kaurKhorDesktop.sena.retryRun(payload);
           invalidateSenaReads();
           readCacheRef.current.set(`sena:run:${run.runId}`, run);
           if (run.status === 'succeeded') {
             updateSenaMeta({ lastCompletedRunId: run.runId });
           }
           const [workspaceSummary, diagnostics, recordUpdateContext] = await Promise.all([
-            window.banjiDesktop.sena.getWorkspaceSummary(),
-            window.banjiDesktop.sena.getDiagnostics(),
-            window.banjiDesktop.sena.getRecordUpdateContext(),
+            window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+            window.kaurKhorDesktop.sena.getDiagnostics(),
+            window.kaurKhorDesktop.sena.getRecordUpdateContext(),
           ]);
           readCacheRef.current.set('sena:summary', workspaceSummary);
           readCacheRef.current.set('sena:diagnostics', diagnostics);
@@ -1083,7 +1083,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         }),
       runWorkspacePreparation,
       loadSenaWorkspaceSummary: async () => {
-        const workspaceSummary = await loadWithCache('sena:summary', () => window.banjiDesktop.sena.getWorkspaceSummary());
+        const workspaceSummary = await loadWithCache('sena:summary', () => window.kaurKhorDesktop.sena.getWorkspaceSummary());
         syncPersistentSenaDetailCache(workspaceSummary);
         const latestRun = await loadLatestRun(workspaceSummary?.runId ?? null);
         setStatePartial({
@@ -1104,7 +1104,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const key = `sena:sku:${skuId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
-          const page = normalizeSkuDetailPage(await window.banjiDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
+          const page = normalizeSkuDetailPage(await window.kaurKhorDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
           if (typeof window !== 'undefined') {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
@@ -1144,7 +1144,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const key = `sena:service:${serviceId}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
-          const page = normalizeServiceDetailPage(await window.banjiDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
+          const page = normalizeServiceDetailPage(await window.kaurKhorDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
           if (typeof window !== 'undefined') {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
@@ -1180,12 +1180,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       clearSenaSkuDetailCache: async (skuId) => clearSenaDetailCache('sku', skuId),
       clearSenaServiceDetailCache: async (serviceId) => clearSenaDetailCache('service', serviceId),
       loadSenaDiagnostics: async () => {
-        const diagnostics = await loadWithCache('sena:diagnostics', () => window.banjiDesktop.sena.getDiagnostics());
+        const diagnostics = await loadWithCache('sena:diagnostics', () => window.kaurKhorDesktop.sena.getDiagnostics());
         setStatePartial({ diagnostics });
         return diagnostics;
       },
       loadSenaRunStatus: async (runId) => {
-        const run = await loadWithCache(`sena:run:${runId}`, () => window.banjiDesktop.sena.getRunStatus({ runId }));
+        const run = await loadWithCache(`sena:run:${runId}`, () => window.kaurKhorDesktop.sena.getRunStatus({ runId }));
         if (run?.status === 'succeeded') {
           updateSenaMeta({ lastCompletedRunId: run.runId });
         }

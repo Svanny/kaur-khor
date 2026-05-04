@@ -55,7 +55,7 @@ import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
 import type { SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
 import { deriveServiceDetailViewModel, type ServiceDetailViewModel } from '@/routes/service-detail/view-model';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { ArchiveRoute } from './archive';
 import { AutomationsRoute } from './automations';
@@ -304,7 +304,7 @@ function CatalogLoadingState() {
       <div className="grid gap-6">
         <WorkspacePanel
           title="SKUs"
-          descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
+          descriptor={translateUiLiteral(language, 'Stock-carrying items Kaur Khor tracks directly.')}
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 4 })}
@@ -415,10 +415,10 @@ export function InventoryRoute() {
         <WorkspaceTitleCard
           eyebrow={translateUiLiteral(language, 'Catalog')}
           title={translateUiLiteral(language, 'Set up the catalog')}
-          descriptor={translateUiLiteral(language, 'Start with the first SKU. banji uses the catalog to connect stock, services, and planning.')}
+          descriptor={translateUiLiteral(language, 'Start with the first SKU. Kaur Khor uses the catalog to connect stock, services, and planning.')}
           actions={
             <Button asChild>
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/new">
                 <ActionCreatePackageIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'New SKU')}
               </Link>
@@ -443,19 +443,19 @@ export function InventoryRoute() {
         actions={
           <WorkspaceActionRow>
             <Button asChild>
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/new">
                 <ActionCreatePackageIcon data-icon="inline-start" />
                 {translateUiLiteral(language, 'New SKU')}
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/services/new">
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/services/new">
                 <NewServiceIcon className="size-4 shrink-0" />
                 {translateUiLiteral(language, 'New service')}
               </Link>
             </Button>
             <Button asChild variant="outline">
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog?status=archived">
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog?status=archived">
                 <ActionArchiveIcon className="size-4 shrink-0" />
                 {translateUiLiteral(language, 'Archive')}
               </Link>
@@ -517,7 +517,7 @@ export function InventoryRoute() {
                 {translateUiLiteral(language, 'Clear filters')}
               </Button>
               <Button asChild>
-                <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
+                <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/new">
                   <ActionCreatePackageIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'New SKU')}
                 </Link>
@@ -535,7 +535,7 @@ export function InventoryRoute() {
           pendingArchive
             ? translateUiLiteral(
                 language,
-                'Archived items disappear from active work, but their history stays available in banji.',
+                'Archived items disappear from active work, but their history stays available in Kaur Khor.',
               )
             : undefined
         }
@@ -564,7 +564,7 @@ export function InventoryRoute() {
       {showSkus && filteredSkus.length > 0 ? (
             <WorkspacePanel
               title={translateUiLiteral(language, 'SKUs ({count})', { count: filteredSkus.length })}
-              descriptor={translateUiLiteral(language, 'Stock-carrying items banji tracks directly.')}
+              descriptor={translateUiLiteral(language, 'Stock-carrying items Kaur Khor tracks directly.')}
               helperExemptReason="Catalog list panel descriptor supplies the active section guidance."
             >
               <div className="grid">
@@ -595,7 +595,7 @@ export function InventoryRoute() {
                           name={
                             <Link
                               className="font-medium text-foreground transition-colors group-hover:text-primary"
-                              state={buildBanjiNavigationState(location, '/catalog')}
+                              state={buildKaurKhorNavigationState(location, '/catalog')}
                               to={`/catalog/skus/${sku.skuId}`}
                             >
                               {sku.name}
@@ -614,13 +614,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}/edit`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}/edit`}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>
@@ -694,7 +694,7 @@ export function InventoryRoute() {
                           name={
                             <Link
                               className="font-medium text-foreground transition-colors group-hover:text-primary"
-                              state={buildBanjiNavigationState(location, '/catalog')}
+                              state={buildKaurKhorNavigationState(location, '/catalog')}
                               to={`/catalog/services/${service.serviceId}`}
                             >
                               {service.name}
@@ -708,13 +708,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}/edit`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}/edit`}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>

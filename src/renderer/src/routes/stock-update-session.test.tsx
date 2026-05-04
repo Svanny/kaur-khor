@@ -38,10 +38,10 @@ const preferenceState = {
   showFloatingTitleActions: false,
   workbenchTileOrderByLane: {} as Record<string, string[]>,
 };
-const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'banji:record-update:draft:stock-count:v1';
-const CUSTOMER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:customer-order-pending:v1';
-const SUPPLIER_PENDING_DRAFT_STORAGE_KEY = 'banji:record-update:draft:supplier-order-pending:v1';
-const CUSTOM_DRAFT_STORAGE_KEY = 'banji:record-update:draft:custom:v1';
+const STOCK_UPDATE_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:stock-count:v1';
+const CUSTOMER_PENDING_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:customer-order-pending:v1';
+const SUPPLIER_PENDING_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:supplier-order-pending:v1';
+const CUSTOM_DRAFT_STORAGE_KEY = 'kaur-khor:record-update:draft:custom:v1';
 const STOCK_ROW_ORDER_STORAGE_KEY = buildStockRowOrderStorageKey('stock-count');
 
 if (!Element.prototype.hasPointerCapture) {
@@ -940,12 +940,12 @@ describe('StockUpdateSessionRoute', () => {
     goToStockStep();
     expect(screen.getByRole('button', { name: /Count SKU stock/i })).toHaveAttribute('aria-current', 'step');
     expect(
-      screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.'),
+      screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Review receipt' }).parentElement as HTMLElement);
-    expect(screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.')).toHaveAttribute('data-error-flash-key', '1');
-    expect(screen.getByText('Count at least one SKU before continuing so banji can anchor the first update.')).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
+    expect(screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.')).toHaveAttribute('data-error-flash-key', '1');
+    expect(screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.')).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
 
     fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
@@ -988,9 +988,9 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByRole('button', { name: /Supplier orders/i })).toHaveAttribute('aria-current', 'step');
     expect(screen.getByRole('columnheader', { name: 'Last order' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current order' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'banji recommends 8 units.');
+    expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'Kaur Khor recommends 8 units.');
     expect(screen.getByLabelText('Lead time mean')).toHaveAttribute('placeholder', '6');
-    expect(screen.queryByText('banji recommends 8 units.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kaur Khor recommends 8 units.')).not.toBeInTheDocument();
     const variabilitySelect = screen.getByRole('combobox', { name: 'Lead time variability' });
     fireEvent.click(variabilitySelect);
     expect(screen.getByRole('option', { name: /Very tight/i })).toBeInTheDocument();
@@ -1272,7 +1272,7 @@ describe('StockUpdateSessionRoute', () => {
     const razorTile = getPosWorkbenchTile('Razor refill');
     const razorImage = razorTile.querySelector('img');
     expect(razorImage).not.toBeNull();
-    expect(razorImage).toHaveAttribute('src', 'banji-asset://local/razor-refill.png');
+    expect(razorImage).toHaveAttribute('src', 'kaur-khor-asset://local/razor-refill.png');
   });
 
   it('keeps POS tile order stable when a line is added or removed, including within filters', async () => {
@@ -1659,7 +1659,7 @@ describe('StockUpdateSessionRoute', () => {
       expect(screen.getByDisplayValue(localDateTimeValue(new Date()))).toBeInTheDocument();
       expect(
         screen.getAllByText(
-          'banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+          'Kaur Khor starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
         )[0],
       ).toBeInTheDocument();
     } finally {
@@ -2431,7 +2431,7 @@ describe('StockUpdateSessionRoute', () => {
 
   it('asks before using the route back button with a dirty record update session', async () => {
     window.sessionStorage.setItem(
-      'banji.navigation-history',
+      'kaur-khor.navigation-history',
       JSON.stringify([
         { key: 'catalog', to: '/catalog' },
         { key: 'stock-session', to: RECORD_UPDATE_STOCK_COUNT_PATH },

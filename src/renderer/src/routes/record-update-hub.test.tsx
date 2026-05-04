@@ -243,7 +243,7 @@ describe('RecordUpdateHubRoute', () => {
 
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent('What do you want to do?');
-    expect(dialog).toHaveTextContent('banj will create or update a durable ticket');
+    expect(dialog).toHaveTextContent('Kaur Khor will create or update a durable ticket');
     expect(within(dialog).getByRole('button', { name: 'New' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Resume draft' })).toBeDisabled();
     expect(within(dialog).getByRole('button', { name: 'Edit/Update' })).toBeEnabled();

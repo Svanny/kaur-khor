@@ -60,7 +60,7 @@ import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useOptionalAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { WireframeRailCards, WireframeRows, WorkspaceTitleCardWireframe } from './loading-wireframes';
 import { PerformanceRightRailBlock, PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from './performance/chrome';
@@ -281,7 +281,7 @@ function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] })
                       name={
                         <Link
                           className="font-semibold text-foreground hover:text-primary"
-                          state={buildBanjiNavigationState(location, '/catalog')}
+                          state={buildKaurKhorNavigationState(location, '/catalog')}
                           to={row.href}
                         >
                           {row.label}
@@ -363,7 +363,7 @@ function MoneyBandColumn({
           <Link
             key={`${row.entityType}-${row.id}`}
             className={`block rounded-[0.9rem] border px-4 py-2.5 transition-colors ${tintedSurfaceClassName(tone)} ${rowHoverClassName}`}
-            state={buildBanjiNavigationState(location, '/catalog')}
+            state={buildKaurKhorNavigationState(location, '/catalog')}
             to={row.href}
           >
             <ItemIdentityBlock
@@ -392,7 +392,7 @@ function RailRows({ emptyLabel, rows }: { emptyLabel: string; rows: FinancialRai
         <Link
           key={row.id}
           className="block py-3 first:pt-0 last:pb-0"
-          state={buildBanjiNavigationState(location, '/catalog')}
+          state={buildKaurKhorNavigationState(location, '/catalog')}
           to={row.href}
         >
           <div className="flex items-start justify-between gap-3">

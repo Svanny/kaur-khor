@@ -24,7 +24,7 @@ import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay
 import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { buildSkuCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
@@ -256,13 +256,13 @@ export function SkuFormRoute() {
     saveLabel: t('saveDraft'),
   });
 
-  const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
+  const detailNavigationState = buildKaurKhorNavigationState(location, '/catalog');
   const currentOrigin =
     location.state &&
     typeof location.state === 'object' &&
-    'banjiNavigationOrigin' in location.state &&
-    typeof location.state.banjiNavigationOrigin === 'string'
-      ? location.state.banjiNavigationOrigin
+    'kaurKhorNavigationOrigin' in location.state &&
+    typeof location.state.kaurKhorNavigationOrigin === 'string'
+      ? location.state.kaurKhorNavigationOrigin
       : null;
   const detailNavigationOrigin = currentOrigin ?? previousLocation ?? '/catalog';
   const detailPath = editing ? `/catalog/skus/${normalizedBaseline.skuId}` : null;
@@ -275,7 +275,7 @@ export function SkuFormRoute() {
       void navigate(detailPath, {
         state: {
           ...detailNavigationState,
-          banjiNavigationOrigin: detailNavigationOrigin,
+          kaurKhorNavigationOrigin: detailNavigationOrigin,
         },
       });
     });
@@ -327,7 +327,7 @@ export function SkuFormRoute() {
         replace: true,
         state: {
           ...detailNavigationState,
-          banjiNavigationOrigin: detailNavigationOrigin,
+          kaurKhorNavigationOrigin: detailNavigationOrigin,
         },
       });
     }
@@ -441,7 +441,7 @@ export function SkuFormRoute() {
             </EditorField>
 
             <CatalogImageField
-              helper="Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. banji will show it on supported item surfaces."
+              helper="Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. Kaur Khor will show it on supported item surfaces."
               imagePath={form.imagePath}
               label="Picture"
               name={form.name || 'SKU image'}

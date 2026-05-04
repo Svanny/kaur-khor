@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
-import { BanjiShell } from '@/components/banji-shell';
+import { KaurKhorShell } from '@/components/kaur-khor-shell';
 import { CommandPaletteProvider } from '@/components/command-palette';
 import { CommandHomeRoute } from '@/routes/command-home';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
@@ -44,7 +44,6 @@ const ROUTE_LOCAL_READY_NAMES = new Set([
   'insights.pressure',
   'automations',
   'service-detail',
-  'work',
   'work.intake',
   'work.queue',
 ]);
@@ -53,7 +52,10 @@ export function routeBenchmarkName(pathname: string) {
   if (pathname === '/') {
     return 'home';
   }
-  if (pathname === '/work' || pathname === '/work/queue') {
+  if (pathname === '/work') {
+    return 'work';
+  }
+  if (pathname === '/work/queue') {
     return 'work.queue';
   }
   if (pathname.startsWith('/work/capture')) {
@@ -229,7 +231,7 @@ function AppFrame() {
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
           <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
-            banji
+            KAUR KHOR
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             Loading preferences…
@@ -257,9 +259,9 @@ function AppFrame() {
       <NavigationHistoryProvider>
         <PageStateMemoryObserver />
         <CommandPaletteProvider>
-          <BanjiShell>
+          <KaurKhorShell>
             <AppRoutes />
-          </BanjiShell>
+          </KaurKhorShell>
         </CommandPaletteProvider>
       </NavigationHistoryProvider>
     </div>
@@ -287,7 +289,7 @@ export default function App() {
     let mounted = true;
     recordBenchmarkInstant('renderer.app.mount.start', 'startup');
     markBenchmarkStart('renderer.app.getAppContext', 'startup');
-    window.banjiDesktop.system.getAppContext()
+    window.kaurKhorDesktop.system.getAppContext()
       .then((context) => {
         markBenchmarkEnd('renderer.app.getAppContext', 'startup', { ok: true });
         if (mounted) {
@@ -315,7 +317,7 @@ export default function App() {
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
           <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
-            banji
+            KAUR KHOR
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             Loading local workspace…

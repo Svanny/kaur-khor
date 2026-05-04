@@ -64,7 +64,7 @@ export function AutomationIntakeTable({
             <HeaderTooltipLabel helpHref="/settings/help#automation-intake-request" tooltip={literal('The parsed customer request before it is attached to a ticket.')}>{literal('Request')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip={literal('Estimated customer-facing total when banji has enough matched catalog data.')}>{literal('Quoted total')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip={literal('Estimated customer-facing total when Kaur Khor has enough matched catalog data.')}>{literal('Quoted total')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
             <HeaderTooltipLabel helpHref="/settings/help#automation-intake-state" tooltip={literal('Current intake state, including whether operator review is still needed.')}>{literal('State')}</HeaderTooltipLabel>

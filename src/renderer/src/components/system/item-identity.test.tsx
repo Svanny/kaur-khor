@@ -11,17 +11,17 @@ vi.mock('@/state/preferences', () => ({
 describe('ItemAvatar', () => {
   test('renders stored asset paths through the asset protocol', () => {
     const { container } = render(
-      <ItemAvatar imagePath="/tmp/banji/assets/razor-refill.png" name="Razor refill" type="sku" />,
+      <ItemAvatar imagePath="/tmp/kaur-khor/assets/razor-refill.png" name="Razor refill" type="sku" />,
     );
 
-    expect(container.querySelector('img')).toHaveAttribute('src', 'banji-asset://local/razor-refill.png');
+    expect(container.querySelector('img')).toHaveAttribute('src', 'kaur-khor-asset://local/razor-refill.png');
   });
 
   test('renders existing plain local image paths through the asset protocol', () => {
     const { container } = render(
-      <ItemAvatar imagePath="/tmp/not-banji/razor-refill.png" name="Razor refill" type="sku" />,
+      <ItemAvatar imagePath="/tmp/not-kaur-khor/razor-refill.png" name="Razor refill" type="sku" />,
     );
 
-    expect(container.querySelector('img')).toHaveAttribute('src', 'banji-asset://local/razor-refill.png');
+    expect(container.querySelector('img')).toHaveAttribute('src', 'kaur-khor-asset://local/razor-refill.png');
   });
 });

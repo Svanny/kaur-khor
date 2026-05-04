@@ -16,7 +16,7 @@ import { createUniqueServiceId, emptySenaCatalog, linkedSkuIdsForService, upsert
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState, useNavigationHistory } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { buildServiceCatalogEditObservation } from './catalog-edit-observation';
 import { CatalogImageField } from './catalog-image-field';
@@ -372,19 +372,19 @@ export function ServiceFormRoute() {
     if (!navigateAfterSave) {
       return true;
     }
-    const detailNavigationState = buildBanjiNavigationState(location, '/catalog');
+    const detailNavigationState = buildKaurKhorNavigationState(location, '/catalog');
     const currentOrigin =
       location.state &&
       typeof location.state === 'object' &&
-      'banjiNavigationOrigin' in location.state &&
-      typeof location.state.banjiNavigationOrigin === 'string'
-        ? location.state.banjiNavigationOrigin
+      'kaurKhorNavigationOrigin' in location.state &&
+      typeof location.state.kaurKhorNavigationOrigin === 'string'
+        ? location.state.kaurKhorNavigationOrigin
         : null;
     await navigate(`/catalog/services/${nextService.serviceId}`, {
       replace: true,
       state: {
         ...detailNavigationState,
-        banjiNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
+        kaurKhorNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
       },
     });
     return true;
@@ -483,7 +483,7 @@ export function ServiceFormRoute() {
           </EditorField>
 
           <CatalogImageField
-            helper="Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces."
+            helper="Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. Kaur Khor will show it on supported item surfaces."
             imagePath={form.imagePath}
             label="Picture"
             name={form.name || 'Service image'}

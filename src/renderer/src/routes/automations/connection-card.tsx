@@ -76,11 +76,11 @@ export function AutomationConnectionCard({
         </div>
         <div className="grid gap-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{literal('Customer-order contract')}</p>
-          <p className="text-sm leading-6 text-muted-foreground">{literal('Customers can browse approved sellables, request quantities, and receive a quoted total. banji will only create customer tickets after the intake passes review or confirmation rules.')}</p>
+          <p className="text-sm leading-6 text-muted-foreground">{literal('Customers can browse approved sellables, request quantities, and receive a quoted total. Kaur Khor will only create customer tickets after the intake passes review or confirmation rules.')}</p>
         </div>
         <div className="grid gap-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{literal('Intake rule summary')}</p>
-          <p className="text-sm leading-6 text-muted-foreground">{literal('Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to banji.')}</p>
+          <p className="text-sm leading-6 text-muted-foreground">{literal('Telegram stays an ingress channel. Pricing, ticket truth, and fulfillment still belong to Kaur Khor.')}</p>
         </div>
       </div>
 
@@ -94,7 +94,7 @@ export function AutomationConnectionCard({
             <li>{literal('The bot token is stored in this browser profile.')}</li>
             <li>{literal('Clearing browser data can remove browser automation state and the saved token.')}</li>
             <li>{literal('Do not run the same bot token in desktop and browser at the same time unless you coordinate the handoff.')}</li>
-            <li>{literal('If Telegram blocks browser fetch, banji will show a browser-blocked state and require the desktop app.')}</li>
+            <li>{literal('If Telegram blocks browser fetch, Kaur Khor will show a browser-blocked state and require the desktop app.')}</li>
           </ul>
         </div>
       ) : null}

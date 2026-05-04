@@ -20,7 +20,7 @@ type PersistedSenaDetailPageStore = {
   fingerprintIndex: Record<string, string[]>;
 };
 
-const STORAGE_KEY = 'banji:sena:detail-pages:v1';
+const STORAGE_KEY = 'kaur-khor:sena:detail-pages:v1';
 const MAX_WINDOWS_PER_ENTITY = 4;
 const MAX_ENTRIES_PER_TYPE = 80;
 

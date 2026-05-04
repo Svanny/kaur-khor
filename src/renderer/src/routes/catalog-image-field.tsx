@@ -78,7 +78,7 @@ export function CatalogImageField({
     setError(null);
     try {
       const arrayBuffer = await imageFile.arrayBuffer();
-      const nextImagePath = await window.banjiDesktop.system.storeDroppedImage({
+      const nextImagePath = await window.kaurKhorDesktop.system.storeDroppedImage({
         name: imageFile.name || 'clipboard-image.png',
         type: imageFile.type,
         data: arrayBuffer,
@@ -103,7 +103,7 @@ export function CatalogImageField({
     setBusy(true);
     setError(null);
     try {
-      const nextImagePath = await window.banjiDesktop.system.pickAndStoreImage();
+      const nextImagePath = await window.kaurKhorDesktop.system.pickAndStoreImage();
       if (nextImagePath) {
         onChange(nextImagePath);
       }

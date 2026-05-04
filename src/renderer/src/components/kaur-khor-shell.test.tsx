@@ -3,7 +3,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { PAGE_STATE_MEMORY_STORAGE_KEY } from '@/lib/page-state-memory';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
-import { BanjiShell } from './banji-shell';
+import { KaurKhorShell } from './kaur-khor-shell';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
@@ -23,7 +23,7 @@ vi.mock('@/state/preferences', () => ({
   usePreferences: () => preferencesHook(),
 }));
 
-describe('BanjiShell', () => {
+describe('KaurKhorShell', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
     window.localStorage.clear();
@@ -92,7 +92,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) => {
         const translations: Record<string, string> = {
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
@@ -143,14 +143,14 @@ describe('BanjiShell', () => {
   test('closes the mobile sidebar after following a navigation link', async () => {
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Catalog screen</div>} path="/catalog" />
             <Route element={<div>Help screen</div>} path="/help" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -176,12 +176,12 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -206,7 +206,7 @@ describe('BanjiShell', () => {
     expect(navLinks.indexOf('Insights')).toBeLessThan(navLinks.indexOf('Settings'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
-    const brandLabel = within(brandToggle).getByText('banji');
+    const brandLabel = within(brandToggle).getByText('KAUR KHOR');
     expect(brandLabel).toBeInTheDocument();
     expect(brandLabel).not.toHaveClass('uppercase');
     expect(screen.getByText('Search')).toBeInTheDocument();
@@ -228,11 +228,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -250,12 +250,12 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -269,12 +269,12 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/settings/interface']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -302,7 +302,7 @@ describe('BanjiShell', () => {
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('Settings')).toBeInTheDocument();
     expect(within(brandToggle).getByText('Settings')).not.toHaveClass('leading-none');
-    expect(within(brandToggle).queryByText('banji')).not.toBeInTheDocument();
+    expect(within(brandToggle).queryByText('KAUR KHOR')).not.toBeInTheDocument();
     expect(screen.queryByText('Search')).not.toBeInTheDocument();
     expect(screen.getAllByText('Settings')).toHaveLength(1);
 
@@ -322,11 +322,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/settings/interface']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -348,7 +348,7 @@ describe('BanjiShell', () => {
     render(
       <MemoryRouter initialEntries={['/catalog?q=scarf&view=skus']}>
         <NavigationHistoryProvider>
-          <BanjiShell>
+          <KaurKhorShell>
             <Routes>
               <Route
                 element={(
@@ -361,7 +361,7 @@ describe('BanjiShell', () => {
               />
               <Route element={<div>Settings screen</div>} path="/settings/*" />
             </Routes>
-          </BanjiShell>
+          </KaurKhorShell>
         </NavigationHistoryProvider>
       </MemoryRouter>,
     );
@@ -395,13 +395,13 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/catalog?status=archived']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Archive screen</div>} path="/catalog" />
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -410,7 +410,7 @@ describe('BanjiShell', () => {
     expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
-    expect(within(brandToggle).getByText('banji')).toBeInTheDocument();
+    expect(within(brandToggle).getByText('KAUR KHOR')).toBeInTheDocument();
   });
 
   test('does not render the view mode control in the sidebar', () => {
@@ -433,7 +433,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
@@ -461,12 +461,12 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -490,11 +490,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -550,11 +550,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -575,11 +575,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/settings/interface']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Settings screen</div>} path="/settings/*" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -609,7 +609,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
@@ -636,11 +636,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -660,11 +660,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -698,11 +698,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -730,7 +730,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
@@ -756,11 +756,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/insights']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Insights screen</div>} path="/insights" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -791,7 +791,7 @@ describe('BanjiShell', () => {
       showAnalysisPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'ទំព័រដើម',
           navHome: 'ទំព័រដើម',
           navInbox: 'ប្រអប់ការងារ',
@@ -817,11 +817,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -848,7 +848,7 @@ describe('BanjiShell', () => {
       showRightRailCards: true,
       t: (key: string) =>
         ({
-          appBrand: 'banji',
+          appBrand: 'KAUR KHOR',
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
@@ -874,12 +874,12 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -907,7 +907,7 @@ describe('BanjiShell', () => {
       showAutomationsPage: true,
       t: (key: string) =>
         ({
-          appBrand: 'បញ្ជី',
+          appBrand: 'កខ',
           navOverview: 'ទិដ្ឋភាពទូទៅ',
           navRecordUpdate: 'កត់ត្រាការអាប់ដេត',
           navPerformance: 'សុខភាពអាជីវកម្ម',
@@ -930,11 +930,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -946,11 +946,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -976,11 +976,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/catalog']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Catalog screen</div>} path="/catalog" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -1001,11 +1001,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -1025,11 +1025,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -1053,11 +1053,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/catalog']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Catalog screen</div>} path="/catalog" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -1077,11 +1077,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/catalog']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Catalog screen</div>} path="/catalog" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 
@@ -1101,11 +1101,11 @@ describe('BanjiShell', () => {
 
     render(
       <MemoryRouter initialEntries={['/capture']}>
-        <BanjiShell>
+        <KaurKhorShell>
           <Routes>
             <Route element={<div>Record update screen</div>} path="/capture" />
           </Routes>
-        </BanjiShell>
+        </KaurKhorShell>
       </MemoryRouter>,
     );
 

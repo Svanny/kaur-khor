@@ -1,7 +1,7 @@
 const truthyValues = new Set(['1', 'true', 'yes', 'on']);
 
 function envTraceEnabled() {
-  const raw = import.meta.env.VITE_BANJI_DESKTOP_TRACE_RENDERER;
+  const raw = import.meta.env.VITE_KAUR_KHOR_DESKTOP_TRACE_RENDERER;
   return typeof raw === 'string' && truthyValues.has(raw.toLowerCase());
 }
 
@@ -13,7 +13,7 @@ function storageTraceEnabled() {
   if (!storage || typeof storage.getItem !== 'function') {
     return false;
   }
-  const raw = storage.getItem('BANJI_DESKTOP_TRACE_RENDERER');
+  const raw = storage.getItem('KAUR_KHOR_DESKTOP_TRACE_RENDERER');
   return typeof raw === 'string' && truthyValues.has(raw.toLowerCase());
 }
 
@@ -34,5 +34,5 @@ export function traceRenderer(scope: string, message: string, details?: Record<s
     return;
   }
   const suffix = details ? ` ${serializeDetails(details)}` : '';
-  console.log(`[banji-renderer:${scope}] ${message}${suffix}`);
+  console.log(`[kaur-khor-renderer:${scope}] ${message}${suffix}`);
 }

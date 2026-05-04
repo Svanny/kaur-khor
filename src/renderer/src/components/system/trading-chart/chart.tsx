@@ -324,7 +324,7 @@ const LAYOUT_DROP_ANIMATION = {
   duration: 160,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
-const CHART_LAYOUT_DND_DEBUG_STORAGE_KEY = 'banji:debug:chart-layout-dnd';
+const CHART_LAYOUT_DND_DEBUG_STORAGE_KEY = 'kaur-khor:debug:chart-layout-dnd';
 const REGIME_ICON_SIZE = 28;
 const REGIME_CLUSTER_GAP = 8;
 const OVERLAY_FLAG_STACK_GAP = 6;
@@ -2680,8 +2680,8 @@ function chartLayoutDndDebugEnabled() {
     return false;
   }
   try {
-    const debugWindow = window as Window & { __BANJI_CHART_LAYOUT_DND_DEBUG__?: boolean };
-    return debugWindow.__BANJI_CHART_LAYOUT_DND_DEBUG__ === true ||
+    const debugWindow = window as Window & { __KAUR_KHOR_CHART_LAYOUT_DND_DEBUG__?: boolean };
+    return debugWindow.__KAUR_KHOR_CHART_LAYOUT_DND_DEBUG__ === true ||
       window.localStorage?.getItem(CHART_LAYOUT_DND_DEBUG_STORAGE_KEY) === '1' ||
       window.location.hash.includes('debugChartLayoutDnd=1') ||
       window.location.search.includes('debugChartLayoutDnd=1');

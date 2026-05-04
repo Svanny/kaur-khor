@@ -274,20 +274,20 @@ describe('SkuDetailLedger', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Enable demand' }));
 
-      const persistedBeforeDebounce = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      const persistedBeforeDebounce = JSON.parse(window.localStorage.getItem('kaur-khor:page-state-memory:v1') ?? '{}');
       expect(persistedBeforeDebounce.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(119);
       });
-      const persistedStillBuffered = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      const persistedStillBuffered = JSON.parse(window.localStorage.getItem('kaur-khor:page-state-memory:v1') ?? '{}');
       expect(persistedStillBuffered.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(false);
 
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
       });
 
-      const persisted = JSON.parse(window.localStorage.getItem('banji:page-state-memory:v1') ?? '{}');
+      const persisted = JSON.parse(window.localStorage.getItem('kaur-khor:page-state-memory:v1') ?? '{}');
       expect(persisted.catalog?.values?.['sku:sku-1:chartSettings']?.demand?.enabled).toBe(true);
     } finally {
       vi.useRealTimers();

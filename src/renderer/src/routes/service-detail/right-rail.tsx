@@ -9,7 +9,7 @@ import { translateRegimeLabel } from '@/lib/localized-display';
 import { translateUiLiteral } from '@/lib/translations';
 import { SelectedIntervalBrief } from '@/routes/detail-selected-interval-card';
 import { formatSenaDateTime } from '@/routes/sku-detail/format';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import type { ServiceDetailViewModel, ServiceInspectorSelection } from './view-model';
 
@@ -99,7 +99,7 @@ export function ServiceDetailRightRail({
           </div>
           <Link
             className={`${buttonVariants()} mt-4 w-full`}
-            state={buildBanjiNavigationState(location, '/catalog')}
+            state={buildKaurKhorNavigationState(location, '/catalog')}
             to={contributor.openSkuHref}
           >
             <ActionOpenExternalIcon className="size-4" />

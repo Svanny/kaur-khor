@@ -17,7 +17,7 @@ export function useRuntimeMode() {
 
   useEffect(() => {
     let mounted = true;
-    window.banjiDesktop?.system?.getAppContext?.()
+    window.kaurKhorDesktop?.system?.getAppContext?.()
       .then((context) => {
         if (mounted) {
           setMode(modeFromPlatform(context.platform));

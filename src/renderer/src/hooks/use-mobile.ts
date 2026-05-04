@@ -1,10 +1,10 @@
 import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
-const EMBEDDED_VIEWPORT_CHANGE_EVENT = 'banji:embedded-viewport-change'
+const EMBEDDED_VIEWPORT_CHANGE_EVENT = 'kaur-khor:embedded-viewport-change'
 
 function readEffectiveViewportWidth() {
-  const embeddedWidth = Number.parseFloat(document.documentElement.dataset.banjiEffectiveViewportWidth ?? '')
+  const embeddedWidth = Number.parseFloat(document.documentElement.dataset.kaurKhorEffectiveViewportWidth ?? '')
   return Number.isFinite(embeddedWidth) && embeddedWidth > 0 ? embeddedWidth : window.innerWidth
 }
 

@@ -41,7 +41,7 @@ describe('AutomationProvider', () => {
   beforeEach(() => {
     loadWorkSupportData.mockReset();
     loadWorkSupportData.mockResolvedValue(null);
-    window.banjiDesktop = {
+    window.kaurKhorDesktop = {
       automation: {
         getWorkspace: vi.fn(async () => automationWorkspace()),
         promoteIntake: vi.fn(async () => ({
@@ -67,7 +67,7 @@ describe('AutomationProvider', () => {
     fireEvent.click(screen.getByText('promote'));
 
     await waitFor(() => {
-          expect(window.banjiDesktop.automation?.promoteIntake).toHaveBeenCalledWith({
+          expect(window.kaurKhorDesktop.automation?.promoteIntake).toHaveBeenCalledWith({
         intakeId: 'intake-1',
         mode: 'create_ticket',
       });

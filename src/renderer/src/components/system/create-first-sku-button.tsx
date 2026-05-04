@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { ActionCreatePackageIcon } from '@icons/actions';
 import { Button } from '@/components/ui/button';
 import { translateUiLiteral } from '@/lib/translations';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 
 type CreateFirstSkuButtonProps = Pick<ComponentProps<typeof Button>, 'className' | 'size' | 'variant'>;
@@ -18,7 +18,7 @@ export function CreateFirstSkuButton({
 
   return (
     <Button asChild className={className} size={size} variant={variant}>
-      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/new">
+      <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/new">
         <ActionCreatePackageIcon data-icon="inline-start" />
         {translateUiLiteral(language, 'Create first SKU')}
       </Link>

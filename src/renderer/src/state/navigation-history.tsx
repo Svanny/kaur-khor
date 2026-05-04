@@ -11,10 +11,10 @@ import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 export const SIDEBAR_NAVIGATION_SOURCE = 'sidebar';
 const DEFAULT_NESTED_FALLBACK = '/catalog';
 
-export type BanjiNavigationState = {
-  banjiNavigationFallback?: string | null;
-  banjiNavigationOrigin?: string | null;
-  banjiNavigationSource?: string;
+export type KaurKhorNavigationState = {
+  kaurKhorNavigationFallback?: string | null;
+  kaurKhorNavigationOrigin?: string | null;
+  kaurKhorNavigationSource?: string;
 };
 
 type NavigationEntry = {
@@ -30,7 +30,7 @@ type NavigationHistoryContextValue = {
   previousLocation: string | null;
 };
 
-const STORAGE_KEY = 'banji.navigation-history';
+const STORAGE_KEY = 'kaur-khor.navigation-history';
 
 const NavigationHistoryContext = createContext<NavigationHistoryContextValue | null>(null);
 
@@ -58,22 +58,22 @@ function lastIndexOfTarget(entries: NavigationEntry[], target: string) {
   return -1;
 }
 
-function readBanjiNavigationState(state: unknown): BanjiNavigationState {
+function readKaurKhorNavigationState(state: unknown): KaurKhorNavigationState {
   if (!state || typeof state !== 'object') {
     return {};
   }
 
   return {
-    banjiNavigationFallback:
-      'banjiNavigationFallback' in state && (typeof state.banjiNavigationFallback === 'string' || state.banjiNavigationFallback == null)
-        ? state.banjiNavigationFallback
+    kaurKhorNavigationFallback:
+      'kaurKhorNavigationFallback' in state && (typeof state.kaurKhorNavigationFallback === 'string' || state.kaurKhorNavigationFallback == null)
+        ? state.kaurKhorNavigationFallback
         : undefined,
-    banjiNavigationOrigin:
-      'banjiNavigationOrigin' in state && (typeof state.banjiNavigationOrigin === 'string' || state.banjiNavigationOrigin == null)
-        ? state.banjiNavigationOrigin
+    kaurKhorNavigationOrigin:
+      'kaurKhorNavigationOrigin' in state && (typeof state.kaurKhorNavigationOrigin === 'string' || state.kaurKhorNavigationOrigin == null)
+        ? state.kaurKhorNavigationOrigin
         : undefined,
-    banjiNavigationSource:
-      'banjiNavigationSource' in state && typeof state.banjiNavigationSource === 'string' ? state.banjiNavigationSource : undefined,
+    kaurKhorNavigationSource:
+      'kaurKhorNavigationSource' in state && typeof state.kaurKhorNavigationSource === 'string' ? state.kaurKhorNavigationSource : undefined,
   };
 }
 
@@ -87,33 +87,33 @@ function nestedFallbackForPath(pathname: string) {
   return null;
 }
 
-export function buildBanjiNavigationState(
+export function buildKaurKhorNavigationState(
   location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search' | 'state'>,
   fallbackTo?: string | null,
-): BanjiNavigationState {
+): KaurKhorNavigationState {
   return {
-    banjiNavigationFallback: fallbackTo ?? nestedFallbackForPath(location.pathname),
-    banjiNavigationOrigin: currentLocationTarget(location),
+    kaurKhorNavigationFallback: fallbackTo ?? nestedFallbackForPath(location.pathname),
+    kaurKhorNavigationOrigin: currentLocationTarget(location),
   };
 }
 
 export function buildSidebarNavigationState(
   location: Pick<ReturnType<typeof useLocation>, 'hash' | 'pathname' | 'search' | 'state'>,
   fallbackTo?: string | null,
-): BanjiNavigationState {
-  const currentState = readBanjiNavigationState(location.state);
-  const existingOrigin = currentState.banjiNavigationOrigin ?? null;
-  const existingFallback = currentState.banjiNavigationFallback ?? null;
+): KaurKhorNavigationState {
+  const currentState = readKaurKhorNavigationState(location.state);
+  const existingOrigin = currentState.kaurKhorNavigationOrigin ?? null;
+  const existingFallback = currentState.kaurKhorNavigationFallback ?? null;
 
   return {
-    banjiNavigationFallback: existingFallback ?? fallbackTo ?? nestedFallbackForPath(location.pathname),
-    banjiNavigationOrigin: existingOrigin,
-    banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+    kaurKhorNavigationFallback: existingFallback ?? fallbackTo ?? nestedFallbackForPath(location.pathname),
+    kaurKhorNavigationOrigin: existingOrigin,
+    kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
   };
 }
 
 function isSidebarNavigation(location: ReturnType<typeof useLocation>) {
-  return readBanjiNavigationState(location.state).banjiNavigationSource === SIDEBAR_NAVIGATION_SOURCE;
+  return readKaurKhorNavigationState(location.state).kaurKhorNavigationSource === SIDEBAR_NAVIGATION_SOURCE;
 }
 
 function readEntries(): NavigationEntry[] {
@@ -229,15 +229,15 @@ export function NavigationHistoryProvider({ children }: { children: ReactNode })
   const navigate = useNavigate();
   const [entries, setEntries] = useState<NavigationEntry[]>(() => readEntries());
   const resetHistory = isSidebarNavigation(location);
-  const currentState = readBanjiNavigationState(location.state);
+  const currentState = readKaurKhorNavigationState(location.state);
   const currentEntry = useMemo<NavigationEntry>(
     () => ({
-      fallbackTo: currentState.banjiNavigationFallback ?? nestedFallbackForPath(location.pathname),
+      fallbackTo: currentState.kaurKhorNavigationFallback ?? nestedFallbackForPath(location.pathname),
       key: location.key,
-      origin: currentState.banjiNavigationOrigin ?? null,
+      origin: currentState.kaurKhorNavigationOrigin ?? null,
       to: currentLocationTarget(location),
     }),
-    [currentState.banjiNavigationFallback, currentState.banjiNavigationOrigin, location],
+    [currentState.kaurKhorNavigationFallback, currentState.kaurKhorNavigationOrigin, location],
   );
 
   useEffect(() => {

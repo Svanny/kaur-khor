@@ -108,7 +108,7 @@ export function ArchiveRoute() {
           pendingUnarchive
             ? translateUiLiteral(
                 language,
-                'This item will return to active workspaces and become visible across banji again.',
+                'This item will return to active workspaces and become visible across Kaur Khor again.',
               )
             : undefined
         }
@@ -204,7 +204,7 @@ export function ArchiveRoute() {
             title={translateUiLiteral(language, 'SKUs ({count})', { count: archivedSkus.length })}
             descriptor={translateUiLiteral(
               language,
-              'Archived stock-carrying items stay in banji history but stay hidden from active workspaces.',
+              'Archived stock-carrying items stay in Kaur Khor history but stay hidden from active workspaces.',
             )}
           >
             <div className="grid gap-3">

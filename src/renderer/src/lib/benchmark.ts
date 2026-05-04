@@ -1,7 +1,7 @@
 import type {
-  BanjiBenchmarkCategory,
-  BanjiBenchmarkEvent,
-  BanjiBenchmarkEventInput,
+  KaurKhorBenchmarkCategory,
+  KaurKhorBenchmarkEvent,
+  KaurKhorBenchmarkEventInput,
 } from '@shared/benchmark';
 
 type RendererMemoryPerformance = Performance & {
@@ -22,7 +22,7 @@ function currentBenchmarkRoute() {
 }
 
 function benchmarkMetadata() {
-  return window.banjiDesktop?.benchmark ?? {
+  return window.kaurKhorDesktop?.benchmark ?? {
     enabled: false,
     runId: `renderer-${Date.now()}`,
   };
@@ -36,12 +36,12 @@ export function currentBenchmarkRunId() {
   return benchmarkMetadata().runId;
 }
 
-export function recordBenchmarkEvent(event: BanjiBenchmarkEventInput) {
+export function recordBenchmarkEvent(event: KaurKhorBenchmarkEventInput) {
   if (!benchmarkEnabled()) {
     return;
   }
 
-  const normalized: BanjiBenchmarkEvent = {
+  const normalized: KaurKhorBenchmarkEvent = {
     ...event,
     runId: event.runId ?? currentBenchmarkRunId(),
     ts: event.ts ?? Date.now(),
@@ -54,16 +54,16 @@ export function recordBenchmarkEvent(event: BanjiBenchmarkEventInput) {
   };
 
   const eventWindow = window as Window & {
-    __BANJI_BENCHMARK_EVENTS__?: BanjiBenchmarkEvent[];
+    __KAUR_KHOR_BENCHMARK_EVENTS__?: KaurKhorBenchmarkEvent[];
   };
-  eventWindow.__BANJI_BENCHMARK_EVENTS__ ??= [];
-  eventWindow.__BANJI_BENCHMARK_EVENTS__.push(normalized);
-  window.banjiDesktop?.benchmark?.recordEvent(normalized);
+  eventWindow.__KAUR_KHOR_BENCHMARK_EVENTS__ ??= [];
+  eventWindow.__KAUR_KHOR_BENCHMARK_EVENTS__.push(normalized);
+  window.kaurKhorDesktop?.benchmark?.recordEvent(normalized);
 }
 
 export function markBenchmarkStart(
   name: string,
-  category: BanjiBenchmarkCategory = 'interaction',
+  category: KaurKhorBenchmarkCategory = 'interaction',
   detail?: Record<string, unknown>,
 ) {
   if (!benchmarkEnabled()) {
@@ -82,7 +82,7 @@ export function markBenchmarkStart(
 
 export function markBenchmarkEnd(
   name: string,
-  category: BanjiBenchmarkCategory = 'interaction',
+  category: KaurKhorBenchmarkCategory = 'interaction',
   detail?: Record<string, unknown>,
 ) {
   if (!benchmarkEnabled()) {
@@ -108,7 +108,7 @@ export function markBenchmarkEnd(
 
 export function recordBenchmarkInstant(
   name: string,
-  category: BanjiBenchmarkCategory = 'interaction',
+  category: KaurKhorBenchmarkCategory = 'interaction',
   detail?: Record<string, unknown>,
 ) {
   recordBenchmarkEvent({

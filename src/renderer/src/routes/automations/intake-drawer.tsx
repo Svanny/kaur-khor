@@ -221,7 +221,7 @@ export function AutomationIntakeDrawer({
         return;
       }
       if (!promotionAllowed) {
-        setError(literal('Every line must resolve to a priced sellable before banj can create a customer ticket.'));
+        setError(literal('Every line must resolve to a priced sellable before Kaur Khor can create a customer ticket.'));
         setSaveErrorFlashKey((current) => current + 1);
         return;
       }
@@ -267,7 +267,7 @@ export function AutomationIntakeDrawer({
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{literal('Telegram intake')}</SheetTitle>
               <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
-                {literal('Review Telegram order intake before banj turns it into customer ticket truth.')}
+                {literal('Review Telegram order intake before Kaur Khor turns it into customer ticket truth.')}
               </SheetDescription>
             </div>
             <SheetClose className="mt-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
@@ -422,13 +422,13 @@ export function AutomationIntakeDrawer({
             </div>
               </DrawerBand>
 
-              <DrawerBand title={literal('What banj will do next')}>
+              <DrawerBand title={literal('What Kaur Khor will do next')}>
             <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
               <div className="grid gap-3">
-              <p>{literal('banj will write a customer-side ticket event instead of creating a parallel Telegram order system.')}</p>
-              <p>{literal('banj will write customer commercial events that flow into Overview, Record Update, and Financials.')}</p>
-              <p>{literal('banj will attach Telegram channel metadata to the customer ticket party.')}</p>
-              <p>{literal('banj will keep this intake out of supplier workflows and raw stock-count truth.')}</p>
+              <p>{literal('Kaur Khor will write a customer-side ticket event instead of creating a parallel Telegram order system.')}</p>
+              <p>{literal('Kaur Khor will write customer commercial events that flow into Overview, Record Update, and Financials.')}</p>
+              <p>{literal('Kaur Khor will attach Telegram channel metadata to the customer ticket party.')}</p>
+              <p>{literal('Kaur Khor will keep this intake out of supplier workflows and raw stock-count truth.')}</p>
               </div>
             </div>
               </DrawerBand>
@@ -451,7 +451,7 @@ export function AutomationIntakeDrawer({
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
                 {promotionAllowed
                   ? literal('This intake can promote into a customer ticket.')
-                  : literal('Resolve every line and compute a quote before banj can promote this intake.')}
+                  : literal('Resolve every line and compute a quote before Kaur Khor can promote this intake.')}
               </p>
             </div>
             <div className="flex flex-wrap justify-end gap-2">

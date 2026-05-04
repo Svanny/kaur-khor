@@ -126,7 +126,7 @@ describe('WorkRoute', () => {
   }
 
   test('renders the hub landing page at /work', async () => {
-    window.localStorage.setItem('banji:page-state-memory:v1', JSON.stringify({
+    window.localStorage.setItem('kaur-khor:page-state-memory:v1', JSON.stringify({
       inbox: '?workflow=customer&customerFilter=review',
     }));
 

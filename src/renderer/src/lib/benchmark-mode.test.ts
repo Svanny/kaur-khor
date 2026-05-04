@@ -4,7 +4,7 @@ import { isBenchmarkRendererMode } from './benchmark-mode';
 describe('benchmark renderer mode', () => {
   it('detects benchmark mode from the preload bridge', () => {
     expect(isBenchmarkRendererMode({
-      banjiDesktop: {
+      kaurKhorDesktop: {
         benchmark: {
           enabled: true,
         },
@@ -15,7 +15,7 @@ describe('benchmark renderer mode', () => {
   it('keeps StrictMode enabled when the bridge is missing or benchmark mode is off', () => {
     expect(isBenchmarkRendererMode({} as Window)).toBe(false);
     expect(isBenchmarkRendererMode({
-      banjiDesktop: {
+      kaurKhorDesktop: {
         benchmark: {
           enabled: false,
         },

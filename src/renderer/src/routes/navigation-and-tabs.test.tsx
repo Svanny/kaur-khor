@@ -427,7 +427,7 @@ describe('SENA routes', () => {
   });
 
   test('asks before replacing a saved supplier capture draft', async () => {
-    window.localStorage.setItem('banji:record-update:draft:supplier-order-pending:v1', '{"version":1}');
+    window.localStorage.setItem('kaur-khor:record-update:draft:supplier-order-pending:v1', '{"version":1}');
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
@@ -449,7 +449,7 @@ describe('SENA routes', () => {
     await waitFor(() => {
       expect(screen.getByText('Capture route')).toBeInTheDocument();
     });
-    expect(window.localStorage.getItem('banji:record-update:draft:supplier-order-pending:v1')).toBeNull();
+    expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBeNull();
   });
 
   test('opens the service action flow in catalog without showing the inline detail rail', async () => {
@@ -683,7 +683,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
+    expect(screen.getByText('Kaur Khor needs at least two saved updates for this view')).toBeInTheDocument();
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', expect.objectContaining({ limit: 5 }));
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
@@ -715,7 +715,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
+    expect(screen.getByText('Kaur Khor needs at least two saved updates for this view')).toBeInTheDocument();
 
     expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
   });

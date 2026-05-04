@@ -225,7 +225,7 @@ describe('deriveAutomationViewModel', () => {
 
     expect(/[A-Za-z]/.test(stripAllowedAutomationTokens(visibleLabels))).toBe(false);
     expect(model.ribbon.find((row) => row.key === 'ticketedToday')?.detail).toBe(
-      'បានបំលែងទៅជាសំបុត្រការងារបញ្ជី',
+      'បានបំលែងទៅជាសំបុត្រការងារកខ',
     );
   });
 });

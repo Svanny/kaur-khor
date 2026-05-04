@@ -431,7 +431,7 @@ function LocalDataLocationLink({
           className="h-auto justify-start px-0 py-0 text-left text-sm font-normal text-muted-foreground whitespace-normal break-all hover:text-foreground"
           type="button"
           variant="link"
-          onClick={() => void window.banjiDesktop.system.revealPath(path)}
+          onClick={() => void window.kaurKhorDesktop.system.revealPath(path)}
         >
           <ActionOpenFolderIcon className="mt-0.5 size-4 shrink-0 self-start" />
           <span>{path}</span>
@@ -493,7 +493,7 @@ function WorkspacePreferencesPage({
               <p className="text-sm text-muted-foreground">
                 {translateUiLiteral(
                   language,
-                  'Choose how banji presents language labels and KHR reference amounts across the desktop.',
+                  'Choose how Kaur Khor presents language labels and KHR reference amounts across the desktop.',
                 )}
               </p>
             </div>
@@ -643,7 +643,7 @@ function WorkspacePreferencesPage({
               <p className="text-sm text-muted-foreground">
                 {translateUiLiteral(
                   language,
-                  'Choose whether banji should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.',
+                  'Choose whether Kaur Khor should ask, open one SKU at a time, or jump straight into a batch update for each queue action button.',
                 )}
               </p>
             </div>
@@ -1379,7 +1379,7 @@ export function SettingsRoute() {
   useEffect(() => {
     let cancelled = false;
 
-    window.banjiDesktop.system
+    window.kaurKhorDesktop.system
       .getLocalDataInfo()
       .then((info) => {
         if (!cancelled) {
@@ -1399,7 +1399,7 @@ export function SettingsRoute() {
   }, [t]);
 
   async function rerunSenaWithParameters(parameters: SenaEngineParameters) {
-    await window.banjiDesktop.sena.triggerRun({
+    await window.kaurKhorDesktop.sena.triggerRun({
       algorithmVersion: parameters.algorithmVersion,
       parameters,
     });
@@ -1492,7 +1492,7 @@ export function SettingsRoute() {
   async function handleConfirmClearCurrentData() {
     try {
       setClearInFlight(true);
-      const result = await window.banjiDesktop.system.clearCurrentData();
+      const result = await window.kaurKhorDesktop.system.clearCurrentData();
       setBackupStatus(formatClearCurrentDataStatus(result));
       setClearConfirmOpen(false);
       setClearConfirmValue('');

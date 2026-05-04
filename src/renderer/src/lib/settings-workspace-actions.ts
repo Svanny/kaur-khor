@@ -76,7 +76,7 @@ function toCsvSection(title: string, rows: Array<Record<string, unknown>>) {
   return [`"${title.replace(/"/g, '""')}"`, toCsv(rows)].filter(Boolean).join('\n');
 }
 
-function observationLogRows(observations: Awaited<ReturnType<typeof window.banjiDesktop.sena.listObservations>>) {
+function observationLogRows(observations: Awaited<ReturnType<typeof window.kaurKhorDesktop.sena.listObservations>>) {
   return observations.map((observation) => ({
     observationId: observation.observationId,
     ownerSub: observation.ownerSub,
@@ -98,19 +98,19 @@ function observationLogRows(observations: Awaited<ReturnType<typeof window.banji
   }));
 }
 
-function summaryRows(summary: Awaited<ReturnType<typeof window.banjiDesktop.sena.getWorkspaceSummary>>) {
+function summaryRows(summary: Awaited<ReturnType<typeof window.kaurKhorDesktop.sena.getWorkspaceSummary>>) {
   return summary ? [summary] : [];
 }
 
-function skuSummaryRows(summary: Awaited<ReturnType<typeof window.banjiDesktop.sena.getWorkspaceSummary>>) {
+function skuSummaryRows(summary: Awaited<ReturnType<typeof window.kaurKhorDesktop.sena.getWorkspaceSummary>>) {
   return summary?.skuSummaries ?? [];
 }
 
-function diagnosticsRows(diagnostics: Awaited<ReturnType<typeof window.banjiDesktop.sena.getDiagnostics>>) {
+function diagnosticsRows(diagnostics: Awaited<ReturnType<typeof window.kaurKhorDesktop.sena.getDiagnostics>>) {
   return diagnostics ? [diagnostics] : [];
 }
 
-function runRows(run: Awaited<ReturnType<typeof window.banjiDesktop.sena.getRunStatus>>) {
+function runRows(run: Awaited<ReturnType<typeof window.kaurKhorDesktop.sena.getRunStatus>>) {
   return run ? [run] : [];
 }
 
@@ -132,7 +132,7 @@ export function formatRestoreStatus(result: DesktopBackupRestoreResult, t: Trans
 
 export async function createBackupSnapshotAction(t: TranslateFn) {
   try {
-    const snapshot = await window.banjiDesktop.system.createBackupSnapshot();
+    const snapshot = await window.kaurKhorDesktop.system.createBackupSnapshot();
     return formatBackupStatus(snapshot, t);
   } catch (error) {
     return error instanceof Error ? error.message : t('settingsBackupSnapshotFailed');
@@ -141,7 +141,7 @@ export async function createBackupSnapshotAction(t: TranslateFn) {
 
 export async function restoreBackupSnapshotAction(t: TranslateFn) {
   try {
-    const restoreResult = await window.banjiDesktop.system.restoreBackupSnapshot();
+    const restoreResult = await window.kaurKhorDesktop.system.restoreBackupSnapshot();
     if (!restoreResult) {
       return t('settingsRestoreSnapshotCancelled');
     }
@@ -155,9 +155,9 @@ export async function restoreBackupSnapshotAction(t: TranslateFn) {
 
 export async function exportLogsAction(format: SettingsExportFormat, t: TranslateFn) {
   try {
-    const observations = await window.banjiDesktop.sena.listObservations();
+    const observations = await window.kaurKhorDesktop.sena.listObservations();
     const rows = observationLogRows(observations);
-    const filename = `banji-logs-${formatExportTimestamp()}.${exportFileExtension(format)}`;
+    const filename = `Kaur Khor-logs-${formatExportTimestamp()}.${exportFileExtension(format)}`;
     const content =
       format === 'json'
         ? JSON.stringify({ exportedAt: new Date().toISOString(), observations }, null, 2)
@@ -174,15 +174,15 @@ export async function exportLogsAction(format: SettingsExportFormat, t: Translat
 export async function exportPlanningDataAction(format: SettingsExportFormat, t: TranslateFn) {
   try {
     const [catalog, observations, workspaceSummary, diagnostics] = await Promise.all([
-      window.banjiDesktop.sena.getCatalog(),
-      window.banjiDesktop.sena.listObservations(),
-      window.banjiDesktop.sena.getWorkspaceSummary(),
-      window.banjiDesktop.sena.getDiagnostics(),
+      window.kaurKhorDesktop.sena.getCatalog(),
+      window.kaurKhorDesktop.sena.listObservations(),
+      window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+      window.kaurKhorDesktop.sena.getDiagnostics(),
     ]);
     const latestRun = workspaceSummary?.runId
-      ? await window.banjiDesktop.sena.getRunStatus({ runId: workspaceSummary.runId })
+      ? await window.kaurKhorDesktop.sena.getRunStatus({ runId: workspaceSummary.runId })
       : null;
-    const filename = `banji-sena-data-${formatExportTimestamp()}.${exportFileExtension(format)}`;
+    const filename = `kaur-khor-sena-data-${formatExportTimestamp()}.${exportFileExtension(format)}`;
     const sections = [
       ['Catalog SKUs', toRecordRows(catalog?.skus ?? [])],
       ['Catalog services', toRecordRows(catalog?.services ?? [])],

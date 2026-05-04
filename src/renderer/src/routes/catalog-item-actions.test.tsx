@@ -435,7 +435,7 @@ describe('catalog item action sheets', () => {
   });
 
   test('prompts before deleting a saved draft for direct capture actions', () => {
-    window.localStorage.setItem('banji:record-update:draft:supplier-order-pending:v1', '{"version":1}');
+    window.localStorage.setItem('kaur-khor:record-update:draft:supplier-order-pending:v1', '{"version":1}');
     render(
       <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
         <Routes>
@@ -491,7 +491,7 @@ describe('catalog item action sheets', () => {
     ]);
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume draft' }));
-    expect(window.localStorage.getItem('banji:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
+    expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
     expect(screen.getByTestId('location')).toHaveTextContent('/work/capture/supplier-order');
   });
 });

@@ -121,10 +121,10 @@ describe('ServiceFormRoute', () => {
     pickAndStoreImage.mockResolvedValue('/tmp/service-image.png');
     storeDroppedImage.mockReset();
     storeDroppedImage.mockResolvedValue('/tmp/dropped-service.png');
-    window.banjiDesktop = {
-      ...(window.banjiDesktop ?? {}),
+    window.kaurKhorDesktop = {
+      ...(window.kaurKhorDesktop ?? {}),
       system: {
-        ...(window.banjiDesktop?.system ?? {}),
+        ...(window.kaurKhorDesktop?.system ?? {}),
         pickAndStoreImage,
         storeDroppedImage,
       },
@@ -399,7 +399,7 @@ describe('ServiceFormRoute', () => {
     const picture = translateUiLiteral('km', 'Picture');
     const helper = translateUiLiteral(
       'km',
-      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces.',
+      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. Kaur Khor will show it on supported item surfaces.',
     );
     const noPicture = translateUiLiteral('km', 'No picture selected.');
     const chooseImage = translateUiLiteral('km', 'Choose image');
@@ -410,7 +410,7 @@ describe('ServiceFormRoute', () => {
     expect(screen.queryByText('Picture')).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. banji will show it on supported item surfaces.',
+        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this service. Kaur Khor will show it on supported item surfaces.',
       ),
     ).not.toBeInTheDocument();
     expect(/[A-Za-z]/.test(`${picture} ${helper} ${noPicture} ${chooseImage}`)).toBe(false);
@@ -426,7 +426,7 @@ describe('ServiceFormRoute', () => {
       upsertSenaCatalog,
     });
     window.sessionStorage.setItem(
-      'banji.navigation-history',
+      'kaur-khor.navigation-history',
       JSON.stringify([
         { key: 'catalog', to: '/catalog' },
         { key: 'service-new', to: '/catalog/services/new' },
@@ -499,7 +499,7 @@ describe('ServiceFormRoute', () => {
     const nameError = screen.getByText('Enter a service name before saving.');
     expect(nameError).toBeInTheDocument();
     expect(nameError).toHaveAttribute('data-error-flash-key', '1');
-    expect(nameError).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
+    expect(nameError).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
     expect(screen.getByText('Enter a service price before saving.')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
@@ -705,7 +705,7 @@ describe('ServiceFormRoute', () => {
 
   test('asks before using the edit page back button with unsaved service changes', async () => {
     window.sessionStorage.setItem(
-      'banji.navigation-history',
+      'kaur-khor.navigation-history',
       JSON.stringify([
         { key: 'catalog', to: '/catalog' },
         { key: 'service-edit', to: '/catalog/services/service-1/edit' },

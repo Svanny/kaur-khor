@@ -42,8 +42,8 @@ import {
 } from '@/lib/navigation-state';
 import { resolveSettingsSection } from '@/lib/settings-navigation';
 
-export const PAGE_STATE_MEMORY_STORAGE_KEY = 'banji:page-state-memory:v1';
-const PAGE_STATE_MEMORY_CHANGE_EVENT = 'banji:page-state-memory:change';
+export const PAGE_STATE_MEMORY_STORAGE_KEY = 'kaur-khor:page-state-memory:v1';
+const PAGE_STATE_MEMORY_CHANGE_EVENT = 'kaur-khor:page-state-memory:change';
 
 export type PageStateMemoryId =
   | 'analysis'

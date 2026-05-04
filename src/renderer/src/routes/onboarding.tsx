@@ -18,20 +18,20 @@ import { usePreferences } from '@/state/preferences';
 
 const selectTriggerClassName =
   'h-14 w-full rounded-2xl border border-border bg-background px-4 text-base shadow-none data-[size=default]:h-14';
-const onboardingCopyEnglishAnimationName = 'banji-onboarding-copy-english';
-const onboardingCopyKhmerAnimationName = 'banji-onboarding-copy-khmer';
+const onboardingCopyEnglishAnimationName = 'kaur-khor-onboarding-copy-english';
+const onboardingCopyKhmerAnimationName = 'kaur-khor-onboarding-copy-khmer';
 const onboardingCopyCycleMs = 9000;
 type OnboardingStep = 'preferences' | 'interface';
 
 function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
     Welcome: 'សូមស្វាគមន៍',
-    'Set up banji': 'រៀបចំបញ្ជី',
+    'Set up Kaur Khor': 'រៀបចំ កខ',
     'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.':
       'ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលការគ្រប់គ្រងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។',
     'Choose interface view': 'ជ្រើសរើសទិដ្ឋភាពចំណុចប្រទាក់',
-    'Pick how much guidance and status detail banji keeps visible in your workspace.':
-      'ជ្រើសរើសថាតើ បញ្ជី ត្រូវបង្ហាញការណែនាំ និងសេចក្តីលម្អិតស្ថានភាពច្រើនប៉ុណ្ណានៅក្នុងកន្លែងធ្វើការ។',
+    'Pick how much guidance and status detail Kaur Khor keeps visible in your workspace.':
+      'ជ្រើសរើសថាតើ កខ ត្រូវបង្ហាញការណែនាំ និងសេចក្តីលម្អិតស្ថានភាពច្រើនប៉ុណ្ណានៅក្នុងកន្លែងធ្វើការ។',
     Language: 'ភាសា',
     Currency: 'រូបិយប័ណ្ណ',
     'Interface view': 'ទិដ្ឋភាពចំណុចប្រទាក់',
@@ -150,13 +150,13 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const seededPreferencesRef = useRef(false);
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
-    preferencesTitle: onboardingCopy('Set up banji'),
+    preferencesTitle: onboardingCopy('Set up Kaur Khor'),
     preferencesDescription: onboardingCopy(
       'Choose the basic language and currency first. You can fine-tune individual controls later in Settings.',
     ),
     interfaceTitle: onboardingCopy('Choose interface view'),
     interfaceDescription: onboardingCopy(
-      'Pick how much guidance and status detail banji keeps visible in your workspace.',
+      'Pick how much guidance and status detail Kaur Khor keeps visible in your workspace.',
     ),
     language: onboardingCopy('Language'),
     currency: onboardingCopy('Currency'),
@@ -185,7 +185,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
       <div className="flex min-h-svh items-center justify-center px-6">
         <div className="hero-mesh editorial-panel w-full max-w-md rounded-[32px] p-8 text-center">
           <p className="text-base font-semibold leading-none tracking-normal text-primary/80">
-            banji
+            KAUR KHOR
           </p>
           <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
             {translateUiLiteral(language, 'Loading preferences…')}

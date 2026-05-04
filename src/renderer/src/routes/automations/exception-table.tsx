@@ -67,7 +67,7 @@ export function AutomationExceptionTable({
             <HeaderTooltipLabel helpHref="/settings/help#automation-exception-last-message" tooltip={literal('Most recent customer message that contributed to the exception.')}>{literal('Last message')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-confidence" tooltip={literal('How sure banji is about the inferred customer request or match.')}>{literal('Confidence')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exception-confidence" tooltip={literal('How sure Kaur Khor is about the inferred customer request or match.')}>{literal('Confidence')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">{literal('Action')}</HeaderedTableHeaderCell>
         </HeaderedTableHeader>

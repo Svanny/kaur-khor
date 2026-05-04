@@ -1,6 +1,6 @@
 export const enUiCopyV1 = {
-  appTitle: 'banji desktop',
-  appBrand: 'banj',
+  appTitle: 'Kaur Khor desktop',
+  appBrand: 'KAUR KHOR',
   navHome: 'Home',
   navWork: 'Work',
   navInbox: 'Work',
@@ -18,14 +18,14 @@ export const enUiCopyV1 = {
   navArchive: 'Archive',
   navHelp: 'Help',
   helpPageTitle: 'User Guide',
-  helpPageDescriptor: 'Browse banji workflows, screen-by-screen explanations, glossary terms, and FAQ from Settings.',
+  helpPageDescriptor: 'Browse Kaur Khor workflows, screen-by-screen explanations, glossary terms, and FAQ from Settings.',
   helpOpenOverviewAction: 'Open Home',
   helpStartUpdateAction: 'Open Capture',
   helpSearchAriaLabel: 'Search help',
   helpSearchPlaceholder: 'Search features, workflows, buttons, or FAQ…',
   helpNoMatchesTitle: 'No matching help sections',
   helpNoMatchesDescriptor: 'Try a broader search term or clear the current help filter.',
-  helpNoMatchesBody: 'banji could not find a help section matching your search.',
+  helpNoMatchesBody: 'Kaur Khor could not find a help section matching your search.',
   helpClearSearchAction: 'Clear search',
   helpBestMatchBadge: 'Best match',
   helpIndexTitle: 'Index',
@@ -57,9 +57,9 @@ export const enUiCopyV1 = {
   workspaceStarting: 'Starting the desktop core and loading the latest SENA state.',
   workspaceComputingTitle: 'SENA is computing your workspace',
   workspaceComputingBody:
-    'banji is loading your catalog, recent evidence, and the latest local analysis.',
+    'Kaur Khor is loading your catalog, recent evidence, and the latest local analysis.',
   workspaceComputingHint:
-    'First launch after a reset or reanalysis can take longer while banji rebuilds local views.',
+    'First launch after a reset or reanalysis can take longer while Kaur Khor rebuilds local views.',
   workspaceUnavailable: 'The local SENA workspace is unavailable.',
   overviewHeading: 'Work Queue',
   overviewBody:
@@ -73,7 +73,7 @@ export const enUiCopyV1 = {
     'Work is for the next operational move. Editing, history, and planning live elsewhere.',
   overviewDecisionSupportCatalogTitle: 'Planning starts after the catalog exists',
   overviewDecisionSupportCatalogBody:
-    'Add the first SKU so banji can build tasks from real stock and service activity.',
+    'Add the first SKU so Kaur Khor can build tasks from real stock and service activity.',
   overviewDecisionSupportRiskTitle: 'Current risk summary',
   overviewDecisionSupportRiskBody:
     'Planning is next because stock risk and reorder pressure are building together.',
@@ -82,16 +82,16 @@ export const enUiCopyV1 = {
     'Reorder pressure is rising. Review priorities now before more SKUs turn urgent.',
   overviewDecisionSupportFirstReportTitle: 'The catalog needs its first live update',
   overviewDecisionSupportFirstReportBody:
-    'The catalog is ready, but banji still needs a live observation before it can trust the current picture.',
+    'The catalog is ready, but Kaur Khor still needs a live observation before it can trust the current picture.',
   overviewDecisionSupportSteadyTitle: 'The latest picture looks steady',
   overviewDecisionSupportSteadyBody:
     'Nothing urgent is waiting. The best next step is to log the next stock update and keep Work current.',
   overviewPrimaryAddFirstSku: 'Add first SKU',
   overviewPrimaryAddFirstSkuDescription:
-    'Create the first SKU so banji can start tracking stock, services, and planning.',
+    'Create the first SKU so Kaur Khor can start tracking stock, services, and planning.',
   overviewPrimaryStartFirstUpdate: 'Start first update session',
   overviewPrimaryStartFirstUpdateDescription:
-    'Capture the first stock update so banji can build tasks from recent evidence.',
+    'Capture the first stock update so Kaur Khor can build tasks from recent evidence.',
   overviewPrimaryReviewReorderPriorities: 'Review reorder priorities',
   overviewPrimaryReviewReorderPrioritiesDescription:
     'Review the highest-pressure SKUs before the next stock decision falls behind.',
@@ -186,7 +186,7 @@ export const enUiCopyV1 = {
   dashboardEyebrow: 'Warm, local-first retail logs',
   dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
   dashboardBody:
-    'banji keeps catalog, ranking, and stock work on this Mac so the team can keep moving without waiting on the cloud.',
+    'Kaur Khor keeps catalog, ranking, and stock work on this Mac so the team can keep moving without waiting on the cloud.',
   dashboardTotalValue: 'Inventory value',
   dashboardSaleReady: 'Sale-ready SKUs',
   dashboardServices: 'Service bundles',
@@ -259,14 +259,14 @@ export const enUiCopyV1 = {
   catalogNoResultsCreateAction: 'Create new SKU',
   catalogEmptyTitle: 'Start the catalog',
   catalogEmptyDescription:
-    'Create the first SKU or service so banji has something to browse and compare.',
+    'Create the first SKU or service so Kaur Khor has something to browse and compare.',
   catalogEmptyPrimaryAction: 'Create first SKU',
   catalogAllSkusDescription:
     'Start here to compare SKUs and jump into the next edit.',
   catalogAllServicesDescription:
     'Start here to compare services and jump into the next edit.',
-  catalogServicesDescription: 'Services banji tracks for sellability and coverage.',
-  catalogSkusDescription: 'Stock-carrying items banji tracks directly.',
+  catalogServicesDescription: 'Services Kaur Khor tracks for sellability and coverage.',
+  catalogSkusDescription: 'Stock-carrying items Kaur Khor tracks directly.',
   catalogCollapsedServicesHint: 'Expand to review service price, coverage, and linked SKUs.',
   catalogCollapsedSkusHint: 'Expand to review SKU economics, cover, and current risk.',
   catalogDaysOfCover: 'Days of cover',
@@ -299,7 +299,7 @@ export const enUiCopyV1 = {
     'Selected interval summarizes the time slice you are inspecting right now. It keeps the rail aligned with the same interval shown in the ledger.',
   catalogSenaSkuActNow: 'Act now',
   catalogSenaSkuActNowTooltip:
-    'Act now is banji’s recommended next move for this SKU. It tells you whether to reorder, wait for inbound stock, or keep watching.',
+    'Act now is Kaur Khor’s recommended next move for this SKU. It tells you whether to reorder, wait for inbound stock, or keep watching.',
   catalogSenaSkuOpenPipeline: 'Open pipeline',
   catalogSenaSkuOpenPipelineTooltip:
     'Open pipeline shows what is likely still inbound for this SKU. It focuses on in-transit stock, order probability, and receipt timing.',
@@ -308,7 +308,7 @@ export const enUiCopyV1 = {
     'Exposure is the service-side view of this SKU. It shows where this SKU is already limiting service output and where it is becoming risky.',
   catalogSenaSkuNextTouch: 'Next touch',
   catalogSenaSkuNextTouchTooltip:
-    'Next touch shows when banji expects this SKU will need attention again. It is based on pressure, inbound timing, recency, and days of cover.',
+    'Next touch shows when Kaur Khor expects this SKU will need attention again. It is based on pressure, inbound timing, recency, and days of cover.',
   catalogSenaSkuPreparing: 'Preparing SENA view',
   catalogSenaSkuNeedsObservations: 'SENA needs at least two observations',
   catalogSenaSkuRefreshing: 'Refreshing SENA analysis',
@@ -452,7 +452,7 @@ export const enUiCopyV1 = {
   catalogSkuEditorCostRequired:
     'Enter a cost per unit before saving.',
   catalogSkuEditorLeadTimeMeanHelper:
-    'Typical supplier lead time banji should use before newer evidence arrives.',
+    'Typical supplier lead time Kaur Khor should use before newer evidence arrives.',
   catalogSkuEditorLeadTimeMeanRequired:
     'Enter the lead time mean days before saving.',
   catalogSkuEditorLeadTimeStdHelper:
@@ -475,7 +475,7 @@ export const enUiCopyV1 = {
   catalogServiceEditorPriceRequired:
     'Enter a service price before saving.',
   catalogServiceEditorLinkedSkusDescriptor:
-    'Link the SKUs this service consumes so banji can track coverage and blockers.',
+    'Link the SKUs this service consumes so Kaur Khor can track coverage and blockers.',
   operationsTitle: 'Logs',
   operationsBody:
     'Review saved updates, continue an unfinished session, or open the latest record details.',
@@ -572,7 +572,7 @@ export const enUiCopyV1 = {
     'Capture service stockouts and price overrides here when they matter.',
   stockSessionStepSalesSignal: 'Sales signal',
   stockSessionStepSalesSignalDescription:
-    'Capture the recent selling order banji should use as a demand signal.',
+    'Capture the recent selling order Kaur Khor should use as a demand signal.',
   stockSessionStepReview: 'Review & submit',
   stockSessionStepReviewDescription:
     'Confirm the required details, review optional changes, and submit from here.',
@@ -600,7 +600,7 @@ export const enUiCopyV1 = {
     'Rank services and sellable SKUs by recent observed demand/popularity. Noisy estimates are okay!',
   stockSalesSignalExplainerTitle: 'Why this signal matters',
   stockSalesSignalExplainerBody:
-    'Use recent selling order to help banji read demand. Rank what sold first or most often recently. This is a demand signal, not a push list.',
+    'Use recent selling order to help Kaur Khor read demand. Rank what sold first or most often recently. This is a demand signal, not a push list.',
   stockSalesSignalUnsavedBadge: 'Unsaved changes',
   stockSalesSignalEntrySingular: 'entry in scope',
   stockSalesSignalEntryPlural: 'entries in scope',
@@ -689,7 +689,7 @@ export const enUiCopyV1 = {
   stockTopServiceRanking: 'Observed top services',
   stockTopRetailRanking: 'Observed top retail SKUs',
   stockRankingHint: 'Enter ids in observed selling order, separated by commas.',
-  stockSignalsHint: 'Optional signals help banji separate demand, restocks, and stockouts.',
+  stockSignalsHint: 'Optional signals help Kaur Khor separate demand, restocks, and stockouts.',
   stockNoServiceSignals: 'No service flags selected for this report.',
   productRankingTitle: 'Recent selling order',
   rankingBody:
@@ -716,7 +716,7 @@ export const enUiCopyV1 = {
   planningExplainerTeamBody: 'Shows what the team should push first or expects to sell first.',
   planningExplainerSistLabel: 'For SIST',
   planningExplainerSistBody:
-    'Helps banji estimate demand when direct stock signals are incomplete.',
+    'Helps Kaur Khor estimate demand when direct stock signals are incomplete.',
   planningExplainerFooter: 'Treat this as a business signal, not a strict sales report.',
   planningDemandPressureTitle: 'Demand pressure',
   planningDemandPressureLabel: 'Reorder pressure',
@@ -764,11 +764,11 @@ export const enUiCopyV1 = {
   settingsSaveSuccess: 'Changes saved.',
   settingsLocalDataTitle: 'Local data',
   settingsLocalDataDescription:
-    'banji stores its working data on this device. Open the folder when you need the local files.',
+    'Kaur Khor stores its working data on this device. Open the folder when you need the local files.',
   settingsLocalDataFolderLabel: 'Data folder',
   settingsLocalDataRawFiles: 'Raw files',
   settingsLocalDataRawFormatNote:
-    'Raw files use banji’s internal JSON format. CSV exports are for spreadsheet review.',
+    'Raw files use Kaur Khor’s internal JSON format. CSV exports are for spreadsheet review.',
   settingsOpenDataFolder: 'Open data folder',
   settingsCopyDataPath: 'Copy data path',
   settingsExportData: 'Export data',
@@ -789,7 +789,7 @@ export const enUiCopyV1 = {
   currencyKhr: 'KHR (៛)',
   preferencesRegionalTitle: 'Regional formatting',
   preferencesRegionalDescription:
-    'Choose how banji formats language and currency across the app.',
+    'Choose how Kaur Khor formats language and currency across the app.',
   preferencesSistTitle: 'SIST defaults',
   preferencesSistDescription:
     'Tune the local model only when you need different planning behavior for this workspace.',
@@ -871,13 +871,13 @@ export const enUiCopyV1 = {
   settingsParticleCount: 'Particle count',
   settingsSmoothingWindow: 'Smoothing window (reports)',
   settingsTargetServiceLevelTooltip:
-    'Target service level is the stock-availability goal banji plans around. Higher targets usually mean carrying more stock.',
+    'Target service level is the stock-availability goal Kaur Khor plans around. Higher targets usually mean carrying more stock.',
   settingsForecastHorizonTooltip:
-    'Forecast horizon is how far ahead banji projects demand and stock risk.',
+    'Forecast horizon is how far ahead Kaur Khor projects demand and stock risk.',
   settingsParticleCountTooltip:
-    'Particle count controls how much sampling banji uses during inference. Higher counts are steadier but slower.',
+    'Particle count controls how much sampling Kaur Khor uses during inference. Higher counts are steadier but slower.',
   settingsSmoothingWindowTooltip:
-    'Smoothing window controls how many recent reports banji emphasizes when smoothing sparse observations.',
+    'Smoothing window controls how many recent reports Kaur Khor emphasizes when smoothing sparse observations.',
   sistStateReady: 'Ready',
   sistStateRunning: 'Refreshing',
   sistStateStale: 'Stale',
@@ -983,9 +983,9 @@ export const enUiCopyV1 = {
   catalogSkuEditorDescriptionNew:
     'Create the SKU first. You can handle follow-up planning and stock work from its detail page.',
   catalogSkuEditorDescriptionEdit:
-    'Update the SKU details banji uses for catalog, pricing, and planning.',
+    'Update the SKU details Kaur Khor uses for catalog, pricing, and planning.',
   catalogSkuEditorDetailsDescriptor:
-    'Set the SKU name and internal description banji will use across the app.',
+    'Set the SKU name and internal description Kaur Khor will use across the app.',
   catalogSkuEditorSupplierHelper:
     'Choose an existing supplier or type a new supplier name.',
   catalogSkuEditorSupplierRequired:
@@ -995,7 +995,7 @@ export const enUiCopyV1 = {
   catalogSkuPlanningInputsDescription:
     'Optional supplier timing inputs. Update them when the lead-time picture changes.',
   catalogSkuEditorPricingDescriptor:
-    'Set the cost and direct-sell setup banji should use for this SKU.',
+    'Set the cost and direct-sell setup Kaur Khor should use for this SKU.',
   catalogSkuEditorRetailPriceHelper:
     'Enter a retail price only if customers buy this SKU directly.',
   catalogSkuEditorRetailPriceEnableHint:
@@ -1007,11 +1007,11 @@ export const enUiCopyV1 = {
   catalogSkuEditorLeadTimeVariabilityHelper:
     'Choose how wide supplier timing usually swings around that average.',
   catalogSkuEditorDetailsTooltip:
-    'Identity fields define how banji names and finds this SKU across catalog, logs, and planning.',
+    'Identity fields define how Kaur Khor names and finds this SKU across catalog, logs, and planning.',
   catalogSkuEditorPricingTooltip:
     'Pricing defines the unit economics for this SKU and whether it has a direct retail offer.',
   catalogSkuEditorPlanningTooltip:
-    'Planning inputs describe supplier timing so banji can estimate replenishment windows.',
+    'Planning inputs describe supplier timing so Kaur Khor can estimate replenishment windows.',
   catalogSkuEditorSellAsProductTooltip:
     'Sold as product means customers can buy this SKU directly rather than only through a service.',
   catalogSkuEditorRetailPriceTooltip:
@@ -1074,7 +1074,7 @@ export const enUiCopyV1 = {
     'Evidence chips will appear after stock reports, receipts, or price changes are recorded for this service and its linked SKUs.',
   catalogServiceHeroAvailabilityTitle: 'Sellability truth',
   catalogServiceHeroAvailabilityTooltip:
-    "banji's read of how likely this service can be fulfilled right now.",
+    "Kaur Khor’s read of how likely this service can be fulfilled right now.",
   catalogServiceHeroRibbonTitle: 'Operational ribbon',
   catalogServiceHeroRibbonTooltip:
     'Compact summary of sellability, demand pressure, bottlenecks, and recovery timing.',
@@ -1097,21 +1097,21 @@ export const enUiCopyV1 = {
   catalogServiceEditorDescriptionNew:
     'Create the service first. You can review fulfillment and logs from its detail page.',
   catalogServiceEditorDescriptionEdit:
-    'Update the service details banji uses for catalog, pricing, and coverage.',
+    'Update the service details Kaur Khor uses for catalog, pricing, and coverage.',
   catalogServiceEditorIdentifierDescription:
-    'Keep this service id stable unless you need to rename it everywhere banji tracks it.',
+    'Keep this service id stable unless you need to rename it everywhere Kaur Khor tracks it.',
   catalogServiceEditorDetailsDescriptor:
-    'Set the service name and description banji will show across the app.',
+    'Set the service name and description Kaur Khor will show across the app.',
   catalogServiceEditorIdentifierHelper:
-    'Use a stable service id. banji will block duplicates across active and archived items.',
+    'Use a stable service id. Kaur Khor will block duplicates across active and archived items.',
   catalogServiceEditorDetailsTooltip:
-    'Identity fields define how banji names and finds this service across catalog, logs, and analysis.',
+    'Identity fields define how Kaur Khor names and finds this service across catalog, logs, and analysis.',
   catalogServiceEditorPricingTooltip:
-    'Pricing defines the customer-facing amount banji shows for this service.',
+    'Pricing defines the customer-facing amount Kaur Khor shows for this service.',
   catalogServiceEditorPricingDescriptor:
-    'Set the customer-facing price banji should use for this service.',
+    'Set the customer-facing price Kaur Khor should use for this service.',
   catalogServiceEditorLinkedSkusTooltip:
-    'Linked SKUs are the stock inputs banji checks before marking this service as sellable.',
+    'Linked SKUs are the stock inputs Kaur Khor checks before marking this service as sellable.',
   catalogServiceEditorLinkedSkusHelper:
     'Choose every SKU normally consumed when this service is sold.',
   catalogServiceEditorPriceTooltip:
@@ -1125,7 +1125,7 @@ export const enUiCopyV1 = {
   operationsResumeObservations: 'Resume SKU observations',
   settingsDesktopPreferencesTitle: 'Desktop preferences',
   settingsDesktopPreferencesDescription:
-    'Choose how much optional guidance banji shows and how the desktop shell behaves on this device.',
+    'Choose how much optional guidance Kaur Khor shows and how the desktop shell behaves on this device.',
   settingsSavePreferencesAction: 'Save preferences',
   settingsPreferencesControlsTitle: 'Preferences',
   settingsPreferencesControlsDescription:
@@ -1180,32 +1180,32 @@ export const enUiCopyV1 = {
     'Local runner version used for the next SENA refresh.',
   settingsRecommendationQuantileLabel: 'Recommendation quantile',
   settingsRecommendationQuantileHelp:
-    'Posterior order-gap percentile banji uses for the recommended quantity.',
+    'Posterior order-gap percentile Kaur Khor uses for the recommended quantity.',
   settingsRecommendationQuantileTooltip:
     'This picks which percentile of the simulated replenishment gap becomes the order quantity recommendation.',
   settingsRangeLowQuantileLabel: 'Range low quantile',
   settingsRangeLowQuantileHelp:
     'Lower percentile for the order quantity range.',
   settingsRangeLowQuantileTooltip:
-    'banji uses this percentile as the low side of the likely order quantity band.',
+    'Kaur Khor uses this percentile as the low side of the likely order quantity band.',
   settingsRangeHighQuantileLabel: 'Range high quantile',
   settingsRangeHighQuantileHelp:
     'Upper percentile for the order quantity range.',
   settingsRangeHighQuantileTooltip:
-    'banji uses this percentile as the high side of the likely order quantity band.',
+    'Kaur Khor uses this percentile as the high side of the likely order quantity band.',
   settingsNeedProbabilityGateLabel: 'Need probability gate',
   settingsNeedProbabilityGateHelp:
-    'Minimum order-need probability before banji issues a reorder.',
+    'Minimum order-need probability before Kaur Khor issues a reorder.',
   settingsNeedProbabilityGateTooltip:
-    'SENA can still estimate an optional quantity below this gate, but banji will not treat it as an issued reorder recommendation.',
+    'SENA can still estimate an optional quantity below this gate, but Kaur Khor will not treat it as an issued reorder recommendation.',
   settingsReviewDelayDaysLabel: 'Review delay days',
   settingsReviewDelayDaysHelp:
-    'Extra days banji protects before sizing the order.',
+    'Extra days Kaur Khor protects before sizing the order.',
   settingsReviewDelayDaysTooltip:
     'Review delay is added to lead time so the recommendation covers time until the next practical replenishment decision.',
   settingsEnableSmoothingLabel: 'Enable smoothing',
   settingsEnableSmoothingHelp:
-    'Smooth posterior traces before banji summarizes them.',
+    'Smooth posterior traces before Kaur Khor summarizes them.',
   settingsEnableSmoothingTooltip:
     'Smoothing can make sparse traces easier to scan, but it also softens abrupt observation changes.',
   settingsSenaParametersFixErrors:
@@ -1214,7 +1214,7 @@ export const enUiCopyV1 = {
     'Saving preferences will rerun SENA with these engine parameters.',
   settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
-    'banji stores workspace data locally in SQLite on this device.',
+    'Kaur Khor stores workspace data locally in SQLite on this device.',
   settingsBenchmarksTitle: 'Benchmarks',
   settingsBenchmarksDescription:
     'Run desktop benchmark scenarios, inspect target status, and compare local results.',
@@ -1237,7 +1237,7 @@ export const enUiCopyV1 = {
     'Delete the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Delete current local data',
   settingsClearCurrentDataDescription:
-    'Type DELETE CURRENT DATA to remove the current local workspace files. banji will keep saved snapshots and create one more safety snapshot first.',
+    'Type DELETE CURRENT DATA to remove the current local workspace files. Kaur Khor will keep saved snapshots and create one more safety snapshot first.',
   settingsClearCurrentDataAction: 'Delete current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:
@@ -1275,7 +1275,7 @@ export const enUiCopyV1 = {
   overviewTimingPending: 'timing pending',
   overviewReceiptAwaitingSupplierUpdate: 'Awaiting supplier update',
   overviewReceiptAwaitingSupplierDetail:
-    'banji is carrying in-transit exposure without a stable window yet.',
+    'Kaur Khor is carrying in-transit exposure without a stable window yet.',
   overviewReceiptWindowPassed:
     'Expected window passed without a confirmed receipt.',
   overviewReceiptWindowOpen:
@@ -1296,7 +1296,7 @@ export const enUiCopyV1 = {
     '{cover} cover · reorder trigger {probability}',
   overviewTaskWhyOrderedAlready: 'Ordered already',
   overviewTaskWhyReceiptLoop:
-    'banji is holding this in the active receipt loop.',
+    'Kaur Khor is holding this in the active receipt loop.',
   overviewTaskWhyCheckSupplier: 'Check supplier update',
   overviewTaskWhyReceiptWindowPassed:
     'Expected window passed without a new update.',
@@ -1322,7 +1322,7 @@ export const enUiCopyV1 = {
   overviewTaskEtaReceivedLogged: 'Logged {date}',
   overviewTaskEtaReceivedFallback: 'Receipt logged today.',
   overviewTaskEtaWaitingSignal:
-    'banji is waiting for the next supplier signal.',
+    'Kaur Khor is waiting for the next supplier signal.',
   overviewTaskConfidencePriority:
     'priority elevated',
   overviewTaskConfidenceWatch:
@@ -1340,17 +1340,17 @@ export const enUiCopyV1 = {
   overviewTaskHeartbeatPattern:
     'Regime {pattern}',
   overviewTaskNextOrderWaiting:
-    'banji will keep this in To order until an order is logged.',
+    'Kaur Khor will keep this in To order until an order is logged.',
   overviewTaskNextOrderReviewOn:
-    'banji will prompt another review on {date}.',
+    'Kaur Khor will prompt another review on {date}.',
   overviewTaskNextOrderReviewSoon:
-    'banji will prompt another review soon.',
+    'Kaur Khor will prompt another review soon.',
   overviewTaskNextOrderUrgent:
     'The task stays urgent while the reorder trigger remains active.',
   overviewTaskNextArrivalRemindOn:
-    'banji will remind you on {date}.',
+    'Kaur Khor will remind you on {date}.',
   overviewTaskNextArrivalWatch:
-    'banji will keep watching the current receipt window.',
+    'Kaur Khor will keep watching the current receipt window.',
   overviewTaskNextArrivalWindow:
     'Current arrival window {window}.',
   overviewTaskNextArrivalFollowUp:
@@ -1361,7 +1361,7 @@ export const enUiCopyV1 = {
   overviewStaleReminderWhyNow:
     'Fresh real-world signals are overdue',
   overviewStaleReminderWhyDetail:
-    'banji has not seen a recorded update in {days} days.',
+    'Kaur Khor has not seen a recorded update in {days} days.',
   overviewStaleReminderEtaLabel:
     'Last update {date}',
   overviewStaleReminderEtaDetail:
@@ -1375,7 +1375,7 @@ export const enUiCopyV1 = {
   overviewStaleReminderNextStart:
     'Start a fresh update to capture current stock, pricing, and supplier changes.',
   overviewStaleReminderNextSnooze:
-    'If today is too early, snooze this reminder and banji will bring it back tomorrow.',
+    'If today is too early, snooze this reminder and Kaur Khor will bring it back tomorrow.',
   overviewSignalPriceMove:
     'Demand rose after a recent price move on {name}.',
   overviewSignalPromo:
@@ -1389,7 +1389,7 @@ export const enUiCopyV1 = {
   settingsSenaRerunFailed: 'SENA rerun failed.',
   settingsLogsExported: 'Exported logs as {format}.',
   settingsLogsExportFailed: 'Failed to export logs.',
-  settingsSenaDataWorkbookTitle: 'banji SENA data',
+  settingsSenaDataWorkbookTitle: 'Kaur Khor SENA data',
   settingsSenaDataExportFormatLabel: 'Export SENA data format',
   skuVmUnknown: 'unknown',
   skuVmNoActiveReceiptWindow: 'No active receipt window',
@@ -1549,10 +1549,10 @@ export const enUiCopyV1 = {
   performanceVmWaitingForUpdates: 'Waiting for SENA evidence',
   performanceRouteEmptyCatalogTitle: 'Pressure needs the catalog first',
   performanceRouteEmptyCatalogHint:
-    'Create the first SKU so banji can compare demand, coverage, and price in one business view.',
+    'Create the first SKU so Kaur Khor can compare demand, coverage, and price in one business view.',
   performanceRouteEmptyWorkspaceTitle: 'Pressure needs the first SENA run',
   performanceRouteEmptyWorkspaceHint:
-    'Capture a live observation so banji can read demand, capacity, pipeline, and price together.',
+    'Capture a live observation so Kaur Khor can read demand, capacity, pipeline, and price together.',
   performanceRouteTitle: 'Pressure',
   performanceRouteDescriptor: 'Demand, capacity, incoming stock, and pricing in one business view.',
   performanceRouteScopeAll: 'All',
@@ -1570,16 +1570,16 @@ export const enUiCopyV1 = {
   performanceRouteShowingCompare: 'Showing {current} posture vs {previous}',
   performanceRouteShowingSingle: 'Showing {current} posture only',
   performanceRouteMoveNowTitle: 'Move now',
-  performanceRouteMoveNowTooltip: 'The current queue of commercial moves banji recommends.',
+  performanceRouteMoveNowTooltip: 'The current queue of commercial moves Kaur Khor recommends.',
   performanceRouteMoveNowDescriptor: 'Business moves worth making now, ranked by urgency and upside.',
   performanceRouteMoveHeader: 'Move',
-  performanceRouteMoveHeaderTooltip: "banji's recommended business move for this row.",
+  performanceRouteMoveHeaderTooltip: "Kaur Khor’s recommended business move for this row.",
   performanceRouteWhyNowHeader: 'Why now',
   performanceRouteWhyNowHeaderTooltip: 'The business conditions making this move timely right now.',
   performanceRouteExpectedEffectHeader: 'Expected effect',
-  performanceRouteExpectedEffectHeaderTooltip: 'The business result banji expects if you act now.',
+  performanceRouteExpectedEffectHeaderTooltip: 'The business result Kaur Khor expects if you act now.',
   performanceRouteActionHeader: 'Action',
-  performanceRouteActionHeaderTooltip: 'Where to go in banji to follow up on this row.',
+  performanceRouteActionHeaderTooltip: 'Where to go in Kaur Khor to follow up on this row.',
   performanceRouteBoardTitle: 'Demand × capacity board',
   performanceRouteBoardTooltip: 'A mixed portfolio view of demand, support, pipeline, and margin posture.',
   performanceRouteBoardDescriptor: 'Scan services and SKUs together in one pass.',
@@ -1597,7 +1597,7 @@ export const enUiCopyV1 = {
   performanceRoutePriceMarginHeaderTooltip:
     'Whether pricing and margin conditions are helping, neutral, or under pressure.',
   performanceRouteStatusHeader: 'Status',
-  performanceRouteStatusHeaderTooltip: "banji's current steering recommendation for this row.",
+  performanceRouteStatusHeaderTooltip: "Kaur Khor’s current steering recommendation for this row.",
   performanceRouteCashTitle: 'Cash and profit efficiency',
   performanceRouteCashTooltip:
     'Portfolio grouping by upside capture, blocked profit, and trapped cash.',
@@ -1640,10 +1640,10 @@ export const enUiCopyV1 = {
   financialsRouteScopeSkus: 'SKUs',
   financialsRouteEmptyCatalogTitle: 'Money needs the catalog first',
   financialsRouteEmptyCatalogHint:
-    'Create the first SKU so banji can read stock-linked sales, margin, inventory value, and supplier commitments.',
+    'Create the first SKU so Kaur Khor can read stock-linked sales, margin, inventory value, and supplier commitments.',
   financialsRouteEmptyWorkspaceTitle: 'Money needs the first SENA run',
   financialsRouteEmptyWorkspaceHint:
-    'Capture a live observation so banji can turn stock, sales, orders, receipts, and price evidence into a money view.',
+    'Capture a live observation so Kaur Khor can turn stock, sales, orders, receipts, and price evidence into a money view.',
   analysisRouteEyebrow: 'Explain',
   analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
@@ -1779,7 +1779,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchNoNamedEntityInObservation:
     'No named entity in this observation.',
   analysisWorkbenchIntervalExplanationTitle: 'Interval explanation',
-  analysisWorkbenchIntervalExplanationTooltip: "banji's summary of the selected interval.",
+  analysisWorkbenchIntervalExplanationTooltip: "Kaur Khor’s summary of the selected interval.",
   analysisWorkbenchSalesPatternLine: 'Regime {value}',
   analysisWorkbenchObservedSignalsTitle: 'Observed signals',
   analysisWorkbenchObservedSignalsTooltip:
@@ -1989,11 +1989,11 @@ export const enUiCopyV1 = {
   stockUpdateRegimeCorrectionDetail:
     'Bookkeeping or cleanup behavior dominated the signal.',
   stockUpdateReviewTooltip:
-    'banji saves only changed rows and active signals, then refreshes SENA surfaces.',
+    'Kaur Khor saves only changed rows and active signals, then refreshes SENA surfaces.',
   stockUpdateReviewTooltipLabel: 'Save summary details',
   stockUpdateNoStructuredSignals: 'No structured signals yet',
   stockUpdateReviewBody:
-    'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add evidence to Explain.',
+    'Kaur Khor will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add evidence to Explain.',
   stockUpdatePriceBadge: 'Price: {name}',
   stockUpdateStockoutBadge: 'Stockout: {name}',
   stockUpdateOrderSignalSaved:
@@ -2019,7 +2019,7 @@ export const enUiCopyV1 = {
   stockUpdateGuidanceChooseObservedAt:
     'Choose a valid observed-at time before continuing.',
   stockUpdateGuidanceCountOneSku:
-    'Count at least one SKU before continuing so banji can anchor the first update.',
+    'Count at least one SKU before continuing so Kaur Khor can anchor the first update.',
   stockUpdateGuidanceChooseOptionalStep:
     'Choose Yes or No before continuing.',
   stockUpdateGuidanceFillSkuFlags:
@@ -2031,7 +2031,7 @@ export const enUiCopyV1 = {
   stockUpdateGuidanceFillServiceFlagsSave:
     'Fill in every enabled service flag value or remove the empty flag before saving.',
   stockUpdateGuidanceFirstUpdateNeedsCount:
-    'The first update must include at least one counted SKU so banji can anchor inventory.',
+    'The first update must include at least one counted SKU so Kaur Khor can anchor inventory.',
   stockUpdateDiscardChanges: 'Discard changes and leave',
   stockUpdateSummaryLastConfirmed: 'Last confirmed update',
   stockUpdateSummaryNoPriorUpdate: 'No prior update',
@@ -2083,7 +2083,7 @@ export const enUiCopyV1 = {
     'Covers changes since {date}{suffix}.',
   stockUpdateDescriptorIntervalSuffix: ' · {days}-day interval',
   stockUpdateDescriptorFirst:
-    'Start banji with one counted SKU, then future updates can stay sparse.',
+    'Start Kaur Khor with one counted SKU, then future updates can stay sparse.',
   stockUpdateContextFooterEmpty:
     'Leave regime empty when the record does not need one dominant explanation.',
   stockUpdateContextTooltip:
@@ -2093,7 +2093,7 @@ export const enUiCopyV1 = {
   stockUpdateObservedAtTooltip:
     'This timestamp anchors the interval since the last confirmed update.',
   stockUpdateObservedAtHelp:
-    'banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+    'Kaur Khor starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
   stockUpdateNotesTooltip:
     'Use notes for human context. Add structured signals when the model should learn from the change.',
   stockUpdateNotesHelp:
@@ -2114,7 +2114,7 @@ export const enUiCopyV1 = {
   stockUpdateSaveObservedAtError:
     'Choose a valid observed-at time before saving.',
   stockUpdateSaveFailed:
-    "banji couldn't save this update. Try again.",
+    "Kaur Khor couldn't save this update. Try again.",
   stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',
   stockUpdateOrderedQuantityAria: 'Ordered quantity for {name}',
   stockUpdateRemoveReceiptFlagFor: 'Remove receipt flag for {name}',
@@ -2131,10 +2131,10 @@ export const enUiCopyV1 = {
   overviewDrawerModeEtaChangedDescription: 'Update the arrival date',
   overviewDrawerModeGoodsReceivedTitle: 'Goods received',
   overviewDrawerModeGoodsReceivedDescription: 'Log the receipt',
-  overviewDrawerModeSummaryNotOrdered: 'banji will keep this task open until the order state changes.',
-  overviewDrawerModeSummaryOrderedWaiting: 'banji will save the order signal and the current arrival window.',
-  overviewDrawerModeSummaryEtaChanged: 'banji will refresh the arrival window for this task.',
-  overviewDrawerModeSummaryGoodsReceived: 'banji will log the receipt and update stock.',
+  overviewDrawerModeSummaryNotOrdered: 'Kaur Khor will keep this task open until the order state changes.',
+  overviewDrawerModeSummaryOrderedWaiting: 'Kaur Khor will save the order signal and the current arrival window.',
+  overviewDrawerModeSummaryEtaChanged: 'Kaur Khor will refresh the arrival window for this task.',
+  overviewDrawerModeSummaryGoodsReceived: 'Kaur Khor will log the receipt and update stock.',
   overviewDrawerRealLifeTitle: 'What happened in real life',
   overviewDrawerRecommendedOrderTitle: 'Recommended order',
   overviewDrawerRecommendedOrderLikely: '{value} likely',
@@ -2164,17 +2164,17 @@ export const enUiCopyV1 = {
   overviewDrawerReceivedCostDescription: 'Only update this if the landed cost changed.',
   overviewDrawerPreviewTitle: 'Preview',
   overviewDrawerPreviewDescription:
-    'banji will add +{quantity} units, close this receipt task, and move inventory to {stock} units.',
+    'Kaur Khor will add +{quantity} units, close this receipt task, and move inventory to {stock} units.',
   overviewDrawerSupplierNoteTitle: 'Supplier note',
   overviewDrawerSupplierNoteDescription: 'Add context only if it changes the supplier follow-up.',
   overviewDrawerNoteTitle: 'Note',
   overviewDrawerNoteDescription: 'Add context only if someone will need it later.',
-  overviewDrawerNextStepsTitle: 'What banji will do next',
+  overviewDrawerNextStepsTitle: 'What Kaur Khor will do next',
   overviewDrawerModeLabel: 'Mode: {value}',
   overviewDrawerSubmitGoodsReceived: 'Confirm inventory update',
   overviewDrawerSubmitNotOrdered: 'Save note',
   overviewDrawerSubmitDefault: 'Save and refresh',
-  overviewDrawerSaveFailed: "banji could not save this update. Try again.",
+  overviewDrawerSaveFailed: "Kaur Khor could not save this update. Try again.",
   stockUpdateEyebrow: 'Capture',
 } as const;
 
@@ -2189,11 +2189,11 @@ export const enUiCopyV2: EnglishUiCopy = {
   backendError: 'Local workspace unavailable',
   workspaceLoadingTitle: 'Loading local workspace…',
   workspaceStarting: 'Starting the desktop core and loading the latest local workspace.',
-  workspaceComputingTitle: 'banji is preparing your workspace',
+  workspaceComputingTitle: 'Kaur Khor is preparing your workspace',
   workspaceComputingBody:
-    'banji is loading your catalog, recent updates, and the latest local planning read.',
+    'Kaur Khor is loading your catalog, recent updates, and the latest local planning read.',
   workspaceComputingHint:
-    'The first launch after a reset can take longer while banji rebuilds local views.',
+    'The first launch after a reset can take longer while Kaur Khor rebuilds local views.',
   workspaceUnavailable: 'The local workspace is unavailable.',
   dashboardHealthStarting: 'Starting the desktop core and loading the latest workspace state',
   dashboardRiskTitle: 'Planning pulse',
@@ -2203,23 +2203,23 @@ export const enUiCopyV2: EnglishUiCopy = {
   dashboardTopRegime: 'Main sales pattern',
   catalogSenaSkuHeroTitle: 'Stock snapshot',
   catalogSenaSkuHeroTooltip:
-    'This is banji’s latest estimate for this SKU. It brings current stock, uncertainty, cover, reorder pressure, and incoming stock into one view.',
+    'This is Kaur Khor’s latest estimate for this SKU. It brings current stock, uncertainty, cover, reorder pressure, and incoming stock into one view.',
   catalogSenaSkuOperationalRibbon: 'Key signals',
   catalogSenaSkuRibbonTooltip:
     'The ribbon keeps the most important stock, incoming, demand, price, and service-impact signals in one place.',
   catalogSenaSkuLedgerTitle: 'SKU timeline',
   catalogSenaSkuLedgerTooltip:
-    'This timeline shows what banji thinks happened over time, including sales pattern, demand, stock movement, orders, receipts, and corrections.',
+    'This timeline shows what Kaur Khor thinks happened over time, including sales pattern, demand, stock movement, orders, receipts, and corrections.',
   catalogSenaSkuDependencyImpact: 'Service impact',
   catalogSenaSkuDependencyImpactTooltip:
     'See which services depend on this SKU and where a shortage could block work.',
   catalogSenaSkuEvidenceTimeline: 'Recent evidence',
   catalogSenaSkuEvidenceTimelineTooltip:
-    'This timeline shows the saved updates banji used to form its latest estimate.',
+    'This timeline shows the saved updates Kaur Khor used to form its latest estimate.',
   catalogSenaSkuSelectedInterval: 'Selected period',
   catalogSenaSkuActNow: 'Next step',
   catalogSenaSkuActNowTooltip:
-    'This is banji’s suggested next move for this SKU.',
+    'This is Kaur Khor’s suggested next move for this SKU.',
   catalogSenaSkuOpenPipeline: 'Incoming stock',
   catalogSenaSkuOpenPipelineTooltip:
     'See what stock is still on the way for this SKU and when it is most likely to arrive.',
@@ -2228,9 +2228,9 @@ export const enUiCopyV2: EnglishUiCopy = {
     'See where this SKU is already holding back a service or could become a blocker soon.',
   catalogSenaSkuNextTouch: 'Next check',
   catalogSenaSkuNextTouchTooltip:
-    'See when banji expects this SKU will need attention again.',
+    'See when Kaur Khor expects this SKU will need attention again.',
   catalogSenaSkuPreparing: 'Preparing details',
-  catalogSenaSkuNeedsObservations: 'banji needs at least two updates for this detail view',
+  catalogSenaSkuNeedsObservations: 'Kaur Khor needs at least two updates for this detail view',
   catalogSenaSkuRefreshing: 'Refreshing details',
   catalogSenaSkuDegraded: 'Detailed analysis is unavailable, but the main SKU controls still work.',
   catalogSenaSkuDialogDescription: 'Log one SKU-specific update, then refresh this SKU view.',
@@ -2243,17 +2243,17 @@ export const enUiCopyV2: EnglishUiCopy = {
     'See the main sales pattern and recent price changes side by side.',
   catalogSenaSkuInventoryLane: 'Stock estimate',
   catalogSenaSkuInventoryLaneTooltip:
-    'See banji’s latest stock estimate, along with the reorder line and safety stock guide.',
+    'See Kaur Khor’s latest stock estimate, along with the reorder line and safety stock guide.',
   catalogSenaSkuFlowLane: 'What changed stock',
   catalogSenaSkuFlowLaneTooltip:
     'See what most likely changed stock in each period: service demand, retail demand, receipts, and adjustments.',
   catalogSenaSkuPipelineLane: 'Incoming stock timeline',
   catalogSenaSkuPipelineLaneTooltip:
-    'See what banji thinks is still on the way, including order signals, incoming stock, and receipts.',
+    'See what Kaur Khor thinks is still on the way, including order signals, incoming stock, and receipts.',
   catalogServiceHeartbeatTitle: 'Service snapshot',
   catalogServiceDetailUnavailableTitle: 'Service details unavailable',
   catalogServiceDetailUnavailableDescription:
-    'banji does not have enough saved detail for this service yet.',
+    'Kaur Khor does not have enough saved detail for this service yet.',
   catalogServiceHeartbeatHealthyHint: 'No current blocker',
   catalogServiceConstraintBlockedPrefix: 'Blocked by',
   catalogServiceConstraintRiskPrefix: 'Risk on',
@@ -2274,7 +2274,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Recent updates will appear here after you save stock, delivery, or price changes for this service or its linked SKUs.',
   catalogServiceHeroAvailabilityTitle: 'Current availability',
   catalogServiceHeroAvailabilityTooltip:
-    "banji's latest read of how likely this service can still be delivered.",
+    "Kaur Khor’s latest read of how likely this service can still be delivered.",
   catalogServiceHeroRibbonTitle: 'Key signals',
   catalogServiceHeroRibbonTooltip:
     'Compact view of availability, demand pressure, blockers, and recovery timing.',
@@ -2313,7 +2313,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Change these only when this workspace needs different planning behavior.',
   settingsDesktopPreferencesTitle: 'Desktop preferences',
   settingsDesktopPreferencesDescription:
-    'Choose how much optional guidance banji shows and how this device behaves.',
+    'Choose how much optional guidance Kaur Khor shows and how this device behaves.',
   settingsPreferencesControlsTitle: 'Preferences',
   settingsPreferencesControlsDescription:
     'These settings affect only this device.',
@@ -2335,43 +2335,43 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Shows Work / Intake and lets the Telegram bot receive customer intake. When off, intake is hidden and the bot is paused.',
   settingsSenaParametersPanelTitle: 'Planning settings',
   settingsSenaParametersPanelDescription:
-    'Adjust how much detail banji uses when estimating stock and suggesting reorder quantities.',
+    'Adjust how much detail Kaur Khor uses when estimating stock and suggesting reorder quantities.',
   settingsAnalysisProfileLabel: 'Planning profile',
   settingsAnalysisProfileTooltip:
     'This selects the local analysis engine version. Leave it alone unless you are comparing runs.',
   settingsAnalysisProfileHelp:
-    'The local analysis version banji will use on the next refresh.',
+    'The local analysis version Kaur Khor will use on the next refresh.',
   settingsParticleCount: 'Planner sample count',
   settingsParticleCountTooltip:
-    'Higher values usually make banji’s estimates steadier, but refreshes take longer.',
+    'Higher values usually make Kaur Khor’s estimates steadier, but refreshes take longer.',
   settingsRecommendationQuantileLabel: 'Recommended order level',
   settingsRecommendationQuantileHelp:
-    'How cautious banji should be when sizing the suggested order.',
+    'How cautious Kaur Khor should be when sizing the suggested order.',
   settingsRecommendationQuantileTooltip:
-    'Higher values lead banji to suggest a larger order to protect more demand.',
+    'Higher values lead Kaur Khor to suggest a larger order to protect more demand.',
   settingsRangeLowQuantileLabel: 'Suggested range start',
   settingsRangeLowQuantileHelp:
-    'Lower end of banji’s suggested order range.',
+    'Lower end of Kaur Khor’s suggested order range.',
   settingsRangeLowQuantileTooltip:
-    'banji uses this as the low side of the suggested order range.',
+    'Kaur Khor uses this as the low side of the suggested order range.',
   settingsRangeHighQuantileLabel: 'Suggested range end',
   settingsRangeHighQuantileHelp:
-    'Upper end of banji’s suggested order range.',
+    'Upper end of Kaur Khor’s suggested order range.',
   settingsRangeHighQuantileTooltip:
-    'banji uses this as the high side of the suggested order range.',
+    'Kaur Khor uses this as the high side of the suggested order range.',
   settingsNeedProbabilityGateLabel: 'Reorder signal threshold',
   settingsNeedProbabilityGateHelp:
-    'How sure banji should be before it clearly recommends a reorder.',
+    'How sure Kaur Khor should be before it clearly recommends a reorder.',
   settingsNeedProbabilityGateTooltip:
-    'Below this threshold, banji may still show an optional order amount but will not mark it as a firm reorder recommendation.',
+    'Below this threshold, Kaur Khor may still show an optional order amount but will not mark it as a firm reorder recommendation.',
   settingsReviewDelayDaysLabel: 'Extra safety days',
   settingsReviewDelayDaysHelp:
-    'Extra days banji protects before the next likely reorder decision.',
+    'Extra days Kaur Khor protects before the next likely reorder decision.',
   settingsReviewDelayDaysTooltip:
-    'banji adds these days on top of lead time when sizing the suggested order.',
+    'Kaur Khor adds these days on top of lead time when sizing the suggested order.',
   settingsEnableSmoothingLabel: 'Soften noisy charts',
   settingsEnableSmoothingHelp:
-    'Smooth the lines before banji summarizes them.',
+    'Smooth the lines before Kaur Khor summarizes them.',
   settingsEnableSmoothingTooltip:
     'This can make sparse history easier to scan, but it can also hide abrupt changes.',
   settingsSenaParametersFixErrors:
@@ -2383,7 +2383,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsParameterRunStatusFailed: 'Failed to export planning data.',
   settingsLocalWorkspaceStorageTitle: 'Local data',
   settingsLocalWorkspaceStorageDescription:
-    'banji stores workspace data on this device in a local SQLite file and keeps rolling local backup snapshots.',
+    'Kaur Khor stores workspace data on this device in a local SQLite file and keeps rolling local backup snapshots.',
   settingsBenchmarksTitle: 'Benchmarks',
   settingsBenchmarksDescription:
     'Run desktop benchmark scenarios, inspect target status, and compare local results.',
@@ -2402,7 +2402,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Delete the current local workspace state and preferences while keeping saved snapshots.',
   settingsClearCurrentDataTitle: 'Delete current local data',
   settingsClearCurrentDataDescription:
-    'Type DELETE CURRENT DATA to remove the current local workspace files. banji will keep saved snapshots and create one more safety snapshot first.',
+    'Type DELETE CURRENT DATA to remove the current local workspace files. Kaur Khor will keep saved snapshots and create one more safety snapshot first.',
   settingsClearCurrentDataAction: 'Delete current data',
   settingsClearCurrentDataCancel: 'Cancel',
   settingsClearCurrentDataCompleted:
@@ -2427,7 +2427,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   overviewTimingPending: 'arrival timing still unclear',
   overviewReceiptAwaitingSupplierUpdate: 'Waiting for supplier update',
   overviewReceiptAwaitingSupplierDetail:
-    'banji thinks stock is on the way, but the arrival window is still unclear.',
+    'Kaur Khor thinks stock is on the way, but the arrival window is still unclear.',
   overviewTaskWhyOrderBlocksService: 'A service could be blocked',
   overviewTaskWhyOrderSoon: 'Stock is running low',
   overviewTaskWhyOrderedAlready: 'Order already placed',
@@ -2443,21 +2443,21 @@ export const enUiCopyV2: EnglishUiCopy = {
   overviewTaskHeartbeatPattern:
     'Sales pattern {pattern}',
   overviewTaskNextOrderWaiting:
-    'banji will keep this in Order now until you log an order.',
+    'Kaur Khor will keep this in Order now until you log an order.',
   overviewTaskNextArrivalWatch:
-    'banji will keep watching the current delivery window.',
+    'Kaur Khor will keep watching the current delivery window.',
   overviewStaleReminderWhyNow:
     'A fresh real-world update is overdue',
   overviewSignalPromo:
     'A promo pattern may have lifted demand for {name}.',
   settingsLocalWorkspaceInfoFailed: "Couldn't load local workspace details.",
   settingsPreferencesFixErrors: 'Fix the highlighted setting before saving.',
-  settingsSenaRerunSaved: 'banji refreshed planning with your saved settings.',
-  settingsSenaRerunDefaults: 'banji refreshed planning with the default settings.',
-  settingsSenaRerunFailed: "banji couldn't refresh planning right now.",
+  settingsSenaRerunSaved: 'Kaur Khor refreshed planning with your saved settings.',
+  settingsSenaRerunDefaults: 'Kaur Khor refreshed planning with the default settings.',
+  settingsSenaRerunFailed: "Kaur Khor couldn't refresh planning right now.",
   settingsLogsExported: 'Exported activity logs as {format}.',
   settingsLogsExportFailed: "Couldn't export activity logs.",
-  settingsSenaDataWorkbookTitle: 'banji planning data',
+  settingsSenaDataWorkbookTitle: 'Kaur Khor planning data',
   settingsSenaDataExportFormatLabel: 'Planning data format',
   skuVmUnknown: 'unknown',
   skuVmNoActiveReceiptWindow: 'No delivery window yet',
@@ -2614,12 +2614,12 @@ export const enUiCopyV2: EnglishUiCopy = {
   performanceVmRibbonMarginHealth: 'Margin health',
   performanceVmRibbonRevenueAtRisk: 'Revenue at risk',
   performanceVmLastUpdated: 'Updated {date} · {window}',
-  performanceVmWaitingForUpdates: 'Waiting for banji updates',
+  performanceVmWaitingForUpdates: 'Waiting for Kaur Khor updates',
   performanceRouteEmptyWorkspaceTitle: 'Pressure needs your first update',
   performanceRouteEmptyCatalogHint:
-    'Create the first SKU so banji can compare demand, availability, and price in one business view.',
+    'Create the first SKU so Kaur Khor can compare demand, availability, and price in one business view.',
   performanceRouteEmptyWorkspaceHint:
-    'Capture a live update so banji can read demand, capacity, incoming stock, and price together.',
+    'Capture a live update so Kaur Khor can read demand, capacity, incoming stock, and price together.',
   performanceRouteDescriptor: 'Demand, available capacity, incoming stock, and pricing in one business view.',
   performanceRouteRefiningSignals: 'Refreshing incoming-stock and capacity signals…',
   performanceRouteScopeServicesOnly: 'Services only',
@@ -2638,13 +2638,13 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisRouteEyebrow: 'Explain',
   analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
-    'See how saved updates turned into banji’s current picture of demand, incoming stock, delivery timing, and price.',
+    'See how saved updates turned into Kaur Khor’s current picture of demand, incoming stock, delivery timing, and price.',
   analysisRouteNeedCatalogTitle: 'Explain needs a catalog first',
   analysisRouteNeedCatalogHint:
-    'Create your first SKU so banji has real items to analyze.',
+    'Create your first SKU so Kaur Khor has real items to analyze.',
   analysisRouteNeedRunTitle: 'Explain needs your first update',
   analysisRouteNeedRunHint:
-    'Save a real update so banji can explain how the current picture was formed.',
+    'Save a real update so Kaur Khor can explain how the current picture was formed.',
   analysisRouteScopeAria: 'Select explanation scope',
   analysisRouteScopeAll: 'All',
   analysisRouteScopeServices: 'Services',
@@ -2660,7 +2660,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Estimate of how much independent evidence is supporting this reading.',
   analysisWorkbenchSettingsPredictiveErrorLabel: 'Prediction gap',
   analysisWorkbenchSettingsPredictiveErrorTooltip:
-    'Average gap between what banji expected and what was later observed.',
+    'Average gap between what Kaur Khor expected and what was later observed.',
   analysisWorkbenchSettingsCoverageLabel: 'Coverage level',
   analysisWorkbenchSettingsCoverageTooltip:
     'Share of the expected evidence surface that was actually observed.',
@@ -2668,7 +2668,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisWorkbenchLedgerTooltip:
     'Interval-by-interval view of sales pattern, stock estimate, incoming stock, and delivery timing.',
   analysisWorkbenchLedgerDescriptor:
-    'Inspect how saved updates turned into banji’s current reading.',
+    'Inspect how saved updates turned into Kaur Khor’s current reading.',
   analysisWorkbenchLaneRegimeTitle: 'Sales pattern and price',
   analysisWorkbenchLaneRegimeSubtitle:
     'See the main sales pattern with price and stockout cues carried as light markers instead of heavy cards.',
@@ -2678,12 +2678,12 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisWorkbenchLaneInventorySubtitle:
     'The stock estimate stays continuous while service demand, retail demand, deliveries, and adjustments stay tied to each interval.',
   analysisWorkbenchLaneInventoryTooltip:
-    'banji’s stock estimate with demand, deliveries, and adjustments by interval.',
+    'Kaur Khor’s stock estimate with demand, deliveries, and adjustments by interval.',
   analysisWorkbenchInventoryBand: 'Likely range',
   analysisWorkbenchInventoryMean: 'Middle estimate',
   analysisWorkbenchLanePipelineTitle: 'Incoming stock',
   analysisWorkbenchLanePipelineSubtitle:
-    'This lane shows what banji thinks is still on the way, with order and delivery cues called out directly.',
+    'This lane shows what Kaur Khor thinks is still on the way, with order and delivery cues called out directly.',
   analysisWorkbenchLanePipelineTooltip:
     'Estimated incoming stock, order timing, deliveries, and transit age by interval.',
   analysisWorkbenchInTransitWindow: 'On-the-way window',
@@ -2715,7 +2715,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'See which linked SKUs are most likely to block each service.',
   analysisWorkbenchBottleneckLabel: 'Blocker',
   analysisWorkbenchIntervalExplanationTooltip:
-    "banji's summary of the selected time period.",
+    "Kaur Khor’s summary of the selected time period.",
   analysisWorkbenchSalesPatternLine: 'Sales pattern {value}',
   analysisWorkbenchObservedSignalsTooltip:
     'Saved signals that touched this time period.',
@@ -2854,7 +2854,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateRegimeCorrectionDetail:
     'Bookkeeping or cleanup activity drove this period.',
   stockUpdateReviewBody:
-    'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this evidence to Explain.',
+    'Kaur Khor will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this evidence to Explain.',
   stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
   stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
   stockUpdateStepObservedAtReady: 'Time confirmed',
@@ -2869,7 +2869,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Choose Yes or No before continuing.',
   stockUpdateSummaryUntouchedSkus: 'Untouched SKUs stay unchanged',
   stockUpdateDescriptorFirst:
-    'Start banji with one counted SKU, then later updates can stay light.',
+    'Start Kaur Khor with one counted SKU, then later updates can stay light.',
   stockUpdateContextFooterEmpty:
     'Leave sales pattern empty when this record does not need one main explanation.',
   stockUpdateContextTooltip:
@@ -2877,7 +2877,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   stockUpdateObservedAtTooltip:
     'This timestamp anchors the time period since the last confirmed update.',
   stockUpdateObservedAtHelp:
-    'banji starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
+    'Kaur Khor starts with this device’s current date and time here. Adjust it only if the update was observed earlier.',
   stockUpdateNotesPlaceholderShiftContext:
     'Example: lunchtime was unusually quiet, but no clear stock issue.',
   stockUpdateNotesPlaceholderSupplierDelay:
@@ -2891,9 +2891,9 @@ export const enUiCopyV2: EnglishUiCopy = {
     backendError: 'Local planning workspace unavailable',
     workspaceLoadingTitle: 'Loading local planning workspace…',
     workspaceStarting: 'Starting the desktop core and loading the latest local workspace.',
-    workspaceComputingTitle: 'banji is preparing your workspace',
+    workspaceComputingTitle: 'Kaur Khor is preparing your workspace',
     workspaceComputingBody:
-      'banji is loading your catalog, recent updates, and the latest local planning view.',
+      'Kaur Khor is loading your catalog, recent updates, and the latest local planning view.',
     workspaceUnavailable: 'The local planning workspace is unavailable.',
     dashboardHealthStarting: 'Starting the desktop core and loading the latest local workspace',
     dashboardRiskTitle: 'Planning pulse',
@@ -2902,7 +2902,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     apiUnavailable: 'The local planning workspace is unavailable.',
     catalogSenaSkuHeroTitle: 'SKU snapshot',
     catalogSenaSkuHeroTooltip:
-      'This snapshot is banji’s current picture of this SKU. It sums up stock on hand, likely range, days of cover, reorder signal, and open delivery exposure.',
+      'This snapshot is Kaur Khor’s current picture of this SKU. It sums up stock on hand, likely range, days of cover, reorder signal, and open delivery exposure.',
     catalogSenaSkuOperationalRibbon: 'Key signals',
     catalogSenaSkuRibbonTooltip:
       'These six signals matter most for the next decision. They keep stock, incoming deliveries, demand, price, and service impact in one place.',
@@ -2910,7 +2910,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     catalogSenaSkuLedgerTooltip:
       'This timeline shows what likely happened over time. It lines up sales pattern, demand, stock movement, orders, deliveries, and corrections in one view.',
     catalogSenaSkuPreparing: 'Preparing details',
-    catalogSenaSkuNeedsObservations: 'banji needs at least two saved updates for this view',
+    catalogSenaSkuNeedsObservations: 'Kaur Khor needs at least two saved updates for this view',
     catalogSenaSkuRefreshing: 'Refreshing details',
     catalogSenaSkuDegraded: 'Detailed analysis is unavailable right now, but the main SKU controls still work.',
     catalogSenaSkuDialogDescription: 'Log one SKU-specific update, then refresh this SKU view.',
@@ -2920,10 +2920,10 @@ export const enUiCopyV2: EnglishUiCopy = {
       'This lane shows the main sales pattern next to price cues. It helps explain whether sales looked normal, promotional, stock-limited, or corrective.',
     catalogSenaSkuInventoryLane: 'Stock estimate',
     catalogSenaSkuInventoryLaneTooltip:
-      'This lane shows banji’s best stock estimate across the visible window. It includes likely range, reorder warning, and buffer stock guides.',
+      'This lane shows Kaur Khor’s best stock estimate across the visible window. It includes likely range, reorder warning, and buffer stock guides.',
     catalogSenaSkuPipelineLane: 'Incoming stock timeline',
     catalogSenaSkuPipelineLaneTooltip:
-      'This lane shows what banji thinks is still on the way. It separates order placement, incoming stock, and deliveries.',
+      'This lane shows what Kaur Khor thinks is still on the way. It separates order placement, incoming stock, and deliveries.',
     catalogServiceDetailUnavailableTitle: 'Service details unavailable',
     catalogSkuDetailLoaderTitle: 'Detailed view',
     catalogSkuDetailLoaderLoading: 'Loading fuller details…',
@@ -2936,17 +2936,17 @@ export const enUiCopyV2: EnglishUiCopy = {
     settingsAnalysisProfileHelp:
       'Local planning engine version used for the next refresh.',
     settingsNeedProbabilityGateTooltip:
-      'banji may still show an optional order amount below this level, but it will not present it as a firm reorder suggestion.',
+      'Kaur Khor may still show an optional order amount below this level, but it will not present it as a firm reorder suggestion.',
     settingsSenaParametersFixErrors: 'Fix the highlighted planning settings before saving.',
     settingsSenaParametersRerunHint:
       'Saving preferences will rerun the local planning analysis with these settings.',
     settingsExportSenaDataAction: 'Export planning data',
     settingsParameterRunStatusExported: 'Exported planning data as {format}.',
     settingsParameterRunStatusFailed: 'Failed to export planning data.',
-    settingsSenaRerunSaved: 'banji refreshed planning with your saved settings.',
-    settingsSenaRerunDefaults: 'banji refreshed planning with the default settings.',
-    settingsSenaRerunFailed: "banji couldn't refresh planning right now.",
-    settingsSenaDataWorkbookTitle: 'banji planning data',
+    settingsSenaRerunSaved: 'Kaur Khor refreshed planning with your saved settings.',
+    settingsSenaRerunDefaults: 'Kaur Khor refreshed planning with the default settings.',
+    settingsSenaRerunFailed: "Kaur Khor couldn't refresh planning right now.",
+    settingsSenaDataWorkbookTitle: 'Kaur Khor planning data',
     settingsSenaDataExportFormatLabel: 'Planning data format',
     overviewSignalPromo: 'A promotion may have lifted demand for {name}.',
     skuVmHeroSentence:
@@ -2963,7 +2963,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       'A mixed portfolio view of demand, support, incoming stock, and margin posture.',
     performanceRouteRecoveryPipelineTitle: 'Recovery path',
     analysisRouteDescriptor:
-      'Inspect how saved updates shaped banji’s current picture of demand, orders, deliveries, timing shifts, and price effects.',
+      'Inspect how saved updates shaped Kaur Khor’s current picture of demand, orders, deliveries, timing shifts, and price effects.',
     analysisRouteNeedRunTitle: 'Explain needs your first update',
     analysisRouteLoadingDetails: 'Loading item details…',
     analysisWorkbenchSettingsSampleSizeLabel: 'Evidence strength',
@@ -2988,28 +2988,28 @@ export const enUiCopyV2: EnglishUiCopy = {
     ...{
       settingsAnalysisProfileLabel: 'Planning method',
       settingsAnalysisProfileTooltip:
-        'This chooses which local planning method banji uses. Leave it unchanged unless you are comparing results.',
+        'This chooses which local planning method Kaur Khor uses. Leave it unchanged unless you are comparing results.',
       settingsAnalysisProfileHelp: 'Local planning method used on the next refresh.',
       settingsRecommendationQuantileLabel: 'Order suggestion level',
       settingsRecommendationQuantileHelp:
-        'Which point in banji’s likely outcomes becomes the suggested order amount.',
+        'Which point in Kaur Khor’s likely outcomes becomes the suggested order amount.',
       settingsRecommendationQuantileTooltip:
         'Lower values suggest a smaller order. Higher values suggest a larger one.',
       settingsRangeLowQuantileLabel: 'Suggested range start',
       settingsRangeLowQuantileHelp:
-        'Lower end of banji’s likely order range.',
+        'Lower end of Kaur Khor’s likely order range.',
       settingsRangeLowQuantileTooltip:
-        'banji uses this as the low end of the likely order range.',
+        'Kaur Khor uses this as the low end of the likely order range.',
       settingsRangeHighQuantileLabel: 'Suggested range end',
       settingsRangeHighQuantileHelp:
-        'Upper end of banji’s likely order range.',
+        'Upper end of Kaur Khor’s likely order range.',
       settingsRangeHighQuantileTooltip:
-        'banji uses this as the high end of the likely order range.',
+        'Kaur Khor uses this as the high end of the likely order range.',
       settingsParticleCount: 'Evidence detail level',
       settingsParticleCountTooltip:
-        'Higher values usually make banji’s estimates steadier, but refreshes take longer.',
+        'Higher values usually make Kaur Khor’s estimates steadier, but refreshes take longer.',
       settingsEnableSmoothingHelp:
-        'Smooth sharp swings before banji summarizes them.',
+        'Smooth sharp swings before Kaur Khor summarizes them.',
       settingsEnableSmoothingTooltip:
         'This can make sparse updates easier to read, but it also softens sudden changes.',
       settingsRangeLowAboveHigh:
@@ -3021,7 +3021,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       analysisWorkbenchNavWorkbench: 'Main view',
       analysisWorkbenchSelectSurface: 'Select Explain view',
       analysisWorkbenchSettingsSampleSizeTooltip:
-        'How much distinct evidence banji is effectively using.',
+        'How much distinct evidence Kaur Khor is effectively using.',
       analysisWorkbenchLedgerDescriptor:
         'See how saved updates turned into the current system picture.',
       analysisWorkbenchPressureDescriptor:
@@ -3049,7 +3049,7 @@ export const enUiCopyV2: EnglishUiCopy = {
       overviewTaskWhyDetailOrder:
         '{cover} of cover · reorder signal {probability}',
       overviewTaskWhyReceiptLoop:
-        'banji is still tracking this delivery.',
+        'Kaur Khor is still tracking this delivery.',
       overviewTaskHeartbeatOnHand:
         'Likely on hand {low}-{high}',
       overviewTaskHeartbeatReorder:
@@ -3066,9 +3066,9 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateOverallRegime: 'Overall sales pattern',
       stockUpdateNoRegimeSignal: 'No sales-pattern signal',
       stockUpdateReviewTooltip:
-        'banji saves only changed rows and active signals, then refreshes the planning views.',
+        'Kaur Khor saves only changed rows and active signals, then refreshes the planning views.',
       stockUpdateReviewBody:
-        'banji will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this update to Explain.',
+        'Kaur Khor will refresh stock and sellability, update Work tasks, refresh Pressure moves, and add this update to Explain.',
       stockUpdateStepRegimeSummary: 'Sales pattern: {value}',
       stockUpdateStepContextSummary: 'Observed time, notes, sales pattern',
       stockUpdateContextFooterEmpty:
@@ -3076,13 +3076,13 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateContextTooltip:
         'Set the update time, add optional notes, and choose an optional sales pattern for the full update.',
       stockUpdateNotesTooltip:
-        'Use notes for human context. Add structured signals when banji should learn from the change.',
+        'Use notes for human context. Add structured signals when Kaur Khor should learn from the change.',
       stockUpdateNotesHelp:
         'Notes explain the update, but on their own they do not count as a business signal.',
       stockUpdateRankingsTooltip:
         'These rankings are selling-order evidence. Leave them unchanged if the selling order did not meaningfully change.',
       stockUpdateSaveFailed:
-        "banji couldn't save this update right now. Try again.",
+        "Kaur Khor couldn't save this update right now. Try again.",
       stockUpdateRemoveOrderFlagFor: 'Remove order flag for {name}',
       stockUpdateOrderedQuantityAria: 'Ordered quantity for {name}',
       stockUpdateRemoveReceiptFlagFor: 'Remove receipt flag for {name}',

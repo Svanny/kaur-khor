@@ -36,7 +36,7 @@ const helpSubsectionHighlightDurationMs = 1900;
 const helpSubsectionScrollHighlightDelayMs = 500;
 
 const helpSectionIcons: Array<{ pattern: RegExp; icon: IconComponent }> = [
-  { pattern: /^(what-banji-is-for|បញ្ជី-សម្រាប់អ្វី)$/, icon: NavigationWorkspacePanelsIcon },
+  { pattern: /^(what-kaur-khor-is-for|កខ-សម្រាប់អ្វី)$/, icon: NavigationWorkspacePanelsIcon },
   { pattern: /^(daily-workflow|លំហូរការងារប្រចាំថ្ងៃ)$/, icon: NavigationTaskListIcon },
   { pattern: /^(navigation|ការរុករក)$/, icon: NavigationSidebarIcon },
   { pattern: /^home$/, icon: NavigationDashboardIcon },
@@ -403,7 +403,7 @@ export function HelpRoute() {
               className="inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline"
               type="button"
               onClick={() => {
-                void window.banjiDesktop.system.openExternalUrl(repositoryGuideHref);
+                void window.kaurKhorDesktop.system.openExternalUrl(repositoryGuideHref);
               }}
             >
               {t('helpOpenRepositoryCopy')}

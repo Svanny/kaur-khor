@@ -43,7 +43,7 @@ function filePathToUrl(imagePath: string) {
     return null;
   }
 
-  if (/^(banji-asset|https?|data|blob):/i.test(trimmed)) {
+  if (/^(kaur-khor-asset|https?|data|blob):/i.test(trimmed)) {
     return trimmed;
   }
 
@@ -58,7 +58,7 @@ function filePathToUrl(imagePath: string) {
     return null;
   }
 
-  return `banji-asset://local/${encodeURIComponent(assetName)}`;
+  return `kaur-khor-asset://local/${encodeURIComponent(assetName)}`;
 }
 
 function fallbackIcon(type: ItemIdentityType) {

@@ -20,14 +20,14 @@ async function exportedBlobText() {
 describe('settings workspace actions', () => {
   beforeEach(() => {
     vi.stubGlobal('URL', {
-      createObjectURL: vi.fn(() => 'blob:banji-test'),
+      createObjectURL: vi.fn(() => 'blob:Kaur Khor-test'),
       revokeObjectURL: vi.fn(),
     });
 
-    window.banjiDesktop = {
-      ...(window.banjiDesktop ?? {}),
+    window.kaurKhorDesktop = {
+      ...(window.kaurKhorDesktop ?? {}),
       sena: {
-        ...(window.banjiDesktop?.sena ?? {}),
+        ...(window.kaurKhorDesktop?.sena ?? {}),
         listObservations: vi.fn(async () => []),
         getCatalog: vi.fn(async () => ({
           skus: [{ skuId: 'sku-1', name: 'SKU 1' }],
@@ -42,7 +42,7 @@ describe('settings workspace actions', () => {
         getDiagnostics: vi.fn(async () => ({ coverageEstimate: 0.91 })),
         getRunStatus: vi.fn(async () => ({ runId: 'run-1', status: 'succeeded' })),
       },
-    } as typeof window.banjiDesktop;
+    } as typeof window.kaurKhorDesktop;
   });
 
   it('skips anchor click navigation under jsdom while still exporting logs', async () => {
@@ -58,7 +58,7 @@ describe('settings workspace actions', () => {
 
     expect(message).toBe('settingsLogsExported:JSON');
     expect(URL.createObjectURL).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:banji-test');
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:Kaur Khor-test');
     expect(click).not.toHaveBeenCalled();
   });
 
@@ -74,16 +74,16 @@ describe('settings workspace actions', () => {
     const message = await exportPlanningDataAction('excel', t as never);
 
     expect(message).toBe('settingsParameterRunStatusExported:Excel');
-    expect(window.banjiDesktop.sena.getCatalog).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.listObservations).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.getDiagnostics).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.getRunStatus).toHaveBeenCalledWith({ runId: 'run-1' });
+    expect(window.kaurKhorDesktop.sena.getCatalog).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.listObservations).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.getDiagnostics).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.getRunStatus).toHaveBeenCalledWith({ runId: 'run-1' });
     expect(click).not.toHaveBeenCalled();
   });
 
   it('prefixes formula-leading CSV cells while preserving CSV quoting', async () => {
-    window.banjiDesktop.sena.getCatalog = vi.fn(async () => ({
+    window.kaurKhorDesktop.sena.getCatalog = vi.fn(async () => ({
       skus: [
         {
           skuId: 'sku-1',
@@ -100,7 +100,7 @@ describe('settings workspace actions', () => {
       bundles: [],
       sharingMask: [],
     })) as never;
-    window.banjiDesktop.sena.listObservations = vi.fn(async () => [
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [
       {
         observationId: 'obs-1',
         ownerSub: 'owner-1',

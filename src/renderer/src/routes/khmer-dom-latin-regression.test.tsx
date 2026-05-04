@@ -54,7 +54,6 @@ vi.mock('@/lib/page-state-memory', async (importOriginal) => {
 });
 
 const allowedLatinTokens = [
-  'banji',
   'Telegram',
   'SKU',
   'SKUs',
@@ -400,7 +399,7 @@ function makeIntake(): AutomationOrderIntake {
 
 describe('Khmer DOM Latin guardrail', () => {
   beforeEach(() => {
-    Object.defineProperty(window, 'banjiDesktop', {
+    Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
         benchmark: {
@@ -420,10 +419,10 @@ describe('Khmer DOM Latin guardrail', () => {
           clearCurrentData: vi.fn(),
           createBackupSnapshot: vi.fn(),
           getLocalDataInfo: vi.fn().mockResolvedValue({
-            backupDirectoryPath: '/tmp/banji/backups',
-            dataDirectoryPath: '/tmp/banji',
-            preferencesPath: '/tmp/banji/preferences.json',
-            workspaceStorePath: '/tmp/banji/workspace.json',
+            backupDirectoryPath: '/tmp/kaur-khor/backups',
+            dataDirectoryPath: '/tmp/kaur-khor',
+            preferencesPath: '/tmp/kaur-khor/preferences.json',
+            workspaceStorePath: '/tmp/kaur-khor/workspace.json',
           }),
           revealPath: vi.fn(),
           restoreBackupSnapshot: vi.fn(),

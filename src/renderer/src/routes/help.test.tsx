@@ -17,14 +17,14 @@ function translationsFor(language: 'en' | 'km') {
     return {
       navHelp: 'ជំនួយ',
       helpPageTitle: 'មគ្គុទ្ទេសក៍អ្នកប្រើប្រាស់',
-      helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់បញ្ជី ពីការកំណត់។',
+      helpPageDescriptor: 'រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់កខ ពីការកំណត់។',
       helpOpenOverviewAction: 'បើកទំព័រដើម',
       helpStartUpdateAction: 'បើកការកត់ត្រា',
       helpSearchAriaLabel: 'ស្វែងរកជំនួយ',
       helpSearchPlaceholder: 'ស្វែងរកមុខងារ លំហូរការងារ ប៊ូតុង ឬសំណួរញឹកញាប់…',
       helpNoMatchesTitle: 'រកមិនឃើញផ្នែកជំនួយដែលត្រូវគ្នា',
       helpNoMatchesDescriptor: 'សាកពាក្យស្វែងរកទូលំទូលាយជាងមុន ឬសម្អាតតម្រងបច្ចុប្បន្ន។',
-      helpNoMatchesBody: 'បញ្ជីរកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
+      helpNoMatchesBody: 'កខរកមិនឃើញផ្នែកជំនួយដែលត្រូវនឹងការស្វែងរករបស់អ្នកទេ។',
       helpClearSearchAction: 'សម្អាតការស្វែងរក',
       helpBestMatchBadge: 'ត្រូវគ្នាបំផុត',
       helpIndexTitle: 'មាតិកា',
@@ -40,14 +40,14 @@ function translationsFor(language: 'en' | 'km') {
   return {
     navHelp: 'Help',
     helpPageTitle: 'User Guide',
-    helpPageDescriptor: 'Browse banji workflows.',
+    helpPageDescriptor: 'Browse Kaur Khor workflows.',
     helpOpenOverviewAction: 'Open Home',
     helpStartUpdateAction: 'Open Capture',
     helpSearchAriaLabel: 'Search help',
     helpSearchPlaceholder: 'Search features, workflows, buttons, or FAQ…',
     helpNoMatchesTitle: 'No matching help sections',
     helpNoMatchesDescriptor: 'Try a broader search term or clear the current help filter.',
-    helpNoMatchesBody: 'banji could not find a help section matching your search.',
+    helpNoMatchesBody: 'Kaur Khor could not find a help section matching your search.',
     helpClearSearchAction: 'Clear search',
     helpBestMatchBadge: 'Best match',
     helpIndexTitle: 'Index',
@@ -115,7 +115,7 @@ describe('HelpRoute', () => {
     vi.useRealTimers();
     mockPreferences();
     window.history.replaceState(null, '', '/');
-    Object.defineProperty(window, 'banjiDesktop', {
+    Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
         system: {
@@ -184,7 +184,7 @@ describe('HelpRoute', () => {
 
     expect(screen.getByRole('link', { name: /បើកទំព័រដើម/ })).toHaveAttribute('href', '/');
     expect(screen.getByRole('link', { name: /បើកការកត់ត្រា/ })).toHaveAttribute('href', '/work/capture');
-    expect(screen.getByText('រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់បញ្ជី ពីការកំណត់។')).toBeInTheDocument();
+    expect(screen.getByText('រកមើលលំហូរការងារ ការពន្យល់តាមអេក្រង់ ពាក្យសំខាន់ និងសំណួរញឹកញាប់របស់កខ ពីការកំណត់។')).toBeInTheDocument();
   });
 
   test('keeps visible Khmer help content free of stale English navigation tokens', () => {
@@ -199,7 +199,7 @@ describe('HelpRoute', () => {
     const visibleText = container.textContent ?? '';
     expect(visibleText).not.toMatch(/\b(?:Work|Settings|Capture|Insights)\b/);
     expect(screen.queryByRole('link', { name: /Capture/ })).not.toBeInTheDocument();
-    expect(screen.queryByText(/banji/)).not.toBeInTheDocument();
+    expect(visibleText.toLowerCase()).not.toContain(['ba', 'nji'].join(''));
   });
 
   test('searches Khmer help content when Khmer is active', () => {
@@ -262,7 +262,7 @@ describe('HelpRoute', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ' }));
 
-    expect(window.banjiDesktop.system.openExternalUrl).toHaveBeenCalledWith(
+    expect(window.kaurKhorDesktop.system.openExternalUrl).toHaveBeenCalledWith(
       'https://github.com/Svanny/banji/blob/main/docs/user-guide.km.md',
     );
   });
@@ -356,7 +356,7 @@ describe('HelpRoute', () => {
     expect(delayedHighlightedGroup).not.toHaveClass('px-4');
     expect(delayedHighlightedGroup).not.toHaveClass('py-3');
     expect(delayedHighlightedGroup).not.toHaveClass('text-primary');
-    expect(screen.getByTestId('help-subsection-highlight')).toHaveClass('motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1]');
+    expect(screen.getByTestId('help-subsection-highlight')).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
     expect(delayedHighlightedGroup).toHaveTextContent('The Request column summarizes what the customer appears to be asking for');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();

@@ -31,7 +31,7 @@ export interface PersistedChartLayoutPreferences {
   paneHeightsSource?: 'manual';
 }
 
-const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'banji:chart-layout:defaults:v1';
+const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'kaur-khor:chart-layout:defaults:v1';
 
 function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
   return `${subtype}:${subjectId}`;

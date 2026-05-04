@@ -1374,7 +1374,7 @@ describe('SKU detail route', () => {
     renderWithProviders('/catalog/skus/sku-1', <SkuDetailRoute />, '/catalog/skus/:skuId');
 
     await waitFor(() => {
-      expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
+      expect(screen.getByText('Kaur Khor needs at least two saved updates for this view')).toBeInTheDocument();
     });
 
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
@@ -1469,7 +1469,7 @@ describe('SKU detail route', () => {
 
     resolveSnapshot?.(snapshot);
     await waitFor(() => {
-      expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
+      expect(screen.getByText('Kaur Khor needs at least two saved updates for this view')).toBeInTheDocument();
     });
   });
 });

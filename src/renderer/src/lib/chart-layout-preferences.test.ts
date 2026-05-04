@@ -346,7 +346,7 @@ describe('chart layout preference storage', () => {
 
   it('ignores legacy pane heights that were saved without a manual source marker', () => {
     window.localStorage.setItem(
-      'banji:page-state-memory:v1',
+      'kaur-khor:page-state-memory:v1',
       JSON.stringify({
         catalog: {
           values: {
@@ -374,7 +374,7 @@ describe('chart layout preference storage', () => {
 
   it('normalizes manual pane heights before comparison and resolution', () => {
     window.localStorage.setItem(
-      'banji:page-state-memory:v1',
+      'kaur-khor:page-state-memory:v1',
       JSON.stringify({
         catalog: {
           values: {

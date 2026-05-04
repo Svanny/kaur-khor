@@ -12,6 +12,7 @@ import { LiquidGridCard } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { buildRememberedInboxHref, usePageStateMemoryVersion } from '@/lib/page-state-memory';
+import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
 import { getTranslation, translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { AutomationsRoute } from './automations';
@@ -56,6 +57,7 @@ function WorkSubPageTitleCard() {
       eyebrow={t('navWork')}
       title={translateUiLiteral(language, 'Daily operator work')}
       descriptor={translateUiLiteral(language, 'Queue, capture, and intake stay in one operator workspace.')}
+      helperExemptReason="Work title card descriptor supplies route-level guidance."
       actions={
         <ToggleGroup
           className={compactActionSurfaceClassName}
@@ -101,7 +103,7 @@ const WORK_MODES: Array<{
     icon: NavigationAutomationIcon,
     label: 'Intake',
     tone: 'intake',
-    summary: 'Expose approved sellables to Telegram, turn messages into tickets, and keep banji as source.',
+    summary: 'Expose approved sellables to Telegram, turn messages into tickets, and keep Kaur Khor as source.',
     href: '/work/intake',
   },
   {
@@ -123,6 +125,9 @@ export function WorkRoute() {
     ? WORK_MODES
     : WORK_MODES.filter((mode) => mode.id !== 'intake');
   const rememberedQueueHref = buildRememberedInboxHref();
+  useBenchmarkRouteReady('work', !activePath, {
+    modeCount: visibleWorkModes.length,
+  });
 
   if (!activePath) {
     return (
@@ -131,6 +136,7 @@ export function WorkRoute() {
           eyebrow={t?.('navWork') ?? getTranslation(language, 'navWork')}
           title={translateUiLiteral(language, 'Daily operator work')}
           descriptor={translateUiLiteral(language, 'Queue, capture, and intake stay in one operator workspace.')}
+          helperExemptReason="Work title card descriptor supplies route-level guidance."
           className="rounded-xl"
         />
 

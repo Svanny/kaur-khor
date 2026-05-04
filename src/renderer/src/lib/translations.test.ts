@@ -77,10 +77,10 @@ describe('getTranslation', () => {
   });
 
   test('uses canonical English and Khmer brand variants', () => {
-    expect(getTranslation('en', 'appBrand')).toBe('banj');
-    expect(getTranslation('km', 'appBrand')).toBe('បញ្ជី');
-    expect(translateUiLiteral('km', 'banj')).toBe('បញ្ជី');
-    expect(translateUiLiteral('km', 'banji')).toBe('បញ្ជី');
+    expect(getTranslation('en', 'appBrand')).toBe('KAUR KHOR');
+    expect(getTranslation('km', 'appBrand')).toBe('កខ');
+    expect(translateUiLiteral('km', 'Kaur Khor')).toBe('កខ');
+    expect(translateUiLiteral('km', 'KAUR KHOR')).toBe('កខ');
   });
 
   test('preserves interpolation placeholders across the full Khmer map', () => {
@@ -111,7 +111,7 @@ describe('getTranslation', () => {
       'ដាក់ឈ្មោះ អេសខេយូ តាមរបៀបដែលបុគ្គលិកនឹងស្វែងរកវា។',
     );
     expect(getTranslation('km', 'catalogServiceEditorLinkedSkusDescriptor' as never)).toBe(
-      'ភ្ជាប់ អេសខេយូ ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យបញ្ជីអាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
+      'ភ្ជាប់ អេសខេយូ ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យកខអាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
     );
     expect(getTranslation('km', 'analysisWorkbenchLaneInventorySubtitle' as never)).toBe(
       'ការប៉ាន់ស្មានស្តុកត្រូវបានបង្ហាញបន្តគ្នា ខណៈតម្រូវការសេវាកម្ម តម្រូវការលក់រាយ ការទទួលទំនិញ និងការកែសម្រួល នៅតែភ្ជាប់នឹងចន្លោះពេលនីមួយៗ។',
@@ -120,7 +120,7 @@ describe('getTranslation', () => {
       'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
     );
     expect(getTranslation('km', 'stockUpdateGuidanceFirstUpdateNeedsCount' as never)).toBe(
-      'ការអាប់ដេតលើកដំបូង ត្រូវមាន អេសខេយូ ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យបញ្ជីចាប់យកស្តុកបាន។',
+      'ការអាប់ដេតលើកដំបូង ត្រូវមាន អេសខេយូ ដែលបានរាប់យ៉ាងហោចណាស់មួយ ដើម្បីឲ្យកខចាប់យកស្តុកបាន។',
     );
   });
 
@@ -342,8 +342,8 @@ describe('getTranslation', () => {
       'Supply',
       'Customer',
       'All suppliers',
-      'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.',
-      'Expose approved sellables to Telegram, turn messages into tickets, and keep banji as source.',
+      'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.',
+      'Expose approved sellables to Telegram, turn messages into tickets, and keep Kaur Khor as source.',
       '@bot_username',
       'https://t.me/your_bot',
       'Demand, support, timing, price, and recovery pressure.',
@@ -411,7 +411,7 @@ describe('getTranslation', () => {
       'កំណត់របៀបដែលផែនការក្នុងម៉ាស៊ីនដោះស្រាយភាពមិនច្បាស់លាស់ ពេលប៉ាន់ស្មានស្តុក និងណែនាំបរិមាណបញ្ជាទិញ។',
     );
     expect(getTranslation('km', 'settingsTargetServiceLevelTooltip' as never)).toBe(
-      'កម្រិតភាពមានស្រាប់គោលដៅ គឺជាគោលដៅស្តុកដែលបញ្ជីប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវរក្សាស្តុកច្រើនជាងមុន។',
+      'កម្រិតភាពមានស្រាប់គោលដៅ គឺជាគោលដៅស្តុកដែលកខប្រើសម្រាប់ផែនការ។ កម្រិតខ្ពស់ជាទូទៅមានន័យថាត្រូវរក្សាស្តុកច្រើនជាងមុន។',
     );
     expect(getTranslation('km', 'settingsReviewDelayDaysTooltip' as never)).toBe(
       'បន្ថែមចំនួនថ្ងៃនេះទៅពេលវេលាដឹកមកដល់ ដើម្បីឲ្យការណែនាំគ្របដណ្តប់ដល់ពេលដែលអាចសម្រេចបំពេញស្តុកជាក់ស្តែងបន្ទាប់បាន។',

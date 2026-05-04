@@ -180,7 +180,7 @@ const sampleTask: OverviewSkuTask = {
   etaDetail: 'Received today',
   confidenceCue: 'High confidence',
   heartbeat: ['Likely on hand 25-42', '53D cover'],
-  nextSteps: ['banji will log the receipt and update stock.'],
+  nextSteps: ['Kaur Khor will log the receipt and update stock.'],
   linkedServiceNames: ['Comboo'],
   supplierName: 'Mekong Looms',
   batchOrderId: null,

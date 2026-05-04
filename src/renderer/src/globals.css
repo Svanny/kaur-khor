@@ -68,7 +68,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@keyframes banji-workbench-jiggle {
+@keyframes kaur-khor-workbench-jiggle {
   from {
     transform: translateY(-1px) rotate(-1.9deg);
   }
@@ -78,7 +78,7 @@
   }
 }
 
-@keyframes banji-attention-flash {
+@keyframes kaur-khor-attention-flash {
   0%, 45%, 100% {
     opacity: 0;
   }
@@ -88,7 +88,7 @@
   }
 }
 
-@keyframes banji-save-error-flash {
+@keyframes kaur-khor-save-error-flash {
   0%, 45%, 100% {
     opacity: 1;
   }
@@ -98,7 +98,7 @@
   }
 }
 
-@keyframes banji-teams-rail {
+@keyframes kaur-khor-teams-rail {
   from {
     transform: translateX(-50%);
   }

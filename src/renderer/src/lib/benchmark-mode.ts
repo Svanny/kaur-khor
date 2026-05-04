@@ -1,3 +1,3 @@
-export function isBenchmarkRendererMode(target: Pick<Window, 'banjiDesktop'> = window) {
-  return Boolean((target as Partial<Window>).banjiDesktop?.benchmark?.enabled);
+export function isBenchmarkRendererMode(target: Pick<Window, 'kaurKhorDesktop'> = window) {
+  return Boolean((target as Partial<Window>).kaurKhorDesktop?.benchmark?.enabled);
 }

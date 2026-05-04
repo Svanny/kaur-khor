@@ -300,7 +300,7 @@ export function deriveAutomationViewModel({
       key: 'ticketedToday',
       label: literal(language, 'Ticketed today'),
       value: String(workspace.metrics.ticketedToday),
-      detail: literal(language, 'Promoted into banji tickets'),
+      detail: literal(language, 'Promoted into Kaur Khor tickets'),
       tone: workspace.metrics.ticketedToday > 0 ? 'success' : 'neutral',
       href: buildAutomationHref({ section: 'intake', intakeFilter: 'ticketed' }, currentSearchParams),
     },

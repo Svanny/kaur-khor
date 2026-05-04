@@ -44,9 +44,9 @@ import {
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
-import { buildBanjiNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
-import brandLogo from '@/assets/banji-logo.svg';
+import brandLogo from '@/assets/kaur-khor-logo.svg';
 import { ActionRefreshIcon } from '@icons/actions';
 
 type ShellSectionConfig = {
@@ -185,10 +185,10 @@ function SidebarSectionMenu({
         const isNew = isSectionNew(section);
         const state = section.id === 'settings'
           ? {
-            ...buildBanjiNavigationState(location),
-            banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+            ...buildKaurKhorNavigationState(location),
+            kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
           }
-          : { banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE };
+          : { kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE };
 
         return (
           <SidebarMenuItem key={section.destination} className="group/menu-item">
@@ -320,7 +320,7 @@ function SettingsBackToAppMenuItem({
       <NavLink
         aria-label={label}
         className="group-data-[collapsible=icon]:justify-center"
-        state={{ banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
+        state={{ kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE }}
         to={href}
         onClick={(event) => {
           onNavigate();
@@ -339,19 +339,19 @@ function SettingsBackToAppMenuItem({
   );
 }
 
-export function BanjiShell({
+export function KaurKhorShell({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
     <SidebarProvider defaultOpen>
-      <BanjiShellFrame>{children}</BanjiShellFrame>
+      <KaurKhorShellFrame>{children}</KaurKhorShellFrame>
     </SidebarProvider>
   );
 }
 
-function BanjiShellFrame({ children }: { children: React.ReactNode }) {
+function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   usePageStateMemoryVersion();
   const {
@@ -568,8 +568,8 @@ function BanjiShellFrame({ children }: { children: React.ReactNode }) {
                         aria-label={t(SETTINGS_SECTION.labelKey)}
                         className="group-data-[collapsible=icon]:justify-center"
                         state={{
-                          ...buildBanjiNavigationState(location),
-                          banjiNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+                          ...buildKaurKhorNavigationState(location),
+                          kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
                         }}
                         to={buildRememberedPageHref(SETTINGS_SECTION.destination)}
                         onClick={handleSidebarNavigation}

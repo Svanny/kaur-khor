@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
-import { buildBanjiNavigationState, NavigationHistoryProvider } from './navigation-history';
+import { buildKaurKhorNavigationState, NavigationHistoryProvider } from './navigation-history';
 
 vi.mock('@/state/preferences', () => ({
   usePreferences: () => ({
@@ -21,13 +21,13 @@ function OverviewPage() {
   return (
     <div>
       <CurrentPath />
-      <Link state={buildBanjiNavigationState(location)} to="/catalog">
+      <Link state={buildKaurKhorNavigationState(location)} to="/catalog">
         Open Catalog
       </Link>
-      <Link state={buildBanjiNavigationState(location)} to="/work/capture">
+      <Link state={buildKaurKhorNavigationState(location)} to="/work/capture">
         Open Capture
       </Link>
-      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
+      <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open SKU
       </Link>
     </div>
@@ -39,7 +39,7 @@ function FinancialsPage() {
   return (
     <div>
       <CurrentPath />
-      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
+      <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open financial SKU
       </Link>
     </div>
@@ -51,7 +51,7 @@ function ServiceDetailPage() {
   return (
     <div>
       <CurrentPath />
-      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
+      <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open linked SKU
       </Link>
     </div>
@@ -73,13 +73,13 @@ function CatalogPage() {
     <div>
       <CurrentPath />
       <RouteBackButton />
-      <Link state={buildBanjiNavigationState(location)} to="/catalog?status=archived">
+      <Link state={buildKaurKhorNavigationState(location)} to="/catalog?status=archived">
         Open Archive
       </Link>
-      <Link state={buildBanjiNavigationState(location)} to="/catalog?status=archived&view=skus">
+      <Link state={buildKaurKhorNavigationState(location)} to="/catalog?status=archived&view=skus">
         Open SKUs
       </Link>
-      <Link state={buildBanjiNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
+      <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/sku-1">
         Open SKU
       </Link>
     </div>
@@ -173,8 +173,8 @@ describe('NavigationHistoryProvider', () => {
         pathname: '/catalog/services/service-1',
         search: '?action=receipt',
         state: {
-          banjiNavigationFallback: '/catalog',
-          banjiNavigationOrigin: '/?filter=to_order',
+          kaurKhorNavigationFallback: '/catalog',
+          kaurKhorNavigationOrigin: '/?filter=to_order',
         },
       },
     ]);

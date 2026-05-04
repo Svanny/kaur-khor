@@ -5,7 +5,7 @@ type StockRowIdentity = {
 };
 
 export function buildStockRowOrderStorageKey(laneId: string) {
-  return `banji:record-update:stock-row-order:${laneId}:v1`;
+  return `kaur-khor:record-update:stock-row-order:${laneId}:v1`;
 }
 
 export function sanitizeStockRowOrder(value: unknown) {

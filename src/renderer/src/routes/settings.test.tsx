@@ -101,7 +101,7 @@ function benchmarkRunWithTargets(targets: Array<{
     traceEnabled: false,
     repeatCount: 1,
     buildBeforeRun: true,
-    outputDirectory: '/tmp/banji/bench-results/gui-run',
+    outputDirectory: '/tmp/kaur-khor/bench-results/gui-run',
     exitCode: 1,
     summaries: [
       {
@@ -256,26 +256,26 @@ describe('SettingsRoute', () => {
     });
     triggerRun.mockResolvedValue({ runId: 'run-parameters' });
     getLocalDataInfo.mockResolvedValue({
-      dataDirectoryPath: '/tmp/banji',
-      workspaceStorePath: '/tmp/banji/workspace.sqlite',
-      preferencesPath: '/tmp/banji/desktop-preferences.json',
-      backupDirectoryPath: '/tmp/banji/backup-snapshots',
-      assetDirectoryPath: '/tmp/banji/assets',
+      dataDirectoryPath: '/tmp/kaur-khor',
+      workspaceStorePath: '/tmp/kaur-khor/workspace.sqlite',
+      preferencesPath: '/tmp/kaur-khor/desktop-preferences.json',
+      backupDirectoryPath: '/tmp/kaur-khor/backup-snapshots',
+      assetDirectoryPath: '/tmp/kaur-khor/assets',
       storageFormat: 'sqlite',
     });
     getAppContext.mockResolvedValue({ appVersion: 'test', platform: 'darwin' });
     createBackupSnapshot.mockResolvedValue({
       createdAt: '2026-04-10T10:00:00.000Z',
       fileCount: 3,
-      snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      snapshotPath: '/tmp/kaur-khor/backup-snapshots/manual-snapshot',
       trigger: 'manual',
     });
     restoreBackupSnapshot.mockResolvedValue({
-      restoredSnapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      restoredSnapshotPath: '/tmp/kaur-khor/backup-snapshots/manual-snapshot',
       safetySnapshot: {
         createdAt: '2026-04-10T10:05:00.000Z',
         fileCount: 3,
-        snapshotPath: '/tmp/banji/backup-snapshots/before-restore',
+        snapshotPath: '/tmp/kaur-khor/backup-snapshots/before-restore',
         trigger: 'manual',
       },
     });
@@ -283,15 +283,15 @@ describe('SettingsRoute', () => {
       safetySnapshot: {
         createdAt: '2026-04-10T10:10:00.000Z',
         fileCount: 3,
-        snapshotPath: '/tmp/banji/backup-snapshots/before-clear',
+        snapshotPath: '/tmp/kaur-khor/backup-snapshots/before-clear',
         trigger: 'manual',
       },
     });
     benchmarkAvailability.mockResolvedValue({
       available: true,
       reason: null,
-      projectRoot: '/tmp/banji',
-      resultsDirectory: '/tmp/banji/bench-results',
+      projectRoot: '/tmp/kaur-khor',
+      resultsDirectory: '/tmp/kaur-khor/bench-results',
       activeRunId: null,
     });
     benchmarkListRuns.mockResolvedValue([]);
@@ -306,7 +306,7 @@ describe('SettingsRoute', () => {
       traceEnabled: false,
       repeatCount: 1,
       buildBeforeRun: true,
-      outputDirectory: '/tmp/banji/bench-results/gui-run',
+      outputDirectory: '/tmp/kaur-khor/bench-results/gui-run',
       exitCode: null,
       summaries: [],
       stdoutTail: [],
@@ -323,7 +323,7 @@ describe('SettingsRoute', () => {
       traceEnabled: false,
       repeatCount: 1,
       buildBeforeRun: true,
-      outputDirectory: `/tmp/banji/bench-results/${runId}`,
+      outputDirectory: `/tmp/kaur-khor/bench-results/${runId}`,
       exitCode: null,
       summaries: [],
       stdoutTail: [],
@@ -345,18 +345,18 @@ describe('SettingsRoute', () => {
       },
     });
 
-    window.banjiDesktop = {
-      ...(window.banjiDesktop ?? {}),
+    window.kaurKhorDesktop = {
+      ...(window.kaurKhorDesktop ?? {}),
       preferences: {
         get: getPreferences,
         save: savePreferences,
       },
       sena: {
-        ...(window.banjiDesktop?.sena ?? {}),
+        ...(window.kaurKhorDesktop?.sena ?? {}),
         triggerRun,
       },
       system: {
-        ...(window.banjiDesktop?.system ?? {}),
+        ...(window.kaurKhorDesktop?.system ?? {}),
         getAppContext,
         getLocalDataInfo,
         createBackupSnapshot,
@@ -549,7 +549,7 @@ describe('SettingsRoute', () => {
   });
 
   it('keeps the onboarding injector hidden even when the dev flag is enabled', async () => {
-    vi.stubEnv('VITE_BANJI_SHOW_DEV_ONBOARDING_INJECTOR', '1');
+    vi.stubEnv('VITE_KAUR_KHOR_SHOW_DEV_ONBOARDING_INJECTOR', '1');
 
     renderSettingsRoute('/settings/workspace');
 
@@ -702,8 +702,8 @@ describe('SettingsRoute', () => {
     benchmarkAvailability.mockResolvedValue({
       available: true,
       reason: null,
-      projectRoot: '/tmp/banji',
-      resultsDirectory: '/tmp/banji/bench-results',
+      projectRoot: '/tmp/kaur-khor',
+      resultsDirectory: '/tmp/kaur-khor/bench-results',
       activeRunId: 'gui-run',
     });
     benchmarkListRuns.mockResolvedValue([
@@ -1257,7 +1257,7 @@ describe('SettingsRoute', () => {
     expect(highlightedRow).not.toHaveClass('bg-primary/10');
     const highlight = screen.getByTestId('settings-automations-highlight');
     expect(highlight).toHaveClass('inset-0');
-    expect(highlight).toHaveClass('motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1]');
+    expect(highlight).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
   });
@@ -1563,22 +1563,22 @@ describe('SettingsRoute', () => {
   it('reveals each local workspace path from the inline links', async () => {
     renderSettingsRoute('/settings/local-data');
 
-    fireEvent.click(await screen.findByRole('button', { name: /^\/tmp\/banji$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/workspace\.sqlite$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/desktop-preferences\.json$/i }));
-    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/banji\/backup-snapshots$/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /^\/tmp\/kaur-khor$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/kaur-khor\/workspace\.sqlite$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/kaur-khor\/desktop-preferences\.json$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^\/tmp\/kaur-khor\/backup-snapshots$/i }));
 
-    expect(revealPath).toHaveBeenNthCalledWith(1, '/tmp/banji');
-    expect(revealPath).toHaveBeenNthCalledWith(2, '/tmp/banji/workspace.sqlite');
-    expect(revealPath).toHaveBeenNthCalledWith(3, '/tmp/banji/desktop-preferences.json');
-    expect(revealPath).toHaveBeenNthCalledWith(4, '/tmp/banji/backup-snapshots');
+    expect(revealPath).toHaveBeenNthCalledWith(1, '/tmp/kaur-khor');
+    expect(revealPath).toHaveBeenNthCalledWith(2, '/tmp/kaur-khor/workspace.sqlite');
+    expect(revealPath).toHaveBeenNthCalledWith(3, '/tmp/kaur-khor/desktop-preferences.json');
+    expect(revealPath).toHaveBeenNthCalledWith(4, '/tmp/kaur-khor/backup-snapshots');
   });
 
   it('shows browser local data guidance without native reveal or snapshot actions', async () => {
     getAppContext.mockResolvedValue({ appVersion: 'browser-test', platform: 'web' });
     getLocalDataInfo.mockResolvedValue({
-      dataDirectoryPath: 'OPFS / banji browser workspace',
-      workspaceStorePath: 'banji_browser_app_v1.sqlite3',
+      dataDirectoryPath: 'OPFS / Kaur Khor browser workspace',
+      workspaceStorePath: 'kaur_khor_browser_app_v1.sqlite3',
       preferencesPath: 'SQLite preferences table',
       backupDirectoryPath: 'downloaded backups',
       assetDirectoryPath: 'Browser image storage unavailable in this release',
@@ -1588,8 +1588,8 @@ describe('SettingsRoute', () => {
     renderSettingsRoute('/settings/local-data');
 
     expect(await screen.findByText('Browser data lives in this browser profile.')).toBeInTheDocument();
-    expect(screen.getByText('OPFS / banji browser workspace')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /OPFS \/ banji browser workspace/i })).not.toBeInTheDocument();
+    expect(screen.getByText('OPFS / Kaur Khor browser workspace')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /OPFS \/ Kaur Khor browser workspace/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /create backup snapshot/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Export logs/i })).not.toBeInTheDocument();
     expect(revealPath).not.toHaveBeenCalled();
@@ -1605,7 +1605,7 @@ describe('SettingsRoute', () => {
     });
     expect(
       await screen.findByText(
-        'Created a local backup snapshot at /tmp/banji/backup-snapshots/manual-snapshot.',
+        'Created a local backup snapshot at /tmp/kaur-khor/backup-snapshots/manual-snapshot.',
       ),
     ).toBeInTheDocument();
   });
@@ -1627,10 +1627,10 @@ describe('SettingsRoute', () => {
     finishBackup({
       createdAt: '2026-04-10T10:00:00.000Z',
       fileCount: 3,
-      snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+      snapshotPath: '/tmp/kaur-khor/backup-snapshots/manual-snapshot',
       trigger: 'manual',
     });
-    await screen.findByText('Created a local backup snapshot at /tmp/banji/backup-snapshots/manual-snapshot.');
+    await screen.findByText('Created a local backup snapshot at /tmp/kaur-khor/backup-snapshots/manual-snapshot.');
   });
 
   it('restores a saved snapshot from local workspace data settings', async () => {
@@ -1763,7 +1763,7 @@ describe('SettingsRoute', () => {
     fireEvent.pointerDown(firstSavePreferencesButton().parentElement as HTMLElement);
     expect(savePreferences).not.toHaveBeenCalled();
     expect(screen.getByText('Suggested range start cannot be above the range end.')).toHaveAttribute('data-error-flash-key', '1');
-    expect(screen.getByText('Suggested range start cannot be above the range end.')).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
+    expect(screen.getByText('Suggested range start cannot be above the range end.')).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
 
     fireEvent.change(rangeHighInput, { target: { value: '0.97' } });
     fireEvent.change(recommendationInput, { target: { value: '0.96' } });

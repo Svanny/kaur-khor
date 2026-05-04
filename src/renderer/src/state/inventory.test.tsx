@@ -402,7 +402,7 @@ describe('InventoryProvider', () => {
         getRunStatus: vi.fn(async () => sampleRun),
       },
     };
-    window.banjiDesktop = bridge;
+    window.kaurKhorDesktop = bridge;
   });
 
   it('bootstraps the SENA workspace on mount', async () => {
@@ -419,17 +419,17 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('catalog-count').textContent).toBe('1');
     expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
     expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
-    expect(window.banjiDesktop.sena.getStartupWorkspace).toHaveBeenCalledTimes(1);
-    expect(window.banjiDesktop.sena.getCatalog).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.getWorkspaceSummary).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.getRunStatus).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.getStartupWorkspace).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.getCatalog).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.getWorkspaceSummary).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.getRunStatus).not.toHaveBeenCalled();
   });
 
   it('marks startup ready before route or idle support reads finish', async () => {
     const diagnostics = deferred<SenaDiagnostics | null>();
-    window.banjiDesktop.sena.getDiagnostics = vi.fn(async () => diagnostics.promise);
-    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => sampleRecordUpdateContext);
-    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => []);
+    window.kaurKhorDesktop.sena.getDiagnostics = vi.fn(async () => diagnostics.promise);
+    window.kaurKhorDesktop.sena.getRecordUpdateContext = vi.fn(async () => sampleRecordUpdateContext);
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => []);
 
     render(
       <InventoryProvider>
@@ -443,10 +443,10 @@ describe('InventoryProvider', () => {
     expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
     expect(screen.getByTestId('diagnostics-loaded').textContent).toBe('false');
     expect(screen.getByTestId('observation-count').textContent).toBe('0');
-    expect(window.banjiDesktop.sena.getDiagnostics).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.getRecordUpdateContext).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.listOrderBatches).not.toHaveBeenCalled();
-    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.getDiagnostics).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.getRecordUpdateContext).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.listOrderBatches).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.listObservations).not.toHaveBeenCalled();
   });
 
   it('loads route-driven Work support data without full startup hydration', async () => {
@@ -465,21 +465,21 @@ describe('InventoryProvider', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('observation-count').textContent).toBe('1');
-      expect(window.banjiDesktop.sena.getRecordUpdateContext).toHaveBeenCalledTimes(1);
-      expect(window.banjiDesktop.sena.listOrderBatches).toHaveBeenCalledTimes(1);
-      expect(window.banjiDesktop.sena.listObservationPage).toHaveBeenCalledWith({ limit: 20 });
+      expect(window.kaurKhorDesktop.sena.getRecordUpdateContext).toHaveBeenCalledTimes(1);
+      expect(window.kaurKhorDesktop.sena.listOrderBatches).toHaveBeenCalledTimes(1);
+      expect(window.kaurKhorDesktop.sena.listObservationPage).toHaveBeenCalledWith({ limit: 20 });
     });
-    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.listObservations).not.toHaveBeenCalled();
   });
 
   it('keeps the startup workspace visible when deferred hydration fails', async () => {
-    window.banjiDesktop.sena.getDiagnostics = vi.fn(async () => {
+    window.kaurKhorDesktop.sena.getDiagnostics = vi.fn(async () => {
       throw new Error('diagnostics unavailable');
     });
-    window.banjiDesktop.sena.getRecordUpdateContext = vi.fn(async () => {
+    window.kaurKhorDesktop.sena.getRecordUpdateContext = vi.fn(async () => {
       throw new Error('record context unavailable');
     });
-    window.banjiDesktop.sena.listOrderBatches = vi.fn(async () => {
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => {
       throw new Error('orders unavailable');
     });
 
@@ -512,15 +512,15 @@ describe('InventoryProvider', () => {
     fireEvent.click(screen.getByText('load sku'));
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
     });
 
     fireEvent.click(screen.getByText('trigger run'));
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledTimes(1);
+      expect(window.kaurKhorDesktop.sena.triggerRun).toHaveBeenCalledTimes(1);
     });
-    expect(window.banjiDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
+    expect(window.kaurKhorDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
   });
 
   it('returns a persisted detail page immediately and refreshes local storage in the background', async () => {
@@ -557,7 +557,7 @@ describe('InventoryProvider', () => {
       page: makeSkuDetailPage(20),
       storage: window.localStorage,
     });
-    window.banjiDesktop.sena.getSkuDetail = vi.fn(async () => livePage.promise);
+    window.kaurKhorDesktop.sena.getSkuDetail = vi.fn(async () => livePage.promise);
 
     render(
       <InventoryProvider>
@@ -581,7 +581,7 @@ describe('InventoryProvider', () => {
     });
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(1);
     });
     expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
       beforeIntervalIndex: null,
@@ -632,7 +632,7 @@ describe('InventoryProvider', () => {
       );
     }
 
-    window.banjiDesktop.sena.getRecordUpdateContext = vi
+    window.kaurKhorDesktop.sena.getRecordUpdateContext = vi
       .fn()
       .mockResolvedValueOnce(sampleRecordUpdateContext)
       .mockResolvedValueOnce(emptyRecordUpdateContext);
@@ -650,12 +650,12 @@ describe('InventoryProvider', () => {
       expect(screen.getByTestId('workspace-run').textContent).toBe('run-1');
       expect(screen.getByTestId('latest-run').textContent).toBe('run-1');
     });
-    expect(window.banjiDesktop.sena.listObservations).not.toHaveBeenCalled();
+    expect(window.kaurKhorDesktop.sena.listObservations).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText('update observation'));
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.updateObservation).toHaveBeenCalledWith({
+      expect(window.kaurKhorDesktop.sena.updateObservation).toHaveBeenCalledWith({
         observationId: 'obs-1',
         input: {
           ...sampleObservation.input,
@@ -667,7 +667,7 @@ describe('InventoryProvider', () => {
     fireEvent.click(screen.getByText('delete observation'));
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.deleteObservation).toHaveBeenCalledWith({ observationId: 'obs-1' });
+      expect(window.kaurKhorDesktop.sena.deleteObservation).toHaveBeenCalledWith({ observationId: 'obs-1' });
     });
     await waitFor(() => {
       expect(screen.getByTestId('observation-count').textContent).toBe('0');
@@ -698,8 +698,8 @@ describe('InventoryProvider', () => {
       services: sampleCatalog.services.map(({ archived: _archived, ...service }) => service),
     };
     const upsertCatalog = vi.fn(async (payload: SenaCatalog) => payload);
-    window.banjiDesktop.sena.getCatalog = vi.fn(async () => legacyCatalog as SenaCatalog);
-    window.banjiDesktop.sena.upsertCatalog = upsertCatalog;
+    window.kaurKhorDesktop.sena.getCatalog = vi.fn(async () => legacyCatalog as SenaCatalog);
+    window.kaurKhorDesktop.sena.upsertCatalog = upsertCatalog;
 
     render(
       <InventoryProvider>
@@ -811,10 +811,10 @@ describe('InventoryProvider', () => {
       .mockResolvedValueOnce([renamedObservation]);
     const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
 
-    window.banjiDesktop.sena.listObservations = listObservations;
-    window.banjiDesktop.sena.updateObservation = updateObservation;
-    window.banjiDesktop.sena.triggerRun = vi.fn(async () => renamedRun);
-    window.banjiDesktop.sena.getWorkspaceSummary = vi
+    window.kaurKhorDesktop.sena.listObservations = listObservations;
+    window.kaurKhorDesktop.sena.updateObservation = updateObservation;
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => renamedRun);
+    window.kaurKhorDesktop.sena.getWorkspaceSummary = vi
       .fn()
       .mockResolvedValueOnce(sampleWorkspace)
       .mockResolvedValueOnce(renamedWorkspace);
@@ -858,7 +858,7 @@ describe('InventoryProvider', () => {
     fireEvent.click(screen.getByText('rename sku'));
 
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.upsertCatalog).toHaveBeenCalledWith(
+      expect(window.kaurKhorDesktop.sena.upsertCatalog).toHaveBeenCalledWith(
         expect.objectContaining({
           skus: [expect.objectContaining({ skuId: 'sku-renamed' })],
         }),
@@ -882,13 +882,13 @@ describe('InventoryProvider', () => {
         }),
       );
     });
-    expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
-    expect(window.banjiDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
       entityId: 'sku-renamed',
       entityType: 'sku',
     });
     await waitFor(() => {
-      expect(window.banjiDesktop.sena.triggerRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+      expect(window.kaurKhorDesktop.sena.triggerRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     });
     await waitFor(() => {
       expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');

@@ -123,7 +123,7 @@ function makeAutomationState(hasBotToken: boolean, overrides: Partial<Automation
 describe('AutomationsRoute', () => {
   beforeEach(() => {
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
-    Object.defineProperty(window, 'banjiDesktop', {
+    Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
         system: {
@@ -226,7 +226,7 @@ describe('AutomationsRoute', () => {
   });
 
   it('shows browser while-tab-open messaging and polling action in browser mode', async () => {
-    Object.defineProperty(window, 'banjiDesktop', {
+    Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
         system: {
@@ -244,7 +244,7 @@ describe('AutomationsRoute', () => {
   });
 
   it('shows browser-blocked state when direct Telegram polling fails in browser mode', async () => {
-    Object.defineProperty(window, 'banjiDesktop', {
+    Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
         system: {
@@ -305,7 +305,7 @@ describe('AutomationsRoute', () => {
 
     renderRoute();
 
-    expect(screen.getByText('បង្ហាញធាតុដែលអនុម័តទៅតេលេក្រាម បំលែងសារទៅជាសំបុត្រការងារអតិថិជន ហើយរក្សាបញ្ជីជាប្រភពពិតសម្រាប់តម្លៃ និងការបំពេញការបញ្ជាទិញ។')).toBeInTheDocument();
+    expect(screen.getByText('បង្ហាញធាតុដែលអនុម័តទៅតេលេក្រាម បំលែងសារទៅជាសំបុត្រការងារអតិថិជន ហើយរក្សាកខជាប្រភពពិតសម្រាប់តម្លៃ និងការបំពេញការបញ្ជាទិញ។')).toBeInTheDocument();
     expect(screen.queryByText(/Expose approved sellables/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/turn messages into customer tickets/i)).not.toBeInTheDocument();
   });
@@ -337,7 +337,7 @@ describe('AutomationsRoute', () => {
 
   it('opens the bot through the Telegram app deep link instead of a browser window', () => {
     const openExternalUrl = vi.fn().mockResolvedValue(undefined);
-    window.banjiDesktop.system.openExternalUrl = openExternalUrl;
+    window.kaurKhorDesktop.system.openExternalUrl = openExternalUrl;
     automationHook.mockReturnValue(makeAutomationState(true));
 
     renderRoute();

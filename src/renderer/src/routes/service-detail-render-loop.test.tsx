@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { StrictMode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { BanjiShell } from '@/components/banji-shell';
+import { KaurKhorShell } from '@/components/kaur-khor-shell';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { defaultChartLayoutPreferences, writeEntityChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { getTranslation } from '@/lib/translations';
@@ -196,11 +196,11 @@ describe('Service detail render loop regression', () => {
         <StrictMode>
           <MemoryRouter initialEntries={['/catalog/services/service-1']}>
             <NavigationHistoryProvider>
-              <BanjiShell>
+              <KaurKhorShell>
                 <Routes>
                   <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
                 </Routes>
-              </BanjiShell>
+              </KaurKhorShell>
             </NavigationHistoryProvider>
           </MemoryRouter>
         </StrictMode>,
@@ -318,11 +318,11 @@ describe('Service detail render loop regression', () => {
         <StrictMode>
           <MemoryRouter initialEntries={['/catalog/services/service-1']}>
             <NavigationHistoryProvider>
-              <BanjiShell>
+              <KaurKhorShell>
                 <Routes>
                   <Route element={<ServiceDetailRoute />} path="/catalog/services/:serviceId" />
                 </Routes>
-              </BanjiShell>
+              </KaurKhorShell>
             </NavigationHistoryProvider>
           </MemoryRouter>
         </StrictMode>,

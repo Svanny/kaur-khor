@@ -248,7 +248,7 @@ type WorkbenchReorderLaneId = DesktopWorkbenchTileOrderLaneId;
 const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS];
 const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
 const CAPTURE_TARGET_FLASH_MS = 1800;
-const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[banji-attention-flash_1800ms_ease-in-out_1] motion-reduce:ring-primary/60';
+const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1] motion-reduce:ring-primary/60';
 const SaveErrorFlashKeyContext = createContext(0);
 
 function RecordUpdateSaveErrorFlash({
@@ -536,7 +536,7 @@ function workbenchTileShellClassName({
     touched
       ? 'border-foreground/70 bg-foreground text-background shadow-[0_16px_44px_rgba(48,31,20,0.14)]'
       : 'border-border/70 bg-white hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_14px_38px_rgba(48,31,20,0.10)]',
-    reorderMode && !isDragging && 'motion-safe:animate-[banji-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
+    reorderMode && !isDragging && 'motion-safe:animate-[kaur-khor-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
     isDragging && 'shadow-[0_24px_50px_rgba(48,31,20,0.22)]',
     flash && captureTargetFlashClassName,
   );
@@ -1394,7 +1394,7 @@ function sanitizeDeliveryFeeAmount(value: unknown) {
 }
 
 function deliveryFeeHelpText(language: AppLanguage) {
-  return translateUiLiteral(language, 'If the customer pays, delivery is added to the receipt total. If the merchant pays, the receipt shows $0 delivery and banji deducts the fee from the final net amount settled.');
+  return translateUiLiteral(language, 'If the customer pays, delivery is added to the receipt total. If the merchant pays, the receipt shows $0 delivery and Kaur Khor deducts the fee from the final net amount settled.');
 }
 
 function isRefundStockReturnChoice(value: unknown): value is RefundStockReturnChoice {
@@ -4736,7 +4736,7 @@ function RecordOrderStep({
                           : undefined}
                         key={nextMode}
                         orderQuantityPlaceholder={recommendedUnits && recommendedUnits > 0
-                          ? translateUiLiteral(language, 'banji recommends {count} units.', { count: Math.round(recommendedUnits) })
+                          ? translateUiLiteral(language, 'Kaur Khor recommends {count} units.', { count: Math.round(recommendedUnits) })
                           : ''}
                         orderQuantityValue={nextMode === mode ? draft.orderedQuantity : ''}
                         rowName={`${workflowStateLabel(language, nextMode)} ${sku?.name ?? translateUiLiteral(language, 'SKU')}`}
@@ -5081,7 +5081,7 @@ function TicketEntryPrompt({
               language,
               mode === 'edit'
                 ? 'Select the existing ticket you want to update.'
-                : 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
+                : 'Kaur Khor will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
             )}
           </p>
         </div>

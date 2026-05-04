@@ -293,7 +293,7 @@ function AutomationConfigurationTutorial({ language }: { language: Parameters<ty
           {literal('Copy the bot token that BotFather returns and paste it into')} <strong className="font-medium text-foreground">{literal('Telegram bot token')}</strong>.
           {literal('Treat that token like a password because anyone with it can control the bot.')}
         </li>
-        <li>{literal('Click')} <strong className="font-medium text-foreground">{literal('Save Telegram settings')}</strong>. {literal('banji keeps Automations locked to Configuration until the saved token exists.')}</li>
+        <li>{literal('Click')} <strong className="font-medium text-foreground">{literal('Save Telegram settings')}</strong>. {literal('Kaur Khor keeps Automations locked to Configuration until the saved token exists.')}</li>
         <li>{literal('After saving, use')} <strong className="font-medium text-foreground">{literal('Test message')}</strong> {literal('to validate the bot, then expose sellables and open intake tabs.')}</li>
       </ol>
       <p>
@@ -516,7 +516,7 @@ export function AutomationsRoute({
     if (!botToken.trim()) {
       setSaveResultDialog({
         title: translateUiLiteral(language, 'Telegram settings not saved'),
-        description: translateUiLiteral(language, 'Save a Telegram bot token first. banji keeps Automations locked to Configuration until that token is stored.'),
+        description: translateUiLiteral(language, 'Save a Telegram bot token first. Kaur Khor keeps Automations locked to Configuration until that token is stored.'),
         tone: 'error',
       });
       return;
@@ -534,7 +534,7 @@ export function AutomationsRoute({
       if (!nextConnection.hasBotToken) {
         setSaveResultDialog({
           title: translateUiLiteral(language, 'Telegram settings not saved'),
-          description: translateUiLiteral(language, 'banji could not confirm a saved Telegram bot token. Save the token, then try again.'),
+          description: translateUiLiteral(language, 'Kaur Khor could not confirm a saved Telegram bot token. Save the token, then try again.'),
           tone: 'error',
         });
         return;
@@ -552,13 +552,13 @@ export function AutomationsRoute({
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setSaveResultDialog({
         title: translateUiLiteral(language, 'Telegram settings saved'),
-        description: translateUiLiteral(language, 'banji stored the Telegram bot configuration and reopened Automations on the Overview tab.'),
+        description: translateUiLiteral(language, 'Kaur Khor stored the Telegram bot configuration and reopened Automations on the Overview tab.'),
         tone: 'success',
       });
     } catch (error) {
       setSaveResultDialog({
         title: translateUiLiteral(language, 'Telegram settings not saved'),
-        description: error instanceof Error ? error.message : translateUiLiteral(language, 'banji could not save the Telegram configuration.'),
+        description: error instanceof Error ? error.message : translateUiLiteral(language, 'Kaur Khor could not save the Telegram configuration.'),
         tone: 'error',
       });
     }
@@ -574,7 +574,7 @@ export function AutomationsRoute({
           : translateUiLiteral(language, 'Telegram test failed'),
         description: error instanceof Error
           ? error.message
-          : translateUiLiteral(language, 'banji could not test the Telegram connection.'),
+          : translateUiLiteral(language, 'Kaur Khor could not test the Telegram connection.'),
         tone: 'error',
       });
     }
@@ -690,7 +690,7 @@ export function AutomationsRoute({
           size="sm"
           type="button"
           variant="outline"
-          onClick={() => { void window.banjiDesktop.system.openExternalUrl(openBotUrl); }}
+          onClick={() => { void window.kaurKhorDesktop.system.openExternalUrl(openBotUrl); }}
         >
           <ActionOpenExternalIcon className="size-4" />
           {translateUiLiteral(language, 'Open bot')}
@@ -715,7 +715,7 @@ export function AutomationsRoute({
               <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
             </span>
           }
-          descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.')}
+          descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
         />
       </WorkspacePage>
     );
@@ -733,7 +733,7 @@ export function AutomationsRoute({
             <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
           </span>
         }
-        descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep banji as the source of pricing and fulfillment truth.')}
+        descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
       >
         {isBrowserRuntime ? (
           <div className="mt-4 rounded-[1rem] border border-amber-300/60 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-950">
@@ -761,7 +761,7 @@ export function AutomationsRoute({
 
       <ConfirmActionDialog
         confirmLabel={translateUiLiteral(language, 'Disconnect bot')}
-        description={translateUiLiteral(language, 'Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted banji tickets will stay in banji.')}
+        description={translateUiLiteral(language, 'Telegram intake will stop until you connect the bot again. Existing conversations, intake records, and promoted Kaur Khor tickets will stay in Kaur Khor.')}
         isSubmitting={isSaving}
         open={disconnectDialogOpen}
         title={translateUiLiteral(language, 'Disconnect Telegram bot?')}
@@ -867,7 +867,7 @@ export function AutomationsRoute({
               descriptor={<AutomationConfigurationTutorial language={language} />}
               helpHref="/settings/help#automation-configuration"
               title={translateUiLiteral(language, 'Configuration')}
-              tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep banji as the source of pricing, tickets, and fulfillment truth.')}
+              tooltip={translateUiLiteral(language, 'Configure the Telegram bot connection and keep Kaur Khor as the source of pricing, tickets, and fulfillment truth.')}
             >
               <AutomationConnectionCard
                 botDisplayName={botDisplayName}
@@ -941,7 +941,7 @@ export function AutomationsRoute({
 
           {showIntakeSection ? (
             <PerformanceSectionShell
-              descriptor={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
+              descriptor={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into Kaur Khor tickets.')}
               helpHref="/settings/help#automation-live-intake"
               headerControls={(
                 <CardControlRow>
@@ -955,7 +955,7 @@ export function AutomationsRoute({
                 </CardControlRow>
               )}
               title={translateUiLiteral(language, 'Live intake')}
-              tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into banji tickets.')}
+              tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into Kaur Khor tickets.')}
             >
               {visibleIntakeRows.length > 0 ? (
                 <AutomationIntakeTable language={language} rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
@@ -970,7 +970,7 @@ export function AutomationsRoute({
 
           {showExceptionsSection ? (
             <PerformanceSectionShell
-              descriptor={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
+              descriptor={translateUiLiteral(language, 'Messages that Kaur Khor could not safely convert into clean customer order intake.')}
               helpHref="/settings/help#automation-needs-review"
               headerControls={(
                 <CardControlRow>
@@ -990,7 +990,7 @@ export function AutomationsRoute({
                 </CardControlRow>
               )}
               title={translateUiLiteral(language, 'Needs review')}
-              tooltip={translateUiLiteral(language, 'Messages that banji could not safely convert into clean customer order intake.')}
+              tooltip={translateUiLiteral(language, 'Messages that Kaur Khor could not safely convert into clean customer order intake.')}
             >
               {visibleExceptionRows.length > 0 ? (
                 <AutomationExceptionTable language={language} rows={visibleExceptionRows} onOpenIntake={openIntakeDrawer} />

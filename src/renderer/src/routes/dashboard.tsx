@@ -60,7 +60,7 @@ import { statusPillClassName } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
 import { useAutomation } from '@/state/automation';
 import { useInventoryActions, useInventoryState } from '@/state/inventory';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { AutomationsRoute } from './automations';
 import { AutomationIntakeDrawer } from './automations/intake-drawer';
@@ -736,7 +736,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       <WorkspacePage>
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Work needs the catalog first')}
-          hint={translateUiLiteral(language, 'Create the first SKU or service so banji can build an action list from real catalog work.')}
+          hint={translateUiLiteral(language, 'Create the first SKU or service so Kaur Khor can build an action list from real catalog work.')}
           action={
             <WorkspaceActionRow>
               <CreateFirstSkuButton />
@@ -758,7 +758,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       <WorkspacePage>
         <WorkspaceEmpty
           title={translateUiLiteral(language, 'Work needs your first update')}
-          hint={translateUiLiteral(language, 'Capture a live observation so banji can build the order, receipt, and follow-up queue.')}
+          hint={translateUiLiteral(language, 'Capture a live observation so Kaur Khor can build the order, receipt, and follow-up queue.')}
           action={
             <WorkspaceActionRow>
               <Button asChild className={overviewStartUpdateButtonClassName}>
@@ -1078,7 +1078,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                     {translateUiLiteral(language, 'Task queue')}
                   </h2>
                   <p className="text-sm text-muted-foreground">
-                    {translateUiLiteral(language, "The task list built from banji's orders, deliveries, and arrival timing.")}
+                    {translateUiLiteral(language, "The task list built from Kaur Khor's orders, deliveries, and arrival timing.")}
                   </p>
                 </div>
                 <p className="text-sm text-muted-foreground">
@@ -1119,7 +1119,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                             {isOverviewSkuTask(task) ? (
                               <Link
                                 className="group block min-w-0 text-left"
-                                state={buildBanjiNavigationState(location, '/catalog')}
+                                state={buildKaurKhorNavigationState(location, '/catalog')}
                                 to={buildSkuDetailHref(task.skuId)}
                               >
                                 <ItemIdentityBlock
@@ -1233,7 +1233,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                   <p className="mt-2 text-sm leading-6 text-muted-foreground">
                     {query || filter !== 'all'
                       ? translateUiLiteral(language, 'Try a broader query or switch filters to bring more of the task ledger back into view.')
-                      : translateUiLiteral(language, 'banji is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.')}
+                      : translateUiLiteral(language, 'Kaur Khor is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.')}
                   </p>
                 </div>
               </div>
@@ -1365,7 +1365,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
 
             <section className="mt-auto flex justify-center px-5 py-5">
               <Button asChild variant="outline">
-                <Link state={buildBanjiNavigationState(location)} to="/settings/history">
+                <Link state={buildKaurKhorNavigationState(location)} to="/settings/history">
                   <ActionOpenExternalIcon className="size-4" />
                   {translateUiLiteral(language, 'Open logs')}
                 </Link>

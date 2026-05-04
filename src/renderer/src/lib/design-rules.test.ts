@@ -98,16 +98,30 @@ function isQuotedLiteralNode(node: ts.Node): node is ts.StringLiteral | ts.NoSub
   return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node);
 }
 
-function collectCapitalizedBrandLiterals(ast: ts.SourceFile): string[] {
+function collectOldBrandLiterals(ast: ts.SourceFile): string[] {
   const offenders: string[] = [];
+  const oldBrandPattern = new RegExp(`\\b(?:[Bb]anji|${'BAN' + 'JI'})\\b`);
+
+  function isAllowedGitHubSurfaceLiteral(value: string) {
+    return (
+      value.includes('github.com/Svanny/banji') ||
+      value.includes('api.github.com/repos/Svanny/banji') ||
+      value.includes('svanny.github.io/banji') ||
+      value.includes('/banji/') ||
+      /\bbanji-\d/.test(value) ||
+      /\bbanji-<version>/.test(value) ||
+      value.includes('banji-source.tar.gz') ||
+      value.includes('cd banji-main')
+    );
+  }
 
   function visit(node: ts.Node) {
-    if (isQuotedLiteralNode(node) && /\bBanji\b/.test(node.text)) {
+    if (isQuotedLiteralNode(node) && oldBrandPattern.test(node.text) && !isAllowedGitHubSurfaceLiteral(node.text)) {
       const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
       offenders.push(`${relative(rendererRoot, ast.fileName)}:${line + 1}`);
     }
 
-    if (ts.isJsxText(node) && /\bBanji\b/.test(node.getText(ast))) {
+    if (ts.isJsxText(node) && oldBrandPattern.test(node.getText(ast))) {
       const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));
       offenders.push(`${relative(rendererRoot, ast.fileName)}:${line + 1}`);
     }
@@ -874,13 +888,13 @@ function helperComponentNeedsExplicitHelpHref(node: ts.JsxElement | ts.JsxSelfCl
 
 describe('global design rules', () => {
   test('keeps the canonical brand token and Khmer translation explicit in UI copy', () => {
-    expect(activeEnUiCopy.appBrand).toBe('banj');
-    expect(kmUiCopy.appBrand).toBe('បញ្ជី');
-    expect(translateUiLiteral('km', 'banj')).toBe('បញ្ជី');
-    expect(translateUiLiteral('km', 'banji')).toBe('បញ្ជី');
+    expect(activeEnUiCopy.appBrand).toBe('KAUR KHOR');
+    expect(kmUiCopy.appBrand).toBe('កខ');
+    expect(translateUiLiteral('km', 'Kaur Khor')).toBe('កខ');
+    expect(translateUiLiteral('km', 'KAUR KHOR')).toBe('កខ');
   });
 
-  test('blocks capitalized Banji in renderer source literals', async () => {
+  test('blocks old brand literals in renderer source literals', async () => {
     const sourceFiles = await collectSourceFiles(rendererRoot);
     const offenders: string[] = [];
 
@@ -893,7 +907,7 @@ describe('global design rules', () => {
         true,
         scriptKindForPath(sourceFile),
       );
-      offenders.push(...collectCapitalizedBrandLiterals(ast));
+      offenders.push(...collectOldBrandLiterals(ast));
     }
 
     expect(offenders).toEqual([]);

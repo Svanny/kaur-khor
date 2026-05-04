@@ -5,7 +5,7 @@ import {
 
 export type ChartSettingsSubtype = 'analysis' | 'service' | 'sku';
 
-const SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY = 'banji:chart-settings:defaults:v1';
+const SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY = 'kaur-khor:chart-settings:defaults:v1';
 
 function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
   return `${subtype}:${subjectId}`;

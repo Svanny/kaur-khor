@@ -10,8 +10,8 @@ import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/compone
 
 describe('WorkspacePanel', () => {
   beforeEach(() => {
-    window.banjiDesktop = {
-      ...window.banjiDesktop,
+    window.kaurKhorDesktop = {
+      ...window.kaurKhorDesktop,
       preferences: {
         get: vi.fn().mockResolvedValue({
           language: 'en',

@@ -26,7 +26,7 @@ function isSessionViewMode(value: unknown): value is SessionViewMode {
 }
 
 export function recordUpdateSessionViewStorageKey() {
-  return 'banji:record-update:view:v1';
+  return 'kaur-khor:record-update:view:v1';
 }
 
 export function readRecordUpdateSessionViewMode(): SessionViewMode {

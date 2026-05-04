@@ -40,31 +40,31 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
     id: 'stock-count',
     path: RECORD_UPDATE_STOCK_COUNT_PATH,
     title: 'Stock Count',
-    draftStorageKey: 'banji:record-update:draft:stock-count:v1',
+    draftStorageKey: 'kaur-khor:record-update:draft:stock-count:v1',
   },
   {
     id: 'customer-order-pending',
     path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
     title: 'Customer Order',
-    draftStorageKey: 'banji:record-update:draft:customer-order-pending:v1',
+    draftStorageKey: 'kaur-khor:record-update:draft:customer-order-pending:v1',
   },
   {
     id: 'customer-order-completed',
     path: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
     title: 'Immediate Sale',
-    draftStorageKey: 'banji:record-update:draft:customer-order-completed:v1',
+    draftStorageKey: 'kaur-khor:record-update:draft:customer-order-completed:v1',
   },
   {
     id: 'supplier-order-pending',
     path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
     title: 'Supplier Order',
-    draftStorageKey: 'banji:record-update:draft:supplier-order-pending:v1',
+    draftStorageKey: 'kaur-khor:record-update:draft:supplier-order-pending:v1',
   },
   {
     id: 'custom',
     path: RECORD_UPDATE_CUSTOM_PATH,
     title: 'Custom',
-    draftStorageKey: 'banji:record-update:draft:custom:v1',
+    draftStorageKey: 'kaur-khor:record-update:draft:custom:v1',
   },
 ];
 

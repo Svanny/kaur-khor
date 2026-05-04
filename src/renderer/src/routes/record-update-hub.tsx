@@ -348,7 +348,7 @@ function TicketEntryPromptDialog({
               language,
               mode === 'edit'
                 ? 'Select the existing ticket you want to update.'
-                : 'banj will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
+                : 'Kaur Khor will create or update a durable ticket and append ticket events instead of writing a disconnected batch.',
             )}
           </p>
         </div>

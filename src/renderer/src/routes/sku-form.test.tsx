@@ -182,10 +182,10 @@ describe('SkuFormRoute', () => {
     pickAndStoreImage.mockResolvedValue('/tmp/sku-image.png');
     storeDroppedImage.mockReset();
     storeDroppedImage.mockResolvedValue('/tmp/dropped-sku.png');
-    window.banjiDesktop = {
-      ...(window.banjiDesktop ?? {}),
+    window.kaurKhorDesktop = {
+      ...(window.kaurKhorDesktop ?? {}),
       system: {
-        ...(window.banjiDesktop?.system ?? {}),
+        ...(window.kaurKhorDesktop?.system ?? {}),
         pickAndStoreImage,
         storeDroppedImage,
       },
@@ -768,7 +768,7 @@ describe('SkuFormRoute', () => {
       upsertSenaCatalog,
     });
     window.sessionStorage.setItem(
-      'banji.navigation-history',
+      'kaur-khor.navigation-history',
       JSON.stringify([
         { key: 'catalog', to: '/catalog' },
         { key: 'sku-new', to: '/catalog/skus/new' },
@@ -838,7 +838,7 @@ describe('SkuFormRoute', () => {
     const nameError = screen.getByText('Enter a SKU name before saving.');
     expect(nameError).toBeInTheDocument();
     expect(nameError).toHaveAttribute('data-error-flash-key', '1');
-    expect(nameError).toHaveClass('motion-safe:animate-[banji-save-error-flash_1800ms_ease-in-out_1]');
+    expect(nameError).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
     expect(screen.getByText('Choose or enter a supplier before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter a cost per unit before saving.')).toBeInTheDocument();
     expect(screen.getByText('Enter the lead time mean days before saving.')).toBeInTheDocument();
@@ -963,7 +963,7 @@ describe('SkuFormRoute', () => {
     const picture = translateUiLiteral('km', 'Picture');
     const helper = translateUiLiteral(
       'km',
-      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. banji will show it on supported item surfaces.',
+      'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. Kaur Khor will show it on supported item surfaces.',
     );
     const noPicture = translateUiLiteral('km', 'No picture selected.');
     const chooseImage = translateUiLiteral('km', 'Choose image');
@@ -976,7 +976,7 @@ describe('SkuFormRoute', () => {
     expect(screen.queryByText('Picture')).not.toBeInTheDocument();
     expect(
       screen.queryByText(
-        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. banji will show it on supported item surfaces.',
+        'Choose, drop, or paste one PNG, JPEG, or WebP picture for this SKU. Kaur Khor will show it on supported item surfaces.',
       ),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('No picture selected.')).not.toBeInTheDocument();
@@ -1248,7 +1248,7 @@ describe('SkuFormRoute', () => {
 
   test('asks before using the edit page back button with unsaved SKU changes', async () => {
     window.sessionStorage.setItem(
-      'banji.navigation-history',
+      'kaur-khor.navigation-history',
       JSON.stringify([
         { key: 'catalog', to: '/catalog' },
         { key: 'sku-edit', to: '/catalog/skus/sku-1/edit' },

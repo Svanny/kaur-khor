@@ -54,7 +54,7 @@ function isTableOfContentsHeading(value: string) {
     'contents',
     'មាតិកា',
     'តារាងមាតិកា',
-    'បញ្ជីមាតិកា',
+    'កខមាតិកា',
   ].includes(normalized);
 }
 

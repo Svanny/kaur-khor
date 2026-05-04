@@ -103,7 +103,7 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadWorkspace = useCallback(async () => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       const fallback = {
         connection: null,
         conversations: [],
@@ -117,7 +117,7 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       setState(fallback);
       throw new Error(fallback.error);
     }
-    const workspace = await window.banjiDesktop.automation.getWorkspace();
+    const workspace = await window.kaurKhorDesktop.automation.getWorkspace();
     setStatePartial({
       connection: workspace.connection,
       conversations: workspace.conversations,
@@ -147,12 +147,12 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [reload]);
 
   const saveConnection = useCallback(async (payload: AutomationConnectionPatch) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
     setStatePartial({ isSaving: true, error: null });
     try {
-      const connection = await window.banjiDesktop.automation.saveConnection(payload);
+      const connection = await window.kaurKhorDesktop.automation.saveConnection(payload);
       await reload();
       return connection;
     } finally {
@@ -161,12 +161,12 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [reload, setStatePartial]);
 
   const patchExposureRow = useCallback(async (payload: AutomationExposurePatch) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
     setStatePartial({ isSaving: true, error: null });
     try {
-      const row = await window.banjiDesktop.automation.patchExposureRow(payload);
+      const row = await window.kaurKhorDesktop.automation.patchExposureRow(payload);
       await reload();
       return row;
     } finally {
@@ -175,33 +175,33 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [reload, setStatePartial]);
 
   const readConversation = useCallback(async (payload: AutomationReadConversationPayload) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    return window.banjiDesktop.automation.readConversation(payload);
+    return window.kaurKhorDesktop.automation.readConversation(payload);
   }, []);
 
   const listIntakes = useCallback(async (payload?: AutomationListIntakesPayload) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    return window.banjiDesktop.automation.listIntakes(payload);
+    return window.kaurKhorDesktop.automation.listIntakes(payload);
   }, []);
 
   const readIntake = useCallback(async (payload: AutomationReadIntakePayload) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    return window.banjiDesktop.automation.readIntake(payload);
+    return window.kaurKhorDesktop.automation.readIntake(payload);
   }, []);
 
   const resolveIntake = useCallback(async (payload: AutomationResolveIntakePayload) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
     setStatePartial({ isSaving: true, error: null });
     try {
-      const intake = await window.banjiDesktop.automation.resolveIntake(payload);
+      const intake = await window.kaurKhorDesktop.automation.resolveIntake(payload);
       await reload();
       return intake;
     } finally {
@@ -210,12 +210,12 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [reload, setStatePartial]);
 
   const promoteIntake = useCallback(async (payload: PromoteAutomationIntakePayload) => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
     setStatePartial({ isSaving: true, error: null });
     try {
-      const result = await window.banjiDesktop.automation.promoteIntake(payload);
+      const result = await window.kaurKhorDesktop.automation.promoteIntake(payload);
       await Promise.all([
         reload(),
         loadWorkSupportData({ includeObservations: true }),
@@ -227,12 +227,12 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [loadWorkSupportData, reload, setStatePartial]);
 
   const testTelegramConnection = useCallback(async () => {
-    if (!window.banjiDesktop.automation) {
+    if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
     setStatePartial({ isSaving: true, error: null });
     try {
-      const connection = await window.banjiDesktop.automation.testTelegramConnection();
+      const connection = await window.kaurKhorDesktop.automation.testTelegramConnection();
       await reload();
       return connection;
     } finally {

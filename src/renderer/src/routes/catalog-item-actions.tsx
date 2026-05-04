@@ -51,7 +51,7 @@ import {
   type CaptureSessionTargetType,
 } from '@/lib/record-update-routes';
 import { cn } from '@/lib/utils';
-import { buildBanjiNavigationState } from '@/state/navigation-history';
+import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import {
   ActionSheetField,
   actionSheetInputClassName,
@@ -743,7 +743,7 @@ export function SkuMutationActions({
           />
           {showEditButton ? (
             <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link state={buildBanjiNavigationState(location, '/catalog')} to={`/catalog/skus/${skuId}/edit`}>
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${skuId}/edit`}>
                 <ActionEditIcon className="size-4" />
                 {t('catalogSkuEditAction')}
               </Link>
@@ -1285,7 +1285,7 @@ export function ServiceMutationActions({
                 buttonVariants({ size: 'sm', variant: layout === 'menu' ? 'ghost' : 'outline' }),
                 layout === 'menu' ? 'w-full justify-start' : undefined,
               )}
-              state={buildBanjiNavigationState(location, '/catalog')}
+              state={buildKaurKhorNavigationState(location, '/catalog')}
               to={actions.editServiceHref}
             >
               <ActionEditIcon className="size-4" />

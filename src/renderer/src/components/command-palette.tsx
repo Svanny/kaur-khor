@@ -489,11 +489,11 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
             ? pendingCatalogMutation.mutation === 'archive'
               ? translateUiLiteral(
                   language,
-                  'Archived items disappear from active work, but their history stays available in banji.',
+                  'Archived items disappear from active work, but their history stays available in Kaur Khor.',
                 )
               : translateUiLiteral(
                   language,
-                  'This item will return to active workspaces and become visible across banji again.',
+                  'This item will return to active workspaces and become visible across Kaur Khor again.',
                 )
             : undefined
         }

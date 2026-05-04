@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  BANJI_BENCHMARK_SCENARIOS,
-  BANJI_BENCHMARK_TARGETS,
-  type BanjiBenchmarkComparison,
-  type BanjiBenchmarkDistributionSummary,
-  type BanjiBenchmarkFixtureSize,
-  type BanjiBenchmarkRunRecord,
-  type BanjiBenchmarkScenarioSummary,
-  type BanjiBenchmarkScenarioId,
-  type BanjiBenchmarkTargetEvaluation,
+  KAUR_KHOR_BENCHMARK_SCENARIOS,
+  KAUR_KHOR_BENCHMARK_TARGETS,
+  type KaurKhorBenchmarkComparison,
+  type KaurKhorBenchmarkDistributionSummary,
+  type KaurKhorBenchmarkFixtureSize,
+  type KaurKhorBenchmarkRunRecord,
+  type KaurKhorBenchmarkScenarioSummary,
+  type KaurKhorBenchmarkScenarioId,
+  type KaurKhorBenchmarkTargetEvaluation,
 } from '@shared/benchmark';
 import { ActionCloseIcon, ActionOpenFolderIcon, ActionResumeIcon, ActionUndoIcon } from '@icons/actions';
 import { EntityComparisonIcon } from '@icons/entities';
@@ -29,7 +29,7 @@ const statusClassName = {
   missing: 'bg-muted text-muted-foreground ring-border',
 };
 
-type TargetStatusFilter = BanjiBenchmarkTargetEvaluation['status'];
+type TargetStatusFilter = KaurKhorBenchmarkTargetEvaluation['status'];
 type TargetResultSortDirection = 'asc' | 'desc';
 
 const TARGET_RESULT_FILTER_OPTIONS: Array<{ label: string; value: TargetStatusFilter }> = [
@@ -78,8 +78,8 @@ function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boole
 }
 
 function formatDistributionValue(
-  distribution: BanjiBenchmarkDistributionSummary | undefined,
-  key: keyof Pick<BanjiBenchmarkDistributionSummary, 'mean' | 'median' | 'iqr' | 'min' | 'max' | 'p95'>,
+  distribution: KaurKhorBenchmarkDistributionSummary | undefined,
+  key: keyof Pick<KaurKhorBenchmarkDistributionSummary, 'mean' | 'median' | 'iqr' | 'min' | 'max' | 'p95'>,
   unit: 'ms' | 'percent' | 'boolean',
 ) {
   if (!distribution || distribution.count <= 1) {
@@ -88,7 +88,7 @@ function formatDistributionValue(
   return formatMetricValue(distribution[key], unit);
 }
 
-function TargetDistributionDetails({ target }: { target: BanjiBenchmarkTargetEvaluation }) {
+function TargetDistributionDetails({ target }: { target: KaurKhorBenchmarkTargetEvaluation }) {
   const distribution = target.distribution;
   if (!distribution || distribution.count <= 1) {
     return <div className="mt-1 text-muted-foreground">{formatMetricValue(target.value, target.unit)}</div>;
@@ -108,7 +108,7 @@ function TargetDistributionDetails({ target }: { target: BanjiBenchmarkTargetEva
   );
 }
 
-function BenchmarkTruthPanel({ summary }: { summary: BanjiBenchmarkScenarioSummary | null }) {
+function BenchmarkTruthPanel({ summary }: { summary: KaurKhorBenchmarkScenarioSummary | null }) {
   const derived = summary?.derivedMetrics ?? {};
   const interactiveP95 = derived['backend.core.interactive_queue_wait_p95_ms'];
   const setupP95 = derived['backend.core.setup_queue_wait_p95_ms'];
@@ -147,20 +147,20 @@ function BenchmarkTruthPanel({ summary }: { summary: BanjiBenchmarkScenarioSumma
   );
 }
 
-function formatRunLabel(run: BanjiBenchmarkRunRecord) {
+function formatRunLabel(run: KaurKhorBenchmarkRunRecord) {
   const date = new Date(run.startedAt);
   return `${date.toLocaleString()} - ${run.status}`;
 }
 
-function isCompletedBenchmarkRun(run: BanjiBenchmarkRunRecord) {
+function isCompletedBenchmarkRun(run: KaurKhorBenchmarkRunRecord) {
   return run.status === 'passed' || run.status === 'warning' || run.status === 'failed';
 }
 
 function formatScenarioLabel(scenario: string) {
-  return BANJI_BENCHMARK_SCENARIOS.find((entry) => entry.id === scenario)?.label ?? scenario;
+  return KAUR_KHOR_BENCHMARK_SCENARIOS.find((entry) => entry.id === scenario)?.label ?? scenario;
 }
 
-function runTargetCounts(run: BanjiBenchmarkRunRecord | null) {
+function runTargetCounts(run: KaurKhorBenchmarkRunRecord | null) {
   const targets = run?.summaries.flatMap((summary) => summary.targets ?? []) ?? [];
   return {
     pass: targets.filter((target) => target.status === 'pass').length,
@@ -170,8 +170,8 @@ function runTargetCounts(run: BanjiBenchmarkRunRecord | null) {
   };
 }
 
-function findTargetMeta(target: BanjiBenchmarkTargetEvaluation) {
-  return BANJI_BENCHMARK_TARGETS.find((candidate) => candidate.metricName === target.metricName);
+function findTargetMeta(target: KaurKhorBenchmarkTargetEvaluation) {
+  return KAUR_KHOR_BENCHMARK_TARGETS.find((candidate) => candidate.metricName === target.metricName);
 }
 
 function ScenarioToggle({
@@ -181,9 +181,9 @@ function ScenarioToggle({
   onToggle,
 }: {
   checked: boolean;
-  id: BanjiBenchmarkScenarioId;
+  id: KaurKhorBenchmarkScenarioId;
   label: string;
-  onToggle: (id: BanjiBenchmarkScenarioId) => void;
+  onToggle: (id: KaurKhorBenchmarkScenarioId) => void;
 }) {
   return (
     <label className="flex min-w-0 items-center gap-3 rounded-lg border border-border/60 px-3 py-2 text-sm">
@@ -199,7 +199,7 @@ function TargetTable({
   onToggleResultSort,
 }: {
   resultSortDirection: TargetResultSortDirection;
-  targets: BanjiBenchmarkTargetEvaluation[];
+  targets: KaurKhorBenchmarkTargetEvaluation[];
   onToggleResultSort: () => void;
 }) {
   if (targets.length === 0) {
@@ -254,7 +254,7 @@ function TargetTable({
   );
 }
 
-function ComparisonTable({ comparison }: { comparison: BanjiBenchmarkComparison | null }) {
+function ComparisonTable({ comparison }: { comparison: KaurKhorBenchmarkComparison | null }) {
   if (!comparison) {
     return <p className="text-sm text-muted-foreground">Choose two completed runs to compare.</p>;
   }
@@ -307,12 +307,12 @@ function ComparisonTable({ comparison }: { comparison: BanjiBenchmarkComparison 
 
 export function BenchmarkSettingsPage() {
   const { isBrowserRuntime } = useRuntimeMode();
-  const [runs, setRuns] = useState<BanjiBenchmarkRunRecord[]>([]);
+  const [runs, setRuns] = useState<KaurKhorBenchmarkRunRecord[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
-  const [selectedScenarios, setSelectedScenarios] = useState<BanjiBenchmarkScenarioId[]>(
-    BANJI_BENCHMARK_SCENARIOS.map((scenario) => scenario.id),
+  const [selectedScenarios, setSelectedScenarios] = useState<KaurKhorBenchmarkScenarioId[]>(
+    KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id),
   );
-  const [fixtureSize, setFixtureSize] = useState<BanjiBenchmarkFixtureSize>('medium');
+  const [fixtureSize, setFixtureSize] = useState<KaurKhorBenchmarkFixtureSize>('medium');
   const [traceEnabled, setTraceEnabled] = useState(false);
   const [repeatCount, setRepeatCount] = useState('1');
   const [buildBeforeRun, setBuildBeforeRun] = useState(true);
@@ -321,9 +321,9 @@ export function BenchmarkSettingsPage() {
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [baselineRunId, setBaselineRunId] = useState<string | null>(null);
   const [candidateRunId, setCandidateRunId] = useState<string | null>(null);
-  const [comparison, setComparison] = useState<BanjiBenchmarkComparison | null>(null);
+  const [comparison, setComparison] = useState<KaurKhorBenchmarkComparison | null>(null);
   const [selectedSummaryScenario, setSelectedSummaryScenario] = useState<string>(SUMMARY_FILTER_ALL);
-  const [flamegraphScenario, setFlamegraphScenario] = useState<BanjiBenchmarkScenarioId | null>(null);
+  const [flamegraphScenario, setFlamegraphScenario] = useState<KaurKhorBenchmarkScenarioId | null>(null);
   const [isGeneratingFlamegraph, setIsGeneratingFlamegraph] = useState(false);
   const [targetResultFilters, setTargetResultFilters] = useState<TargetStatusFilter[]>(
     TARGET_RESULT_FILTER_OPTIONS.map((option) => option.value),
@@ -382,7 +382,7 @@ export function BenchmarkSettingsPage() {
   }, [flamegraphScenario, selectedRun]);
 
   async function refreshRuns(nextSelectedRunId?: string | null) {
-    const nextRuns = await window.banjiDesktop.benchmarkRunner?.listRuns() ?? [];
+    const nextRuns = await window.kaurKhorDesktop.benchmarkRunner?.listRuns() ?? [];
     setRuns(nextRuns);
     const nextActiveRun = nextRuns.find((run) => run.status === 'queued' || run.status === 'running') ?? null;
     setActiveRunId(nextActiveRun?.runId ?? null);
@@ -397,7 +397,7 @@ export function BenchmarkSettingsPage() {
     let cancelled = false;
     async function load() {
       try {
-        const availability = await window.banjiDesktop.benchmarkRunner?.getAvailability();
+        const availability = await window.kaurKhorDesktop.benchmarkRunner?.getAvailability();
         if (cancelled) {
           return;
         }
@@ -412,7 +412,7 @@ export function BenchmarkSettingsPage() {
       }
     }
     void load();
-    const unsubscribe = window.banjiDesktop.benchmarkRunner?.onRunEvent((event) => {
+    const unsubscribe = window.kaurKhorDesktop.benchmarkRunner?.onRunEvent((event) => {
       setStatus(event.message);
       if (event.record) {
         setRuns((currentRuns) => {
@@ -442,7 +442,7 @@ export function BenchmarkSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function toggleScenario(id: BanjiBenchmarkScenarioId) {
+  function toggleScenario(id: KaurKhorBenchmarkScenarioId) {
     setSelectedScenarios((current) => {
       if (current.includes(id)) {
         return current.length === 1 ? current : current.filter((scenario) => scenario !== id);
@@ -452,12 +452,12 @@ export function BenchmarkSettingsPage() {
   }
 
   async function startRun() {
-    if (!window.banjiDesktop.benchmarkRunner) {
+    if (!window.kaurKhorDesktop.benchmarkRunner) {
       return;
     }
     try {
       setStatus('Starting benchmark run...');
-      const run = await window.banjiDesktop.benchmarkRunner.startRun({
+      const run = await window.kaurKhorDesktop.benchmarkRunner.startRun({
         scenarios: selectedScenarios,
         fixtureSize,
         traceEnabled,
@@ -474,12 +474,12 @@ export function BenchmarkSettingsPage() {
   }
 
   async function cancelRun() {
-    if (!activeRunId || !window.banjiDesktop.benchmarkRunner) {
+    if (!activeRunId || !window.kaurKhorDesktop.benchmarkRunner) {
       return;
     }
     try {
       setStatus('Cancelling benchmark run...');
-      const run = await window.banjiDesktop.benchmarkRunner.cancelRun(activeRunId);
+      const run = await window.kaurKhorDesktop.benchmarkRunner.cancelRun(activeRunId);
       setSelectedRunId(run.runId);
       await refreshRuns(run.runId);
     } catch (error) {
@@ -489,26 +489,26 @@ export function BenchmarkSettingsPage() {
   }
 
   async function compareRuns() {
-    if (!baselineRunId || !candidateRunId || !window.banjiDesktop.benchmarkRunner) {
+    if (!baselineRunId || !candidateRunId || !window.kaurKhorDesktop.benchmarkRunner) {
       return;
     }
-    setComparison(await window.banjiDesktop.benchmarkRunner.compareRuns({ baselineRunId, candidateRunId }));
+    setComparison(await window.kaurKhorDesktop.benchmarkRunner.compareRuns({ baselineRunId, candidateRunId }));
   }
 
   async function revealSelectedRun() {
-    if (selectedRun && window.banjiDesktop.benchmarkRunner) {
-      await window.banjiDesktop.benchmarkRunner.revealRun(selectedRun.runId);
+    if (selectedRun && window.kaurKhorDesktop.benchmarkRunner) {
+      await window.kaurKhorDesktop.benchmarkRunner.revealRun(selectedRun.runId);
     }
   }
 
   async function generateFlamegraph() {
-    if (!selectedRun || !flamegraphScenario || !window.banjiDesktop.benchmarkRunner) {
+    if (!selectedRun || !flamegraphScenario || !window.kaurKhorDesktop.benchmarkRunner) {
       return;
     }
     try {
       setIsGeneratingFlamegraph(true);
       setStatus(`Generating ${formatScenarioLabel(flamegraphScenario)} flame graph...`);
-      await window.banjiDesktop.benchmarkRunner.generateFlamegraph({
+      await window.kaurKhorDesktop.benchmarkRunner.generateFlamegraph({
         runId: selectedRun.runId,
         scenario: flamegraphScenario,
       });
@@ -572,7 +572,7 @@ export function BenchmarkSettingsPage() {
           <section className="grid gap-3">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Scenarios</p>
             <div className="grid gap-2">
-              {BANJI_BENCHMARK_SCENARIOS.map((scenario) => (
+              {KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => (
                 <ScenarioToggle
                   key={scenario.id}
                   checked={selectedScenarios.includes(scenario.id)}
@@ -588,7 +588,7 @@ export function BenchmarkSettingsPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid gap-2 text-sm">
                 <span>Fixture size</span>
-                <Select value={fixtureSize} onValueChange={(value) => setFixtureSize(value as BanjiBenchmarkFixtureSize)}>
+                <Select value={fixtureSize} onValueChange={(value) => setFixtureSize(value as KaurKhorBenchmarkFixtureSize)}>
                   <SelectTrigger aria-label="Fixture size">
                     <SelectValue />
                   </SelectTrigger>
@@ -691,7 +691,7 @@ export function BenchmarkSettingsPage() {
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
                 <Select
                   value={flamegraphScenario ?? ''}
-                  onValueChange={(value) => setFlamegraphScenario(value as BanjiBenchmarkScenarioId)}
+                  onValueChange={(value) => setFlamegraphScenario(value as KaurKhorBenchmarkScenarioId)}
                 >
                   <SelectTrigger aria-label="Flame graph scope">
                     <SelectValue placeholder="Scope" />

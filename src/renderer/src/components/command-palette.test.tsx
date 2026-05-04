@@ -13,7 +13,7 @@ const unarchiveCatalogEntity = vi.fn(async () => null);
 const createBackupSnapshot = vi.fn(async () => ({
   createdAt: '2026-04-10T10:00:00.000Z',
   fileCount: 2,
-  snapshotPath: '/tmp/banji/backup-snapshots/manual-snapshot',
+  snapshotPath: '/tmp/kaur-khor/backup-snapshots/manual-snapshot',
   trigger: 'manual',
 }));
 const restoreBackupSnapshot = vi.fn(async () => null);
@@ -103,15 +103,15 @@ describe('CommandPaletteProvider', () => {
     getWorkspaceSummary.mockClear();
     getDiagnostics.mockClear();
     getRunStatus.mockClear();
-    window.banjiDesktop = {
-      ...(window.banjiDesktop ?? {}),
+    window.kaurKhorDesktop = {
+      ...(window.kaurKhorDesktop ?? {}),
       system: {
-        ...(window.banjiDesktop?.system ?? {}),
+        ...(window.kaurKhorDesktop?.system ?? {}),
         createBackupSnapshot,
         restoreBackupSnapshot,
       },
       sena: {
-        ...(window.banjiDesktop?.sena ?? {}),
+        ...(window.kaurKhorDesktop?.sena ?? {}),
         listObservations,
         getCatalog,
         getWorkspaceSummary,

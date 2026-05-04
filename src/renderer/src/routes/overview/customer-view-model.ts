@@ -171,18 +171,18 @@ function automationTaskWhyDetail(
   state: Exclude<OverviewCustomerFilter, 'all'>,
 ) {
   if (state === 'review' && (intake.status === 'needs_review' || intake.status === 'failed')) {
-    return literal(language, 'banji kept this intake in Automations because the request is ambiguous, unsafe, or incomplete.');
+    return literal(language, 'Kaur Khor kept this intake in Automations because the request is ambiguous, unsafe, or incomplete.');
   }
   if (state === 'quoted') {
-    return literal(language, 'banji already computed a quote, but promotion into ticket truth still needs an operator decision.');
+    return literal(language, 'Kaur Khor already computed a quote, but promotion into ticket truth still needs an operator decision.');
   }
   if (state === 'open') {
     return literal(language, intake.promotedTicketId ? 'This Telegram intake already created customer ticket truth and now belongs to the main customer queue.' : 'This Telegram intake is still tracked from Automations.');
   }
   if (state === 'closed') {
-    return literal(language, intake.promotedTicketId ? 'banji keeps the ticket path as the source of truth after Telegram-origin work changes state.' : 'banji still keeps the intake context in Automations because no customer ticket exists yet.');
+    return literal(language, intake.promotedTicketId ? 'Kaur Khor keeps the ticket path as the source of truth after Telegram-origin work changes state.' : 'Kaur Khor still keeps the intake context in Automations because no customer ticket exists yet.');
   }
-  return literal(language, 'banji is holding this Telegram request in the intake queue until an operator decides what to do next.');
+  return literal(language, 'Kaur Khor is holding this Telegram request in the intake queue until an operator decides what to do next.');
 }
 
 function customerTaskStateTone(state: Exclude<OverviewCustomerFilter, 'all'>): StatusPillTone {
@@ -354,7 +354,7 @@ export function buildCustomerOverviewModel({
                   count: snapshot.pendingQuantity,
                   suffix: snapshot.pendingQuantity === 1 ? '' : 's',
                 }),
-      whyDetail: literal(language, 'banji is tracking this from customer order signals recorded in Record Updates.'),
+      whyDetail: literal(language, 'Kaur Khor is tracking this from customer order signals recorded in Record Updates.'),
       summary: null,
       source: 'customer_aggregate',
       sourceLabel: literal(language, 'Customer queue'),
@@ -434,7 +434,7 @@ export function buildCustomerOverviewModel({
                   count: snapshot.pendingQuantity,
                   suffix: snapshot.pendingQuantity === 1 ? '' : 's',
                 }),
-      whyDetail: literal(language, 'banji is tracking this from customer order signals recorded in Record Updates.'),
+      whyDetail: literal(language, 'Kaur Khor is tracking this from customer order signals recorded in Record Updates.'),
       summary: null,
       source: 'customer_aggregate',
       sourceLabel: literal(language, 'Customer queue'),

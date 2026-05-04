@@ -65,6 +65,6 @@ describe('record update routes', () => {
 
   it('exposes lane metadata for direct-action draft prompts', () => {
     expect(laneForCaptureSessionAction('service-price')).toBe('custom');
-    expect(draftStorageKeyForLane('stock-count')).toBe('banji:record-update:draft:stock-count:v1');
+    expect(draftStorageKeyForLane('stock-count')).toBe('kaur-khor:record-update:draft:stock-count:v1');
   });
 });

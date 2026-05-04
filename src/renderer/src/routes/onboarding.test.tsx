@@ -61,8 +61,8 @@ describe('OnboardingRoute', () => {
       ...payload,
     }));
 
-    window.banjiDesktop = {
-      ...window.banjiDesktop,
+    window.kaurKhorDesktop = {
+      ...window.kaurKhorDesktop,
       preferences: {
         get: getPreferences,
         save: savePreferences,
@@ -86,7 +86,7 @@ describe('OnboardingRoute', () => {
   it('renders the first-run onboarding form and saves the onboarding defaults', async () => {
     renderRoute();
 
-    expect((await screen.findAllByText('Set up banji')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Set up Kaur Khor')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('Welcome').length).toBeGreaterThan(0);
     expect(screen.getByText('abc')).toBeInTheDocument();
     expect(screen.getByText('$')).toBeInTheDocument();
@@ -211,11 +211,11 @@ describe('OnboardingRoute', () => {
 
     renderRoute();
 
-    expect(await screen.findByText('រៀបចំបញ្ជី')).toBeInTheDocument();
+    expect(await screen.findByText('រៀបចំ កខ')).toBeInTheDocument();
     expect(screen.getByText('ជ្រើសរើសភាសា និងរូបិយប័ណ្ណមូលដ្ឋានជាមុនសិន។ អ្នកអាចកែសម្រួលការគ្រប់គ្រងនីមួយៗនៅពេលក្រោយក្នុងការកំណត់។')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'រៀបចំបញ្ជី' })).not.toHaveClass('tracking-[-0.05em]');
+    expect(screen.getByRole('heading', { name: 'រៀបចំ កខ' })).not.toHaveClass('tracking-[-0.05em]');
     expect(screen.queryByText(/ប៊ូតុងនីមួយៗ/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/រៀបចំ បញ្ជី/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/រៀបចំកខ/)).not.toBeInTheDocument();
   });
 
   it('localizes Khmer preference combobox names and option labels', async () => {

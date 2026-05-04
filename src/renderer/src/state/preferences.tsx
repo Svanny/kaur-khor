@@ -274,7 +274,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    window.banjiDesktop.preferences
+    window.kaurKhorDesktop.preferences
       .get()
       .then((preferences) => {
         if (!mounted) {
@@ -407,7 +407,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
     workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
   }>) {
-    const nextPreferences = await window.banjiDesktop.preferences.save(next);
+    const nextPreferences = await window.kaurKhorDesktop.preferences.save(next);
     const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
     const nextOverviewStaleUpdateReminderSnoozeUntil = normalizeDesktopPreferenceTimestamp(
       nextPreferences.overviewStaleUpdateReminderSnoozeUntil,

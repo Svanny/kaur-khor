@@ -14,7 +14,7 @@ import {
   type TradingChartController,
 } from './use-trading-chart-controller';
 
-const PAGE_STATE_MEMORY_STORAGE_KEY = 'banji:page-state-memory:v1';
+const PAGE_STATE_MEMORY_STORAGE_KEY = 'kaur-khor:page-state-memory:v1';
 
 function makeStorageMock() {
   const state = new Map<string, string>();

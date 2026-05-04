@@ -21,8 +21,8 @@ vi.mock('@/state/automation', () => ({
   AutomationProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock('@/components/banji-shell', () => ({
-  BanjiShell: ({ children }: { children: ReactNode }) => <>{children}</>,
+vi.mock('@/components/kaur-khor-shell', () => ({
+  KaurKhorShell: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/components/command-palette', () => ({
