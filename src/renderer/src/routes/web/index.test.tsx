@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import {
   BROWSER_WORKSPACE_CLOSE_WARNING,
@@ -135,8 +135,17 @@ const releaseAssets = [
 
 beforeEach(() => {
   mockNavigator();
+  mockReducedMotion(false);
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: 'visible',
+  });
   setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
   vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 function renderWebHome() {
@@ -153,6 +162,11 @@ function renderWebPath(path: string) {
       <WebRoutes />
     </MemoryRouter>,
   );
+}
+
+function switchLandingToKhmer() {
+  fireEvent.click(screen.getByRole('combobox', { name: 'Choose your language' }));
+  fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
 }
 
 function getProductCardsSection(container: HTMLElement) {
@@ -232,6 +246,22 @@ function mockViewport(width: number, height: number) {
   });
 }
 
+function mockReducedMotion(matches: boolean) {
+  const matchMedia = vi.fn((query: string) => ({
+    addEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+    matches,
+    media: query,
+    onchange: null,
+    removeEventListener: vi.fn(),
+  }));
+  vi.stubGlobal('matchMedia', matchMedia);
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: matchMedia,
+  });
+}
+
 async function expectRecommendedDownload(expectedAssetName: string, expectedHref: string) {
   const select = await screen.findByLabelText('Download') as HTMLSelectElement;
   fireEvent.focus(select);
@@ -264,8 +294,7 @@ describe('WebRoutes landing rail', () => {
   test('translates the visible landing page copy into Khmer', () => {
     const { container } = renderWebHome();
 
-    fireEvent.click(screen.getByRole('combobox', { name: 'Choose your language' }));
-    fireEvent.click(screen.getByRole('option', { name: /Khmer/ }));
+    switchLandingToKhmer();
 
     expect(screen.getByRole('heading', { name: 'បញ្ជី' })).toBeInTheDocument();
     expect(screen.getByText(/អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច/)).toBeInTheDocument();
@@ -275,11 +304,26 @@ describe('WebRoutes landing rail', () => {
     expect(cardsSection).toHaveTextContent('អេបក្នុងប្រោសឺរ');
     expect(cardsSection).not.toHaveTextContent('ជ្រើសរើសភាសា រូបិយប័ណ្ណ និងចំណូលចិត្តអេប');
     expect(cardsSection).toHaveTextContent('ចងចាំ៖');
+    expect(cardsSection).toHaveTextContent('មិនចាំបាច់ចុះឈ្មោះ ឬចូលគណនីទេ។');
+    expect(cardsSection).not.toHaveTextContent('ចូលប្រើវ៉ាយហ្វាយ');
 
     const releasesSection = container.querySelector('#releases');
     expect(releasesSection).not.toBeNull();
     expect(releasesSection).toHaveTextContent('ទាញយកដេសថបអេប');
     expect(releasesSection).toHaveTextContent('កំណត់សម្គាល់ដំឡើង');
+    expect(releasesSection).toHaveTextContent('រក្សាសារសុវត្ថិភាពធម្មតារបស់ប្រព័ន្ធប្រតិបត្តិការ');
+    expect(releasesSection).toHaveTextContent('ប្រភពចម្លង ឬការបង្ហោះឡើងវិញ');
+    expect(releasesSection).not.toHaveTextContent('safety');
+    expect(releasesSection).not.toHaveTextContent('mirror');
+    expect(releasesSection).not.toHaveTextContent('repost');
+
+    const buildSection = getBuildFromSourceSection(container);
+    expect(buildSection).toHaveTextContent('ឧបករណ៍សាងសង់');
+    expect(buildSection).toHaveTextContent('មិនធ្វើឱ្យកម្មវិធីមានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។');
+    expect(buildSection).not.toHaveTextContent('dependency');
+    expect(buildSection).not.toHaveTextContent('native build');
+    expect(buildSection).not.toHaveTextContent('platform flag');
+    expect(buildSection).not.toHaveTextContent('software');
   });
 
   test('renders every operator-facing feature once in the accessible rail', () => {
@@ -309,6 +353,17 @@ describe('WebRoutes landing rail', () => {
       expect(screen.queryByText(label, { exact: true })).not.toBeInTheDocument();
     }
     expect(screen.getAllByText('Run Point-of-Sale')).toHaveLength(2);
+  });
+
+  test('does not auto-advance the screenshot carousel when reduced motion is requested', () => {
+    vi.useFakeTimers();
+    const setIntervalSpy = vi.spyOn(window, 'setInterval');
+    mockReducedMotion(true);
+
+    renderWebHome();
+
+    expect(screen.getByAltText('banji mission control overview showing the main work queue')).toBeInTheDocument();
+    expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 });
 
@@ -494,6 +549,27 @@ describe('WebRoutes releases section', () => {
     expect(screen.queryByRole('link', { name: /YouTube tutorial for opening macOS app/i })).not.toBeInTheDocument();
   });
 
+  test('renders Linux install guidance in natural Khmer without generic English leaks', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      platform: 'Linux x86_64',
+      userAgent: 'Mozilla/5.0 (X11; Linux x86_64)',
+    });
+
+    renderWebHome();
+    switchLandingToKhmer();
+
+    const select = await screen.findByLabelText('ទាញយក') as HTMLSelectElement;
+    fireEvent.focus(select);
+    await waitFor(() => expect(select.value).toBe('banji-1.2.3-linux-x64.AppImage'));
+
+    expect(screen.getByText('កំណត់សម្គាល់ដំឡើង Linux')).toBeInTheDocument();
+    expect(screen.getByText('កំណត់ឯកសារ AppImage ឱ្យអាចដំណើរការបាន មុនបើកវា។')).toBeInTheDocument();
+    expect(screen.getByText('បើអ្នកជ្រើសឯកសារ deb សូមដំឡើងវាជាមួយកម្មវិធីគ្រប់គ្រងកញ្ចប់របស់អ្នក។')).toBeInTheDocument();
+    expect(screen.queryByText(/executable/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/package manager/)).not.toBeInTheDocument();
+  });
+
   test('removes the standalone install page and install links', async () => {
     const { container } = renderWebPath('/install');
 
@@ -577,13 +653,29 @@ describe('WebRoutes product cards', () => {
     expect(section).not.toHaveTextContent('WASM');
   });
 
-  test('uses the real app frosted tint surface for each product card', () => {
+  test('uses a static frosted tint surface for each product card', () => {
     const { container } = renderWebHome();
     const section = getProductCardsSection(container);
 
     for (const card of section.querySelectorAll('.liquid-grid-card-frame')) {
-      expect(card).toHaveClass('liquid-grid-card-frame', 'backdrop-blur-md');
+      expect(card).toHaveClass('liquid-grid-card-frame');
+      expect(card).not.toHaveClass('backdrop-blur-md');
+      expect(card.className).not.toContain('backdrop-blur');
+      expect(card.className).not.toContain('mix-blend-screen');
+      expect(card.className).not.toContain('hover:-translate');
+      expect(card.className).not.toContain('hover:border-foreground');
+      expect(card.className).toContain('motion-safe:hover:scale-[1.015]');
+      expect(card.className).toContain('motion-safe:focus-within:scale-[1.015]');
+      expect(card.className).toContain('hover:border-[color:var(--product-card-accent)]');
+      expect((card as HTMLElement).style.getPropertyValue('--product-card-pointer-x')).toBe('50%');
+      expect((card as HTMLElement).style.getPropertyValue('--product-card-pointer-y')).toBe('50%');
     }
+    const sourceCard = within(section)
+      .getByRole('heading', { name: 'Source Build' })
+      .closest('.liquid-grid-card-frame');
+    expect(sourceCard).not.toBeNull();
+    expect(sourceCard?.className).not.toContain('border-black');
+    expect(section.querySelector('.liquid-grid-card-glass')).toBeNull();
   });
 
   test('renders shared privacy copy as list items and uses only the card buttons as links', () => {
@@ -604,9 +696,19 @@ describe('WebRoutes product cards', () => {
 
     for (const action of productCardCopy.actions) {
       const button = within(section).getByRole('link', { name: action });
+      const label = within(button).getByText(action);
       expect(button).toHaveClass('bg-white', 'text-foreground');
+      expect(button.className).toContain('group/action');
+      expect(button.className).toContain('before:bg-[radial-gradient');
+      expect(button.className).toContain('hover:border-[color:var(--product-card-accent)]');
       expect(button).not.toHaveClass('bg-primary');
+      expect(label).toHaveClass('sm:whitespace-nowrap');
+      expect(label).not.toHaveClass('hidden');
+      expect(label).not.toHaveClass('xl:inline');
+      const icon = button.querySelector('svg');
+      expect(icon?.className.baseVal).toContain('motion-safe:group-hover/action:translate-x-1');
     }
+    expect(section.querySelector('a span[aria-hidden="true"]')).toBeNull();
     expect(within(section).getAllByRole('link')).toHaveLength(productCardCopy.actions.length);
     for (const card of section.querySelectorAll('.liquid-grid-card-frame')) {
       expect(card.tagName).not.toBe('A');
@@ -873,21 +975,25 @@ describe('WebRoutes embedded app fallback state', () => {
 });
 
 describe('WebRoutes build from source section', () => {
-  test('links to the official source page and uses zip-based build commands', () => {
+  test('links to the official source page and uses the cross-platform source build script', () => {
     const { container } = renderWebHome();
     const section = getBuildFromSourceSection(container);
 
     expect(within(section).getByRole('link', { name: 'official GitHub page' })).toHaveAttribute('href', sourceUrl);
-    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-mac-from-source.sh on macOS.');
+    expect(section).not.toHaveTextContent('on macOS');
+    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.sh for your platform.');
     expect(section).toHaveTextContent('Open the Terminal app.');
     expect(section).toHaveTextContent('Copy the code below and paste it inside Terminal.');
-    expect(section).toHaveTextContent('Bash');
+    expect(section).toHaveTextContent('Shell');
     expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
-    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip');
-    expect(section).toHaveTextContent('unzip banji.zip');
-    expect(section).toHaveTextContent('mv banji-main banji');
-    expect(section).toHaveTextContent('chmod +x scripts/build-mac-from-source.sh');
-    expect(section).toHaveTextContent('./scripts/build-mac-from-source.sh');
-    expect(section).not.toHaveTextContent('git clone https://github.com/Svanny/banji.git');
+    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz');
+    expect(section).toHaveTextContent('tar -xzf banji-source.tar.gz');
+    expect(section).toHaveTextContent('cd banji-main');
+    expect(section).toHaveTextContent('./scripts/build-from-source.sh');
+    expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
+    expect(section).not.toHaveTextContent('git clone');
+    expect(section).not.toHaveTextContent('node scripts/build-from-source.mjs');
+    expect(section).not.toHaveTextContent('build-mac-from-source.sh');
+    expect(section).not.toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip');
   });
 });

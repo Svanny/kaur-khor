@@ -32,16 +32,16 @@ Approved flow:
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source on macOS, inspect the source on the [official GitHub page](https://github.com/Svanny/banji), then open the Terminal app. Copy the code below and paste it inside Terminal:
+To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/banji), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. Copy the code below and paste it inside Terminal:
 
-```bash
-curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip
-unzip banji.zip
-mv banji-main banji
-cd banji
-chmod +x scripts/build-mac-from-source.sh
-./scripts/build-mac-from-source.sh
+```sh
+curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz
+tar -xzf banji-source.tar.gz
+cd banji-main
+./scripts/build-from-source.sh
 ```
+
+To choose a native build explicitly, pass a platform flag such as `./scripts/build-from-source.sh --platform=linux-x64`.
 
 ## Windows
 

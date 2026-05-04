@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { LiquidGridCardLayer } from '@/components/system/liquid-grid-card';
 import brandLogo from '@/assets/banji-logo.svg';
 import {
   Archive,
@@ -62,12 +61,10 @@ const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
 const sourceUrl = 'https://github.com/Svanny/banji';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/banji/releases/latest';
 const sourceBuildCommands = [
-  'curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip',
-  'unzip banji.zip',
-  'mv banji-main banji',
-  'cd banji',
-  'chmod +x scripts/build-mac-from-source.sh',
-  './scripts/build-mac-from-source.sh',
+  'curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz',
+  'tar -xzf banji-source.tar.gz',
+  'cd banji-main',
+  './scripts/build-from-source.sh',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const screenshotWidth = 3456;
@@ -124,7 +121,6 @@ type ProductCardTone = 'demo' | 'browser' | 'desktop' | 'source-build';
 
 type ProductTier = {
   action: string;
-  actionLines: [string, string];
   benefits: ProductCardItem[];
   drawbacks: ProductCardItem[];
   href: string;
@@ -189,6 +185,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Build it': 'សាងសង់',
   'Build it yourself': 'សាងសង់ដោយខ្លួនឯង',
   'Build the app yourself': 'សាងសង់អេបដោយខ្លួនឯង',
+  'build dependencies before packaging banji.': 'ឧបករណ៍សាងសង់ មុនពេលវេចខ្ចប់ បញ្ជី។',
   'Browse Archived Items': 'មើលធាតុដែលបានរក្សាទុក',
   'Choose a download': 'ជ្រើសរើសឯកសារទាញយក',
   'Choose a download to see the matching install notes.': 'ជ្រើសរើសឯកសារទាញយក ដើម្បីមើលកំណត់សម្គាល់ដំឡើងដែលត្រូវគ្នា។',
@@ -221,10 +218,11 @@ const landingKhmerCopy: Record<string, string> = {
   'GitHub Releases': 'GitHub Releases',
   'If blocked, use System Settings -> Privacy & Security -> Open Anyway.': 'បើត្រូវបានទប់ស្កាត់ សូមចូល System Settings -> Privacy & Security -> Open Anyway។',
   'If SmartScreen appears, choose More info -> Run anyway.': 'បើ SmartScreen បង្ហាញ សូមជ្រើស More info -> Run anyway។',
-  'If you choose a deb file, install it with your package manager.': 'បើអ្នកជ្រើសឯកសារ deb សូមដំឡើងវាជាមួយ package manager។',
+  'If you choose a deb file, install it with your package manager.': 'បើអ្នកជ្រើសឯកសារ deb សូមដំឡើងវាជាមួយកម្មវិធីគ្រប់គ្រងកញ្ចប់របស់អ្នក។',
   'Import backups': 'នាំចូលបេកអាប់',
   'Inspect the code': 'ពិនិត្យកូដ',
   'Inspect the source on the': 'ពិនិត្យកូដប្រភពនៅលើ',
+  'It detects your computer and installs': 'វាស្គាល់កុំព្យូទ័ររបស់អ្នក ហើយដំឡើង',
   'Install notes': 'កំណត់សម្គាល់ដំឡើង',
   'Install the': 'ដំឡើង',
   'Install the desktop app': 'ដំឡើងដេសថបអេប',
@@ -244,15 +242,15 @@ const landingKhmerCopy: Record<string, string> = {
   'Make app snapshots': 'បង្កើតស្នេបស្ហតអេប',
   'Manage Products': 'គ្រប់គ្រងផលិតផល',
   'Manage Services': 'គ្រប់គ្រងសេវាកម្ម',
-  'Mark AppImages executable before opening them.': 'កំណត់ AppImage ឱ្យ executable មុនបើកវា។',
-  'No sign-up or login. Your data stays on your device.': 'មិនចាំបាច់ចុះឈ្មោះ ឬចូលប្រើវ៉ាយហ្វាយ។ ទិន្នន័យរបស់អ្នកនៅលើឧបករណ៍របស់អ្នក។',
+  'Mark AppImages executable before opening them.': 'កំណត់ឯកសារ AppImage ឱ្យអាចដំណើរការបាន មុនបើកវា។',
+  'No sign-up or login. Your data stays on your device.': 'មិនចាំបាច់ចុះឈ្មោះ ឬចូលគណនីទេ។ ទិន្នន័យរបស់អ្នកនៅលើឧបករណ៍របស់អ្នក។',
   'Not your real workspace': 'មិនមែនកន្លែងធ្វើការពិតរបស់អ្នក',
   'Operator-facing banji features': 'មុខងារបញ្ជីសម្រាប់អ្នកប្រតិបត្តិការ',
   'official GitHub page': 'ទំព័រ GitHub ផ្លូវការ',
   'Official source page': 'ទំព័រកូដប្រភពផ្លូវការ',
   'Open the DMG and drag banji to Applications if prompted.': 'បើក DMG ហើយអូស បញ្ជី ទៅ Applications បើមានសារ។',
   'Open the Terminal app.': 'បើក Terminal អេប។',
-  'on macOS.': 'លើ macOS។',
+  'for your platform.': 'សម្រាប់ប្រព័ន្ធរបស់អ្នក។',
   'Place Supplier Orders': 'បញ្ជាទិញពីអ្នកផ្គត់ផ្គង់',
   'Point-of-Sale and updates': 'លក់ផ្ទាល់ និងអាប់ដេត',
   'Receive Supplier Orders': 'ទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
@@ -291,6 +289,7 @@ const landingKhmerCopy: Record<string, string> = {
   'desktop app': 'ដេសថបអេប',
   'the browser': 'ប្រោសឺរ',
   'The app you build may still show safety prompts': 'អេបដែលអ្នកសាងសង់អាចនៅតែបង្ហាញសារសុវត្ថិភាព',
+  'To choose a native build explicitly, pass a platform flag such as': 'បើចង់ជ្រើសគោលដៅសាងសង់ក្នុងម៉ាស៊ីនច្បាស់ៗ សូមបន្ថែមជម្រើសប្រព័ន្ធដូចជា',
   'Track Customer Orders': 'តាមដានការបញ្ជាទិញរបស់អតិថិជន',
   'Try sample data': 'សាកល្បងទិន្នន័យគំរូ',
   'Try sample shelves': 'សាកល្បងធ្នើគំរូ',
@@ -305,11 +304,11 @@ const landingKhmerCopy: Record<string, string> = {
   'A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.':
     'អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច៖ សាកល្បងទិន្នន័យគំរូក្នុងប្រោសឺរ រក្សាទិន្នន័យប្រោសឺរពិតក្នុងម៉ាស៊ីនពេល OPFS អាចប្រើបាន ឬដំឡើងដេសថបអេបសម្រាប់ប្រើក្រៅបណ្ដាញពេញលេញ។',
   'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.':
-    'ការសាងសង់ក្នុងម៉ាស៊ីនជៀសវាងការទាញយកអេបដែលបានសាងសង់រួច ប៉ុន្តែមិនធ្វើឱ្យ software មានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។',
+    'ការសាងសង់នៅលើម៉ាស៊ីនផ្ទាល់ជៀសវាងការទាញយកអេបដែលបានសាងសង់រួច ប៉ុន្តែមិនធ្វើឱ្យកម្មវិធីមានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។',
   'Verify SHA256SUMS when available and keep normal OS safety prompts on.':
-    'ផ្ទៀងផ្ទាត់ SHA256SUMS ពេលមាន ហើយរក្សាសារ safety របស់ OS ឱ្យនៅដដែល។',
+    'ផ្ទៀងផ្ទាត់ SHA256SUMS ពេលមាន ហើយរក្សាសារសុវត្ថិភាពធម្មតារបស់ប្រព័ន្ធប្រតិបត្តិការឱ្យនៅដដែល។',
   'when available, and do not run copies from mirrors or reposts.':
-    'ពេលមាន ហើយកុំដំណើរការច្បាប់ចម្លងពី mirror ឬ repost។',
+    'ពេលមាន ហើយកុំដំណើរការច្បាប់ចម្លងពីប្រភពចម្លង ឬការបង្ហោះឡើងវិញ។',
 };
 
 function landingText(language: AppLanguage, text: string) {
@@ -354,7 +353,6 @@ const sharedProductDrawbacks: ProductCardItem[] = [
 const productTiers: ProductTier[] = [
   {
     action: 'Start Quick Demo',
-    actionLines: ['Start Quick', 'Demo'],
     benefits: [
       { icon: PackageCheck, label: 'Try sample shelves' },
       { icon: ScanLine, label: 'See the main workflow' },
@@ -372,7 +370,6 @@ const productTiers: ProductTier[] = [
   },
   {
     action: 'Start in the browser',
-    actionLines: ['Start in', 'the browser'],
     benefits: [
       { icon: Globe, label: 'Save real work in this browser' },
       { icon: Download, label: 'Export backups' },
@@ -392,7 +389,6 @@ const productTiers: ProductTier[] = [
   },
   {
     action: 'Install the desktop app',
-    actionLines: ['Install the', 'desktop app'],
     benefits: [
       { icon: FileText, label: 'Save work in local app files' },
       { icon: DatabaseBackup, label: 'Make app snapshots' },
@@ -413,7 +409,6 @@ const productTiers: ProductTier[] = [
   },
   {
     action: 'Build it yourself',
-    actionLines: ['Build it', 'yourself'],
     benefits: [
       { icon: Code2, label: 'Inspect the code' },
       { icon: Terminal, label: 'Build the app yourself' },
@@ -436,14 +431,42 @@ const productTiers: ProductTier[] = [
 function productCardSurfaceClassName(tone: ProductCardTone) {
   switch (tone) {
     case 'demo':
-      return 'backdrop-blur-md saturate-[1.3] border-[#D97706]/35 bg-[#D97706]/[0.08]';
+      return 'border-[#D97706]/35 bg-[#D97706]/[0.08]';
     case 'browser':
-      return 'backdrop-blur-md saturate-[1.3] border-[#2563EB]/35 bg-[#2563EB]/[0.08]';
+      return 'border-[#2563EB]/35 bg-[#2563EB]/[0.08]';
     case 'desktop':
-      return 'backdrop-blur-md saturate-[1.3] border-[#9333EA]/35 bg-[#9333EA]/[0.08]';
+      return 'border-[#9333EA]/35 bg-[#9333EA]/[0.08]';
     case 'source-build':
-      return 'backdrop-blur-md saturate-[1.3] border-black/35 bg-black/[0.08]';
+      return 'border-[#475569]/35 bg-[#475569]/[0.08]';
   }
+}
+
+function productCardInteractionStyle(tone: ProductCardTone) {
+  const accents: Record<ProductCardTone, { accent: string; glow: string }> = {
+    demo: {
+      accent: '#D97706',
+      glow: 'rgba(217, 119, 6, 0.16)',
+    },
+    browser: {
+      accent: '#2563EB',
+      glow: 'rgba(37, 99, 235, 0.15)',
+    },
+    desktop: {
+      accent: '#9333EA',
+      glow: 'rgba(147, 51, 234, 0.15)',
+    },
+    'source-build': {
+      accent: '#475569',
+      glow: 'rgba(71, 85, 105, 0.16)',
+    },
+  };
+  const { accent, glow } = accents[tone];
+  return {
+    '--product-card-accent': accent,
+    '--product-card-glow': glow,
+    '--product-card-pointer-x': '50%',
+    '--product-card-pointer-y': '50%',
+  } as CSSProperties;
 }
 
 function publicPath(path: string) {
@@ -694,6 +717,57 @@ function preloadLandingScreenshot(src: string) {
   image.src = src;
 }
 
+function useDocumentVisible() {
+  const [isVisible, setIsVisible] = useState(() => document.visibilityState !== 'hidden');
+
+  useEffect(() => {
+    const handleVisibilityChange = () => setIsVisible(document.visibilityState !== 'hidden');
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
+  return isVisible;
+}
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(true);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mediaQuery) {
+      setPrefersReducedMotion(false);
+      return undefined;
+    }
+
+    const handleChange = () => setPrefersReducedMotion(mediaQuery.matches);
+    handleChange();
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function useElementVisible<T extends Element>() {
+  const elementRef = useRef<T | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
+
+  useEffect(() => {
+    const element = elementRef.current;
+    if (!element || !('IntersectionObserver' in window)) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsVisible(Boolean(entry?.isIntersecting));
+    }, { rootMargin: '160px 0px', threshold: 0.08 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return [elementRef, isVisible] as const;
+}
+
 async function writeClipboardText(text: string) {
   const textarea = document.createElement('textarea');
   textarea.value = text;
@@ -849,13 +923,16 @@ function HomeRoute() {
           ))}
         </section>
         <ReleasesSection language={language} />
-        <section id="build-from-source" className="w-full max-w-full scroll-mt-20 border-t border-border/70 py-14">
+        <section id="build-from-source" className="w-full max-w-full scroll-mt-20 border-t border-border/70 py-14 [contain-intrinsic-size:auto_48rem] [content-visibility:auto]">
           <div className="mx-4 grid min-w-0 max-w-full gap-6 overflow-hidden rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel sm:mx-8 xl:mx-12">
             <div className="min-w-0">
               <p className={cn('text-xs font-semibold text-muted-foreground', language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.16em]')}>{landingText(language, 'Advanced users')}</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-normal">{landingText(language, 'Build From Source')}</h2>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-mac-from-source.sh</code> {landingText(language, 'on macOS.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
+                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-from-source.sh</code> {landingText(language, 'for your platform.')} {landingText(language, 'It detects your computer and installs')} {landingText(language, 'build dependencies before packaging banji.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
+              </p>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
+                {landingText(language, 'To choose a native build explicitly, pass a platform flag such as')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">./scripts/build-from-source.sh --platform=linux-x64</code>.
               </p>
               <ul className="mt-4 grid gap-2 text-sm leading-6 text-muted-foreground">
                 <li className="flex gap-3">
@@ -877,26 +954,36 @@ function HomeRoute() {
 }
 
 function WorkshopIllustration({ language }: { language: AppLanguage }) {
+  const [frameRef, isFrameVisible] = useElementVisible<HTMLDivElement>();
+  const isDocumentVisible = useDocumentVisible();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [activeSlide, setActiveSlide] = useState(0);
   const activeSlideItem = screenshotSlides[activeSlide] ?? screenshotSlides[0]!;
+  const shouldAdvanceSlides = isFrameVisible && isDocumentVisible && !prefersReducedMotion;
 
   useEffect(() => {
+    if (!shouldAdvanceSlides) {
+      return undefined;
+    }
     const intervalId = window.setInterval(() => {
       setActiveSlide((current) => (current + 1) % screenshotSlides.length);
     }, 4500);
     return () => window.clearInterval(intervalId);
-  }, []);
+  }, [shouldAdvanceSlides]);
 
   useEffect(() => {
+    if (!shouldAdvanceSlides) {
+      return undefined;
+    }
     const nextSlide = screenshotSlides[(activeSlide + 1) % screenshotSlides.length];
     if (!nextSlide) {
       return undefined;
     }
     return scheduleIdle(() => preloadLandingScreenshot(nextSlide.image));
-  }, [activeSlide]);
+  }, [activeSlide, shouldAdvanceSlides]);
 
   return (
-    <div className="relative overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
+    <div ref={frameRef} className="relative overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
       <div className="absolute inset-0 paper-grid opacity-45" aria-hidden="true" />
       <div className="relative grid gap-3">
         <div className="relative aspect-[3456/1992] overflow-hidden rounded-[1.05rem] shadow-float ring-1 ring-border/50">
@@ -1058,7 +1145,7 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
       : `${platformDescription}${downloadState.releaseName ? ` from ${downloadState.releaseName}` : ''}.`;
 
   return (
-    <section ref={sectionRef} id="releases" className="w-screen max-w-full border-t border-border/70 px-4 py-12 sm:px-8 xl:px-12">
+    <section ref={sectionRef} id="releases" className="w-screen max-w-full border-t border-border/70 px-4 py-12 [contain-intrinsic-size:auto_42rem] [content-visibility:auto] sm:px-8 xl:px-12">
       <div className="grid gap-6 rounded-[1.35rem] border border-border/70 bg-card/70 p-6 shadow-panel">
         <div>
           <p className={cn('text-xs font-semibold text-muted-foreground', language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.16em]')}>{landingText(language, 'Releases')}</p>
@@ -1125,7 +1212,6 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
 function ProductCard({ language, tier }: { language: AppLanguage; tier: ProductTier }) {
   const {
     action,
-    actionLines,
     benefits,
     drawbacks,
     href,
@@ -1139,18 +1225,26 @@ function ProductCard({ language, tier }: { language: AppLanguage; tier: ProductT
     ...sharedProductBenefits,
     ...benefits,
   ];
-  const actionButtonClassName = 'inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 rounded-xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-xs transition-colors hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70';
+  const actionButtonClassName = 'group/action relative isolate inline-flex min-h-12 w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-xl border border-white/80 bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-xs transition-[border-color,box-shadow,color] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_var(--product-card-pointer-x,50%)_var(--product-card-pointer-y,50%),var(--product-card-glow),transparent_58%)] before:opacity-0 before:content-[\'\'] hover:border-[color:var(--product-card-accent)] hover:bg-white focus-visible:border-[color:var(--product-card-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70 motion-safe:before:transition-opacity motion-safe:hover:before:opacity-100 motion-safe:focus-visible:before:opacity-100';
   const actionButtonContent = (
     <>
-      <span className="hidden min-w-0 text-balance leading-5 xl:inline">{landingText(language, action)}</span>
-      <span className="grid min-w-0 justify-items-center leading-5 xl:hidden" aria-hidden="true">
-        {actionLines.map((line) => (
-          <span key={line}>{landingText(language, line)}</span>
-        ))}
-      </span>
-      <ActionContinueIcon className="size-4 shrink-0" />
+      <span className="relative z-10 min-w-0 max-w-full text-center leading-5 sm:whitespace-nowrap">{landingText(language, action)}</span>
+      <ActionContinueIcon className="relative z-10 size-4 shrink-0 motion-safe:transition-transform motion-safe:duration-200 motion-safe:group-hover/action:translate-x-1 motion-safe:group-focus-visible/action:translate-x-1" />
     </>
   );
+  function updatePointerPosition(event: PointerEvent<HTMLElement>) {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const pointerX = ((event.clientX - bounds.left) / bounds.width) * 100;
+    const pointerY = ((event.clientY - bounds.top) / bounds.height) * 100;
+    event.currentTarget.style.setProperty('--product-card-pointer-x', `${pointerX.toFixed(2)}%`);
+    event.currentTarget.style.setProperty('--product-card-pointer-y', `${pointerY.toFixed(2)}%`);
+  }
+
+  function resetPointerPosition(event: PointerEvent<HTMLElement>) {
+    event.currentTarget.style.setProperty('--product-card-pointer-x', '50%');
+    event.currentTarget.style.setProperty('--product-card-pointer-y', '50%');
+  }
+
   const actionButton = href.startsWith('#') ? (
     <a
       aria-label={landingText(language, action)}
@@ -1166,50 +1260,52 @@ function ProductCard({ language, tier }: { language: AppLanguage; tier: ProductT
     </a>
   );
   const content = (
-    <>
-      <LiquidGridCardLayer />
-      <div className="relative z-10 flex h-full flex-col gap-4 p-5 text-center xl:p-6">
-        <div className="grid h-12 place-items-center text-foreground">
-          <MainIcon aria-hidden="true" className="size-10 text-current" strokeWidth={1.8} />
-        </div>
-        <div className="grid min-h-[4.25rem] content-start gap-2">
-          <h2 className="text-xl font-semibold leading-7 text-foreground">{landingText(language, title)}</h2>
-          <p className="text-sm font-semibold leading-5 text-muted-foreground">{landingText(language, summary)}</p>
-        </div>
-        {actionButton}
-        <div className="w-full text-left md:min-h-[13.75rem] xl:min-h-[14.75rem]">
-          <p className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">{landingText(language, includes ?? 'What you get:')}</p>
-          <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
-            {benefitsWithPromise.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex min-w-0 items-start gap-3">
-                <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
-                <span className="min-w-0 break-words font-medium">{landingText(language, label)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="w-full border-t border-white/70 pt-4 text-left">
-          <p className="text-sm font-semibold leading-5 text-muted-foreground">{landingText(language, 'Keep in mind:')}</p>
-          <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
-            {drawbacks.map(({ icon: Icon, label }) => (
-              <li key={label} className="flex min-w-0 items-start gap-3">
-                <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
-                <span className="min-w-0 break-words font-medium">{landingText(language, label)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+    <div className="relative z-10 flex h-full flex-col gap-4 p-5 text-center xl:p-6">
+      <div className="grid h-12 place-items-center text-foreground">
+        <MainIcon aria-hidden="true" className="size-10 text-current" strokeWidth={1.8} />
       </div>
-    </>
+      <div className="grid min-h-[4.25rem] content-start gap-2">
+        <h2 className="text-xl font-semibold leading-7 text-foreground">{landingText(language, title)}</h2>
+        <p className="text-sm font-semibold leading-5 text-muted-foreground">{landingText(language, summary)}</p>
+      </div>
+      {actionButton}
+      <div className="w-full text-left md:min-h-[13.75rem] xl:min-h-[14.75rem]">
+        <p className="min-h-6 text-sm font-semibold leading-6 text-muted-foreground md:min-h-12 xl:min-h-6">{landingText(language, includes ?? 'What you get:')}</p>
+        <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
+          {benefitsWithPromise.map(({ icon: Icon, label }) => (
+            <li key={label} className="flex min-w-0 items-start gap-3">
+              <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
+              <span className="min-w-0 break-words font-medium">{landingText(language, label)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="w-full border-t border-white/70 pt-4 text-left">
+        <p className="text-sm font-semibold leading-5 text-muted-foreground">{landingText(language, 'Keep in mind:')}</p>
+        <ul className="mt-3 grid gap-3 text-sm leading-5 text-muted-foreground">
+          {drawbacks.map(({ icon: Icon, label }) => (
+            <li key={label} className="flex min-w-0 items-start gap-3">
+              <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-current" />
+              <span className="min-w-0 break-words font-medium">{landingText(language, label)}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 
   const className = cn(
-    'liquid-grid-card-frame group relative block h-full min-h-0 min-w-0 overflow-hidden rounded-[1.15rem] border shadow-[0_16px_36px_rgba(48,31,20,0.08)] transition-[border-color,box-shadow,transform] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-white/7 before:backdrop-blur-xl before:content-[\'\'] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(1.15rem-1px)] after:bg-[linear-gradient(135deg,rgba(255,255,255,0.24),rgba(255,255,255,0.06)_42%,rgba(255,255,255,0.16))] after:mix-blend-screen after:content-[\'\'] hover:-translate-y-0.5 hover:border-foreground/30 hover:shadow-[0_22px_48px_rgba(48,31,20,0.12)]',
+    'liquid-grid-card-frame group relative block h-full min-h-0 min-w-0 overflow-hidden rounded-[1.15rem] border shadow-[0_16px_36px_rgba(48,31,20,0.08)] transition-[border-color,box-shadow] duration-200 before:pointer-events-none before:absolute before:inset-0 before:bg-white/12 before:content-[\'\'] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(1.15rem-1px)] after:bg-[radial-gradient(circle_at_var(--product-card-pointer-x,50%)_var(--product-card-pointer-y,50%),var(--product-card-glow),rgba(255,255,255,0.08)_42%,rgba(255,255,255,0.20))] after:content-[\'\'] hover:z-10 hover:border-[color:var(--product-card-accent)] hover:shadow-[0_24px_54px_rgba(48,31,20,0.14)] focus-within:z-10 focus-within:border-[color:var(--product-card-accent)] focus-within:shadow-[0_24px_54px_rgba(48,31,20,0.14)] motion-safe:transition-[border-color,box-shadow,transform] motion-safe:hover:scale-[1.015] motion-safe:focus-within:scale-[1.015]',
     productCardSurfaceClassName(tone),
   );
 
   return (
-    <article className={className}>
+    <article
+      className={className}
+      style={productCardInteractionStyle(tone)}
+      onPointerLeave={resetPointerPosition}
+      onPointerMove={updatePointerPosition}
+    >
       {content}
     </article>
   );
@@ -1245,7 +1341,7 @@ function SourceBuildSnippet() {
       <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-4 py-3">
         <span className="inline-flex items-center gap-2 font-sans text-sm font-semibold text-background">
           <Code2 className="size-4" />
-          Bash
+          Shell
         </span>
         <button
           aria-label={copyLabel}
