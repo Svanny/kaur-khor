@@ -1,10 +1,10 @@
 # Automation Workspace
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 ## Purpose
 
-banji's automation workspace is the channel-facing staging layer for customer
+Kaur Khor's automation workspace is the channel-facing staging layer for customer
 intake. It currently targets Telegram and lets the operator:
 
 - connect or pause the Telegram bot transport
@@ -25,28 +25,28 @@ actions. Turning the switch back on resumes the poll loop.
 
 Runtime and storage:
 
-- [`src/main/automation-store.ts`](/Users/svanny/banji/src/main/automation-store.ts):
+- [`src/main/automation-store.ts`](../../src/main/automation-store.ts):
   persisted JSON store, intake staging, wizard session state, promotion helpers
-- [`src/main/automation-telegram.ts`](/Users/svanny/banji/src/main/automation-telegram.ts):
+- [`src/main/automation-telegram.ts`](../../src/main/automation-telegram.ts):
   Telegram transport orchestration, bot commands, callbacks, notifications, and
   connection tests
-- [`src/main/telegram-bot-api.ts`](/Users/svanny/banji/src/main/telegram-bot-api.ts):
+- [`src/main/telegram-bot-api.ts`](../../src/main/telegram-bot-api.ts):
   typed Telegram API client
-- [`src/main/desktop-image.ts`](/Users/svanny/banji/src/main/desktop-image.ts):
+- [`src/main/desktop-image.ts`](../../src/main/desktop-image.ts):
   local image lookup for exposed SKU and service images
-- [`src/main/window-activation.ts`](/Users/svanny/banji/src/main/window-activation.ts):
+- [`src/main/window-activation.ts`](../../src/main/window-activation.ts):
   desktop window activation helper for operator-facing follow-up
 
 Renderer and shared contracts:
 
-- [`src/renderer/src/routes/automations.tsx`](/Users/svanny/banji/src/renderer/src/routes/automations.tsx):
+- [`src/renderer/src/routes/automations.tsx`](../../src/renderer/src/routes/automations.tsx):
   shared automation section implementation used by Inbox intake, Catalog
   exposure, and Settings connection surfaces
-- [`src/renderer/src/routes/automations/view-model.ts`](/Users/svanny/banji/src/renderer/src/routes/automations/view-model.ts):
+- [`src/renderer/src/routes/automations/view-model.ts`](../../src/renderer/src/routes/automations/view-model.ts):
   derived overview, intake, and exception rows
-- [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts):
+- [`src/shared/ipc.ts`](../../src/shared/ipc.ts):
   preload/main IPC contract for automation actions
-- [`src/shared/automation-sellables.ts`](/Users/svanny/banji/src/shared/automation-sellables.ts):
+- [`src/shared/automation-sellables.ts`](../../src/shared/automation-sellables.ts):
   sellable eligibility rules for exposure rows
 
 ## Canonical UI Placement
@@ -140,7 +140,7 @@ Promotion is the boundary between channel staging and operational history.
 
 When an intake is promoted:
 
-- banji prepares ticket and commercial events from the intake lines
+- Kaur Khor prepares ticket and commercial events from the intake lines
 - the intake is updated with the promoted ticket id and status
 - the operational write lands in the main SENA workspace, not only in the JSON
   automation store
@@ -149,7 +149,7 @@ When an intake is promoted:
   recent activity reflect the promoted ticket without a full app reload
 
 If you change how intake rows turn into ticket events, update this page and
-[`docs/development/ticketing-architecture.md`](/Users/svanny/banji/docs/development/ticketing-architecture.md)
+[`docs/development/ticketing-architecture.md`](ticketing-architecture.md)
 together.
 
 ## Verification

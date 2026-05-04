@@ -16,7 +16,7 @@ When the existing product app is mounted from `/demo` or `/app`, it is wrapped i
 
 ## Runtime boundary
 
-Do not expose Electron or Node APIs in the browser renderer. Browser runtime code must provide a `window.banjiDesktop`-compatible bridge before mounting the existing app.
+Do not expose Electron or Node APIs in the browser renderer. Browser runtime code must provide a `window.kaurKhorDesktop`-compatible bridge before mounting the existing app.
 
 The demo path may use the seeded browser mock bridge. The real browser app path must require supported browser persistence. If SQLite WASM or OPFS initialization fails, show an unsupported state rather than falling back to weaker storage for real data.
 
@@ -28,7 +28,7 @@ GitHub Pages does not provide custom COOP/COEP headers for this site, so browser
 
 Browser data is not the same as desktop app data. Clearing site data, browser profile data, or private browsing sessions can remove browser data.
 
-After `/app` has opened durable storage, it triggers the browser's native leave-site warning before tab close or reload. The browser controls the native prompt text. The in-app banner carries banji's exact warning copy and always directs the operator to export a backup before closing. Telegram-specific close warning text appears only when the browser bridge has a connected Telegram bot token.
+After `/app` has opened durable storage, it triggers the browser's native leave-site warning before tab close or reload. The browser controls the native prompt text. The in-app banner carries Kaur Khor's exact warning copy and always directs the operator to export a backup before closing. Telegram-specific close warning text appears only when the browser bridge has a connected Telegram bot token.
 
 The backup/import envelope remains a JSON document snapshot for compatibility. On every browser mutation, the storage worker also mirrors active state into structured tables for preferences, catalog, observations, order batches, analysis runs, workspace summary, diagnostics, detail caches, and automation workspace state.
 

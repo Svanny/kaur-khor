@@ -1,9 +1,9 @@
 # Intent-First UI Overhaul
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 This note records the UI refactor guided by
-[`docs/development/user-decision-tree.mmd`](/Users/svanny/banji/docs/development/user-decision-tree.mmd).
+[`docs/development/user-decision-tree.mmd`](user-decision-tree.mmd).
 
 ## Canonical Destinations
 

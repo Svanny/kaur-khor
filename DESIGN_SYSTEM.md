@@ -1,4 +1,4 @@
-# banji Design System
+# Kaur Khor Design System
 
 `src/renderer/src/globals.css` is the active source of truth for the desktop UI theme.
 
@@ -17,9 +17,9 @@
 
 ## Token Sources
 
-- Tokens live in [`src/renderer/src/globals.css`](/Users/svanny/banji/src/renderer/src/globals.css).
-- UI primitives live in [`src/renderer/src/components/ui`](/Users/svanny/banji/src/renderer/src/components/ui).
-- banji-specific reusable compositions live in [`src/renderer/src/components/system`](/Users/svanny/banji/src/renderer/src/components/system).
+- Tokens live in [`src/renderer/src/globals.css`](src/renderer/src/globals.css).
+- UI primitives live in [`src/renderer/src/components/ui`](src/renderer/src/components/ui).
+- Kaur Khor-specific reusable compositions live in [`src/renderer/src/components/system`](src/renderer/src/components/system).
 
 ## System Structure
 

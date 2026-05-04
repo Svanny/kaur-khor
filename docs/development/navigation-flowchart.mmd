@@ -1,4 +1,4 @@
-%% Banji desktop navigation flowchart. This is a control/data-flow diagram, not a timing chart.
+%% Kaur Khor desktop navigation flowchart. This is a control/data-flow diagram, not a timing chart.
 %%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
 flowchart LR
   Start(["Navigation starts"]):::entry
@@ -16,7 +16,7 @@ flowchart LR
 
   subgraph UserNav["Normal user navigation path"]
     UserClick["Sidebar NavLink or command palette action"]:::entry
-    ShellSections["BanjiShell sections<br/>visibility + active matching"]:::process
+    ShellSections["KaurKhorShell sections<br/>visibility + active matching"]:::process
     Availability["deriveNavigationAvailability<br/>workspace-driven gates"]:::process
     SettingsNav["Settings sidebar sections<br/>benchmarks and local data"]:::process
   end
@@ -60,7 +60,7 @@ flowchart LR
   end
 
   subgraph Preload["Preload bridge"]
-    DesktopBridge["window.banjiDesktop"]:::bridge
+    DesktopBridge["window.kaurKhorDesktop"]:::bridge
     InvokeBenchmark["invokeWithBenchmark<br/>records preload.invoke spans"]:::metric
     SenaBridge["sena bridge methods<br/>getSkuDetail, getServiceDetail, getRecordUpdateContext, listOrderBatches"]:::bridge
     AutomationBridge["automation bridge methods<br/>getWorkspace, saveConnection, readConversation, promoteIntake"]:::bridge

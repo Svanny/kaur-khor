@@ -1,6 +1,6 @@
 # Threat Model
 
-Developer docs entrypoint: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 ## Assets
 

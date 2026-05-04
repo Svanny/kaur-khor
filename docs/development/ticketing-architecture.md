@@ -1,10 +1,10 @@
 # Ticketing Architecture
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 ## Contract
 
-Banji removes the legacy batch update system in favor of a ticketing system.
+Kaur Khor removes the legacy batch update system in favor of a ticketing system.
 
 Operational commitments should be represented as ticket-backed events rather
 than as loose grouped order or receipt updates. The older order-batch read model
@@ -27,9 +27,9 @@ Ticket events are carried in `SenaObservationInput.ticketEvents`.
 
 Relevant contracts:
 
-- TypeScript shared shape: [`src/shared/sena.ts`](/Users/svanny/banji/src/shared/sena.ts)
-- Rust SENA shape: [`apps/sena-core/src/types.rs`](/Users/svanny/banji/apps/sena-core/src/types.rs)
-- observation helpers: [`src/renderer/src/routes/observation-payload.ts`](/Users/svanny/banji/src/renderer/src/routes/observation-payload.ts)
+- TypeScript shared shape: [`src/shared/sena.ts`](../../src/shared/sena.ts)
+- Rust SENA shape: [`apps/sena-core/src/types.rs`](../../apps/sena-core/src/types.rs)
+- observation helpers: [`src/renderer/src/routes/observation-payload.ts`](../../src/renderer/src/routes/observation-payload.ts)
 
 Ticket-only updates count as structured observation signals. They must not be
 collapsed into free-form notes, because downstream projections need family,

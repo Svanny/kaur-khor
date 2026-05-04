@@ -23,8 +23,8 @@ Approved flow:
 1. Download only from the official GitHub release.
 2. Verify the checksum when `SHA256SUMS` is available.
 3. Open the DMG.
-4. Drag Banji to Applications if the DMG shows that layout.
-5. `Control`-click or right-click Banji.
+4. Drag Kaur Khor to Applications if the DMG shows that layout.
+5. `Control`-click or right-click Kaur Khor.
 6. Choose `Open`.
 7. Confirm `Open`.
 8. If blocked, open `System Settings` -> `Privacy & Security` -> `Open Anyway`.

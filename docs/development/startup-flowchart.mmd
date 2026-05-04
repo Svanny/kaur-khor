@@ -1,10 +1,10 @@
-%% Banji desktop startup flowchart. This is a control/data-flow diagram, not a timing chart.
+%% Kaur Khor desktop startup flowchart. This is a control/data-flow diagram, not a timing chart.
 %%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 48, "rankSpacing": 56}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
 flowchart LR
   Start(["Process starts"]):::entry
 
   subgraph Bench["Benchmark runner path"]
-    BenchEnabled{"BANJI_BENCHMARK run?"}:::decision
+    BenchEnabled{"KAUR_KHOR_BENCHMARK run?"}:::decision
     NormalizeRun["Normalize scope, fixture size, trace, repeat count"]:::process
     Fixture["Fixture sizes<br/>minimal, medium, heavy, power-user"]:::store
     PowerUser["Power User<br/>10 years, 1 day interval, 3,653 observations"]:::important
@@ -29,7 +29,7 @@ flowchart LR
 
   subgraph Backend["Managed core backend"]
     Writer["Writer core<br/>all mutations and destructive commands"]:::mutation
-    ReadPool["Read-worker pool<br/>BANJI_READ_CORE_POOL_SIZE, clamped 1..8"]:::ipc
+    ReadPool["Read-worker pool<br/>KAUR_KHOR_READ_CORE_POOL_SIZE, clamped 1..8"]:::ipc
     Coalesce["Coalesce identical read-only requests globally"]:::cache
     Generation["Mutation generation bump<br/>discard stale read results"]:::cache
     RouteRead["Route read by interactive or bulk lane<br/>deferred reads wait up to 1s before writer fallback"]:::ipc
@@ -45,7 +45,7 @@ flowchart LR
   end
 
   subgraph Renderer["Renderer startup"]
-    Bridge["Expose window.banjiDesktop"]:::bridge
+    Bridge["Expose window.kaurKhorDesktop"]:::bridge
     GetContext["system.getAppContext"]:::ipc
     MountProviders["Mount preferences and inventory providers"]:::process
     StartupWorkspace["sena.getStartupWorkspace"]:::important

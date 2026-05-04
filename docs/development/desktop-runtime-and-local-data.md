@@ -1,23 +1,23 @@
 # Desktop Runtime and Local Data
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 ## Runtime Layers
 
-banji’s desktop app is split into four layers:
+Kaur Khor’s desktop app is split into four layers:
 
 - `src/main`: Electron main process, desktop boot, IPC handlers, local file paths, backup/restore, runtime lifecycle
-- `src/preload`: preload bridge that exposes `window.banjiDesktop`
+- `src/preload`: preload bridge that exposes `window.kaurKhorDesktop`
 - `src/renderer`: React UI that calls the preload bridge
 - `src/shared`: shared IPC contracts and result types
 
-The canonical IPC shape is defined in [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts).
+The canonical IPC shape is defined in [`src/shared/ipc.ts`](../../src/shared/ipc.ts).
 
 The main process starts and coordinates the bundled desktop runtime, while the renderer talks to that runtime only through the preload bridge and the typed IPC contracts.
 
 ## Local Data Paths
 
-The desktop app reports the current local-data layout through `window.banjiDesktop.system.getLocalDataInfo()`.
+The desktop app reports the current local-data layout through `window.kaurKhorDesktop.system.getLocalDataInfo()`.
 
 Current fields:
 
@@ -36,7 +36,7 @@ Current storage files exposed by the main process:
 - `sena-checkpoints/`: compressed SENA checkpoint payload files referenced by SQLite metadata
 - `backup-snapshots/`: snapshot directories created by the backup system
 
-In development, the app uses `.banji-dev-data` in the repo root. Packaged builds use Electron `userData`.
+In development, the app uses `.kaur-khor-dev-data` in the repo root. Packaged builds use Electron `userData`.
 
 Development boot prefers the generated-history seed path when the repo-local
 workspace is empty or already carries `desktop-sena-dev-history.json`. That
@@ -120,7 +120,7 @@ Work session.
 
 ## Backup Snapshot Model
 
-The backup implementation lives in [`src/main/local-backup.ts`](/Users/svanny/banji/src/main/local-backup.ts).
+The backup implementation lives in [`src/main/local-backup.ts`](../../src/main/local-backup.ts).
 
 Snapshot behavior:
 
@@ -128,7 +128,7 @@ Snapshot behavior:
 - each snapshot is a directory, not a single archive file
 - each snapshot includes the current top-level workspace files/directories plus `snapshot-manifest.json`
 - snapshot names include the timestamp, trigger type, and an optional slugified reason
-- `.tmp` files and internal `.banji-*` scratch paths are excluded from snapshots
+- `.tmp` files and internal `.Kaur Khor-*` scratch paths are excluded from snapshots
 - old snapshots are pruned after the configured maximum count
 
 Manifest fields currently written:
@@ -144,11 +144,11 @@ Manifest fields currently written:
 Two snapshot flows exist today:
 
 - Manual snapshot:
-  triggered from Settings through `window.banjiDesktop.system.createBackupSnapshot()`
+  triggered from Settings through `window.kaurKhorDesktop.system.createBackupSnapshot()`
 - Automatic snapshot:
   triggered in the main process before workspace mutations
 
-When Telegram automation is connected and enabled, quitting the desktop app shows a close warning because listening, intake, and automatic checks stop when the process exits. Before that warning appears, the main process creates an unthrottled automatic snapshot with the reason `before-close-automation`. On the next successful startup, banji keeps the newest close-safety snapshot and removes older close-safety snapshots; normal snapshot pruning still enforces the overall snapshot cap.
+When Telegram automation is connected and enabled, quitting the desktop app shows a close warning because listening, intake, and automatic checks stop when the process exits. Before that warning appears, the main process creates an unthrottled automatic snapshot with the reason `before-close-automation`. On the next successful startup, Kaur Khor keeps the newest close-safety snapshot and removes older close-safety snapshots; normal snapshot pruning still enforces the overall snapshot cap.
 
 Automatic snapshots are currently attempted before these mutations:
 
@@ -190,7 +190,7 @@ Clear-data flow:
 
 ## Renderer Access Points
 
-The renderer uses the `DesktopSystemBridge` contract from [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts).
+The renderer uses the `DesktopSystemBridge` contract from [`src/shared/ipc.ts`](../../src/shared/ipc.ts).
 
 Current system actions:
 
@@ -204,9 +204,9 @@ Current system actions:
 - `pickAndStoreImage()`
 - `storeDroppedImage(payload)`
 
-The main IPC handlers for those actions live in [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts).
+The main IPC handlers for those actions live in [`src/main/index.ts`](../../src/main/index.ts).
 
-The renderer reaches them through `window.banjiDesktop.system`, not through direct Node or filesystem access.
+The renderer reaches them through `window.kaurKhorDesktop.system`, not through direct Node or filesystem access.
 
 `revealPath(path)` is constrained to approved local data roots. `openExternalUrl(url)`
 normalizes and allow-lists external schemes before handing the URL to Electron,
@@ -232,11 +232,11 @@ relative traversal, URLs, and symlink escapes outside that directory are rejecte
 before the Telegram API client can read file bytes.
 
 The automation workspace uses the `DesktopAutomationBridge` contract from
-[`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) and reaches it
-through `window.banjiDesktop.automation`.
+[`src/shared/ipc.ts`](../../src/shared/ipc.ts) and reaches it
+through `window.kaurKhorDesktop.automation`.
 
 The operator-facing route and Telegram workflow details are documented in
-[Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md).
+[Automation workspace](automation-workspace.md).
 
 Current automation actions:
 
@@ -255,9 +255,9 @@ Current automation actions:
 
 ## Contributor Notes
 
-- If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-backup.test.ts`](/Users/svanny/banji/src/main/local-backup.test.ts).
+- If you change backup eligibility or snapshot contents, update this page and the related tests in [`src/main/local-backup.test.ts`](../../src/main/local-backup.test.ts).
 - If you change external URL, local path, or navigation guard policy, update
-  this page and the related tests in [`src/main/platform-security.test.ts`](/Users/svanny/banji/src/main/platform-security.test.ts).
-- If you add or rename IPC fields, update [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) first and keep renderer/main behavior aligned.
-- If you change automation persistence shape or bridge methods, update this page and keep [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts), [`src/preload/index.ts`](/Users/svanny/banji/src/preload/index.ts), and [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts) aligned.
+  this page and the related tests in [`src/main/platform-security.test.ts`](../../src/main/platform-security.test.ts).
+- If you add or rename IPC fields, update [`src/shared/ipc.ts`](../../src/shared/ipc.ts) first and keep renderer/main behavior aligned.
+- If you change automation persistence shape or bridge methods, update this page and keep [`src/main/index.ts`](../../src/main/index.ts), [`src/preload/index.ts`](../../src/preload/index.ts), and [`src/shared/ipc.ts`](../../src/shared/ipc.ts) aligned.
 - If a workspace mutation becomes destructive or high-risk, prefer routing it through the existing automatic snapshot path instead of inventing a separate safety mechanism.

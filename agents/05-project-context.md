@@ -2,13 +2,13 @@
 
 ## 10. Project context
 
-**banji is a desktop-first, local-first Electron inventory workspace with a React renderer and bundled Rust analysis/runtime crates.**
+**Kaur Khor is a desktop-first, local-first Electron inventory workspace with a React renderer and bundled Rust analysis/runtime crates.**
 
 ### Stack
 - Language and version: TypeScript targeting ES2022, React 19, Rust 2021 edition.
 - Framework(s): Electron 30 via `electron-vite`, Vite 7, React Router 7, Tailwind CSS 4, shadcn-style UI components with Radix primitives.
 - Package manager: `pnpm` 10.32.1, recorded in `package.json`.
-- Runtime / deployment target: local desktop app for macOS, Windows, and Linux. Development data lives in `.banji-dev-data`; packaged builds use Electron `userData`.
+- Runtime / deployment target: local desktop app for macOS, Windows, and Linux. Development data lives in `.kaur-khor-dev-data`; packaged builds use Electron `userData`.
 
 ### Commands
 - Install: `pnpm install`
@@ -19,7 +19,7 @@
 - Test (Rust desktop runtime): `cargo test --manifest-path apps/desktop-core/Cargo.toml`
 - Test (Rust SENA engine): `cargo test --manifest-path apps/sena-core/Cargo.toml`
 - Startup benchmark: `pnpm bench:startup`
-- Power User startup benchmark: `BANJI_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup`
+- Power User startup benchmark: `KAUR_KHOR_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup`
 - Navigation benchmark: `pnpm bench:navigation`
 - Overview benchmark: `pnpm bench:overview`
 - Automations benchmark: `pnpm bench:automations`
@@ -40,7 +40,7 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - `src/renderer/src`: React app, routes, state, components, hooks, dev bridge, assets, and test setup.
 - `src/renderer/src/routes`: route-level product surfaces, including overview, dashboard, record update, performance, financials, SKU/service detail, settings, and help.
 - `src/renderer/src/components/ui`: shadcn/Radix-style UI primitives.
-- `src/renderer/src/components/system`: banji-specific reusable product components.
+- `src/renderer/src/components/system`: Kaur Khor-specific reusable product components.
 - `src/renderer/src/lib`: renderer business logic, formatting, validation, command palette, catalog helpers, SENA adapters, export helpers, and navigation helpers.
 - `src/shared`: IPC contracts and shared TypeScript data types.
 - `src/icons`: shared icon wrappers and native icon boundaries.
@@ -51,7 +51,7 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - `tool/security`: security gate scripts and platform hardening checks.
 - `scripts`: packaging, benchmark, tree-refresh, data-generation, and icon-build helpers.
 - Tests live next to source as `*.test.ts` or `*.test.tsx`; Rust integration tests live under `apps/desktop-core/tests`.
-- Do not modify generated or local-output paths unless the task explicitly requires it: `node_modules`, `out`, `build`, `release`, `bench-results`, `.banji-dev-data`, `.pnpm-store`, `.playwright-cli`, `apps/*/target`, `*.tsbuildinfo`, `tree.txt`, `tree_dir.txt`, `src/renderer/src/routes/*.bak.*`.
+- Do not modify generated or local-output paths unless the task explicitly requires it: `node_modules`, `out`, `build`, `release`, `bench-results`, `.kaur-khor-dev-data`, `.pnpm-store`, `.playwright-cli`, `apps/*/target`, `*.tsbuildinfo`, `tree.txt`, `tree_dir.txt`, `src/renderer/src/routes/*.bak.*`.
 
 ### Conventions specific to this repo
 - Import style: use configured aliases where they already fit: `@/` and `@renderer/` for renderer code, `@shared/` for shared IPC/types, `@icons/` for icon modules. Main/preload code only has `@shared/` and `@icons/`.
@@ -76,7 +76,7 @@ Prefer single-file or single-test runs during iteration. Full suites are for the
 - Benchmark fixtures are `minimal`, `medium`, `heavy`, and `power-user`; Power User means 10 years, 1 day interval, 3,653 observations.
 
 ### Ticketing architecture
-- Banji removes the legacy batch update system in favor of ticket-backed operations. New customer orders, supplier orders, receipts, and adjustments must write ticket events with stable ticket identity instead of only grouped batch aggregates.
+- Kaur Khor removes the legacy batch update system in favor of ticket-backed operations. New customer orders, supplier orders, receipts, and adjustments must write ticket events with stable ticket identity instead of only grouped batch aggregates.
 - Supplier receipt is not a separate primary Record Update wizard. Receipt capture belongs inside Supplier order updates against an existing supplier ticket.
 - Customer and supplier order wizards must ask whether the operator is creating a new ticket or editing/updating an existing ticket before continuing.
 - Customer channel, name, and phone live in the Record Update notes section for UI placement, but must still be stored as structured ticket party metadata. Normalize channel/name/phone lookup keys case-insensitively.

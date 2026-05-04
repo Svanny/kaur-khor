@@ -1,10 +1,10 @@
 # Contributor Quickstart
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
-## What banji Is
+## What Kaur Khor Is
 
-banji is a desktop-first Electron app for local inventory work. The primary development loop is a local Electron shell, a React renderer, and a bundled Rust desktop runtime that persists workspace data on-device.
+Kaur Khor is a desktop-first Electron app for local inventory work. The primary development loop is a local Electron shell, a React renderer, and a bundled Rust desktop runtime that persists workspace data on-device.
 
 ## Environment Setup
 
@@ -56,12 +56,12 @@ The paths that matter most during normal contributor work:
 
 ## Day-One Reading Order
 
-1. [Desktop runtime and local data](/Users/svanny/banji/docs/development/desktop-runtime-and-local-data.md)
-2. [Automation workspace](/Users/svanny/banji/docs/development/automation-workspace.md)
-3. [Analysis workspace and exports](/Users/svanny/banji/docs/development/analysis-workspace-and-exports.md)
-4. [UI design system](/Users/svanny/banji/docs/development/ui-design-system.md)
-5. [Security standards](/Users/svanny/banji/docs/security/SECURITY_STANDARDS.md)
-6. [User guide](/Users/svanny/banji/docs/user-guide.md)
+1. [Desktop runtime and local data](desktop-runtime-and-local-data.md)
+2. [Automation workspace](automation-workspace.md)
+3. [Analysis workspace and exports](analysis-workspace-and-exports.md)
+4. [UI design system](ui-design-system.md)
+5. [Security standards](../security/SECURITY_STANDARDS.md)
+6. [User guide](../user-guide.md)
 
 ## Typical Change Paths
 

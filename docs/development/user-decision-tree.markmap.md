@@ -1,14 +1,14 @@
 ---
-title: Banji User Decision Tree
+title: Kaur Khor User Decision Tree
 markmap:
   colorFreezeLevel: 3
   duration: 250
   initialExpandLevel: 2
 ---
 
-# Banji User Decision Tree
+# Kaur Khor User Decision Tree
 
-## User opens banji
+## User opens Kaur Khor
 
 ### What is the user trying to decide or do?
 

@@ -1,4 +1,4 @@
-%% Banji desktop startup architecture and readiness sequence.
+%% Kaur Khor desktop startup architecture and readiness sequence.
 sequenceDiagram
   autonumber
   participant Bench as Benchmark runner
@@ -31,7 +31,7 @@ sequenceDiagram
   Main->>Renderer: load renderer URL or index.html
   Main->>Metrics: snapshot main.boot.ready
 
-  Preload->>Renderer: expose window.banjiDesktop
+  Preload->>Renderer: expose window.kaurKhorDesktop
   Preload->>Metrics: record preload.bridge.exposed
   Renderer->>Preload: system.getAppContext
   Preload->>Main: IPC system.getAppContext

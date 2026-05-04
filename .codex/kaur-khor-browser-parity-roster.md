@@ -1,4 +1,4 @@
-# Banji Browser Parity Agent Roster
+# Kaur Khor Browser Parity Agent Roster
 
 Task: Single-threaded SENA WASM + while-tab browser automation parity.
 

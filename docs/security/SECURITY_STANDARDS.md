@@ -1,10 +1,10 @@
-# banji Security Standards (Electron + OWASP ASVS)
+# Kaur Khor Security Standards (Electron + OWASP ASVS)
 
-Developer docs entrypoint: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Developer docs entrypoint: [Kaur Khor developer docs](../README.md)
 
 ## Purpose
 
-This document defines the mandatory secure-by-default controls for the banji local Electron app.
+This document defines the mandatory secure-by-default controls for the Kaur Khor local Electron app.
 
 ## Mandatory Controls
 
@@ -21,13 +21,13 @@ This document defines the mandatory secure-by-default controls for the banji loc
   exponent and hexadecimal literals unless the UI explicitly models them.
 - CSV exports must neutralize spreadsheet formula-leading cells before writing
   user-controlled values.
-- Source of truth: [`src/renderer/src/lib/validation.ts`](/Users/svanny/banji/src/renderer/src/lib/validation.ts)
+- Source of truth: [`src/renderer/src/lib/validation.ts`](../../src/renderer/src/lib/validation.ts)
 
 ### 2) Identifier Security
 
 - Externally visible SKU and service IDs must be opaque and non-predictable.
 - Timestamp-derived IDs are prohibited for user-facing resources.
-- Source of truth: [`src/renderer/src/lib/ids.ts`](/Users/svanny/banji/src/renderer/src/lib/ids.ts)
+- Source of truth: [`src/renderer/src/lib/ids.ts`](../../src/renderer/src/lib/ids.ts)
 
 ### 3) Secret Handling
 
@@ -58,6 +58,6 @@ This document defines the mandatory secure-by-default controls for the banji loc
 ## Enforcement
 
 Run:
-- `bash /Users/svanny/banji/tool/security/run_security_checks.sh`
+- `bash ../../tool/security/run_security_checks.sh`
 
 Any finding fails the security gate.

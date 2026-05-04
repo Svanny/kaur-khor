@@ -1,17 +1,17 @@
 # Analysis Workspace and Exports
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 ## SENA in the Desktop App
 
-banji uses SENA as the local analysis engine. The Electron app asks the managed Rust runtime for catalog state, observations, workspace summaries, diagnostics, and run results, then renders those results in the React UI.
+Kaur Khor uses SENA as the local analysis engine. The Electron app asks the managed Rust runtime for catalog state, observations, workspace summaries, diagnostics, and run results, then renders those results in the React UI.
 
 Relevant code paths:
 
 - renderer routes and UI: `src/renderer/src/routes`
-- settings export helpers: [`src/renderer/src/lib/settings-workspace-actions.ts`](/Users/svanny/banji/src/renderer/src/lib/settings-workspace-actions.ts)
-- main-process runtime orchestration: [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts)
-- shared type contracts: [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts)
+- settings export helpers: [`src/renderer/src/lib/settings-workspace-actions.ts`](../../src/renderer/src/lib/settings-workspace-actions.ts)
+- main-process runtime orchestration: [`src/main/index.ts`](../../src/main/index.ts)
+- shared type contracts: [`src/shared/ipc.ts`](../../src/shared/ipc.ts)
 - desktop runtime: `apps/desktop-core`
 - Rust analysis engine: `apps/sena-core`
 
@@ -101,9 +101,9 @@ The Settings route is the main contributor-facing screen for workspace-level mai
 - clear-current-data action
 - log export and planning-data export
 
-The route implementation lives in [`src/renderer/src/routes/settings.tsx`](/Users/svanny/banji/src/renderer/src/routes/settings.tsx).
+The route implementation lives in [`src/renderer/src/routes/settings.tsx`](../../src/renderer/src/routes/settings.tsx).
 
-The route reaches runtime and filesystem-affecting actions through `window.banjiDesktop`, with the bridge shape defined in [`src/shared/ipc.ts`](/Users/svanny/banji/src/shared/ipc.ts).
+The route reaches runtime and filesystem-affecting actions through `window.kaurKhorDesktop`, with the bridge shape defined in [`src/shared/ipc.ts`](../../src/shared/ipc.ts).
 
 ## Exported Data
 
@@ -120,7 +120,7 @@ Supported export formats:
 
 ### Logs Export
 
-The logs export serializes observation records from `window.banjiDesktop.sena.listObservations()` and writes a timestamped file named like `banji-logs-<timestamp>.<ext>`.
+The logs export serializes observation records from `window.kaurKhorDesktop.sena.listObservations()` and writes a timestamped file named like `Kaur Khor-logs-<timestamp>.<ext>`.
 
 `listObservations()` is used here because export needs the full log. It should
 not be copied into startup or route-first-render paths.
@@ -157,4 +157,4 @@ formulas when opened in spreadsheet tools.
 
 - If you change the exported sections or field names, update this page and the related Settings tests.
 - If you add a new SENA maintenance action, prefer keeping it in `settings-workspace-actions.ts` when the logic is shared between the route and the command palette.
-- If you change a write path that should invalidate analysis reads, update the main-process cache invalidation flow in [`src/main/index.ts`](/Users/svanny/banji/src/main/index.ts).
+- If you change a write path that should invalidate analysis reads, update the main-process cache invalidation flow in [`src/main/index.ts`](../../src/main/index.ts).

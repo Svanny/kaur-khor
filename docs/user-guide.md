@@ -1,10 +1,10 @@
-# banji User Guide
+# Kaur Khor User Guide
 
-banji is a local-first desktop inventory workspace. It helps an operator keep a catalog, capture real-world changes, review what needs action, and inspect operational signals without leaving the app.
+Kaur Khor is a local-first desktop inventory workspace. It helps an operator keep a catalog, capture real-world changes, review what needs action, and inspect operational signals without leaving the app.
 
 ## Table of Contents
 
-- [What banji Is For](#what-banji-is-for)
+- [What Kaur Khor Is For](#what-kaur-khor-is-for)
 - [Daily Workflow](#daily-workflow)
 - [Navigation](#navigation)
 - [Home](#home)
@@ -24,9 +24,9 @@ banji is a local-first desktop inventory workspace. It helps an operator keep a 
 - [Glossary](#glossary)
 - [FAQ](#faq)
 
-## What banji Is For
+## What Kaur Khor Is For
 
-banji is for teams that want a practical inventory command app on one machine. It is meant for:
+Kaur Khor is for teams that want a practical inventory command app on one machine. It is meant for:
 
 - keeping active and archived SKU/service records
 - capturing stock counts, customer orders, sales, supplier orders, receipts, and custom updates
@@ -34,13 +34,13 @@ banji is for teams that want a practical inventory command app on one machine. I
 - understanding demand, capacity, money, and explanation signals from saved local data
 - preserving update history without sending the workspace to a hosted back office
 
-banji is not a full ERP, accounting system, or blank workflow builder.
+Kaur Khor is not a full ERP, accounting system, or blank workflow builder.
 
-banji automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app present the product workspace in a landscape-first shell so dense controls stay usable.
+Kaur Khor automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app present the product workspace in a landscape-first shell so dense controls stay usable.
 
 ## Daily Workflow
 
-Most operators should use banji in this order:
+Most operators should use Kaur Khor in this order:
 
 1. Start on **Home**.
 2. Open **Work** to review queue, capture, and intake work.
@@ -80,7 +80,7 @@ Home is the first screen. It is a quiet command surface with up to four primary 
 - **Open Catalog**
 - **Open Insights**
 
-The available actions sit in a centered command grid, matching the Capture hub layout. When three actions are visible, Home keeps them in one row instead of leaving an empty fourth slot. banji hides unavailable actions instead of showing disabled cards.
+The available actions sit in a centered command grid, matching the Capture hub layout. When three actions are visible, Home keeps them in one row instead of leaving an empty fourth slot. Kaur Khor hides unavailable actions instead of showing disabled cards.
 
 Use Home when you are not sure where to begin. It points you toward the next practical operator action without exposing backend or analysis jargon.
 
@@ -96,7 +96,7 @@ Queue is the decision surface for supplier and customer work. It is where operat
 
 Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Catalog detail, Pressure, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
 
-For ticket-backed lanes, banji opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
+For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
 
 ### Delivery Fee {#record-update-delivery-fee}
 
@@ -111,7 +111,7 @@ Notes capture operator context that structured fields cannot express. They are u
 Observed at is the timestamp for when the real-world event happened. It can differ from the time you enter it. Use the actual event time when backfilling counts, receipts, or orders so timelines and analysis intervals stay accurate.
 
 Supplier expected-arrival and receipt dates are calendar dates. When you edit a
-legacy supplier order or receipt, banji keeps the selected calendar day stable
+legacy supplier order or receipt, Kaur Khor keeps the selected calendar day stable
 instead of shifting it through UTC conversion.
 
 ### Ranking Details {#record-update-ranking-details}
@@ -120,7 +120,7 @@ Ranking details explain an optional ordered list, such as top services or retail
 
 ### Rankings {#record-update-rankings}
 
-Rankings let you record which services or products were most relevant in the update. They help banji learn demand patterns when exact quantities are incomplete. Use them for directional evidence, then rely on counts and tickets for precise units.
+Rankings let you record which services or products were most relevant in the update. They help Kaur Khor learn demand patterns when exact quantities are incomplete. Use them for directional evidence, then rely on counts and tickets for precise units.
 
 ### Regime Context {#record-update-regime-context}
 
@@ -152,7 +152,7 @@ Stock cost records a changed supplier/unit cost for SKUs. It affects margin, cap
 
 ### Stock Count {#record-update-stock-count}
 
-Stock count is the current on-hand quantity for each SKU at the observed time. It is one of the strongest pieces of evidence in banji because pressure, availability, service capacity, and Money all depend on it. Count carefully and filter by supplier when needed.
+Stock count is the current on-hand quantity for each SKU at the observed time. It is one of the strongest pieces of evidence in Kaur Khor because pressure, availability, service capacity, and Money all depend on it. Count carefully and filter by supplier when needed.
 
 ## Intake
 
@@ -160,7 +160,7 @@ Intake is the customer-request review surface for automation-assisted work. It s
 
 ### Customer {#automation-intake-customer}
 
-The Customer column shows the person or account banji inferred from the intake conversation. Treat it as a review target when the name, phone, channel, or conversation identity looks incomplete. Customer metadata should eventually become structured ticket party data, not only free-text notes.
+The Customer column shows the person or account Kaur Khor inferred from the intake conversation. Treat it as a review target when the name, phone, channel, or conversation identity looks incomplete. Customer metadata should eventually become structured ticket party data, not only free-text notes.
 
 ### Request {#automation-intake-request}
 
@@ -168,11 +168,11 @@ The Request column summarizes what the customer appears to be asking for before 
 
 ### Quoted Total {#automation-intake-quoted-total}
 
-Quoted total is the estimated customer-facing amount available from matched catalog data. It stays pending when banji cannot confidently match the request to priced SKUs or services.
+Quoted total is the estimated customer-facing amount available from matched catalog data. It stays pending when Kaur Khor cannot confidently match the request to priced SKUs or services.
 
 ### State {#automation-intake-state}
 
-State explains where the intake sits in the operator workflow. Review states usually mean banji has enough context to show the request but not enough certainty to create or update a ticket without human confirmation.
+State explains where the intake sits in the operator workflow. Review states usually mean Kaur Khor has enough context to show the request but not enough certainty to create or update a ticket without human confirmation.
 
 ### Created/Updated {#automation-intake-created-updated}
 
@@ -184,7 +184,7 @@ Customer / conversation identifies which customer thread produced the exception.
 
 ### Issue {#automation-exception-issue}
 
-Issue describes why banji stopped the intake flow for operator review. Common reasons include unclear item matches, missing prices, ambiguous quantities, or messages that do not map cleanly to a supported workflow.
+Issue describes why Kaur Khor stopped the intake flow for operator review. Common reasons include unclear item matches, missing prices, ambiguous quantities, or messages that do not map cleanly to a supported workflow.
 
 ### Last Message {#automation-exception-last-message}
 
@@ -192,7 +192,7 @@ Last message shows the most recent customer text that contributed to the excepti
 
 ### Confidence {#automation-exception-confidence}
 
-Confidence is banji's certainty about the inferred request or match. Low confidence should be treated as a prompt to review the source message, catalog aliases, and ticket target before committing work.
+Confidence is Kaur Khor's certainty about the inferred request or match. Low confidence should be treated as a prompt to review the source message, catalog aliases, and ticket target before committing work.
 
 ### Live Intake {#automation-live-intake}
 
@@ -200,7 +200,7 @@ Live intake is the table of customer requests captured from automation before th
 
 ### Needs Review {#automation-needs-review}
 
-Needs review lists automation messages banji could not safely convert into clean work. The issue and confidence columns explain why the request stopped. Use this section to fix catalog aliases, missing prices, unclear quantities, or customer identity before creating tickets.
+Needs review lists automation messages Kaur Khor could not safely convert into clean work. The issue and confidence columns explain why the request stopped. Use this section to fix catalog aliases, missing prices, unclear quantities, or customer identity before creating tickets.
 
 ## Catalog
 
@@ -217,7 +217,7 @@ Use Catalog to:
 
 Archive is not delete. Archived items are hidden from active work but remain available historically and can be restored.
 
-Money fields in Catalog and Capture show the active currency symbol (`$` or `៛`) inside the input. Type only the number; commas and the symbol are display aids, and banji saves the underlying value in the selected workspace currency.
+Money fields in Catalog and Capture show the active currency symbol (`$` or `៛`) inside the input. Type only the number; commas and the symbol are display aids, and Kaur Khor saves the underlying value in the selected workspace currency.
 
 ### Act Now {#catalog-detail-act-now}
 
@@ -253,7 +253,7 @@ Dependency impact shows which linked SKUs are limiting or supporting a service. 
 
 ### Service Editor Details {#catalog-service-editor-details}
 
-Service details define the stable identity of a service: name, description, and image. banji generates the internal service ID when a new service is created and keeps it stable after that. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
+Service details define the stable identity of a service: name, description, and image. Kaur Khor generates the internal service ID when a new service is created and keeps it stable after that. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
 
 You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image from the page or field clipboard. PNG, JPEG, and WebP are accepted. Dropped or pasted images must be 20 MB or smaller, no more than 12000 px on either side, and no more than 40 megapixels.
 
@@ -315,7 +315,7 @@ The trading chart ledger is the detail chart surface for SKU, service, or analys
 
 Use **Settings** for indicator style, value, and input-source choices; **Indicators** to choose which signals are visible; and **Layout** to arrange indicators across panes. Layout rows move from the drag handle so axis-side menus and delete buttons remain normal controls. **New pane** adds a temporary empty pane for staging a layout; it is saved only after an indicator is placed there and the layout is confirmed.
 
-If you switch chart dialogs or click outside with unsaved chart changes, banji asks whether to apply, discard, or keep editing before continuing.
+If you switch chart dialogs or click outside with unsaved chart changes, Kaur Khor asks whether to apply, discard, or keep editing before continuing.
 
 Dense overlay evidence such as supplier orders, receipts, or repeated regime markers may be clustered into one timeline marker. Select the marker to inspect the latest interval in that cluster.
 
@@ -375,7 +375,7 @@ Cash signal bands group pressure items by money-related action type. They show w
 
 ### Confidence {#pressure-confidence}
 
-Confidence tells how much trust banji has in the pressure signal. It reflects evidence freshness, coverage, and model stability. Low confidence means capture better data or inspect history before making a high-cost decision.
+Confidence tells how much trust Kaur Khor has in the pressure signal. It reflects evidence freshness, coverage, and model stability. Low confidence means capture better data or inspect history before making a high-cost decision.
 
 ### Demand Capacity Board {#pressure-demand-capacity-board}
 
@@ -395,7 +395,7 @@ Expected effect explains what should improve if the move is correct. It may redu
 
 ### Move Now {#pressure-move-now}
 
-Move Now is the priority action panel in Pressure. It shows the few moves banji thinks matter most for the selected range and scope. Use it at the start of a review session, then open rows for evidence before changing real operations.
+Move Now is the priority action panel in Pressure. It shows the few moves Kaur Khor thinks matter most for the selected range and scope. Use it at the start of a review session, then open rows for evidence before changing real operations.
 
 ### Why Now {#pressure-move-why-now}
 
@@ -451,7 +451,7 @@ Gross profit is sales after known or inferred stock-linked cost. It depends on a
 
 ### Contributor Net Sales {#money-contributors-net-sales}
 
-Net sales is realized stock-linked revenue in the selected window. It is based on saved sale/order evidence that banji can connect to catalog entities. Use it as the top-line activity measure, then compare it to gross profit and capital tied up.
+Net sales is realized stock-linked revenue in the selected window. It is based on saved sale/order evidence that Kaur Khor can connect to catalog entities. Use it as the top-line activity measure, then compare it to gross profit and capital tied up.
 
 ### Contributor Status {#money-contributors-status}
 
@@ -494,7 +494,7 @@ custom date window as the rest of the Money view.
 
 ## Explain
 
-Explain is the evidence and model-inspection subpage. It shows the timeline, observation ledger, pressure table, fragility map, and run settings that explain why banji produced a signal. Use Explain when a recommendation needs to be audited before action.
+Explain is the evidence and model-inspection subpage. It shows the timeline, observation ledger, pressure table, fragility map, and run settings that explain why Kaur Khor produced a signal. Use Explain when a recommendation needs to be audited before action.
 
 ### Fragility Map {#explain-fragility-map}
 
@@ -510,7 +510,7 @@ The inventory lane plots expected stock level and observed stock movement over t
 
 ### Ledger's Lead Time Lane {#explain-ledger-lead-time-lane}
 
-The lead-time lane shows the supplier timing model for each interval. The line is the expected lead time and the band is uncertainty, so wider bands mean banji has less stable timing evidence. Use it before trusting reorder timing or delivery promises.
+The lead-time lane shows the supplier timing model for each interval. The line is the expected lead time and the band is uncertainty, so wider bands mean Kaur Khor has less stable timing evidence. Use it before trusting reorder timing or delivery promises.
 
 ### Ledger's Pipeline Lane {#explain-ledger-pipeline-lane}
 
@@ -518,7 +518,7 @@ The pipeline lane shows supplier order and receipt cues over the timeline. It he
 
 ### Ledger's Regime Lane {#explain-ledger-regime-lane}
 
-The regime lane labels each interval with the demand pattern banji inferred, such as normal, spike, lull, promo, correction, or stockout-constrained. Price and stockout cue badges show why that interval was classified. Use it to distinguish a real trend from a one-off event.
+The regime lane labels each interval with the demand pattern Kaur Khor inferred, such as normal, spike, lull, promo, correction, or stockout-constrained. Price and stockout cue badges show why that interval was classified. Use it to distinguish a real trend from a one-off event.
 
 ### Observation's Affected Entities {#explain-observation-affected-entities}
 
@@ -534,7 +534,7 @@ The observed column identifies the saved event and its timestamp. It is the audi
 
 ### Observations Ledger {#explain-observations-ledger}
 
-The observations ledger is the compact table of saved updates used by the Explain run. It shows what banji actually saw, not only what the model inferred. Use this table when a score looks surprising and you need to confirm whether the source evidence is recent, complete, and attached to the right item.
+The observations ledger is the compact table of saved updates used by the Explain run. It shows what Kaur Khor actually saw, not only what the model inferred. Use this table when a score looks surprising and you need to confirm whether the source evidence is recent, complete, and attached to the right item.
 
 ### Pressure Item {#explain-pressure-item}
 
@@ -562,7 +562,7 @@ The pressure table ranks entities by operational risk inside the Explain workben
 
 ### Rail's Affected Entities {#explain-rail-affected-entities}
 
-This rail block lists the catalog entities attached to the selected observation. It answers: “What did this saved update touch?” Use it when a note or customer message seems broad and you need to know which SKU or service banji connected it to.
+This rail block lists the catalog entities attached to the selected observation. It answers: “What did this saved update touch?” Use it when a note or customer message seems broad and you need to know which SKU or service Kaur Khor connected it to.
 
 ### Rail's Affected Entities Summary {#explain-rail-affected-entities-summary}
 
@@ -668,7 +668,7 @@ Automation tables use these concepts:
 
 - **Exposure** means a SKU or service is visible to the customer-facing bot.
 - **Intake** means a customer request captured from Telegram or another automated source.
-- **Exception** means banji could not confidently turn a message into normal work without operator review.
+- **Exception** means Kaur Khor could not confidently turn a message into normal work without operator review.
 - **Alias** means a customer-facing name that can differ from the internal catalog name.
 - **Confidence** means how sure the parser or matcher is about the inferred customer request.
 
@@ -700,9 +700,9 @@ Alias is the customer-facing name automation uses instead of the internal catalo
 
 ### Configuration {#automation-configuration}
 
-Configuration is the Telegram connection panel. It holds bot identity, token, username, and external link settings that let banji receive or route customer intake. Use it only after catalog prices, exposure, and operator review expectations are ready.
+Configuration is the Telegram connection panel. It holds bot identity, token, username, and external link settings that let Kaur Khor receive or route customer intake. Use it only after catalog prices, exposure, and operator review expectations are ready.
 
-When Telegram automation is connected and live listening in the desktop app, banji warns before the app closes because Telegram listening, automation intake, and automatic checks stop until the app is opened again. The desktop app automatically creates a close-safety snapshot before showing that warning.
+When Telegram automation is connected and live listening in the desktop app, Kaur Khor warns before the app closes because Telegram listening, automation intake, and automatic checks stop until the app is opened again. The desktop app automatically creates a close-safety snapshot before showing that warning.
 
 ### Sellables Exposed {#automation-sellables-exposed}
 
@@ -744,7 +744,7 @@ Parameter guidance explains SENA planning inputs such as particle count, service
 
 ### Smoothing {#settings-smoothing}
 
-Smoothing controls whether banji softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. Use it for steadier operations; disable it only when immediate responsiveness matters more than noise control.
+Smoothing controls whether Kaur Khor softens noisy SENA signals in Settings. When enabled, charts and recommendations may react less sharply to one-off updates. Use it for steadier operations; disable it only when immediate responsiveness matters more than noise control.
 
 ## First Useful Workflow
 
@@ -753,7 +753,7 @@ For a new workspace, the shortest useful path is:
 1. Open Catalog and create the SKUs or services the team actually sells.
 2. Add supplier, cost, price, lead-time, and linked-SKU details when those fields affect decisions.
 3. Open Work / Capture and save the first stock count or real order.
-4. Save a second real update when enough time or activity has passed for banji to compare intervals.
+4. Save a second real update when enough time or activity has passed for Kaur Khor to compare intervals.
 5. Return to Work to see whether supplier or customer tasks need attention.
 6. Open Insights / Pressure to understand demand, available capacity, pipeline support, confidence, and next action.
 7. Open Insights / Money when you need sales, gross profit, tied-up capital, or leakage context.
@@ -778,8 +778,8 @@ changes.
 - **Available capacity**: the units or service deliveries that can be sold from current stock and linked dependencies.
 - **Sellable**: a SKU or service that is active and can be offered to customers.
 - **Stock-limited pattern**: a service or SKU pattern where current stock constrains delivery or sales.
-- **Confidence**: how much trust banji has in a signal based on saved evidence and inferred model stability.
-- **SENA-derived columns**: values inferred by banji's local analysis engine rather than typed directly by an operator.
+- **Confidence**: how much trust Kaur Khor has in a signal based on saved evidence and inferred model stability.
+- **SENA-derived columns**: values inferred by Kaur Khor's local analysis engine rather than typed directly by an operator.
 
 Search keywords: risk, urgency, reorder, stockout, can sell, available, demand, capacity, pipeline, support, inference, model, money, margin.
 
@@ -787,11 +787,11 @@ Search keywords: risk, urgency, reorder, stockout, can sell, available, demand, 
 
 ### What should I enter first?
 
-Start with the catalog items that matter most, then capture one real stock update. A small accurate setup is better than a complete but guessed setup. Once SKUs, services, suppliers, prices, and the first counts exist, banji has enough context to make later updates useful.
+Start with the catalog items that matter most, then capture one real stock update. A small accurate setup is better than a complete but guessed setup. Once SKUs, services, suppliers, prices, and the first counts exist, Kaur Khor has enough context to make later updates useful.
 
-### Can I use banji before every detail is perfect?
+### Can I use Kaur Khor before every detail is perfect?
 
-Yes. Use banji as a working notebook first, then tighten data quality over time. Mark uncertain information in notes, avoid inventing exact quantities, and fix catalog setup when a repeated issue appears. The app becomes more useful as saved evidence accumulates.
+Yes. Use Kaur Khor as a working notebook first, then tighten data quality over time. Mark uncertain information in notes, avoid inventing exact quantities, and fix catalog setup when a repeated issue appears. The app becomes more useful as saved evidence accumulates.
 
 ### How often should I capture updates?
 

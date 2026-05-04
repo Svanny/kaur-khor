@@ -1,8 +1,8 @@
-# banji
+# Kaur Khor
 
-banji is a desktop inventory workspace for small teams that want a local-first tool with built-in analysis.
+Kaur Khor is a desktop inventory workspace for small teams that want a local-first tool with built-in analysis.
 
-It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app for keeping a catalog, recording stock changes and real-world signals, and letting banji's local analysis layer turn those updates into practical next actions.
+It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app for keeping a catalog, recording stock changes and real-world signals, and letting Kaur Khor's local analysis layer turn those updates into practical next actions.
 
 [Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browser preview](https://svanny.github.io/banji/) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
 
@@ -13,28 +13,28 @@ Detailed end-user help lives in:
 - English: [docs/user-guide.md](docs/user-guide.md)
 - Khmer: [docs/user-guide.km.md](docs/user-guide.km.md)
 
-The guides explain banji's current workspaces, lane-based update flows, important buttons and controls, glossary terms, and troubleshooting FAQ. The in-app `Help` page mirrors these docs.
+The guides explain Kaur Khor's current workspaces, lane-based update flows, important buttons and controls, glossary terms, and troubleshooting FAQ. The in-app `Help` page mirrors these docs.
 
 ## Screenshots
 
 | Overview | Record update |
 | --- | --- |
-| ![banji overview workspace](docs/readme/overview-fullscreen.png) | ![banji record update workspace](docs/readme/record-update-fullscreen.png) |
+| ![Kaur Khor overview workspace](docs/readme/overview-fullscreen.png) | ![Kaur Khor record update workspace](docs/readme/record-update-fullscreen.png) |
 
 | Performance | Financials |
 | --- | --- |
-| ![banji performance workspace](docs/readme/performance-fullscreen.png) | ![banji financials workspace](docs/readme/financials-fullscreen.png) |
+| ![Kaur Khor performance workspace](docs/readme/performance-fullscreen.png) | ![Kaur Khor financials workspace](docs/readme/financials-fullscreen.png) |
 
 | Catalog | Analysis |
 | --- | --- |
-| ![banji catalog workspace](docs/readme/catalog-fullscreen.png) | ![banji analysis workspace](docs/readme/analysis-fullscreen.png) |
+| ![Kaur Khor catalog workspace](docs/readme/catalog-fullscreen.png) | ![Kaur Khor analysis workspace](docs/readme/analysis-fullscreen.png) |
 
 ## What To Expect
 
 - A desktop app with downloadable releases for macOS, Windows, and Linux.
 - A bundled local runtime and local workspace storage inside the app.
 - A workflow centered on catalog management, lane-based update capture, operational follow-up, money views, and analysis.
-- A product that is opinionated about banji's current inventory model rather than a blank-slate platform.
+- A product that is opinionated about Kaur Khor's current inventory model rather than a blank-slate platform.
 - A repository where the README is the top-level overview and the deeper developer docs live in `docs/`.
 
 ## Browser Preview
@@ -48,7 +48,7 @@ The public web surface is published with GitHub Pages under `/banji/`:
 
 The demo route uses seeded browser data for preview. Browser storage is tied to the browser profile and is not the same as the desktop app's local data directory. See [docs/browser-app.md](docs/browser-app.md) for details.
 
-Browser app data is stored locally in this browser using SQLite WASM + OPFS when available. Export backups regularly. Clearing browser data may delete your Banji browser workspace.
+Browser app data is stored locally in this browser using SQLite WASM + OPFS when available. Export backups regularly. Clearing browser data may delete your Kaur Khor browser workspace.
 
 Browser mode keeps the main workflow visible, but it is not the desktop runtime. Telegram polling is while-tab-open only, the token is stored in the browser profile, benchmark/dev diagnostics stay desktop-only, and persistent item image assets require desktop.
 
@@ -68,19 +68,19 @@ All entry points are free, require no sign-up or login, and keep data on the use
 - Overview and performance surfaces that turn updates into concrete follow-up tasks.
 - A financial workspace that turns the same inventory state into money-in, money-tied-up, and money-leaking views.
 - An operations workspace for saved update history, heatmap inspection, report editing, and report deletion.
-- Analysis and Help views that explain what the current inventory picture seems to be and how banji works.
+- Analysis and Help views that explain what the current inventory picture seems to be and how Kaur Khor works.
 - Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
 ## Current Limits
 
-- banji is desktop-first.
-- banji is local-first.
+- Kaur Khor is desktop-first.
+- Kaur Khor is local-first.
 - It is not marketed here as a multi-user cloud suite, marketplace tool, or full back-office system.
 - It still reflects one specific operating model, so some teams will find it immediately useful and others will find it too opinionated.
 
 ## SENA
 
-banji uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
+Kaur Khor uses **SENA** as its local analysis engine. SENA is what turns saved observations into reorder pressure, timing risk, blocker detection, and explanation surfaces inside the app.
 
 If you want the reference document, see [References/SENA/SENA.pdf](References/SENA/SENA.pdf).
 
@@ -98,19 +98,19 @@ Verify release downloads against the `SHA256SUMS` asset on the same GitHub Relea
 
 ### Running Unsigned Builds On macOS
 
-If macOS blocks banji because the app is unsigned:
+If macOS blocks Kaur Khor because the app is unsigned:
 
 1. Try opening the app with `Control` + click, then choose `Open`.
-2. If macOS still blocks it, go to `System Settings` -> `Privacy & Security`, find the banji warning near the bottom, and click `Open Anyway`.
+2. If macOS still blocks it, go to `System Settings` -> `Privacy & Security`, find the Kaur Khor warning near the bottom, and click `Open Anyway`.
 3. Re-open the app and confirm the final prompt.
 
-This allows banji to run without disabling Gatekeeper globally.
+This allows Kaur Khor to run without disabling Gatekeeper globally.
 
 If you need a walkthrough, see this [YouTube tutorial for opening macOS app from unidentified developer](https://youtu.be/sLox8h-6BVw).
 
 ### Running Unsigned Builds On Windows
 
-To install banji on Windows:
+To install Kaur Khor on Windows:
 
 1. Download the `.exe` installer from the latest GitHub release.
 2. Double-click the installer to start setup.
@@ -121,7 +121,7 @@ If Windows shows a SmartScreen warning because the build is unsigned:
 2. Click `Run anyway`.
 3. Continue through the installer prompts.
 
-This allows banji to install without changing SmartScreen system-wide.
+This allows Kaur Khor to install without changing SmartScreen system-wide.
 
 ### Installing And Running Builds On Linux
 
@@ -154,7 +154,7 @@ If Linux blocks the AppImage or warns that it is untrusted:
 2. Open the file from a terminal instead of double-clicking it first.
 3. If your desktop asks for confirmation, approve the launch for this file.
 
-banji does not require disabling Linux security features globally. Most install friction comes from the file not being marked executable yet.
+Kaur Khor does not require disabling Linux security features globally. Most install friction comes from the file not being marked executable yet.
 
 ## Development
 
@@ -200,7 +200,7 @@ cargo test --manifest-path apps/desktop-core/Cargo.toml
 The current local app is organized around these paths:
 
 - `src/main`: Electron main process, app boot, IPC handlers, local data paths, backup and restore behavior
-- `src/preload`: preload bridge that exposes `window.banjiDesktop`
+- `src/preload`: preload bridge that exposes `window.kaurKhorDesktop`
 - `src/renderer`: React routes, settings flows, workspace UI, and command palette behavior
 - `src/renderer/src/routes/web`: public web routes for GitHub Pages
 - `src/shared`: shared IPC contracts and TypeScript types

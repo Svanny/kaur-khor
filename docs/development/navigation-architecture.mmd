@@ -1,12 +1,12 @@
-%% Banji desktop navigation benchmark architecture.
+%% Kaur Khor desktop navigation benchmark architecture.
 sequenceDiagram
   autonumber
   participant Bench as Navigation benchmark<br/>bench/scenarios/navigation.bench.ts
-  participant Shell as BanjiShell sidebar
+  participant Shell as KaurKhorShell sidebar
   participant Router as React Router<br/>BenchmarkRouteObserver
   participant Provider as InventoryProvider<br/>PreferencesProvider
   participant Route as Route components
-  participant Preload as Preload bridge<br/>window.banjiDesktop
+  participant Preload as Preload bridge<br/>window.kaurKhorDesktop
   participant Main as Electron main IPC<br/>benchmarkIpcHandle
   participant Core as Managed desktop-core pool
   participant Store as SQLite read models<br/>and checkpoints

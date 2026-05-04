@@ -1,6 +1,6 @@
 # UI Design System
 
-Back to the docs index: [banji developer docs](/Users/svanny/banji/docs/README.md)
+Back to the docs index: [Kaur Khor developer docs](../README.md)
 
 ## Brand Button Rule
 
