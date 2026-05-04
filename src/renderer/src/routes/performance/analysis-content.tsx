@@ -223,6 +223,7 @@ function AnalysisContentInner({
         />
       ) : null}
       <WorkspaceTitleCard
+        helperExemptReason="Analysis title card descriptor supplies route-level guidance."
         title={
           <span className="flex min-w-0 items-center gap-3">
             <RouteBackButton className="shrink-0" />

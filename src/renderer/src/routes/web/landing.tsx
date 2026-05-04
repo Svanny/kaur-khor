@@ -40,7 +40,7 @@ import {
   Users,
   X,
   type LucideIcon,
-} from 'lucide-react';
+} from '@icons/web';
 import {
   ActionContinueIcon,
   ActionOpenExternalIcon,

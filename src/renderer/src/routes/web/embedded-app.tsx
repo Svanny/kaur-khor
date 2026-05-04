@@ -10,7 +10,6 @@ import {
   type BrowserMockState,
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
-import { Download, Globe } from 'lucide-react';
 import {
   ActionDatabaseUploadIcon,
   ActionExportIcon,
@@ -18,6 +17,7 @@ import {
   ActionResumeIcon,
 } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
+import { WebDownloadIcon, WebGlobeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
 import {
   BANJI_BROWSER_APP_DATABASE,
@@ -367,7 +367,7 @@ function WebAppBanner({
           </Button>
           <Button asChild className={actionButtonClassName} size="sm" variant="outline">
             <a aria-label={isDemo ? 'Use browser app' : 'Download app'} href={publicPath(isDemo ? '/app' : '/#releases')}>
-              {isDemo ? <Globe className="size-4" /> : <Download className="size-4" />}
+              {isDemo ? <WebGlobeIcon className="size-4" /> : <WebDownloadIcon className="size-4" />}
               <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{isDemo ? 'Use browser app' : 'Download app'}</span>
             </a>
           </Button>
@@ -612,7 +612,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
                 <a href={publicPath('/demo')}><ActionResumeIcon className="size-4" />Try demo</a>
               </Button>
               <Button asChild variant="outline">
-                <a href={publicPath('/#releases')}><Download className="size-4" />Download app</a>
+                <a href={publicPath('/#releases')}><WebDownloadIcon className="size-4" />Download app</a>
               </Button>
             </div>
           </div>

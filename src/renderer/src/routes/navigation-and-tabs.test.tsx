@@ -683,7 +683,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('banji')).toBeInTheDocument();
+    expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
 
     expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalledWith('sku-1', expect.objectContaining({ limit: 5 }));
     expect(inventoryHook().loadInventorySnapshot).not.toHaveBeenCalled();
@@ -715,7 +715,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('heading', { name: /Ledger for SKU 1/ })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('banji')).toBeInTheDocument();
+    expect(screen.getByText('banji needs at least two saved updates for this view')).toBeInTheDocument();
 
     expect(screen.queryByText('SKU not found')).not.toBeInTheDocument();
   });
