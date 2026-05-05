@@ -21,8 +21,10 @@ describe('desktop runtime security contract', () => {
     expect(windowZoomSource).toContain('export const PREFERRED_BASELINE_ZOOM_LEVEL = 0;');
     expect(windowZoomSource).toContain('export const ZOOM_LEVEL_STEP = 0.5;');
     expect(mainSource).toContain('const windowZoomStates = new WeakMap<BrowserWindow, ManagedWindowZoomState>();');
+    expect(mainSource).toContain('installLandscapeWindowResizeRestriction(mainWindow);');
     expect(mainSource).toContain('installPreferredWindowZoomBehavior(mainWindow);');
-    expect(mainSource).toContain('minWidth: 720,');
+    expect(mainSource).toContain('minWidth: 760,');
+    expect(mainSource).toContain('minHeight: 760,');
     expect(mainSource).toContain('show: false,');
     expect(mainSource).toContain('focusable: !benchmarkWindowBackgroundMode,');
     expect(mainSource).toContain('skipTaskbar: benchmarkWindowBackgroundMode,');
@@ -73,6 +75,9 @@ describe('desktop runtime security contract', () => {
     expect(mainSource).toContain('applyManagedWindowZoomLevel(window, { force: true });');
     expect(mainSource).toContain("window.on('focus', () => {");
     expect(mainSource).toContain('applyManagedWindowZoomLevel(window);');
+    expect(windowZoomSource).toContain('export function installLandscapeWindowResizeRestriction(window: BrowserWindow)');
+    expect(windowZoomSource).toContain("window.on('will-resize', (event, newBounds, details) => {");
+    expect(windowZoomSource).toContain('window.setBounds(adjustedBounds);');
     expect(windowZoomSource).toContain("window.on('resize', apply);");
     expect(windowZoomSource).toContain("window.on('enter-full-screen', apply);");
   });

@@ -18,6 +18,7 @@ export type ManagedWindowZoomState = {
 };
 
 type WindowZoomDimensions = Pick<ResponsiveViewportDimensions, 'height' | 'width'>;
+type WindowResizeEdge = Electron.WillResizeDetails['edge'] | string | undefined;
 
 function normalizeWindowZoomDimensions(dimensions: WindowZoomDimensions | number, height?: number): WindowZoomDimensions {
   if (typeof dimensions === 'object') {
@@ -79,6 +80,46 @@ export function initialWindowZoomFactor(dimensions: WindowZoomDimensions | numbe
 
 export function deriveEmbeddedWindowViewportPolicy(width: number, height: number, previousLevel?: number | null) {
   return deriveResponsiveViewportPolicy({ height, previousLevel, width });
+}
+
+export function adjustedLandscapeWindowResizeBounds(
+  newBounds: Electron.Rectangle,
+  details?: { edge?: WindowResizeEdge },
+): Electron.Rectangle | null {
+  if (newBounds.width >= newBounds.height) {
+    return null;
+  }
+
+  const edge = details?.edge ?? '';
+  const resizesHorizontally = edge.includes('left') || edge.includes('right');
+  const resizesVertically = edge.includes('top') || edge.includes('bottom');
+
+  if (resizesHorizontally && !resizesVertically) {
+    const width = newBounds.height;
+    return {
+      ...newBounds,
+      width,
+      x: edge.includes('left') ? newBounds.x - (width - newBounds.width) : newBounds.x,
+    };
+  }
+
+  const height = newBounds.width;
+  return {
+    ...newBounds,
+    height,
+    y: edge.includes('top') ? newBounds.y + (newBounds.height - height) : newBounds.y,
+  };
+}
+
+export function installLandscapeWindowResizeRestriction(window: BrowserWindow) {
+  window.on('will-resize', (event, newBounds, details) => {
+    const adjustedBounds = adjustedLandscapeWindowResizeBounds(newBounds, details);
+    if (!adjustedBounds) {
+      return;
+    }
+    event.preventDefault();
+    window.setBounds(adjustedBounds);
+  });
 }
 
 export function installWindowResizeZoomListeners(window: BrowserWindow, apply: () => void) {

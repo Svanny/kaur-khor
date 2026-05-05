@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from 'vitest';
 import {
+  adjustedLandscapeWindowResizeBounds,
   changeManualWindowZoomLevel,
   clampWindowZoomLevel,
   createManagedWindowZoomState,
@@ -92,6 +93,60 @@ describe('responsive zoom policy', () => {
 });
 
 describe('managed desktop window zoom', () => {
+  test('clamps horizontal resize width to the proposed height', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 900, width: 700, x: 100, y: 50 },
+        { edge: 'right' },
+      ),
+    ).toEqual({ height: 900, width: 900, x: 100, y: 50 });
+  });
+
+  test('keeps the right edge fixed when clamping a left-edge resize', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 900, width: 700, x: 300, y: 50 },
+        { edge: 'left' },
+      ),
+    ).toEqual({ height: 900, width: 900, x: 100, y: 50 });
+  });
+
+  test('clamps vertical resize height to the proposed width', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 900, width: 700, x: 100, y: 50 },
+        { edge: 'bottom' },
+      ),
+    ).toEqual({ height: 700, width: 700, x: 100, y: 50 });
+  });
+
+  test('keeps the bottom edge fixed when clamping a top-corner resize', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 900, width: 700, x: 100, y: 50 },
+        { edge: 'top-right' },
+      ),
+    ).toEqual({ height: 700, width: 700, x: 100, y: 250 });
+  });
+
+  test('leaves landscape resize bounds unchanged', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 700, width: 900, x: 100, y: 50 },
+        { edge: 'right' },
+      ),
+    ).toBeNull();
+  });
+
+  test('preserves width when the resize edge is ambiguous', () => {
+    expect(
+      adjustedLandscapeWindowResizeBounds(
+        { height: 900, width: 700, x: 100, y: 50 },
+        { edge: undefined },
+      ),
+    ).toEqual({ height: 700, width: 700, x: 100, y: 50 });
+  });
+
   test('uses area-aware automatic zoom for common desktop bounds', () => {
     expect(createManagedWindowZoomState({ width: 1600, height: 900 }).automaticLevel).toBe(0);
     expect(createManagedWindowZoomState({ width: 1440, height: 800 }).automaticLevel).toBe(-0.5);

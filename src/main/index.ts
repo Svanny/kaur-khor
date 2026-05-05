@@ -121,6 +121,7 @@ import {
   changeManualWindowZoomLevel,
   createManagedWindowZoomState,
   initialWindowZoomFactor,
+  installLandscapeWindowResizeRestriction,
   installWindowResizeZoomListeners,
   managedWindowZoomLevel,
   resetManualWindowZoomLevel,
@@ -1085,7 +1086,7 @@ async function createMainWindow() {
     y,
     width,
     height,
-    minWidth: 720,
+    minWidth: 760,
     minHeight: 760,
     backgroundColor: '#f2e8d8',
     title: 'kaur khor desktop',
@@ -1098,6 +1099,7 @@ async function createMainWindow() {
   endCreate({ ok: true });
 
   installMainWindowNavigationGuards(mainWindow);
+  installLandscapeWindowResizeRestriction(mainWindow);
   installPreferredWindowZoomBehavior(mainWindow);
   mainWindow.on('close', (event) => {
     if (desktopQuitConfirmed || shouldBypassDesktopCloseAutomationWarning()) {
