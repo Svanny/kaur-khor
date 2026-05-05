@@ -345,7 +345,12 @@ export function KaurKhorShell({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider defaultOpen>
+    <SidebarProvider
+      defaultOpen
+      style={{
+        '--kaur-khor-shell-viewport-height': 'var(--kaur-khor-embedded-shell-content-height, var(--kaur-khor-effective-viewport-height, 100svh))',
+      } as React.CSSProperties}
+    >
       <KaurKhorShellFrame>{children}</KaurKhorShellFrame>
     </SidebarProvider>
   );
@@ -532,6 +537,12 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent className="flex flex-col gap-1">
               {!isSettingsRoute ? (
+                <div
+                  className="mb-3 min-h-[13.5rem] px-1 group-data-[collapsible=icon]:px-0"
+                  data-slot="embedded-sidebar-banner-slot"
+                />
+              ) : null}
+              {!isSettingsRoute ? (
                 <div className="px-1 group-data-[collapsible=icon]:px-0">
                   <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
                 </div>
@@ -587,13 +598,26 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
       </Sidebar>
 
       <SidebarInset className="min-h-0 overflow-hidden">
-        <div className="flex h-svh min-h-0 flex-col overflow-hidden">
-          <main id="main-content" className="flex min-h-0 flex-1 flex-col overflow-auto py-5" style={{ paddingInline: mainContentInset }}>
+        <div
+          className="flex min-h-0 flex-col overflow-hidden"
+          data-slot="shell-viewport-frame"
+          style={{ height: 'var(--kaur-khor-shell-viewport-height, 100svh)' }}
+        >
+          <main
+            id="main-content"
+            className="flex min-h-0 flex-1 flex-col overflow-auto py-5"
+            data-slot="shell-main-content"
+            style={{ paddingInline: mainContentInset }}
+          >
             <div
               className="flex min-h-0 flex-1 w-full max-w-none flex-col gap-4"
+              data-slot="shell-main-frame"
               data-testid="shell-main-frame"
             >
-              <div className="flex items-center justify-between md:hidden">
+              <div
+                className="flex items-center justify-between md:hidden"
+                data-slot="mobile-sidebar-trigger-row"
+              >
                 <SidebarTrigger
                   aria-label={t('openNavigation')}
                   className="size-10 rounded-full border border-border bg-card"

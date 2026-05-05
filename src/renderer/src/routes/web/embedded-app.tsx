@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
 import {
@@ -49,7 +50,6 @@ type StorageUiState = {
   handle: BrowserStorageSupportedHandle | null;
 };
 
-const embeddedBannerRailHeightClassName = 'md:min-h-[13.5rem]';
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 
@@ -317,6 +317,59 @@ function useBrowserWorkspaceLanguage() {
   return language;
 }
 
+function useEmbeddedSidebarBannerTarget(enabled: boolean) {
+  const [target, setTarget] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      setTarget(null);
+      return;
+    }
+
+    const readTarget = () => {
+      setTarget(document.querySelector<HTMLElement>('[data-slot="embedded-sidebar-banner-slot"]'));
+    };
+
+    readTarget();
+    const observer = new MutationObserver(readTarget);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      observer.disconnect();
+    };
+  }, [enabled]);
+
+  return target;
+}
+
+function WebAppActionLabel({
+  compact,
+  compactMode,
+  full,
+  isOnboarding,
+  medium,
+  sidebarCollapsed,
+}: {
+  compact: string;
+  compactMode: boolean;
+  full: string;
+  isOnboarding?: boolean;
+  medium: string;
+  sidebarCollapsed: boolean;
+}) {
+  if (isOnboarding) {
+    return <span>{full}</span>;
+  }
+
+  const collapsedClassName = compactMode ? 'sr-only' : sidebarCollapsed ? 'md:sr-only' : undefined;
+  return (
+    <>
+      <span className={cn('embedded-sidebar-action-label-full', collapsedClassName)}>{full}</span>
+      <span className={cn('embedded-sidebar-action-label-medium', collapsedClassName)}>{medium}</span>
+      <span className={cn('embedded-sidebar-action-label-compact', collapsedClassName)}>{compact}</span>
+    </>
+  );
+}
+
 function WebAppBanner({
   isOnboarding,
   mode,
@@ -337,21 +390,30 @@ function WebAppBanner({
   const isTelegramLiveListening = useBrowserTelegramLiveListening(mode);
   const appWarningMessage = translateUiLiteral(language, browserWorkspaceCloseWarningMessage(isTelegramLiveListening));
   const exportBackupLabel = translateUiLiteral(language, 'Export backup');
+  const exportShortLabel = translateUiLiteral(language, 'Export');
   const importBackupLabel = translateUiLiteral(language, 'Import backup');
+  const importShortLabel = translateUiLiteral(language, 'Import');
   const resetLabel = translateUiLiteral(language, isDemo ? 'Reset demo' : 'Reset workspace');
+  const resetShortLabel = translateUiLiteral(language, 'Reset');
   const destinationLabel = translateUiLiteral(language, isDemo ? 'Use browser app' : 'Download app');
+  const destinationMediumLabel = translateUiLiteral(language, isDemo ? 'Use Browser' : 'Download');
+  const destinationCompactLabel = translateUiLiteral(language, isDemo ? 'Browser' : 'Download');
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const sidebarCollapsed = useEmbeddedSidebarCollapsed();
+  const sidebarBannerTarget = useEmbeddedSidebarBannerTarget(!isOnboarding);
+  const isSidebarBanner = Boolean(sidebarBannerTarget && !isOnboarding);
+  const compactSidebarBanner = isSidebarBanner && sidebarCollapsed;
   const actionButtonClassName = cn(
     'w-full justify-start md:h-8 md:min-w-0 md:px-2',
+    compactSidebarBanner ? 'size-8 justify-center p-2' : null,
     sidebarCollapsed && !isOnboarding ? 'md:size-8 md:justify-center md:p-2' : null,
     isOnboarding ? 'h-9 w-36 justify-center rounded-lg px-3 sm:w-44' : null,
   );
-  return (
+  const banner = (
     <div
       className={cn(
-        'border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:fixed md:bottom-[6.2rem] md:left-2 md:z-40 md:w-[calc(12.8rem-1rem)] md:border-0 md:bg-transparent md:p-0 md:shadow-none',
-        sidebarCollapsed && !isOnboarding ? 'md:w-8' : null,
+        'border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:border-0 md:bg-transparent md:p-0 md:shadow-none',
+        isSidebarBanner ? 'border-0 bg-transparent p-0 shadow-none' : null,
         isOnboarding ? 'fixed inset-x-3 top-3 z-50 border-0 bg-transparent p-0 shadow-none md:bottom-auto md:left-1/2 md:right-auto md:top-4 md:w-[min(64rem,calc(100vw-2rem))] md:-translate-x-1/2' : null,
       )}
     >
@@ -359,16 +421,22 @@ function WebAppBanner({
         data-slot="web-app-banner-card"
         className={cn(
           'mx-auto flex max-w-6xl flex-col gap-3 rounded-[1.15rem] border border-primary/20 bg-card/82 px-4 py-3 text-sm leading-6 shadow-none md:max-w-none md:items-stretch md:gap-2 md:rounded-xl md:px-2.5 md:py-2 md:text-xs md:leading-5',
-          !isOnboarding ? embeddedBannerRailHeightClassName : null,
+          isSidebarBanner ? 'h-full rounded-xl border-border/70 bg-white/90 px-3 py-3' : null,
+          compactSidebarBanner ? 'rounded-none border-0 bg-transparent px-0 py-0' : null,
           sidebarCollapsed && !isOnboarding ? 'md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0' : null,
           isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/90 px-3 py-2 text-sm leading-6 shadow-[0_18px_48px_rgba(48,31,20,0.14)] backdrop-blur-xl md:text-sm md:leading-6' : null,
         )}
       >
-        <div className={cn('grid gap-2', sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null, isOnboarding ? 'flex min-w-0 flex-1 items-center gap-3' : null)}>
+        <div className={cn(
+          'grid gap-2',
+          compactSidebarBanner ? 'justify-items-center' : null,
+          sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null,
+          isOnboarding ? 'flex min-w-0 flex-1 items-center gap-3' : null,
+        )}>
           <span className={cn('grid size-9 shrink-0 place-items-center justify-self-center rounded-[0.85rem] bg-amber-100 text-amber-950 md:size-8 md:rounded-md', isOnboarding ? 'size-9 rounded-lg' : null)}>
             <StatusWarningIcon className="size-4" />
           </span>
-          <div className={cn('min-w-0 text-left', sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'max-w-[18rem] sm:max-w-[24rem]' : null)}>
+          <div className={cn('min-w-0 text-left', compactSidebarBanner ? 'sr-only' : null, sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'max-w-[18rem] sm:max-w-[24rem]' : null)}>
             <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)}>
               {translateUiLiteral(language, isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.')}
             </p>
@@ -379,23 +447,28 @@ function WebAppBanner({
             )}
           </div>
         </div>
-        <div className={cn('grid grid-cols-1 gap-2 md:gap-1.5', isOnboarding ? 'grid-cols-2 justify-items-end justify-self-end' : null)}>
+        <div className={cn(
+          'grid grid-cols-1 gap-2 md:gap-1.5',
+          compactSidebarBanner ? 'content-start justify-items-center' : null,
+          sidebarCollapsed && isSidebarBanner ? 'md:content-start md:justify-items-center' : null,
+          isOnboarding ? 'grid-cols-2 justify-items-end justify-self-end' : null,
+        )}>
           <Button aria-label={exportBackupLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onExport} disabled={storage.status !== 'ready'}>
             <ActionExportIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{exportBackupLabel}</span>
+            <WebAppActionLabel compact={exportShortLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? exportShortLabel : exportBackupLabel} isOnboarding={isOnboarding} medium={exportShortLabel} sidebarCollapsed={sidebarCollapsed} />
           </Button>
           <Button aria-label={importBackupLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={() => importInputRef.current?.click()} disabled={storage.status !== 'ready'}>
             <ActionDatabaseUploadIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{importBackupLabel}</span>
+            <WebAppActionLabel compact={importShortLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? importShortLabel : importBackupLabel} isOnboarding={isOnboarding} medium={importShortLabel} sidebarCollapsed={sidebarCollapsed} />
           </Button>
           <Button aria-label={resetLabel} className={actionButtonClassName} size="sm" type="button" variant="outline" onClick={onReset}>
             <ActionResetIcon className="size-4" />
-            <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{resetLabel}</span>
+            <WebAppActionLabel compact={resetShortLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? resetShortLabel : resetLabel} isOnboarding={isOnboarding} medium={resetShortLabel} sidebarCollapsed={sidebarCollapsed} />
           </Button>
           <Button asChild className={actionButtonClassName} size="sm" variant="outline">
             <a aria-label={destinationLabel} href={publicPath(isDemo ? '/app' : '/#releases')}>
               {isDemo ? <WebGlobeIcon className="size-4" /> : <WebDownloadIcon className="size-4" />}
-              <span className={sidebarCollapsed && !isOnboarding ? 'md:sr-only' : undefined}>{destinationLabel}</span>
+              <WebAppActionLabel compact={destinationCompactLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? destinationMediumLabel : destinationLabel} isOnboarding={isOnboarding} medium={destinationMediumLabel} sidebarCollapsed={sidebarCollapsed} />
             </a>
           </Button>
           <input
@@ -415,6 +488,8 @@ function WebAppBanner({
       </div>
     </div>
   );
+
+  return sidebarBannerTarget && !isOnboarding ? createPortal(banner, sidebarBannerTarget) : banner;
 }
 
 export function EmbeddedAppBanner({

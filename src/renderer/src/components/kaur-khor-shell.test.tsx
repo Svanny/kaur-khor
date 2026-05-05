@@ -167,6 +167,35 @@ describe('KaurKhorShell', () => {
     });
   });
 
+  test('keeps the desktop side panel visible in the embedded browser shell on narrow viewports', () => {
+    document.documentElement.dataset.kaurKhorEmbeddedViewport = 'true';
+    setViewport({ width: 742, isMobile: true });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <KaurKhorShell>
+            <Routes>
+              <Route element={<div>Overview screen</div>} path="/" />
+              <Route element={<div>Settings screen</div>} path="/settings" />
+            </Routes>
+          </KaurKhorShell>
+        </MemoryRouter>,
+      );
+
+      expect(screen.getByRole('button', { name: 'Collapse navigation' })).toBeInTheDocument();
+      expect(document.querySelector('[data-mobile="true"]')).not.toBeInTheDocument();
+      expect(document.querySelector('[data-slot="sidebar-container"]')).toHaveClass('embedded-desktop-sidebar-container');
+      expect(document.querySelector('[data-slot="shell-viewport-frame"]')).toHaveStyle({
+        height: 'var(--kaur-khor-shell-viewport-height, 100svh)',
+      });
+      expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    } finally {
+      delete document.documentElement.dataset.kaurKhorEmbeddedViewport;
+    }
+  });
+
   test('renders the SENA-native primary navigation', () => {
     setViewport({ width: 1440, isMobile: false });
     Object.defineProperty(window.navigator, 'platform', {
@@ -959,6 +988,10 @@ describe('KaurKhorShell', () => {
     fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
 
     await waitFor(() => {
+      const bannerSlot = document.querySelector('[data-slot="embedded-sidebar-banner-slot"]');
+      expect(bannerSlot).not.toBeNull();
+      expect(bannerSlot).toHaveClass('mb-3', 'min-h-[13.5rem]');
+      expect(bannerSlot).not.toHaveClass('group-data-[collapsible=icon]:hidden');
       expect(screen.queryByText('Search')).not.toBeInTheDocument();
       expect(screen.queryByText('K')).not.toBeInTheDocument();
     });

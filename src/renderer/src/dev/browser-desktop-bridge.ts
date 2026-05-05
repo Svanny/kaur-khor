@@ -1462,6 +1462,7 @@ function installBrowserDesktopBridge() {
           ...browserMockState.preferences,
           ...payload,
         };
+        window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
         return clone(browserMockState.preferences);
       },
     },

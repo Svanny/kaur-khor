@@ -533,7 +533,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
           <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-[rgba(29,20,12,0.46)] backdrop-blur-sm data-[state=open]:animate-in data-[state=open]:fade-in-0" />
           <DialogPrimitive.Content
             data-command-palette-content="true"
-            className="fixed top-[14svh] left-1/2 z-50 flex w-[min(720px,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-[2rem] border border-border/70 bg-[#fbf7f2] shadow-[0_28px_90px_rgba(48,31,20,0.22)] outline-none"
+            className="fixed top-[calc(var(--kaur-khor-effective-viewport-height,100svh)*0.14)] left-1/2 z-50 flex w-[min(720px,calc(var(--kaur-khor-effective-viewport-width,100vw)-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-[2rem] border border-border/70 bg-[#fbf7f2] shadow-[0_28px_90px_rgba(48,31,20,0.22)] outline-none"
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               inputRef.current?.focus();
@@ -571,7 +571,7 @@ export function CommandPaletteProvider({ children }: { children: ReactNode }) {
               />
             </div>
 
-            <div className="max-h-[60svh] overflow-y-auto px-3 py-3">
+            <div className="max-h-[calc(var(--kaur-khor-effective-viewport-height,100svh)*0.6)] overflow-y-auto px-3 py-3">
               {visibleResults.length > 0 ? (
                 <div aria-label={translateUiLiteral(language, 'Command results')} className="grid gap-2" role="listbox">
                   {(() => {

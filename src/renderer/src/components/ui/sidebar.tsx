@@ -54,6 +54,60 @@ function useSidebar() {
   return context
 }
 
+function useEmbeddedDesktopReplica() {
+  const [isEmbedded, setIsEmbedded] = React.useState(() => {
+    if (typeof document === "undefined") {
+      return false
+    }
+    return document.documentElement.dataset.kaurKhorEmbeddedViewport === "true"
+  })
+
+  React.useEffect(() => {
+    const readEmbeddedState = () => {
+      setIsEmbedded(document.documentElement.dataset.kaurKhorEmbeddedViewport === "true")
+    }
+
+    readEmbeddedState()
+    const observer = new MutationObserver(readEmbeddedState)
+    observer.observe(document.documentElement, {
+      attributeFilter: ["data-kaur-khor-embedded-viewport"],
+      attributes: true,
+    })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  return isEmbedded
+}
+
+function useEmbeddedPhoneLandscapeReplica() {
+  const [isPhoneLandscape, setIsPhoneLandscape] = React.useState(() => {
+    if (typeof document === "undefined") {
+      return false
+    }
+    return document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape === "true"
+  })
+
+  React.useEffect(() => {
+    const readEmbeddedState = () => {
+      setIsPhoneLandscape(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape === "true")
+    }
+
+    readEmbeddedState()
+    const observer = new MutationObserver(readEmbeddedState)
+    observer.observe(document.documentElement, {
+      attributeFilter: ["data-kaur-khor-embedded-phone-landscape"],
+      attributes: true,
+    })
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+
+  return isPhoneLandscape
+}
+
 function SidebarProvider({
   defaultOpen = true,
   open: openProp,
@@ -67,7 +121,9 @@ function SidebarProvider({
   open?: boolean
   onOpenChange?: (open: boolean) => void
 }) {
-  const isMobile = useIsMobile()
+  const viewportIsMobile = useIsMobile()
+  const isEmbeddedDesktopReplica = useEmbeddedDesktopReplica()
+  const isMobile = viewportIsMobile && !isEmbeddedDesktopReplica
   const [openMobile, setOpenMobile] = React.useState(false)
 
   // This is the internal state of the sidebar.
@@ -140,7 +196,7 @@ function SidebarProvider({
             } as React.CSSProperties
           }
           className={cn(
-            "group/sidebar-wrapper flex min-h-svh w-full has-data-[variant=inset]:bg-sidebar",
+            "group/sidebar-wrapper flex min-h-[var(--kaur-khor-shell-viewport-height,100svh)] w-full has-data-[variant=inset]:bg-sidebar",
             className
           )}
           {...props}
@@ -230,7 +286,8 @@ function Sidebar({
       <div
         data-slot="sidebar-container"
         className={cn(
-          "fixed inset-y-0 z-10 hidden h-svh w-(--sidebar-width) transition-[left,right,width] duration-120 ease-out md:flex",
+          "fixed inset-y-0 z-10 hidden h-[var(--kaur-khor-shell-viewport-height,100svh)] w-(--sidebar-width) transition-[left,right,width] duration-120 ease-out md:flex",
+          "embedded-desktop-sidebar-container",
           side === "left"
             ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
             : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -513,6 +570,7 @@ function SidebarMenuButton({
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
   const { isMobile, state } = useSidebar()
+  const isEmbeddedPhoneLandscape = useEmbeddedPhoneLandscapeReplica()
 
   const button = (
     <Comp
@@ -541,7 +599,7 @@ function SidebarMenuButton({
       <TooltipContent
         side="right"
         align="center"
-        hidden={state !== "collapsed" || isMobile}
+        hidden={!(state === "collapsed" || isEmbeddedPhoneLandscape) || isMobile}
         {...tooltip}
       />
     </Tooltip>

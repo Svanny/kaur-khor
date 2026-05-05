@@ -32,6 +32,20 @@ describe('installBrowserDesktopBridge', () => {
     expect(summary?.skuSummaries.length).toBeGreaterThan(0);
   });
 
+  it('announces mock preference changes to embedded browser chrome listeners', async () => {
+    const listener = vi.fn();
+    window.addEventListener('kaur-khor-browser-state-changed', listener);
+    installBrowserDesktopBridge();
+
+    try {
+      await window.kaurKhorDesktop.preferences.save({ language: 'km' });
+
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener('kaur-khor-browser-state-changed', listener);
+    }
+  });
+
   it('seeds the automation bridge and promotes mock intake into a ticket', async () => {
     installBrowserDesktopBridge();
 

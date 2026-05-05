@@ -10,4 +10,4 @@ export {
   installBrowserBeforeUnloadWarning,
   isBrowserTelegramLiveListening,
 } from './embedded-app';
-export { EmbeddedAutoZoomViewport } from './embedded-viewport';
+export { EmbeddedAutoZoomViewport, landscapeScrollWidthForContent } from './embedded-viewport';

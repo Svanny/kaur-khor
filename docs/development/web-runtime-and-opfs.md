@@ -1,6 +1,6 @@
 # Web runtime and OPFS
 
-The browser app is separate from the Electron desktop runtime. The web entry lives in `src/renderer/src/main.web.tsx` and the public routes live under `src/renderer/src/routes/web`.
+The browser app is separate from the Electron desktop runtime. The web entry lives in `src/renderer/src/main.web.tsx` and the public routes live under `src/renderer/src/routes/web`. The Electron dev renderer entry shares the same embedded-route detection so `/kaur-khor/demo`, `/kaur-khor/app`, and `/main` can be exercised without switching to the production web bundle.
 
 ## Routing
 
@@ -13,6 +13,8 @@ The public web build uses Vite with `base: '/kaur-khor/'` for GitHub Pages. Publ
 Desktop download and install guidance is part of the overview page at `/kaur-khor/#releases`; there is no standalone `/install` route.
 
 When the existing product app is mounted from `/demo` or `/app`, it is wrapped in a `HashRouter`. Product routes then live after the hash so GitHub Pages can serve the public entry while the existing app keeps its desktop route assumptions.
+
+Use `src/renderer/src/routes/web/embedded-entry.ts` for browser-surface entry decisions. Keep production web routing and Electron dev routing aligned there instead of duplicating pathname parsing in each entry file.
 
 ## Runtime boundary
 

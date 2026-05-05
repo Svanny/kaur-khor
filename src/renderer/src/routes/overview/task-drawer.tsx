@@ -935,7 +935,10 @@ export function OverviewTaskDrawer({
       <SheetContent
         className="w-full max-w-none gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]"
         showCloseButton={false}
-        style={{ width: `${drawerWidth}px`, maxWidth: `calc(100vw - ${DRAWER_VIEWPORT_GUTTER}px)` }}
+        style={{
+          width: `${drawerWidth}px`,
+          maxWidth: `calc(var(--kaur-khor-effective-viewport-width, 100vw) - ${DRAWER_VIEWPORT_GUTTER}px)`,
+        }}
       >
         {discardConfirmDialog}
         <div

@@ -20,3 +20,5 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Dense chart flag fallbacks must preserve pill/button geometry; replace icons with color-only rounded pills rather than flat interval rectangles.
 - Expanded trading charts must keep the pane-count minimum render height so extra indicator panes scroll instead of collapsing.
 - Kaur Khor auto-zoom thresholds must be grounded in common desktop/window-size tiers; use `1600x900` as normal density and zoom out around `1440`, `1280`, `1120`, and sub-`900` heights instead of treating `1280x800` as normal.
+- Browser app auto-zoom resize bugs must be traced through `EmbeddedAutoZoomViewport`; embedded browser mode must keep the full desktop sidebar as layout, not the mobile trigger/sheet path, and verify settled resize plus rotated phone scrolling.
+- Embedded phone-view annotation fixes must be verified against the web dev server `/kaur-khor/demo#/` route at the annotated viewport; `localhost:5174` can render the desktop app and miss rotated embedded layout bugs.

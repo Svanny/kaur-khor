@@ -11,6 +11,7 @@ import {
   fallbackStateForMode,
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
+  landscapeScrollWidthForContent,
   WebRoutes,
 } from './index';
 
@@ -828,8 +829,45 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'នាំចូលច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'កំណត់សាកល្បងឡើងវិញ' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'ប្រើកម្មវិធីរុករក' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'ប្រើអេបក្នុងប្រោសឺរ' })).toBeInTheDocument();
     expect(screen.queryByText('Demo data - not your real workspace.')).not.toBeInTheDocument();
+  });
+
+  test('keeps the embedded sidebar banner surfaced and compact in Khmer', async () => {
+    const state = fallbackStateForMode('demo');
+    state.preferences.language = 'km';
+    setBrowserDesktopBridgeMockState(state);
+    const target = document.createElement('div');
+    target.dataset.slot = 'embedded-sidebar-banner-slot';
+    document.body.appendChild(target);
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <EmbeddedAppBanner
+            mode="demo"
+            storage={embeddedStorage}
+            onExport={vi.fn()}
+            onImport={vi.fn()}
+            onReset={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(within(target).getByText('ទិន្នន័យសាកល្បង មិនមែនកន្លែងធ្វើការពិតរបស់អ្នកទេ។')).toBeInTheDocument();
+      });
+      const bannerCard = target.querySelector('[data-slot="web-app-banner-card"]');
+      expect(bannerCard).toHaveClass('h-full', 'rounded-xl', 'border-border/70', 'bg-white/90');
+      expect(within(target).getAllByText('នាំចេញ').length).toBeGreaterThan(0);
+      expect(within(target).getAllByText('នាំចូល').length).toBeGreaterThan(0);
+      expect(within(target).getAllByText('កំណត់').length).toBeGreaterThan(0);
+      expect(within(target).getAllByText('ប្រើប្រោសឺរ').length).toBeGreaterThan(0);
+      expect(within(target).queryByText('Export')).not.toBeInTheDocument();
+      expect(within(target).queryByText('Reset')).not.toBeInTheDocument();
+    } finally {
+      target.remove();
+    }
   });
 
   test('localizes browser app warning banner copy to Khmer', () => {
@@ -872,13 +910,25 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const spacer = container.querySelector('[data-slot="embedded-auto-zoom-layout-spacer"]');
     const surface = container.querySelector('[data-slot="embedded-auto-zoom-surface"]');
     expect(viewport).not.toBeNull();
+    expect(spacer).not.toBeNull();
     expect(surface).not.toBeNull();
     expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
     expect(viewport).toHaveAttribute('data-zoom-level', '-2');
     expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(800 / (1.2 ** -2))));
     expect(viewport).toHaveAttribute('data-measured-area', String(900 * 800));
+    expect(viewport).toHaveClass('h-svh', 'overflow-auto');
+    expect(viewport).not.toHaveClass('overflow-hidden');
+    expect(spacer).toHaveStyle({
+      height: '800px',
+      width: '900px',
+    });
+    expect(viewport).toHaveStyle({
+      '--kaur-khor-embedded-shell-content-height': `${800 / (1.2 ** -2)}px`,
+      '--kaur-khor-embedded-shell-content-width': `${900 / (1.2 ** -2)}px`,
+    });
     expect(surface).toHaveStyle({ width: `${900 / (1.2 ** -2)}px` });
     await waitFor(() => {
       expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(900 / (1.2 ** -2))));
@@ -896,17 +946,58 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const spacer = container.querySelector('[data-slot="embedded-auto-zoom-layout-spacer"]');
     const surface = container.querySelector('[data-slot="embedded-auto-zoom-surface"]');
     expect(viewport).not.toBeNull();
+    expect(spacer).not.toBeNull();
     expect(surface).not.toBeNull();
     expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
     expect(viewport).toHaveAttribute('data-zoom-level', '-1');
     expect(viewport).toHaveAttribute('data-effective-width', String(Math.round(1440 / (1.2 ** -1))));
     expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(799 / (1.2 ** -1))));
     expect(viewport).toHaveAttribute('data-measured-area', String(1440 * 799));
+    expect(spacer).toHaveStyle({
+      height: '799px',
+      width: '1440px',
+    });
     expect(surface).toHaveStyle({
       minHeight: `${799 / (1.2 ** -1)}px`,
       width: `${1440 / (1.2 ** -1)}px`,
+    });
+  });
+
+  test('refreshes embedded product auto zoom after browser viewport resizing settles', async () => {
+    mockViewport(900, 800);
+
+    const { container } = render(
+      <EmbeddedAutoZoomViewport>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const spacer = container.querySelector('[data-slot="embedded-auto-zoom-layout-spacer"]');
+    const surface = container.querySelector('[data-slot="embedded-auto-zoom-surface"]');
+    expect(viewport).not.toBeNull();
+    expect(spacer).not.toBeNull();
+    expect(surface).not.toBeNull();
+    expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+
+    mockViewport(1600, 900);
+    fireEvent.resize(window);
+
+    await waitFor(() => {
+      expect(viewport).toHaveAttribute('data-zoom-level', '0');
+      expect(viewport).toHaveAttribute('data-effective-height', '900');
+      expect(viewport).toHaveAttribute('data-effective-width', '1600');
+      expect(spacer).toHaveStyle({
+        height: '900px',
+        width: '1600px',
+      });
+      expect(surface).toHaveStyle({
+        minHeight: '900px',
+        width: '1600px',
+      });
     });
   });
 
@@ -920,19 +1011,39 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    const spacer = container.querySelector('[data-slot="embedded-landscape-scroll-spacer"]');
     const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
     expect(viewport).not.toBeNull();
+    expect(spacer).not.toBeNull();
     expect(frame).not.toBeNull();
     expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
     expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+    expect(viewport).toHaveClass('overflow-x-auto', 'overflow-y-hidden');
+    expect(viewport).not.toHaveClass('overflow-hidden');
+    expect(viewport).toHaveStyle({
+      '--kaur-khor-embedded-shell-content-height': `${390 / (1.2 ** -2)}px`,
+      '--kaur-khor-embedded-shell-content-width': `${844 / (1.2 ** -2)}px`,
+    });
+    expect(spacer).toHaveStyle({
+      minHeight: '844px',
+      width: '390px',
+    });
     expect(frame).toHaveStyle({
       height: '390px',
-      transform: 'rotate(90deg) translateY(-100%)',
+      left: '0px',
+      position: 'absolute',
+      top: '844px',
+      transform: 'rotate(-90deg)',
       width: '844px',
     });
     await waitFor(() => {
       expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
     });
+  });
+
+  test('does not add phone landscape scroll width when content already fits', () => {
+    expect(landscapeScrollWidthForContent(532, 532.375)).toBe(532);
+    expect(landscapeScrollWidthForContent(532, 540)).toBe(556);
   });
 
   test('renders the embedded onboarding banner as a top nav overlay', () => {
@@ -977,9 +1088,12 @@ describe('WebRoutes embedded app fallback state', () => {
     const sidebar = document.createElement('div');
     sidebar.dataset.slot = 'sidebar';
     sidebar.dataset.state = 'collapsed';
+    const target = document.createElement('div');
+    target.dataset.slot = 'embedded-sidebar-banner-slot';
     document.body.appendChild(sidebar);
+    document.body.appendChild(target);
     try {
-      const { container } = render(
+      render(
         <MemoryRouter initialEntries={['/']}>
           <EmbeddedAppBanner
             mode="demo"
@@ -991,14 +1105,49 @@ describe('WebRoutes embedded app fallback state', () => {
         </MemoryRouter>,
       );
 
-      const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
-      expect(bannerCard).not.toBeNull();
       await waitFor(() => {
-        expect(bannerCard).toHaveClass('md:min-h-[13.5rem]', 'md:border-0', 'md:bg-transparent', 'md:px-0', 'md:py-0');
+        const bannerCard = target.querySelector('[data-slot="web-app-banner-card"]');
+        expect(bannerCard).not.toBeNull();
+        expect(bannerCard).toHaveClass('h-full', 'md:border-0', 'md:bg-transparent', 'md:px-0', 'md:py-0');
       });
       expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('md:size-8', 'md:justify-center', 'md:p-2');
+      expect(screen.getByRole('button', { name: 'Export backup' }).parentElement).not.toHaveClass('md:-translate-y-3');
+      expect(screen.getByRole('button', { name: 'Export backup' }).parentElement).toHaveClass('md:content-start');
     } finally {
       sidebar.remove();
+      target.remove();
+    }
+  });
+
+  test('keeps the embedded banner backing card in expanded phone landscape mode', async () => {
+    const target = document.createElement('div');
+    target.dataset.slot = 'embedded-sidebar-banner-slot';
+    document.body.appendChild(target);
+    document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape = 'true';
+    try {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <EmbeddedAppBanner
+            mode="demo"
+            storage={embeddedStorage}
+            onExport={vi.fn()}
+            onImport={vi.fn()}
+            onReset={vi.fn()}
+          />
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        const bannerCard = target.querySelector('[data-slot="web-app-banner-card"]');
+        expect(bannerCard).not.toBeNull();
+        expect(bannerCard).toHaveClass('h-full', 'rounded-xl', 'border-border/70', 'bg-white/90');
+        expect(bannerCard).not.toHaveClass('rounded-none', 'border-0', 'bg-transparent', 'px-0', 'py-0');
+      });
+      expect(screen.getByRole('button', { name: 'Export backup' })).not.toHaveClass('size-8', 'justify-center', 'p-2');
+      expect(target.querySelector('.embedded-sidebar-action-label-full')).not.toHaveClass('sr-only');
+    } finally {
+      delete document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape;
+      target.remove();
     }
   });
 

@@ -1,18 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import { embeddedModeForPath } from '@/routes/web/embedded-entry';
 import './globals.css';
 
 const EmbeddedAppRoute = React.lazy(() => import('@/routes/web/embedded-app').then((module) => ({ default: module.EmbeddedAppRoute })));
 const WebRoutes = React.lazy(() => import('@/routes/web/landing').then((module) => ({ default: module.WebRoutes })));
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const relativePath = basePath && window.location.pathname.startsWith(basePath)
-  ? window.location.pathname.slice(basePath.length) || '/'
-  : window.location.pathname;
+const embeddedMode = embeddedModeForPath(window.location.pathname, basePath);
 
-const app = relativePath === '/demo' || relativePath === '/app'
-  ? <EmbeddedAppRoute mode={relativePath === '/demo' ? 'demo' : 'app'} />
+const app = embeddedMode
+  ? <EmbeddedAppRoute mode={embeddedMode} />
   : (
     <BrowserRouter basename={basePath === '' ? undefined : basePath}>
       <WebRoutes />
@@ -20,7 +19,7 @@ const app = relativePath === '/demo' || relativePath === '/app'
   );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  relativePath === '/demo' || relativePath === '/app'
+  embeddedMode
     ? <React.Suspense fallback={null}>{app}</React.Suspense>
     : (
       <React.StrictMode>
