@@ -67,9 +67,18 @@ describe('CommandHomeRoute', () => {
   test('uses a single column for the tile grid when only one action is visible', () => {
     renderRoute();
 
-    const grid = document.querySelector('.grid.min-h-0.flex-1.place-items-center');
+    const page = document.querySelector('[data-slot="command-home-page"]');
+    const summaryGrid = document.querySelector('[data-slot="command-home-summary-grid"]');
+    const grid = document.querySelector('[data-slot="centered-tile-grid"]');
+    expect(page).not.toBeNull();
+    expect(summaryGrid).not.toBeNull();
     expect(grid).not.toBeNull();
+    expect(page).toHaveAttribute('data-fit-viewport', 'true');
+    expect(grid).toHaveClass('command-home-action-grid');
     expect(grid).toHaveStyle({ '--centered-tile-columns': '1' });
+    expect(grid).toHaveStyle({
+      '--centered-grid-max-inline-size': 'calc(1 * var(--centered-tile-max-size) + 0 * var(--centered-tile-gap))',
+    });
   });
 
   test('shows every actionable card once the workspace is unlocked', () => {
@@ -219,7 +228,7 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Capture Update/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Open Catalog/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
-    const grid = document.querySelector('.grid.min-h-0.flex-1.place-items-center');
+    const grid = document.querySelector('[data-slot="centered-tile-grid"]');
     expect(grid).not.toBeNull();
     expect(grid).toHaveStyle({ '--centered-tile-columns': '3' });
   });

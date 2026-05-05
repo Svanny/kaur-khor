@@ -84,6 +84,31 @@ describe('HeaderedTable', () => {
     expect(layout.rowClassName).toContain('lg:[&>*]:px-3.5');
     expect(layout.mobileLabelClassName).toBe('lg:hidden');
     expect(layout.style).toEqual({ '--headered-table-columns': 'minmax(18rem,1fr) fit-content(9rem)' });
+    expect(layout.overflowX).toBe('hidden');
+  });
+
+  test('can opt a table layout into horizontal scrolling', () => {
+    const layout = createHeaderedTableLayout({
+      breakpoint: 'xl',
+      columns: '18rem 10rem 18rem',
+      gap: 4,
+      overflowX: 'auto',
+    });
+    const { container } = render(
+      <HeaderedTable className={layout.containerClassName} overflowX={layout.overflowX}>
+        <HeaderedTableBody>
+          <HeaderedTableRow className={layout.rowClassName}>
+            <div>Scrollable row</div>
+          </HeaderedTableRow>
+        </HeaderedTableBody>
+      </HeaderedTable>,
+    );
+
+    const table = container.querySelector('[data-slot="headered-table"]');
+    expect(layout.overflowX).toBe('auto');
+    expect(table).toHaveAttribute('data-overflow-x', 'auto');
+    expect(table?.className).toContain('overflow-x-auto');
+    expect(table?.className).not.toContain('overflow-hidden');
   });
 
   test('renders mobile labels with the shared heading treatment', () => {

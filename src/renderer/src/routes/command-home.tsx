@@ -58,7 +58,7 @@ function CommandAction({
     </LiquidGridCard>
   );
 
-  return <Link className="block min-w-0 focus-visible:outline-none" to={to}>{content}</Link>;
+  return <Link className="block w-full min-w-0 focus-visible:outline-none" to={to}>{content}</Link>;
 }
 
 export function CommandHomeRoute() {
@@ -129,14 +129,14 @@ export function CommandHomeRoute() {
   const commandActionColumns = visibleCommandActions.length === 3 ? 3 : Math.min(2, visibleCommandActions.length);
 
   return (
-    <WorkspacePage fitViewport className="gap-5">
+    <WorkspacePage fitViewport className="gap-5" data-slot="command-home-page">
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Home')}
         title={translateUiLiteral(language, 'Command home')}
         descriptor={translateUiLiteral(language, 'Start with the next operational decision, then move into capture, catalog, or insight work.')}
         className="rounded-xl"
       >
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-3" data-slot="command-home-summary-grid">
           <div className="rounded-lg border border-border/60 bg-white px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <EntitySignalIcon className="size-4" aria-hidden="true" />
@@ -165,7 +165,7 @@ export function CommandHomeRoute() {
         </div>
       </WorkspaceTitleCard>
 
-      <CenteredTileGrid columns={commandActionColumns}>
+      <CenteredTileGrid className="command-home-action-grid" columns={commandActionColumns}>
         {visibleCommandActions.map((action) => (
           <CommandAction
             key={action.label}

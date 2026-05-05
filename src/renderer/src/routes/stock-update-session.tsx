@@ -108,6 +108,7 @@ import {
 } from '@/components/system/lead-time-variability-field';
 import { MerchandisingEditor } from '@/components/system/merchandising-editor';
 import { RouteBackButton } from '@/components/system/page-navigation';
+import { FilterControlRow } from '@/components/system/filter-control-row';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SearchInput } from '@/components/system/search-input';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
@@ -332,9 +333,10 @@ const posReceiptConfirmTableLayout = createHeaderedTableLayout({
 });
 
 const stockCountPosSummaryTableLayout = createHeaderedTableLayout({
-  breakpoint: 'lg',
+  breakpoint: 'xl',
   columns: 'minmax(0, 0.82fr) 7rem minmax(0, 1.24fr)',
   gap: 4,
+  overflowX: 'auto',
 });
 
 function posDialogQuantityValue(quantity: number) {
@@ -370,7 +372,7 @@ function StockCountPosChangeTable({
 
   return (
     <div style={stockCountPosSummaryTableLayout.style}>
-      <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} variant="overview">
+      <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} overflowX={stockCountPosSummaryTableLayout.overflowX} variant="overview">
         <HeaderedTableHeader className={stockCountPosSummaryTableLayout.headerClassName}>
           <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
@@ -423,11 +425,11 @@ function StockCountPosChangeTable({
                     {translateUiLiteral(language, 'Details')}
                   </HeaderedTableMobileLabel>
                   {row.changedFields.map((field) => (
-                    <p key={field.key} className="flex items-baseline justify-between gap-3 whitespace-nowrap">
+                    <p key={field.key} className="flex min-w-0 items-baseline justify-between gap-3">
                       <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                         {field.label}
                       </span>
-                      <span className="text-right font-medium text-foreground tabular-nums">{field.value}</span>
+                      <span className="min-w-0 text-right font-medium text-foreground tabular-nums">{field.value}</span>
                     </p>
                   ))}
                 </div>
@@ -10559,45 +10561,49 @@ export function StockUpdateSessionRoute() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                      <SearchInput
-                        aria-label={translateUiLiteral(language, 'Search workbench items')}
-                        className="h-11 min-w-[18rem] max-w-xl rounded-full border border-border/70 bg-white shadow-none"
-                        inputClassName="bg-transparent"
-                        placeholder={translateUiLiteral(language, 'Search items, services, or SKUs')}
-                        value={posWorkbenchSearch}
-                        onFocus={(event) => {
-                          if (workbenchReorderMode) {
-                            event.target.blur();
+                    <FilterControlRow
+                      search={
+                        <SearchInput
+                          aria-label={translateUiLiteral(language, 'Search workbench items')}
+                          className="h-11 min-w-0 max-w-xl rounded-full border border-border/70 bg-white shadow-none"
+                          inputClassName="bg-transparent"
+                          placeholder={translateUiLiteral(language, 'Search items, services, or SKUs')}
+                          value={posWorkbenchSearch}
+                          onFocus={(event) => {
+                            if (workbenchReorderMode) {
+                              event.target.blur();
+                              requestWorkbenchReorderPrompt();
+                            }
+                          }}
+                          onPointerDown={(event) => {
+                            if (!workbenchReorderMode) {
+                              return;
+                            }
+                            event.preventDefault();
                             requestWorkbenchReorderPrompt();
-                          }
-                        }}
-                        onPointerDown={(event) => {
-                          if (!workbenchReorderMode) {
-                            return;
-                          }
-                          event.preventDefault();
-                          requestWorkbenchReorderPrompt();
-                        }}
-                        onChange={(event) => setPosWorkbenchSearch(event.target.value)}
-                      />
-                      <ResponsiveToggleFilter
-                        ariaLabel={translateUiLiteral(language, 'Workbench filters')}
-                        className="min-w-0 flex-1"
-                        toggleClassName="rounded-full bg-muted/40"
-                        triggerClassName="h-11 rounded-full"
-                        size="lg"
-                        options={posFilterOptions}
-                        value={posWorkbenchFilter}
-                        onValueChange={(nextValue) => {
-                          if (workbenchReorderMode) {
-                            requestWorkbenchReorderPrompt();
-                            return;
-                          }
-                          setPosWorkbenchFilter(nextValue);
-                        }}
-                      />
-                    </div>
+                          }}
+                          onChange={(event) => setPosWorkbenchSearch(event.target.value)}
+                        />
+                      }
+                      primaryFilter={
+                        <ResponsiveToggleFilter
+                          ariaLabel={translateUiLiteral(language, 'Workbench filters')}
+                          className="min-w-0"
+                          toggleClassName="rounded-full bg-muted/40"
+                          triggerClassName="h-11 rounded-full"
+                          size="lg"
+                          options={posFilterOptions}
+                          value={posWorkbenchFilter}
+                          onValueChange={(nextValue) => {
+                            if (workbenchReorderMode) {
+                              requestWorkbenchReorderPrompt();
+                              return;
+                            }
+                            setPosWorkbenchFilter(nextValue);
+                          }}
+                        />
+                      }
+                    />
                   </div>
                 </div>
 

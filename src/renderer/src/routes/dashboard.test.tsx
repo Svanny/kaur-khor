@@ -601,6 +601,7 @@ describe('DashboardRoute', () => {
 
     expect(screen.getAllByText('Queue').length).toBeGreaterThan(0);
     expect(screen.getAllByPlaceholderText('Search name or description…')[0]!).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="filter-control-row"]')).not.toBeNull();
     const scopeToggle = screen.getByRole('group', { name: 'Select overview ticket family' });
     expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
@@ -819,11 +820,13 @@ describe('DashboardRoute', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Customer' }));
 
     expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filter by supplier' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
 
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter by supplier' })).toBeInTheDocument();
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
   });
 

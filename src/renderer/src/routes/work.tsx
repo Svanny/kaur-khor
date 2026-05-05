@@ -146,12 +146,12 @@ export function WorkRoute() {
             return (
               <Link
                 key={mode.id}
-                className="block min-w-0 focus-visible:outline-none"
+                className="block w-full min-w-0 focus-visible:outline-none"
                 to={mode.id === 'queue' ? rememberedQueueHref : mode.href}
               >
                 <LiquidGridCard
                   className={gridCardSurfaceClassName(mode.tone)}
-                  contentClassName="min-w-[14rem] px-5 py-6 text-center md:px-7 md:py-7"
+                  contentClassName="min-w-0 w-full px-5 py-6 text-center md:px-7 md:py-7"
                 >
                   <span className="flex h-full flex-col items-center justify-center">
                     <span className="flex flex-col items-center gap-5">
@@ -159,10 +159,10 @@ export function WorkRoute() {
                         <Icon className="size-16 shrink-0 text-foreground md:size-20" aria-hidden="true" />
                       </span>
                       <span className="flex flex-col items-center gap-3">
-                        <span className="khmer-safe-display block min-h-8 text-2xl font-semibold text-foreground">
+                        <span className="khmer-safe-display block min-h-8 text-2xl font-semibold text-foreground" data-slot="centered-tile-card-title">
                           {translateUiLiteral(language, mode.label)}
                         </span>
-                        <span className="mx-auto block h-[4.5rem] max-w-[15rem] text-sm leading-6 text-muted-foreground line-clamp-3">
+                        <span className="mx-auto block h-[4.5rem] max-w-[15rem] text-sm leading-6 text-muted-foreground line-clamp-3" data-slot="centered-tile-card-summary">
                           {translateUiLiteral(language, mode.summary)}
                         </span>
                       </span>

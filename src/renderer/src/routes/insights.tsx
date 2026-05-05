@@ -97,20 +97,20 @@ export function InsightsRoute() {
             return (
               <Link
                 key={mode.id}
-                className="block min-w-0 focus-visible:outline-none"
+                className="block w-full min-w-0 focus-visible:outline-none"
                 to={rememberedInsightModeHref(mode.id)}
               >
                 <LiquidGridCard
                   className={gridCardSurfaceClassName(mode.tone)}
-                  contentClassName="min-w-[14rem] px-5 py-6 text-center md:px-7 md:py-7"
+                  contentClassName="min-w-0 w-full px-5 py-6 text-center md:px-7 md:py-7"
                 >
                   <span className="flex h-full flex-col items-center justify-center gap-5">
                     <Icon className="size-16 shrink-0 text-foreground md:size-20" aria-hidden="true" />
                     <span className="space-y-3">
-                      <span className="khmer-safe-display block text-2xl font-semibold text-foreground">
+                      <span className="khmer-safe-display block text-2xl font-semibold text-foreground" data-slot="centered-tile-card-title">
                         {translateUiLiteral(language, mode.label)}
                       </span>
-                      <span className="mx-auto block max-w-[15rem] text-sm leading-6 text-muted-foreground">
+                      <span className="mx-auto block max-w-[15rem] text-sm leading-6 text-muted-foreground" data-slot="centered-tile-card-summary">
                         {translateUiLiteral(language, mode.summary)}
                       </span>
                     </span>

@@ -822,7 +822,7 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('shows only changed stock-count fields in the POS summary and reopens the popup from the changed row', async () => {
-    renderRoute();
+    const { container } = renderRoute();
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
 
@@ -839,6 +839,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByText('$4.00 → $6.00')).toBeInTheDocument();
     expect(screen.getByText('Stockout')).toBeInTheDocument();
     expect(screen.queryByText('Retail')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="headered-table"]')).toHaveAttribute('data-overflow-x', 'auto');
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit Razor refill changed item' }));
     await screen.findByRole('dialog', { name: 'Razor refill' });

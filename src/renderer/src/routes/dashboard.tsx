@@ -28,6 +28,7 @@ import {
 } from '@/components/system/workspace';
 import type { IconComponent } from '@icons';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { FilterControlRow } from '@/components/system/filter-control-row';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { CreateFirstSkuButton } from '@/components/system/create-first-sku-button';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
@@ -792,43 +793,48 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
           }
           descriptor={translateUiLiteral(language, 'Review customer and supplier work that needs attention next.')}
         >
-          <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(12rem,1fr)_auto_minmax(8rem,10.5rem)] lg:items-center lg:gap-4">
-            <div className="min-w-0">
+          <FilterControlRow
+            search={
               <SearchInput
                 ariaLabel={translateUiLiteral(language, 'Search queue')}
                 placeholder={t('searchPlaceholder')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
-            </div>
-            <ResponsiveToggleFilter
-              ariaLabel={translateUiLiteral(language, 'Select overview ticket family')}
-              options={overviewScopeOptions}
-              value={overviewScope}
-              onValueChange={(nextValue) => {
-                updateRouteState({
-                  workflow: nextValue,
-                  customerFilter: nextValue === 'customer' ? customerFilter : 'all',
-                  customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
-                  taskId: nextValue === 'supplier' ? routeState.taskId : null,
-                  taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
-                });
-              }}
-            />
-            <SupplierFilter
-              catalog={inventory.catalog}
-              className={compactFilterControlClassName}
-              value={supplierFilter}
-              disabled={overviewScope === 'customer'}
-              onChange={(nextSupplier) =>
-                updateRouteState({
-                  supplier: supplierFilterQueryValue(nextSupplier),
-                  taskId: null,
-                  taskMode: null,
-                })
-              }
-            />
-          </div>
+            }
+            primaryFilter={
+              <ResponsiveToggleFilter
+                ariaLabel={translateUiLiteral(language, 'Select overview ticket family')}
+                options={overviewScopeOptions}
+                value={overviewScope}
+                onValueChange={(nextValue) => {
+                  updateRouteState({
+                    workflow: nextValue,
+                    customerFilter: nextValue === 'customer' ? customerFilter : 'all',
+                    customerTaskId: nextValue === 'customer' ? routeState.customerTaskId : null,
+                    taskId: nextValue === 'supplier' ? routeState.taskId : null,
+                    taskMode: nextValue === 'supplier' ? routeState.taskMode : null,
+                  });
+                }}
+              />
+            }
+            secondaryFilter={
+              overviewScope === 'supplier' ? (
+                <SupplierFilter
+                  catalog={inventory.catalog}
+                  className={compactFilterControlClassName}
+                  value={supplierFilter}
+                  onChange={(nextSupplier) =>
+                    updateRouteState({
+                      supplier: supplierFilterQueryValue(nextSupplier),
+                      taskId: null,
+                      taskMode: null,
+                    })
+                  }
+                />
+              ) : null
+            }
+          />
         </WorkspaceTitleCard>
       ) : null}
 

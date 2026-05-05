@@ -4,7 +4,7 @@ import { DescriptionTextVisibilityProvider } from '@/components/system/descripti
 import { PreferencesProvider } from '@/state/preferences';
 import { EmptyTitle } from '@/components/ui/empty';
 import { CardTitle } from '@/components/ui/card';
-import { MetricCard, SectionEyebrow, WorkspacePage, WorkspacePageTitle, WorkspacePanel, WorkspaceTitleCard } from './workspace';
+import { MetricCard, SectionEyebrow, WorkspaceActionRow, WorkspacePage, WorkspacePageTitle, WorkspacePanel, WorkspaceTitleCard } from './workspace';
 import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import { RIGHT_RAIL_ASIDE_CLASS_NAME, rightRailLayoutClassName } from '@/components/system/right-rail-layout';
 
@@ -225,6 +225,21 @@ describe('WorkspacePanel', () => {
     expect(floatingActionSurface?.className).toContain(headerActionSurfaceClassName);
   });
 
+  test('can keep action rows on one scroll-safe line', () => {
+    const { container } = render(
+      <WorkspaceActionRow wrap={false}>
+        <button type="button">Detail</button>
+        <button type="button">Edit</button>
+        <button type="button">Archive</button>
+      </WorkspaceActionRow>,
+    );
+
+    const row = container.querySelector('[data-nowrap="true"]');
+    expect(row).not.toBeNull();
+    expect(row?.className).toContain('flex-nowrap');
+    expect(row?.className).toContain('overflow-x-auto');
+  });
+
   test('marks title-card eyebrow and display title as Khmer-safe typography surfaces', async () => {
     const { container } = render(
       <PreferencesProvider>
@@ -301,6 +316,7 @@ describe('WorkspacePanel', () => {
     });
     expect(screen.getByText('Page body').parentElement?.className).toContain('flex-1');
     expect(screen.getByText('Page body').parentElement?.className).toContain('w-full');
+    expect(screen.getByText('Page body').parentElement).toHaveAttribute('data-fit-viewport', 'true');
   });
 
   test('keeps shared right-rail layouts content-sized by default', () => {

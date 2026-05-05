@@ -1896,7 +1896,11 @@ function SupplyFragilityMap({
           </div>
         </div>
       ) : null}
-      <div ref={viewportRef} className="overflow-x-auto px-6 py-5">
+      <div
+        ref={viewportRef}
+        className="max-h-[min(68vh,42rem)] min-h-0 overflow-auto overscroll-contain px-6 py-5"
+        data-slot="fragility-map-scroll-viewport"
+      >
         <div
           className="grid min-w-max gap-2"
           style={{ gridTemplateColumns: `repeat(${model.fragilityRows.length + 1}, ${sharedCellWidth}px)` }}

@@ -206,6 +206,24 @@ describe('ResponsiveToggleFilter', () => {
     expect(screen.getByRole('radio', { name: 'SKUs' })).toBeInTheDocument();
   });
 
+  test('measures against a constrained sibling filter row', () => {
+    mockElementWidths({ availableWidth: 180, contentWidth: 320 });
+
+    render(
+      <div data-testid="clipping-parent" className="flex overflow-hidden">
+        <input aria-label="Search catalog" />
+        <ResponsiveToggleFilter
+          ariaLabel="Catalog filter"
+          options={[...options]}
+          value="services"
+          onValueChange={vi.fn()}
+        />
+      </div>,
+    );
+
+    expect(screen.getByRole('combobox', { name: 'Catalog filter' })).toHaveTextContent('Services');
+  });
+
   test('selects an option from the dropdown', async () => {
     mockElementWidths({ availableWidth: 160, contentWidth: 320 });
     const onValueChange = vi.fn();

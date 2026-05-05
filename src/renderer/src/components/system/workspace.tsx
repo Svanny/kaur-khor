@@ -36,6 +36,7 @@ export function WorkspacePage({
 
   return (
     <div
+      data-fit-viewport={fitViewport ? 'true' : undefined}
       className={cn(
         'flex w-full flex-col gap-6',
         showFloatingTitleActions && !fitViewport && 'pb-32 md:pb-36',
@@ -171,11 +172,24 @@ export function WorkspaceHero(props: WorkspaceTitleCardProps) {
 export function WorkspaceActionRow({
   className,
   children,
+  wrap = true,
 }: {
   className?: string;
   children: ReactNode;
+  wrap?: boolean;
 }) {
-  return <div className={cn('flex flex-wrap items-center gap-2', className)}>{children}</div>;
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2',
+        wrap ? 'flex-wrap' : 'max-w-full flex-nowrap overflow-x-auto overscroll-contain',
+        className,
+      )}
+      data-nowrap={wrap ? undefined : 'true'}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function MetricGrid({

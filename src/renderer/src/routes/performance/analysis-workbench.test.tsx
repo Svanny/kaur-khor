@@ -472,6 +472,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
 
     expect(screen.getByText('Service blocker map')).toBeInTheDocument();
     expect(document.querySelector('[data-analysis-inspector="true"]')).toBeNull();
+    expect(document.querySelector('[data-slot="fragility-map-scroll-viewport"]')).not.toBeNull();
   });
 
   test('shows help tooltips for each analysis setting field', () => {

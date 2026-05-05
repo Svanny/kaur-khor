@@ -19,6 +19,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemIdentityBlock } from '@/components/system/item-identity';
 import { compactFilterControlClassName } from '@/components/system/compact-controls';
+import { FilterControlRow } from '@/components/system/filter-control-row';
 import { ResponsiveToggleFilter } from '@/components/system/responsive-toggle-filter';
 import { SupplierBadge, SupplierFilter, supplierFilterQueryValue, supplierFilterValueForQuery } from '@/components/system/supplier';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
@@ -463,8 +464,8 @@ export function InventoryRoute() {
           </WorkspaceActionRow>
         }
       >
-        <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:gap-3">
-          <div className="min-w-0 flex-1 basis-40">
+        <FilterControlRow
+          search={
             <SearchInput
               ariaLabel={translateUiLiteral(language, 'Search catalog')}
               className="h-12 min-w-0 rounded-full"
@@ -476,30 +477,33 @@ export function InventoryRoute() {
                 );
               }}
             />
-          </div>
-          <ResponsiveToggleFilter
-            ariaLabel={t('searchItems')}
-            options={catalogFilterOptions}
-            value={view}
-            className="lg:shrink-0"
-            triggerClassName="max-w-[9rem]"
-            onValueChange={(nextView) => {
-              setSearchParams(
-                updateCatalogSearchParams(searchParams, { view: nextView }),
-              );
-            }}
-          />
-          <SupplierFilter
-            catalog={catalog}
-            className={`${compactFilterControlClassName} lg:shrink-0`}
-            value={supplierFilter}
-            onChange={(nextSupplier) => {
-              setSearchParams(
-                updateCatalogSearchParams(searchParams, { supplier: supplierFilterQueryValue(nextSupplier) }),
-              );
-            }}
-          />
-        </div>
+          }
+          primaryFilter={
+            <ResponsiveToggleFilter
+              ariaLabel={t('searchItems')}
+              options={catalogFilterOptions}
+              value={view}
+              triggerClassName="max-w-[9rem]"
+              onValueChange={(nextView) => {
+                setSearchParams(
+                  updateCatalogSearchParams(searchParams, { view: nextView }),
+                );
+              }}
+            />
+          }
+          secondaryFilter={
+            <SupplierFilter
+              catalog={catalog}
+              className={compactFilterControlClassName}
+              value={supplierFilter}
+              onChange={(nextSupplier) => {
+                setSearchParams(
+                  updateCatalogSearchParams(searchParams, { supplier: supplierFilterQueryValue(nextSupplier) }),
+                );
+              }}
+            />
+          }
+        />
       </WorkspaceTitleCard>
 
       {!hasResults ? (
@@ -585,7 +589,7 @@ export function InventoryRoute() {
                   return (
                     <div key={sku.skuId}>
                       <div
-                        className={`group flex flex-col gap-2 px-5 py-4 transition-colors md:flex-row md:items-center md:justify-between sm:px-6 ${rowHoverClassName}`}
+                        className={`group flex flex-col gap-3 px-5 py-4 transition-colors xl:flex-row xl:items-center xl:justify-between sm:px-6 ${rowHoverClassName}`}
                       >
                         <ItemIdentityBlock
                           className="min-w-0"
@@ -612,7 +616,7 @@ export function InventoryRoute() {
                           size="default"
                           type="sku"
                         />
-                        <WorkspaceActionRow>
+                        <WorkspaceActionRow wrap={false} className="pb-1 xl:justify-end">
                           <Button asChild size="sm" variant="outline">
                             <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />
@@ -706,7 +710,7 @@ export function InventoryRoute() {
                           size="default"
                           type="service"
                         />
-                        <WorkspaceActionRow>
+                        <WorkspaceActionRow wrap={false} className="pb-1 xl:justify-end">
                           <Button asChild size="sm" variant="outline">
                             <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}`}>
                               <EntityPreviewIcon data-icon="inline-start" />

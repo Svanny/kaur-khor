@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 type HeaderedTableVariant = 'overview' | 'framed';
 type HeaderedTableLayoutBreakpoint = 'lg' | 'xl';
 type HeaderedTableLayoutGap = 4 | 5;
+type HeaderedTableOverflow = 'hidden' | 'auto';
 
 export type HeaderedTableLayout = {
   containerClassName: string;
@@ -12,6 +13,7 @@ export type HeaderedTableLayout = {
   rowClassName: string;
   mobileLabelClassName: string;
   style: CSSProperties;
+  overflowX: HeaderedTableOverflow;
 };
 
 export function hasRenderableRows<T>(rows: readonly T[] | null | undefined): rows is readonly T[] {
@@ -22,10 +24,12 @@ export function createHeaderedTableLayout({
   breakpoint,
   columns,
   gap,
+  overflowX = 'hidden',
 }: {
   breakpoint: HeaderedTableLayoutBreakpoint;
   columns: string;
   gap: HeaderedTableLayoutGap;
+  overflowX?: HeaderedTableOverflow;
 }): HeaderedTableLayout {
   const responsiveClasses =
     breakpoint === 'lg'
@@ -76,6 +80,7 @@ export function createHeaderedTableLayout({
     rowClassName: `${responsiveClasses.row} ${gapClasses.row}`,
     mobileLabelClassName: responsiveClasses.mobileLabel,
     style: { '--headered-table-columns': columns } as CSSProperties,
+    overflowX,
   };
 }
 
@@ -84,12 +89,14 @@ export function HeaderedTable({
   className,
   empty = false,
   hideWhenEmpty = false,
+  overflowX = 'hidden',
   variant = 'overview',
 }: {
   children: ReactNode;
   className?: string;
   empty?: boolean;
   hideWhenEmpty?: boolean;
+  overflowX?: HeaderedTableOverflow;
   variant?: HeaderedTableVariant;
 }) {
   if (hideWhenEmpty && empty) {
@@ -99,11 +106,14 @@ export function HeaderedTable({
   return (
     <div
       className={cn(
-        variant === 'overview' && 'flex min-h-full flex-1 flex-col overflow-hidden rounded-none border-0 bg-white',
-        variant === 'framed' && 'flex min-h-full flex-1 flex-col overflow-hidden rounded-[1.4rem] border border-border/60 bg-white',
+        variant === 'overview' && 'flex min-h-full flex-1 flex-col rounded-none border-0 bg-white',
+        variant === 'framed' && 'flex min-h-full flex-1 flex-col rounded-[1.4rem] border border-border/60 bg-white',
+        overflowX === 'hidden' && 'overflow-hidden',
+        overflowX === 'auto' && 'overflow-x-auto overscroll-contain',
         className,
       )}
       data-slot="headered-table"
+      data-overflow-x={overflowX}
       data-variant={variant}
     >
       {children}
