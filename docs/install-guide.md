@@ -1,8 +1,8 @@
 # Install guide
 
-Use official release assets from [GitHub Releases](https://github.com/Svanny/banji/releases/latest). Each release should include platform artifacts and a `SHA256SUMS` file.
+Use official release assets from [GitHub Releases](https://github.com/Svanny/kaur-khor/releases/latest). Each release should include platform artifacts and a `SHA256SUMS` file.
 
-The browser app at <https://svanny.github.io/banji/app> is useful when OPFS storage is available, but it is not the full desktop runtime. Browser Telegram automation only polls while the tab is open and awake, benchmark/dev diagnostics are desktop-only, and browser data lives in the current browser profile. Install the desktop app for persistent Telegram automation, native backups/snapshots, folder reveal, logs, image assets, and benchmark runner diagnostics.
+The browser app at <https://svanny.github.io/kaur-khor/app> is useful when OPFS storage is available, but it is not the full desktop runtime. Browser Telegram automation only polls while the tab is open and awake, benchmark/dev diagnostics are desktop-only, and browser data lives in the current browser profile. Install the desktop app for persistent Telegram automation, native backups/snapshots, folder reveal, logs, image assets, and benchmark runner diagnostics.
 
 ## Safety rules
 
@@ -32,12 +32,12 @@ Approved flow:
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/banji), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. Copy the code below and paste it inside Terminal:
+To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. Copy the code below and paste it inside Terminal:
 
 ```sh
-curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz
-tar -xzf banji-source.tar.gz
-cd banji-main
+curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz
+tar -xzf kaur-khor-source.tar.gz
+cd kaur-khor-main
 ./scripts/build-from-source.sh
 ```
 
@@ -61,14 +61,14 @@ This approves the downloaded app without changing SmartScreen system-wide.
 For Debian or Ubuntu:
 
 ```bash
-sudo apt install ./banji-<version>-linux-<arch>.deb
+sudo apt install ./kaur-khor-<version>-linux-<arch>.deb
 ```
 
 For AppImage:
 
 ```bash
-chmod +x banji-<version>-linux-<arch>.AppImage
-./banji-<version>-linux-<arch>.AppImage
+chmod +x kaur-khor-<version>-linux-<arch>.AppImage
+./kaur-khor-<version>-linux-<arch>.AppImage
 ```
 
 Replace `<version>` and `<arch>` with the version and architecture from the release you downloaded.

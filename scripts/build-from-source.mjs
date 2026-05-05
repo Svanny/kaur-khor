@@ -18,7 +18,7 @@ import { dirname, join, resolve, sep } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
 const PNPM_VERSION = '10.32.1';
-const DEFAULT_REPO = 'https://github.com/Svanny/banji.git';
+const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
 const DEFAULT_REF = 'main';
 const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
 const RUSTUP_TARGETS = {

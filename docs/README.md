@@ -77,7 +77,7 @@ pnpm package:win:native
 - [Browser app](browser-app.md): public browser routes, demo behavior, and browser storage warnings
 - [Install guide](install-guide.md): release downloads, checksum verification, and safe unsigned-build launch flows
 - [Web runtime and OPFS](development/web-runtime-and-opfs.md): browser entrypoint, HashRouter boundary, runtime bridge, and OPFS expectations
-- [GitHub Pages](development/github-pages.md): Pages workflow, build output, SPA fallback, and `/banji/` route contract
+- [GitHub Pages](development/github-pages.md): Pages workflow, build output, SPA fallback, and `/kaur-khor/` route contract
 - [Automation workspace](development/automation-workspace.md): Telegram transport, automation staging store, route sections, promotion flow, and focused verification commands
 - [Ticketing architecture](development/ticketing-architecture.md): ticket event model, Work capture authoring contract, Work queue behavior, and downstream projections
 - [Intent-first UI overhaul](development/intent-first-ui-overhaul.md): canonical Home, Work, Catalog, Insights, Settings IA and legacy redirect boundaries

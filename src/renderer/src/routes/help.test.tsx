@@ -263,7 +263,21 @@ describe('HelpRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'បើកច្បាប់ចម្លងក្នុងឃ្លាំងកូដ' }));
 
     expect(window.kaurKhorDesktop.system.openExternalUrl).toHaveBeenCalledWith(
-      'https://github.com/Svanny/banji/blob/main/docs/user-guide.km.md',
+      'https://github.com/Svanny/kaur-khor/blob/main/docs/user-guide.km.md',
+    );
+  });
+
+  test('opens the English repository copy through the renamed GitHub repository', () => {
+    render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open repository copy' }));
+
+    expect(window.kaurKhorDesktop.system.openExternalUrl).toHaveBeenCalledWith(
+      'https://github.com/Svanny/kaur-khor/blob/main/docs/user-guide.md',
     );
   });
 

@@ -4,7 +4,7 @@ Kaur Khor is a desktop inventory workspace for small teams that want a local-fir
 
 It is not trying to be a full ERP or a hosted SaaS product. It is a desktop app for keeping a catalog, recording stock changes and real-world signals, and letting Kaur Khor's local analysis layer turn those updates into practical next actions.
 
-[Download latest release](https://github.com/Svanny/banji/releases/latest) · [Browser preview](https://svanny.github.io/banji/) · [Browse releases](https://github.com/Svanny/banji/releases) · [Report an issue](https://github.com/Svanny/banji/issues)
+[Download latest release](https://github.com/Svanny/kaur-khor/releases/latest) · [Browser preview](https://svanny.github.io/kaur-khor/) · [Browse releases](https://github.com/Svanny/kaur-khor/releases) · [Report an issue](https://github.com/Svanny/kaur-khor/issues)
 
 ## User Guide
 
@@ -39,12 +39,12 @@ The guides explain Kaur Khor's current workspaces, lane-based update flows, impo
 
 ## Browser Preview
 
-The public web surface is published with GitHub Pages under `/banji/`:
+The public web surface is published with GitHub Pages under `/kaur-khor/`:
 
-- Overview: <https://svanny.github.io/banji/>
-- Demo: <https://svanny.github.io/banji/demo>
-- Browser app entry: <https://svanny.github.io/banji/app>
-- Downloads and install notes: <https://svanny.github.io/banji/#releases>
+- Overview: <https://svanny.github.io/kaur-khor/>
+- Demo: <https://svanny.github.io/kaur-khor/demo>
+- Browser app entry: <https://svanny.github.io/kaur-khor/app>
+- Downloads and install notes: <https://svanny.github.io/kaur-khor/#releases>
 
 The demo route uses seeded browser data for preview. Browser storage is tied to the browser profile and is not the same as the desktop app's local data directory. See [docs/browser-app.md](docs/browser-app.md) for details.
 
@@ -92,7 +92,7 @@ Releases are published through GitHub Releases:
 - Windows: x64 installer
 - Linux: x64 AppImage and `.deb`
 
-Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `banji-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
+Depending on the platform and release signing status, your OS may show extra trust warnings during install. The release page is the source of truth for the latest downloadable artifacts. Release assets follow the repo packaging template `kaur-khor-<version>-<os>-<arch>.<ext>`, matching `electron-builder.yml`.
 
 Verify release downloads against the `SHA256SUMS` asset on the same GitHub Release when it is present. Do not disable Gatekeeper or SmartScreen globally, and do not strip macOS quarantine attributes to force a launch. For more detail, see [docs/install-guide.md](docs/install-guide.md).
 
@@ -128,7 +128,7 @@ This allows Kaur Khor to install without changing SmartScreen system-wide.
 If you downloaded the `.deb` package on Ubuntu or Debian:
 
 ```bash
-sudo apt install ./banji-<version>-linux-<arch>.deb
+sudo apt install ./kaur-khor-<version>-linux-<arch>.deb
 ```
 
 Example:
@@ -139,14 +139,14 @@ Example:
 If you downloaded the AppImage:
 
 ```bash
-chmod +x banji-<version>-linux-<arch>.AppImage
-./banji-<version>-linux-<arch>.AppImage
+chmod +x kaur-khor-<version>-linux-<arch>.AppImage
+./kaur-khor-<version>-linux-<arch>.AppImage
 ```
 
 Example:
 
-- `banji-<version>-linux-x64.AppImage` is for x64 Linux
-- `banji-<version>-linux-arm64.AppImage` is for ARM64 Linux
+- `kaur-khor-<version>-linux-x64.AppImage` is for x64 Linux
+- `kaur-khor-<version>-linux-arm64.AppImage` is for ARM64 Linux
 
 If Linux blocks the AppImage or warns that it is untrusted:
 

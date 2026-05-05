@@ -6,7 +6,7 @@ The public web build is a GitHub Pages surface for Kaur Khor. It exposes:
 - `/demo` for a seeded browser preview
 - `/app` for the browser app entry
 
-GitHub Pages serves the site under `/banji/`, so the deployed URLs are `/banji/`, `/banji/demo`, and `/banji/app`. Desktop downloads and install notes live on the overview page at `/banji/#releases`.
+GitHub Pages serves the site under `/kaur-khor/`, so the deployed URLs are `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`. Desktop downloads and install notes live on the overview page at `/kaur-khor/#releases`.
 
 ## Runtime behavior
 

@@ -106,8 +106,8 @@ export function HelpRoute() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const repositoryGuideHref =
     language === 'km'
-      ? 'https://github.com/Svanny/banji/blob/main/docs/user-guide.km.md'
-      : 'https://github.com/Svanny/banji/blob/main/docs/user-guide.md';
+      ? 'https://github.com/Svanny/kaur-khor/blob/main/docs/user-guide.km.md'
+      : 'https://github.com/Svanny/kaur-khor/blob/main/docs/user-guide.md';
   const helpContent = useMemo(
     () => parseHelpContent(language === 'km' ? guideSourceKm : guideSourceEn),
     [language],

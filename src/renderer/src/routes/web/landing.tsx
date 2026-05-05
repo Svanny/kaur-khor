@@ -57,13 +57,13 @@ import performanceImageUrl from '../../../../../docs/readme/web-current-performa
 import recordUpdateImageUrl from '../../../../../docs/readme/web-current-record-update.png';
 import type { AppLanguage } from '@shared/inventory';
 
-const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
-const sourceUrl = 'https://github.com/Svanny/banji';
-const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/banji/releases/latest';
+const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
+const sourceUrl = 'https://github.com/Svanny/kaur-khor';
+const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const sourceBuildCommands = [
-  'curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz',
-  'tar -xzf banji-source.tar.gz',
-  'cd banji-main',
+  'curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz',
+  'tar -xzf kaur-khor-source.tar.gz',
+  'cd kaur-khor-main',
   './scripts/build-from-source.sh',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';

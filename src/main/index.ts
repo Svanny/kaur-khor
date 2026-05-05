@@ -1063,7 +1063,7 @@ function installApplicationMenu() {
         {
           label: 'Report an Issue',
           click: () => {
-            void shell.openExternal('https://github.com/Svanny/banji/issues');
+            void shell.openExternal('https://github.com/Svanny/kaur-khor/issues');
           },
         },
       ],

@@ -7,13 +7,13 @@
     "name": "Svanny",
     "email": "svanny@users.noreply.github.com"
   },
-  "homepage": "https://github.com/Svanny/banji",
+  "homepage": "https://github.com/Svanny/kaur-khor",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Svanny/banji.git"
+    "url": "https://github.com/Svanny/kaur-khor.git"
   },
   "bugs": {
-    "url": "https://github.com/Svanny/banji/issues"
+    "url": "https://github.com/Svanny/kaur-khor/issues"
   },
   "license": "GPL-2.0-only",
   "packageManager": "pnpm@10.32.1",

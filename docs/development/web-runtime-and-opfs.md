@@ -4,13 +4,13 @@ The browser app is separate from the Electron desktop runtime. The web entry liv
 
 ## Routing
 
-The public web build uses Vite with `base: '/banji/'` for GitHub Pages. Public routes are browser routes:
+The public web build uses Vite with `base: '/kaur-khor/'` for GitHub Pages. Public routes are browser routes:
 
-- `/banji/`
-- `/banji/demo`
-- `/banji/app`
+- `/kaur-khor/`
+- `/kaur-khor/demo`
+- `/kaur-khor/app`
 
-Desktop download and install guidance is part of the overview page at `/banji/#releases`; there is no standalone `/install` route.
+Desktop download and install guidance is part of the overview page at `/kaur-khor/#releases`; there is no standalone `/install` route.
 
 When the existing product app is mounted from `/demo` or `/app`, it is wrapped in a `HashRouter`. Product routes then live after the hash so GitHub Pages can serve the public entry while the existing app keeps its desktop route assumptions.
 

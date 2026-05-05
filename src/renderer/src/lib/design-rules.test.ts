@@ -104,14 +104,14 @@ function collectOldBrandLiterals(ast: ts.SourceFile): string[] {
 
   function isAllowedGitHubSurfaceLiteral(value: string) {
     return (
-      value.includes('github.com/Svanny/banji') ||
-      value.includes('api.github.com/repos/Svanny/banji') ||
-      value.includes('svanny.github.io/banji') ||
-      value.includes('/banji/') ||
-      /\bbanji-\d/.test(value) ||
-      /\bbanji-<version>/.test(value) ||
-      value.includes('banji-source.tar.gz') ||
-      value.includes('cd banji-main')
+      value.includes('github.com/Svanny/kaur-khor') ||
+      value.includes('api.github.com/repos/Svanny/kaur-khor') ||
+      value.includes('svanny.github.io/kaur-khor') ||
+      value.includes('/kaur-khor/') ||
+      /\bkaur-khor-\d/.test(value) ||
+      /\bkaur-khor-<version>/.test(value) ||
+      value.includes('kaur-khor-source.tar.gz') ||
+      value.includes('cd kaur-khor-main')
     );
   }
 
@@ -911,6 +911,32 @@ describe('global design rules', () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  test('blocks old GitHub, Pages, and release slugs in renderer source literals', () => {
+    const oldSlug = ['ba', 'nji'].join('');
+    const sourceFile = resolve(rendererRoot, 'old-slug-guard.ts');
+    const source = [
+      `const staleGithub = 'https://github.com/Svanny/${oldSlug}/blob/main/docs/user-guide.md';`,
+      `const stalePages = 'https://svanny.github.io/${oldSlug}/';`,
+      `const staleRelease = '${oldSlug}-1.2.3.dmg';`,
+      "const currentGithub = 'https://github.com/Svanny/kaur-khor/blob/main/docs/user-guide.md';",
+      "const currentPages = 'https://svanny.github.io/kaur-khor/';",
+      "const currentRelease = 'kaur-khor-1.2.3.dmg';",
+    ].join('\n');
+    const ast = ts.createSourceFile(
+      sourceFile,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+
+    expect(collectOldBrandLiterals(ast)).toEqual([
+      'old-slug-guard.ts:1',
+      'old-slug-guard.ts:2',
+      'old-slug-guard.ts:3',
+    ]);
   });
 
   test('requires every visible-label button to include an icon', async () => {

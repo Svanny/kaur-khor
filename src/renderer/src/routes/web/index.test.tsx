@@ -57,8 +57,8 @@ const sharedProductBenefits = [
 const sharedProductDrawbacks = [
   'No sign-up or login. Your data stays on your device.',
 ] as const;
-const releasesUrl = 'https://github.com/Svanny/banji/releases/latest';
-const sourceUrl = 'https://github.com/Svanny/banji';
+const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
+const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 
 const productCardCopy = {
   actions: ['Start Quick Demo', 'Start in the browser', 'Install the desktop app', 'Build it yourself'],
@@ -108,27 +108,27 @@ const embeddedStorage = {
 
 const releaseAssets = [
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-darwin-arm64.dmg',
-    name: 'banji-1.2.3-darwin-arm64.dmg',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-darwin-arm64.dmg',
+    name: 'kaur-khor-1.2.3-darwin-arm64.dmg',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-darwin-x64.dmg',
-    name: 'banji-1.2.3-darwin-x64.dmg',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-darwin-x64.dmg',
+    name: 'kaur-khor-1.2.3-darwin-x64.dmg',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-win-x64.exe',
-    name: 'banji-1.2.3-win-x64.exe',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-win-x64.exe',
+    name: 'kaur-khor-1.2.3-win-x64.exe',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-linux-x64.AppImage',
-    name: 'banji-1.2.3-linux-x64.AppImage',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-linux-x64.AppImage',
+    name: 'kaur-khor-1.2.3-linux-x64.AppImage',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/banji-1.2.3-linux-arm64.AppImage',
-    name: 'banji-1.2.3-linux-arm64.AppImage',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-linux-arm64.AppImage',
+    name: 'kaur-khor-1.2.3-linux-arm64.AppImage',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/banji/releases/download/v1.2.3/SHA256SUMS',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/SHA256SUMS',
     name: 'SHA256SUMS',
   },
 ] as const;
@@ -389,7 +389,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'banji-1.2.3-darwin-arm64.dmg',
+      'kaur-khor-1.2.3-darwin-arm64.dmg',
       releaseAssets[0]!.browser_download_url,
     );
     expect(screen.getByText(/Recommended for macOS Apple Silicon from v1\.2\.3\./)).toBeInTheDocument();
@@ -411,7 +411,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'banji-1.2.3-darwin-x64.dmg',
+      'kaur-khor-1.2.3-darwin-x64.dmg',
       releaseAssets[1]!.browser_download_url,
     );
   });
@@ -427,7 +427,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'banji-1.2.3-win-x64.exe',
+      'kaur-khor-1.2.3-win-x64.exe',
       releaseAssets[2]!.browser_download_url,
     );
   });
@@ -442,7 +442,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'banji-1.2.3-linux-x64.AppImage',
+      'kaur-khor-1.2.3-linux-x64.AppImage',
       releaseAssets[3]!.browser_download_url,
     );
   });
@@ -459,7 +459,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'banji-1.2.3-linux-arm64.AppImage',
+      'kaur-khor-1.2.3-linux-arm64.AppImage',
       releaseAssets[4]!.browser_download_url,
     );
   });
@@ -486,9 +486,9 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     const select = await startReleaseDownloadLoad();
-    await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-win-x64.exe'));
 
-    fireEvent.change(select, { target: { value: 'banji-1.2.3-linux-arm64.AppImage' } });
+    fireEvent.change(select, { target: { value: 'kaur-khor-1.2.3-linux-arm64.AppImage' } });
 
     expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute(
       'href',
@@ -536,12 +536,12 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     const select = await startReleaseDownloadLoad();
-    await waitFor(() => expect(select.value).toBe('banji-1.2.3-win-x64.exe'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-win-x64.exe'));
     expect(screen.getByText('Windows install notes')).toBeInTheDocument();
     expect(screen.getByText('Do not disable SmartScreen globally.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /YouTube tutorial for opening macOS app/i })).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: 'banji-1.2.3-linux-arm64.AppImage' } });
+    fireEvent.change(select, { target: { value: 'kaur-khor-1.2.3-linux-arm64.AppImage' } });
 
     expect(screen.getByText('Linux install notes')).toBeInTheDocument();
     expect(screen.getByText('Mark AppImages executable before opening them.')).toBeInTheDocument();
@@ -561,7 +561,7 @@ describe('WebRoutes releases section', () => {
 
     const select = await screen.findByLabelText('ទាញយក') as HTMLSelectElement;
     fireEvent.focus(select);
-    await waitFor(() => expect(select.value).toBe('banji-1.2.3-linux-x64.AppImage'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-linux-x64.AppImage'));
 
     expect(screen.getByText('កំណត់សម្គាល់ដំឡើង Linux')).toBeInTheDocument();
     expect(screen.getByText('កំណត់ឯកសារ AppImage ឱ្យអាចដំណើរការបាន មុនបើកវា។')).toBeInTheDocument();
@@ -1036,14 +1036,14 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Copy the code below and paste it inside Terminal.');
     expect(section).toHaveTextContent('Shell');
     expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
-    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.tar.gz -o banji-source.tar.gz');
-    expect(section).toHaveTextContent('tar -xzf banji-source.tar.gz');
-    expect(section).toHaveTextContent('cd banji-main');
+    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
+    expect(section).toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
+    expect(section).toHaveTextContent('cd kaur-khor-main');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
     expect(section).not.toHaveTextContent('git clone');
     expect(section).not.toHaveTextContent('node scripts/build-from-source.mjs');
     expect(section).not.toHaveTextContent('build-mac-from-source.sh');
-    expect(section).not.toHaveTextContent('curl -L https://github.com/Svanny/banji/archive/refs/heads/main.zip -o banji.zip');
+    expect(section).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip -o kaur-khor.zip');
   });
 });

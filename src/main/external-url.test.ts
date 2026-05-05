@@ -5,8 +5,8 @@ import { normalizeAllowedExternalUrl } from './external-url';
 
 describe('normalizeAllowedExternalUrl', () => {
   it('allows HTTPS links', () => {
-    expect(normalizeAllowedExternalUrl('  https://github.com/Svanny/banji/issues  ')).toBe(
-      'https://github.com/Svanny/banji/issues',
+    expect(normalizeAllowedExternalUrl('  https://github.com/Svanny/kaur-khor/issues  ')).toBe(
+      'https://github.com/Svanny/kaur-khor/issues',
     );
     expect(normalizeAllowedExternalUrl('https://t.me/configured_bot')).toBe(
       'https://t.me/configured_bot',
