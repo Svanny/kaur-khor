@@ -44,6 +44,8 @@ This document defines the mandatory secure-by-default controls for the Kaur Khor
 - Renderer HTML must not load remote scripts.
 - Generated HTML artifacts opened from local tooling must not load remote
   script or stylesheet origins.
+- The security gate must fail on explicit unsafe `webPreferences` drift, not only
+  pass on the presence of known-safe strings.
 
 ### 5) Local Data and Future Extension Controls
 
@@ -54,6 +56,9 @@ This document defines the mandatory secure-by-default controls for the Kaur Khor
   checked against those roots.
 - Validate any future IPC or network boundary with explicit request/response schemas.
 - Treat remote content, sync, and remote code execution as opt-in additions, not default app behavior.
+- Review package advisories before release with `pnpm audit --audit-level=moderate`.
+  Local offline runs may warn and skip the network audit, but release/CI runs
+  should set `KAUR_KHOR_REQUIRE_NETWORK_AUDIT=1`.
 
 ## Enforcement
 

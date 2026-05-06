@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -15,9 +16,11 @@ import {
 import { request as httpsRequest } from 'node:https';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 const PNPM_VERSION = '10.32.1';
+const RUSTUP_VERSION = '1.28.2';
 const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
 const DEFAULT_REF = 'main';
 const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
@@ -28,45 +31,62 @@ const RUSTUP_TARGETS = {
   'linux-x64': 'x86_64-unknown-linux-gnu',
   'windows-x64': 'x86_64-pc-windows-msvc',
 };
+const RUSTUP_SHA256_BY_TARGET = {
+  'aarch64-apple-darwin': '20ef5516c31b1ac2290084199ba77dbbcaa1406c45c1d978ca68558ef5964ef5',
+  'x86_64-apple-darwin': '9c331076f62b4d0edeae63d9d1c9442d5fe39b37b05025ec8d41c5ed35486496',
+  'aarch64-unknown-linux-gnu': 'e3853c5a252fca15252d07cb23a1bdd9377a8c6f3efa01531109281ae47f841c',
+  'x86_64-unknown-linux-gnu': '20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c',
+  'x86_64-pc-windows-msvc': '88d8258dcf6ae4f7a80c7d1088e1f36fa7025a1cfd1343731b4ee6f385121fc0',
+};
 
-const options = parseArgs(process.argv.slice(2));
+if (isDirectExecution()) {
+  const options = parseArgs(process.argv.slice(2));
 
-if (options.help) {
-  printHelp();
-  process.exit(0);
+  if (options.help) {
+    printHelp();
+    process.exit(0);
+  }
+
+  await main(options);
 }
 
-const target = resolveTarget(options.platform);
-const packagePlan = packagePlanForTarget(target);
+async function main(options) {
+  const target = resolveTarget(options.platform);
+  const packagePlan = packagePlanForTarget(target);
 
-if (options.resolveOnly) {
-  console.log(`host=${process.platform}-${process.arch}`);
-  console.log(`platform=${target.id}`);
-  console.log(`package=${packagePlan.display}`);
-  process.exit(0);
+  if (options.resolveOnly) {
+    console.log(`host=${process.platform}-${process.arch}`);
+    console.log(`platform=${target.id}`);
+    console.log(`package=${packagePlan.display}`);
+    process.exit(0);
+  }
+
+  printWarning(target.id);
+
+  const sourceRoot = await resolveSourceRoot();
+  process.chdir(sourceRoot);
+
+  ensurePlatformTools(target);
+  const pnpm = ensurePnpm();
+  const cargo = await ensureCargo(target);
+
+  runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot);
+
+  if (process.env.KAUR_KHOR_SKIP_RUST_TESTS === '1') {
+    console.log('Skipping Rust desktop-core tests because KAUR_KHOR_SKIP_RUST_TESTS=1.');
+  } else {
+    run(cargo, ['test', '--manifest-path', resolve(sourceRoot, 'apps/desktop-core/Cargo.toml')], {
+      cwd: sourceRoot,
+    });
+  }
+
+  runPnpm(pnpm, packagePlan.args, sourceRoot, packagePlan.env);
+  openReleaseFolder(sourceRoot);
 }
 
-printWarning(target.id);
-
-const sourceRoot = await resolveSourceRoot();
-process.chdir(sourceRoot);
-
-ensurePlatformTools(target);
-const pnpm = ensurePnpm();
-const cargo = await ensureCargo(target);
-
-runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot);
-
-if (process.env.KAUR_KHOR_SKIP_RUST_TESTS === '1') {
-  console.log('Skipping Rust desktop-core tests because KAUR_KHOR_SKIP_RUST_TESTS=1.');
-} else {
-  run(cargo, ['test', '--manifest-path', resolve(sourceRoot, 'apps/desktop-core/Cargo.toml')], {
-    cwd: sourceRoot,
-  });
+function isDirectExecution() {
+  return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 }
-
-runPnpm(pnpm, packagePlan.args, sourceRoot, packagePlan.env);
-openReleaseFolder(sourceRoot);
 
 function parseArgs(args) {
   const parsed = {
@@ -438,12 +458,22 @@ async function ensureCargo(target) {
 function installRustup(target) {
   const rustupTarget = RUSTUP_TARGETS[target.id];
   const executableName = target.os === 'windows' ? 'rustup-init.exe' : 'rustup-init';
-  const rustupUrl = `https://static.rust-lang.org/rustup/dist/${rustupTarget}/${executableName}`;
+  const rustupUrl = `https://static.rust-lang.org/rustup/archive/${RUSTUP_VERSION}/${rustupTarget}/${executableName}`;
+  const expectedSha256 = RUSTUP_SHA256_BY_TARGET[rustupTarget];
+  if (!expectedSha256) {
+    fail(`No pinned SHA-256 digest for rustup-init ${rustupTarget}. Refusing automatic Rust bootstrap.`);
+  }
+
   const tempDir = mkdtempSync(join(tmpdir(), 'kaur-khor-rustup-'));
   const rustupPath = join(tempDir, executableName);
 
   console.log(`Installing Rust toolchain with rustup for ${rustupTarget}...`);
   return download(rustupUrl).then((binary) => {
+    try {
+      verifySha256Buffer(binary, expectedSha256, `rustup-init ${rustupTarget}`);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error));
+    }
     writeFileSync(rustupPath, binary);
     if (target.os !== 'windows') {
       chmodSync(rustupPath, 0o755);
@@ -451,6 +481,13 @@ function installRustup(target) {
     run(rustupPath, ['-y', '--profile', 'minimal', '--default-toolchain', 'stable']);
     process.env.PATH = `${join(homedir(), '.cargo', 'bin')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH || ''}`;
   });
+}
+
+export function verifySha256Buffer(buffer, expected, label) {
+  const actual = createHash('sha256').update(buffer).digest('hex');
+  if (actual !== expected) {
+    throw new Error(`SHA-256 mismatch for ${label}. Expected ${expected}, got ${actual}. Refusing to execute it.`);
+  }
 }
 
 function runPnpm(pnpm, args, cwd, extraEnv = {}) {

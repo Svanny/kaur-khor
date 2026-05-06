@@ -15,6 +15,21 @@ pass() {
   echo "[platform-check] PASS: $1"
 }
 
+reject_pattern() {
+  local file="$1"
+  local pattern="$2"
+  local message="$3"
+  local matches
+
+  matches="$(grep -nE "$pattern" "$file" || true)"
+  if [[ -n "$matches" ]]; then
+    fail "$message"
+    echo "$matches"
+  else
+    pass "$message"
+  fi
+}
+
 MAIN_ENTRY="src/main/index.ts"
 PRELOAD_ENTRY="src/preload/index.ts"
 RENDERER_HTML="src/renderer/index.html"
@@ -37,6 +52,13 @@ if grep -q 'nodeIntegration: false' "$MAIN_ENTRY"; then
 else
   fail "Electron renderer must keep Node integration disabled"
 fi
+
+reject_pattern "$MAIN_ENTRY" '\bcontextIsolation:[[:space:]]*false\b' "Electron main process does not disable context isolation anywhere"
+reject_pattern "$MAIN_ENTRY" '\bnodeIntegration:[[:space:]]*true\b' "Electron main process does not enable renderer Node integration anywhere"
+reject_pattern "$MAIN_ENTRY" '\bnodeIntegrationInWorker:[[:space:]]*true\b' "Electron main process does not enable Node integration in workers"
+reject_pattern "$MAIN_ENTRY" '\bwebSecurity:[[:space:]]*false\b' "Electron main process does not disable Chromium web security"
+reject_pattern "$MAIN_ENTRY" '\ballowRunningInsecureContent:[[:space:]]*true\b' "Electron main process does not allow insecure mixed content"
+reject_pattern "$MAIN_ENTRY" '\bcommandLineSwitches[[:space:]]*:' "Electron main process does not configure renderer command-line switches through webPreferences"
 
 if grep -q "contextBridge.exposeInMainWorld('kaurKhorDesktop', desktopBridge)" "$PRELOAD_ENTRY"; then
   pass "Preload exposes the audited desktop bridge"

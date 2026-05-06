@@ -69,13 +69,11 @@ jobs:
         shell: bash
         run: pnpm install --frozen-lockfile
 
-      - name: Run renderer and main-process tests
+      - name: Run security gate
         shell: bash
-        run: pnpm test
-
-      - name: Run desktop-core tests
-        shell: bash
-        run: cargo test --manifest-path apps/desktop-core/Cargo.toml
+        env:
+          KAUR_KHOR_REQUIRE_NETWORK_AUDIT: "1"
+        run: bash tool/security/run_security_checks.sh
 
       - name: Package macOS release
         if: matrix.platform == 'mac'

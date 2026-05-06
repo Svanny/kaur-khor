@@ -4,16 +4,22 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
-echo "[security-gate] 1/4 pnpm test"
+echo "[security-gate] 1/6 pnpm test"
 pnpm test
 
-echo "[security-gate] 2/4 cargo test apps/desktop-core"
+echo "[security-gate] 2/6 cargo test apps/desktop-core"
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 
-echo "[security-gate] 3/4 secret pattern checks"
+echo "[security-gate] 3/6 cargo test apps/sena-core"
+cargo test --manifest-path apps/sena-core/Cargo.toml
+
+echo "[security-gate] 4/6 secret pattern checks"
 bash tool/security/check_secret_patterns.sh
 
-echo "[security-gate] 4/4 platform hardening checks"
+echo "[security-gate] 5/6 platform hardening checks"
 bash tool/security/check_platform_hardening.sh
+
+echo "[security-gate] 6/6 dependency audit"
+bash tool/security/check_dependency_audit.sh
 
 echo "[security-gate] PASSED"

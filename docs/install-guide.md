@@ -32,7 +32,7 @@ Approved flow:
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. Copy the code below and paste it inside Terminal:
+To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. Copy the code below and paste it inside Terminal:
 
 ```sh
 curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz
@@ -41,7 +41,7 @@ cd kaur-khor-main
 ./scripts/build-from-source.sh
 ```
 
-To choose a native build explicitly, pass a platform flag such as `./scripts/build-from-source.sh --platform=linux-x64`.
+To choose a native build explicitly, pass a platform flag such as `./scripts/build-from-source.sh --platform=linux-x64`. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
 
 ## Windows
 
