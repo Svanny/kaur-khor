@@ -243,11 +243,10 @@ jobs:
           {
             echo "## Highlights"
             echo
-            echo "- Hardened source-build and release security gates, including SHA-256 verification for bootstrapped toolchains and dependency audit enforcement."
-            echo "- Expanded browser app protections with a restrictive web CSP, safer backup import recovery, localized browser copy, and clearer OPFS storage guidance."
-            echo "- Tightened automation and ticketing flows so Telegram intake cannot be promoted twice or appended to the wrong ticket family."
-            echo "- Improved SENA persistence integrity by validating writes, committing completed runs transactionally, and pruning stale detail rows."
-            echo "- Made renderer state more resilient around blocked storage, disabled analysis surfaces, refreshed detail hydration, dirty form drafts, onboarding retries, and keyboard-accessible interface presets."
+            echo "- Restored automatic zoom-in and zoom-out behavior for embedded phone landscape layouts in both demo and browser app routes."
+            echo "- Moved demo and browser onboarding banners into the page flow so they no longer float over the onboarding panel."
+            echo "- Simplified the demo embedded banner by removing the browser-app CTA while keeping backup, import, reset, and main-page actions available."
+            echo "- Improved the phone rotate warning with a solid centered card, zoomed-out artwork, and English/Khmer onboarding-style flip copy."
             echo
             echo "## Downloads"
             echo

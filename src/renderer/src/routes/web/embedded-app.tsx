@@ -20,7 +20,7 @@ import {
   ActionResumeIcon,
 } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
-import { WebDownloadIcon, WebGlobeIcon, WebHomeIcon } from '@icons/web';
+import { WebDownloadIcon, WebHomeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
 import { translateUiLiteral } from '@/lib/translations';
 import {
@@ -55,6 +55,9 @@ type StorageUiState = {
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
+const phoneWarningCopyEnglishAnimationName = 'kaur-khor-onboarding-copy-english';
+const phoneWarningCopyKhmerAnimationName = 'kaur-khor-onboarding-copy-khmer';
+const phoneWarningCopyCycleMs = 9000;
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -331,36 +334,135 @@ function useBrowserWorkspaceLanguage() {
 
 export function PhoneViewWarningOverlay() {
   const language = useBrowserWorkspaceLanguage();
+  const title = 'Rotate screen';
+  const description = 'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.';
+  const secondaryDescription = 'For regular work, use a larger browser window or the desktop app.';
 
   return (
-    <div className="pointer-events-auto flex min-h-svh items-start justify-center bg-background/35 px-4 py-5 text-foreground backdrop-blur-[2px]">
+    <div className="pointer-events-auto flex min-h-svh items-center justify-center bg-background px-4 py-5 text-foreground">
       <div
         data-slot="embedded-phone-view-warning-card"
         role="dialog"
         aria-labelledby="embedded-phone-view-warning-title"
         aria-describedby="embedded-phone-view-warning-description"
-        className="w-full max-w-sm rounded-xl border border-amber-300/70 bg-card/95 p-4 text-left shadow-[0_18px_48px_rgba(48,31,20,0.16)]"
+        className="w-full max-w-sm rounded-xl border border-amber-300/70 bg-popover p-4 text-left text-popover-foreground shadow-[0_18px_48px_rgba(48,31,20,0.16)]"
       >
+        <style>{`
+          @keyframes ${phoneWarningCopyEnglishAnimationName} {
+            0%, 44% {
+              transform: translateY(0%);
+              animation-timing-function: ease-in;
+            }
+            46.5%, 96.5% {
+              transform: translateY(-125%);
+              animation-timing-function: step-end;
+            }
+            96.51% {
+              transform: translateY(125%);
+              animation-timing-function: ease-out;
+            }
+            100% {
+              transform: translateY(0%);
+            }
+          }
+          @keyframes ${phoneWarningCopyKhmerAnimationName} {
+            0%, 46.5% {
+              transform: translateY(125%);
+              animation-timing-function: ease-out;
+            }
+            49.5%, 94% {
+              transform: translateY(0%);
+              animation-timing-function: ease-in;
+            }
+            96.5%, 100% {
+              transform: translateY(-125%);
+            }
+          }
+        `}</style>
         <div className="flex items-start gap-3">
           <img
             alt=""
             aria-hidden="true"
-            className="size-[4.75rem] shrink-0 rounded-xl bg-white/80 object-contain p-1.5"
+            className="size-[4.75rem] shrink-0 rounded-xl bg-white object-contain p-3"
             src={rotatePhoneWarningImage}
           />
           <div className="min-w-0">
-            <h2 id="embedded-phone-view-warning-title" className="text-base font-semibold leading-6">
-              {translateUiLiteral(language, 'Rotate screen')}
+            <h2 id="embedded-phone-view-warning-title" className="sr-only">
+              {translateUiLiteral(language, title)}
             </h2>
-            <p id="embedded-phone-view-warning-description" className="mt-1 text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, 'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.')}
+            <p id="embedded-phone-view-warning-description" className="sr-only">
+              {translateUiLiteral(language, description)}
             </p>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, 'For regular work, use a larger browser window or the desktop app.')}
-            </p>
+            <div
+              aria-hidden="true"
+              className="min-w-0"
+              data-slot="embedded-phone-view-warning-copy"
+            >
+              <div className="relative grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-title">
+                {(['en', 'km'] as const).map((copyLanguage) => (
+                  <h2 key={copyLanguage} className="invisible col-start-1 row-start-1 text-base font-semibold leading-6">
+                    {translateUiLiteral(copyLanguage, title)}
+                  </h2>
+                ))}
+                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
+                  {(['en', 'km'] as const).map((copyLanguage) => (
+                    <h2
+                      key={copyLanguage}
+                      className="absolute inset-0 text-base font-semibold leading-6 will-change-transform"
+                      style={{
+                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
+                      }}
+                    >
+                      {translateUiLiteral(copyLanguage, title)}
+                    </h2>
+                  ))}
+                </div>
+              </div>
+              <div className="relative mt-1 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-description">
+                {(['en', 'km'] as const).map((copyLanguage) => (
+                  <p key={copyLanguage} className="invisible col-start-1 row-start-1 text-sm leading-6 text-muted-foreground">
+                    {translateUiLiteral(copyLanguage, description)}
+                  </p>
+                ))}
+                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
+                  {(['en', 'km'] as const).map((copyLanguage) => (
+                    <p
+                      key={copyLanguage}
+                      className="absolute inset-0 text-sm leading-6 text-muted-foreground will-change-transform"
+                      style={{
+                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
+                      }}
+                    >
+                      {translateUiLiteral(copyLanguage, description)}
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div className="relative mt-2 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-secondary-description">
+                {(['en', 'km'] as const).map((copyLanguage) => (
+                  <p key={copyLanguage} className="invisible col-start-1 row-start-1 text-sm leading-6 text-muted-foreground">
+                    {translateUiLiteral(copyLanguage, secondaryDescription)}
+                  </p>
+                ))}
+                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
+                  {(['en', 'km'] as const).map((copyLanguage) => (
+                    <p
+                      key={copyLanguage}
+                      className="absolute inset-0 text-sm leading-6 text-muted-foreground will-change-transform"
+                      style={{
+                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
+                      }}
+                    >
+                      {translateUiLiteral(copyLanguage, secondaryDescription)}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <Button
+          aria-label={translateUiLiteral(language, 'Done')}
           className="mt-4 w-full justify-center"
           disabled
           size="sm"
@@ -368,7 +470,30 @@ export function PhoneViewWarningOverlay() {
           variant="default"
         >
           <ActionConfirmIcon data-icon="inline-start" />
-          {translateUiLiteral(language, 'Done')}
+          <span
+            aria-hidden="true"
+            className="relative grid overflow-hidden"
+            data-slot="embedded-phone-view-warning-copy-done"
+          >
+            {(['en', 'km'] as const).map((copyLanguage) => (
+              <span key={copyLanguage} className="invisible col-start-1 row-start-1">
+                {translateUiLiteral(copyLanguage, 'Done')}
+              </span>
+            ))}
+            <span className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
+              {(['en', 'km'] as const).map((copyLanguage) => (
+                <span
+                  key={copyLanguage}
+                  className="absolute inset-0 will-change-transform"
+                  style={{
+                    animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
+                  }}
+                >
+                  {translateUiLiteral(copyLanguage, 'Done')}
+                </span>
+              ))}
+            </span>
+          </span>
         </Button>
       </div>
     </div>
@@ -456,9 +581,9 @@ function WebAppBanner({
   const importShortLabel = translateUiLiteral(language, 'Import');
   const resetLabel = translateUiLiteral(language, isDemo ? 'Reset demo' : 'Reset workspace');
   const resetShortLabel = translateUiLiteral(language, 'Reset');
-  const destinationLabel = translateUiLiteral(language, isDemo ? 'Use browser app' : 'Download app');
-  const destinationMediumLabel = translateUiLiteral(language, isDemo ? 'Use Browser' : 'Download');
-  const destinationCompactLabel = translateUiLiteral(language, isDemo ? 'Browser' : 'Download');
+  const destinationLabel = translateUiLiteral(language, 'Download app');
+  const destinationMediumLabel = translateUiLiteral(language, 'Download');
+  const destinationCompactLabel = translateUiLiteral(language, 'Download');
   const mainPageLabel = translateUiLiteral(language, 'Main page');
   const mainPageCompactLabel = translateUiLiteral(language, 'Main');
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -477,7 +602,7 @@ function WebAppBanner({
       className={cn(
         'border-b border-border/70 bg-background/95 px-4 py-3 text-foreground shadow-[0_10px_30px_rgba(27,15,7,0.06)] md:border-0 md:bg-transparent md:p-0 md:shadow-none',
         isSidebarBanner ? 'border-0 bg-transparent p-0 shadow-none' : null,
-        isOnboarding ? 'fixed inset-x-3 top-3 z-50 border-0 bg-transparent p-0 shadow-none md:inset-x-4 md:bottom-auto md:top-4' : null,
+        isOnboarding ? 'relative z-10 border-0 bg-transparent px-3 py-3 shadow-none md:px-4 md:py-4' : null,
       )}
     >
       <div
@@ -487,7 +612,7 @@ function WebAppBanner({
           isSidebarBanner ? 'h-full rounded-xl border-border/70 bg-white/90 px-3 py-3' : null,
           compactSidebarBanner ? 'rounded-none border-0 bg-transparent px-0 py-0' : null,
           sidebarCollapsed && !isOnboarding ? 'md:rounded-none md:border-0 md:bg-transparent md:px-0 md:py-0' : null,
-          isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/90 px-3 py-2 text-sm leading-6 shadow-[0_18px_48px_rgba(48,31,20,0.14)] backdrop-blur-xl md:text-sm md:leading-6' : null,
+          isOnboarding ? 'flex-row items-center justify-between gap-4 rounded-xl border-border/70 bg-background/95 px-3 py-2 text-sm leading-6 shadow-[0_10px_30px_rgba(48,31,20,0.08)] md:text-sm md:leading-6' : null,
         )}
       >
         <div className={cn(
@@ -531,12 +656,14 @@ function WebAppBanner({
             <ActionResetIcon className="size-4" />
             <WebAppActionLabel compact={resetShortLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? resetShortLabel : resetLabel} isOnboarding={isOnboarding} medium={resetShortLabel} sidebarCollapsed={sidebarCollapsed} />
           </Button>
-          <Button asChild className={actionButtonClassName} size="sm" variant="outline">
-            <a aria-label={destinationLabel} href={publicPath(isDemo ? '/app' : '/#releases')}>
-              {isDemo ? <WebGlobeIcon className="size-4" /> : <WebDownloadIcon className="size-4" />}
-              <WebAppActionLabel compact={destinationCompactLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? destinationMediumLabel : destinationLabel} isOnboarding={isOnboarding} medium={destinationMediumLabel} sidebarCollapsed={sidebarCollapsed} />
-            </a>
-          </Button>
+          {!isDemo ? (
+            <Button asChild className={actionButtonClassName} size="sm" variant="outline">
+              <a aria-label={destinationLabel} href={publicPath('/#releases')}>
+                <WebDownloadIcon className="size-4" />
+                <WebAppActionLabel compact={destinationCompactLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? destinationMediumLabel : destinationLabel} isOnboarding={isOnboarding} medium={destinationMediumLabel} sidebarCollapsed={sidebarCollapsed} />
+              </a>
+            </Button>
+          ) : null}
           <Button asChild className={actionButtonClassName} size="sm" variant="outline">
             <a aria-label={mainPageLabel} href={publicPath('/')}>
               <WebHomeIcon className="size-4" />
@@ -796,7 +923,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <EmbeddedAutoZoomViewport enablePhoneLandscapeWorkaround={false} phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
+    <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
       <HashRouter>
         <EmbeddedAppBanner
           mode={mode}
