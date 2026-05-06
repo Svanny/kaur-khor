@@ -20,6 +20,7 @@ describe('InsightsRoute', () => {
   beforeEach(() => {
     preferencesHook.mockReturnValue({
       language: 'km',
+      showAnalysisPage: true,
     });
   });
 
@@ -38,5 +39,24 @@ describe('InsightsRoute', () => {
     expect(screen.queryByText(/support, timing/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Money in/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Detailed explanation/i)).not.toBeInTheDocument();
+  });
+
+  test.each(['/insights', '/insights/explain'])('redirects %s when analysis is disabled', async (path) => {
+    preferencesHook.mockReturnValue({
+      language: 'en',
+      showAnalysisPage: false,
+    });
+
+    render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route element={<InsightsRoute />} path="/insights/*" />
+          <Route element={<div>Home route</div>} path="/" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Home route')).toBeInTheDocument();
+    expect(screen.queryByText('Explain')).not.toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActionArchiveIcon,
   ActionCreatePackageIcon,
@@ -38,7 +38,7 @@ import { matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { buildCatalogSearchParams, readCatalogRouteState, readCatalogView } from '@/lib/navigation-state';
-import { normalizeServiceDetailPage } from '@/lib/sena-detail-pages';
+import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import {
   activeSenaCatalog,
@@ -53,7 +53,7 @@ import { translateUiLiteral } from '@/lib/translations';
 import { ServiceMutationActions, SkuMutationActions } from '@/routes/catalog-item-actions';
 import type { ServiceActionMode, SkuActionMode } from '@/routes/catalog-item-actions';
 import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
-import type { SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
+import { deriveSenaSkuDetailViewModel, type SenaSkuDetailViewModel } from '@/routes/sku-detail/view-model';
 import { deriveServiceDetailViewModel, type ServiceDetailViewModel } from '@/routes/service-detail/view-model';
 import { useInventory } from '@/state/inventory';
 import { buildKaurKhorNavigationState } from '@/state/navigation-history';
@@ -133,17 +133,59 @@ function CatalogActionMenu({
 }
 
 function CatalogSkuRowActions({
-  actionContext,
+  actionContextFreshnessKey,
+  fallbackActionContext,
   label,
+  loadActionContext,
   name,
   skuId,
 }: {
-  actionContext: SenaSkuDetailViewModel['actionContext'];
+  actionContextFreshnessKey: string;
+  fallbackActionContext: SenaSkuDetailViewModel['actionContext'];
   label: string;
+  loadActionContext?: () => Promise<SenaSkuDetailViewModel['actionContext'] | null>;
   name: string;
   skuId: string;
 }) {
   const [mode, setMode] = useState<SkuActionMode | null>(null);
+  const [resolvedActionContext, setResolvedActionContext] = useState<SenaSkuDetailViewModel['actionContext'] | null>(null);
+  const [isLoadingActionContext, setIsLoadingActionContext] = useState(false);
+  const hasAttemptedActionContextLoadRef = useRef(false);
+  const actionContextLoadGenerationRef = useRef(0);
+  const actionContext = resolvedActionContext ?? fallbackActionContext;
+
+  useEffect(() => {
+    actionContextLoadGenerationRef.current += 1;
+    hasAttemptedActionContextLoadRef.current = false;
+    setResolvedActionContext(null);
+    setIsLoadingActionContext(false);
+  }, [actionContextFreshnessKey]);
+
+  function handleOpenChange(open: boolean) {
+    if (
+      !open ||
+      resolvedActionContext ||
+      isLoadingActionContext ||
+      hasAttemptedActionContextLoadRef.current ||
+      !loadActionContext
+    ) {
+      return;
+    }
+    hasAttemptedActionContextLoadRef.current = true;
+    setIsLoadingActionContext(true);
+    const loadGeneration = actionContextLoadGenerationRef.current;
+    void loadActionContext()
+      .then((nextActionContext) => {
+        if (nextActionContext && actionContextLoadGenerationRef.current === loadGeneration) {
+          setResolvedActionContext(nextActionContext);
+        }
+      })
+      .finally(() => {
+        if (actionContextLoadGenerationRef.current === loadGeneration) {
+          setIsLoadingActionContext(false);
+        }
+      });
+  }
 
   return (
     <>
@@ -158,7 +200,7 @@ function CatalogSkuRowActions({
         showEditButton={false}
         skuId={skuId}
       />
-      <CatalogActionMenu label={label}>
+      <CatalogActionMenu label={label} onOpenChange={handleOpenChange}>
         {(closeMenu) => (
           <SkuMutationActions
             actionContext={actionContext}
@@ -327,7 +369,7 @@ function CatalogLoadingState() {
 
 export function InventoryRoute() {
   const inventory = useInventory();
-  const { catalog, observations, reports, snapshot, workspaceSummary } = inventory;
+  const { catalog, diagnostics, observations, orderBatches, reports, snapshot, workspaceSummary } = inventory;
   const location = useLocation();
   const { currency, language, showAutomationsPage, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -371,6 +413,11 @@ export function InventoryRoute() {
   );
   const showSkus = view !== 'services';
   const showServices = view !== 'skus';
+  const skuActionContextFreshnessKey = [
+    workspaceSummary?.runId ?? 'no-run',
+    workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? 'no-observation',
+    language,
+  ].join('|');
   const hasResults =
     (showSkus && filteredSkus.length > 0) ||
     (showServices && filteredServices.length > 0);
@@ -404,6 +451,35 @@ export function InventoryRoute() {
       snapshot: activeSnapshot,
       workspaceSummary,
     }).actions;
+  }
+
+  async function loadCatalogSkuActionContext(skuId: string) {
+    if (!activeSnapshot) {
+      return null;
+    }
+    const snapshotSku = activeSnapshot.skus.find((entry) => entry.skuId === skuId) ?? null;
+    if (!snapshotSku) {
+      return null;
+    }
+    const detailPage = normalizeSkuDetailPage(
+      await inventory.loadSenaSkuDetail(skuId).catch(() => null),
+    );
+    return deriveSenaSkuDetailViewModel({
+      currency,
+      detail: detailPage?.detail ?? null,
+      diagnostics: diagnostics ?? null,
+      language,
+      linkedServiceDetails: [],
+      observations,
+      orderBatches: orderBatches ?? [],
+      selectedIntervalIndex: null,
+      skuId,
+      snapshot: activeSnapshot,
+      supplierName: catalog?.skus.find((entry) => entry.skuId === skuId)?.supplierName,
+      uiState: 'ready',
+      usdToKhrExchangeRate,
+      workspaceSummary,
+    }).actionContext;
   }
 
   if (inventory.isLoading && !catalog) {
@@ -645,8 +721,10 @@ export function InventoryRoute() {
                             {translateUiLiteral(language, 'Archive')}
                           </Button>
                           <CatalogSkuRowActions
-                            actionContext={fallbackSkuActionContext}
+                            actionContextFreshnessKey={skuActionContextFreshnessKey}
+                            fallbackActionContext={fallbackSkuActionContext}
                             label={translateUiLiteral(language, 'More actions for {name}', { name: sku.name })}
+                            loadActionContext={() => loadCatalogSkuActionContext(sku.skuId)}
                             name={sku.name}
                             skuId={sku.skuId}
                           />

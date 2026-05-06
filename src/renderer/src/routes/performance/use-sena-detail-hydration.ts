@@ -104,7 +104,12 @@ export function useSenaDetailHydration(
   const isLoadingOlderIntervalsRef = useRef(false);
   const timeframeCacheRef = useRef<Record<string, SenaHydrationPages>>({});
   const previousTimeframeRef = useRef<AnalysisTimeframe | null>(null);
+  const previousFreshnessFingerprintRef = useRef<string | null>(null);
   const activeCacheKey = timeframeCacheKey ?? timeframe;
+  const freshnessFingerprint = useMemo(
+    () => deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
+    [workspaceSummary],
+  );
 
   const targetSkuIds = useMemo(
     () => dedupeIds(skuIds ?? catalog?.skus.map((sku) => sku.skuId) ?? []),
@@ -253,7 +258,6 @@ export function useSenaDetailHydration(
     targetCacheKey: string;
     targetTimeframe: AnalysisTimeframe;
   }) => {
-    const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary);
     const cachedSkuPages = Object.fromEntries(
       targetSkuIds.map((skuId) => [
         skuId,
@@ -385,6 +389,7 @@ export function useSenaDetailHydration(
     pagesSatisfyTimeframe,
     targetServiceIds,
     targetSkuIds,
+    freshnessFingerprint,
     workspaceSummary,
   ]);
 
@@ -398,7 +403,19 @@ export function useSenaDetailHydration(
       setServicePagesById({});
       setIsHydratingDetails(false);
       setTimeframeHydrationProgress(null);
+      previousFreshnessFingerprintRef.current = null;
       return;
+    }
+
+    if (previousFreshnessFingerprintRef.current !== freshnessFingerprint) {
+      timeframeCacheRef.current = {};
+      setResolvedTimeframeCacheKey(null);
+      skuPagesByIdRef.current = {};
+      servicePagesByIdRef.current = {};
+      setSkuPagesById({});
+      setServicePagesById({});
+      setTimeframeHydrationProgress(null);
+      previousFreshnessFingerprintRef.current = freshnessFingerprint;
     }
 
     if (shouldPruneTimeframeTransition({
@@ -495,6 +512,7 @@ export function useSenaDetailHydration(
     loadInitialPages,
     pagesSatisfyTimeframe,
     publishPages,
+    freshnessFingerprint,
     timeframe,
     timeframeBoundaryOverride,
     workspaceSummary,

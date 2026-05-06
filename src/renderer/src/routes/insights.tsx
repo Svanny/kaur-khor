@@ -69,13 +69,17 @@ function rememberedInsightModeHref(mode: InsightsModeValue) {
 }
 
 export function InsightsRoute() {
-  const { language } = usePreferences();
+  const { language, showAnalysisPage } = usePreferences();
   const params = useParams();
   const [searchParams] = useSearchParams();
   const routeState = readInsightsRouteState(searchParams);
   const modeByPath = new Map(INSIGHT_MODES.map((mode) => [insightsModePathByValue[mode.id], mode.id]));
   const activePath = params['*']?.replace(/\/+$/, '') ?? '';
   const activeMode = modeByPath.get(activePath);
+
+  if (!showAnalysisPage) {
+    return <Navigate replace to="/" />;
+  }
 
   if (!activePath && searchParams.has('mode')) {
     return <Navigate replace to={buildInsightsHref({ mode: routeState.mode }, searchParams)} />;

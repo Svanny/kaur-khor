@@ -1,9 +1,13 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { AnalysisRoute } from './analysis';
 
 const inventoryHook = vi.fn();
+const preferencesHook = vi.fn();
+const useBenchmarkRouteReady = vi.fn();
+const useSenaDetailHydration = vi.fn();
+const useTradingChartController = vi.fn();
 const listSenaObservationPage = vi.fn(async () => ({
   latestObservedAt: '2026-04-02T00:00:00.000Z',
   nextCursor: null,
@@ -12,21 +16,11 @@ const listSenaObservationPage = vi.fn(async () => ({
 }));
 
 vi.mock('@/components/system/trading-chart', () => ({
-  useTradingChartController: () => ({
-    handleCustomTimeframeChange: vi.fn(),
-    handleResetCharts: vi.fn(),
-    olderLoadProgress: null,
-    pendingCustomTimeframeRange: null,
-    pendingTimeframe: null,
-    settlePendingTimeframe: vi.fn(),
-    timeframe: 'Recent',
-    timeframeBoundaryOverride: null,
-    timeframeCacheKey: 'Recent',
-  }),
+  useTradingChartController: () => useTradingChartController(),
 }));
 
 vi.mock('@/lib/benchmark-route-ready', () => ({
-  useBenchmarkRouteReady: vi.fn(),
+  useBenchmarkRouteReady: (...args: unknown[]) => useBenchmarkRouteReady(...args),
 }));
 
 vi.mock('@/state/inventory', () => ({
@@ -34,27 +28,11 @@ vi.mock('@/state/inventory', () => ({
 }));
 
 vi.mock('@/state/preferences', () => ({
-  usePreferences: () => ({
-    currency: 'USD',
-    language: 'en',
-    showAnalysisPage: true,
-    showRightRailCards: false,
-    t: (key: string) => key,
-  }),
+  usePreferences: () => preferencesHook(),
 }));
 
 vi.mock('./performance/use-sena-detail-hydration', () => ({
-  useSenaDetailHydration: () => ({
-    hasOlderIntervals: false,
-    isHydratingDetails: false,
-    isLoadingOlderIntervals: false,
-    loadOlderIntervals: vi.fn(async () => 0),
-    resetHydratedDetails: vi.fn(async () => {}),
-    resolvedTimeframeCacheKey: 'Recent',
-    serviceDetailsById: {},
-    skuDetailsById: { 'sku-1': null },
-    timeframeHydrationProgress: null,
-  }),
+  useSenaDetailHydration: (...args: unknown[]) => useSenaDetailHydration(...args),
 }));
 
 vi.mock('./performance/analysis-content', () => ({
@@ -64,6 +42,40 @@ vi.mock('./performance/analysis-content', () => ({
 describe('AnalysisRoute', () => {
   beforeEach(() => {
     listSenaObservationPage.mockClear();
+    inventoryHook.mockClear();
+    preferencesHook.mockReset();
+    useBenchmarkRouteReady.mockClear();
+    useSenaDetailHydration.mockClear();
+    useTradingChartController.mockClear();
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      showAnalysisPage: true,
+      showRightRailCards: false,
+      t: (key: string) => key,
+    });
+    useTradingChartController.mockReturnValue({
+      handleCustomTimeframeChange: vi.fn(),
+      handleResetCharts: vi.fn(),
+      olderLoadProgress: null,
+      pendingCustomTimeframeRange: null,
+      pendingTimeframe: null,
+      settlePendingTimeframe: vi.fn(),
+      timeframe: 'Recent',
+      timeframeBoundaryOverride: null,
+      timeframeCacheKey: 'Recent',
+    });
+    useSenaDetailHydration.mockReturnValue({
+      hasOlderIntervals: false,
+      isHydratingDetails: false,
+      isLoadingOlderIntervals: false,
+      loadOlderIntervals: vi.fn(async () => 0),
+      resetHydratedDetails: vi.fn(async () => {}),
+      resolvedTimeframeCacheKey: 'Recent',
+      serviceDetailsById: {},
+      skuDetailsById: { 'sku-1': null },
+      timeframeHydrationProgress: null,
+    });
     inventoryHook.mockReturnValue({
       catalog: {
         schemaVersion: 1,
@@ -123,5 +135,31 @@ describe('AnalysisRoute', () => {
     await waitFor(() => {
       expect(listSenaObservationPage).toHaveBeenCalledWith({ limit: 20 });
     });
+  });
+
+  test('redirects before mounting analysis hydration when disabled', async () => {
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      showAnalysisPage: false,
+      showRightRailCards: false,
+      t: (key: string) => key,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/insights/explain']}>
+        <Routes>
+          <Route element={<AnalysisRoute />} path="/insights/explain" />
+          <Route element={<div>Home route</div>} path="/" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Home route')).toBeInTheDocument();
+    expect(inventoryHook).not.toHaveBeenCalled();
+    expect(useTradingChartController).not.toHaveBeenCalled();
+    expect(useSenaDetailHydration).not.toHaveBeenCalled();
+    expect(useBenchmarkRouteReady).not.toHaveBeenCalled();
+    expect(listSenaObservationPage).not.toHaveBeenCalled();
   });
 });

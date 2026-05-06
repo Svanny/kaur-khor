@@ -120,8 +120,18 @@ function AnalysisLoadingState({ showRightRailCards }: { showRightRailCards: bool
 }
 
 export function AnalysisRoute() {
+  const { showAnalysisPage } = usePreferences();
+
+  if (!showAnalysisPage) {
+    return <Navigate replace to="/" />;
+  }
+
+  return <EnabledAnalysisRoute />;
+}
+
+function EnabledAnalysisRoute() {
   const inventory = useInventory();
-  const { currency, language, showAnalysisPage, showRightRailCards, t } = usePreferences();
+  const { currency, language, showRightRailCards, t } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readAnalysisRouteState(searchParams);
   const scope = routeState.scope as AnalysisScope;
@@ -232,10 +242,6 @@ export function AnalysisRoute() {
     scope,
     section,
   });
-
-  if (!showAnalysisPage) {
-    return <Navigate replace to="/" />;
-  }
 
   if (isPreparingInitialAnalysis) {
     return (

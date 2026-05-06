@@ -47,7 +47,12 @@ function makeDemandPosterior(start: number, count: number) {
   });
 }
 
-function makeSkuPage(start: number, count: number, nextBeforeIntervalIndex: number | null) {
+function makeSkuPage(
+  start: number,
+  count: number,
+  nextBeforeIntervalIndex: number | null,
+  latestPosteriorUnits = 9,
+) {
   return {
     detail: {
       demandPosterior: makeDemandPosterior(start, count),
@@ -80,7 +85,7 @@ function makeSkuPage(start: number, count: number, nextBeforeIntervalIndex: numb
         daysOfCover: 4,
         demandPerDayMean: 1,
         expectedLeadTimeDemand: 5,
-        latestPosteriorUnits: 9,
+        latestPosteriorUnits,
         leadTimeMeanDays: 3,
         leadTimeStdDays: 1,
         reorderPoint: 7,
@@ -90,6 +95,48 @@ function makeSkuPage(start: number, count: number, nextBeforeIntervalIndex: numb
         skuId: 'sku-1',
         stockoutRisk: 0.1,
       },
+    },
+    hasOlder: nextBeforeIntervalIndex != null,
+    latestIntervalIndex: start + count - 1,
+    nextBeforeIntervalIndex,
+    pageLimit: count,
+  };
+}
+
+function makeRegimeTimeline(start: number, count: number, activityMean: number) {
+  return Array.from({ length: count }, (_, index) => {
+    const intervalIndex = start + index;
+    return {
+      activityIntervalHigh: activityMean + 1,
+      activityIntervalLow: activityMean - 1,
+      activityMean,
+      bottleneckProbability: 0.2,
+      demandMean: activityMean,
+      endAt: `2026-03-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+      intervalIndex,
+      priceMean: 10,
+      regime: 'normal',
+      sellableCapacityMean: 20,
+      startAt: `2026-02-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
+    };
+  });
+}
+
+function makeServicePage(
+  start: number,
+  count: number,
+  nextBeforeIntervalIndex: number | null,
+  activityMean = 3,
+) {
+  return {
+    detail: {
+      activityIntervalHigh: activityMean + 1,
+      activityIntervalLow: activityMean - 1,
+      activityMean,
+      bottleneckProbability: 0.2,
+      contributors: [],
+      regimeTimeline: makeRegimeTimeline(start, count, activityMean),
+      serviceId: 'service-1',
     },
     hasOlder: nextBeforeIntervalIndex != null,
     latestIntervalIndex: start + count - 1,
@@ -153,6 +200,20 @@ function AnalysisCacheHarness({
       <span data-testid="cache-length">{length}</span>
       <span data-testid="cache-hydrating">{String(isHydratingDetails)}</span>
       <span data-testid="cache-key">{resolvedTimeframeCacheKey ?? 'none'}</span>
+    </div>
+  );
+}
+
+function FreshnessHarness() {
+  const { isHydratingDetails, serviceDetailsById, skuDetailsById } = useSenaDetailHydration('Recent');
+  const latestPosteriorUnits = skuDetailsById['sku-1']?.summary.latestPosteriorUnits ?? 0;
+  const serviceActivityMean = serviceDetailsById['service-1']?.activityMean ?? 0;
+
+  return (
+    <div>
+      <span data-testid="freshness-hydrating">{String(isHydratingDetails)}</span>
+      <span data-testid="freshness-sku-units">{latestPosteriorUnits}</span>
+      <span data-testid="freshness-service-activity">{serviceActivityMean}</span>
     </div>
   );
 }
@@ -416,5 +477,90 @@ describe('useSenaDetailHydration', () => {
     await waitFor(() => expect(screen.getByTestId('cache-length')).toHaveTextContent('40'));
     await waitFor(() => expect(screen.getByTestId('cache-key')).toHaveTextContent(customCacheKey));
     expect(loadSenaSkuDetail).toHaveBeenCalledTimes(3);
+  });
+
+  test('reloads same timeframe details when workspace freshness changes', async () => {
+    const catalog = {
+      bundles: [],
+      schemaVersion: 1,
+      services: [
+        {
+          archived: false,
+          bundle: false,
+          description: 'service',
+          name: 'service',
+          price: 10,
+          serviceId: 'service-1',
+        },
+      ],
+      sharingMask: [],
+      skus: [
+        {
+          costPerUnit: 1,
+          description: 'sku',
+          leadTimeMeanDaysHint: 1,
+          leadTimeStdDaysHint: 1,
+          name: 'sku',
+          productPrice: 1,
+          skuId: 'sku-1',
+          soldAsProduct: true,
+        },
+      ],
+    };
+    const firstWorkspaceSummary = {
+      highRiskSkuIds: [],
+      intervalCount: 20,
+      latestObservedAt: '2026-03-21T08:00:00.000Z',
+      ownerSub: 'desktop-owner',
+      pendingReorderCount: 0,
+      runId: 'run-1',
+      serviceCount: 1,
+      skuCount: 1,
+      skuSummaries: [],
+      topRegime: 'normal',
+    };
+    const secondWorkspaceSummary = {
+      ...firstWorkspaceSummary,
+      latestObservedAt: '2026-03-22T08:00:00.000Z',
+      runId: 'run-2',
+    };
+    const loadSenaSkuDetail = vi
+      .fn()
+      .mockResolvedValueOnce(makeSkuPage(20, 20, null, 9))
+      .mockResolvedValueOnce(makeSkuPage(20, 20, null, 42));
+    const loadSenaServiceDetail = vi
+      .fn()
+      .mockResolvedValueOnce(makeServicePage(20, 20, null, 3))
+      .mockResolvedValueOnce(makeServicePage(20, 20, null, 11));
+
+    inventoryHook.mockReturnValue({
+      catalog,
+      loadSenaServiceDetail,
+      loadSenaSkuDetail,
+      workspaceSummary: firstWorkspaceSummary,
+    });
+
+    const { rerender } = render(<FreshnessHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('freshness-sku-units')).toHaveTextContent('9'));
+    await waitFor(() => expect(screen.getByTestId('freshness-service-activity')).toHaveTextContent('3'));
+    await waitFor(() => expect(screen.getByTestId('freshness-hydrating')).toHaveTextContent('false'));
+    expect(loadSenaSkuDetail).toHaveBeenCalledTimes(1);
+    expect(loadSenaServiceDetail).toHaveBeenCalledTimes(1);
+
+    inventoryHook.mockReturnValue({
+      catalog,
+      loadSenaServiceDetail,
+      loadSenaSkuDetail,
+      workspaceSummary: secondWorkspaceSummary,
+    });
+
+    rerender(<FreshnessHarness />);
+
+    await waitFor(() => expect(screen.getByTestId('freshness-sku-units')).toHaveTextContent('42'));
+    await waitFor(() => expect(screen.getByTestId('freshness-service-activity')).toHaveTextContent('11'));
+    await waitFor(() => expect(screen.getByTestId('freshness-hydrating')).toHaveTextContent('false'));
+    expect(loadSenaSkuDetail).toHaveBeenCalledTimes(2);
+    expect(loadSenaServiceDetail).toHaveBeenCalledTimes(2);
   });
 });
