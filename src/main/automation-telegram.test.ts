@@ -390,7 +390,7 @@ describe('telegram automation connection setup', () => {
     expect(updatedConversation.messages.some((entry) => entry.direction === 'outbound' && entry.externalMessageKey === '10')).toBe(true);
   });
 
-  it('notifies the Telegram customer after a Telegram customer ticket is updated', async () => {
+  it('notifies the Telegram customer after a Telegram customer ticket is updated and escapes note HTML', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({
@@ -465,13 +465,15 @@ describe('telegram automation connection setup', () => {
       ticketEvent: {
         ...prepared.ticketEvent,
         eventType: 'revised',
-        note: 'Pickup after 5 PM',
+        note: 'Pickup <a> <b> & <',
         revision: 2,
       },
     });
 
     expect(notified).toBe(true);
     expect(fetchMock).toHaveBeenLastCalledWith('https://api.telegram.org/botsecret-token/sendMessage', expect.anything());
+    expect(telegramSendMessageText(fetchMock)).toContain('Note: Pickup &lt;a&gt; &lt;b&gt; &amp; &lt;');
+    expect(telegramSendMessageText(fetchMock)).not.toContain('Note: Pickup <a> <b> & <');
 
     const updatedConversation = await readAutomationConversation(userDataPath, intake.conversationId);
     expect(updatedConversation.messages.some((entry) => entry.direction === 'outbound' && entry.externalMessageKey === '11')).toBe(true);

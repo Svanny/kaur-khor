@@ -148,6 +148,15 @@ When an intake is promoted:
 - the active renderer session refreshes Work support data so queue tasks and
   recent activity reflect the promoted ticket without a full app reload
 
+Promotion is single-use. Once an intake is ticketed or completed, later prepare
+or finalize calls must reject stale repeats rather than rewriting the intake.
+Append mode is customer-ticket-only: it must target an existing open customer
+ticket and increment from that ticket's latest revision. Missing, supplier, or
+closed ticket targets should fail before any automation-store mutation.
+
+Customer-facing Telegram notifications must escape user-provided note text
+before sending HTML-formatted messages.
+
 If you change how intake rows turn into ticket events, update this page and
 [`docs/development/ticketing-architecture.md`](ticketing-architecture.md)
 together.

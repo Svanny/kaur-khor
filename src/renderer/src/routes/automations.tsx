@@ -354,14 +354,10 @@ export function AutomationsRoute({
     () => deriveNavigationAvailability(inventory),
     [inventory],
   );
-
-  if (!showAutomationsPage && !forcedSection && !allowConfigurationWithoutEligibility) {
-    return <Navigate replace to="/" />;
-  }
-
-  if (!navigationAvailability.hasWorkIntake && !forcedSection && !allowConfigurationWithoutEligibility) {
-    return <Navigate replace to="/" />;
-  }
+  const shouldRedirectHome =
+    !forcedSection &&
+    !allowConfigurationWithoutEligibility &&
+    (!showAutomationsPage || !navigationAvailability.hasWorkIntake);
 
   useEffect(() => {
     setBotDisplayName(connection?.botDisplayName ?? '');
@@ -372,6 +368,29 @@ export function AutomationsRoute({
   useEffect(() => {
     setHasUnlockedAutomationTabs(Boolean(connection?.hasBotToken));
   }, [connection?.hasBotToken]);
+
+  useEffect(() => {
+    if (!routeState.intakeId) {
+      return;
+    }
+
+    const matchingIntake = intakes.find((intake) => intake.intakeId === routeState.intakeId);
+    if (!matchingIntake) {
+      return;
+    }
+
+    const conversationId = routeState.conversationId ?? matchingIntake.conversationId;
+    setSelectedIntakeRequest((current) => {
+      if (current?.intakeId === matchingIntake.intakeId && current.conversationId === conversationId) {
+        return current;
+      }
+
+      return {
+        conversationId,
+        intakeId: matchingIntake.intakeId,
+      };
+    });
+  }, [intakes, routeState.conversationId, routeState.intakeId]);
 
   const workspace = useMemo(() => (
     connection && metrics
@@ -473,6 +492,17 @@ export function AutomationsRoute({
       conversationId: row.conversationId ?? null,
       intakeId: row.intakeId,
     });
+  }
+
+  function closeIntakeDrawer() {
+    const selectedIntakeId = selectedIntakeRequest?.intakeId ?? null;
+    setSelectedIntakeRequest(null);
+    if (selectedIntakeId && selectedIntakeId === routeState.intakeId) {
+      updateRouteState({
+        conversationId: null,
+        intakeId: null,
+      });
+    }
   }
 
   function searchControl(placeholder: string) {
@@ -703,6 +733,10 @@ export function AutomationsRoute({
       )}
     </WorkspaceActionRow>
   );
+
+  if (shouldRedirectHome) {
+    return <Navigate replace to="/" />;
+  }
 
   if (isLoading && !workspace) {
     return (
@@ -1016,7 +1050,7 @@ export function AutomationsRoute({
         isSaving={isSaving}
         language={language}
         open={selectedIntake != null}
-        onClose={() => setSelectedIntakeRequest(null)}
+        onClose={closeIntakeDrawer}
         onPromote={promoteIntake}
         onReadConversation={readConversation}
         onResolve={resolveIntake}

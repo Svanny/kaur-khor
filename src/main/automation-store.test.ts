@@ -16,6 +16,7 @@ import {
   readAutomationWizardSessionForConversation,
   readAutomationWorkspace,
 } from './automation-store';
+import type { SenaTicketEvent } from '@shared/sena';
 
 const AUTOMATION_STORE_SOURCE_PATH = new URL('./automation-store.ts', import.meta.url);
 
@@ -233,6 +234,76 @@ function expectNoUnexpectedKhmerLatin(renderedParts: string[]) {
   expect(unexpected).toEqual([]);
 }
 
+function makeTicketEvent(overrides: Partial<SenaTicketEvent> = {}): SenaTicketEvent {
+  return {
+    ticketId: 'ticket:customer:open',
+    ticketFamily: 'customer',
+    lifecycle: 'open',
+    stage: 'pending',
+    revision: 1,
+    eventType: 'created',
+    occurredAt: '2026-04-21T00:00:00.000Z',
+    nextTouchAt: null,
+    party: {
+      role: 'customer',
+      channelKey: 'telegram',
+      channelLabel: 'Telegram',
+      customerName: 'Sokha',
+      customerNameKey: 'sokha',
+      phone: null,
+      phoneKey: null,
+      supplierName: null,
+    },
+    lines: [
+      {
+        entityType: 'sku',
+        entityId: 'sku-1',
+        quantityDelta: 1,
+        note: null,
+      },
+    ],
+    note: null,
+    ...overrides,
+  };
+}
+
+async function createQuotedAutomationIntake(userDataPath: string, chatId: number) {
+  await patchAutomationExposureRow(userDataPath, context as never, {
+    entityId: 'sku-1',
+    entityType: 'sku',
+    exposed: true,
+  });
+  await completePreferencesOnboarding(userDataPath, {
+    chatId,
+    firstName: 'Sokha',
+  });
+  await ingestAutomationTelegramUpdates(userDataPath, {
+    context: context as never,
+    currency: 'USD',
+    updates: [
+      {
+        update_id: chatId * 10 + 4,
+        message: {
+          message_id: chatId * 10 + 4,
+          date: 1_745_193_600,
+          text: '2 cotton scarf',
+          chat: {
+            id: chatId,
+            type: 'private',
+          },
+          from: {
+            id: chatId,
+            first_name: 'Sokha',
+          },
+        },
+      },
+    ],
+  });
+
+  const workspace = await readAutomationWorkspace(userDataPath, context as never);
+  return workspace.intakes[0]!;
+}
+
 describe('automation telegram ingestion', () => {
   it('creates quoted intake and reply jobs for matched exposed telegram items', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
@@ -424,6 +495,21 @@ describe('automation telegram ingestion', () => {
 
     expect(workspace.metrics.ticketedToday).toBe(1);
     expect(workspace.metrics.completedToday).toBe(1);
+  });
+
+  it('does not reset a corrupt automation store during a later mutation', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const storePath = join(userDataPath, 'desktop-automation-store.json');
+    const corruptPayload = '{ "version": 1, "intakes": [';
+    await writeFile(storePath, corruptPayload, 'utf8');
+
+    await expect(patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    })).rejects.toThrow();
+
+    await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {
@@ -1924,5 +2010,114 @@ describe('automation telegram ingestion', () => {
 
     const conversation = await findAutomationConversationForTelegramTicket(userDataPath, prepared.ticketEvent);
     expect(conversation?.conversationId).toBe(intake.conversationId);
+  });
+
+  it('rejects appending Telegram intake to a nonexistent ticket', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_778);
+
+    await expect(prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: 'ticket:customer:missing',
+    }, {
+      observations: context.observations as never,
+    })).rejects.toThrow('Appending Telegram intake requires an existing customer ticket.');
+  });
+
+  it('rejects duplicate promotion after an intake is already ticketed', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_779);
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+    const stalePrepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+
+    await finalizeAutomationPromotion(userDataPath, prepared.updatedIntake);
+
+    await expect(prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    })).rejects.toThrow('already been promoted');
+    await expect(finalizeAutomationPromotion(userDataPath, stalePrepared.updatedIntake))
+      .rejects.toThrow('already been promoted');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes[0]).toMatchObject({
+      intakeId: intake.intakeId,
+      status: 'ticketed',
+      promotedTicketId: prepared.ticketEvent.ticketId,
+    });
+  });
+
+  it('rejects appending Telegram intake to a supplier ticket', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_779);
+    const supplierTicket = makeTicketEvent({
+      ticketId: 'ticket:supplier:open',
+      ticketFamily: 'supplier',
+      stage: 'to_order',
+      party: {
+        role: 'supplier',
+        channelKey: null,
+        channelLabel: null,
+        customerName: null,
+        customerNameKey: null,
+        phone: null,
+        phoneKey: null,
+        supplierName: 'Mekong Looms',
+      },
+    });
+
+    await expect(prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: supplierTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-supplier-ticket',
+        input: {
+          ticketEvents: [supplierTicket],
+        },
+      }] as never,
+    })).rejects.toThrow('Appending Telegram intake requires an open customer ticket.');
+  });
+
+  it('accepts appending Telegram intake to a known open customer ticket', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_780);
+    const customerTicket = makeTicketEvent({
+      ticketId: 'ticket:customer:known-open',
+      revision: 3,
+    });
+
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: customerTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-customer-ticket',
+        input: {
+          ticketEvents: [customerTicket],
+        },
+      }] as never,
+    });
+
+    expect(prepared.ticketEvent.ticketId).toBe(customerTicket.ticketId);
+    expect(prepared.ticketEvent.ticketFamily).toBe('customer');
+    expect(prepared.ticketEvent.eventType).toBe('revised');
+    expect(prepared.ticketEvent.revision).toBe(4);
+    expect(prepared.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
   });
 });

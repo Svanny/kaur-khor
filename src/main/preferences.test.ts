@@ -79,6 +79,17 @@ describe('desktop preferences store', () => {
     });
   });
 
+  it('throws and preserves the preferences file when stored JSON is malformed', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const preferencesPath = join(userDataPath, 'desktop-preferences.json');
+    const malformedJson = '{ "language": "km",';
+    await writeFile(preferencesPath, malformedJson, 'utf8');
+    const { loadDesktopPreferences } = await loadPreferencesModule();
+
+    await expect(loadDesktopPreferences(userDataPath)).rejects.toThrow(SyntaxError);
+    await expect(readFile(preferencesPath, 'utf8')).resolves.toBe(malformedJson);
+  });
+
   it('persists and merges preference updates', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();

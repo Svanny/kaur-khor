@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { AutomationOrderIntake } from '@shared/automation';
 import type { AutomationContextValue } from '@/state/automation';
 import { AutomationsRoute, buildTelegramOpenUrl } from './automations';
 
@@ -54,7 +55,20 @@ vi.mock('./automations/exception-table', () => ({
 }));
 
 vi.mock('./automations/intake-drawer', () => ({
-  AutomationIntakeDrawer: () => null,
+  AutomationIntakeDrawer: ({
+    intake,
+    open,
+    onClose,
+  }: {
+    intake: AutomationOrderIntake | null;
+    open: boolean;
+    onClose: () => void;
+  }) => open && intake ? (
+    <div aria-label={`${intake.customerDisplayName ?? intake.intakeId} intake drawer`} role="dialog">
+      <p>Intake drawer for {intake.intakeId}</p>
+      <button type="button" onClick={onClose}>Close intake drawer</button>
+    </div>
+  ) : null,
 }));
 
 vi.mock('./automations/recent-activity-rail', () => ({
@@ -116,6 +130,42 @@ function makeAutomationState(hasBotToken: boolean, overrides: Partial<Automation
     resolveIntake: vi.fn(),
     promoteIntake: vi.fn(),
     testTelegramConnection: vi.fn(),
+    ...overrides,
+  };
+}
+
+function makeIntake(overrides: Partial<AutomationOrderIntake> = {}): AutomationOrderIntake {
+  return {
+    intakeId: 'intake-1',
+    conversationId: 'conv-1',
+    channel: 'telegram',
+    status: 'new',
+    parseConfidence: 'high',
+    customerDisplayName: 'Ada',
+    customerHandle: '@ada',
+    phone: '+85512345678',
+    notes: null,
+    quotedSubtotal: 12,
+    currencyCode: 'USD',
+    deliveryFee: null,
+    quotedTotal: 12,
+    createdAt: '2026-04-21T00:00:00.000Z',
+    updatedAt: '2026-04-21T00:00:00.000Z',
+    promotedTicketId: null,
+    lines: [
+      {
+        lineId: 'line-1',
+        entityType: 'sku',
+        entityId: 'sku-1',
+        requestedLabel: 'scarf',
+        resolvedLabel: 'SKU 1',
+        quantity: 1,
+        unitPrice: 12,
+        lineTotal: 12,
+        availabilityStatus: 'available',
+        ambiguityReason: null,
+      },
+    ],
     ...overrides,
   };
 }
@@ -215,6 +265,33 @@ describe('AutomationsRoute', () => {
     expect(await screen.findByText('Overview screen')).toBeInTheDocument();
   });
 
+  it('redirects without a hook-order crash when automation availability changes after render', async () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    const routeTree = () => (
+      <MemoryRouter initialEntries={['/automations']}>
+        <Routes>
+          <Route element={<div>Overview screen</div>} path="/" />
+          <Route element={<AutomationsRoute />} path="/automations" />
+        </Routes>
+      </MemoryRouter>
+    );
+    const { rerender } = render(routeTree());
+
+    expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
+
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      showAutomationsPage: false,
+      usdToKhrExchangeRate: 4000,
+      t: (key: string) => (key === 'navAutomations' ? 'Automations' : key),
+    });
+
+    expect(() => rerender(routeTree())).not.toThrow();
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument();
+  });
+
   it('shows hero actions, tabs, and ribbon after telegram bot settings are saved', () => {
     automationHook.mockReturnValue(makeAutomationState(true));
 
@@ -223,6 +300,17 @@ describe('AutomationsRoute', () => {
     expect(screen.getByRole('button', { name: 'Disconnect bot' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
     expect(screen.getByText('Connection')).toBeInTheDocument();
+  });
+
+  it('opens the matching intake drawer from automation route params', async () => {
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [makeIntake()],
+    }));
+
+    renderRoute('/automations?section=intake&conversation=conv-1&intake=intake-1');
+
+    expect(await screen.findByRole('dialog', { name: 'Ada intake drawer' })).toBeInTheDocument();
+    expect(screen.getByText('Intake drawer for intake-1')).toBeInTheDocument();
   });
 
   it('shows browser while-tab-open messaging and polling action in browser mode', async () => {

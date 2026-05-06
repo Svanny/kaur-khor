@@ -198,6 +198,8 @@ Confidence is Kaur Khor's certainty about the inferred request or match. Low con
 
 Live intake is the table of customer requests captured from automation before they become normal Work tickets. It shows who asked, what was parsed, quoted totals, state, and timestamps. Use it to review and promote requests that are ready, or investigate ones that are still ambiguous.
 
+When appending an intake to existing work, choose an open customer ticket. Kaur Khor rejects missing, closed, supplier, or already-promoted targets so a customer request cannot be silently attached to the wrong operational history.
+
 ### Needs Review {#automation-needs-review}
 
 Needs review lists automation messages Kaur Khor could not safely convert into clean work. The issue and confidence columns explain why the request stopped. Use this section to fix catalog aliases, missing prices, unclear quantities, or customer identity before creating tickets.

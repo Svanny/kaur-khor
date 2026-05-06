@@ -60,6 +60,13 @@ function preferencesPath(userDataPath: string) {
   return join(userDataPath, 'desktop-preferences.json');
 }
 
+function isMissingPreferencesFile(error: unknown): boolean {
+  return typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT';
+}
+
 function normalizeUsdToKhrExchangeRate(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
     ? value
@@ -171,16 +178,22 @@ function normalizePreferences(
 }
 
 export async function loadDesktopPreferences(userDataPath: string): Promise<DesktopPreferences> {
+  let raw: string;
   try {
-    const raw = await readFile(preferencesPath(userDataPath), 'utf8');
-    if (!raw.trim()) {
+    raw = await readFile(preferencesPath(userDataPath), 'utf8');
+  } catch (error) {
+    if (isMissingPreferencesFile(error)) {
       return DEFAULT_PREFERENCES;
     }
-    const parsed = JSON.parse(raw) as Partial<DesktopPreferences>;
-    return normalizePreferences(parsed, { hasExistingPreferencesFile: true });
-  } catch {
+    throw error;
+  }
+
+  if (!raw.trim()) {
     return DEFAULT_PREFERENCES;
   }
+
+  const parsed = JSON.parse(raw) as Partial<DesktopPreferences>;
+  return normalizePreferences(parsed, { hasExistingPreferencesFile: true });
 }
 
 export async function saveDesktopPreferences(

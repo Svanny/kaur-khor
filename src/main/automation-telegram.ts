@@ -5,6 +5,7 @@ import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import {
   appendAutomationOutboundTelegramMessage,
   applyAutomationTelegramProfile,
+  escapeTelegramHtml,
   findAutomationConversationForTelegramTicket,
   ingestAutomationTelegramUpdates,
   markAutomationTelegramCommandsConfigured,
@@ -244,8 +245,8 @@ function buildTicketUpdateNotification(ticketEvent: SenaTicketEvent, language: '
         : (isKhmer(language) ? 'បានធ្វើបច្ចុប្បន្នភាព' : 'Updated');
   const noteLabel = ticketEvent.note?.trim()
     ? isKhmer(language)
-      ? `\nកំណត់ចំណាំ៖ ${ticketEvent.note.trim()}`
-      : `\nNote: ${ticketEvent.note.trim()}`
+      ? `\nកំណត់ចំណាំ៖ ${escapeTelegramHtml(ticketEvent.note.trim())}`
+      : `\nNote: ${escapeTelegramHtml(ticketEvent.note.trim())}`
     : '';
   return isKhmer(language)
     ? `<b>បច្ចុប្បន្នភាពការបញ្ជាទិញពីកខ</b>\nស្ថានភាព៖ ${statusLabel}\nសំបុត្រការងាររបស់អ្នកត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយក្រុមប្រតិបត្តិករ។${noteLabel}`

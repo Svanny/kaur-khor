@@ -310,13 +310,23 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
   };
 }
 
+function errorCode(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as { code?: unknown }).code)
+    : null;
+}
+
 async function loadAutomationState(userDataPath: string): Promise<AutomationStoreState> {
+  let raw: string;
   try {
-    const raw = await readFile(automationStorePath(userDataPath), 'utf8');
-    return normalizeState(JSON.parse(raw) as Partial<AutomationStoreState>);
-  } catch {
-    return DEFAULT_STATE;
+    raw = await readFile(automationStorePath(userDataPath), 'utf8');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') {
+      return DEFAULT_STATE;
+    }
+    throw error;
   }
+  return normalizeState(JSON.parse(raw) as Partial<AutomationStoreState>);
 }
 
 async function writeAutomationState(userDataPath: string, state: AutomationStoreState) {
@@ -665,11 +675,36 @@ function ticketLifecycleForMode(): SenaTicketLifecycle {
   return 'open';
 }
 
-function existingTicketRevision(observations: SenaObservationRecord[], ticketId: string) {
+function assertPromotableAutomationIntake(intake: AutomationOrderIntake) {
+  if (intake.promotedTicketId || intake.status === 'ticketed' || intake.status === 'completed') {
+    throw new Error('Automation intake has already been promoted to a customer ticket.');
+  }
+  if (intake.status !== 'quoted') {
+    throw new Error('Only quoted automation intakes can be promoted to customer tickets.');
+  }
+}
+
+function latestTicketEventForId(observations: SenaObservationRecord[], ticketId: string) {
   return observations
     .flatMap((observation) => observation.input.ticketEvents ?? [])
     .filter((event) => event.ticketId === ticketId)
-    .sort((left, right) => right.revision - left.revision)[0]?.revision ?? 0;
+    .sort((left, right) => {
+      if (right.revision !== left.revision) {
+        return right.revision - left.revision;
+      }
+      return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+    })[0] ?? null;
+}
+
+function validateAppendTicketTarget(observations: SenaObservationRecord[], ticketId: string) {
+  const ticket = latestTicketEventForId(observations, ticketId);
+  if (!ticket) {
+    throw new Error('Appending Telegram intake requires an existing customer ticket.');
+  }
+  if (ticket.ticketFamily !== 'customer' || ticket.lifecycle !== 'open') {
+    throw new Error('Appending Telegram intake requires an open customer ticket.');
+  }
+  return ticket;
 }
 
 function buildPromotionNote(intake: AutomationOrderIntake, operatorNote: string | null | undefined) {
@@ -723,7 +758,7 @@ function normalizeTelegramLabel(value: string | null | undefined) {
   return safeLower(value).replace(/[^\p{L}\p{N}]+/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function escapeTelegramHtml(value: string | null | undefined) {
+export function escapeTelegramHtml(value: string | null | undefined) {
   return (value ?? '')
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
@@ -2678,6 +2713,7 @@ export async function prepareAutomationPromotion(
   if (!intake) {
     throw new Error('Automation intake not found.');
   }
+  assertPromotableAutomationIntake(intake);
   if (observations.length === 0) {
     throw new Error('Automations needs at least one stock update before it can promote Telegram intake into Kaur Khor tickets.');
   }
@@ -2690,11 +2726,14 @@ export async function prepareAutomationPromotion(
   if (payload.mode === 'append_ticket' && !payload.ticketId) {
     throw new Error('Appending Telegram intake requires a target customer ticket.');
   }
+  const appendTargetTicket = payload.mode === 'append_ticket'
+    ? validateAppendTicketTarget(observations, payload.ticketId!)
+    : null;
   const observedAt = nowIso();
   const ticketId = payload.mode === 'append_ticket'
     ? payload.ticketId!
     : `ticket:customer:${Date.now()}:created:automation-${intake.intakeId}`;
-  const revision = payload.mode === 'append_ticket' ? existingTicketRevision(observations, ticketId) + 1 : 1;
+  const revision = appendTargetTicket ? appendTargetTicket.revision + 1 : 1;
   const note = buildPromotionNote(intake, payload.note);
   const lines = intake.lines.map((line) => ({
     entityType: line.entityType,
@@ -2775,11 +2814,15 @@ export async function finalizeAutomationPromotion(
   userDataPath: string,
   updatedIntake: AutomationOrderIntake,
 ): Promise<AutomationOrderIntake> {
+  if (updatedIntake.status !== 'ticketed' || !updatedIntake.promotedTicketId) {
+    throw new Error('Automation promotion finalization requires a ticketed intake.');
+  }
   return updateAutomationState(userDataPath, (state) => {
     const intakeIndex = state.intakes.findIndex((entry) => entry.intakeId === updatedIntake.intakeId);
     if (intakeIndex < 0) {
       throw new Error('Automation intake disappeared before promotion completed.');
     }
+    assertPromotableAutomationIntake(state.intakes[intakeIndex]!);
     state.intakes[intakeIndex] = updatedIntake;
     recalculateConversation(state, updatedIntake.conversationId);
     return updatedIntake;
