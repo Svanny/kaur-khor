@@ -41,7 +41,7 @@ import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDispla
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
-import { makeTicketId } from '@/lib/ticketing';
+import { makeNewTicketId } from '@/lib/ticketing';
 import { cn } from '@/lib/utils';
 import {
   ActionSheetField,
@@ -238,7 +238,7 @@ function supplierTicketIdentityForDrawer({
   }
 
   return {
-    ticketId: makeTicketId({
+    ticketId: makeNewTicketId({
       eventType,
       family: 'supplier',
       lines: [{ entityType: 'sku', entityId: task.skuId }],

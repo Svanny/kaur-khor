@@ -99,6 +99,11 @@ with the ticket/observation history they append. If a task has a
 that child or batch state before appending the matching observation event. Tasks
 without a backing child may continue through the observation-only path.
 
+New ticket creation must add a per-ticket nonce to the deterministic ticket
+identity. Deterministic IDs remain useful for editing selected tickets and
+deriving stable references, but fresh customer or supplier tickets created in
+the same minute with the same line identity must not collide.
+
 When an Inbox drawer or Capture route updates an existing supplier order, it
 must preserve the real supplier ticket identity and increment from the latest
 known ticket revision. Prefer `recordUpdateContext.latestTicketsById` when the

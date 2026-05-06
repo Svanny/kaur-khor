@@ -7,11 +7,46 @@ import {
   customerLinkWarning,
   deliveryFeeBucketForWorkflow,
   latestDeliveryFeeMetadata,
+  makeNewTicketId,
+  makeTicketId,
   normalizeTicketPhone,
   summarizeDeliveryFee,
 } from './ticketing';
 
 describe('ticketing phone normalization', () => {
+  test('keeps deterministic ticket ids stable for edit and selected ticket references', () => {
+    const ticket: Parameters<typeof makeTicketId>[0] = {
+      eventType: 'created',
+      family: 'customer',
+      observedAt: '2026-04-22T12:34:00.000Z',
+      lines: [
+        { entityType: 'sku', entityId: 'sku-1' },
+        { entityType: 'service', entityId: 'service-1' },
+      ],
+    };
+
+    expect(makeTicketId(ticket)).toBe(makeTicketId({
+      ...ticket,
+      lines: [...ticket.lines].reverse(),
+    }));
+  });
+
+  test('adds a per-ticket nonce for new ticket ids with the same minute and line identity', () => {
+    const ticket: Parameters<typeof makeTicketId>[0] = {
+      eventType: 'created',
+      family: 'supplier',
+      observedAt: '2026-04-22T12:34:00.000Z',
+      lines: [{ entityType: 'sku', entityId: 'sku-1' }],
+    };
+    const deterministicTicketId = makeTicketId(ticket);
+    const firstTicketId = makeNewTicketId({ ...ticket, nonce: 'first-order' });
+    const secondTicketId = makeNewTicketId({ ...ticket, nonce: 'second-order' });
+
+    expect(firstTicketId).not.toBe(secondTicketId);
+    expect(firstTicketId).toBe(`${deterministicTicketId}:first-order`);
+    expect(secondTicketId).toBe(`${deterministicTicketId}:second-order`);
+  });
+
   test('stores customer ticket phone metadata in canonical spaced format', () => {
     expect(buildTicketPartyMetadata({
       channel: 'Telegram',

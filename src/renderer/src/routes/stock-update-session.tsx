@@ -170,7 +170,7 @@ import {
   buildTicketPartyMetadata,
   customerLinkWarning,
   deliveryFeeBucketForWorkflow,
-  makeTicketId,
+  makeNewTicketId,
   normalizeTicketLookupValue,
   normalizeTicketPhone,
   summarizeDeliveryFee,
@@ -6912,7 +6912,7 @@ export function StockUpdateSessionRoute() {
       return existingTicket.ticketId;
     }
 
-    return makeTicketId({ eventType: fallbackEventType, family: 'supplier', lines, observedAt: observedAtValue });
+    return makeNewTicketId({ eventType: fallbackEventType, family: 'supplier', lines, observedAt: observedAtValue });
   }
 
   function finalizeTicketPayload(payload: SenaObservationInput) {
@@ -6934,7 +6934,7 @@ export function StockUpdateSessionRoute() {
         const lifecycle: SenaTicketLifecycle = eventType === 'canceled' ? 'canceled' : 'open';
         const stage: SenaTicketStage = 'pending';
         nextTicketEvents.push({
-          ticketId: selectedCustomerTicketId ?? makeTicketId({ eventType, family: 'customer', lines, observedAt: observedAtValue }),
+          ticketId: selectedCustomerTicketId ?? makeNewTicketId({ eventType, family: 'customer', lines, observedAt: observedAtValue }),
           ticketFamily: 'customer',
           lifecycle,
           stage,
@@ -6954,7 +6954,7 @@ export function StockUpdateSessionRoute() {
       const lines = ticketLinesFromCommercialEvents(payload, 'customer');
       if (lines.length > 0) {
         nextTicketEvents.push({
-          ticketId: makeTicketId({ eventType: 'fulfilled_immediate', family: 'customer', lines, observedAt: observedAtValue }),
+          ticketId: makeNewTicketId({ eventType: 'fulfilled_immediate', family: 'customer', lines, observedAt: observedAtValue }),
           ticketFamily: 'customer',
           lifecycle: 'resolved',
           stage: 'fulfilled_immediate',

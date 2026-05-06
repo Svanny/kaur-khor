@@ -153,6 +153,32 @@ export function makeTicketId({
   return `ticket:${family}:${timestamp}:${eventType}:${lineKey || 'unscoped'}`;
 }
 
+function sanitizeTicketIdSegment(value: string) {
+  return value.trim().replace(/[^a-zA-Z0-9_-]/g, '-').replace(/-+/g, '-').slice(0, 80);
+}
+
+export function makeTicketNonce() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  if (typeof globalThis.crypto?.getRandomValues === 'function') {
+    const values = new Uint32Array(2);
+    globalThis.crypto.getRandomValues(values);
+    return [...values].map((value) => value.toString(36)).join('-');
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function makeNewTicketId({
+  nonce = makeTicketNonce(),
+  ...ticket
+}: Parameters<typeof makeTicketId>[0] & { nonce?: string }) {
+  const nonceKey = sanitizeTicketIdSegment(nonce) || sanitizeTicketIdSegment(makeTicketNonce()) || 'new';
+  return `${makeTicketId(ticket)}:${nonceKey}`;
+}
+
 export function latestTicketEvents(observations: SenaObservationRecord[]) {
   return observations
     .flatMap((observation) => observation.input.ticketEvents ?? [])
