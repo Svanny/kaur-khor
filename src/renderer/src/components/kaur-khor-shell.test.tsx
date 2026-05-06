@@ -997,6 +997,27 @@ describe('KaurKhorShell', () => {
     });
   });
 
+  test('hides search and keeps settings visible when the desktop rail is collapsed', async () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Search' })).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    });
+  });
+
   test('shows the global workspace-preparing screen during a post-save preparation run', () => {
     inventoryHook.mockReturnValue({
       error: null,
