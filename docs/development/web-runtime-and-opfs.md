@@ -24,6 +24,19 @@ The demo path may use the seeded browser mock bridge. Its seed data should stay 
 
 Browser SENA is single-threaded in this phase. `apps/sena-core` has a browser-safe feature path for pure analysis code without the desktop SQLite repository, filesystem artifacts, or Rayon thread pool. The web bridge keeps the startup contract compact, recomputes browser summary/detail/diagnostics on SENA runs, and persists the resulting read models into OPFS.
 
+## Content security policy
+
+The shared web entry in `index.html` carries the deployable CSP for `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`. Keep it restrictive by default:
+
+- `default-src 'self'`, `base-uri 'self'`, `object-src 'none'`, `form-action 'none'`, and `frame-ancestors 'none'` keep the static entry closed to unexpected embeds, forms, plugins, and remote defaults.
+- `script-src 'self' 'wasm-unsafe-eval'` allows Vite's bundled modules and SQLite WASM compilation without allowing remote scripts.
+- `style-src 'self' 'unsafe-inline'` is required for the current Tailwind/custom-property runtime styling emitted by the app.
+- `worker-src 'self' blob:` allows the SQLite WASM worker and worker helper blobs.
+- `connect-src 'self' https://api.github.com https://api.telegram.org` covers the landing release lookup and foreground browser Telegram polling only.
+- `img-src 'self' data: blob:` and `font-src 'self'` cover bundled screenshots, generated item images, the inline favicon, backup/object previews, and bundled fonts.
+
+When adding browser-networked features, update this policy and the tests/build verification together. Do not widen it with wildcard script, connect, or frame sources.
+
 ## OPFS notes
 
 GitHub Pages does not provide custom COOP/COEP headers for this site, so browser persistence should prefer SQLite WASM modes that do not require cross-origin isolation. The intended durable storage target is OPFS in the user's browser profile.

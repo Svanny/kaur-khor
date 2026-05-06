@@ -99,7 +99,14 @@ export function EmbeddedAutoZoomViewport({ children }: { children: ReactNode }) 
       root.style.removeProperty('--kaur-khor-effective-viewport-height');
       root.dispatchEvent(new CustomEvent(EMBEDDED_VIEWPORT_CHANGE_EVENT));
     };
-  }, [policy.effectiveHeight, policy.effectiveWidth]);
+  }, [
+    policy.effectiveHeight,
+    policy.effectiveWidth,
+    policy.measuredHeight,
+    policy.measuredWidth,
+    policy.phoneLandscape,
+    policy.scale,
+  ]);
 
   useEffect(() => {
     if (!policy.phoneLandscape) {

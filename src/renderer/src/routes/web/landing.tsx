@@ -303,6 +303,16 @@ const landingKhmerCopy: Record<string, string> = {
   yourself: 'ដោយខ្លួនឯង',
   'A warm, local-first inventory desk for small teams: try sample shelves in the browser, keep real browser data local when OPFS is available, or install the desktop app for the full offline runtime.':
     'អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច៖ សាកល្បងទិន្នន័យគំរូក្នុងប្រោសឺរ រក្សាទិន្នន័យប្រោសឺរពិតក្នុងម៉ាស៊ីនពេល OPFS អាចប្រើបាន ឬដំឡើងដេសថបអេបសម្រាប់ប្រើក្រៅបណ្ដាញពេញលេញ។',
+  'Kaur Khor mission control overview showing the main work queue':
+    'រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់',
+  'Kaur Khor catalog showing searchable SKUs and services':
+    'រូបភាពកាតាឡុក កខ បង្ហាញទំនិញ និងសេវាកម្មដែលអាចស្វែងរកបាន',
+  'Kaur Khor record update workflow for stock and order changes':
+    'រូបភាពលំហូរអាប់ដេតកំណត់ត្រា កខ សម្រាប់ការផ្លាស់ប្តូរស្តុក និងការបញ្ជាទិញ',
+  'Kaur Khor business health dashboard showing pressure and diagnostics':
+    'រូបភាពផ្ទាំងសុខភាពអាជីវកម្ម កខ បង្ហាញសម្ពាធ និងការពិនិត្យបញ្ហា',
+  'Kaur Khor analysis workspace showing inventory insight tools':
+    'រូបភាពកន្លែងវិភាគ កខ បង្ហាញឧបករណ៍យល់ដឹងអំពីស្តុក',
   'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.':
     'ការសាងសង់នៅលើម៉ាស៊ីនផ្ទាល់ជៀសវាងការទាញយកអេបដែលបានសាងសង់រួច ប៉ុន្តែមិនធ្វើឱ្យកម្មវិធីមានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។',
   'Verify SHA256SUMS when available and keep normal OS safety prompts on.':
@@ -945,7 +955,7 @@ function HomeRoute() {
                 </li>
               </ul>
             </div>
-            <SourceBuildSnippet />
+            <SourceBuildSnippet language={language} />
           </div>
         </section>
       </main>
@@ -1003,10 +1013,11 @@ function WorkshopIllustration({ language }: { language: AppLanguage }) {
             <button
               key={item.label}
               aria-label={landingText(language, `Show ${item.label}`)}
-              className={`size-2.5 rounded-full transition-colors ${index === activeSlide ? 'bg-primary' : 'bg-muted-foreground/25'}`}
-              type="button"
-              onClick={() => setActiveSlide(index)}
-            />
+                className={`size-2.5 rounded-full transition-colors ${index === activeSlide ? 'bg-primary' : 'bg-muted-foreground/25'}`}
+                aria-current={index === activeSlide ? 'true' : undefined}
+                type="button"
+                onClick={() => setActiveSlide(index)}
+              />
           ))}
         </div>
       </div>
@@ -1311,7 +1322,7 @@ function ProductCard({ language, tier }: { language: AppLanguage; tier: ProductT
   );
 }
 
-function SourceBuildSnippet() {
+function SourceBuildSnippet({ language }: { language: AppLanguage }) {
   const codeRef = useRef<HTMLElement | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
@@ -1325,7 +1336,10 @@ function SourceBuildSnippet() {
     window.setTimeout(() => setCopyStatus('idle'), 2200);
   }
 
-  const copyLabel = copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy';
+  const copyLabel = landingText(
+    language,
+    copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy',
+  );
   const copyIcon = copyStatus === 'copied'
     ? <Check className="size-4" data-icon />
     : copyStatus === 'failed'
@@ -1346,6 +1360,7 @@ function SourceBuildSnippet() {
         <button
           aria-label={copyLabel}
           className="grid size-9 place-items-center rounded-lg text-background/90 transition-colors hover:bg-background/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/40"
+          lang={language === 'km' ? 'km' : 'en'}
           type="button"
           onClick={copyCommands}
         >

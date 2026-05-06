@@ -52,6 +52,7 @@ type StorageUiState = {
 
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
+const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -66,12 +67,13 @@ export function browserWorkspaceCloseWarningMessage(isTelegramLiveListening: boo
 
 export function installBrowserBeforeUnloadWarning(
   target: Window = window,
-  message = BROWSER_WORKSPACE_CLOSE_WARNING,
+  message: string | (() => string) = BROWSER_WORKSPACE_CLOSE_WARNING,
 ) {
   const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+    const currentMessage = typeof message === 'function' ? message() : message;
     event.preventDefault();
-    event.returnValue = message;
-    return message;
+    event.returnValue = currentMessage;
+    return currentMessage;
   };
   target.addEventListener('beforeunload', handleBeforeUnload);
   return () => {
@@ -202,6 +204,14 @@ function shouldPollBrowserTelegram(mode: EmbeddedMode) {
     return false;
   }
   return isBrowserTelegramLiveListening();
+}
+
+function storageStateWithActionableError(current: StorageUiState, message: string): StorageUiState {
+  return {
+    ...current,
+    status: current.handle ? 'ready' : 'error',
+    message,
+  };
 }
 
 async function requestPersistentStorage(): Promise<StorageUiState['persistence']> {
@@ -389,6 +399,9 @@ function WebAppBanner({
   const language = useBrowserWorkspaceLanguage();
   const isTelegramLiveListening = useBrowserTelegramLiveListening(mode);
   const appWarningMessage = translateUiLiteral(language, browserWorkspaceCloseWarningMessage(isTelegramLiveListening));
+  const appActionableErrorMessage = !isDemo && storage.status === 'ready' && storage.message !== BROWSER_APP_READY_MESSAGE
+    ? storage.message
+    : null;
   const exportBackupLabel = translateUiLiteral(language, 'Export backup');
   const exportShortLabel = translateUiLiteral(language, 'Export');
   const importBackupLabel = translateUiLiteral(language, 'Import backup');
@@ -443,7 +456,10 @@ function WebAppBanner({
             {isDemo ? (
               <p className="hidden text-muted-foreground md:block">{translateUiLiteral(language, 'Sample workspace. Reset anytime.')}</p>
             ) : (
-              <p className="text-muted-foreground">{appWarningMessage}</p>
+              <>
+                <p className="text-muted-foreground">{appWarningMessage}</p>
+                {appActionableErrorMessage ? <p className="text-destructive" role="alert">{appActionableErrorMessage}</p> : null}
+              </>
             )}
           </div>
         </div>
@@ -571,7 +587,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
           status: 'ready',
           message: mode === 'demo'
             ? 'This demo uses a separate sample workspace.'
-            : 'Your workspace is saved in this browser on this device.',
+            : BROWSER_APP_READY_MESSAGE,
           databaseName,
           vfs: handle.init.vfs,
           sqliteVersion: handle.init.sqliteVersion,
@@ -631,7 +647,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     if (!isReady || mode !== 'app' || storage.status !== 'ready') {
       return;
     }
-    return installBrowserBeforeUnloadWarning(window, browserWorkspaceCloseWarningMessage(isBrowserTelegramLiveListening()));
+    return installBrowserBeforeUnloadWarning(window, () => browserWorkspaceCloseWarningMessage(isBrowserTelegramLiveListening()));
   }, [isReady, mode, storage.status]);
 
   function handleExport() {
@@ -659,23 +675,22 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       }
       const validation = parseBrowserStorageBackupJson(await file.text());
       if (!validation.ok) {
-        setStorage((current) => ({ ...current, status: 'error', message: validation.errors.join(' ') }));
+        setStorage((current) => storageStateWithActionableError(current, validation.errors.join(' ')));
         return;
       }
       if (validation.backup.databaseName !== databaseName) {
-        setStorage((current) => ({
-          ...current,
-          status: 'error',
-          message: `Backup is for ${validation.backup.databaseName}, not ${databaseName}.`,
-        }));
+        setStorage((current) => storageStateWithActionableError(
+          current,
+          `Backup is for ${validation.backup.databaseName}, not ${databaseName}.`,
+        ));
+        return;
+      }
+      const restoredState = readStateRecord(validation.backup.records, databaseName);
+      if (!restoredState) {
+        setStorage((current) => storageStateWithActionableError(current, 'Backup did not contain a browser workspace state.'));
         return;
       }
       await storage.handle.importBackup(validation.backup);
-      const restoredState = readStateRecord(await storage.handle.listDocuments('browser_state'), databaseName);
-      if (!restoredState) {
-        setStorage((current) => ({ ...current, status: 'error', message: 'Backup did not contain a browser workspace state.' }));
-        return;
-      }
       setBrowserDesktopBridgeMockState(restoredState);
       window.location.reload();
     })();

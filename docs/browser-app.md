@@ -45,6 +45,11 @@ The real browser app route (`/app`) installs the browser's native leave-site war
 
 The browser app keeps a JSON document snapshot inside SQLite for backup/import compatibility and also mirrors the active workspace into structured OPFS tables for preferences, catalog, observations, order batches, analysis runs, summary/detail caches, diagnostics, and automation workspace state. The desktop app keeps using the Electron local data directory and backup flow documented in [Desktop runtime and local data](development/desktop-runtime-and-local-data.md).
 
+Invalid browser backup imports stay recoverable. If a selected file is malformed
+or does not contain browser workspace state, the app reports the import problem
+and leaves export/import controls available so the operator can retry or export
+the current workspace before taking another action.
+
 ## Verification
 
 Use:

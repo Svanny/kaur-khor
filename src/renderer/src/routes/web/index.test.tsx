@@ -1,16 +1,41 @@
+const runtimeWebMocks = vi.hoisted(() => ({
+  openBrowserStorage: vi.fn(),
+}));
+
+vi.mock('@/App', () => ({
+  default: () => null,
+}));
+
+vi.mock('@/runtime/web', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/runtime/web')>();
+  return {
+    ...actual,
+    openBrowserStorage: runtimeWebMocks.openBrowserStorage,
+  };
+});
+
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import {
+  KAUR_KHOR_BROWSER_APP_DATABASE,
+  KAUR_KHOR_BROWSER_DEMO_DATABASE,
+  type BrowserStorageDocumentRecord,
+  type BrowserStorageJsonBackup,
+  type BrowserStorageSupportedHandle,
+} from '@/runtime/web';
+import {
   BROWSER_WORKSPACE_CLOSE_WARNING,
   BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING,
   browserWorkspaceCloseWarningMessage,
   EmbeddedAppBanner,
+  EmbeddedAppRoute,
   EmbeddedAutoZoomViewport,
   fallbackStateForMode,
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
+  isBrowserTelegramLiveListening,
   landscapeScrollWidthForContent,
   WebRoutes,
 } from './index';
@@ -97,7 +122,7 @@ const productCardCopy = {
 } as const;
 
 const embeddedStorage = {
-  databaseName: 'kaur-khor-browser-demo',
+  databaseName: KAUR_KHOR_BROWSER_DEMO_DATABASE,
   handle: null,
   lastBackupAt: null,
   message: 'This demo uses a separate sample workspace.',
@@ -147,6 +172,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  runtimeWebMocks.openBrowserStorage.mockReset();
 });
 
 function renderWebHome() {
@@ -223,6 +249,73 @@ function mockNavigator({
     configurable: true,
     value: userAgentData,
   });
+}
+
+function createSupportedBrowserStorageHandle(
+  initialRecords: BrowserStorageDocumentRecord[] = [],
+): BrowserStorageSupportedHandle {
+  const records = [...initialRecords];
+  return {
+    status: 'supported',
+    capability: {
+      status: 'supported',
+      preferredVfs: 'opfs-sahpool',
+      databaseNames: {
+        app: KAUR_KHOR_BROWSER_APP_DATABASE,
+        demo: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+      },
+      reasons: [],
+      details: {
+        hasWorker: true,
+        hasWebAssembly: true,
+        hasNavigatorStorage: true,
+        hasOpfsDirectory: true,
+        isSecureContext: true,
+        crossOriginIsolated: true,
+      },
+    },
+    init: {
+      databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+      filename: 'kaur-khor-browser-app.sqlite3',
+      sqliteVersion: '3.46.1',
+      vfs: 'opfs-sahpool',
+    },
+    listDocuments: vi.fn(async (collection?: string) => (
+      collection ? records.filter((record) => record.collection === collection) : [...records]
+    )),
+    putDocuments: vi.fn(async (nextRecords: BrowserStorageDocumentRecord[]) => {
+      for (const nextRecord of nextRecords) {
+        const index = records.findIndex((record) => record.collection === nextRecord.collection && record.id === nextRecord.id);
+        if (index >= 0) {
+          records[index] = nextRecord;
+        } else {
+          records.push(nextRecord);
+        }
+      }
+      return nextRecords.length;
+    }),
+    exportBackup: vi.fn(async () => {
+      const backup: BrowserStorageJsonBackup = {
+        format: 'kaur-khor.browser.storage.backup',
+        version: 1,
+        databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+        schemaVersion: 1,
+        exportedAt: '2026-05-05T00:00:00.000Z',
+        records: [...records],
+      };
+      return backup;
+    }),
+    importBackup: vi.fn(async (backup) => {
+      records.splice(0, records.length, ...backup.records);
+      return backup.records.length;
+    }),
+    persistSenaState: vi.fn(async () => 1),
+    clear: vi.fn(async () => {
+      records.splice(0, records.length);
+    }),
+    seedDemo: vi.fn(async () => 0),
+    close: vi.fn(),
+  };
 }
 
 function mockViewport(width: number, height: number) {
@@ -321,10 +414,15 @@ describe('WebRoutes landing rail', () => {
     const buildSection = getBuildFromSourceSection(container);
     expect(buildSection).toHaveTextContent('ឧបករណ៍សាងសង់');
     expect(buildSection).toHaveTextContent('មិនធ្វើឱ្យកម្មវិធីមានសុវត្ថិភាពដោយស្វ័យប្រវត្តិទេ។');
+    expect(within(buildSection).getByRole('button', { name: 'ចម្លង' })).toHaveAttribute('lang', 'km');
+    expect(within(buildSection).queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
     expect(buildSection).not.toHaveTextContent('dependency');
     expect(buildSection).not.toHaveTextContent('native build');
     expect(buildSection).not.toHaveTextContent('platform flag');
     expect(buildSection).not.toHaveTextContent('software');
+
+    expect(screen.getByAltText('រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់')).toBeInTheDocument();
+    expect(screen.queryByAltText('Kaur Khor mission control overview showing the main work queue')).not.toBeInTheDocument();
   });
 
   test('renders every operator-facing feature once in the accessible rail', () => {
@@ -365,6 +463,21 @@ describe('WebRoutes landing rail', () => {
 
     expect(screen.getByAltText('Kaur Khor mission control overview showing the main work queue')).toBeInTheDocument();
     expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
+
+  test('exposes the active screenshot carousel slide', () => {
+    renderWebHome();
+
+    const missionControlButton = screen.getByRole('button', { name: 'Show Mission Control' });
+    const catalogButton = screen.getByRole('button', { name: 'Show Catalog' });
+
+    expect(missionControlButton).toHaveAttribute('aria-current', 'true');
+    expect(catalogButton).not.toHaveAttribute('aria-current');
+
+    fireEvent.click(catalogButton);
+
+    expect(missionControlButton).not.toHaveAttribute('aria-current');
+    expect(catalogButton).toHaveAttribute('aria-current', 'true');
   });
 });
 
@@ -609,7 +722,8 @@ describe('WebRoutes product cards', () => {
     }
 
     for (const card of cards) {
-      const cardQueries = within(card);
+      expect(card).toBeInstanceOf(HTMLElement);
+      const cardQueries = within(card as HTMLElement);
       const firstBenefit = productCardCopy.benefits.find((label) => cardQueries.queryByText(label));
       expect(firstBenefit).toBeDefined();
       const benefit = cardQueries.getByText(firstBenefit!);
@@ -742,6 +856,162 @@ describe('WebRoutes embedded app fallback state', () => {
   test('keeps Telegram-specific browser close copy state-aware', () => {
     expect(browserWorkspaceCloseWarningMessage(false)).toBe(BROWSER_WORKSPACE_CLOSE_WARNING);
     expect(browserWorkspaceCloseWarningMessage(true)).toBe(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING);
+  });
+
+  test('keeps the installed browser close warning current after Telegram state changes', () => {
+    let beforeUnloadHandler: ((event: BeforeUnloadEvent) => unknown) | null = null;
+    const target = {
+      addEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+        if (type === 'beforeunload') {
+          expect(beforeUnloadHandler).toBeNull();
+          expect(typeof listener).toBe('function');
+          beforeUnloadHandler = listener as (event: BeforeUnloadEvent) => unknown;
+        }
+      }),
+      removeEventListener: vi.fn((type: string, listener: EventListenerOrEventListenerObject) => {
+        if (type === 'beforeunload' && listener === beforeUnloadHandler) {
+          beforeUnloadHandler = null;
+        }
+      }),
+    } as unknown as Window;
+    const cleanup = installBrowserBeforeUnloadWarning(
+      target,
+      () => browserWorkspaceCloseWarningMessage(isBrowserTelegramLiveListening()),
+    );
+
+    try {
+      const installedBeforeUnloadHandler = beforeUnloadHandler as ((event: BeforeUnloadEvent) => unknown) | null;
+      if (!installedBeforeUnloadHandler) {
+        throw new Error('Expected installBrowserBeforeUnloadWarning to install a beforeunload handler.');
+      }
+      const standardEvent = {
+        preventDefault: vi.fn(),
+        returnValue: '',
+      } as unknown as BeforeUnloadEvent;
+      installedBeforeUnloadHandler(standardEvent);
+      expect(standardEvent.returnValue).toBe(BROWSER_WORKSPACE_CLOSE_WARNING);
+
+      const state = fallbackStateForMode('app');
+      state.automation.connection = {
+        ...state.automation.connection,
+        status: 'connected',
+        hasBotToken: true,
+      };
+      setBrowserDesktopBridgeMockState(state);
+      window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
+
+      const telegramEvent = {
+        preventDefault: vi.fn(),
+        returnValue: '',
+      } as unknown as BeforeUnloadEvent;
+      installedBeforeUnloadHandler(telegramEvent);
+      expect(telegramEvent.returnValue).toBe(BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING);
+      expect(target.addEventListener).toHaveBeenCalledTimes(1);
+    } finally {
+      cleanup();
+    }
+    expect(target.removeEventListener).toHaveBeenCalledTimes(1);
+  });
+
+  test('installs the browser route beforeunload warning for ready app storage', async () => {
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
+    let beforeUnloadHandler: ((event: BeforeUnloadEvent) => unknown) | null = null;
+    const addEventListener = window.addEventListener.bind(window);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+      if (type === 'beforeunload') {
+        beforeUnloadHandler = listener as (event: BeforeUnloadEvent) => unknown;
+      }
+      return addEventListener(type, listener, options);
+    });
+
+    try {
+      render(<EmbeddedAppRoute mode="app" />);
+
+      await screen.findByRole('button', { name: 'Export backup' });
+      if (!beforeUnloadHandler) {
+        throw new Error('Expected EmbeddedAppRoute to install a beforeunload handler.');
+      }
+    } finally {
+      addEventListenerSpy.mockRestore();
+    }
+  });
+
+  test('leaves browser backup actions available after a bad import file', async () => {
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
+
+    const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+    const exportButton = await screen.findByRole('button', { name: 'Export backup' });
+    const importButton = screen.getByRole('button', { name: 'Import backup' });
+    expect(exportButton).toBeEnabled();
+    expect(importButton).toBeEnabled();
+
+    const input = container.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    const badFile = {
+      name: 'bad-backup.json',
+      text: vi.fn(async () => '{nope'),
+      type: 'application/json',
+    } as unknown as File;
+    fireEvent.change(input as HTMLInputElement, {
+      target: {
+        files: [badFile],
+      },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Backup JSON could not be parsed.');
+    expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
+  });
+
+  test('does not import a backup before confirming it has browser workspace state', async () => {
+    const existingState = fallbackStateForMode('app');
+    const handle = createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: existingState,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+
+    const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+    await screen.findByRole('button', { name: 'Export backup' });
+    const input = container.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    const incompleteBackupFile = {
+      name: 'empty-backup.json',
+      text: vi.fn(async () => JSON.stringify({
+        databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+        exportedAt: '2026-05-05T00:00:00.000Z',
+        format: 'kaur-khor.browser.storage.backup',
+        records: [],
+        schemaVersion: 1,
+        version: 1,
+      })),
+      type: 'application/json',
+    } as unknown as File;
+
+    fireEvent.change(input as HTMLInputElement, {
+      target: {
+        files: [incompleteBackupFile],
+      },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Backup did not contain a browser workspace state.');
+    expect(handle.importBackup).not.toHaveBeenCalled();
+    await expect(handle.listDocuments('browser_state')).resolves.toEqual([
+      expect.objectContaining({
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: expect.objectContaining({
+          appContext: expect.objectContaining({ platform: 'web' }),
+        }),
+      }),
+    ]);
+    expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
   });
 
   test('shows browser workspace data-risk copy without Telegram copy when no bot is connected', () => {
@@ -1038,6 +1308,32 @@ describe('WebRoutes embedded app fallback state', () => {
     });
     await waitFor(() => {
       expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
+    });
+  });
+
+  test('refreshes root embedded viewport metadata after phone rotation with stable effective dimensions', async () => {
+    mockViewport(844, 390);
+
+    const { container } = render(
+      <EmbeddedAutoZoomViewport>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+    expect(viewport).not.toBeNull();
+    await waitFor(() => {
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+    });
+
+    mockViewport(390, 844);
+    fireEvent(window, new Event('orientationchange'));
+
+    await waitFor(() => {
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / (1.2 ** -2))));
     });
   });
 
