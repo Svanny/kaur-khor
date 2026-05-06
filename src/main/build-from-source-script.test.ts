@@ -75,23 +75,23 @@ printf '%s  %s\\n' "$KAUR_KHOR_FAKE_SHA256" "$3"
 
 function expectedNativeTarget() {
   if (process.platform === 'darwin' && process.arch === 'arm64') {
-    return { id: 'mac-arm64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:mac' };
+    return { aliases: ['darwin-arm64'], id: 'mac-arm64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:mac' };
   }
 
   if (process.platform === 'darwin' && process.arch === 'x64') {
-    return { id: 'mac-x64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:mac' };
+    return { aliases: ['darwin-x64'], id: 'mac-x64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:mac' };
   }
 
   if (process.platform === 'linux' && process.arch === 'arm64') {
-    return { id: 'linux-arm64', packageCommand: 'pnpm package:linux' };
+    return { aliases: [], id: 'linux-arm64', packageCommand: 'pnpm package:linux' };
   }
 
   if (process.platform === 'linux' && process.arch === 'x64') {
-    return { id: 'linux-x64', packageCommand: 'pnpm package:linux' };
+    return { aliases: ['linux-amd64', 'linux-x86_64'], id: 'linux-x64', packageCommand: 'pnpm package:linux' };
   }
 
   if (process.platform === 'win32' && process.arch === 'x64') {
-    return { id: 'windows-x64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:win:native' };
+    return { aliases: ['win-x64'], id: 'windows-x64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:win:native' };
   }
 
   return null;
@@ -147,6 +147,20 @@ describe('build-from-source script', () => {
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain(`platform=${expected.id}`);
+  });
+
+  test('accepts native platform aliases without packaging', () => {
+    const expected = expectedNativeTarget();
+    if (!expected?.aliases.length) {
+      return;
+    }
+
+    for (const alias of expected.aliases) {
+      const result = runScript([`--platform=${alias}`, '--resolve-only']);
+
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(`platform=${expected.id}`);
+    }
   });
 
   test('shell bootstrap delegates without requiring git in the command path', () => {

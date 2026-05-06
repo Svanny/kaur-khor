@@ -160,6 +160,33 @@ const releaseAssets = [
   },
 ] as const;
 
+const currentReleaseAssets = [
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-linux-amd64.deb',
+    name: 'KAUR.KHOR-0.2.3-linux-amd64.deb',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-linux-arm64.AppImage',
+    name: 'KAUR.KHOR-0.2.3-linux-arm64.AppImage',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-linux-x86_64.AppImage',
+    name: 'KAUR.KHOR-0.2.3-linux-x86_64.AppImage',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-mac-arm64.dmg',
+    name: 'KAUR.KHOR-0.2.3-mac-arm64.dmg',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-mac-x64.dmg',
+    name: 'KAUR.KHOR-0.2.3-mac-x64.dmg',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v0.2.3/KAUR.KHOR-0.2.3-win-x64.exe',
+    name: 'KAUR.KHOR-0.2.3-win-x64.exe',
+  },
+] as const;
+
 beforeEach(() => {
   mockNavigator();
   mockReducedMotion(false);
@@ -209,12 +236,12 @@ function getBuildFromSourceSection(container: HTMLElement) {
   return section as HTMLElement;
 }
 
-function mockLatestReleaseFetch() {
+function mockLatestReleaseFetch(assets: readonly { browser_download_url: string; name: string }[] = releaseAssets, tagName = 'v1.2.3') {
   vi.stubGlobal('fetch', vi.fn(async () => ({
     ok: true,
     json: async () => ({
-      assets: releaseAssets,
-      tag_name: 'v1.2.3',
+      assets,
+      tag_name: tagName,
     }),
   })));
 }
@@ -512,6 +539,24 @@ describe('WebRoutes releases section', () => {
       'href',
       'https://youtu.be/sLox8h-6BVw',
     );
+  });
+
+  test('selects the current macOS Apple Silicon DMG naming pattern', async () => {
+    mockLatestReleaseFetch(currentReleaseAssets, 'v0.2.3');
+    mockNavigator({
+      userAgentData: {
+        getHighEntropyValues: vi.fn(async () => ({ architecture: 'arm' })),
+        platform: 'macOS',
+      },
+    });
+
+    renderWebHome();
+
+    await expectRecommendedDownload(
+      'KAUR.KHOR-0.2.3-mac-arm64.dmg',
+      currentReleaseAssets[3]!.browser_download_url,
+    );
+    expect(screen.getByRole('combobox', { name: 'Download' })).toHaveTextContent('macOS Apple Silicon DMG - recommended');
   });
 
   test('selects the macOS Intel DMG for macOS x64 browsers', async () => {

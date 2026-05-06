@@ -24,6 +24,13 @@ const RUSTUP_VERSION = '1.28.2';
 const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
 const DEFAULT_REF = 'main';
 const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
+const TARGET_ALIASES = {
+  'darwin-arm64': 'mac-arm64',
+  'darwin-x64': 'mac-x64',
+  'linux-amd64': 'linux-x64',
+  'linux-x86_64': 'linux-x64',
+  'win-x64': 'windows-x64',
+};
 const RUSTUP_TARGETS = {
   'mac-arm64': 'aarch64-apple-darwin',
   'mac-x64': 'x86_64-apple-darwin',
@@ -151,7 +158,7 @@ Building locally avoids downloading a prebuilt app, but it does not magically ma
 
 function resolveTarget(requestedPlatform) {
   const detected = detectHostTarget();
-  const requested = requestedPlatform ?? detected.id;
+  const requested = normalizeTargetId(requestedPlatform ?? detected.id);
 
   if (!SUPPORTED_TARGETS.has(requested)) {
     fail(`Unsupported build platform: ${requested}. Supported platforms are: ${Array.from(SUPPORTED_TARGETS).join(', ')}.`);
@@ -164,6 +171,10 @@ function resolveTarget(requestedPlatform) {
   }
 
   return detected;
+}
+
+function normalizeTargetId(targetId) {
+  return TARGET_ALIASES[targetId] ?? targetId;
 }
 
 function detectHostTarget() {
