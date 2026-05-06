@@ -267,7 +267,7 @@ jobs:
             echo "## Included files"
             echo
             echo "- Release artifacts for all supported desktop platforms"
-            echo "- Bundled banji-desktop-core runtime inside every desktop app package"
+            echo "- Bundled kaur-khor-desktop-core runtime inside every desktop app package"
             echo "- SHA256SUMS for every attached asset"
             if [[ -n "${previous_tag}" ]]; then
               echo
@@ -291,7 +291,7 @@ jobs:
         run: |
           set -euo pipefail
           notes_path="${RUNNER_TEMP}/release-notes.md"
-          title="Banji ${RELEASE_TAG}"
+          title="Kaur Khor ${RELEASE_TAG}"
 
           if gh release view "${RELEASE_TAG}" --repo "${RELEASE_REPO}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" --repo "${RELEASE_REPO}" --title "${title}" --notes-file "${notes_path}"
