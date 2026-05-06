@@ -552,10 +552,10 @@ function buildDownloadOptions(assets: GitHubReleaseAsset[] = []): DownloadOption
 
 function detectAssetPlatform(assetName: string): DownloadOption['platform'] {
   const lowerName = assetName.toLowerCase();
-  if (/darwin-arm64\.dmg$/.test(lowerName)) {
+  if (/(?:darwin|mac)-arm64\.dmg$/.test(lowerName)) {
     return 'mac-arm64';
   }
-  if (/darwin-x64\.dmg$/.test(lowerName)) {
+  if (/(?:darwin|mac)-x64\.dmg$/.test(lowerName)) {
     return 'mac-x64';
   }
   if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
@@ -564,13 +564,13 @@ function detectAssetPlatform(assetName: string): DownloadOption['platform'] {
   if (/linux-arm64\.appimage$/.test(lowerName)) {
     return 'linux-arm64';
   }
-  if (/linux-x64\.appimage$/.test(lowerName)) {
+  if (/linux-(?:x64|x86_64)\.appimage$/.test(lowerName)) {
     return 'linux-x64';
   }
   if (/linux-arm64\.deb$/.test(lowerName)) {
     return 'linux-arm64';
   }
-  if (/linux-x64\.deb$/.test(lowerName)) {
+  if (/linux-(?:x64|x86_64|amd64)\.deb$/.test(lowerName)) {
     return 'linux-x64';
   }
   return 'other';
@@ -578,10 +578,10 @@ function detectAssetPlatform(assetName: string): DownloadOption['platform'] {
 
 function formatReleaseAssetLabel(assetName: string) {
   const lowerName = assetName.toLowerCase();
-  if (/darwin-arm64\.dmg$/.test(lowerName)) {
+  if (/(?:darwin|mac)-arm64\.dmg$/.test(lowerName)) {
     return 'macOS Apple Silicon DMG';
   }
-  if (/darwin-x64\.dmg$/.test(lowerName)) {
+  if (/(?:darwin|mac)-x64\.dmg$/.test(lowerName)) {
     return 'macOS Intel DMG';
   }
   if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
@@ -590,13 +590,13 @@ function formatReleaseAssetLabel(assetName: string) {
   if (/linux-arm64\.appimage$/.test(lowerName)) {
     return 'Linux ARM64 AppImage';
   }
-  if (/linux-x64\.appimage$/.test(lowerName)) {
+  if (/linux-(?:x64|x86_64)\.appimage$/.test(lowerName)) {
     return 'Linux x64 AppImage';
   }
   if (/linux-arm64\.deb$/.test(lowerName)) {
     return 'Linux ARM64 deb package';
   }
-  if (/linux-x64\.deb$/.test(lowerName)) {
+  if (/linux-(?:x64|x86_64|amd64)\.deb$/.test(lowerName)) {
     return 'Linux x64 deb package';
   }
   return assetName;
