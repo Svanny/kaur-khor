@@ -1,0 +1,75 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+actionlint
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Local build and tooling outputs
+/build/
+/dist/
+/release/
+/coverage/
+/bench-results/
+/test-results/
+/apps/api/target/
+/apps/desktop-core/target/
+/apps/sena-core/target/
+**/target/
+/node_modules/
+/out/
+/.next/
+/.turbo/
+/.cache/
+/.vite/
+*.tsbuildinfo
+tree.txt
+tree_dir.txt
+/.vitest/
+/.pnpm-store/
+/.playwright/
+/.playwright-cli/
+.kaur-khor-dev-data/
+.env.local
+.env.*.local
+config/env/*.local
+src/renderer/src/routes/*.bak.*
+test_plugin.txt
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+# Added by code-review-graph
+.code-review-graph/
+
+# Screenshots and local debug artifacts
+*.png
+!docs/readme/*.png
+!docs/development/*.png
+
+# Compiled output from TypeScript sources (build artifacts)
+electron.vite.config.js
+src/**/*.js
+src/**/*.d.ts
+!src/renderer/src/global.d.ts

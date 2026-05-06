@@ -1,0 +1,84 @@
+%% Kaur Khor stability benchmark flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Stability benchmark starts"]):::entry
+
+  subgraph Bench["Benchmark scenario"]
+    Launch["Launch stability-sidebar-cycle"]:::process
+    WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
+    MeasureStart["benchmark.phase.measurement_start"]:::metric
+    CycleLoop["Four sidebar cycles"]:::important
+    SnapshotCycle["memory.renderer_stability_cycle_N_mb"]:::metric
+    FinalMemory["memory.renderer_after_stability_mb"]:::metric
+    MeasureEnd["benchmark.phase.measurement_end"]:::metric
+  end
+
+  subgraph Sections["Cycle sections"]
+    RecordUpdate["Record update"]:::route
+    Performance["Performance"]:::route
+    Catalog["Catalog"]:::route
+    Financials["Financials"]:::route
+    Automations["Automations"]:::route
+    Analysis["Analysis"]:::route
+    Logs["Logs"]:::route
+    Overview["Overview"]:::route
+  end
+
+  subgraph Router["Router and readiness"]
+    Sidebar["clickSidebarNavigation"]:::process
+    Location["Hash route transition"]:::bridge
+    LazyRoute["Lazy route chunk and providers"]:::process
+    ReadyEvent["route.*.ready event"]:::metric
+  end
+
+  subgraph Data["Shared data path"]
+    Providers["Inventory, preferences, automation providers"]:::process
+    RendererCache["renderer caches and in-flight reads"]:::cache
+    Preload["preload bridge"]:::bridge
+    MainCache["main read cache"]:::cache
+    CoreRead["read workers or writer fallback"]:::ipc
+    Store["hot summaries, detail rows, anchors, automation rows"]:::store
+  end
+
+  subgraph Metrics["Stability outputs"]
+    NavMetrics["selected nav.* durations<br/>performance, financials, automations, analysis"]:::metric
+    ReadyCoverage["ready-event coverage for every section"]:::metric
+    MemorySlope["memory slope inputs"]:::hotspot
+    Summary["stability.summary.json"]:::metric
+  end
+
+  Start --> Launch --> WaitWorkspace --> MeasureStart --> CycleLoop
+  CycleLoop --> RecordUpdate --> Sidebar
+  CycleLoop --> Performance --> Sidebar
+  CycleLoop --> Catalog --> Sidebar
+  CycleLoop --> Financials --> Sidebar
+  CycleLoop --> Automations --> Sidebar
+  CycleLoop --> Analysis --> Sidebar
+  CycleLoop --> Logs --> Sidebar
+  CycleLoop --> Overview --> Sidebar
+  Sidebar --> Location --> LazyRoute --> ReadyEvent
+  ReadyEvent --> ReadyCoverage
+  ReadyEvent --> NavMetrics
+  ReadyEvent --> SnapshotCycle --> MemorySlope
+  SnapshotCycle --> CycleLoop
+  CycleLoop --> FinalMemory --> MeasureEnd --> Summary
+
+  LazyRoute --> Providers --> RendererCache
+  RendererCache --> Preload --> MainCache
+  MainCache -- "hit" --> ReadyEvent
+  MainCache -- "miss" --> CoreRead --> Store --> MainCache
+
+  NavMetrics --> Summary
+  ReadyCoverage --> Summary
+  MemorySlope --> Summary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef important fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#111827;
+  classDef hotspot fill:#fee2e2,stroke:#dc2626,stroke-width:1.8px,color:#111827;

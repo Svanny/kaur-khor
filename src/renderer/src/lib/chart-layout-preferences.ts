@@ -1,0 +1,286 @@
+import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
+import {
+  DEFAULT_CHART_RESOLUTION,
+  parseChartCustomResolution,
+  type ChartCustomResolution,
+  type ChartResolutionOption,
+} from '@/components/system/chart-resolution';
+import type { ChartSettingsSubtype } from '@/lib/chart-settings-memory';
+import {
+  readRememberedPageValue,
+  writeRememberedPageValue,
+} from '@/lib/page-state-memory';
+
+export interface ChartVisibleDateRange {
+  startAt: string;
+  endAt: string;
+}
+
+export interface ChartLayoutPreferenceMergeOptions {
+  previousVisibleDateRange?: ChartVisibleDateRange | null;
+  syncCustomTimeframeRange?: boolean;
+}
+
+export interface PersistedChartLayoutPreferences {
+  timeframe: ChartTimeframe;
+  customTimeframeRange: ChartCustomTimeframeRange | null;
+  chartResolution: ChartResolutionOption;
+  customChartResolution: ChartCustomResolution | null;
+  visibleDateRange: ChartVisibleDateRange | null;
+  paneHeights: Record<string, number>;
+  paneHeightsSource?: 'manual';
+}
+
+const SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY = 'kaur-khor:chart-layout:defaults:v1';
+
+function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
+  return `${subtype}:${subjectId}`;
+}
+
+function getWindowStorage(kind: 'localStorage' | 'sessionStorage'): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window[kind];
+  } catch {
+    return null;
+  }
+}
+
+function readStorageRecord<T>(storage: Storage | null, key: string): Record<string, T> {
+  if (!storage) {
+    return {};
+  }
+  try {
+    const rawValue = storage.getItem(key);
+    if (!rawValue) {
+      return {};
+    }
+    return JSON.parse(rawValue) as Record<string, T>;
+  } catch {
+    return {};
+  }
+}
+
+function writeStorageRecord<T>(storage: Storage | null, key: string, value: Record<string, T>) {
+  if (!storage) {
+    return;
+  }
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
+export function defaultChartLayoutPreferences(): PersistedChartLayoutPreferences {
+  return {
+    timeframe: 'Recent',
+    customTimeframeRange: null,
+    chartResolution: DEFAULT_CHART_RESOLUTION,
+    customChartResolution: null,
+    visibleDateRange: null,
+    paneHeights: {},
+  };
+}
+
+export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPreferences | null | undefined): PersistedChartLayoutPreferences {
+  const defaults = defaultChartLayoutPreferences();
+  if (!value || typeof value !== 'object') {
+    return defaults;
+  }
+  const timeframe = value.timeframe === '1M' || value.timeframe === '3M' || value.timeframe === '1Y' || value.timeframe === 'YTD' || value.timeframe === 'MAX' || value.timeframe === 'Recent'
+    ? value.timeframe
+    : defaults.timeframe;
+  const chartResolution = value.chartResolution === 'H' || value.chartResolution === '1D' || value.chartResolution === '1W' || value.chartResolution === '1M' || value.chartResolution === '3M' || value.chartResolution === '1Y' || value.chartResolution === 'Custom'
+    ? value.chartResolution
+    : defaults.chartResolution;
+  const customTimeframeRange =
+    value.customTimeframeRange?.startAt && value.customTimeframeRange?.endAt
+      ? {
+          startAt: value.customTimeframeRange.startAt,
+          endAt: value.customTimeframeRange.endAt,
+        }
+      : null;
+  const customChartResolution =
+    chartResolution === 'Custom'
+      ? parseChartCustomResolution(value.customChartResolution?.expression ?? '') ?? null
+      : null;
+  const visibleDateRange =
+    value.visibleDateRange?.startAt && value.visibleDateRange?.endAt
+      ? {
+          startAt: value.visibleDateRange.startAt,
+          endAt: value.visibleDateRange.endAt,
+        }
+      : null;
+  const paneHeightsSource = value.paneHeightsSource === 'manual' ? value.paneHeightsSource : undefined;
+  const paneHeights = paneHeightsSource === 'manual'
+    ? Object.fromEntries(
+        Object.entries(value.paneHeights ?? {}).filter((entry): entry is [string, number] =>
+          typeof entry[0] === 'string' && Number.isFinite(entry[1]) && entry[1] > 0,
+        ),
+      )
+    : {};
+  return {
+    timeframe,
+    customTimeframeRange,
+    chartResolution,
+    customChartResolution,
+    visibleDateRange,
+    paneHeights,
+    ...(paneHeightsSource ? { paneHeightsSource } : {}),
+  };
+}
+
+export function chartLayoutPreferencesEqual(
+  left: PersistedChartLayoutPreferences,
+  right: PersistedChartLayoutPreferences,
+) {
+  if (left.timeframe !== right.timeframe || left.chartResolution !== right.chartResolution) {
+    return false;
+  }
+  if (left.customChartResolution?.expression !== right.customChartResolution?.expression) {
+    return false;
+  }
+  if (
+    left.customTimeframeRange?.startAt !== right.customTimeframeRange?.startAt ||
+    left.customTimeframeRange?.endAt !== right.customTimeframeRange?.endAt
+  ) {
+    return false;
+  }
+  if (
+    left.visibleDateRange?.startAt !== right.visibleDateRange?.startAt ||
+    left.visibleDateRange?.endAt !== right.visibleDateRange?.endAt
+  ) {
+    return false;
+  }
+  const leftPaneHeightEntries = Object.entries(left.paneHeights);
+  const rightPaneHeightEntries = Object.entries(right.paneHeights);
+  if (left.paneHeightsSource !== right.paneHeightsSource) {
+    return false;
+  }
+  if (leftPaneHeightEntries.length !== rightPaneHeightEntries.length) {
+    return false;
+  }
+  return leftPaneHeightEntries.every(([paneId, height]) => right.paneHeights[paneId] === height);
+}
+
+export function mergeChartLayoutPreferencesWithViewportSync(
+  current: PersistedChartLayoutPreferences,
+  next: Partial<PersistedChartLayoutPreferences>,
+  timeframe: ChartTimeframe,
+  options: ChartLayoutPreferenceMergeOptions = {},
+): {
+  preferences: PersistedChartLayoutPreferences;
+  promotedCustomTimeframeRange: ChartCustomTimeframeRange | null;
+} {
+  const hasCustomTimeframeRangeUpdate = Object.prototype.hasOwnProperty.call(next, 'customTimeframeRange');
+  const nextVisibleDateRange = next.visibleDateRange;
+  const previousVisibleDateRange = current.visibleDateRange ?? options.previousVisibleDateRange ?? null;
+  const shouldSyncCustomTimeframeRange = timeframe !== 'MAX' && (options.syncCustomTimeframeRange ?? true);
+  let promotedCustomTimeframeRange: ChartCustomTimeframeRange | null = null;
+
+  if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange != null
+  ) {
+    promotedCustomTimeframeRange = nextVisibleDateRange;
+  } else if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange == null &&
+    previousVisibleDateRange == null
+  ) {
+    promotedCustomTimeframeRange = null;
+  } else if (
+    shouldSyncCustomTimeframeRange &&
+    !hasCustomTimeframeRangeUpdate &&
+    nextVisibleDateRange != null &&
+    current.customTimeframeRange == null &&
+    previousVisibleDateRange != null
+  ) {
+    const nextStart = Date.parse(nextVisibleDateRange.startAt);
+    const nextEnd = Date.parse(nextVisibleDateRange.endAt);
+    const currentStart = Date.parse(previousVisibleDateRange.startAt);
+    const currentEnd = Date.parse(previousVisibleDateRange.endAt);
+    const extendsViewport =
+      (Number.isFinite(nextStart) && Number.isFinite(currentStart) && nextStart < currentStart) ||
+      (Number.isFinite(nextEnd) && Number.isFinite(currentEnd) && nextEnd > currentEnd);
+    if (extendsViewport) {
+      promotedCustomTimeframeRange = nextVisibleDateRange;
+    }
+  }
+
+  return {
+    preferences: normalizeChartLayoutPreferences({
+      ...current,
+      ...next,
+      customTimeframeRange: hasCustomTimeframeRangeUpdate
+        ? next.customTimeframeRange ?? null
+        : promotedCustomTimeframeRange ?? current.customTimeframeRange,
+    }),
+    promotedCustomTimeframeRange,
+  };
+}
+
+export function readEntityChartLayoutPreferences(
+  subtype: ChartSettingsSubtype,
+  subjectId: string,
+) {
+  return readRememberedPageValue<PersistedChartLayoutPreferences | null>(
+    'catalog',
+    'chartLayout',
+    null,
+    (value) => value == null ? null : normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
+    { scope: subjectStorageKey(subtype, subjectId) },
+  );
+}
+
+export function writeEntityChartLayoutPreferences(
+  subtype: ChartSettingsSubtype,
+  subjectId: string,
+  preferences: PersistedChartLayoutPreferences,
+) {
+  writeRememberedPageValue<PersistedChartLayoutPreferences>(
+    'catalog',
+    'chartLayout',
+    preferences,
+    (value) => normalizeChartLayoutPreferences(value as PersistedChartLayoutPreferences),
+    { scope: subjectStorageKey(subtype, subjectId) },
+  );
+}
+
+export function readSubtypeDefaultChartLayoutPreferences(subtype: ChartSettingsSubtype) {
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    getWindowStorage('localStorage'),
+    SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY,
+  );
+  const persisted = record[subtype];
+  return persisted ? normalizeChartLayoutPreferences(persisted) : null;
+}
+
+export function resolveEntityChartLayoutPreferences(
+  subtype: ChartSettingsSubtype,
+  subjectId: string,
+) {
+  return normalizeChartLayoutPreferences(
+    readEntityChartLayoutPreferences(subtype, subjectId) ??
+    readSubtypeDefaultChartLayoutPreferences(subtype) ??
+    defaultChartLayoutPreferences(),
+  );
+}
+
+export function writeSubtypeDefaultChartLayoutPreferences(
+  subtype: ChartSettingsSubtype,
+  preferences: PersistedChartLayoutPreferences,
+) {
+  const storage = getWindowStorage('localStorage');
+  const record = readStorageRecord<PersistedChartLayoutPreferences>(
+    storage,
+    SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY,
+  );
+  record[subtype] = normalizeChartLayoutPreferences(preferences);
+  writeStorageRecord(storage, SUBTYPE_DEFAULT_CHART_LAYOUT_STORAGE_KEY, record);
+}

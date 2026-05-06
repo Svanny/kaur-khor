@@ -1,0 +1,56 @@
+%% Kaur Khor desktop navigation benchmark architecture.
+sequenceDiagram
+  autonumber
+  participant Bench as Navigation benchmark<br/>bench/scenarios/navigation.bench.ts
+  participant Shell as KaurKhorShell sidebar
+  participant Router as React Router<br/>BenchmarkRouteObserver
+  participant Provider as InventoryProvider<br/>PreferencesProvider
+  participant Route as Route components
+  participant Preload as Preload bridge<br/>window.kaurKhorDesktop
+  participant Main as Electron main IPC<br/>benchmarkIpcHandle
+  participant Core as Managed desktop-core pool
+  participant Store as SQLite read models<br/>and checkpoints
+  participant Metrics as Benchmark summary<br/>bench/helpers/bench-metrics.ts
+
+  Bench->>Provider: wait for renderer.workspace.ready
+  Bench->>Shell: click visible sidebar item
+  Shell->>Router: update hash route
+  Router->>Metrics: record renderer.route.navigation start
+  Router->>Route: load lazy route chunk
+  Route->>Provider: read hot inventory and preference state
+
+  alt route needs support data
+    Route->>Preload: sena or automation read
+    Preload->>Metrics: record preload.invoke.* span
+    Preload->>Main: IPC command
+    Main->>Main: check SENA read cache
+    alt cache hit
+      Main-->>Preload: cached response
+    else cache miss or stale fingerprint
+      Main->>Core: coalesced read-only command
+      Core->>Store: read hot rows, detail rows, or paged rows
+      Store-->>Core: response rows
+      Core-->>Main: backend.core.response.received
+      Main-->>Preload: response
+    end
+    Preload-->>Route: data
+  else route is already hydrated
+    Route->>Route: render from provider state
+  end
+
+  Route->>Router: markRouteReady when route surface is stable
+  Router->>Metrics: record route.*.ready and memory snapshot
+  Bench->>Metrics: record nav.* duration
+  Bench->>Shell: continue route loop
+
+  Bench->>Shell: open Settings, then Back to app
+  Shell->>Router: restore originating app route from navigation state
+  Router->>Metrics: wait route.insights.explain.ready
+  Bench->>Route: open recent receipt task drawer
+  Route->>Metrics: record interaction.open_task_drawer_ms
+  Bench->>Metrics: close app and persist navigation.summary.json
+
+  Note over Router,Route: Ready events wait for preferences, inventory loading, and route-specific stable UI.
+  Note over Shell,Router: Settings carries the prior app location so Back to app returns to that route instead of Home.
+  Note over Main,Core: Identical read-only commands are globally coalesced before worker selection.
+  Note over Store: Navigation should use route-scoped reads, not startup-wide observation hydration.

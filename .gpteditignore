@@ -1,0 +1,11 @@
+.git
+node_modules
+dist
+build
+target
+release
+*.log
+.env
+.env.*
+coverage
+.DS_Store

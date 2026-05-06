@@ -1,0 +1,84 @@
+%% Kaur Khor detail pages benchmark flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Detail pages benchmark starts"]):::entry
+
+  subgraph Bench["Benchmark scenario"]
+    Launch["Launch detail-pages"]:::process
+    WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
+    MeasureStart["benchmark.phase.measurement_start"]:::metric
+    PickTargets["Read catalog and pick first active SKU/service"]:::process
+    FirstSku["Navigate first SKU detail"]:::process
+    CatalogReturn["Navigate back to catalog"]:::process
+    RepeatSku["Navigate same SKU again"]:::process
+    FirstService["Navigate first service detail"]:::process
+    RepeatService["Navigate service repeat URL"]:::process
+    MeasureEnd["benchmark.phase.measurement_end"]:::metric
+  end
+
+  subgraph Routes["Routes"]
+    Catalog["Catalog route"]:::route
+    SkuRoute["SKU detail route"]:::route
+    ServiceRoute["Service detail route"]:::route
+    SkuReady["route.sku-detail.ready"]:::metric
+    ServiceReady["route.service-detail.ready"]:::metric
+    CatalogReady["route.catalog.ready"]:::metric
+  end
+
+  subgraph DetailData["Detail data path"]
+    Cache["persisted detail cache<br/>freshness fingerprint"]:::cache
+    SkuRead["sena.getSkuDetail"]:::ipc
+    ServiceRead["sena.getServiceDetail"]:::ipc
+    CatalogRead["sena.getCatalog"]:::ipc
+  end
+
+  subgraph Core["Bridge, main, and core"]
+    Preload["sena bridge<br/>invokeWithBenchmark"]:::bridge
+    MainCache["main SENA read cache"]:::cache
+    ReadWorkers["read-worker pool"]:::ipc
+    Store["sena_catalog, sena_sku_detail, sena_service_detail"]:::store
+  end
+
+  subgraph Metrics["Target coverage"]
+    SkuFirst["detail.sku_first_load_ms"]:::metric
+    SkuRepeat["detail.sku_repeat_load_ms"]:::metric
+    ServiceFirst["detail.service_first_load_ms"]:::metric
+    ServiceRepeat["detail.service_repeat_load_ms"]:::metric
+    Memory["renderer memory snapshots"]:::metric
+    Summary["detail-pages.summary.json"]:::metric
+  end
+
+  Start --> Launch --> WaitWorkspace --> MeasureStart --> PickTargets
+  PickTargets --> CatalogRead --> Preload
+  PickTargets --> FirstSku --> SkuRoute
+  SkuRoute --> Cache
+  Cache -- "miss or stale" --> SkuRead --> Preload
+  Cache -- "fresh" --> SkuReady
+  SkuRead --> SkuReady --> SkuFirst --> Memory
+  FirstSku --> CatalogReturn --> Catalog --> CatalogReady
+  CatalogReady --> RepeatSku --> SkuRoute --> SkuReady --> SkuRepeat --> Memory
+  PickTargets --> FirstService --> ServiceRoute
+  ServiceRoute --> Cache
+  Cache -- "service miss or stale" --> ServiceRead --> Preload
+  ServiceRead --> ServiceReady --> ServiceFirst --> Memory
+  FirstService --> RepeatService --> ServiceRoute --> ServiceReady --> ServiceRepeat --> Memory
+  RepeatService --> MeasureEnd --> Summary
+
+  Preload --> MainCache
+  MainCache -- "hit" --> Cache
+  MainCache -- "miss" --> ReadWorkers --> Store --> MainCache
+
+  SkuFirst --> Summary
+  SkuRepeat --> Summary
+  ServiceFirst --> Summary
+  ServiceRepeat --> Summary
+  Memory --> Summary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;

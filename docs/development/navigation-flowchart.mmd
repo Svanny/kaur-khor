@@ -1,0 +1,208 @@
+%% Kaur Khor desktop navigation flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 58}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Navigation starts"]):::entry
+
+  subgraph Bench["Benchmark navigation scenario"]
+    BenchLaunch["Launch benchmark Electron app<br/>fixture + output dir + tracing"]:::process
+    WaitWorkspace["Wait for renderer.workspace.ready"]:::metric
+    RouteLoop["Click visible sidebar items in current order<br/>record-update, performance, catalog, financials, automations, analysis, operations, help, settings"]:::process
+    OpenHubLane["Record-update scenario clicks hub cards<br/>and uses New or Edit/Update prompts"]:::process
+    WaitRouteReady["Wait for route.*.ready event"]:::metric
+    RecordMetric["Record nav.* duration<br/>and renderer memory snapshot"]:::metric
+    OpenDrawer["Return dashboard<br/>open recent receipt task drawer"]:::process
+    CloseBench["Close app<br/>persist navigation summary"]:::metric
+  end
+
+  subgraph UserNav["Normal user navigation path"]
+    UserClick["Sidebar NavLink or command palette action"]:::entry
+    ShellSections["KaurKhorShell sections<br/>visibility + active matching"]:::process
+    Availability["deriveNavigationAvailability<br/>workspace-driven gates"]:::process
+    SettingsNav["Settings sidebar sections<br/>benchmarks and local data"]:::process
+  end
+
+  subgraph Router["React router and shell"]
+    Location["React location changes"]:::bridge
+    ObserverStart["BenchmarkRouteObserver<br/>mark renderer.route.navigation start"]:::metric
+    Suspense["Suspense boundary<br/>lazy route chunk loads"]:::process
+    Guards{"Route allowed by availability?"}:::decision
+    Redirects["Locked-route redirects only"]:::process
+    RouteComponent["Route component mounts"]:::process
+    ReadyCheck{"Preferences hydrated<br/>inventory not loading<br/>workspace not preparing"}:::decision
+    MarkReady["markRouteReady<br/>route.*.ready + memory snapshot"]:::metric
+  end
+
+  subgraph Providers["Renderer providers and hot state"]
+    Preferences["PreferencesProvider<br/>desktop preferences cache"]:::cache
+    Inventory["InventoryProvider"]:::process
+    StartupWorkspace["sena.getStartupWorkspace<br/>catalog + summary + latest run + fingerprint"]:::important
+    InventoryState["Inventory state<br/>catalog, workspaceSummary, latestRun, fingerprint"]:::cache
+    DeferredDiagnostics["Idle diagnostics load<br/>only after 2s when still needed"]:::cache
+    RouteSupportReads["Route-scoped support reads<br/>record-update context and order batches"]:::cache
+    RendererInflight["Renderer in-flight read cache<br/>dedupe same key"]:::cache
+    DetailCache["Persisted detail-page cache<br/>localStorage freshness fingerprint"]:::cache
+  end
+
+  subgraph RouteWork["Route-specific work during navigation"]
+    Dashboard["Dashboard route"]:::route
+    DashboardHydration["Dashboard SKU detail hydration<br/>initial limit + concurrency cap + background task"]:::ipc
+    Performance["Performance route"]:::route
+    Financials["Financials route"]:::route
+    Automations["Automations route"]:::route
+    Analysis["Analysis route"]:::route
+    DetailHydration["useSenaDetailHydration<br/>SKU/service pages across catalog"]:::hotspot
+    DetailNetworkOnly["bounded detail page requests<br/>cache-first current page, network-only older pages"]:::hotspot
+    RecordUpdate["Record update route"]:::route
+    RecordContext["Record update context<br/>latest anchors from normalized hot rows"]:::route
+    Catalog["Catalog route"]:::route
+    Operations["Operations route"]:::route
+    Drawer["Task drawer open<br/>recent receipts action"]:::route
+  end
+
+  subgraph Preload["Preload bridge"]
+    DesktopBridge["window.kaurKhorDesktop"]:::bridge
+    InvokeBenchmark["invokeWithBenchmark<br/>records preload.invoke spans"]:::metric
+    SenaBridge["sena bridge methods<br/>getSkuDetail, getServiceDetail, getRecordUpdateContext, listOrderBatches"]:::bridge
+    AutomationBridge["automation bridge methods<br/>getWorkspace, saveConnection, readConversation, promoteIntake"]:::bridge
+    SystemBridge["system bridge<br/>getAppContext and route-independent calls"]:::bridge
+  end
+
+  subgraph Main["Electron main IPC and cache"]
+    IpcHandlers["ipcMain handlers<br/>benchmarkIpcHandle spans"]:::ipc
+    ReadCache["main SENA read cache<br/>hit, miss, inflight-hit"]:::cache
+    Freshness{"Read cache freshness valid?"}:::decision
+    Fingerprint["sena.getObservationFingerprint"]:::ipc
+    CacheMiss["main.cache.sena-read.miss<br/>loader enters managed core"]:::hotspot
+    PersistCache["Persist compact read cache<br/>debounced burst writes"]:::cache
+    Mutations["Mutations and restore/clear paths<br/>invalidate cache + bump generation"]:::mutation
+  end
+
+  subgraph CorePool["Managed desktop-core pool"]
+    Writer["Writer core<br/>mutations and fallback reads"]:::mutation
+    ReadWorkers["Read-worker pool<br/>interactive and bulk lanes"]:::ipc
+    Coalesce["Global core read coalescing<br/>same command + payload + timeout"]:::cache
+    SelectRead{"Read-only command?"}:::decision
+    PoolReady{"Any read worker ready?"}:::decision
+    ReadPriority{"Critical startup read?"}:::decision
+    WriterFallback["Fallback read to writer<br/>only after deferred wait or for critical reads"]:::hotspot
+    Queue["Per-worker command queue<br/>interactive, read-pool, and setup waits"]:::hotspot
+    StaleCheck{"Mutation generation changed?"}:::decision
+    ReplayWriter["Replay stale read on writer"]:::hotspot
+    Resolve["backend.core.response.received"]:::metric
+  end
+
+  subgraph Store["SQLite and SENA read models"]
+    CatalogStore["sena_catalog"]:::store
+    SummaryHot["sena_workspace_summary_hot<br/>and sena_sku_summary_hot"]:::store
+    DetailTables["sena_sku_detail<br/>sena_service_detail"]:::store
+    ObservationPage["sena_observation page reads<br/>indexed DESC paging"]:::store
+    RecordAnchorStore["sena_record_update_anchor_hot<br/>latest stock, sale, order, receipt rows"]:::store
+    OrderBatches["sena_order_batch<br/>and child lookup tables"]:::store
+    Checkpoints["Compressed checkpoints<br/>sena-checkpoints/*.json.zst"]:::store
+  end
+
+  subgraph Metrics["Navigation target evaluation"]
+    RouteTargets["Route targets<br/>nav.dashboard_to_* and interaction.open_task_drawer_ms"]:::metric
+    QueueTargets["Backend queue targets<br/>interactive, read-pool, and setup queue p95"]:::hotspot
+    FlameArtifact["Flamegraph artifact<br/>scope navigation, worst repeat when repeated"]:::metric
+    Summary["navigation.summary.json<br/>pass, watch, fail, missing"]:::metric
+  end
+
+  Start --> BenchLaunch --> WaitWorkspace --> RouteLoop --> Location
+  RouteLoop --> OpenHubLane --> Location
+  WaitRouteReady --> RecordMetric --> RouteLoop
+  RouteLoop --> OpenDrawer --> CloseBench
+
+  UserClick --> ShellSections --> Availability --> Location
+  ShellSections --> SettingsNav
+
+  Location --> ObserverStart --> Suspense --> Guards
+  Guards -- "no" --> Redirects --> Location
+  Guards -- "yes" --> RouteComponent --> ReadyCheck
+  Preferences --> ReadyCheck
+  InventoryState --> ReadyCheck
+  ReadyCheck -- "not ready" --> RouteComponent
+  ReadyCheck -- "ready" --> MarkReady --> WaitRouteReady
+
+  Inventory --> StartupWorkspace --> DesktopBridge
+  StartupWorkspace --> InventoryState
+  InventoryState --> DeferredDiagnostics
+  InventoryState --> RouteSupportReads
+  InventoryState --> DetailCache
+  DeferredReads --> RendererInflight
+
+  RouteComponent --> Dashboard
+  RouteComponent --> Performance
+  RouteComponent --> Financials
+  RouteComponent --> Automations
+  RouteComponent --> Analysis
+  RouteComponent --> RecordUpdate
+  RouteComponent --> Catalog
+  RouteComponent --> Operations
+  Dashboard --> DashboardHydration --> RendererInflight
+  Dashboard --> RouteSupportReads
+  Performance --> DetailHydration
+  Financials --> DetailHydration
+  Financials --> RouteSupportReads
+  Automations --> AutomationBridge --> IpcHandlers
+  Analysis --> DetailHydration
+  DetailCache --> DetailHydration
+  DetailHydration --> DetailNetworkOnly --> RendererInflight
+  RecordUpdate --> RecordContext --> RouteSupportReads --> RendererInflight
+  OpenDrawer --> Drawer
+
+  RendererInflight --> DesktopBridge
+  DesktopBridge --> InvokeBenchmark --> SenaBridge --> IpcHandlers
+  DesktopBridge --> InvokeBenchmark --> AutomationBridge --> IpcHandlers
+  SystemBridge --> IpcHandlers
+
+  IpcHandlers --> ReadCache --> Freshness
+  Freshness -- "unknown or stale" --> Fingerprint --> ReadCache
+  Freshness -- "fresh" --> ReadCache
+  ReadCache -- "hit" --> MarkReady
+  ReadCache -- "miss" --> CacheMiss --> Coalesce
+  ReadCache -- "inflight-hit" --> Coalesce
+  Coalesce --> SelectRead
+  Mutations --> Writer
+  Mutations --> ReadCache
+
+  SelectRead -- "yes" --> PoolReady
+  PoolReady -- "yes" --> ReadWorkers --> Queue
+  PoolReady -- "no" --> ReadPriority
+  ReadPriority -- "yes" --> WriterFallback --> Writer --> Queue
+  ReadPriority -- "no, deferred wait elapsed" --> WriterFallback
+  SelectRead -- "no" --> Writer --> Queue
+  Queue --> Resolve --> StaleCheck
+  StaleCheck -- "yes" --> ReplayWriter --> Writer
+  StaleCheck -- "no" --> PersistCache --> ReadCache
+
+  Queue --> CatalogStore
+  Queue --> SummaryHot
+  Queue --> DetailTables
+  Queue --> ObservationPage
+  Queue --> RecordAnchorStore
+  Queue --> OrderBatches
+  Queue --> Checkpoints
+
+  RecordAnchorStore --> RecordContext
+  DetailTables --> DetailHydration
+  OrderBatches --> RouteSupportReads
+  CatalogStore --> StartupWorkspace
+  SummaryHot --> StartupWorkspace
+
+  MarkReady --> RouteTargets --> Summary
+  Queue --> QueueTargets --> Summary
+  Resolve --> FlameArtifact --> Summary
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef decision fill:#fff7ed,stroke:#ea580c,stroke-width:1.4px,color:#111827;
+  classDef route fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef important fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#111827;
+  classDef hotspot fill:#fee2e2,stroke:#dc2626,stroke-width:1.8px,color:#111827;
+  classDef mutation fill:#ffedd5,stroke:#ea580c,stroke-width:1.6px,color:#111827;

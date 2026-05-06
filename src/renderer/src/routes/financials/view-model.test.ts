@@ -1,0 +1,164 @@
+import { describe, expect, test } from 'vitest';
+import { deriveFinancialsViewModel } from './view-model';
+
+const catalog = {
+  bundles: [],
+  schemaVersion: 1,
+  services: [
+    {
+      bundle: false,
+      description: 'Color service',
+      name: 'Hair Coloring',
+      price: 42,
+      serviceId: 'service-color',
+    },
+  ],
+  sharingMask: [
+    { enabled: true, serviceId: 'service-color', skuId: 'sku-shampoo', usageProbability: 1 },
+  ],
+  skus: [
+    {
+      costPerUnit: 5,
+      description: 'Retail and service support shampoo',
+      leadTimeMeanDaysHint: 4,
+      leadTimeStdDaysHint: 1,
+      name: 'Shampoo Classic',
+      productPrice: 20,
+      skuId: 'sku-shampoo',
+      soldAsProduct: true,
+    },
+  ],
+} as const;
+
+const workspaceSummary = {
+  highRiskSkuIds: [],
+  intervalCount: 2,
+  latestObservedAt: '2026-01-10T08:00:00.000Z',
+  ownerSub: 'desktop-owner',
+  pendingReorderCount: 0,
+  runId: 'run-1',
+  serviceCount: 1,
+  skuCount: 1,
+  skuSummaries: [
+    {
+      credibleIntervalHigh: 18,
+      credibleIntervalLow: 12,
+      daysOfCover: 8,
+      demandPerDayMean: 2,
+      expectedLeadTimeDemand: 8,
+      latestPosteriorUnits: 16,
+      leadTimeMeanDays: 4,
+      leadTimeStdDays: 1,
+      reorderPoint: 6,
+      reorderTriggerProbability: 0.2,
+      regimeProbabilities: { normal: 1 },
+      safetyStock: 3,
+      skuId: 'sku-shampoo',
+      stockoutRisk: 0.12,
+    },
+  ],
+  topRegime: 'normal',
+} as const;
+
+const serviceDetailsById = {
+  'service-color': {
+    activityIntervalHigh: 6,
+    activityIntervalLow: 4,
+    activityMean: 5,
+    bottleneckProbability: 0.2,
+    contributors: [{ bottleneckProbability: 0.2, skuId: 'sku-shampoo', usageProbability: 1 }],
+    regimeTimeline: [],
+    serviceId: 'service-color',
+  },
+} as const;
+
+const skuDetailsById = {
+  'sku-shampoo': {
+    demandPosterior: [],
+    inventoryPosterior: [],
+    leadTimePosterior: [],
+    pipelinePosterior: [],
+    summary: workspaceSummary.skuSummaries[0],
+  },
+} as const;
+
+function observation(observationId: string, observedAt: string, unitsSold: number, unitsInStock = 16) {
+  return {
+    input: {
+      adjustmentSignals: [],
+      leadTimeHints: [],
+      notes: null,
+      observedAt,
+      orderSignals: [],
+      recipeUsageHints: [],
+      retailPrices: [],
+      retailRankings: ['sku-shampoo'],
+      retailSalesSnapshot: [{ skuId: 'sku-shampoo', unitsSold }],
+      retailStockouts: [],
+      servicePrices: [],
+      serviceRankings: ['service-color'],
+      serviceSalesSnapshot: [],
+      serviceStockouts: [],
+      stockSnapshot: [{ costPerUnit: 5, productPrice: 20, skuId: 'sku-shampoo', unitsInStock }],
+    },
+    observationId,
+    ownerSub: 'desktop-owner',
+  };
+}
+
+describe('deriveFinancialsViewModel', () => {
+  test('uses manually selected previous custom bounds for compare windows', () => {
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: true,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        observation('custom-current', '2026-01-10T08:00:00.000Z', 1),
+        observation('manual-previous', '2025-11-02T08:00:00.000Z', 5),
+      ],
+      orderBatches: [],
+      range: 'custom',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary },
+      customRange: {
+        startAt: '2026-01-10T00:00:00.000Z',
+        endAt: '2026-01-10T23:59:59.999Z',
+      },
+      previousCustomRange: {
+        startAt: '2025-11-01T00:00:00.000Z',
+        endAt: '2025-11-03T23:59:59.999Z',
+      },
+    });
+
+    expect(model.previousWindowLabel).toBe('prior custom period');
+    expect(model.ribbon.find((metric) => metric.key === 'netSales')?.compareLabel).toContain('-$');
+    expect(model.ribbon.find((metric) => metric.key === 'netSales')?.compareTone).toBe('warning');
+  });
+
+  test('anchors windows to the latest observation when workspace summary is missing or stale', () => {
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        observation('older-first', '2026-04-01T08:00:00.000Z', 1),
+        observation('latest-second', '2026-04-10T08:00:00.000Z', 1),
+      ],
+      orderBatches: [],
+      range: '7d',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-02T08:00:00.000Z' },
+    });
+
+    expect(model.coverage.freshnessLabel).toContain('Apr 10');
+    expect(model.titleMeta.join(' ')).toContain('Apr 10');
+  });
+});

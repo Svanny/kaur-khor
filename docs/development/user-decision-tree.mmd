@@ -1,0 +1,272 @@
+%% Kaur Khor user decision tree for simplifying the app around operator intent.
+%% Source references: docs/user-guide.md, docs/development/ticketing-architecture.md,
+%% src/renderer/src/components/kaur-khor-shell.tsx, and src/renderer/src/lib/command-palette.ts.
+%% This is a product IA decision tree, not an implementation call graph.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 38, "rankSpacing": 54}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["User opens Kaur Khor"]):::entry
+  Intent{"What is the user trying to decide or do?"}:::decision
+
+  subgraph Rank["Intent rank"]
+    Primary["Primary intent<br/>Run today's inventory work"]:::primary
+    Secondary["Secondary intent<br/>Understand signals and refine decisions"]:::secondary
+    Other["Other intent<br/>Maintain, configure, recover, or learn"]:::other
+  end
+
+  subgraph PrimaryFunctions["Primary functions"]
+    DecideNext["Decide next action<br/>what deserves attention now"]:::function
+    CaptureReality["Capture reality<br/>save stock, demand, supply, or correction evidence"]:::function
+    ManageCatalog["Manage sellables<br/>create, edit, archive, or open SKUs and services"]:::function
+    ResolveTickets["Resolve commitments<br/>customer and supplier ticket work"]:::function
+    HandleIntake["Handle customer intake<br/>review automation requests and promote clean work"]:::function
+  end
+
+  subgraph SecondaryFunctions["Secondary functions"]
+    CompareOps["Compare operating pressure<br/>demand, support, timing, price"]:::function
+    InspectMoney["Inspect money view<br/>sales, profit, capital, leakage"]:::function
+    ExplainSignals["Explain why<br/>pressure, observations, fragility, assumptions"]:::function
+    AuditHistory["Audit history<br/>saved reports, heatmap, edits, deletion"]:::function
+  end
+
+  subgraph OtherFunctions["Other functions"]
+    ConfigureWorkspace["Configure workspace<br/>language, currency, UI density, planning"]:::function
+    ProtectData["Protect local data<br/>backup, restore, reveal path, clear data"]:::function
+    RecoverInactive["Recover inactive records<br/>archive search and unarchive"]:::function
+    LearnProduct["Learn or troubleshoot<br/>search help and understand controls"]:::function
+    BenchmarkMaintain["Maintain app quality<br/>benchmarks, exports, diagnostics"]:::function
+  end
+
+  subgraph DecideWorkflows["Workflows for deciding next action"]
+    OverviewHome["Open command home<br/>recommended move first"]:::workflow
+    SupplierQueue["Review supplier queue<br/>to order, awaiting receipt, follow-up today"]:::workflow
+    CustomerQueue["Review customer queue<br/>open demand, stock blockers, ready completions"]:::workflow
+    FilterQueue["Narrow queue<br/>search, family, issue type, supplier"]:::workflow
+    OpenTask["Open task drawer<br/>read why now, evidence, next button"]:::workflow
+    ChooseAction["Choose action<br/>start update, open item, inspect detail, dismiss by completion"]:::workflow
+  end
+
+  subgraph CaptureWorkflows["Workflows for capturing reality"]
+    ChooseLane["Choose update lane"]:::workflow
+    StockCount["Stock Count<br/>count physical stock and reconcile facts"]:::workflow
+    CustomerOrder["Customer Order<br/>new ticket or update existing customer ticket"]:::workflow
+    ImmediateSale["Immediate Sale<br/>same-session sale resolved immediately"]:::workflow
+    SupplierOrder["Supplier Order<br/>new ticket or update existing supplier ticket"]:::workflow
+    SupplierReceipt["Supplier Receipt<br/>branch inside existing supplier ticket update"]:::workflow
+    CustomCapture["Custom capture<br/>combine multiple lanes for one real-world event"]:::workflow
+    Drafts["Resume or discard draft<br/>avoid duplicate unfinished work"]:::workflow
+    SaveEvidence["Save update<br/>writes ticket events and observations"]:::workflow
+  end
+
+  subgraph CatalogWorkflows["Workflows for managing sellables"]
+    CatalogSearch["Search or filter catalog<br/>all, SKUs, services, supplier"]:::workflow
+    NewSku["Create SKU<br/>identity, supplier, price, image, planning fields"]:::workflow
+    NewService["Create service<br/>identity, dependency SKUs, price, image"]:::workflow
+    EditSku["Edit SKU definition<br/>names, price, supplier, image, planning controls"]:::workflow
+    EditService["Edit service definition<br/>dependencies and sellable details"]:::workflow
+    ArchiveItem["Archive item<br/>remove from active work without deleting history"]:::workflow
+    OpenDetail["Open detail<br/>SKU or service command page"]:::workflow
+  end
+
+  subgraph TicketWorkflows["Workflows for commitments"]
+    TicketFamily{"Which commitment family?"}:::decision
+    CustomerTicket["Customer ticket<br/>open, blocked, ready, resolved, canceled"]:::workflow
+    SupplierTicket["Supplier ticket<br/>ordered, ETA changed, partial receipt, full receipt"]:::workflow
+    AdjustmentTicket["Adjustment or correction<br/>shrinkage, refund, recount, mistake"]:::workflow
+    PartyMetadata["Structured party metadata<br/>channel, name, phone, lookup keys"]:::workflow
+    TicketRevision["Append revision<br/>do not overwrite operational history"]:::workflow
+    DownstreamTicket["Project downstream<br/>overview queue, detail evidence, performance, financials"]:::workflow
+  end
+
+  subgraph IntakeWorkflows["Workflows for automations"]
+    AutomationHealth["Check connection health<br/>connect, pause, open Telegram, test message"]:::workflow
+    ExposureControl["Control exposure<br/>which SKUs and services customers can request"]:::workflow
+    LiveIntake["Review live intake<br/>active customer requests"]:::workflow
+    NeedsReview["Resolve ambiguous intake<br/>clarify, dismiss, or keep waiting"]:::workflow
+    PromoteIntake["Promote clean intake<br/>create customer-family ticket history"]:::workflow
+  end
+
+  subgraph CompareWorkflows["Workflows for operational comparison"]
+    PerformanceRange["Choose range<br/>7d, 30d, 90d"]:::workflow
+    PerformanceScope["Choose scope<br/>all, services, SKUs, supplier"]:::workflow
+    MoveNow["Move now<br/>highest-priority action rows"]:::workflow
+    Board["Board<br/>side-by-side demand, support, incoming, price"]:::workflow
+    CashOps["Cash and blocked profit<br/>winners, traps, recovery pipeline"]:::workflow
+    PriceWatch["Price watch and drag<br/>margin conditions, friction, timing risk"]:::workflow
+  end
+
+  subgraph MoneyWorkflows["Workflows for money inspection"]
+    FinancialRange["Choose range<br/>1d, 7d, 30d, 90d"]:::workflow
+    FinancialScope["Choose scope<br/>all, services, SKUs, supplier"]:::workflow
+    StatementBlocks["Read statement blocks<br/>money in, tied up, leaking"]:::workflow
+    ContributorTable["Inspect contributors<br/>services and SKUs driving the picture"]:::workflow
+    MoneyFollowUp["Open follow-up<br/>row or badge jumps to detail"]:::workflow
+    AvoidAccountingTrap["Do not treat as accounting ledger<br/>open tickets are not realized revenue"]:::warning
+  end
+
+  subgraph ExplainWorkflows["Workflows for explanation"]
+    AnalysisScope["Choose analysis scope<br/>all, services, SKUs, supplier"]:::workflow
+    AnalysisSections["Switch section<br/>workbench, pressure, observations, fragility, settings"]:::workflow
+    AnalysisTimeframe["Choose timeframe<br/>Recent, 1M, 3M, YTD, 1Y, MAX"]:::workflow
+    DetailChart["Inspect SKU or service detail<br/>availability, demand, evidence, ledger"]:::workflow
+    ChartSettings["Adjust chart visibility<br/>indicators, layout, timeframe"]:::workflow
+    LoadOlder["Load older intervals<br/>expand chart when needed"]:::workflow
+  end
+
+  subgraph HistoryWorkflows["Workflows for history and audit"]
+    HistorySearch["Search saved reports<br/>notes, names, identifiers"]:::workflow
+    HistoryScope["Scope history<br/>all, SKUs, services, supplier"]:::workflow
+    Heatmap["Heatmap view<br/>recent-year contribution calendar"]:::workflow
+    ReportList["All reports list<br/>paginated saved updates"]:::workflow
+    EditReport["Edit report<br/>reopen matching update flow"]:::workflow
+    DeleteReport["Delete mistaken report<br/>confirmed permanent removal"]:::destructive
+  end
+
+  subgraph MaintenanceWorkflows["Workflows for configuration and maintenance"]
+    WorkspacePrefs["Workspace prefs<br/>language, currency, image display"]:::workflow
+    InterfacePrefs["Interface prefs<br/>guidance, right rail, compare, page visibility"]:::workflow
+    PlanningPrefs["Planning parameters<br/>local analysis behavior and rerun"]:::workflow
+    BackupSnapshot["Create backup snapshot<br/>before risky work"]:::workflow
+    RestoreSnapshot["Restore backup snapshot<br/>roll back local workspace"]:::destructive
+    RevealPath["Reveal local data path<br/>inspect files in OS"]:::workflow
+    ClearData["Clear current data<br/>confirmed destructive reset"]:::destructive
+    ArchiveSearch["Search archive<br/>all, SKUs, services, supplier"]:::workflow
+    Unarchive["Unarchive item<br/>restore to active catalog"]:::workflow
+    HelpSearch["Search help<br/>guide, index, FAQ, controls"]:::workflow
+    ExportDiagnostics["Export logs or planning data<br/>developer and support use"]:::workflow
+  end
+
+  subgraph SimplifiedIA["Simplified app IA target"]
+    CommandHome["Command Home<br/>default first screen"]:::target
+    Inbox["Inbox<br/>recommended move, supplier queue, customer queue, intake review"]:::target
+    Capture["Capture<br/>stock count, customer order, immediate sale, supplier order, custom"]:::target
+    Catalog["Catalog<br/>active SKUs, active services, archive access"]:::target
+    Insights["Insights<br/>performance, financials, analysis, detail charts"]:::target
+    History["History<br/>operations, reports, heatmap, edit report"]:::target
+    Settings["Settings<br/>preferences, local data, planning, benchmarks, danger zone, help"]:::target
+    Palette["Command palette<br/>universal jump, entity search, workflow launch"]:::target
+  end
+
+  subgraph Rearrangement["UI rearrangement rules"]
+    Rule1["Make user verbs the top-level mental model<br/>Decide, Capture, Manage, Understand, Maintain"]:::rule
+    Rule2["Keep only daily work in persistent nav<br/>Home, Inbox, Capture, Catalog, Insights"]:::rule
+    Rule3["Move infrequent surfaces behind contextual entry<br/>History, Archive, Benchmarks, Danger zone"]:::rule
+    Rule4["Use command palette as the expert layer<br/>pages, tabs, entities, workflows, settings actions"]:::rule
+    Rule5["Preserve ticket-backed source of truth<br/>no loose order or receipt authoring"]:::rule
+    Rule6["Let Overview become Inbox<br/>one queue with family filters instead of many pages competing"]:::rule
+    Rule7["Merge analysis surfaces conceptually<br/>Performance and Financials are Insights modes, not separate primary intents"]:::rule
+    Rule8["Make destructive and recovery actions clearly separated<br/>backup before restore, clear, delete"]:::rule
+  end
+
+  Start --> Intent
+  Intent --> Primary
+  Intent --> Secondary
+  Intent --> Other
+
+  Primary --> DecideNext
+  Primary --> CaptureReality
+  Primary --> ManageCatalog
+  Primary --> ResolveTickets
+  Primary --> HandleIntake
+
+  Secondary --> CompareOps
+  Secondary --> InspectMoney
+  Secondary --> ExplainSignals
+  Secondary --> AuditHistory
+
+  Other --> ConfigureWorkspace
+  Other --> ProtectData
+  Other --> RecoverInactive
+  Other --> LearnProduct
+  Other --> BenchmarkMaintain
+
+  DecideNext --> OverviewHome --> SupplierQueue --> FilterQueue --> OpenTask --> ChooseAction
+  OverviewHome --> CustomerQueue --> FilterQueue
+  ChooseAction --> Capture
+  ChooseAction --> Catalog
+  ChooseAction --> Insights
+
+  CaptureReality --> ChooseLane
+  ChooseLane --> StockCount --> SaveEvidence
+  ChooseLane --> CustomerOrder --> Drafts --> SaveEvidence
+  ChooseLane --> ImmediateSale --> SaveEvidence
+  ChooseLane --> SupplierOrder --> SupplierReceipt --> SaveEvidence
+  ChooseLane --> CustomCapture --> Drafts
+  SaveEvidence --> Inbox
+
+  ManageCatalog --> CatalogSearch
+  CatalogSearch --> NewSku --> OpenDetail
+  CatalogSearch --> NewService --> OpenDetail
+  CatalogSearch --> EditSku --> OpenDetail
+  CatalogSearch --> EditService --> OpenDetail
+  CatalogSearch --> ArchiveItem --> Catalog
+  OpenDetail --> Insights
+
+  ResolveTickets --> TicketFamily
+  TicketFamily --> CustomerTicket --> PartyMetadata --> TicketRevision --> DownstreamTicket
+  TicketFamily --> SupplierTicket --> TicketRevision
+  TicketFamily --> AdjustmentTicket --> TicketRevision
+  DownstreamTicket --> Inbox
+  DownstreamTicket --> Insights
+  DownstreamTicket --> History
+
+  HandleIntake --> AutomationHealth
+  HandleIntake --> ExposureControl
+  HandleIntake --> LiveIntake --> PromoteIntake --> DownstreamTicket
+  HandleIntake --> NeedsReview --> PromoteIntake
+
+  CompareOps --> PerformanceRange --> PerformanceScope --> MoveNow --> Board --> CashOps --> PriceWatch
+  InspectMoney --> FinancialRange --> FinancialScope --> StatementBlocks --> ContributorTable --> MoneyFollowUp --> AvoidAccountingTrap
+  ExplainSignals --> AnalysisScope --> AnalysisSections --> AnalysisTimeframe --> DetailChart --> ChartSettings --> LoadOlder
+  AuditHistory --> HistorySearch --> HistoryScope --> Heatmap
+  HistoryScope --> ReportList --> EditReport
+  ReportList --> DeleteReport
+
+  ConfigureWorkspace --> WorkspacePrefs
+  ConfigureWorkspace --> InterfacePrefs
+  ConfigureWorkspace --> PlanningPrefs
+  ProtectData --> BackupSnapshot
+  ProtectData --> RestoreSnapshot
+  ProtectData --> RevealPath
+  ProtectData --> ClearData
+  RecoverInactive --> ArchiveSearch --> Unarchive
+  LearnProduct --> HelpSearch
+  BenchmarkMaintain --> ExportDiagnostics
+
+  DecideNext -. "maps to" .-> CommandHome
+  DecideNext -. "daily queue" .-> Inbox
+  CaptureReality -. "write path" .-> Capture
+  ManageCatalog -. "source of truth" .-> Catalog
+  ResolveTickets -. "queue and authoring" .-> Inbox
+  HandleIntake -. "staging queue" .-> Inbox
+  CompareOps -. "mode" .-> Insights
+  InspectMoney -. "mode" .-> Insights
+  ExplainSignals -. "mode" .-> Insights
+  AuditHistory -. "infrequent" .-> History
+  ConfigureWorkspace -. "maintenance" .-> Settings
+  ProtectData -. "maintenance" .-> Settings
+  RecoverInactive -. "maintenance" .-> Settings
+  LearnProduct -. "support" .-> Settings
+  BenchmarkMaintain -. "developer" .-> Settings
+
+  CommandHome --> Inbox
+  CommandHome --> Capture
+  CommandHome --> Catalog
+  CommandHome --> Insights
+  CommandHome --> Palette
+  History --> Settings
+  Settings --> Palette
+
+  SimplifiedIA --> Rule1
+  Rule1 --> Rule2 --> Rule3 --> Rule4 --> Rule5 --> Rule6 --> Rule7 --> Rule8
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef decision fill:#fff7ed,stroke:#ea580c,stroke-width:1.8px,color:#111827;
+  classDef primary fill:#dcfce7,stroke:#16a34a,stroke-width:2px,color:#111827;
+  classDef secondary fill:#eef2ff,stroke:#4f46e5,stroke-width:1.6px,color:#111827;
+  classDef other fill:#f8fafc,stroke:#64748b,stroke-width:1.4px,color:#111827;
+  classDef function fill:#f0f9ff,stroke:#0284c7,stroke-width:1.4px,color:#111827;
+  classDef workflow fill:#ffffff,stroke:#94a3b8,stroke-width:1.1px,color:#111827;
+  classDef target fill:#fef9c3,stroke:#ca8a04,stroke-width:1.8px,color:#111827;
+  classDef rule fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef warning fill:#fee2e2,stroke:#dc2626,stroke-width:1.6px,color:#111827;
+  classDef destructive fill:#fecaca,stroke:#b91c1c,stroke-width:2px,color:#111827;

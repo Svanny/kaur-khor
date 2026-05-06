@@ -1,0 +1,116 @@
+%% Kaur Khor desktop startup flowchart. This is a control/data-flow diagram, not a timing chart.
+%%{init: {"flowchart": {"curve": "basis", "htmlLabels": true, "nodeSpacing": 48, "rankSpacing": 56}, "theme": "base", "themeVariables": {"fontFamily": "Inter, ui-sans-serif, system-ui", "primaryColor": "#f8fafc", "primaryTextColor": "#111827", "primaryBorderColor": "#64748b", "lineColor": "#475569", "secondaryColor": "#eef2ff", "tertiaryColor": "#ecfeff", "clusterBkg": "#ffffff", "clusterBorder": "#cbd5e1"}}}%%
+flowchart LR
+  Start(["Process starts"]):::entry
+
+  subgraph Bench["Benchmark runner path"]
+    BenchEnabled{"KAUR_KHOR_BENCHMARK run?"}:::decision
+    NormalizeRun["Normalize scope, fixture size, trace, repeat count"]:::process
+    Fixture["Fixture sizes<br/>minimal, medium, heavy, power-user"]:::store
+    PowerUser["Power User<br/>10 years, 1 day interval, 3,653 observations"]:::important
+    PrepareWorkspace["Prepare isolated benchmark data directory<br/>seed compact startup read model when needed"]:::process
+    LaunchBench["Launch Electron with benchmark env<br/>data dir, output dir, dev seed disabled"]:::process
+  end
+
+  subgraph Main["Electron main process"]
+    AppReady["Electron app ready"]:::entry
+    BootStart["Record main.boot.start"]:::metric
+    InstallBoot["Install CSP, asset protocol, menu"]:::process
+    LoadCache["Load persisted compact SENA read cache"]:::cache
+    DevMode{"Development build?"}:::decision
+    SeedDisabled{"Dev seed disabled?"}:::decision
+    DevSeed["Run generated dev-history seed when empty or marked"]:::mutation
+    InvalidateSeedCache["Invalidate SENA read cache after seed/write"]:::cache
+    PrewarmCore["Prewarm managed core with system.ping"]:::ipc
+    CreateWindow["Create BrowserWindow<br/>inactive/background when appropriate"]:::process
+    LoadRenderer["Load renderer URL or index.html"]:::process
+    MainReady["Snapshot main.boot.ready"]:::metric
+  end
+
+  subgraph Backend["Managed core backend"]
+    Writer["Writer core<br/>all mutations and destructive commands"]:::mutation
+    ReadPool["Read-worker pool<br/>KAUR_KHOR_READ_CORE_POOL_SIZE, clamped 1..8"]:::ipc
+    Coalesce["Coalesce identical read-only requests globally"]:::cache
+    Generation["Mutation generation bump<br/>discard stale read results"]:::cache
+    RouteRead["Route read by interactive or bulk lane<br/>deferred reads wait up to 1s before writer fallback"]:::ipc
+    RouteWrite["Route mutation to writer only"]:::mutation
+  end
+
+  subgraph Store["SQLite and file storage"]
+    Fingerprint["Observation fingerprint query<br/>count + latest observed row"]:::store
+    HotSummary["Hot startup tables<br/>workspace summary + SKU summary rows"]:::store
+    RecordAnchors["Record update anchors<br/>latest stock, sale, order, receipt rows"]:::store
+    ObservationPage["Paged observations<br/>observed_at DESC, observation_id DESC"]:::store
+    CheckpointFiles["Compressed checkpoints<br/>sena-checkpoints/*.json.zst + SQLite metadata"]:::store
+  end
+
+  subgraph Renderer["Renderer startup"]
+    Bridge["Expose window.kaurKhorDesktop"]:::bridge
+    GetContext["system.getAppContext"]:::ipc
+    MountProviders["Mount preferences and inventory providers"]:::process
+    StartupWorkspace["sena.getStartupWorkspace"]:::important
+    Ready["Set inventory isLoading=false"]:::metric
+    DeferredDiagnostics["Deferred diagnostics<br/>idle after 2s when still needed"]:::ipc
+    RouteSupportReads["Route-scoped support reads<br/>record-update context and order batches"]:::ipc
+    RoutePages["Route-specific pages<br/>listObservationPage and detail windows when needed"]:::ipc
+    LazyRoutes["Lazy non-dashboard route chunks<br/>performance, financials, analysis, detail, stock update"]:::process
+  end
+
+  subgraph Metrics["Benchmark summary and targets"]
+    Events["Persist events.jsonl and core-events-*.jsonl"]:::metric
+    WorkspaceReady["renderer.workspace.ready"]:::metric
+    StartupIpc["ipc.sena_get_startup_workspace_ms"]:::metric
+    QueueMetrics["backend.core.interactive_queue_wait_p95_ms<br/>backend.core.read_pool_queue_wait_p95_ms<br/>backend.core.setup_queue_wait_p95_ms"]:::metric
+    Evaluate["Evaluate pass, watch, fail bands"]:::metric
+  end
+
+  Start --> BenchEnabled
+  BenchEnabled -- "yes" --> NormalizeRun --> Fixture --> PrepareWorkspace --> LaunchBench --> AppReady
+  Fixture --> PowerUser
+  BenchEnabled -- "no" --> AppReady
+
+  AppReady --> BootStart --> InstallBoot --> LoadCache --> DevMode
+  DevMode -- "yes" --> SeedDisabled
+  SeedDisabled -- "no" --> DevSeed --> RouteWrite --> Writer --> InvalidateSeedCache --> CreateWindow
+  SeedDisabled -- "yes" --> PrewarmCore
+  DevMode -- "no" --> PrewarmCore
+  PrewarmCore --> Writer
+  PrewarmCore --> ReadPool
+  Writer --> CreateWindow
+  ReadPool --> CreateWindow
+  CreateWindow --> LoadRenderer --> MainReady --> Bridge
+
+  Bridge --> GetContext --> MountProviders
+  MountProviders --> StartupWorkspace
+  StartupWorkspace --> Coalesce --> RouteRead --> Fingerprint --> HotSummary --> Ready
+  Ready --> WorkspaceReady
+  Ready --> DeferredDiagnostics
+  Ready --> RouteSupportReads
+  DeferredDiagnostics --> Coalesce --> RouteRead
+  RouteSupportReads --> Coalesce --> RouteRead
+  RouteSupportReads --> RecordAnchors
+  RouteSupportReads --> RoutePages
+  RoutePages --> ObservationPage
+  MountProviders --> LazyRoutes
+
+  RouteWrite --> Generation
+  Generation --> Coalesce
+  HotSummary --> CheckpointFiles
+  RecordAnchors --> CheckpointFiles
+
+  BootStart --> Events
+  MainReady --> Events
+  WorkspaceReady --> Events
+  Events --> StartupIpc --> Evaluate
+  Events --> QueueMetrics --> Evaluate
+
+  classDef entry fill:#ecfeff,stroke:#0891b2,stroke-width:2px,color:#0f172a;
+  classDef process fill:#f8fafc,stroke:#64748b,stroke-width:1.2px,color:#111827;
+  classDef decision fill:#fff7ed,stroke:#ea580c,stroke-width:1.4px,color:#111827;
+  classDef ipc fill:#eef2ff,stroke:#4f46e5,stroke-width:1.4px,color:#111827;
+  classDef cache fill:#f0fdf4,stroke:#16a34a,stroke-width:1.4px,color:#111827;
+  classDef bridge fill:#fdf2f8,stroke:#db2777,stroke-width:1.4px,color:#111827;
+  classDef store fill:#fefce8,stroke:#ca8a04,stroke-width:1.4px,color:#111827;
+  classDef metric fill:#eff6ff,stroke:#2563eb,stroke-width:1.4px,color:#111827;
+  classDef important fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#111827;
+  classDef mutation fill:#fee2e2,stroke:#dc2626,stroke-width:1.6px,color:#111827;

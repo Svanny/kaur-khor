@@ -1,0 +1,41 @@
+%% Kaur Khor stability benchmark architecture.
+sequenceDiagram
+  autonumber
+  participant Bench as Stability benchmark<br/>bench/scenarios/stability.bench.ts
+  participant Shell as KaurKhorShell sidebar
+  participant Router as React Router<br/>route observers
+  participant Routes as Repeated route surfaces
+  participant Provider as Providers and route caches
+  participant Preload as Preload bridge
+  participant Main as Electron main IPC
+  participant Core as Managed desktop-core pool
+  participant Store as SQLite read models
+  participant Metrics as Benchmark summary
+
+  Bench->>Provider: wait for renderer.workspace.ready
+  Bench->>Metrics: record benchmark.phase.measurement_start
+
+  loop four sidebar cycles
+    Bench->>Shell: click Record update
+    Shell->>Router: navigate /record-update
+    Router->>Routes: mount route and wait route.record-update.ready
+    Routes->>Provider: read route context
+    Provider->>Preload: route support reads when needed
+    Preload->>Main: IPC read command
+    Main->>Core: cached or coalesced read
+    Core->>Store: read route rows
+    Store-->>Routes: route data
+
+    Bench->>Shell: click Performance, Catalog, Financials, Automations, Analysis, Logs, Overview
+    Shell->>Router: repeat route transitions
+    Router->>Metrics: route.*.ready for each destination
+    Bench->>Metrics: record selected nav.* duration metrics
+    Bench->>Metrics: snapshot memory.renderer_stability_cycle_N_mb
+  end
+
+  Bench->>Metrics: snapshot memory.renderer_after_stability_mb
+  Bench->>Metrics: record benchmark.phase.measurement_end
+  Bench->>Metrics: close app and persist stability summary
+
+  Note over Bench,Metrics: The stability routine is crash-free coverage plus memory-slope inputs, not a single latency path.
+  Note over Provider,Core: Repeated route churn exercises lazy chunks, renderer caches, read coalescing, and cache invalidation boundaries.

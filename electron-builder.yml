@@ -1,0 +1,46 @@
+appId: com.svanny.kaur-khor
+productName: KAUR KHOR
+copyright: Copyright © 2026 Svanny
+
+directories:
+  output: release
+  buildResources: resources
+
+nodeGypRebuild: false
+npmRebuild: false
+
+files:
+  - out/**/*
+  - package.json
+  - LICENSE
+
+extraResources:
+  - from: build/release-resources/bin
+    to: bin
+    filter:
+      - '**/*'
+
+artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.business
+  icon: resources/mac/kaur-khor.icns
+
+win:
+  target:
+    - nsis
+  icon: resources/mac/icon.png
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: resources/mac/icon.png
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
