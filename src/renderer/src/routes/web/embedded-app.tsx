@@ -13,6 +13,7 @@ import {
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
 import {
+  ActionConfirmIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
   ActionResetIcon,
@@ -366,6 +367,7 @@ export function PhoneViewWarningOverlay() {
           type="button"
           variant="default"
         >
+          <ActionConfirmIcon data-icon="inline-start" />
           {translateUiLiteral(language, 'Done')}
         </Button>
       </div>
