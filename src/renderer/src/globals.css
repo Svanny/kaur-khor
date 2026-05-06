@@ -366,6 +366,7 @@
     --centered-tile-gap: 1.25rem !important;
     --centered-tile-max-size: 12rem !important;
     --centered-tile-min-size: 8.5rem !important;
+    --hub-tile-size: var(--centered-tile-max-size) !important;
     --centered-grid-max-inline-size: calc(
       var(--centered-tile-columns) * var(--centered-tile-max-size) +
       (var(--centered-tile-columns) - 1) * var(--centered-tile-gap)

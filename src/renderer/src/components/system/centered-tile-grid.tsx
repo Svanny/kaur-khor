@@ -1,4 +1,4 @@
-import { Children, type CSSProperties, type ReactNode } from 'react';
+import { Children, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 const DEFAULT_CENTERED_TILE_GAP_REM = 1.5;
@@ -27,11 +27,44 @@ export function CenteredTileGrid({
   const childCount = Children.count(children);
   const rowCount = Math.max(1, Math.ceil(childCount / columnCount));
   const gridMaxInlineSize = `calc(${columnCount} * var(--centered-tile-max-size) + ${Math.max(0, columnCount - 1)} * var(--centered-tile-gap))`;
+  const gridMaxBlockSize = `calc(${rowCount} * var(--centered-tile-max-size) + ${Math.max(0, rowCount - 1)} * var(--centered-tile-gap))`;
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const [measuredTileSize, setMeasuredTileSize] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid || typeof ResizeObserver === 'undefined') {
+      return undefined;
+    }
+
+    function updateTileSize() {
+      const remPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+      const bounds = grid.getBoundingClientRect();
+      if (bounds.width <= 0 || bounds.height <= 0) {
+        return;
+      }
+      const gapPx = gapRem * remPx;
+      const paddingPx = paddingRem * remPx;
+      const maxTilePx = maxTileRem * remPx;
+      const inlineFitPx = (bounds.width - 2 * paddingPx - Math.max(0, columnCount - 1) * gapPx) / columnCount;
+      const blockFitPx = (bounds.height - 2 * paddingPx - Math.max(0, rowCount - 1) * gapPx) / rowCount;
+      const nextTilePx = Math.max(1, Math.min(maxTilePx, inlineFitPx, blockFitPx));
+      setMeasuredTileSize(`${nextTilePx.toFixed(2)}px`);
+    }
+
+    updateTileSize();
+    const resizeObserver = new ResizeObserver(updateTileSize);
+    resizeObserver.observe(grid);
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [columnCount, gapRem, maxTileRem, paddingRem, rowCount]);
 
   return (
     <div
       data-centered-tile-rows={rowCount}
       data-slot="centered-tile-grid"
+      ref={gridRef}
       className={cn('flex min-h-0 flex-1 h-full items-center justify-center p-[var(--centered-tile-padding)]', className)}
       style={
         {
@@ -41,7 +74,8 @@ export function CenteredTileGrid({
           '--centered-tile-max-size': `${maxTileRem}rem`,
           '--centered-tile-padding': `${paddingRem}rem`,
           '--centered-grid-max-inline-size': gridMaxInlineSize,
-          '--hub-tile-size': `var(--centered-tile-max-size)`,
+          '--centered-grid-max-block-size': gridMaxBlockSize,
+          '--hub-tile-size': measuredTileSize ?? 'var(--centered-tile-max-size)',
         } as CSSProperties
       }
     >
@@ -50,9 +84,12 @@ export function CenteredTileGrid({
         className="grid max-w-full justify-center gap-[var(--centered-tile-gap)]"
         style={
           {
-            width: '100%',
+            width: 'fit-content',
+            height: 'fit-content',
             maxWidth: 'var(--centered-grid-max-inline-size)',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, var(--centered-tile-min-size)), 1fr))',
+            maxHeight: 'min(100%, var(--centered-grid-max-block-size))',
+            gridAutoRows: 'var(--hub-tile-size)',
+            gridTemplateColumns: 'repeat(var(--centered-tile-columns), var(--hub-tile-size))',
           } as CSSProperties
         }
       >

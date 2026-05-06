@@ -58,7 +58,7 @@ function CommandAction({
     </LiquidGridCard>
   );
 
-  return <Link className="block w-full min-w-0 focus-visible:outline-none" to={to}>{content}</Link>;
+  return <Link className="block h-full w-full min-w-0 focus-visible:outline-none" to={to}>{content}</Link>;
 }
 
 export function CommandHomeRoute() {
