@@ -1098,7 +1098,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'នាំចូលច្បាប់បម្រុង' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'កំណត់សាកល្បងឡើងវិញ' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'ប្រើអេបក្នុងប្រោសឺរ' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ប្រើអេបក្នុងប្រោសឺរ' })).not.toBeInTheDocument();
     expect(screen.queryByText('Demo data - not your real workspace.')).not.toBeInTheDocument();
   });
 
@@ -1131,7 +1131,7 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(within(target).getAllByText('នាំចេញ').length).toBeGreaterThan(0);
       expect(within(target).getAllByText('នាំចូល').length).toBeGreaterThan(0);
       expect(within(target).getAllByText('កំណត់').length).toBeGreaterThan(0);
-      expect(within(target).getAllByText('ប្រើប្រោសឺរ').length).toBeGreaterThan(0);
+      expect(within(target).queryByText('ប្រើប្រោសឺរ')).not.toBeInTheDocument();
       expect(within(target).queryByText('Export')).not.toBeInTheDocument();
       expect(within(target).queryByText('Reset')).not.toBeInTheDocument();
     } finally {
@@ -1346,31 +1346,81 @@ describe('WebRoutes embedded app fallback state', () => {
     }
   });
 
-  test('shows a blocking rotate overlay for embedded portrait phones without exposing phone view copy', async () => {
+  test.each(['demo', 'app'] as const)('shows a blocking rotate overlay for embedded portrait phones without exposing phone view copy in %s mode', async (mode) => {
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
 
-    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
 
     expect(await screen.findByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
-    expect(screen.getByText('Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.')).toBeInTheDocument();
-    expect(screen.getByText('For regular work, use a larger browser window or the desktop app.')).toBeInTheDocument();
+    expect(screen.getAllByText('Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('For regular work, use a larger browser window or the desktop app.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('បង្វិលអេក្រង់').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
     expect(screen.queryByText(/phone view/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
     const warningImage = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('img');
     expect(warningImage).not.toBeNull();
-    expect(warningImage).toHaveClass('size-[4.75rem]', 'p-1.5', 'object-contain');
+    expect(warningImage).toHaveClass('size-[4.75rem]', 'p-3', 'object-contain');
+    const warningCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy"]');
+    expect(warningCopy).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-title"]')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-description"]')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-secondary-description"]')).toHaveClass('overflow-hidden');
+    const animatedCopyLayers = Array.from(warningCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
+    expect(animatedCopyLayers).toHaveLength(6);
+    expect(animatedCopyLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
+    expect(animatedCopyLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
+    expect(animatedCopyLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
+    const doneCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy-done"]');
+    expect(doneCopy).toHaveClass('overflow-hidden');
+    const animatedDoneLayers = Array.from(doneCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
+    expect(animatedDoneLayers).toHaveLength(2);
+    expect(animatedDoneLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
+    expect(animatedDoneLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
+    expect(animatedDoneLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
 
     const overlay = container.querySelector('[data-slot="embedded-phone-landscape-overlay"]');
     const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
     expect(overlay).not.toBeNull();
-    expect(frame).toBeNull();
+    expect(frame).not.toBeNull();
     expect(overlay).toContainElement(screen.getByRole('dialog', { name: 'Rotate screen' }));
+    expect(overlay).toHaveClass('fixed', 'inset-0', 'z-[70]');
+    expect(overlay?.firstElementChild).toHaveClass('items-center', 'bg-background');
+    expect(overlay?.firstElementChild).not.toHaveClass('items-start', 'bg-background/35', 'backdrop-blur-[2px]');
+    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).toHaveClass('bg-popover');
+    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).not.toHaveClass('bg-card', 'bg-card/95');
     await waitFor(() => {
-      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'true');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '-2');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
       expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / (1.2 ** -2))));
       expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / (1.2 ** -2))));
+    });
+  });
+
+  test.each(['demo', 'app'] as const)('refreshes embedded route auto zoom from phone landscape to wide browser in %s mode', async (mode) => {
+    mockViewport(844, 390);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
+
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
+
+    const viewport = await waitFor(() => {
+      const current = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+      expect(current).not.toBeNull();
+      expect(current).toHaveAttribute('data-zoom-level', '-2');
+      return current;
+    });
+
+    mockViewport(1600, 900);
+    fireEvent.resize(window);
+
+    await waitFor(() => {
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
+      expect(viewport).toHaveAttribute('data-zoom-level', '0');
+      expect(viewport).toHaveAttribute('data-effective-width', '1600');
+      expect(viewport).toHaveAttribute('data-effective-height', '900');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
     });
   });
 
@@ -1404,7 +1454,7 @@ describe('WebRoutes embedded app fallback state', () => {
     );
 
     expect(screen.getByRole('dialog', { name: 'បង្វិលអេក្រង់' })).toBeInTheDocument();
-    expect(screen.getByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។')).toBeInTheDocument();
+    expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'រួចរាល់' })).toBeDisabled();
   });
 
@@ -1452,7 +1502,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(landscapeScrollWidthForContent(532, 540)).toBe(556);
   });
 
-  test('renders the embedded onboarding banner as a top nav overlay', () => {
+  test('renders the embedded onboarding banner in the app flow', () => {
     const { container } = render(
       <MemoryRouter initialEntries={['/onboarding']}>
         <EmbeddedAppBanner
@@ -1468,13 +1518,41 @@ describe('WebRoutes embedded app fallback state', () => {
     const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
     const bannerFrame = bannerCard?.parentElement;
     expect(bannerFrame).not.toBeNull();
-    expect(bannerFrame).toHaveClass('inset-x-3', 'md:inset-x-4');
+    expect(bannerFrame).toHaveClass('relative', 'px-3', 'py-3', 'md:px-4', 'md:py-4');
+    expect(bannerFrame).not.toHaveClass('fixed', 'inset-x-3', 'top-3', 'md:inset-x-4');
     expect(bannerFrame).not.toHaveClass('md:left-1/2', 'md:w-[min(64rem,calc(100vw-2rem))]', 'md:-translate-x-1/2');
     expect(bannerCard).not.toBeNull();
-    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/90', 'text-sm', 'md:text-sm', 'backdrop-blur-xl');
+    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/95', 'text-sm', 'md:text-sm');
+    expect(bannerCard).not.toHaveClass('backdrop-blur-xl');
     expect(screen.getByText('Demo data - not your real workspace.')).toHaveClass('whitespace-normal', 'break-words');
     expect(screen.getByText('Demo data - not your real workspace.').parentElement).toHaveClass('flex-1');
     expect(screen.getByText('Demo data - not your real workspace.').parentElement).not.toHaveClass('max-w-[18rem]', 'sm:max-w-[24rem]');
+    expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
+    expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
+  });
+
+  test('renders the embedded browser onboarding banner in the app flow', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/onboarding']}>
+        <EmbeddedAppBanner
+          mode="app"
+          storage={embeddedStorage}
+          onExport={vi.fn()}
+          onImport={vi.fn()}
+          onReset={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    const bannerCard = container.querySelector('[data-slot="web-app-banner-card"]');
+    const bannerFrame = bannerCard?.parentElement;
+    expect(bannerFrame).not.toBeNull();
+    expect(bannerFrame).toHaveClass('relative', 'px-3', 'py-3', 'md:px-4', 'md:py-4');
+    expect(bannerFrame).not.toHaveClass('fixed', 'inset-x-3', 'top-3', 'md:inset-x-4');
+    expect(bannerCard).not.toBeNull();
+    expect(bannerCard).toHaveClass('flex-row', 'rounded-xl', 'bg-background/95', 'text-sm', 'md:text-sm');
+    expect(bannerCard).not.toHaveClass('backdrop-blur-xl');
+    expect(screen.getByText('Export a backup before closing.')).toHaveClass('whitespace-normal', 'break-words');
     expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
     expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
   });
