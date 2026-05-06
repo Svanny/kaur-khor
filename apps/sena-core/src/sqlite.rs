@@ -1485,6 +1485,7 @@ impl SenaRepository for SqliteSenaRepository {
     }
 
     async fn upsert_catalog(&self, owner_sub: &str, catalog: &SenaCatalog) -> Result<()> {
+        catalog.validate()?;
         let connection = self
             .connection
             .lock()
@@ -1522,6 +1523,7 @@ impl SenaRepository for SqliteSenaRepository {
         owner_sub: &str,
         observation: &SenaObservationInput,
     ) -> Result<SenaObservationRecord> {
+        observation.validate()?;
         let record = SenaObservationRecord {
             observation_id: Uuid::new_v4().to_string(),
             owner_sub: owner_sub.to_string(),
@@ -1556,6 +1558,7 @@ impl SenaRepository for SqliteSenaRepository {
         observation_id: &str,
         observation: &SenaObservationInput,
     ) -> Result<SenaObservationRecord> {
+        observation.validate()?;
         let mut connection = self
             .connection
             .lock()
@@ -2316,7 +2319,7 @@ impl SenaRepository for SqliteSenaRepository {
         artifact_key: Option<&str>,
     ) -> Result<()> {
         let completed_at = now_rfc3339();
-        let connection = self
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
@@ -2324,7 +2327,8 @@ impl SenaRepository for SqliteSenaRepository {
         let mut summary = result.workspace_summary.clone();
         summary.run_id = run_id.to_string();
         let updated_at = now_rfc3339();
-        connection.execute(
+        let transaction = connection.transaction()?;
+        transaction.execute(
             r#"
             UPDATE sena_run
             SET status = 'succeeded',
@@ -2343,7 +2347,7 @@ impl SenaRepository for SqliteSenaRepository {
                 artifact_key.map(str::to_string),
             ],
         )?;
-        connection.execute(
+        transaction.execute(
             r#"
             INSERT INTO sena_read_model (
               owner_sub, workspace_summary_json, diagnostics_json, sku_details_json, service_details_json, updated_at, run_id
@@ -2366,9 +2370,9 @@ impl SenaRepository for SqliteSenaRepository {
                 run_id,
             ],
         )?;
-        persist_hot_workspace_summary(&connection, &summary, &updated_at)?;
+        persist_hot_workspace_summary(&transaction, &summary, &updated_at)?;
         for detail in &result.sku_details {
-            connection.execute(
+            transaction.execute(
                 r#"
                 INSERT INTO sena_sku_detail (owner_sub, sku_id, payload_json, updated_at, run_id)
                 VALUES (?1, ?2, ?3, ?4, ?5)
@@ -2387,7 +2391,7 @@ impl SenaRepository for SqliteSenaRepository {
             )?;
         }
         for detail in &result.service_details {
-            connection.execute(
+            transaction.execute(
                 r#"
                 INSERT INTO sena_service_detail (owner_sub, service_id, payload_json, updated_at, run_id)
                 VALUES (?1, ?2, ?3, ?4, ?5)
@@ -2405,6 +2409,15 @@ impl SenaRepository for SqliteSenaRepository {
                 ],
             )?;
         }
+        transaction.execute(
+            "DELETE FROM sena_sku_detail WHERE owner_sub = ?1 AND run_id <> ?2",
+            params![owner_sub, run_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM sena_service_detail WHERE owner_sub = ?1 AND run_id <> ?2",
+            params![owner_sub, run_id],
+        )?;
+        transaction.commit()?;
         Ok(())
     }
 
@@ -3024,6 +3037,18 @@ mod tests {
             .expect("payload lookup should succeed")
     }
 
+    fn stored_observation_count(repo: &SqliteSenaRepository) -> i64 {
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        connection
+            .query_row("SELECT COUNT(*) FROM sena_observation", [], |row| {
+                row.get(0)
+            })
+            .expect("observation count should load")
+    }
+
     fn sample_preprocessed_workspace() -> (
         SenaCatalog,
         Vec<SenaObservationRecord>,
@@ -3074,6 +3099,79 @@ mod tests {
         .expect("preprocessed workspace should load")
         .expect("preprocessed workspace should exist");
         assert_eq!(preprocessed, loaded);
+    }
+
+    #[test]
+    fn invalid_catalog_writes_are_rejected() {
+        let path = temp_store_path("catalog-validation");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let mut invalid = sample_catalog();
+        invalid.skus.clear();
+
+        let insert_error = block_on(repo.upsert_catalog("owner", &invalid))
+            .expect_err("invalid catalog insert should be rejected");
+        assert!(insert_error
+            .to_string()
+            .contains("catalog must include at least one sku"));
+        assert!(
+            block_on(repo.get_catalog("owner"))
+                .expect("catalog lookup should succeed")
+                .is_none(),
+            "invalid catalog insert should not persist a row"
+        );
+
+        let valid = sample_catalog();
+        block_on(repo.upsert_catalog("owner", &valid)).expect("valid catalog should insert");
+        let upsert_error = block_on(repo.upsert_catalog("owner", &invalid))
+            .expect_err("invalid catalog upsert should be rejected");
+        assert!(upsert_error
+            .to_string()
+            .contains("catalog must include at least one sku"));
+        assert_eq!(
+            block_on(repo.get_catalog("owner")).expect("catalog lookup should succeed"),
+            Some(valid),
+            "failed catalog upsert should preserve the existing catalog",
+        );
+    }
+
+    #[test]
+    fn invalid_observation_insert_is_rejected() {
+        let path = temp_store_path("observation-insert-validation");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let mut invalid = observation("2026-04-01T00:00:00Z", 14.0).input;
+        invalid.stock_snapshot[0].units_in_stock = -1.0;
+
+        let error = block_on(repo.insert_observation("owner", &invalid))
+            .expect_err("invalid observation insert should be rejected");
+        assert!(error.to_string().contains("unitsInStock must be >= 0"));
+        assert_eq!(
+            stored_observation_count(&repo),
+            0,
+            "invalid observation insert should not persist a row",
+        );
+    }
+
+    #[test]
+    fn invalid_observation_update_preserves_existing_row() {
+        let path = temp_store_path("observation-update-validation");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let inserted = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("valid observation should insert");
+        let original_payload = raw_observation_payload(&repo, &inserted.observation_id)
+            .expect("valid payload should exist");
+
+        let mut invalid = inserted.input.clone();
+        invalid.stock_snapshot[0].units_in_stock = -1.0;
+        let error = block_on(repo.update_observation("owner", &inserted.observation_id, &invalid))
+            .expect_err("invalid observation update should be rejected");
+        assert!(error.to_string().contains("unitsInStock must be >= 0"));
+        assert_eq!(
+            raw_observation_payload(&repo, &inserted.observation_id).as_deref(),
+            Some(original_payload.as_str()),
+            "failed invalid update should preserve the previous valid row",
+        );
     }
 
     #[test]
@@ -3847,6 +3945,99 @@ mod tests {
                 .units_sold,
             4.0
         );
+    }
+
+    #[test]
+    fn stale_detail_rows_are_removed_after_completed_run() {
+        let path = temp_store_path("stale-detail-rows");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let (catalog, observations, preprocessed) = sample_preprocessed_workspace();
+        let mut first = crate::run_preprocessed_analysis(
+            "owner",
+            &catalog,
+            &observations,
+            "sena-analysis-v3",
+            &preprocessed,
+            None,
+            None,
+        )
+        .expect("analysis should succeed")
+        .result;
+
+        let mut stale_sku = first.sku_details[0].clone();
+        stale_sku.summary.sku_id = "sku-stale".to_string();
+        let mut current_sku = first.sku_details[0].clone();
+        current_sku.summary.sku_id = "sku-current".to_string();
+        current_sku.summary.latest_posterior_units = 21.0;
+        first.sku_details = vec![stale_sku, current_sku.clone()];
+
+        let mut stale_service = first.service_details[0].clone();
+        stale_service.service_id = "svc-stale".to_string();
+        let mut current_service = first.service_details[0].clone();
+        current_service.service_id = "svc-current".to_string();
+        current_service.activity_mean = 7.0;
+        first.service_details = vec![stale_service, current_service.clone()];
+
+        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+            .expect("first run should create");
+        block_on(repo.persist_completed_run(&first_run.run_id, &first, None))
+            .expect("first run should persist");
+        assert!(block_on(repo.load_sku_detail("owner", "sku-stale"))
+            .expect("stale sku should load before refresh")
+            .is_some());
+        assert!(block_on(repo.load_service_detail("owner", "svc-stale"))
+            .expect("stale service should load before refresh")
+            .is_some());
+
+        let mut second = first.clone();
+        let mut refreshed_sku = current_sku;
+        refreshed_sku.summary.latest_posterior_units = 42.0;
+        second.sku_details = vec![refreshed_sku];
+        let mut refreshed_service = current_service;
+        refreshed_service.activity_mean = 11.0;
+        second.service_details = vec![refreshed_service];
+        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+            .expect("second run should create");
+        block_on(repo.persist_completed_run(&second_run.run_id, &second, None))
+            .expect("second run should persist");
+
+        assert!(block_on(repo.load_sku_detail("owner", "sku-stale"))
+            .expect("stale sku lookup should succeed")
+            .is_none());
+        assert!(block_on(repo.load_service_detail("owner", "svc-stale"))
+            .expect("stale service lookup should succeed")
+            .is_none());
+        let loaded_sku = block_on(repo.load_sku_detail("owner", "sku-current"))
+            .expect("current sku lookup should succeed")
+            .expect("current sku should remain");
+        assert_eq!(loaded_sku.summary.sku_id, "sku-current");
+        assert_eq!(loaded_sku.summary.latest_posterior_units, 42.0);
+        let loaded_service = block_on(repo.load_service_detail("owner", "svc-current"))
+            .expect("current service lookup should succeed")
+            .expect("current service should remain");
+        assert_eq!(loaded_service.service_id, "svc-current");
+        assert_eq!(loaded_service.activity_mean, 11.0);
+
+        let connection = repo
+            .connection
+            .lock()
+            .expect("sqlite lock should be available");
+        let stale_sku_rows: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sena_sku_detail WHERE owner_sub = ?1 AND run_id <> ?2",
+                params!["owner", second_run.run_id],
+                |row| row.get(0),
+            )
+            .expect("stale sku row count should load");
+        assert_eq!(stale_sku_rows, 0);
+        let stale_service_rows: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sena_service_detail WHERE owner_sub = ?1 AND run_id <> ?2",
+                params!["owner", second_run.run_id],
+                |row| row.get(0),
+            )
+            .expect("stale service row count should load");
+        assert_eq!(stale_service_rows, 0);
     }
 
     #[test]
