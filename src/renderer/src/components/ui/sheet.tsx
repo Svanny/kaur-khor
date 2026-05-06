@@ -21,9 +21,49 @@ function SheetClose({
 }
 
 function SheetPortal({
+  container,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Portal>) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+  const embeddedContainer = useEmbeddedPhoneLandscapePortalContainer();
+  return <SheetPrimitive.Portal container={embeddedContainer ?? container} data-slot="sheet-portal" {...props} />
+}
+
+function useEmbeddedPhoneLandscapePortalContainer() {
+  const [container, setContainer] = React.useState<HTMLElement | null>(() => {
+    if (typeof document === "undefined") {
+      return null;
+    }
+    return readEmbeddedPhoneLandscapePortalContainer();
+  });
+
+  React.useEffect(() => {
+    const updateContainer = () => {
+      setContainer(readEmbeddedPhoneLandscapePortalContainer());
+    };
+
+    updateContainer();
+    const rootObserver = new MutationObserver(updateContainer);
+    rootObserver.observe(document.documentElement, {
+      attributeFilter: ["data-kaur-khor-embedded-phone-landscape"],
+      attributes: true,
+    });
+    const bodyObserver = new MutationObserver(updateContainer);
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      rootObserver.disconnect();
+      bodyObserver.disconnect();
+    };
+  }, []);
+
+  return container;
+}
+
+function readEmbeddedPhoneLandscapePortalContainer() {
+  if (document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape !== "true") {
+    return null;
+  }
+  return document.querySelector<HTMLElement>('[data-slot="embedded-auto-zoom-surface"]');
 }
 
 function SheetOverlay({

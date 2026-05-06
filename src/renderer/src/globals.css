@@ -271,6 +271,11 @@
     zoom: var(--kaur-khor-embedded-scale, 1);
   }
 
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-surface"] [data-slot="sheet-overlay"],
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-surface"] [data-slot="sheet-content"] {
+    zoom: 1;
+  }
+
   html[data-kaur-khor-embedded-viewport="true"] [data-slot="sheet-overlay"] {
     height: var(--kaur-khor-effective-viewport-height, 100vh);
     width: var(--kaur-khor-effective-viewport-width, 100vw);
