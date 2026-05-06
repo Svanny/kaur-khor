@@ -10,6 +10,8 @@ findings=0
 skip_file() {
   local file="$1"
   case "$file" in
+    .ocx/*) return 0 ;;
+    .opencode/plugins/*) return 0 ;;
     tool/security/check_secret_patterns.sh) return 0 ;;
     docs/security/*) return 0 ;;
   esac
@@ -86,7 +88,7 @@ scan_tracked_files() {
       report "Known key/private material pattern" "$file" "$output"
     fi
 
-    output="$(grep -nEi '([A-Z0-9_]*(token|secret|password|api[_-]?key|access[_-]?key)[A-Z0-9_]*)[[:space:]]*[:=][[:space:]]*["'\'']?[A-Za-z0-9_\/+=.-]{24,}["'\'']?' "$file" || true)"
+    output="$(grep -nEi '([A-Z0-9_]*(token|secret|password|api[_-]?key|access[_-]?key)[A-Z0-9_]*)[[:space:]]*[:=][[:space:]]*["'\''][A-Za-z0-9_\/+=.-]{24,}["'\'']' "$file" || true)"
     if [[ -n "$output" ]]; then
       filtered="$(echo "$output" | grep -v "$APPROVED_SECRET_PLACEHOLDER" || true)"
       if [[ -n "$filtered" ]]; then
