@@ -1,5 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import type { InterfaceViewMode } from '@shared/interface-view';
 import { InterfaceViewModeCards } from './interface-view-cards';
 
 describe('InterfaceViewModeCards', () => {
@@ -74,5 +76,63 @@ describe('InterfaceViewModeCards', () => {
     expect(screen.queryByText('Custom View')).not.toBeInTheDocument();
     expect(screen.queryByText('Guidance, floating actions, and status signals stay visible.')).not.toBeInTheDocument();
     expect(screen.queryByText('Hides optional interface layers for the quietest workspace.')).not.toBeInTheDocument();
+  });
+
+  it('exposes visible descriptions as radio descriptions', () => {
+    render(
+      <InterfaceViewModeCards
+        {...baseProps}
+        modes={['default', 'minimal', 'maximal']}
+      />,
+    );
+
+    expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAccessibleDescription(
+      'Guidance, floating actions, and status signals stay visible.',
+    );
+    expect(screen.getByRole('radio', { name: 'Minimal View' })).toHaveAccessibleDescription(
+      'Hides optional interface layers for the quietest workspace.',
+    );
+    expect(screen.getByRole('radio', { name: 'Maximal View' })).toHaveAccessibleDescription(
+      'Shows every optional panel, control, and status signal.',
+    );
+  });
+
+  it('supports roving radio keyboard selection', () => {
+    function TestCards() {
+      const [displayViewMode, setDisplayViewMode] = useState<InterfaceViewMode>('default');
+
+      return (
+        <InterfaceViewModeCards
+          displayViewMode={displayViewMode}
+          modes={['default', 'minimal', 'maximal']}
+          onDisplayViewModeChange={setDisplayViewMode}
+        />
+      );
+    }
+
+    render(<TestCards />);
+
+    const defaultMode = screen.getByRole('radio', { name: 'Default View' });
+    defaultMode.focus();
+    expect(defaultMode).toHaveFocus();
+
+    fireEvent.keyDown(defaultMode, { key: 'ArrowRight' });
+
+    const minimalMode = screen.getByRole('radio', { name: 'Minimal View' });
+    expect(minimalMode).toHaveFocus();
+    expect(minimalMode).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.keyDown(minimalMode, { key: 'ArrowLeft' });
+
+    expect(defaultMode).toHaveFocus();
+    expect(defaultMode).toHaveAttribute('aria-checked', 'true');
+
+    fireEvent.keyDown(defaultMode, { key: 'ArrowRight' });
+    expect(minimalMode).toHaveFocus();
+
+    fireEvent.keyDown(minimalMode, { key: 'ArrowUp' });
+
+    expect(defaultMode).toHaveFocus();
+    expect(defaultMode).toHaveAttribute('aria-checked', 'true');
   });
 });

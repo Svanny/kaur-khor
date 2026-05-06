@@ -1,5 +1,5 @@
 import { ActionEyeIcon, ActionSaveIcon } from '@icons/actions';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
 import {
@@ -138,6 +138,7 @@ export function SkuFormRoute() {
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
     [catalog?.skus, skuId],
   );
+  const previousMoneyFormatRef = useRef({ currency, usdToKhrExchangeRate });
 
   useEffect(() => {
     if (existingSku) {
@@ -157,7 +158,35 @@ export function SkuFormRoute() {
       setLeadTimeVariability('');
       setLeadTimeDraftMode('std');
     }
-  }, [currency, editing, existingSku, usdToKhrExchangeRate]);
+  }, [editing, existingSku?.skuId]);
+
+  useEffect(() => {
+    const previousMoneyFormat = previousMoneyFormatRef.current;
+    if (
+      previousMoneyFormat.currency === currency &&
+      previousMoneyFormat.usdToKhrExchangeRate === usdToKhrExchangeRate
+    ) {
+      return;
+    }
+
+    const previousCostPerUnitDraft = moneyDraftFromUsd(
+      form.costPerUnit,
+      previousMoneyFormat.currency,
+      previousMoneyFormat.usdToKhrExchangeRate,
+    );
+    const previousProductPriceDraft = moneyDraftFromUsd(
+      form.productPrice,
+      previousMoneyFormat.currency,
+      previousMoneyFormat.usdToKhrExchangeRate,
+    );
+    if (costPerUnitDraft === previousCostPerUnitDraft) {
+      setCostPerUnitDraft(moneyDraftFromUsd(form.costPerUnit, currency, usdToKhrExchangeRate));
+    }
+    if (productPriceDraft === previousProductPriceDraft) {
+      setProductPriceDraft(moneyDraftFromUsd(form.productPrice, currency, usdToKhrExchangeRate));
+    }
+    previousMoneyFormatRef.current = { currency, usdToKhrExchangeRate };
+  }, [costPerUnitDraft, currency, form.costPerUnit, form.productPrice, productPriceDraft, usdToKhrExchangeRate]);
 
   useEffect(() => {
     if (leadTimeDraftMode === 'class') {

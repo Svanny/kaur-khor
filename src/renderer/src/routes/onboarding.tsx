@@ -37,6 +37,8 @@ function onboardingCopy(englishText: string) {
     'Interface view': 'ទិដ្ឋភាពចំណុចប្រទាក់',
     Back: 'ត្រឡប់ក្រោយ',
     Continue: 'បន្ត',
+    'Could not save setup. Check the app connection and try again.':
+      'មិនអាចរក្សាទុកការរៀបចំបានទេ។ ពិនិត្យការតភ្ជាប់អេប ហើយព្យាយាមម្តងទៀត។',
   };
 
   return {
@@ -78,16 +80,35 @@ function CyclingOnboardingCopy({
   khmer,
   itemClassName,
   khmerItemClassName,
+  reducedMotion = false,
   reserveWidthFor,
+  stableLanguage,
 }: {
   className?: string;
   english: ReactNode;
   khmer: ReactNode;
   itemClassName?: string;
   khmerItemClassName?: string;
+  reducedMotion?: boolean;
   reserveWidthFor?: ReactNode[];
+  stableLanguage: AppLanguage;
 }) {
   const itemClassNames = cn('flex h-full items-center will-change-transform', itemClassName);
+  const stableContent = stableLanguage === 'km' ? khmer : english;
+  const stableBaseClassName = cn('flex h-full items-center', itemClassName);
+  const stableClassName = stableLanguage === 'km'
+    ? cn(stableBaseClassName, 'normal-case tracking-normal', khmerItemClassName)
+    : stableBaseClassName;
+
+  if (reducedMotion) {
+    return (
+      <span aria-hidden="true" className={cn('relative grid overflow-hidden', className)}>
+        <span className={stableClassName}>
+          {stableContent}
+        </span>
+      </span>
+    );
+  }
 
   return (
     <span aria-hidden="true" className={cn('relative grid overflow-hidden', className)}>
@@ -133,6 +154,42 @@ function LocalizedOnboardingCopy({
   return <span className={className}>{copy[language]}</span>;
 }
 
+function getPrefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(getPrefersReducedMotion);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const handleChange = () => {
+      setPrefersReducedMotion(mediaQuery.matches);
+    };
+
+    handleChange();
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+      return () => {
+        mediaQuery.removeEventListener('change', handleChange);
+      };
+    }
+
+    mediaQuery.addListener(handleChange);
+    return () => {
+      mediaQuery.removeListener(handleChange);
+    };
+  }, []);
+
+  return prefersReducedMotion;
+}
+
 export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: boolean } = {}) {
   const navigate = useNavigate();
   const {
@@ -147,7 +204,9 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const [selectedViewMode, setSelectedViewMode] = useState<InterfaceViewMode>('default');
   const [step, setStep] = useState<OnboardingStep>('preferences');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const seededPreferencesRef = useRef(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     preferencesTitle: onboardingCopy('Set up Kaur Khor'),
@@ -165,6 +224,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
     interfaceView: onboardingCopy('Interface view'),
     back: onboardingCopy('Back'),
     continue: onboardingCopy('Continue'),
+    saveError: onboardingCopy('Could not save setup. Check the app connection and try again.'),
   }), []);
   const activeTitle = step === 'preferences' ? copy.preferencesTitle : copy.interfaceTitle;
   const activeDescription = step === 'preferences' ? copy.preferencesDescription : copy.interfaceDescription;
@@ -201,10 +261,12 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
 
   async function handleContinue() {
     if (step === 'preferences') {
+      setSaveError(false);
       setStep('interface');
       return;
     }
 
+    setSaveError(false);
     setIsSaving(true);
     try {
       const selectedVisibility = getInterfaceVisibilityForPreset(
@@ -229,12 +291,15 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
         seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
       });
       navigate('/', { replace: true });
+    } catch {
+      setSaveError(true);
     } finally {
       setIsSaving(false);
     }
   }
 
   function handleBack() {
+    setSaveError(false);
     setStep('preferences');
   }
 
@@ -288,6 +353,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               english={copy.welcome.en}
               itemClassName="uppercase tracking-[0.24em]"
               khmer={copy.welcome.km}
+              reducedMotion={prefersReducedMotion}
+              stableLanguage={selectedLanguage}
             />
           ) : (
             <LocalizedOnboardingCopy
@@ -312,6 +379,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               english={activeTitle.en}
               itemClassName="text-balance"
               khmer={activeTitle.km}
+              reducedMotion={prefersReducedMotion}
+              stableLanguage={selectedLanguage}
             />
           ) : (
             <LocalizedOnboardingCopy
@@ -328,6 +397,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               english={activeDescription.en}
               itemClassName="items-start"
               khmer={activeDescription.km}
+              reducedMotion={prefersReducedMotion}
+              stableLanguage={selectedLanguage}
             />
           ) : (
             <LocalizedOnboardingCopy
@@ -346,6 +417,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
                   className="h-[1.6rem]"
                   english={copy.language.en}
                   khmer={copy.language.km}
+                  reducedMotion={prefersReducedMotion}
+                  stableLanguage={selectedLanguage}
                 />
               </label>
               <Select value={selectedLanguage} onValueChange={(value) => setSelectedLanguage(value as AppLanguage)}>
@@ -369,6 +442,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
                   className="h-[1.6rem]"
                   english={copy.currency.en}
                   khmer={copy.currency.km}
+                  reducedMotion={prefersReducedMotion}
+                  stableLanguage={selectedLanguage}
                 />
               </label>
               <Select value={selectedCurrency} onValueChange={(value) => setSelectedCurrency(value as AppCurrency)}>
@@ -404,6 +479,12 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
           </div>
         )}
 
+        {saveError ? (
+          <p className="mt-6 rounded-2xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive" role="alert">
+            {copy.saveError[interfaceLanguage]}
+          </p>
+        ) : null}
+
         <div className="mt-8 flex items-center justify-between">
           {step === 'interface' ? (
             <Button
@@ -429,7 +510,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
             disabled={isSaving}
             type="button"
             aria-label={isSaving ? translateUiLiteral(selectedLanguage, 'Saving') : step === 'preferences' ? copy.continue[selectedLanguage] : copy.continue[interfaceLanguage]}
-            onClick={() => void handleContinue()}
+            onClick={handleContinue}
           >
             {isSaving ? (
               translateUiLiteral(selectedLanguage, 'Saving…')
@@ -440,7 +521,9 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
                   english={copy.continue.en}
                   itemClassName="justify-center"
                   khmer={copy.continue.km}
+                  reducedMotion={prefersReducedMotion}
                   reserveWidthFor={[copy.continue.en, copy.continue.km]}
+                  stableLanguage={selectedLanguage}
                 />
                 <ActionContinueIcon className="size-4" />
               </>

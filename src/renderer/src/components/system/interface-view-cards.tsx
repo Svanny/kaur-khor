@@ -1,3 +1,4 @@
+import { useRef, type KeyboardEvent } from 'react';
 import {
   INTERFACE_VIEW_PRESETS,
   type InterfaceVisibilityPreferences,
@@ -246,6 +247,9 @@ export function InterfaceViewModeCards({
   visibility?: InterfaceVisibilityPreferences;
 }) {
   const copy = interfaceViewCardCopy[language];
+  const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const selectedModeIndex = modes.indexOf(displayViewMode);
+  const tabIndexModeIndex = selectedModeIndex >= 0 ? selectedModeIndex : 0;
 
   const gridColsClass = (() => {
     if (modes.length === 1) return 'grid-cols-[minmax(0,23rem)]';
@@ -253,6 +257,45 @@ export function InterfaceViewModeCards({
     if (modes.length === 3) return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(3,minmax(0,23rem))]';
     return 'grid-cols-[minmax(0,23rem)] sm:grid-cols-[repeat(4,minmax(0,23rem))]';
   })();
+
+  function selectModeAtIndex(index: number) {
+    const nextMode = modes[index];
+    if (!nextMode) {
+      return;
+    }
+
+    onDisplayViewModeChange(nextMode);
+    radioRefs.current[index]?.focus();
+  }
+
+  function handleRadioKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+    if (modes.length === 0) {
+      return;
+    }
+
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectModeAtIndex((index + 1) % modes.length);
+      return;
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectModeAtIndex((index - 1 + modes.length) % modes.length);
+      return;
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      selectModeAtIndex(0);
+      return;
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      selectModeAtIndex(modes.length - 1);
+    }
+  }
 
   return (
     <div
@@ -264,8 +307,10 @@ export function InterfaceViewModeCards({
       ].filter(Boolean).join(' ')}
       role="radiogroup"
     >
-      {modes.map((mode) => {
+      {modes.map((mode, index) => {
         const selected = displayViewMode === mode;
+        const labelId = `interface-view-card-${mode}-label`;
+        const descriptionId = `interface-view-card-${mode}-description`;
         const modeVisibility = mode === 'custom' && visibility
           ? visibility
           : INTERFACE_VIEW_PRESETS[mode === 'custom' ? 'maximal' : mode];
@@ -273,16 +318,22 @@ export function InterfaceViewModeCards({
           <button
             key={mode}
             aria-checked={selected}
-            aria-label={copy[mode].label}
+            aria-describedby={descriptionId}
+            aria-labelledby={labelId}
             className={[
               'relative grid w-full min-w-0 max-w-[23rem] grid-rows-[auto_auto] gap-3 rounded-2xl border p-3 text-left transition',
               selected
                 ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
                 : 'border-border bg-background/80 hover:border-primary/50 hover:bg-accent/40',
             ].join(' ')}
+            ref={(element) => {
+              radioRefs.current[index] = element;
+            }}
             role="radio"
+            tabIndex={index === tabIndexModeIndex ? 0 : -1}
             type="button"
             onClick={() => onDisplayViewModeChange(mode)}
+            onKeyDown={(event) => handleRadioKeyDown(event, index)}
           >
             <span className="grid aspect-[1.2/1] w-full items-stretch overflow-hidden">
               <span className="grid size-full">
@@ -290,7 +341,7 @@ export function InterfaceViewModeCards({
               </span>
             </span>
             <span className="grid content-end gap-1">
-              <span className="khmer-safe-display flex items-center gap-1.5 text-sm font-semibold text-foreground">
+              <span id={labelId} className="khmer-safe-display flex items-center gap-1.5 text-sm font-semibold text-foreground">
                 <span>{copy[mode].label}</span>
                 <ActionSelectCheckIcon
                   aria-hidden="true"
@@ -300,7 +351,7 @@ export function InterfaceViewModeCards({
                   ].join(' ')}
                 />
               </span>
-              <span className="khmer-safe text-xs leading-5 text-muted-foreground">{copy[mode].description}</span>
+              <span id={descriptionId} className="khmer-safe text-xs leading-5 text-muted-foreground">{copy[mode].description}</span>
             </span>
           </button>
         );

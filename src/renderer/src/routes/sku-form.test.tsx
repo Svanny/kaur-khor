@@ -109,7 +109,20 @@ function renderWithProviders(
 ) {
   const initialEntries = options?.initialEntries ?? [route];
   return render(
-    <MemoryRouter initialEntries={initialEntries} initialIndex={options?.initialIndex}>
+    skuRouteTree(element, path, {
+      initialEntries,
+      initialIndex: options?.initialIndex,
+    }),
+  );
+}
+
+function skuRouteTree(
+  element: ReactNode,
+  path: string,
+  options: { initialEntries: string[]; initialIndex?: number },
+) {
+  return (
+    <MemoryRouter initialEntries={options.initialEntries} initialIndex={options.initialIndex}>
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
@@ -126,7 +139,7 @@ function renderWithProviders(
           />
         </Routes>
       </NavigationHistoryProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -1062,6 +1075,35 @@ describe('SkuFormRoute', () => {
     const [, priceInput] = within(pricingScope).getAllByRole('textbox');
     expect(within(pricingScope).getAllByText('៛')).toHaveLength(2);
     expect(priceInput).toHaveValue('');
+  });
+
+  test('preserves dirty SKU text across currency preference rerenders', async () => {
+    const view = renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('SKU 1'), { target: { value: 'SKU 1 Dirty' } });
+    preferencesHook.mockReturnValue({
+      currency: 'KHR',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: false,
+      showRightRailCards: true,
+      t: (key: string) => getTranslation('en', key as never),
+    });
+
+    view.rerender(
+      skuRouteTree(<SkuFormRoute />, '/catalog/skus/:skuId/edit', {
+        initialEntries: ['/catalog/skus/sku-1/edit'],
+      }),
+    );
+
+    expect(screen.getByDisplayValue('SKU 1 Dirty')).toBeInTheDocument();
+    const pricingPanel = screen.getByRole('heading', { level: 2, name: 'Commercial setup' }).closest('[data-slot="card"]');
+    const [costInput, priceInput] = within((pricingPanel ?? document.body) as HTMLElement).getAllByRole('textbox');
+    await waitFor(() => {
+      expect(costInput).toHaveValue('16,000');
+      expect(priceInput).toHaveValue('36,000');
+    });
   });
 
   test('shows selling price immediately for SKUs already sold as products', () => {

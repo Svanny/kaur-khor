@@ -1,5 +1,5 @@
 import { ActionConfirmIcon, ActionSaveIcon } from '@icons/actions';
-import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
@@ -252,6 +252,7 @@ export function ServiceFormRoute() {
   const [localSavedSkuIds, setLocalSavedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
   const deferredSkuSearch = useDeferredValue(skuSearch);
+  const previousMoneyFormatRef = useRef({ currency, usdToKhrExchangeRate });
   const editing = Boolean(serviceId);
   const formId = 'service-editor-form';
   const existingService = useMemo(
@@ -277,7 +278,27 @@ export function ServiceFormRoute() {
       setServicePriceDraft('');
       setSelectedSkuIds([]);
     }
-  }, [baselineSelectedSkuIds, catalog, currency, editing, existingService, usdToKhrExchangeRate]);
+  }, [editing, existingService?.serviceId]);
+
+  useEffect(() => {
+    const previousMoneyFormat = previousMoneyFormatRef.current;
+    if (
+      previousMoneyFormat.currency === currency &&
+      previousMoneyFormat.usdToKhrExchangeRate === usdToKhrExchangeRate
+    ) {
+      return;
+    }
+
+    const previousServicePriceDraft = moneyDraftFromUsd(
+      form.price,
+      previousMoneyFormat.currency,
+      previousMoneyFormat.usdToKhrExchangeRate,
+    );
+    if (servicePriceDraft === previousServicePriceDraft) {
+      setServicePriceDraft(moneyDraftFromUsd(form.price, currency, usdToKhrExchangeRate));
+    }
+    previousMoneyFormatRef.current = { currency, usdToKhrExchangeRate };
+  }, [currency, form.price, servicePriceDraft, usdToKhrExchangeRate]);
 
   const normalizedDraft = useMemo(
     () => ({

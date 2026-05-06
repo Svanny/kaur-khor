@@ -75,7 +75,20 @@ function renderWithProviders(
 ) {
   const initialEntries = options?.initialEntries ?? [route];
   return render(
-    <MemoryRouter initialEntries={initialEntries} initialIndex={options?.initialIndex}>
+    serviceRouteTree(element, path, {
+      initialEntries,
+      initialIndex: options?.initialIndex,
+    }),
+  );
+}
+
+function serviceRouteTree(
+  element: ReactNode,
+  path: string,
+  options: { initialEntries: string[]; initialIndex?: number },
+) {
+  return (
+    <MemoryRouter initialEntries={options.initialEntries} initialIndex={options.initialIndex}>
       <NavigationHistoryProvider>
         <Routes>
           <Route element={element} path={path} />
@@ -91,7 +104,7 @@ function renderWithProviders(
           />
         </Routes>
       </NavigationHistoryProvider>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -180,6 +193,37 @@ describe('ServiceFormRoute', () => {
     expect(screen.getByRole('checkbox', { name: 'SKU 1' })).toBeChecked();
     expect(screen.getByRole('checkbox', { name: 'SKU 2' })).not.toBeChecked();
     expect(screen.queryByText('sku-1')).not.toBeInTheDocument();
+  });
+
+  test('preserves dirty service text across catalog object refreshes', () => {
+    const view = renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    fireEvent.change(screen.getByDisplayValue('Service 1'), { target: { value: 'Service 1 Dirty' } });
+    inventoryHook.mockReturnValue({
+      catalog: {
+        ...sampleCatalog,
+        services: [
+          {
+            ...sampleCatalog.services[0],
+            name: 'Service 1 Refreshed',
+          },
+        ],
+      },
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog: vi.fn(async (payload) => payload),
+    });
+
+    view.rerender(
+      serviceRouteTree(<ServiceFormRoute />, '/catalog/services/:serviceId/edit', {
+        initialEntries: ['/catalog/services/service-1/edit'],
+      }),
+    );
+
+    expect(screen.getByDisplayValue('Service 1 Dirty')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('Service 1 Refreshed')).not.toBeInTheDocument();
   });
 
   test('filters linked SKUs from the search input', () => {

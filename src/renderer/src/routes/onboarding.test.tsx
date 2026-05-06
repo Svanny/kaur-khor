@@ -1,11 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { PreferencesProvider } from '@/state/preferences';
 import { OnboardingRoute } from './onboarding';
 
 describe('OnboardingRoute', () => {
+  const originalMatchMedia = window.matchMedia;
   const getPreferences = vi.fn();
   const savePreferences = vi.fn();
   const basePreferences = {
@@ -68,6 +69,14 @@ describe('OnboardingRoute', () => {
         save: savePreferences,
       },
     };
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: originalMatchMedia,
+    });
   });
 
   function renderRoute(initialEntry = '/onboarding') {
@@ -151,6 +160,26 @@ describe('OnboardingRoute', () => {
         showHeartbeatRibbons: true,
       }));
     });
+  });
+
+  it('shows an alert and lets users retry when onboarding preferences fail to save', async () => {
+    savePreferences.mockRejectedValueOnce(new Error('disk full'));
+
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Could not save setup. Check the app connection and try again.',
+    );
+    expect(screen.queryByText('Overview screen')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText('Overview screen')).toBeInTheDocument();
+    expect(savePreferences).toHaveBeenCalledTimes(2);
   });
 
   it('returns to the preferences step when back is clicked on the interface step', async () => {
@@ -251,6 +280,29 @@ describe('OnboardingRoute', () => {
       expect(wireframe).not.toHaveAttribute('style');
       expect(wireframe.firstElementChild).not.toHaveAttribute('style');
     }
+  });
+
+  it('renders stable onboarding copy when reduced motion is requested', async () => {
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      writable: true,
+      value: vi.fn().mockReturnValue({
+        matches: true,
+        media: '(prefers-reduced-motion: reduce)',
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }),
+    });
+
+    renderRoute();
+
+    expect(await screen.findByRole('heading', { name: 'Set up Kaur Khor' })).toBeInTheDocument();
+    expect(screen.getByText('Welcome')).toBeInTheDocument();
+    expect(document.querySelector('[style*="kaur-khor-onboarding-copy"]')).not.toBeInTheDocument();
   });
 
   it('redirects completed users back to the main app', async () => {
