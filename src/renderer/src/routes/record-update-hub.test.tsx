@@ -469,4 +469,20 @@ describe('RecordUpdateHubRoute', () => {
       expect(screen.getByRole(name === 'Stock Count' ? 'link' : 'button', { name })).toHaveClass('aspect-square');
     }
   });
+
+  it('uses the shared centered tile phone sizing hooks on every visible hub card', () => {
+    render(
+      <MemoryRouter>
+        <RecordUpdateHubRoute />
+      </MemoryRouter>,
+    );
+
+    for (const name of ['Stock Count', 'Supplier Order', 'Immediate Sale', 'Customer Order'] as const) {
+      const card = screen.getByRole(name === 'Stock Count' ? 'link' : 'button', { name });
+
+      expect(card).toHaveClass('h-full', 'w-full', 'min-w-0');
+      expect(card.querySelector('[data-slot="centered-tile-card-title"]')).toBeInTheDocument();
+      expect(card.querySelector('[data-slot="centered-tile-card-summary"]')).toBeInTheDocument();
+    }
+  });
 });

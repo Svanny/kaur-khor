@@ -251,8 +251,18 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
       <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 px-4 py-5 text-center sm:px-6 md:gap-6 md:px-8 md:py-6">
         <CardIcon className="size-12 shrink-0 sm:size-16 md:size-20" />
         <div className="space-y-2 md:space-y-3">
-          <h2 className="text-lg font-semibold text-foreground sm:text-xl md:text-2xl">{title}</h2>
-          <p className="min-h-[3.75rem] max-w-[18rem] text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6 md:min-h-[4.5rem]">{description}</p>
+          <h2
+            className="khmer-safe-display text-lg font-semibold text-foreground sm:text-xl md:text-2xl"
+            data-slot="centered-tile-card-title"
+          >
+            {title}
+          </h2>
+          <p
+            className="min-h-[3.75rem] max-w-[18rem] text-xs leading-5 text-muted-foreground sm:text-sm sm:leading-6 md:min-h-[4.5rem]"
+            data-slot="centered-tile-card-summary"
+          >
+            {description}
+          </p>
           <p
             aria-hidden={!hasDraftSaved}
             className={cn(
@@ -271,7 +281,7 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
     return (
       <button
         aria-label={title}
-        className={cn(className, 'cursor-pointer')}
+        className={cn(className, 'h-full w-full min-w-0 cursor-pointer')}
         type="button"
         onClick={onClick}
       >
@@ -283,7 +293,7 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
   return (
     <Link
       aria-label={title}
-      className={className}
+      className={cn(className, 'h-full w-full min-w-0')}
       to={card.href ?? RECORD_UPDATE_CUSTOM_PATH}
     >
       {contents}

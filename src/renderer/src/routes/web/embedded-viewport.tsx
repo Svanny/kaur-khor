@@ -30,9 +30,11 @@ function supportsCssZoom() {
 
 export function EmbeddedAutoZoomViewport({
   children,
+  enablePhoneLandscapeWorkaround = true,
   phoneLandscapeOverlay,
 }: {
   children: ReactNode;
+  enablePhoneLandscapeWorkaround?: boolean;
   phoneLandscapeOverlay?: ReactNode;
 }) {
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
@@ -43,14 +45,18 @@ export function EmbeddedAutoZoomViewport({
   const [previousLevel, setPreviousLevel] = useState<number | null>(null);
   const [landscapeScrollArea, setLandscapeScrollArea] = useState<ScrollAreaSize | null>(null);
   const cssZoomSupported = supportsCssZoom();
-  const phoneLandscape = isPhonePortraitViewport(viewportSize.width, viewportSize.height);
+  const phonePortrait = isPhonePortraitViewport(viewportSize.width, viewportSize.height);
+  const phoneLandscape = enablePhoneLandscapeWorkaround && phonePortrait;
+  const policyViewportSize = phonePortrait && !enablePhoneLandscapeWorkaround
+    ? { height: viewportSize.width, width: viewportSize.height }
+    : viewportSize;
   const policy = useMemo(
     () => deriveResponsiveViewportPolicy({
-      height: viewportSize.height,
+      height: policyViewportSize.height,
       previousLevel: phoneLandscape ? null : previousLevel,
-      width: viewportSize.width,
+      width: policyViewportSize.width,
     }),
-    [phoneLandscape, previousLevel, viewportSize.height, viewportSize.width],
+    [phoneLandscape, policyViewportSize.height, policyViewportSize.width, previousLevel],
   );
 
   useEffect(() => {
@@ -141,9 +147,16 @@ export function EmbeddedAutoZoomViewport({
         frameId = null;
         const rootRect = root.getBoundingClientRect();
         let contentRight = baseArea.width;
-        const visibleElements = [surface, ...Array.from(surface.querySelectorAll<HTMLElement>('*'))];
+        const visibleElements = Array.from(surface.querySelectorAll<HTMLElement>('*'));
 
         for (const element of visibleElements) {
+          if (
+            element.closest('[data-slot="sidebar"]') ||
+            element.dataset.slot === 'sidebar-wrapper' ||
+            element.dataset.slot === 'sidebar-inset'
+          ) {
+            continue;
+          }
           const rect = element.getBoundingClientRect();
           if (rect.width <= 0 || rect.height <= 0) {
             continue;
@@ -207,7 +220,7 @@ export function EmbeddedAutoZoomViewport({
     width: `${policy.measuredWidth}px`,
   } as CSSProperties;
   const embeddedShellContentHeight = policy.phoneLandscape
-    ? policy.effectiveHeight
+    ? (landscapeScrollArea?.width ?? policy.measuredHeight) / policy.scale
     : policy.effectiveHeight;
   const embeddedShellContentWidth = policy.phoneLandscape
     ? (landscapeScrollArea?.surfaceWidth ?? policy.effectiveWidth)
@@ -305,7 +318,7 @@ export function EmbeddedAutoZoomViewport({
           </div>
         </div>
       )}
-      {policy.phoneLandscape && phoneLandscapeOverlay ? (
+      {phonePortrait && phoneLandscapeOverlay ? (
         <div data-slot="embedded-phone-landscape-overlay" className="pointer-events-none fixed inset-0 z-[70]">
           {phoneLandscapeOverlay}
         </div>

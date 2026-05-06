@@ -22,15 +22,19 @@ describe('CenteredTileGrid', () => {
     expect(grid).toHaveStyle({ '--centered-tile-min-size': '12rem' });
     expect(grid).toHaveStyle({ '--centered-tile-max-size': '22rem' });
     expect(grid).toHaveStyle({ '--centered-grid-max-inline-size': 'calc(2 * var(--centered-tile-max-size) + 1 * var(--centered-tile-gap))' });
+    expect(grid).toHaveStyle({ '--centered-grid-max-block-size': 'calc(2 * var(--centered-tile-max-size) + 1 * var(--centered-tile-gap))' });
     expect(grid).toHaveStyle({
       '--hub-tile-size': 'var(--centered-tile-max-size)',
     });
     expect(screen.getByText('One').parentElement).toHaveAttribute('data-slot', 'centered-tile-grid-inner');
     expect(screen.getByText('One').parentElement?.className).toContain('grid');
     expect(screen.getByText('One').parentElement).toHaveStyle({
-      gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, var(--centered-tile-min-size)), 1fr))',
+      gridAutoRows: 'var(--hub-tile-size)',
+      gridTemplateColumns: 'repeat(var(--centered-tile-columns), var(--hub-tile-size))',
+      height: 'fit-content',
+      maxHeight: 'min(100%, var(--centered-grid-max-block-size))',
       maxWidth: 'var(--centered-grid-max-inline-size)',
-      width: '100%',
+      width: 'fit-content',
     });
   });
 });

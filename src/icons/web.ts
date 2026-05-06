@@ -17,6 +17,7 @@ export {
   FileSearch,
   FileText,
   Globe,
+  House,
   Image,
   MonitorDown,
   Package,
@@ -40,5 +41,6 @@ export {
   X,
   Download as WebDownloadIcon,
   Globe as WebGlobeIcon,
+  House as WebHomeIcon,
   Smartphone as WebSmartphoneIcon,
 } from 'lucide-react';

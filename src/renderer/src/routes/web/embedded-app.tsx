@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
+import rotatePhoneWarningImage from '@/assets/rotate-phone-warning.png';
 import {
   createEmptyBrowserMockState,
   createMockState,
@@ -18,7 +19,7 @@ import {
   ActionResumeIcon,
 } from '@icons/actions';
 import { StatusWarningIcon } from '@icons/status';
-import { WebDownloadIcon, WebGlobeIcon, WebSmartphoneIcon } from '@icons/web';
+import { WebDownloadIcon, WebGlobeIcon, WebHomeIcon } from '@icons/web';
 import { cn } from '@/lib/utils';
 import { translateUiLiteral } from '@/lib/translations';
 import {
@@ -53,10 +54,6 @@ type StorageUiState = {
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
-const PHONE_VIEW_WARNING_DISMISSED_KEYS: Record<EmbeddedMode, string> = {
-  app: 'kaur-khor-app-phone-view-warning-dismissed',
-  demo: 'kaur-khor-demo-phone-view-warning-dismissed',
-};
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -331,34 +328,8 @@ function useBrowserWorkspaceLanguage() {
   return language;
 }
 
-function readSessionFlag(key: string) {
-  try {
-    return window.sessionStorage.getItem(key) === 'true';
-  } catch {
-    return false;
-  }
-}
-
-function writeSessionFlag(key: string) {
-  try {
-    window.sessionStorage.setItem(key, 'true');
-  } catch {
-    // Ignore unavailable session storage; dismissal still applies to this render.
-  }
-}
-
-export function PhoneViewWarningOverlay({ mode }: { mode: EmbeddedMode }) {
+export function PhoneViewWarningOverlay() {
   const language = useBrowserWorkspaceLanguage();
-  const sessionKey = PHONE_VIEW_WARNING_DISMISSED_KEYS[mode];
-  const [dismissed, setDismissed] = useState(() => readSessionFlag(sessionKey));
-
-  useEffect(() => {
-    setDismissed(readSessionFlag(sessionKey));
-  }, [sessionKey]);
-
-  if (dismissed) {
-    return null;
-  }
 
   return (
     <div className="pointer-events-auto flex min-h-svh items-start justify-center bg-background/35 px-4 py-5 text-foreground backdrop-blur-[2px]">
@@ -370,30 +341,32 @@ export function PhoneViewWarningOverlay({ mode }: { mode: EmbeddedMode }) {
         className="w-full max-w-sm rounded-xl border border-amber-300/70 bg-card/95 p-4 text-left shadow-[0_18px_48px_rgba(48,31,20,0.16)]"
       >
         <div className="flex items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-100 text-amber-950">
-            <StatusWarningIcon className="size-4" />
-          </span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-[4.75rem] shrink-0 rounded-xl bg-white/80 object-contain p-1.5"
+            src={rotatePhoneWarningImage}
+          />
           <div className="min-w-0">
             <h2 id="embedded-phone-view-warning-title" className="text-base font-semibold leading-6">
-              {translateUiLiteral(language, 'Phone view detected')}
+              {translateUiLiteral(language, 'Rotate screen')}
             </h2>
             <p id="embedded-phone-view-warning-description" className="mt-1 text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, 'Flip your screen sideways for the correct Kaur Khor experience.')}
+              {translateUiLiteral(language, 'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.')}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              {translateUiLiteral(language, 'For regular work, use a larger browser window or the desktop app.')}
             </p>
           </div>
         </div>
         <Button
           className="mt-4 w-full justify-center"
+          disabled
           size="sm"
           type="button"
           variant="default"
-          onClick={() => {
-            writeSessionFlag(sessionKey);
-            setDismissed(true);
-          }}
         >
-          <WebSmartphoneIcon className="size-4 rotate-90" />
-          {translateUiLiteral(language, 'Got it')}
+          {translateUiLiteral(language, 'Done')}
         </Button>
       </div>
     </div>
@@ -484,6 +457,8 @@ function WebAppBanner({
   const destinationLabel = translateUiLiteral(language, isDemo ? 'Use browser app' : 'Download app');
   const destinationMediumLabel = translateUiLiteral(language, isDemo ? 'Use Browser' : 'Download');
   const destinationCompactLabel = translateUiLiteral(language, isDemo ? 'Browser' : 'Download');
+  const mainPageLabel = translateUiLiteral(language, 'Main page');
+  const mainPageCompactLabel = translateUiLiteral(language, 'Main');
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const sidebarCollapsed = useEmbeddedSidebarCollapsed();
   const sidebarBannerTarget = useEmbeddedSidebarBannerTarget(!isOnboarding);
@@ -558,6 +533,12 @@ function WebAppBanner({
             <a aria-label={destinationLabel} href={publicPath(isDemo ? '/app' : '/#releases')}>
               {isDemo ? <WebGlobeIcon className="size-4" /> : <WebDownloadIcon className="size-4" />}
               <WebAppActionLabel compact={destinationCompactLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? destinationMediumLabel : destinationLabel} isOnboarding={isOnboarding} medium={destinationMediumLabel} sidebarCollapsed={sidebarCollapsed} />
+            </a>
+          </Button>
+          <Button asChild className={actionButtonClassName} size="sm" variant="outline">
+            <a aria-label={mainPageLabel} href={publicPath('/')}>
+              <WebHomeIcon className="size-4" />
+              <WebAppActionLabel compact={mainPageCompactLabel} compactMode={compactSidebarBanner} full={mainPageLabel} isOnboarding={isOnboarding} medium={mainPageCompactLabel} sidebarCollapsed={sidebarCollapsed} />
             </a>
           </Button>
           <input
@@ -813,7 +794,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay mode={mode} />}>
+    <EmbeddedAutoZoomViewport enablePhoneLandscapeWorkaround={false} phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
       <HashRouter>
         <EmbeddedAppBanner
           mode={mode}

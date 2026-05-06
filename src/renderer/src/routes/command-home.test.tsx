@@ -120,6 +120,38 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
   });
 
+  test('stretches the action link wrapper to the centered grid track', () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        bundles: [],
+        schemaVersion: 1,
+        services: [],
+        sharingMask: [],
+        skus: [
+          {
+            archived: false,
+            costPerUnit: 4,
+            description: 'SKU',
+            leadTimeMeanDaysHint: 5,
+            leadTimeStdDaysHint: 1,
+            name: 'SKU 1',
+            productPrice: 9,
+            skuId: 'sku-1',
+            soldAsProduct: true,
+          },
+        ],
+      },
+      latestRun: null,
+      observations: [{ observationId: 'obs-1' }],
+      orderBatches: [],
+      workspaceSummary: null,
+    });
+
+    renderRoute();
+
+    expect(screen.getByRole('link', { name: /Start Work/i })).toHaveClass('h-full');
+  });
+
   test('marks action card labels and descriptions as Khmer-safe display text', () => {
     inventoryHook.mockReturnValue({
       catalog: {

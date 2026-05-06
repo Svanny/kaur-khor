@@ -225,15 +225,16 @@ function SidebarSectionMenu({
 }
 
 function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'en' | 'km'; showSidebarText: boolean }) {
-  const shortcutLabel = isMacPlatform() ? '⌘ + K' : 'Ctrl + K';
-
   if (!showSidebarText) {
     return null;
   }
 
+  const shortcutLabel = isMacPlatform() ? '⌘ + K' : 'Ctrl + K';
+  const searchLabel = translateUiLiteral(language, 'Search');
+
   return (
     <div className="flex items-center justify-between gap-3 px-2 py-1 text-sm text-sidebar-foreground/80">
-      <span className="font-medium">{translateUiLiteral(language, 'Search')}</span>
+      <span className="font-medium">{searchLabel}</span>
       <span className="flex items-center gap-1.5 text-xs font-semibold text-sidebar-foreground/65">
         {isMacPlatform() ? (
           <span aria-label={translateUiLiteral(language, 'Command')} className={shortcutKeyClassName}>

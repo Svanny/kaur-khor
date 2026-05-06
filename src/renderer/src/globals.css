@@ -271,6 +271,11 @@
     zoom: var(--kaur-khor-embedded-scale, 1);
   }
 
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-surface"] [data-slot="sheet-overlay"],
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-surface"] [data-slot="sheet-content"] {
+    zoom: 1;
+  }
+
   html[data-kaur-khor-embedded-viewport="true"] [data-slot="sheet-overlay"] {
     height: var(--kaur-khor-effective-viewport-height, 100vh);
     width: var(--kaur-khor-effective-viewport-width, 100vw);
@@ -366,6 +371,7 @@
     --centered-tile-gap: 1.25rem !important;
     --centered-tile-max-size: 12rem !important;
     --centered-tile-min-size: 8.5rem !important;
+    --hub-tile-size: var(--centered-tile-max-size) !important;
     --centered-grid-max-inline-size: calc(
       var(--centered-tile-columns) * var(--centered-tile-max-size) +
       (var(--centered-tile-columns) - 1) * var(--centered-tile-gap)
