@@ -1310,79 +1310,114 @@ describe('WebRoutes embedded app fallback state', () => {
     });
   });
 
-  test('shows an upright phone-view warning overlay for embedded portrait phones', async () => {
+  test('expands the embedded shell height when phone landscape content needs scroll', async () => {
+    mockViewport(390, 844);
+    const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
+    HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
+      if (this instanceof HTMLElement && this.dataset.slot === 'embedded-auto-zoom-viewport') {
+        return { bottom: 390, height: 390, left: 0, right: 844, top: 0, width: 844, x: 0, y: 0, toJSON() {} };
+      }
+      if (this instanceof HTMLElement && this.dataset.testid === 'landscape-overflow-marker') {
+        return { bottom: 40, height: 40, left: 520, right: 560, top: 0, width: 40, x: 520, y: 0, toJSON() {} };
+      }
+      if (this instanceof HTMLElement && this.dataset.slot === 'sidebar-wrapper') {
+        return { bottom: 40, height: 40, left: 0, right: 9000, top: 0, width: 9000, x: 0, y: 0, toJSON() {} };
+      }
+      return originalGetBoundingClientRect.call(this);
+    };
+
+    try {
+      const { container } = render(
+        <EmbeddedAutoZoomViewport>
+          <div data-slot="sidebar-wrapper">Sidebar feedback source</div>
+          <div data-testid="landscape-overflow-marker">Overflow marker</div>
+        </EmbeddedAutoZoomViewport>,
+      );
+
+      const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
+      expect(viewport).not.toBeNull();
+      await waitFor(() => {
+        expect(viewport).toHaveStyle({
+          '--kaur-khor-embedded-shell-content-height': `${landscapeScrollWidthForContent(390, 560) / (1.2 ** -2)}px`,
+        });
+      });
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
+    }
+  });
+
+  test('shows a blocking rotate overlay for embedded portrait phones without exposing phone view copy', async () => {
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
 
     const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
-    expect(await screen.findByRole('dialog', { name: 'Phone view detected' })).toBeInTheDocument();
-    expect(screen.getByText('Flip your screen sideways for the correct Kaur Khor experience.')).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
+    expect(screen.getByText('Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.')).toBeInTheDocument();
+    expect(screen.getByText('For regular work, use a larger browser window or the desktop app.')).toBeInTheDocument();
+    expect(screen.queryByText(/phone view/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
+    const warningImage = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('img');
+    expect(warningImage).not.toBeNull();
+    expect(warningImage).toHaveClass('size-[4.75rem]', 'p-1.5', 'object-contain');
 
     const overlay = container.querySelector('[data-slot="embedded-phone-landscape-overlay"]');
     const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
     expect(overlay).not.toBeNull();
-    expect(frame).not.toBeNull();
-    expect(frame?.contains(overlay)).toBe(false);
-    expect(overlay).toContainElement(screen.getByRole('dialog', { name: 'Phone view detected' }));
+    expect(frame).toBeNull();
+    expect(overlay).toContainElement(screen.getByRole('dialog', { name: 'Rotate screen' }));
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / (1.2 ** -2))));
+    });
   });
 
-  test('dismisses the phone-view warning once per browser session', async () => {
+  test('does not dismiss the portrait rotate overlay from the disabled Done button', async () => {
     mockViewport(390, 844);
 
     render(
-      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay mode="app" />}>
+      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
         <div>Embedded product</div>
       </EmbeddedAutoZoomViewport>,
     );
 
-    expect(screen.getByRole('dialog', { name: 'Phone view detected' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Got it' }));
+    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Phone view detected' })).not.toBeInTheDocument();
-    expect(window.sessionStorage.getItem('kaur-khor-app-phone-view-warning-dismissed')).toBe('true');
+    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('kaur-khor-app-phone-view-warning-dismissed')).toBeNull();
+    expect(window.sessionStorage.getItem('kaur-khor-demo-phone-view-warning-dismissed')).toBeNull();
   });
 
-  test('keeps a dismissed phone-view warning hidden for the same session key', () => {
-    mockViewport(390, 844);
-    window.sessionStorage.setItem('kaur-khor-demo-phone-view-warning-dismissed', 'true');
-
-    render(
-      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay mode="demo" />}>
-        <div>Embedded product</div>
-      </EmbeddedAutoZoomViewport>,
-    );
-
-    expect(screen.queryByRole('dialog', { name: 'Phone view detected' })).not.toBeInTheDocument();
-  });
-
-  test('renders Khmer phone-view warning copy from the browser workspace language', () => {
+  test('renders Khmer rotate warning copy from the browser workspace language', () => {
     mockViewport(390, 844);
     const state = fallbackStateForMode('demo');
     state.preferences.language = 'km';
     setBrowserDesktopBridgeMockState(state);
 
     render(
-      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay mode="demo" />}>
+      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
         <div>Embedded product</div>
       </EmbeddedAutoZoomViewport>,
     );
 
-    expect(screen.getByRole('dialog', { name: 'បានរកឃើញទិដ្ឋភាពទូរស័ព្ទ' })).toBeInTheDocument();
-    expect(screen.getByText('បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង ដើម្បីទទួលបានបទពិសោធន៍កខត្រឹមត្រូវ។')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'យល់ហើយ' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'បង្វិលអេក្រង់' })).toBeInTheDocument();
+    expect(screen.getByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'រួចរាល់' })).toBeDisabled();
   });
 
-  test('does not show the phone-view warning on non-phone landscape viewports', () => {
+  test('does not show the rotate warning on non-phone landscape viewports', () => {
     mockViewport(844, 390);
 
     render(
-      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay mode="demo" />}>
+      <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
         <div>Embedded product</div>
       </EmbeddedAutoZoomViewport>,
     );
 
-    expect(screen.queryByRole('dialog', { name: 'Phone view detected' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Rotate screen' })).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
   });
 
@@ -1441,6 +1476,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('Demo data - not your real workspace.').parentElement).toHaveClass('flex-1');
     expect(screen.getByText('Demo data - not your real workspace.').parentElement).not.toHaveClass('max-w-[18rem]', 'sm:max-w-[24rem]');
     expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
+    expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
   });
 
   test('keeps browser app banner copy compact on mobile', () => {
@@ -1459,6 +1495,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('Export a backup before closing.')).toBeInTheDocument();
     expect(screen.getByText(BROWSER_WORKSPACE_CLOSE_WARNING)).toBeInTheDocument();
     expect(screen.queryByText(/Reports and Telegram checks only keep running/)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
   });
 
   test('removes the embedded banner backing card when the sidebar is collapsed', async () => {
@@ -1521,6 +1558,7 @@ describe('WebRoutes embedded app fallback state', () => {
         expect(bannerCard).not.toHaveClass('rounded-none', 'border-0', 'bg-transparent', 'px-0', 'py-0');
       });
       expect(screen.getByRole('button', { name: 'Export backup' })).not.toHaveClass('size-8', 'justify-center', 'p-2');
+      expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
       expect(target.querySelector('.embedded-sidebar-action-label-full')).not.toHaveClass('sr-only');
     } finally {
       delete document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape;

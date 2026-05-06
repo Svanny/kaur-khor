@@ -67,6 +67,7 @@ app.*.map.json
 *.png
 !docs/readme/*.png
 !docs/development/*.png
+!src/renderer/src/assets/rotate-phone-warning.png
 
 # Compiled output from TypeScript sources (build artifacts)
 electron.vite.config.js

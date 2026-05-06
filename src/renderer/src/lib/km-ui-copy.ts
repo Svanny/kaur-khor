@@ -3251,10 +3251,12 @@ const runtimeLiteralTranslations: Record<string, string> = {
   Browser: 'ប្រោសឺរ',
   'Download app': 'ទាញយកកម្មវិធី',
   Download: 'ទាញយក',
-  'Phone view detected': 'បានរកឃើញទិដ្ឋភាពទូរស័ព្ទ',
-  'Flip your screen sideways for the correct Kaur Khor experience.':
-    'បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង ដើម្បីទទួលបានបទពិសោធន៍កខត្រឹមត្រូវ។',
-  'Got it': 'យល់ហើយ',
+  'Main page': 'ទំព័រមេ',
+  'Rotate screen': 'បង្វិលអេក្រង់',
+  'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.':
+    'កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។',
+  'For regular work, use a larger browser window or the desktop app.':
+    'សម្រាប់ការងារធម្មតា សូមប្រើបង្អួចប្រោសឺរធំជាងនេះ ឬកម្មវិធីដេស្កថប។',
   'Excel file': 'ឯកសារអិចសែល',
   Pane: 'ផ្ទាំងក្រាហ្វ',
   'New pane': 'ផ្ទាំងក្រាហ្វថ្មី',
