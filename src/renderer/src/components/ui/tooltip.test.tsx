@@ -19,6 +19,12 @@ function LocationProbe() {
   return <div data-testid="location">{`${location.pathname}${location.hash}`}</div>;
 }
 
+function NavigationStateProbe() {
+  const location = useLocation();
+  const navigationState = location.state as { kaurKhorNavigationOrigin?: string | null } | null;
+  return <div data-testid="navigation-origin">{navigationState?.kaurKhorNavigationOrigin ?? ''}</div>;
+}
+
 describe('TooltipContent', () => {
   beforeEach(() => {
     mockLanguage.value = 'en';
@@ -163,7 +169,7 @@ describe('TooltipContent', () => {
     const user = userEvent.setup();
 
     render(
-      <MemoryRouter initialEntries={['/work']}>
+      <MemoryRouter initialEntries={['/work?section=intake']}>
         <DescriptionTextVisibilityProvider visible>
           <Routes>
             <Route
@@ -184,6 +190,7 @@ describe('TooltipContent', () => {
                 <>
                   <div>Help destination</div>
                   <LocationProbe />
+                  <NavigationStateProbe />
                 </>
               )}
               path="/settings/help"
@@ -200,5 +207,6 @@ describe('TooltipContent', () => {
     expect(screen.getByText('Help destination')).toBeInTheDocument();
     expect(screen.queryByText('Home destination')).not.toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/settings/help#automation-intake-request');
+    expect(screen.getByTestId('navigation-origin')).toHaveTextContent('/work?section=intake');
   });
 });

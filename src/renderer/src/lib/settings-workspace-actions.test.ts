@@ -90,6 +90,9 @@ describe('settings workspace actions', () => {
           name: '=SUM(1,2)',
           notes: '+1',
           payload: '-1',
+          tabFormula: '\t=SUM(1,2)',
+          spaceFormula: ' @foo',
+          crlfFormula: '\r\n-1',
         },
         {
           skuId: 'sku-2',
@@ -127,5 +130,8 @@ describe('settings workspace actions', () => {
     expect(csv).toContain("'+1");
     expect(csv).toContain("'-1");
     expect(csv).toContain("'@foo");
+    expect(csv).toContain(`'\t=SUM(1,2)`);
+    expect(csv).toContain("' @foo");
+    expect(csv).toContain(`"'\r\n-1"`);
   });
 });

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import { buildKaurKhorNavigationState, NavigationHistoryProvider } from './navigation-history';
 
@@ -133,6 +133,10 @@ describe('NavigationHistoryProvider', () => {
     window.sessionStorage.clear();
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   test('returns to overview when sku detail was opened from overview', async () => {
     const user = userEvent.setup();
     renderHistoryApp(['/']);
@@ -142,6 +146,33 @@ describe('NavigationHistoryProvider', () => {
 
     await user.click(screen.getByRole('button', { name: 'Back' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/$/);
+  });
+
+  test('continues navigation when sessionStorage access is blocked', async () => {
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new DOMException('Blocked', 'SecurityError');
+    });
+    const user = userEvent.setup();
+    renderHistoryApp(['/']);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKU' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
+  });
+
+  test('continues navigation when sessionStorage setItem fails', async () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(() => {
+        throw new DOMException('Blocked', 'SecurityError');
+      }),
+    } as unknown as Storage;
+    vi.spyOn(window, 'sessionStorage', 'get').mockReturnValue(storage);
+    const user = userEvent.setup();
+    renderHistoryApp(['/']);
+
+    await user.click(screen.getByRole('link', { name: 'Open SKU' }));
+    expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog\/skus\/sku-1$/);
+    expect(storage.setItem).toHaveBeenCalled();
   });
 
   test('returns to the exact overview route including search params', async () => {

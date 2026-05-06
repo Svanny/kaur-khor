@@ -122,11 +122,15 @@ function writeMemoryRecord(record: PageStateMemoryRecord, storage = pageStateSto
     return Boolean(value.route) || Object.keys(value.values ?? {}).length > 0;
   });
   if (entries.length === 0) {
-    storage.removeItem(PAGE_STATE_MEMORY_STORAGE_KEY);
+    try {
+      storage.removeItem(PAGE_STATE_MEMORY_STORAGE_KEY);
+    } catch {}
     return;
   }
 
-  storage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  try {
+    storage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify(Object.fromEntries(entries)));
+  } catch {}
 }
 
 function notifyPageStateMemoryChange() {

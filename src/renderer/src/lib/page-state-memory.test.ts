@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   buildRememberedAutomationHref,
   buildRememberedCatalogHref,
@@ -18,6 +18,10 @@ import {
 describe('page-state-memory', () => {
   beforeEach(() => {
     window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   test('remembers canonical page state across reload-safe local storage', () => {
@@ -58,6 +62,46 @@ describe('page-state-memory', () => {
 
     expect(buildRememberedCatalogHref()).toBe('/catalog');
     expect(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY)).toBeNull();
+  });
+
+  test('ignores blocked localStorage access while reading and writing page state', () => {
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('Blocked', 'SecurityError');
+    });
+
+    expect(buildRememberedCatalogHref()).toBe('/catalog');
+    expect(() => rememberPageState('/catalog', '?q=scarf&view=skus')).not.toThrow();
+    expect(
+      readRememberedPageValue('catalog', 'density', 'comfortable', (value) =>
+        value === 'compact' || value === 'comfortable' ? value : null,
+      ),
+    ).toBe('comfortable');
+    expect(() =>
+      writeRememberedPageValue('catalog', 'density', 'compact', (value) =>
+        value === 'compact' || value === 'comfortable' ? value : null,
+      ),
+    ).not.toThrow();
+  });
+
+  test('ignores set and remove failures while writing page state', () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      removeItem: vi.fn(),
+      setItem: vi.fn(() => {
+        throw new DOMException('Blocked', 'SecurityError');
+      }),
+    } as unknown as Storage;
+
+    expect(() => rememberPageState('/catalog', '?q=scarf&view=skus', storage)).not.toThrow();
+    expect(storage.setItem).toHaveBeenCalled();
+
+    vi.mocked(storage.getItem).mockReturnValue(JSON.stringify({ catalog: '?q=scarf&view=skus' }));
+    vi.mocked(storage.removeItem).mockImplementation(() => {
+      throw new DOMException('Blocked', 'SecurityError');
+    });
+
+    expect(() => rememberPageState('/catalog', '', storage)).not.toThrow();
+    expect(storage.removeItem).toHaveBeenCalledWith(PAGE_STATE_MEMORY_STORAGE_KEY);
   });
 
   test('does not remember automation section as a catalog destination', () => {

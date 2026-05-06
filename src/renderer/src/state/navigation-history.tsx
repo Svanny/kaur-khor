@@ -151,7 +151,9 @@ function writeEntries(entries: NavigationEntry[]) {
     return;
   }
 
-  window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(-50)));
+  try {
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(-50)));
+  } catch {}
 }
 
 function nextEntriesForLocation({

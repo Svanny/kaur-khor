@@ -11,26 +11,39 @@ function subjectStorageKey(subtype: ChartSettingsSubtype, subjectId: string) {
   return `${subtype}:${subjectId}`;
 }
 
-function readStorageRecord<T>(storage: Storage, key: string): Record<string, T> {
-  if (!storage || typeof storage.getItem !== 'function') {
-    return {};
+function getLocalStorage(): Storage | null {
+  if (typeof window === 'undefined') {
+    return null;
   }
-  const rawValue = storage.getItem(key);
-  if (!rawValue) {
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readStorageRecord<T>(storage: Storage | null, key: string): Record<string, T> {
+  if (!storage) {
     return {};
   }
   try {
+    const rawValue = storage.getItem(key);
+    if (!rawValue) {
+      return {};
+    }
     return JSON.parse(rawValue) as Record<string, T>;
   } catch {
     return {};
   }
 }
 
-function writeStorageRecord<T>(storage: Storage, key: string, value: Record<string, T>) {
-  if (!storage || typeof storage.setItem !== 'function') {
+function writeStorageRecord<T>(storage: Storage | null, key: string, value: Record<string, T>) {
+  if (!storage) {
     return;
   }
-  storage.setItem(key, JSON.stringify(value));
+  try {
+    storage.setItem(key, JSON.stringify(value));
+  } catch {}
 }
 
 export function readEntityChartSettings<T>(
@@ -66,10 +79,7 @@ export function readSubtypeDefaultChartSettings<T>(
   subtype: ChartSettingsSubtype,
   normalize: (value: T) => T,
 ): T | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-  const record = readStorageRecord<T>(window.localStorage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
+  const record = readStorageRecord<T>(getLocalStorage(), SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
   const persisted = record[subtype];
   return persisted ? normalize(persisted) : null;
 }
@@ -79,10 +89,8 @@ export function writeSubtypeDefaultChartSettings<T>(
   settings: T,
   normalize: (value: T) => T,
 ) {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  const record = readStorageRecord<T>(window.localStorage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
+  const storage = getLocalStorage();
+  const record = readStorageRecord<T>(storage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY);
   record[subtype] = normalize(settings);
-  writeStorageRecord(window.localStorage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY, record);
+  writeStorageRecord(storage, SUBTYPE_DEFAULT_CHART_SETTINGS_STORAGE_KEY, record);
 }

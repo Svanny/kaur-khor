@@ -56,6 +56,10 @@ function serializeCell(value: unknown) {
   return JSON.stringify(value);
 }
 
+function sanitizeCsvCellText(value: string) {
+  return /^[\s\x00-\x1f\x7f]*[=+\-@]/.test(value) ? `'${value}` : value;
+}
+
 function toCsv(rows: Array<Record<string, unknown>>) {
   if (rows.length === 0) {
     return '';
@@ -63,7 +67,7 @@ function toCsv(rows: Array<Record<string, unknown>>) {
   const headers = Array.from(new Set(rows.flatMap((row) => Object.keys(row))));
   const escapeCsvCell = (value: unknown) => {
     const serialized = serializeCell(value);
-    const text = /^[=+\-@]/.test(serialized) ? `'${serialized}` : serialized;
+    const text = sanitizeCsvCellText(serialized);
     return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
   return [
