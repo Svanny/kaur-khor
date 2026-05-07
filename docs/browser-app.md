@@ -13,7 +13,7 @@ GitHub Pages serves the site under `/kaur-khor/`, so the deployed URLs are `/kau
 The desktop app remains the primary supported runtime. The browser routes use the web React entry in production, and the Electron dev renderer entry recognizes `/kaur-khor/demo`, `/kaur-khor/app`, and `/main` paths so local browser-surface debugging can use the same route detection.
 
 The demo route mounts the existing renderer app inside a `HashRouter`, opens `kaur_khor_browser_demo_v1.sqlite3`, and keeps demo records separate from the browser-app database. A banner marks the route as demo data, and the reset action reseeds the demo workspace.
-The demo seed uses the same 10 Khmer SKUs, 10 Khmer services, catalog prices, supplier metadata, and generated catalog images as the dev fixture, so `/demo` shows the richer local product catalog without requiring desktop storage.
+The demo seed uses the same 10 Khmer SKUs, 10 Khmer services, product prices, supplier metadata, and generated product images as the dev fixture, so `/demo` shows the richer local products view without requiring desktop storage.
 
 The app route opens `kaur_khor_browser_app_v1.sqlite3` through SQLite WASM in a Web Worker. The runtime prefers SQLite's OPFS SyncAccessHandle Pool VFS (`opfs-sahpool`) so it can run on static hosting without requiring COOP/COEP headers. If OPFS or SQLite initialization is unavailable, the real app route shows an unsupported-browser state and does not silently fall back to weaker storage.
 
@@ -24,7 +24,7 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
 - Phone portrait views keep the rotated landscape product shell and show an upright warning that asks operators to turn the screen sideways. Dismissal is stored in session storage per route mode, so the warning stays hidden only for the current browser session.
 - Settings / Local data shows OPFS and browser-profile storage labels instead of filesystem reveal links, desktop snapshots, or log export.
 - Production browser and demo builds hide Settings / Benchmarks. Development builds keep it available for GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics.
-- Catalog image attachment is desktop-only until browser image assets are persisted durably.
+- Product image attachment is desktop-only until browser image assets are persisted durably.
 
 SENA analysis runs in the browser tab and is single-threaded there. Keep the tab open and awake while work is running.
 

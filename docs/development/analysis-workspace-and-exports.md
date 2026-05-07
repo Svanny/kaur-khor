@@ -69,7 +69,7 @@ Catalog editor saves update current catalog defaults. When an existing SKU or
 service variable changes, the renderer also appends a narrow observation so
 history and analysis can see the change: SKU cost writes a stock snapshot with
 the latest known units, SKU retail price writes a retail price signal, SKU
-lead-time mean or uncertainty writes a lead-time hint, and service price writes
+ETA days or uncertainty writes an ETA hint, and service price writes
 a service price signal. Name, description, image, supplier, linked-SKU, archive,
 and create-new-item saves remain catalog-only unless one of those variable
 fields also changes.
@@ -128,7 +128,7 @@ not be copied into startup or route-first-render paths.
 The exported rows include:
 
 - observation identity fields
-- counts for stock, rankings, stockouts, order signals, ticket events, prices, lead times, adjustments, and recipe usage hints
+- counts for stock, rankings, stockouts, order signals, ticket events, prices, ETA, adjustments, and recipe usage hints
 - regime hint and notes
 - the full input payload
 

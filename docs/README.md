@@ -80,7 +80,7 @@ pnpm package:win:native
 - [GitHub Pages](development/github-pages.md): Pages workflow, build output, SPA fallback, and `/kaur-khor/` route contract
 - [Automation workspace](development/automation-workspace.md): Telegram transport, automation staging store, route sections, promotion flow, and focused verification commands
 - [Ticketing architecture](development/ticketing-architecture.md): ticket event model, Work capture authoring contract, Work queue behavior, and downstream projections
-- [Intent-first UI overhaul](development/intent-first-ui-overhaul.md): canonical Home, Work, Catalog, Insights, Settings IA and legacy redirect boundaries
+- [Intent-first UI overhaul](development/intent-first-ui-overhaul.md): canonical Home, Work, Products, Insights, Settings IA and legacy redirect boundaries
 - [UI design system](development/ui-design-system.md): brand rules for renderer UI controls, including strict button icon requirements
 - [Analysis workspace and exports](development/analysis-workspace-and-exports.md): SENA runtime surfaces, cached reads, settings actions, and export formats
 - [Startup architecture](development/startup-architecture.mmd): boot sequence, compact startup workspace IPC, read-worker pool, and startup benchmark targets
@@ -91,12 +91,12 @@ pnpm package:win:native
 - [User decision tree interactive markmap](development/user-decision-tree.markmap.html): offline interactive Markmap render generated with `pnpm run markmap:user-decision-tree`
 - [Overview architecture](development/overview-architecture.mmd): dashboard overview route architecture for supplier and customer queues, drawer flows, detail hydration, order-batch reads, and overview benchmark targets
 - [Overview flowchart](development/overview-flowchart.mmd): overview benchmark control/data flow for workflow toggles, drawers, model builders, and summary targets
-- [Automations architecture](development/automations-architecture.mmd): automation seed, connection, catalog exposure, live intake, drawer, exceptions, and target metrics
+- [Automations architecture](development/automations-architecture.mmd): automation seed, connection, products exposure, live intake, drawer, exceptions, and target metrics
 - [Automations flowchart](development/automations-flowchart.mmd): automations benchmark control/data flow across tabs, intake drawer reads, and queue metrics
 - [Capture architecture](development/record-update-architecture.mmd): hub lane navigation, ticket-backed prompts, stock count save, supplier receipt save, and ticket mutations
 - [Capture flowchart](development/record-update-flowchart.mmd): capture benchmark control/data flow for lane opens, saves, Work readiness, and memory snapshots
-- [Detail pages architecture](development/detail-pages-architecture.mmd): catalog target selection, SKU/service first and repeat detail loads, cache behavior, and memory metrics
-- [Detail pages flowchart](development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for catalog, SKU, service, repeat loads, and cache reads
+- [Detail pages architecture](development/detail-pages-architecture.mmd): products target selection, SKU/service first and repeat detail loads, cache behavior, and memory metrics
+- [Detail pages flowchart](development/detail-pages-flowchart.mmd): detail-pages benchmark control/data flow for products, SKU, service, repeat loads, and cache reads
 - [Stability architecture](development/stability-architecture.mmd): repeated sidebar cycle, ready-event coverage, shared route reads, and memory-slope inputs
 - [Stability flowchart](development/stability-flowchart.mmd): stability benchmark control/data flow across four route cycles and memory snapshots
 - [Benchmark guide](../bench/README.md): scenario commands, fixture sizes, deterministic seed rules, and tiered target budgets

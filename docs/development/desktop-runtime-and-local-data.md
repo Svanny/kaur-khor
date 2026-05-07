@@ -161,7 +161,7 @@ Automatic snapshots are currently attempted before these mutations:
 Existing SKU and service editor saves may perform both a catalog upsert and an
 observation ingest. The catalog upsert stores the latest defaults, while the
 observation ingest preserves variable history for SKU cost, SKU retail price,
-SKU lead-time hints, and service price changes.
+SKU ETA hints, and service price changes.
 
 Automatic snapshots are throttled by an interval gate and use a separate trigger marker in the snapshot name and manifest.
 

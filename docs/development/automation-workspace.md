@@ -8,7 +8,7 @@ Kaur Khor's automation workspace is the channel-facing staging layer for custome
 intake. It currently targets Telegram and lets the operator:
 
 - connect or pause the Telegram bot transport
-- decide which SKUs and services are exposed to the bot
+- decide which default-exposed SKUs and services should be hidden from the bot
 - review inbound customer conversations and intake rows
 - resolve or promote inbound intake into ticket-backed operational history
 
@@ -42,6 +42,10 @@ Renderer and shared contracts:
 - [`src/renderer/src/routes/automations.tsx`](../../src/renderer/src/routes/automations.tsx):
   shared automation section implementation used by Inbox intake, Catalog
   exposure, and Settings connection surfaces
+- [`src/renderer/src/state/automation.tsx`](../../src/renderer/src/state/automation.tsx):
+  renderer automation provider that refreshes connected Telegram workspace
+  state while the app is visible so background-poll intake appears without a
+  manual route change
 - [`src/renderer/src/routes/automations/view-model.ts`](../../src/renderer/src/routes/automations/view-model.ts):
   derived overview, intake, and exception rows
 - [`src/shared/ipc.ts`](../../src/shared/ipc.ts):
@@ -128,8 +132,9 @@ the connection-card UI and IPC contract aligned.
 - message records
 - intake rows
 - customer language and currency preferences
-- per-conversation wizard sessions, including cart draft, selected item, and
-  last wizard message IDs
+- per-conversation wizard sessions, including cart draft, selected item,
+  checkout phone/location/note prompts, and generated wizard message IDs used
+  for Telegram cleanup
 
 Writes are serialized through the main-process queue in
 `automation-store.ts`. Do not bypass that write path from renderer code.
@@ -154,8 +159,32 @@ Append mode is customer-ticket-only: it must target an existing open customer
 ticket and increment from that ticket's latest revision. Missing, supplier, or
 closed ticket targets should fail before any automation-store mutation.
 
+Matched exposed items whose stock availability is unknown should stay distinct
+from true parser misses. Store those rows with `availability_unknown` so the
+operator sees a fulfillment-review issue instead of an incorrect "item not
+found" label.
+
 Customer-facing Telegram notifications must escape user-provided note text
 before sending HTML-formatted messages.
+
+Telegram conversation history is stored at the transport conversation level,
+but Work / Intake reads order chat through `intakeId`. Inbound order messages,
+wizard checkout receipts, operator replies, and ticket-update notifications
+that belong to an order should write that `intakeId` so repeat orders from the
+same Telegram customer remain separate in the Chat tab.
+
+Checkout should collect operator-useful delivery context before staging the
+intake. The current wizard asks for an optional phone, delivery location, and
+customer note in that order. Location may be a native Telegram location, a maps
+link, or a plain Phnom Penh address; notes are stored on the intake for review
+and promotion context.
+
+Wizard-generated Telegram messages are transient. Catalog, item, cart,
+preference, phone, location, and note prompts should be deleted when superseded
+or when checkout completes. The final wizard checkout response is the lasting
+customer-facing receipt and remains in Telegram and local conversation history.
+Free-text intake acknowledgements are outside this cleanup path and remain
+visible as normal operational responses.
 
 If you change how intake rows turn into ticket events, update this page and
 [`docs/development/ticketing-architecture.md`](ticketing-architecture.md)

@@ -46,7 +46,7 @@ markmap:
   - Command Home
   - Inbox
   - Capture
-  - Catalog
+  - Products
   - Insights
 
 ##### Capture reality
@@ -89,7 +89,7 @@ markmap:
 
 - Create, edit, archive, or open SKUs and services
 - Workflow
-  - Search or filter catalog
+  - Search or filter products
     - All
     - SKUs
     - Services
@@ -121,7 +121,7 @@ markmap:
     - SKU command page
     - Service command page
 - Maps to simplified IA
-  - Catalog
+  - Products
   - Insights
 
 ##### Resolve commitments
@@ -191,7 +191,7 @@ markmap:
     - Create customer-family ticket history
 - Maps to simplified IA
   - Inbox
-  - Catalog
+  - Products
   - Settings
 
 #### Secondary intent: understand signals and refine decisions
@@ -366,10 +366,10 @@ markmap:
     - Services
     - Supplier
   - Unarchive item
-    - Restore to active catalog
+    - Restore to active products
 - Maps to simplified IA
   - Settings
-  - Catalog
+  - Products
 
 ##### Learn or troubleshoot
 
@@ -407,7 +407,7 @@ markmap:
 - Provides the smallest set of launch points
   - Inbox
   - Capture
-  - Catalog
+  - Products
   - Insights
   - Command palette
 
@@ -428,7 +428,7 @@ markmap:
 - Custom capture
 - Draft resume and discard
 
-### Catalog
+### Products
 
 - Active SKUs
 - Active services
@@ -483,7 +483,7 @@ markmap:
 - Home
 - Inbox
 - Capture
-- Catalog
+- Products
 - Insights
 
 ### Move infrequent surfaces behind contextual entry

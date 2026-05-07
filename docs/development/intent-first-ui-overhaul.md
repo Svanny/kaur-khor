@@ -14,7 +14,7 @@ Persistent app navigation is limited to:
 - `/work/queue`: supplier/customer queue
 - `/work/intake`: automation intake
 - `/work/capture`: lane-based update authoring
-- `/catalog`: active catalog, archived catalog, and automation exposure
+- `/catalog`: active products, archived products, and automation exposure
 - `/insights`: Performance, Financials, and Analysis modes
 - `/settings`: preferences, local data, planning, automation connection, help,
   benchmarks, and danger zone
@@ -23,7 +23,7 @@ Non-persistent destinations remain available through context links and command
 palette:
 
 - `/history`: saved update history, formerly Operations
-- `/catalog?status=archived`: archived catalog, formerly Archive
+- `/catalog?status=archived`: archived products, formerly Archive
 - `/settings/help`: Help
 
 ## Compatibility Redirects
@@ -33,7 +33,7 @@ Old page URLs must redirect instead of dead-ending:
 - `/record-update` and old lane paths redirect to `/work/capture` paths.
 - `/performance`, `/financials`, and `/analysis` redirect to `/insights` with
   the matching `mode`.
-- `/automations` redirects to Work intake, Catalog, or Settings depending on section.
+- `/automations` redirects to Work intake, Products, or Settings depending on section.
 - `/operations` redirects to `/settings/history`.
 - `/operations/archive` redirects to `/catalog?status=archived`.
 - `/help` redirects to `/settings/help`.
@@ -48,8 +48,8 @@ The old business views are reused inside the new IA:
 - Dashboard/Overview model becomes Inbox queue.
 - Record Update internals become Capture.
 - Performance, Financials, and Analysis become Insights modes.
-- Archive becomes Catalog archived status.
-- Automations is split across Inbox intake, Catalog exposure, and Settings
+- Archive becomes Products archived status.
+- Automations is split across Inbox intake, Products exposure, and Settings
   connection.
 
 ## Route State

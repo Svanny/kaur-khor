@@ -1,6 +1,6 @@
 # Install guide
 
-Use official release assets from [GitHub Releases](https://github.com/Svanny/kaur-khor/releases/latest). Each release should include platform artifacts and a `SHA256SUMS` file.
+Use official release assets from [GitHub Releases](https://github.com/Svanny/kaur-khor/releases/latest). Each release should include platform artifacts and a `SHA256SUMS` file. Desktop artifacts use the `kaur-khor-v<version>-<os>-<arch>.<ext>` naming scheme, where `<arch>` is `x64` or `arm64`.
 
 The browser app at <https://svanny.github.io/kaur-khor/app> is useful when OPFS storage is available, but it is not the full desktop runtime. Browser Telegram automation only polls while the tab is open and awake, benchmark/dev diagnostics are desktop-only, and browser data lives in the current browser profile. Install the desktop app for persistent Telegram automation, native backups/snapshots, folder reveal, logs, image assets, and benchmark runner diagnostics.
 
@@ -61,14 +61,14 @@ This approves the downloaded app without changing SmartScreen system-wide.
 For Debian or Ubuntu:
 
 ```bash
-sudo apt install ./kaur-khor-<version>-linux-<arch>.deb
+sudo apt install ./kaur-khor-v<version>-linux-<arch>.deb
 ```
 
 For AppImage:
 
 ```bash
-chmod +x kaur-khor-<version>-linux-<arch>.AppImage
-./kaur-khor-<version>-linux-<arch>.AppImage
+chmod +x kaur-khor-v<version>-linux-<arch>.AppImage
+./kaur-khor-v<version>-linux-<arch>.AppImage
 ```
 
 Replace `<version>` and `<arch>` with the version and architecture from the release you downloaded.
