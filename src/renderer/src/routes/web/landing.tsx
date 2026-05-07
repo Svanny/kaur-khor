@@ -52,9 +52,13 @@ import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import analysisImageUrl from '../../../../../docs/readme/web-current-analysis.png';
 import catalogImageUrl from '../../../../../docs/readme/web-current-catalog.png';
+import customerOrderImageUrl from '../../../../../docs/readme/web-current-customer-order.png';
 import overviewImageUrl from '../../../../../docs/readme/web-current-overview.png';
 import performanceImageUrl from '../../../../../docs/readme/web-current-performance.png';
+import queueCustomerImageUrl from '../../../../../docs/readme/web-current-queue-customer.png';
+import queueSupplierImageUrl from '../../../../../docs/readme/web-current-queue-supplier.png';
 import recordUpdateImageUrl from '../../../../../docs/readme/web-current-record-update.png';
+import stockCountImageUrl from '../../../../../docs/readme/web-current-stock-count.png';
 import type { AppLanguage } from '@shared/inventory';
 
 const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
@@ -68,7 +72,7 @@ const sourceBuildCommands = [
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const screenshotWidth = 3456;
-const screenshotHeight = 1992;
+const screenshotHeight = 1984;
 const screenshotSlides = [
   {
     alt: 'Kaur Khor mission control overview showing the main work queue',
@@ -78,9 +82,23 @@ const screenshotSlides = [
     height: screenshotHeight,
   },
   {
-    alt: 'Kaur Khor catalog showing searchable SKUs and services',
+    alt: 'Kaur Khor supplier queue showing supplier follow-up work',
+    image: queueSupplierImageUrl,
+    label: 'Supplier queue',
+    width: screenshotWidth,
+    height: screenshotHeight,
+  },
+  {
+    alt: 'Kaur Khor customer queue showing customer order follow-up work',
+    image: queueCustomerImageUrl,
+    label: 'Customer queue',
+    width: screenshotWidth,
+    height: screenshotHeight,
+  },
+  {
+    alt: 'Kaur Khor products view showing searchable SKUs and services',
     image: catalogImageUrl,
-    label: 'Catalog',
+    label: 'Products',
     width: screenshotWidth,
     height: screenshotHeight,
   },
@@ -88,6 +106,20 @@ const screenshotSlides = [
     alt: 'Kaur Khor record update workflow for stock and order changes',
     image: recordUpdateImageUrl,
     label: 'Point-of-Sale and updates',
+    width: screenshotWidth,
+    height: screenshotHeight,
+  },
+  {
+    alt: 'Kaur Khor stock count capture session for physical inventory counts',
+    image: stockCountImageUrl,
+    label: 'Stock count',
+    width: screenshotWidth,
+    height: screenshotHeight,
+  },
+  {
+    alt: 'Kaur Khor customer order capture session for pending customer demand',
+    image: customerOrderImageUrl,
+    label: 'Customer order',
     width: screenshotWidth,
     height: screenshotHeight,
   },
@@ -132,6 +164,8 @@ type ProductTier = {
 };
 
 type DetectedPlatform =
+  | 'android'
+  | 'ios'
   | 'linux-arm64'
   | 'linux-x64'
   | 'mac-arm64'
@@ -153,6 +187,11 @@ type DownloadOption = {
   asset: GitHubReleaseAsset;
   label: string;
   platform: DetectedPlatform | 'other';
+};
+
+type ReleaseAssetInfo = {
+  label: string;
+  platform: DownloadOption['platform'];
 };
 
 type ReleaseInstallGuide = {
@@ -187,6 +226,8 @@ const landingKhmerCopy: Record<string, string> = {
   'Build the app yourself': 'សាងសង់អេបដោយខ្លួនឯង',
   'build dependencies before packaging Kaur Khor.': 'ឧបករណ៍សាងសង់ មុនពេលវេចខ្ចប់ កខ។',
   'Browse Archived Items': 'មើលធាតុដែលបានរក្សាទុក',
+  'Android app is not supported': 'Android អេបមិនទាន់គាំទ្រទេ',
+  'Android app is not supported. Use the browser app instead.': 'Android អេបមិនទាន់គាំទ្រទេ។ សូមប្រើអេបក្នុងប្រោសឺរជំនួសវិញ។',
   'Choose a download': 'ជ្រើសរើសឯកសារទាញយក',
   'Choose a download to see the matching install notes.': 'ជ្រើសរើសឯកសារទាញយក ដើម្បីមើលកំណត់សម្គាល់ដំឡើងដែលត្រូវគ្នា។',
   'Choose the download for your computer': 'ជ្រើសរើសឯកសារទាញយកសម្រាប់កុំព្យូទ័ររបស់អ្នក',
@@ -223,6 +264,8 @@ const landingKhmerCopy: Record<string, string> = {
   'Inspect the code': 'ពិនិត្យកូដ',
   'Inspect the source on the': 'ពិនិត្យកូដប្រភពនៅលើ',
   'It detects your computer and installs': 'វាស្គាល់កុំព្យូទ័ររបស់អ្នក ហើយដំឡើង',
+  'iOS app is not supported': 'iOS អេបមិនទាន់គាំទ្រទេ',
+  'iOS app is not supported. Use the browser app instead.': 'iOS អេបមិនទាន់គាំទ្រទេ។ សូមប្រើអេបក្នុងប្រោសឺរជំនួសវិញ។',
   'Install notes': 'កំណត់សម្គាល់ដំឡើង',
   'Install the': 'ដំឡើង',
   'Install the desktop app': 'ដំឡើងដេសថបអេប',
@@ -272,15 +315,18 @@ const landingKhmerCopy: Record<string, string> = {
   'Run the installer.': 'ដំណើរការកម្មវិធីដំឡើង។',
   'Save real work in this browser': 'រក្សាទុកការងារពិតក្នុងប្រោសឺរនេះ',
   'Save work in local app files': 'រក្សាទុកការងារក្នុងឯកសារអេបមូលដ្ឋាន',
-  'Search Catalog': 'ស្វែងរកកាតាឡុក',
+  'Search Products': 'ស្វែងរកទំនិញ',
   'See the main workflow': 'មើលលំហូរការងារសំខាន់',
   'Set up language, currency, and interface preferences': 'ជ្រើសរើសភាសា រូបិយប័ណ្ណ និងចំណូលចិត្តអេប',
   'Screenshot carousel': 'រូបភាពបង្ហាញកម្មវិធី',
   'Show Business health': 'បង្ហាញសុខភាពអាជីវកម្ម',
-  'Show Catalog': 'បង្ហាញកាតាឡុក',
+  'Show Customer queue': 'បង្ហាញជួរអតិថិជន',
+  'Show Products': 'បង្ហាញទំនិញ',
   'Show Insights': 'បង្ហាញការយល់ដឹង',
   'Show Mission Control': 'បង្ហាញផ្ទាំងបញ្ជា',
   'Show Point-of-Sale and updates': 'បង្ហាញការលក់ផ្ទាល់ និងអាប់ដេត',
+  'Show Stock count': 'បង្ហាញការរាប់ស្តុក',
+  'Show Supplier queue': 'បង្ហាញជួរអ្នកផ្គត់ផ្គង់',
   'Source Build': 'សាងសង់ពីកូដប្រភព',
   'Start in': 'ចាប់ផ្តើមក្នុង',
   'Start in the browser': 'ចាប់ផ្តើមក្នុងប្រោសឺរ',
@@ -294,6 +340,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Try sample data': 'សាកល្បងទិន្នន័យគំរូ',
   'Try sample shelves': 'សាកល្បងធ្នើគំរូ',
   'Use it in this browser': 'ប្រើវាក្នុងប្រោសឺរនេះ',
+  'Open browser app': 'បើកអេបក្នុងប្រោសឺរ',
   'View logs': 'មើលកំណត់ហេតុ',
   'What you get:': 'អ្វីដែលអ្នកទទួលបាន៖',
   'Windows install notes': 'កំណត់សម្គាល់ដំឡើង Windows',
@@ -305,10 +352,18 @@ const landingKhmerCopy: Record<string, string> = {
     'អេបស្តុកក្នុងម៉ាស៊ីនសម្រាប់ក្រុមតូច៖ សាកល្បងទិន្នន័យគំរូក្នុងប្រោសឺរ រក្សាទិន្នន័យប្រោសឺរពិតក្នុងម៉ាស៊ីនពេល OPFS អាចប្រើបាន ឬដំឡើងដេសថបអេបសម្រាប់ប្រើក្រៅបណ្ដាញពេញលេញ។',
   'Kaur Khor mission control overview showing the main work queue':
     'រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់',
-  'Kaur Khor catalog showing searchable SKUs and services':
-    'រូបភាពកាតាឡុក កខ បង្ហាញទំនិញ និងសេវាកម្មដែលអាចស្វែងរកបាន',
+  'Kaur Khor supplier queue showing supplier follow-up work':
+    'រូបភាពជួរអ្នកផ្គត់ផ្គង់ កខ បង្ហាញការងារតាមដានអ្នកផ្គត់ផ្គង់',
+  'Kaur Khor customer queue showing customer order follow-up work':
+    'រូបភាពជួរអតិថិជន កខ បង្ហាញការងារតាមដានការបញ្ជាទិញអតិថិជន',
+  'Kaur Khor products view showing searchable SKUs and services':
+    'រូបភាពទំនិញ កខ បង្ហាញទំនិញ និងសេវាកម្មដែលអាចស្វែងរកបាន',
   'Kaur Khor record update workflow for stock and order changes':
     'រូបភាពលំហូរអាប់ដេតកំណត់ត្រា កខ សម្រាប់ការផ្លាស់ប្តូរស្តុក និងការបញ្ជាទិញ',
+  'Kaur Khor stock count capture session for physical inventory counts':
+    'រូបភាពវគ្គកត់ត្រារាប់ស្តុក កខ សម្រាប់ចំនួនស្តុកជាក់ស្តែង',
+  'Kaur Khor customer order capture session for pending customer demand':
+    'រូបភាពវគ្គកត់ត្រាការបញ្ជាទិញអតិថិជន កខ សម្រាប់តម្រូវការអតិថិជនកំពុងរង់ចាំ',
   'Kaur Khor business health dashboard showing pressure and diagnostics':
     'រូបភាពផ្ទាំងសុខភាពអាជីវកម្ម កខ បង្ហាញសម្ពាធ និងការពិនិត្យបញ្ហា',
   'Kaur Khor analysis workspace showing inventory insight tools':
@@ -342,7 +397,7 @@ const railFeatures: RailFeature[] = [
   { icon: BadgeDollarSign, label: 'Record Immediate Sales', tone: 'bg-[#7C3AED] text-white' },
   { icon: PackagePlus, label: 'Place Supplier Orders', tone: 'bg-[#0891B2] text-white' },
   { icon: ReceiptText, label: 'Receive Supplier Orders', tone: 'bg-[#0D9488] text-white' },
-  { icon: Search, label: 'Search Catalog', tone: 'bg-[#65A30D] text-white' },
+  { icon: Search, label: 'Search Products', tone: 'bg-[#65A30D] text-white' },
   { icon: Package, label: 'Manage Products', tone: 'bg-[#EA580C] text-white' },
   { icon: Store, label: 'Manage Services', tone: 'bg-[#4338CA] text-white' },
   { icon: Archive, label: 'Browse Archived Items', tone: 'bg-[#059669] text-white' },
@@ -502,6 +557,12 @@ async function detectDownloadPlatform(): Promise<DetectedPlatform> {
 
   const userAgentData = (navigator as NavigatorWithUserAgentData).userAgentData;
   const userAgentDataPlatform = userAgentData?.platform?.toLowerCase() ?? '';
+  if (userAgentDataPlatform.includes('android')) {
+    return 'android';
+  }
+  if (userAgentDataPlatform.includes('ios') || userAgentDataPlatform.includes('ipados')) {
+    return 'ios';
+  }
   if (userAgentDataPlatform.includes('mac')) {
     const architecture = await readUserAgentArchitecture(userAgentData);
     return architecture.includes('arm') ? 'mac-arm64' : 'mac-x64';
@@ -518,6 +579,12 @@ async function detectDownloadPlatform(): Promise<DetectedPlatform> {
   const userAgent = navigator.userAgent.toLowerCase();
   const platformSignal = `${platform} ${userAgent}`;
 
+  if (platformSignal.includes('android')) {
+    return 'android';
+  }
+  if (/\b(iphone|ipad|ipod)\b/.test(platformSignal) || (platform.includes('mac') && navigator.maxTouchPoints > 1)) {
+    return 'ios';
+  }
   if (platformSignal.includes('mac')) {
     return 'mac-x64';
   }
@@ -542,68 +609,57 @@ async function readUserAgentArchitecture(userAgentData?: NavigatorUserAgentData)
 function buildDownloadOptions(assets: GitHubReleaseAsset[] = []): DownloadOption[] {
   return assets
     .filter((asset) => /\.(appimage|deb|dmg|exe)$/i.test(asset.name))
-    .map((asset) => ({
-      asset,
-      label: formatReleaseAssetLabel(asset.name),
-      platform: detectAssetPlatform(asset.name),
-    }))
+    .map((asset) => {
+      const info = releaseAssetInfo(asset.name);
+      return {
+        asset,
+        label: info.label,
+        platform: info.platform,
+      };
+    })
     .sort((first, second) => first.label.localeCompare(second.label));
 }
 
-function detectAssetPlatform(assetName: string): DownloadOption['platform'] {
-  const lowerName = assetName.toLowerCase();
-  if (/darwin-arm64\.dmg$/.test(lowerName)) {
-    return 'mac-arm64';
+function releaseAssetInfo(assetName: string): ReleaseAssetInfo {
+  const match = /^(?:kaur[.-]khor)-v?(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)-(darwin|linux|mac|win(?:32)?|windows)-(aarch64|amd64|arm64|x64|x86_64)\.(appimage|deb|dmg|exe)$/i.exec(assetName);
+  if (!match) {
+    return { label: assetName, platform: 'other' };
   }
-  if (/darwin-x64\.dmg$/.test(lowerName)) {
-    return 'mac-x64';
-  }
-  if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
-    return 'windows-x64';
-  }
-  if (/linux-arm64\.appimage$/.test(lowerName)) {
-    return 'linux-arm64';
-  }
-  if (/linux-x64\.appimage$/.test(lowerName)) {
-    return 'linux-x64';
-  }
-  if (/linux-arm64\.deb$/.test(lowerName)) {
-    return 'linux-arm64';
-  }
-  if (/linux-x64\.deb$/.test(lowerName)) {
-    return 'linux-x64';
-  }
-  return 'other';
-}
 
-function formatReleaseAssetLabel(assetName: string) {
-  const lowerName = assetName.toLowerCase();
-  if (/darwin-arm64\.dmg$/.test(lowerName)) {
-    return 'macOS Apple Silicon DMG';
+  const [, version, os, arch, extension] = match;
+  const normalizedOs = os.toLowerCase();
+  const normalizedArch = arch.toLowerCase();
+  const normalizedExtension = extension.toLowerCase();
+
+  if ((normalizedOs === 'darwin' || normalizedOs === 'mac') && normalizedExtension === 'dmg') {
+    return {
+      label: `Kaur Khor v${version} - ${normalizedArch === 'arm64' || normalizedArch === 'aarch64' ? 'macOS Apple Silicon DMG' : 'macOS Intel DMG'}`,
+      platform: normalizedArch === 'arm64' || normalizedArch === 'aarch64' ? 'mac-arm64' : 'mac-x64',
+    };
   }
-  if (/darwin-x64\.dmg$/.test(lowerName)) {
-    return 'macOS Intel DMG';
+  if ((normalizedOs === 'win' || normalizedOs === 'win32' || normalizedOs === 'windows') && normalizedExtension === 'exe') {
+    return {
+      label: `Kaur Khor v${version} - Windows x64 installer`,
+      platform: 'windows-x64',
+    };
   }
-  if (/win(?:32)?-x64\.exe$/.test(lowerName)) {
-    return 'Windows x64 installer';
+  if (normalizedOs === 'linux') {
+    const isArm = normalizedArch === 'arm64' || normalizedArch === 'aarch64';
+    const packageLabel = normalizedExtension === 'deb' ? 'deb package' : 'AppImage';
+    return {
+      label: `Kaur Khor v${version} - Linux ${isArm ? 'ARM64' : 'x64'} ${packageLabel}`,
+      platform: isArm ? 'linux-arm64' : 'linux-x64',
+    };
   }
-  if (/linux-arm64\.appimage$/.test(lowerName)) {
-    return 'Linux ARM64 AppImage';
-  }
-  if (/linux-x64\.appimage$/.test(lowerName)) {
-    return 'Linux x64 AppImage';
-  }
-  if (/linux-arm64\.deb$/.test(lowerName)) {
-    return 'Linux ARM64 deb package';
-  }
-  if (/linux-x64\.deb$/.test(lowerName)) {
-    return 'Linux x64 deb package';
-  }
-  return assetName;
+  return { label: assetName, platform: 'other' };
 }
 
 function describeDetectedPlatform(platform: DetectedPlatform) {
   switch (platform) {
+    case 'android':
+      return 'Android app is not supported';
+    case 'ios':
+      return 'iOS app is not supported';
     case 'linux-arm64':
       return 'Recommended for Linux ARM64';
     case 'linux-x64':
@@ -620,7 +676,7 @@ function describeDetectedPlatform(platform: DetectedPlatform) {
 }
 
 function findRecommendedOption(options: DownloadOption[], platform: DetectedPlatform) {
-  if (platform === 'unknown') {
+  if (platform === 'android' || platform === 'ios' || platform === 'unknown') {
     return null;
   }
   return options.find((option) => option.platform === platform) ?? null;
@@ -628,6 +684,22 @@ function findRecommendedOption(options: DownloadOption[], platform: DetectedPlat
 
 function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['platform']): ReleaseInstallGuide {
   switch (platform) {
+    case 'android':
+      return {
+        steps: [
+          'Android app is not supported. Use the browser app instead.',
+          { href: publicPath('/app'), label: 'Open browser app' },
+        ],
+        title: 'Android app is not supported',
+      };
+    case 'ios':
+      return {
+        steps: [
+          'iOS app is not supported. Use the browser app instead.',
+          { href: publicPath('/app'), label: 'Open browser app' },
+        ],
+        title: 'iOS app is not supported',
+      };
     case 'mac-arm64':
     case 'mac-x64':
       return {
@@ -996,7 +1068,7 @@ function WorkshopIllustration({ language }: { language: AppLanguage }) {
     <div ref={frameRef} className="relative overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
       <div className="absolute inset-0 paper-grid opacity-45" aria-hidden="true" />
       <div className="relative grid gap-3">
-        <div className="relative aspect-[3456/1992] overflow-hidden rounded-[1.05rem] shadow-float ring-1 ring-border/50">
+        <div className="relative aspect-[3456/1984] overflow-hidden rounded-[1.05rem] shadow-float ring-1 ring-border/50">
           <img
             key={activeSlideItem.label}
             alt={landingText(language, activeSlideItem.alt)}
@@ -1146,11 +1218,14 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
   }, []);
 
   const selectedOption = downloadState.options.find((option) => option.asset.name === selectedAssetName) ?? null;
+  const isMobileDetectedPlatform = downloadState.detectedPlatform === 'android' || downloadState.detectedPlatform === 'ios';
   const platformDescription = describeDetectedPlatform(downloadState.detectedPlatform);
-  const installGuide = guideForDownloadPlatform(selectedOption?.platform ?? downloadState.detectedPlatform);
+  const installGuide = guideForDownloadPlatform(isMobileDetectedPlatform ? downloadState.detectedPlatform : selectedOption?.platform ?? downloadState.detectedPlatform);
   const isLoading = downloadState.status === 'loading';
   const releaseStatusText = downloadState.status === 'error'
     ? landingText(language, 'Release downloads are unavailable right now.')
+    : isMobileDetectedPlatform
+      ? landingText(language, `${platformDescription}. Use the browser app instead.`)
     : language === 'km'
       ? `${landingText(language, platformDescription)}${downloadState.releaseName ? ` ${landingText(language, 'from')} ${downloadState.releaseName}` : ''}។`
       : `${platformDescription}${downloadState.releaseName ? ` from ${downloadState.releaseName}` : ''}.`;
@@ -1173,7 +1248,7 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
                 <select
                   aria-label={landingText(language, 'Download')}
                   className="h-12 w-full min-w-0 appearance-none rounded-xl border border-border/70 bg-background px-4 pr-11 text-sm font-medium text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={isLoading || downloadState.status === 'error'}
+                  disabled={isLoading || downloadState.status === 'error' || isMobileDetectedPlatform}
                   onChange={(event) => setSelectedAssetName(event.target.value)}
                   onFocus={startReleaseDownloads}
                   onPointerDown={startReleaseDownloads}

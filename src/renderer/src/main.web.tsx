@@ -2,10 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { embeddedModeForPath } from '@/routes/web/embedded-entry';
+import { WebRoutes } from '@/routes/web/landing';
 import './globals.css';
 
 const EmbeddedAppRoute = React.lazy(() => import('@/routes/web/embedded-app').then((module) => ({ default: module.EmbeddedAppRoute })));
-const WebRoutes = React.lazy(() => import('@/routes/web/landing').then((module) => ({ default: module.WebRoutes })));
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const embeddedMode = embeddedModeForPath(window.location.pathname, basePath);
@@ -18,12 +18,18 @@ const app = embeddedMode
     </BrowserRouter>
   );
 
+const loadingFallback = (
+  <div className="grid min-h-svh place-items-center bg-background p-6 text-center text-sm font-semibold text-foreground">
+    Loading Kaur Khor...
+  </div>
+);
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   embeddedMode
-    ? <React.Suspense fallback={null}>{app}</React.Suspense>
+    ? <React.Suspense fallback={loadingFallback}>{app}</React.Suspense>
     : (
       <React.StrictMode>
-        <React.Suspense fallback={null}>{app}</React.Suspense>
+        <React.Suspense fallback={loadingFallback}>{app}</React.Suspense>
       </React.StrictMode>
     ),
 );

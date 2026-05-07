@@ -1,5 +1,5 @@
 export type EmbeddedAppMode = 'app' | 'demo';
-export type WebLandingMount = 'main' | null;
+export type WebLandingMount = string | null;
 
 function normalizePath(pathname: string) {
   const normalized = pathname.startsWith('/') ? pathname : `/${pathname}`;
@@ -38,6 +38,17 @@ export function embeddedModeForPath(pathname: string, basePath = ''): EmbeddedAp
   return null;
 }
 
-export function webLandingMountForPath(pathname: string): WebLandingMount {
-  return normalizePath(pathname) === '/main' ? 'main' : null;
+export function webLandingMountForPath(pathname: string, basePath = ''): WebLandingMount {
+  const normalizedPath = normalizePath(pathname);
+  const normalizedBase = basePath ? normalizePath(basePath) : '';
+
+  if (normalizedPath === '/main') {
+    return '/main';
+  }
+
+  if (normalizedBase && normalizedBase !== '/' && normalizedPath === normalizedBase) {
+    return normalizedBase;
+  }
+
+  return null;
 }

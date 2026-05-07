@@ -49,7 +49,7 @@ const operatorFeatureLabels = [
   'Record Immediate Sales',
   'Place Supplier Orders',
   'Receive Supplier Orders',
-  'Search Catalog',
+  'Search Products',
   'Manage Products',
   'Manage Services',
   'Browse Archived Items',
@@ -67,7 +67,7 @@ const previousNounLabels = [
   'Immediate Sales',
   'Supplier Orders',
   'Supplier Receipts',
-  'Catalog Search',
+  'Products Search',
   'Product SKUs',
   'Services',
   'Archived Items',
@@ -135,24 +135,28 @@ const embeddedStorage = {
 
 const releaseAssets = [
   {
-    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-darwin-arm64.dmg',
-    name: 'kaur-khor-1.2.3-darwin-arm64.dmg',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-mac-arm64.dmg',
+    name: 'kaur-khor-v1.2.3-mac-arm64.dmg',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-darwin-x64.dmg',
-    name: 'kaur-khor-1.2.3-darwin-x64.dmg',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-mac-x64.dmg',
+    name: 'kaur-khor-v1.2.3-mac-x64.dmg',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-win-x64.exe',
-    name: 'kaur-khor-1.2.3-win-x64.exe',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-win-x64.exe',
+    name: 'kaur-khor-v1.2.3-win-x64.exe',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-linux-x64.AppImage',
-    name: 'kaur-khor-1.2.3-linux-x64.AppImage',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-linux-x64.AppImage',
+    name: 'kaur-khor-v1.2.3-linux-x64.AppImage',
   },
   {
-    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-1.2.3-linux-arm64.AppImage',
-    name: 'kaur-khor-1.2.3-linux-arm64.AppImage',
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-linux-arm64.AppImage',
+    name: 'kaur-khor-v1.2.3-linux-arm64.AppImage',
+  },
+  {
+    browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-linux-x64.deb',
+    name: 'kaur-khor-v1.2.3-linux-x64.deb',
   },
   {
     browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/SHA256SUMS',
@@ -362,6 +366,7 @@ async function expectRecommendedDownload(expectedAssetName: string, expectedHref
   fireEvent.focus(select);
   await waitFor(() => expect(select.value).toBe(expectedAssetName));
   expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute('href', expectedHref);
+  return select;
 }
 
 async function startReleaseDownloadLoad() {
@@ -470,7 +475,7 @@ describe('WebRoutes landing rail', () => {
     renderWebHome();
 
     const missionControlButton = screen.getByRole('button', { name: 'Show Mission Control' });
-    const catalogButton = screen.getByRole('button', { name: 'Show Catalog' });
+    const catalogButton = screen.getByRole('button', { name: 'Show Products' });
 
     expect(missionControlButton).toHaveAttribute('aria-current', 'true');
     expect(catalogButton).not.toHaveAttribute('aria-current');
@@ -503,11 +508,13 @@ describe('WebRoutes releases section', () => {
 
     renderWebHome();
 
-    await expectRecommendedDownload(
-      'kaur-khor-1.2.3-darwin-arm64.dmg',
+    const select = await expectRecommendedDownload(
+      'kaur-khor-v1.2.3-mac-arm64.dmg',
       releaseAssets[0]!.browser_download_url,
     );
     expect(screen.getByText(/Recommended for macOS Apple Silicon from v1\.2\.3\./)).toBeInTheDocument();
+    expect(select).toHaveTextContent('Kaur Khor v1.2.3 - macOS Apple Silicon DMG - recommended');
+    expect(select).toHaveTextContent('Kaur Khor v1.2.3 - Linux x64 deb package');
     expect(screen.getByRole('link', { name: 'YouTube tutorial for opening macOS app from unidentified developer' })).toHaveAttribute(
       'href',
       'https://youtu.be/sLox8h-6BVw',
@@ -526,7 +533,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'kaur-khor-1.2.3-darwin-x64.dmg',
+      'kaur-khor-v1.2.3-mac-x64.dmg',
       releaseAssets[1]!.browser_download_url,
     );
   });
@@ -542,7 +549,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'kaur-khor-1.2.3-win-x64.exe',
+      'kaur-khor-v1.2.3-win-x64.exe',
       releaseAssets[2]!.browser_download_url,
     );
   });
@@ -557,7 +564,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'kaur-khor-1.2.3-linux-x64.AppImage',
+      'kaur-khor-v1.2.3-linux-x64.AppImage',
       releaseAssets[3]!.browser_download_url,
     );
   });
@@ -574,7 +581,7 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     await expectRecommendedDownload(
-      'kaur-khor-1.2.3-linux-arm64.AppImage',
+      'kaur-khor-v1.2.3-linux-arm64.AppImage',
       releaseAssets[4]!.browser_download_url,
     );
   });
@@ -590,6 +597,43 @@ describe('WebRoutes releases section', () => {
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
   });
 
+  test('shows the browser app link instead of a desktop download for Android browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Android',
+      },
+    });
+
+    renderWebHome();
+
+    const select = await startReleaseDownloadLoad();
+    await waitFor(() => expect(select).toBeDisabled());
+    expect(select.value).toBe('');
+    expect(screen.getByRole('heading', { name: 'Android app is not supported' })).toBeInTheDocument();
+    expect(screen.getAllByText('Android app is not supported. Use the browser app instead.')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
+    expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
+  });
+
+  test('shows the browser app link instead of a desktop download for iOS browsers', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      platform: 'iPhone',
+      userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+
+    renderWebHome();
+
+    const select = await startReleaseDownloadLoad();
+    await waitFor(() => expect(select).toBeDisabled());
+    expect(select.value).toBe('');
+    expect(screen.getByRole('heading', { name: 'iOS app is not supported' })).toBeInTheDocument();
+    expect(screen.getAllByText('iOS app is not supported. Use the browser app instead.')).toHaveLength(2);
+    expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
+    expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
+  });
+
   test('updates the download button when the dropdown changes', async () => {
     mockLatestReleaseFetch();
     mockNavigator({
@@ -601,9 +645,9 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     const select = await startReleaseDownloadLoad();
-    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-win-x64.exe'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-v1.2.3-win-x64.exe'));
 
-    fireEvent.change(select, { target: { value: 'kaur-khor-1.2.3-linux-arm64.AppImage' } });
+    fireEvent.change(select, { target: { value: 'kaur-khor-v1.2.3-linux-arm64.AppImage' } });
 
     expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute(
       'href',
@@ -651,12 +695,12 @@ describe('WebRoutes releases section', () => {
     renderWebHome();
 
     const select = await startReleaseDownloadLoad();
-    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-win-x64.exe'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-v1.2.3-win-x64.exe'));
     expect(screen.getByText('Windows install notes')).toBeInTheDocument();
     expect(screen.getByText('Do not disable SmartScreen globally.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /YouTube tutorial for opening macOS app/i })).not.toBeInTheDocument();
 
-    fireEvent.change(select, { target: { value: 'kaur-khor-1.2.3-linux-arm64.AppImage' } });
+    fireEvent.change(select, { target: { value: 'kaur-khor-v1.2.3-linux-arm64.AppImage' } });
 
     expect(screen.getByText('Linux install notes')).toBeInTheDocument();
     expect(screen.getByText('Mark AppImages executable before opening them.')).toBeInTheDocument();
@@ -676,7 +720,7 @@ describe('WebRoutes releases section', () => {
 
     const select = await screen.findByLabelText('ទាញយក') as HTMLSelectElement;
     fireEvent.focus(select);
-    await waitFor(() => expect(select.value).toBe('kaur-khor-1.2.3-linux-x64.AppImage'));
+    await waitFor(() => expect(select.value).toBe('kaur-khor-v1.2.3-linux-x64.AppImage'));
 
     expect(screen.getByText('កំណត់សម្គាល់ដំឡើង Linux')).toBeInTheDocument();
     expect(screen.getByText('កំណត់ឯកសារ AppImage ឱ្យអាចដំណើរការបាន មុនបើកវា។')).toBeInTheDocument();
