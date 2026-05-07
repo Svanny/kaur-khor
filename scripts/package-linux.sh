@@ -20,6 +20,8 @@ case "${machine_arch}" in
     ;;
 esac
 
+export KAUR_KHOR_ARTIFACT_ARCH="${target_arch}"
+
 node scripts/stage-desktop-core.mjs --platform=linux --arch="${target_arch}"
 pnpm build
 pnpm exec electron-builder install-app-deps --platform=linux --arch="${target_arch}"

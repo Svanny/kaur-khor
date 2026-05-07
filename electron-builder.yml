@@ -20,7 +20,7 @@ extraResources:
     filter:
       - '**/*'
 
-artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+artifactName: 'kaur-khor-v${version}-${os}-${env.KAUR_KHOR_ARTIFACT_ARCH}.${ext}'
 
 mac:
   target:
