@@ -9,6 +9,8 @@ import {
   type AutomationListIntakesPayload,
   type AutomationReadConversationPayload,
   type AutomationReadIntakePayload,
+  type AutomationReadIntakeThreadPayload,
+  type AutomationSendIntakeThreadMessagePayload,
   type AutomationResolveIntakePayload,
   type DesktopBridge,
   type DesktopPreferences,
@@ -162,6 +164,10 @@ const desktopBridge: DesktopBridge = {
     listConversations: () => invokeWithBenchmark(IPC_CHANNELS.automationListConversations),
     readConversation: (payload: AutomationReadConversationPayload) =>
       invokeWithBenchmark(IPC_CHANNELS.automationReadConversation, payload),
+    readIntakeThread: (payload: AutomationReadIntakeThreadPayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationReadIntakeThread, payload),
+    sendIntakeThreadMessage: (payload: AutomationSendIntakeThreadMessagePayload) =>
+      invokeWithBenchmark(IPC_CHANNELS.automationSendIntakeThreadMessage, payload),
     listIntakes: (payload?: AutomationListIntakesPayload) =>
       invokeWithBenchmark(IPC_CHANNELS.automationListIntakes, payload),
     readIntake: (payload: AutomationReadIntakePayload) =>

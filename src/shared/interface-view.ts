@@ -32,7 +32,7 @@ export const INTERFACE_VIEW_PRESETS: Record<InterfacePresetViewMode, InterfaceVi
     showExplanatoryTooltips: true,
     showFloatingTitleActions: true,
     showRightRailCards: false,
-    showOverviewTaskTabs: false,
+    showOverviewTaskTabs: true,
     showAutomationsPage: false,
     showAnalysisPage: true,
     showPerformanceCompareToggle: false,

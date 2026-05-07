@@ -23,6 +23,8 @@ import type {
   AutomationListIntakesPayload,
   AutomationReadConversationPayload,
   AutomationReadIntakePayload,
+  AutomationReadIntakeThreadPayload,
+  AutomationSendIntakeThreadMessagePayload,
   AutomationResolveIntakePayload,
 } from '@shared/ipc';
 import type { PromoteAutomationIntakePayload } from '@shared/automation';
@@ -46,6 +48,16 @@ export interface AutomationContextValue {
     messages: AutomationMessageRecord[];
     intakes: AutomationOrderIntake[];
   }>;
+  readIntakeThread: (payload: AutomationReadIntakeThreadPayload) => Promise<{
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  }>;
+  sendIntakeThreadMessage: (payload: AutomationSendIntakeThreadMessagePayload) => Promise<{
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  }>;
   listIntakes: (payload?: AutomationListIntakesPayload) => Promise<AutomationOrderIntake[]>;
   readIntake: (payload: AutomationReadIntakePayload) => Promise<AutomationOrderIntake | null>;
   resolveIntake: (payload: AutomationResolveIntakePayload) => Promise<AutomationOrderIntake>;
@@ -55,6 +67,7 @@ export interface AutomationContextValue {
 
 const AutomationContext = createContext<AutomationContextValue | null>(null);
 const automationUnavailableErrorMessage = 'Automations is unavailable in this environment.';
+const connectedAutomationRefreshIntervalMs = 2_000;
 
 async function rejectUnavailableAutomation(): Promise<never> {
   throw new Error(automationUnavailableErrorMessage);
@@ -74,6 +87,8 @@ const optionalAutomationFallback: AutomationContextValue = {
   saveConnection: rejectUnavailableAutomation,
   patchExposureRow: rejectUnavailableAutomation,
   readConversation: rejectUnavailableAutomation,
+  readIntakeThread: rejectUnavailableAutomation,
+  sendIntakeThreadMessage: rejectUnavailableAutomation,
   listIntakes: rejectUnavailableAutomation,
   readIntake: rejectUnavailableAutomation,
   resolveIntake: rejectUnavailableAutomation,
@@ -146,6 +161,42 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
+  useEffect(() => {
+    if (state.connection?.status !== 'connected') {
+      return;
+    }
+
+    let stopped = false;
+    let refreshInFlight = false;
+    const refreshConnectedWorkspace = async () => {
+      if (stopped || refreshInFlight || document.visibilityState === 'hidden') {
+        return;
+      }
+      refreshInFlight = true;
+      try {
+        await loadWorkspace();
+      } catch (error) {
+        if (!stopped) {
+          setStatePartial({
+            error: error instanceof Error ? error.message : String(error),
+            isLoading: false,
+          });
+        }
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void refreshConnectedWorkspace();
+    }, connectedAutomationRefreshIntervalMs);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [loadWorkspace, setStatePartial, state.connection?.status]);
+
   const saveConnection = useCallback(async (payload: AutomationConnectionPatch) => {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
@@ -180,6 +231,25 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     }
     return window.kaurKhorDesktop.automation.readConversation(payload);
   }, []);
+
+  const readIntakeThread = useCallback(async (payload: AutomationReadIntakeThreadPayload) => {
+    if (!window.kaurKhorDesktop.automation) {
+      throw new Error('Automations is unavailable in this environment.');
+    }
+    return window.kaurKhorDesktop.automation.readIntakeThread(payload);
+  }, []);
+
+  const sendIntakeThreadMessage = useCallback(async (payload: AutomationSendIntakeThreadMessagePayload) => {
+    if (!window.kaurKhorDesktop.automation) {
+      throw new Error('Automations is unavailable in this environment.');
+    }
+    setStatePartial({ isSaving: true, error: null });
+    try {
+      return await window.kaurKhorDesktop.automation.sendIntakeThreadMessage(payload);
+    } finally {
+      setStatePartial({ isSaving: false });
+    }
+  }, [setStatePartial]);
 
   const listIntakes = useCallback(async (payload?: AutomationListIntakesPayload) => {
     if (!window.kaurKhorDesktop.automation) {
@@ -247,6 +317,8 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     saveConnection,
     patchExposureRow,
     readConversation,
+    readIntakeThread,
+    sendIntakeThreadMessage,
     listIntakes,
     readIntake,
     resolveIntake,
@@ -259,6 +331,8 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     saveConnection,
     patchExposureRow,
     readConversation,
+    readIntakeThread,
+    sendIntakeThreadMessage,
     listIntakes,
     readIntake,
     resolveIntake,

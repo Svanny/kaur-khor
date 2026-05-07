@@ -71,6 +71,7 @@ export interface AutomationConversationSummary {
 export interface AutomationMessageRecord {
   messageId: string;
   conversationId: string;
+  intakeId?: string | null;
   externalMessageKey: string;
   direction: 'inbound' | 'outbound';
   sentAt: string;
@@ -133,11 +134,17 @@ export interface PromoteAutomationIntakePayload {
   intakeId: string;
   mode: 'create_ticket' | 'append_ticket';
   ticketId?: string | null;
+  customerMessage?: AutomationCustomerMessagePayload;
   customerIdentityOverride?: {
     customerName?: string | null;
     phone?: string | null;
   };
   note?: string | null;
+}
+
+export interface AutomationCustomerMessagePayload {
+  send: boolean;
+  text: string | null;
 }
 
 export interface PromoteAutomationIntakeResult {

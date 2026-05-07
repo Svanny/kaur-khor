@@ -40,6 +40,7 @@ import type {
   AutomationOrderIntake,
   AutomationIntakeStatus,
   AutomationWorkspace,
+  AutomationCustomerMessagePayload,
   PromoteAutomationIntakePayload,
   PromoteAutomationIntakeResult,
 } from './automation';
@@ -270,9 +271,19 @@ export interface AutomationReadIntakePayload {
   intakeId: string;
 }
 
+export interface AutomationReadIntakeThreadPayload {
+  intakeId: string;
+}
+
+export interface AutomationSendIntakeThreadMessagePayload {
+  intakeId: string;
+  text: string;
+}
+
 export interface AutomationResolveIntakePayload {
   intakeId: string;
   status: 'needs_review' | 'quoted' | 'canceled';
+  customerMessage?: AutomationCustomerMessagePayload;
   note?: string | null;
 }
 
@@ -301,6 +312,16 @@ export interface DesktopAutomationBridge {
     messages: AutomationMessageRecord[];
     intakes: AutomationOrderIntake[];
   }>;
+  readIntakeThread: (payload: AutomationReadIntakeThreadPayload) => Promise<{
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  }>;
+  sendIntakeThreadMessage: (payload: AutomationSendIntakeThreadMessagePayload) => Promise<{
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  }>;
   listIntakes: (payload?: AutomationListIntakesPayload) => Promise<AutomationOrderIntake[]>;
   readIntake: (payload: AutomationReadIntakePayload) => Promise<AutomationOrderIntake | null>;
   resolveIntake: (payload: AutomationResolveIntakePayload) => Promise<AutomationOrderIntake>;
@@ -326,6 +347,8 @@ export const IPC_CHANNELS = {
   automationPatchExposureRow: 'kaur-khor:automation:patch-exposure-row',
   automationListConversations: 'kaur-khor:automation:list-conversations',
   automationReadConversation: 'kaur-khor:automation:read-conversation',
+  automationReadIntakeThread: 'kaur-khor:automation:read-intake-thread',
+  automationSendIntakeThreadMessage: 'kaur-khor:automation:send-intake-thread-message',
   automationListIntakes: 'kaur-khor:automation:list-intakes',
   automationReadIntake: 'kaur-khor:automation:read-intake',
   automationResolveIntake: 'kaur-khor:automation:resolve-intake',

@@ -110,6 +110,8 @@ pub struct SenaObservationInput {
     pub recipe_usage_hints: Vec<SenaRecipeUsageHint>,
     #[serde(default)]
     pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
+    #[serde(default)]
+    pub discount: Option<SenaDiscountMetadata>,
     pub notes: Option<String>,
 }
 
@@ -229,6 +231,13 @@ pub enum SenaDeliveryFeeBucket {
     ImmediateSale,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SenaDiscountMode {
+    Amount,
+    Percent,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct SenaDeliveryFeeMetadata {
@@ -239,6 +248,17 @@ pub struct SenaDeliveryFeeMetadata {
     pub display_delivery_usd: Option<f64>,
     pub display_total_usd: Option<f64>,
     pub net_settlement_usd: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SenaDiscountMetadata {
+    pub mode: SenaDiscountMode,
+    pub amount_usd: Option<f64>,
+    pub percent: Option<f64>,
+    pub subtotal_usd: Option<f64>,
+    pub display_discount_usd: Option<f64>,
+    pub discounted_subtotal_usd: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -330,6 +350,8 @@ pub struct SenaTicketEvent {
     #[serde(default)]
     pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
     #[serde(default)]
+    pub discount: Option<SenaDiscountMetadata>,
+    #[serde(default)]
     pub note: Option<String>,
 }
 
@@ -369,6 +391,8 @@ pub struct SenaOrderFieldValues {
     pub lead_time_variability: Option<SenaLeadTimeVariabilityClass>,
     #[serde(default)]
     pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
+    #[serde(default)]
+    pub discount: Option<SenaDiscountMetadata>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -584,6 +608,8 @@ pub struct SenaTicketSummary {
     pub lines: Vec<SenaTicketLine>,
     #[serde(default)]
     pub delivery_fee: Option<SenaDeliveryFeeMetadata>,
+    #[serde(default)]
+    pub discount: Option<SenaDiscountMetadata>,
     #[serde(default)]
     pub note: Option<String>,
 }
@@ -936,6 +962,7 @@ impl SenaObservationInput {
             || !self.ticket_events.is_empty()
             || !self.recipe_usage_hints.is_empty()
             || self.delivery_fee.is_some()
+            || self.discount.is_some()
     }
 
     pub fn validate(&self) -> Result<()> {
@@ -1121,6 +1148,9 @@ impl SenaObservationInput {
         if let Some(delivery_fee) = &self.delivery_fee {
             validate_delivery_fee_metadata(delivery_fee)?;
         }
+        if let Some(discount) = &self.discount {
+            validate_discount_metadata(discount)?;
+        }
         Ok(())
     }
 }
@@ -1152,6 +1182,34 @@ fn validate_delivery_fee_metadata(metadata: &SenaDeliveryFeeMetadata) -> Result<
         if let Some(value) = value {
             if !value.is_finite() || (!allow_negative && value < 0.0) {
                 return Err(anyhow!("{label} must be a finite number"));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_discount_metadata(metadata: &SenaDiscountMetadata) -> Result<()> {
+    if let Some(value) = metadata.amount_usd {
+        if !value.is_finite() || value < 0.0 {
+            return Err(anyhow!("discount.amountUsd must be >= 0"));
+        }
+    }
+    if let Some(value) = metadata.percent {
+        if !value.is_finite() || !(0.0..=100.0).contains(&value) {
+            return Err(anyhow!("discount.percent must be between 0 and 100"));
+        }
+    }
+    for (label, value) in [
+        ("discount.subtotalUsd", metadata.subtotal_usd),
+        ("discount.displayDiscountUsd", metadata.display_discount_usd),
+        (
+            "discount.discountedSubtotalUsd",
+            metadata.discounted_subtotal_usd,
+        ),
+    ] {
+        if let Some(value) = value {
+            if !value.is_finite() || value < 0.0 {
+                return Err(anyhow!("{label} must be a finite non-negative number"));
             }
         }
     }
@@ -1272,6 +1330,7 @@ mod tests {
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
             delivery_fee: None,
+            discount: None,
             recipe_usage_hints: Vec::new(),
             notes: None,
         };
@@ -1299,6 +1358,7 @@ mod tests {
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
             delivery_fee: None,
+            discount: None,
             recipe_usage_hints: Vec::new(),
             notes: Some("operator note only".to_string()),
         };
@@ -1433,6 +1493,7 @@ mod tests {
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
             delivery_fee: None,
+            discount: None,
             recipe_usage_hints: Vec::new(),
             notes: None,
         };

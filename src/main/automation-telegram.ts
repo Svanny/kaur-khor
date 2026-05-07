@@ -16,6 +16,7 @@ import {
   readAutomationTransportState,
   recordAutomationWizardMessage,
   recordAutomationTelegramError,
+  removeAutomationOutboundTelegramMessage,
   saveAutomationConnection,
 } from './automation-store';
 import type { AutomationOrderIntake } from '@shared/automation';
@@ -112,8 +113,9 @@ function resolvedTokenPayload(existingHasToken: boolean, nextToken: string | nul
   if (nextToken === undefined) {
     return undefined;
   }
-  if (nextToken.trim()) {
-    return nextToken.trim();
+  const trimmed = nextToken?.trim() ?? '';
+  if (trimmed) {
+    return trimmed;
   }
   return existingHasToken ? undefined : null;
 }
@@ -130,9 +132,11 @@ async function sendTelegramConversationMessage(
   userDataPath: string,
   {
     conversationId,
+    intakeId = null,
     text,
   }: {
     conversationId: string;
+    intakeId?: string | null;
     text: string;
   },
 ) {
@@ -152,10 +156,30 @@ async function sendTelegramConversationMessage(
   await appendAutomationOutboundTelegramMessage(userDataPath, {
     conversationId,
     externalMessageKey: String(sent.message_id),
+    intakeId,
     sentAt: new Date(sent.date * 1000).toISOString(),
     text: sent.text ?? text,
   });
   return true;
+}
+
+export async function sendTelegramCustomerMessageForIntake(
+  userDataPath: string,
+  {
+    conversationId,
+    intakeId,
+    text,
+  }: {
+    conversationId: string;
+    intakeId: string;
+    text: string;
+  },
+) {
+  return sendTelegramConversationMessage(userDataPath, {
+    conversationId,
+    intakeId,
+    text: escapeTelegramHtml(text),
+  });
 }
 
 export async function validateAndSaveTelegramAutomationConnection(
@@ -267,6 +291,7 @@ export async function notifyTelegramCustomerOfPromotion(
   const storedPreferences = await readAutomationCustomerPreferences(userDataPath, conversationId);
   return sendTelegramConversationMessage(userDataPath, {
     conversationId,
+    intakeId: intake.intakeId,
     text: buildPromotionNotification(intake, {
       language: storedPreferences?.language ?? desktopPreferences.language,
       currency: storedPreferences?.currency ?? desktopPreferences.currency,
@@ -287,11 +312,14 @@ export async function notifyTelegramCustomerOfTicketUpdate(
   if (!conversation) {
     return false;
   }
+  const { intakes } = await readAutomationConversation(userDataPath, conversation.conversationId);
+  const intake = intakes.find((entry) => entry.promotedTicketId === ticketEvent.ticketId) ?? null;
   const desktopPreferences = await loadDesktopPreferences(userDataPath);
   const storedPreferences = await readAutomationCustomerPreferences(userDataPath, conversation.conversationId);
 
   return sendTelegramConversationMessage(userDataPath, {
     conversationId: conversation.conversationId,
+    intakeId: intake?.intakeId ?? null,
     text: buildTicketUpdateNotification(ticketEvent, storedPreferences?.language ?? desktopPreferences.language),
   });
 }
@@ -318,7 +346,7 @@ async function syncTelegramAutomationOnce(
 
   const transport = await readAutomationTransportState(userDataPath);
   const token = transport.botToken?.trim();
-  if (!token || transport.connection.status !== 'connected') {
+  if (!token || (transport.connection.status !== 'connected' && transport.connection.status !== 'error')) {
     return { disabled: false };
   }
 
@@ -376,10 +404,22 @@ async function syncTelegramAutomationOnce(
     }
 
     if (job.kind === 'delete_message') {
-      await telegramDeleteMessage(token, {
-        chatId: job.chatId,
-        messageId: job.messageId,
-      });
+      try {
+        await telegramDeleteMessage(token, {
+          chatId: job.chatId,
+          messageId: job.messageId,
+        });
+      } catch (error) {
+        if (!job.nonFatal) {
+          throw error;
+        }
+      }
+      if (job.nonFatal) {
+        await removeAutomationOutboundTelegramMessage(userDataPath, {
+          conversationId: job.conversationId,
+          externalMessageKey: String(job.messageId),
+        });
+      }
       continue;
     }
 
@@ -420,13 +460,17 @@ async function syncTelegramAutomationOnce(
       parseMode: job.parseMode,
       replyMarkup: job.replyMarkup,
     });
-    await appendAutomationOutboundTelegramMessage(userDataPath, {
-      conversationId: job.conversationId,
-      externalMessageKey: String(sent.message_id),
-      sentAt: new Date(sent.date * 1000).toISOString(),
-      text: sent.text ?? job.text,
-    });
-    if (job.storesWizardMessage) {
+    const isGeneratedWizardMessage = job.messageRole === 'wizard_generated' || job.storesWizardMessage;
+    if (!isGeneratedWizardMessage) {
+      await appendAutomationOutboundTelegramMessage(userDataPath, {
+        conversationId: job.conversationId,
+        externalMessageKey: String(sent.message_id),
+        intakeId: job.intakeId ?? null,
+        sentAt: new Date(sent.date * 1000).toISOString(),
+        text: sent.text ?? job.text,
+      });
+    }
+    if (isGeneratedWizardMessage) {
       await recordAutomationWizardMessage(userDataPath, {
         conversationId: job.conversationId,
         messageId: sent.message_id,
