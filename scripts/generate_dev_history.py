@@ -21,7 +21,7 @@ from typing import Any
 DEFAULT_OWNER = "desktop-owner"
 DEFAULT_YEARS = 5
 DEFAULT_INTERVAL_DAYS = 3.5
-DEV_HISTORY_VERSION = "current-sena-history-v2"
+DEV_HISTORY_VERSION = "current-sena-history-v3"
 
 
 @dataclass
@@ -729,7 +729,7 @@ def build_sena_observations(
     observations: list[dict[str, Any]] = []
     previous_units: dict[str, float] = {}
 
-    for report in reports:
+    for report_index, report in enumerate(reports):
         for adjustment in report.get("servicePriceAdjustments", []):
             service_price_map[adjustment["serviceId"]] = float(adjustment["price"])
 
@@ -802,6 +802,13 @@ def build_sena_observations(
                 }
             )
 
+        ticket_events = build_screenshot_customer_ticket_events(
+            report,
+            services,
+            report_index=report_index,
+            report_count=len(reports),
+        )
+
         observations.append(
             {
                 "observedAt": report["reportedAt"],
@@ -865,12 +872,168 @@ def build_sena_observations(
                         if item.get("unitsSold", 0) > 0
                     ],
                 ],
+                "ticketEvents": ticket_events,
                 "recipeUsageHints": report.get("recipeUsageHints", []),
                 "notes": report.get("notes"),
             }
         )
 
     return observations
+
+
+def timestamp_from_observed_at(observed_at: str, hour: int, minute: int = 0) -> str:
+    observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+    return observed.replace(hour=hour, minute=minute, second=0, microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def add_days_to_timestamp(timestamp: str, days: int) -> str:
+    observed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    return (observed + timedelta(days=days)).isoformat().replace("+00:00", "Z")
+
+
+def normalized_key(value: str) -> str:
+    return "".join(character.lower() for character in value if character.isalnum())
+
+
+def phone_key(value: str) -> str:
+    return "".join(character for character in value if character.isdigit())
+
+
+def build_screenshot_customer_ticket_events(
+    report: dict[str, Any],
+    services: list[dict[str, Any]],
+    *,
+    report_index: int,
+    report_count: int,
+) -> list[dict[str, Any]]:
+    if report_index != report_count - 1:
+        return []
+
+    sku_ids = [
+        item["skuId"]
+        for item in report.get("skuObservations", [])
+        if item.get("skuId") and item.get("productPrice") is not None
+    ]
+    service_ids = [service["serviceId"] for service in services if service.get("serviceId")]
+    if not sku_ids and not service_ids:
+        return []
+
+    fixture_rows = [
+        {
+            "ticketId": "screenshot-customer-order-001",
+            "name": "Dara Sok",
+            "phone": "+855 12 345 678",
+            "channelKey": "telegram",
+            "channelLabel": "Telegram",
+            "location": "BKK1, Phnom Penh",
+            "entityType": "sku",
+            "entityIndex": 0,
+            "quantity": 3,
+            "stage": "pending",
+            "hour": 9,
+            "note": "Reserve gift-ready scarves for afternoon pickup.",
+        },
+        {
+            "ticketId": "screenshot-customer-order-002",
+            "name": "Malis Chan",
+            "phone": "+855 15 777 204",
+            "channelKey": "facebook",
+            "channelLabel": "Facebook",
+            "location": "Toul Kork, Phnom Penh",
+            "entityType": "service",
+            "entityIndex": 1,
+            "quantity": 2,
+            "stage": "ready",
+            "hour": 10,
+            "note": "Gift wrap is ready; confirm driver handoff window.",
+        },
+        {
+            "ticketId": "screenshot-customer-order-003",
+            "name": "Sophea Lim",
+            "phone": "+855 10 428 119",
+            "channelKey": "walk_in",
+            "channelLabel": "Walk-in",
+            "location": "Russian Market",
+            "entityType": "sku",
+            "entityIndex": 2,
+            "quantity": 4,
+            "stage": "pending",
+            "hour": 11,
+            "note": "Customer asked for matching pieces before invoice.",
+        },
+        {
+            "ticketId": "screenshot-customer-order-004",
+            "name": "Vireak Nuon",
+            "phone": "+855 96 230 6184",
+            "channelKey": "phone",
+            "channelLabel": "Phone",
+            "location": "Chroy Changvar",
+            "entityType": "service",
+            "entityIndex": 3,
+            "quantity": 1,
+            "stage": "pending",
+            "hour": 12,
+            "note": "Needs quote confirmation before same-day preparation.",
+        },
+        {
+            "ticketId": "screenshot-customer-order-005",
+            "name": "Lina Prak",
+            "phone": "+855 92 901 422",
+            "channelKey": "telegram",
+            "channelLabel": "Telegram",
+            "location": "Daun Penh",
+            "entityType": "sku",
+            "entityIndex": 4,
+            "quantity": 2,
+            "stage": "ready",
+            "hour": 13,
+            "note": "Order packed and waiting for pickup confirmation.",
+        },
+    ]
+
+    ticket_events: list[dict[str, Any]] = []
+    for fixture in fixture_rows:
+        entity_type = fixture["entityType"]
+        entity_ids = sku_ids if entity_type == "sku" else service_ids
+        if not entity_ids:
+            continue
+        entity_id = entity_ids[int(fixture["entityIndex"]) % len(entity_ids)]
+        occurred_at = timestamp_from_observed_at(report["reportedAt"], int(fixture["hour"]), 15)
+        quantity = int(fixture["quantity"])
+        ticket_events.append(
+            {
+                "ticketId": fixture["ticketId"],
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": fixture["stage"],
+                "revision": 1,
+                "eventType": "ready_marked" if fixture["stage"] == "ready" else "created",
+                "occurredAt": occurred_at,
+                "nextTouchAt": add_days_to_timestamp(occurred_at, 1),
+                "party": {
+                    "role": "customer",
+                    "channelKey": fixture["channelKey"],
+                    "channelLabel": fixture["channelLabel"],
+                    "customerName": fixture["name"],
+                    "customerNameKey": normalized_key(str(fixture["name"])),
+                    "phone": fixture["phone"],
+                    "phoneKey": phone_key(str(fixture["phone"])),
+                    "location": fixture["location"],
+                },
+                "lines": [
+                    {
+                        "entityType": entity_type,
+                        "entityId": entity_id,
+                        "quantityDelta": quantity,
+                        "orderedQuantity": quantity,
+                        "promisedAt": add_days_to_timestamp(occurred_at, 2),
+                        "note": fixture["note"],
+                    }
+                ],
+                "note": fixture["note"],
+            }
+        )
+    return ticket_events
 
 
 def enrich_lead_time_hints(observations: list[dict[str, Any]], skus: list[dict[str, Any]]) -> None:
