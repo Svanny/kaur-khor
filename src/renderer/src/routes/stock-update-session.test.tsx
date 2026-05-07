@@ -1691,15 +1691,16 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
 
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    const expectedArrivalAt = new Date(2026, 3, 18).toISOString();
     expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
       ticketEvents: [
         expect.objectContaining({
-          nextTouchAt: '2026-04-17T17:00:00.000Z',
+          nextTouchAt: expectedArrivalAt,
           lines: [
             expect.objectContaining({
               entityType: 'sku',
               entityId: 'sku-1',
-              expectedArrivalAt: '2026-04-17T17:00:00.000Z',
+              expectedArrivalAt,
             }),
           ],
         }),

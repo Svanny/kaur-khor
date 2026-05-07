@@ -1869,10 +1869,11 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                                 <div className="flex flex-wrap items-center gap-2">
                                   {isCustomerTicketTask(task) ? (
                                     <button
-                                      className="text-left text-base font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                      className="inline-flex items-center gap-1.5 text-left text-base font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                       type="button"
                                       onClick={() => openCustomerTicketQuickDrawer(task)}
                                     >
+                                      <EntityCustomerIcon aria-hidden="true" className="size-4 shrink-0" />
                                       {task.displayTicketLabel ?? task.label}
                                     </button>
                                   ) : (

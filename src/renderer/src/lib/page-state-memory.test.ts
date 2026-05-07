@@ -119,10 +119,10 @@ describe('page-state-memory', () => {
       '?section=intake&filter=needs_review&conversation=conv-1&intake=intake-1&ticket=ticket-1&q=telegram',
     );
 
-    expect(buildRememberedOverviewHref()).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
-    expect(buildRememberedInboxHref()).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
+    expect(buildRememberedOverviewHref()).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
+    expect(buildRememberedInboxHref()).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
     expect(buildRememberedPageHref('/work')).toBe('/work');
-    expect(buildRememberedPageHref('/work/queue')).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
+    expect(buildRememberedPageHref('/work/queue')).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
     expect(buildRememberedAutomationHref()).toBe('/work/intake?section=intake');
   });
 
@@ -133,7 +133,7 @@ describe('page-state-memory', () => {
       performance: '?range=7d&scope=skus',
     }));
 
-    expect(buildRememberedInboxHref()).toBe('/work/queue?workflow=customer&customerFilter=quoted');
+    expect(buildRememberedInboxHref()).toBe('/work/queue?customerFilter=quoted');
     expect(buildRememberedHistoryHref()).toBe('/settings/history');
     expect(buildRememberedInsightsHref()).toBe('/insights');
   });

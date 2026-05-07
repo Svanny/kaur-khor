@@ -64,6 +64,7 @@ import {
 import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
   StatusGaugeIcon,
+  StatusPromoIcon,
   StatusReadyIcon,
   StatusScheduleIcon,
   StatusTimingIcon,
@@ -3751,9 +3752,11 @@ function DiscountFields({
           }}
         >
           <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="amount">
+            <StatusPromoIcon aria-hidden="true" className="size-4" />
             {translateUiLiteral(language, 'Amount')}
           </ToggleGroupItem>
           <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="percent">
+            <StatusGaugeIcon aria-hidden="true" className="size-4" />
             {translateUiLiteral(language, 'Percent')}
           </ToggleGroupItem>
         </ToggleGroup>
@@ -11269,7 +11272,10 @@ export function StockUpdateSessionRoute() {
                     className="-mx-2 grid w-[calc(100%+1rem)] gap-x-3 gap-y-1 rounded-lg px-2 py-3 text-left transition hover:bg-muted/45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(0,1fr)_8rem_6.25rem_11rem] sm:items-center"
                     onClick={() => applySupplierSuggestedEtaRow(row)}
                   >
-                    <p className="min-w-0 truncate text-sm font-medium text-foreground">{row.title}</p>
+                    <p className="inline-flex min-w-0 items-center gap-2 truncate text-sm font-medium text-foreground">
+                      <StatusScheduleIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 truncate">{row.title}</span>
+                    </p>
                     <p className="min-w-0 whitespace-nowrap text-sm font-semibold text-foreground">
                       {row.expectedArrival ? formatSenaLongDate(row.expectedArrival, language) : translateUiLiteral(language, 'n/a')}
                     </p>

@@ -1507,9 +1507,7 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 2, name: 'Telegram intake' })).toBeInTheDocument();
     });
-    await waitFor(() => {
-      expect(readConversation).toHaveBeenCalledWith({ conversationId: 'conv-1' });
-    });
+    expect(readConversation).not.toHaveBeenCalled();
     expect(screen.getByTestId('route-location')).toHaveTextContent(
       '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );

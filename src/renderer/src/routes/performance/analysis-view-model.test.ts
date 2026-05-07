@@ -563,7 +563,7 @@ describe('deriveAnalysisViewModel', () => {
       needProbability: '78%',
       recommendedOrder: '15 units',
       likelyRange: '10-18 units',
-      policyBasis: 'on hand + in transit',
+      policyBasis: 'on-hand + in-transit',
     });
   });
 

@@ -102,6 +102,10 @@ For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there i
 
 Delivery fee records the charge and payer for a customer order or receipt summary when delivery handling is enabled. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual customer agreement.
 
+### Discount {#record-update-discount}
+
+Discount records either a flat amount or a percentage taken off the receipt subtotal before delivery is added. It affects the visible customer total and the net settlement used by Money and ticket history. Check the mode and value before saving so receipts match the actual agreement.
+
 ### Notes {#record-update-notes}
 
 Notes capture operator context that structured fields cannot express. They are useful for explaining unusual counts, customer requests, supplier promises, or manual corrections. Keep notes factual because they appear later in History, detail pages, and analysis evidence.

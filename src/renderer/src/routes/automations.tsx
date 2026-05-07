@@ -380,6 +380,7 @@ function AutomationIntakeChatView({
             type="button"
             onClick={() => onSelectIntake(intake.intakeId)}
           >
+            <ActionOpenExternalIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0">
               <span className="block truncate font-medium text-foreground">{intake.customerDisplayName ?? intake.customerHandle ?? literal('Telegram customer')}</span>
               <span className="mt-1 block truncate text-sm text-muted-foreground">{intakeRequestLabel(intake)}</span>

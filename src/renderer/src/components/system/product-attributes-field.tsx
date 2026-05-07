@@ -1,4 +1,4 @@
-import { ActionAddBadgeIcon, ActionCloseIcon, ActionDeleteIcon } from '@icons/actions';
+import { ActionAddBadgeIcon, ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { useMemo, useState } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -329,15 +329,16 @@ function ProductAttributeRow({
                 />
               ) : (
                 <button
-                  className="max-w-[34ch] truncate font-medium leading-5 text-left"
+                  className="inline-flex max-w-[34ch] items-center gap-1.5 truncate font-medium leading-5 text-left"
                   type="button"
                   onClick={() => setEditingOptionIndex(optionIndex)}
                 >
+                  <ActionEditIcon aria-hidden="true" className="size-3.5 shrink-0" />
                   {label}
                 </button>
               )}
               <button
-                className="grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="grid size-6 place-items-center rounded-full text-destructive hover:bg-destructive/10"
                 type="button"
                 aria-label={`${translateUiLiteral(language, 'Remove option')} ${label}`}
                 onClick={() =>
@@ -348,7 +349,7 @@ function ProductAttributeRow({
                   }))
                 }
               >
-                <ActionCloseIcon className="size-3.5" />
+                <ActionDeleteIcon className="size-3.5" />
               </button>
             </div>
           );
