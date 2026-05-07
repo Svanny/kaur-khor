@@ -19,6 +19,89 @@ vi.mock('./automations', () => ({
   AutomationsRoute: () => <div>Embedded automations</div>,
 }));
 
+function mockEnglishPreferences() {
+  preferencesHook.mockReturnValue({
+    currency: 'USD',
+    language: 'en',
+    showAutomationsPage: false,
+    t: (
+      key: Parameters<typeof getTranslation>[1],
+      variables?: Parameters<typeof getTranslation>[2],
+    ) => getTranslation('en', key, variables),
+    usdToKhrExchangeRate: 4000,
+  });
+}
+
+function makeProductsInventory(overrides: Record<string, unknown> = {}) {
+  const catalog = {
+    bundles: [],
+    schemaVersion: 1,
+    services: [
+      {
+        archived: false,
+        bundle: false,
+        description: 'Service',
+        imagePath: null,
+        name: 'Service 1',
+        price: 15,
+        serviceId: 'service-1',
+      },
+    ],
+    sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null }],
+    skus: [
+      {
+        archived: false,
+        costPerUnit: 4,
+        description: 'Cotton tee',
+        imagePath: null,
+        leadTimeMeanDaysHint: 5,
+        leadTimeStdDaysHint: 1,
+        name: 'SKU 1',
+        productPrice: 9,
+        skuId: 'sku-1',
+        soldAsProduct: true,
+        supplierName: 'Mekong Looms',
+      },
+      {
+        archived: false,
+        costPerUnit: 2,
+        description: 'Thread',
+        imagePath: null,
+        leadTimeMeanDaysHint: 3,
+        leadTimeStdDaysHint: 0.5,
+        name: 'SKU 2',
+        productPrice: 5,
+        skuId: 'sku-2',
+        soldAsProduct: true,
+        supplierName: null,
+      },
+    ],
+  };
+
+  return {
+    catalog,
+    diagnostics: null,
+    isLoading: false,
+    isSaving: false,
+    listSenaObservationPage: vi.fn(async () => ({
+      hasOlder: false,
+      nextCursor: null,
+      observations: [],
+    })),
+    listSenaOrderBatches: vi.fn(async () => []),
+    loadSenaServiceDetail: vi.fn(async () => null),
+    loadSenaSkuDetail: vi.fn(async () => null),
+    observations: [],
+    orderBatches: [],
+    reports: [],
+    snapshot: null,
+    upsertSenaCatalog: vi.fn(async (payload) => payload),
+    deleteCatalogEntity: vi.fn(async () => catalog),
+    workspaceSummary: null,
+    ...overrides,
+  };
+}
+
 describe('InventoryRoute', () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -37,17 +120,14 @@ describe('InventoryRoute', () => {
       reports: [],
       snapshot: null,
       workspaceSummary: null,
+      listSenaObservationPage: vi.fn(async () => ({
+        hasOlder: false,
+        nextCursor: null,
+        observations: [],
+      })),
+      listSenaOrderBatches: vi.fn(async () => []),
     });
-    preferencesHook.mockReturnValue({
-      currency: 'USD',
-      language: 'en',
-      showAutomationsPage: false,
-      t: (
-        key: Parameters<typeof getTranslation>[1],
-        variables?: Parameters<typeof getTranslation>[2],
-      ) => getTranslation('en', key, variables),
-      usdToKhrExchangeRate: 4000,
-    });
+    mockEnglishPreferences();
 
     render(
       <MemoryRouter initialEntries={['/catalog?section=automation']}>
@@ -121,6 +201,12 @@ describe('InventoryRoute', () => {
       isLoading: false,
       isSaving: false,
       loadSenaSkuDetail,
+      listSenaObservationPage: vi.fn(async () => ({
+        hasOlder: false,
+        nextCursor: null,
+        observations: [],
+      })),
+      listSenaOrderBatches: vi.fn(async () => []),
       observations: [
         {
           observationId: 'obs-1',
@@ -195,16 +281,7 @@ describe('InventoryRoute', () => {
         topRegime: 'normal',
       },
     });
-    preferencesHook.mockReturnValue({
-      currency: 'USD',
-      language: 'en',
-      showAutomationsPage: false,
-      t: (
-        key: Parameters<typeof getTranslation>[1],
-        variables?: Parameters<typeof getTranslation>[2],
-      ) => getTranslation('en', key, variables),
-      usdToKhrExchangeRate: 4000,
-    });
+    mockEnglishPreferences();
 
     render(
       <MemoryRouter initialEntries={['/catalog']}>
@@ -222,6 +299,149 @@ describe('InventoryRoute', () => {
       expect(loadSenaSkuDetail).toHaveBeenCalledWith('sku-1');
     });
     expect(loadSenaSkuDetail).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
+  });
+
+  test('shows Products row duplicate archive delete actions in order', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(state.listSenaObservationPage).toHaveBeenCalled();
+    });
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    expect(serviceRow).not.toBeNull();
+
+    expect(skuRow!.textContent).toMatch(/Detail.*Edit.*Duplicate.*Archive.*Delete/s);
+    expect(serviceRow!.textContent).toMatch(/Detail.*Edit.*Duplicate.*Archive.*Delete/s);
+  });
+
+  test('duplicates a SKU from metadata without writing observations', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    fireEvent.click(within(skuRow!).getByRole('button', { name: 'Duplicate' }));
+
+    await waitFor(() => {
+      expect(state.upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+    const nextCatalog = vi.mocked(state.upsertSenaCatalog).mock.calls[0][0];
+    expect(nextCatalog.skus.at(-1)).toMatchObject({
+      costPerUnit: 4,
+      description: 'Cotton tee',
+      leadTimeMeanDaysHint: 5,
+      leadTimeStdDaysHint: 1,
+      name: 'SKU 1 (copy)',
+      productPrice: 9,
+      soldAsProduct: true,
+      supplierName: 'Mekong Looms',
+    });
+    expect(nextCatalog.sharingMask.filter((entry) => entry.skuId === nextCatalog.skus.at(-1)?.skuId)).toHaveLength(0);
+  });
+
+  test('duplicates a service with linked SKU metadata only', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+    fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Duplicate' }));
+
+    await waitFor(() => {
+      expect(state.upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+    const nextCatalog = vi.mocked(state.upsertSenaCatalog).mock.calls[0][0];
+    const serviceCopy = nextCatalog.services.at(-1);
+    expect(serviceCopy).toMatchObject({
+      bundle: false,
+      description: 'Service',
+      name: 'Service 1 (copy)',
+      price: 15,
+    });
+    expect(nextCatalog.sharingMask).toContainEqual({
+      enabled: true,
+      serviceId: serviceCopy?.serviceId,
+      skuId: 'sku-1',
+      usageProbability: null,
+    });
+  });
+
+  test('deletes an eligible service after confirmation', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    expect(serviceRow).not.toBeNull();
+    const deleteButton = within(serviceRow!).getByRole('button', { name: 'Delete' });
+    await waitFor(() => {
+      expect(deleteButton).not.toHaveAttribute('aria-disabled');
+    });
+    fireEvent.click(deleteButton);
+    const dialog = screen.getByText('Delete Service 1?').closest('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    fireEvent.click(within(dialog!).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(state.deleteCatalogEntity).toHaveBeenCalledWith({
+        entityId: 'service-1',
+        entityType: 'service',
+      });
+    });
+  });
+
+  test('explains why an ineligible delete cannot run', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    expect(skuRow).not.toBeNull();
+    const deleteButton = within(skuRow!).getByRole('button', { name: 'Delete' });
+    await waitFor(() => {
+      expect(deleteButton).toHaveAttribute('aria-disabled', 'true');
+    });
+    fireEvent.click(deleteButton);
+
+    expect(screen.getByText('Cannot delete SKU 1')).toBeInTheDocument();
+    expect(screen.getByText('This SKU is linked to a service. Unlink it from services before deleting it.')).toBeInTheDocument();
   });
 });

@@ -675,7 +675,7 @@ describe('PerformanceRoute', () => {
     renderAnalysisRoute();
 
     expect(screen.getAllByText('Explain')[0]).toBeInTheDocument();
-    expect(screen.queryByText('Explain needs a catalog first')).not.toBeInTheDocument();
+    expect(screen.queryByText('Explain needs products first')).not.toBeInTheDocument();
     expect(screen.queryByText('Explain needs your first update')).not.toBeInTheDocument();
   });
 

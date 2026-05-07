@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutomationProvider, useAutomation } from './automation';
 
 const loadWorkSupportData = vi.fn();
@@ -13,27 +13,49 @@ vi.mock('./inventory', () => ({
 function Harness() {
   const automation = useAutomation();
   return (
-    <button
-      type="button"
-      onClick={() =>
-        void automation.promoteIntake({
-          intakeId: 'intake-1',
-          mode: 'create_ticket',
-        })
-      }
-    >
-      promote
-    </button>
+    <>
+      <p data-testid="intake-count">{automation.intakes.length}</p>
+      <button
+        type="button"
+        onClick={() =>
+          void automation.promoteIntake({
+            intakeId: 'intake-1',
+            mode: 'create_ticket',
+          })
+        }
+      >
+        promote
+      </button>
+    </>
   );
 }
 
-function automationWorkspace() {
+function automationWorkspace(intakes: unknown[] = []) {
   return {
-    connection: null,
+    connection: {
+      channel: 'telegram',
+      status: 'connected',
+      hasBotToken: true,
+      botDisplayName: null,
+      botUsername: null,
+      externalLink: null,
+      connectedAt: null,
+      pausedAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+      lastWebhookAt: null,
+    },
     conversations: [],
     exposures: [],
-    intakes: [],
-    metrics: null,
+    intakes,
+    metrics: {
+      completedToday: 0,
+      exposedSellables: 0,
+      needsReview: 0,
+      ordersToday: intakes.length,
+      quotedToday: 0,
+      ticketedToday: 0,
+    },
   };
 }
 
@@ -57,6 +79,10 @@ describe('AutomationProvider', () => {
     } as never;
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('refreshes inventory Work support data after promoting an intake', async () => {
     render(
       <AutomationProvider>
@@ -73,5 +99,35 @@ describe('AutomationProvider', () => {
       });
       expect(loadWorkSupportData).toHaveBeenCalledWith({ includeObservations: true });
     });
+  });
+
+  it('refreshes the workspace while Telegram intake is connected', async () => {
+    vi.useFakeTimers();
+    const getWorkspace = vi.fn()
+      .mockResolvedValueOnce(automationWorkspace())
+      .mockResolvedValueOnce(automationWorkspace([{ intakeId: 'intake-1' }]));
+    window.kaurKhorDesktop = {
+      automation: {
+        getWorkspace,
+      },
+    } as never;
+
+    render(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('0');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(getWorkspace).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('1');
   });
 });

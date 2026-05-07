@@ -32,6 +32,7 @@ import {
   readAutomationConnection,
   readAutomationConversation,
   readAutomationIntake,
+  readAutomationIntakeThread,
   testAutomationTelegramConnection,
   readAutomationWorkspace,
   resolveAutomationIntake,
@@ -40,6 +41,7 @@ import {
   notifyTelegramCustomerOfTicketUpdate,
   notifyTelegramCustomerOfPromotion,
   runTelegramConnectionTest,
+  sendTelegramCustomerMessageForIntake,
   startTelegramAutomationLoop,
   validateAndSaveTelegramAutomationConnection,
 } from './automation-telegram';
@@ -53,6 +55,8 @@ import {
   type AutomationListIntakesPayload,
   type AutomationReadConversationPayload,
   type AutomationReadIntakePayload,
+  type AutomationReadIntakeThreadPayload,
+  type AutomationSendIntakeThreadMessagePayload,
   type AutomationResolveIntakePayload,
   type DesktopAppContext,
   type DesktopBackupRestoreResult,
@@ -1469,6 +1473,29 @@ ipcMain.handle(IPC_CHANNELS.automationListConversations, benchmarkIpcHandle(IPC_
 ipcMain.handle(IPC_CHANNELS.automationReadConversation, benchmarkIpcHandle(IPC_CHANNELS.automationReadConversation, async (_event, payload: AutomationReadConversationPayload) =>
   readAutomationConversation(desktopDataPath, payload.conversationId),
 ));
+ipcMain.handle(IPC_CHANNELS.automationReadIntakeThread, benchmarkIpcHandle(IPC_CHANNELS.automationReadIntakeThread, async (_event, payload: AutomationReadIntakeThreadPayload) =>
+  readAutomationIntakeThread(desktopDataPath, payload.intakeId),
+));
+ipcMain.handle(IPC_CHANNELS.automationSendIntakeThreadMessage, benchmarkIpcHandle(IPC_CHANNELS.automationSendIntakeThreadMessage, async (_event, payload: AutomationSendIntakeThreadMessagePayload) => {
+  await ensureAutomationEnabled();
+  const text = payload.text.trim();
+  if (!text) {
+    throw new Error('Enter a message before sending.');
+  }
+  const intake = await readAutomationIntake(desktopDataPath, payload.intakeId);
+  if (!intake) {
+    throw new Error('Automation intake not found.');
+  }
+  const sent = await sendTelegramCustomerMessageForIntake(desktopDataPath, {
+    conversationId: intake.conversationId,
+    intakeId: intake.intakeId,
+    text,
+  });
+  if (!sent) {
+    throw new Error('Connect a Telegram bot before sending customer messages.');
+  }
+  return readAutomationIntakeThread(desktopDataPath, intake.intakeId);
+}));
 ipcMain.handle(IPC_CHANNELS.automationListIntakes, benchmarkIpcHandle(IPC_CHANNELS.automationListIntakes, async (_event, payload?: AutomationListIntakesPayload) =>
   listAutomationIntakes(desktopDataPath, payload),
 ));
@@ -1477,7 +1504,19 @@ ipcMain.handle(IPC_CHANNELS.automationReadIntake, benchmarkIpcHandle(IPC_CHANNEL
 ));
 ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHANNELS.automationResolveIntake, async (_event, payload: AutomationResolveIntakePayload) => {
   await ensureAutomationEnabled();
-  return resolveAutomationIntake(desktopDataPath, payload);
+  const intake = await resolveAutomationIntake(desktopDataPath, payload);
+  if (payload.customerMessage?.send && payload.customerMessage.text?.trim()) {
+    try {
+      await sendTelegramCustomerMessageForIntake(desktopDataPath, {
+        conversationId: intake.conversationId,
+        intakeId: intake.intakeId,
+        text: payload.customerMessage.text.trim(),
+      });
+    } catch (error) {
+      console.warn('[automation] failed to send Telegram customer intake resolution message', error);
+    }
+  }
+  return intake;
 }));
 ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHANNELS.automationPromoteIntake, async (_event, payload: PromoteAutomationIntakePayload) => {
   await ensureAutomationEnabled();
@@ -1492,13 +1531,27 @@ ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHAN
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await finalizeAutomationPromotion(desktopDataPath, prepared.updatedIntake);
-  try {
-    await notifyTelegramCustomerOfPromotion(desktopDataPath, {
-      conversationId: prepared.updatedIntake.conversationId,
-      intake: prepared.updatedIntake,
-    });
-  } catch (error) {
-    console.warn('[automation] failed to notify Telegram customer after promotion', error);
+  if (payload.customerMessage) {
+    if (payload.customerMessage.send && payload.customerMessage.text?.trim()) {
+      try {
+        await sendTelegramCustomerMessageForIntake(desktopDataPath, {
+          conversationId: prepared.updatedIntake.conversationId,
+          intakeId: prepared.updatedIntake.intakeId,
+          text: payload.customerMessage.text.trim(),
+        });
+      } catch (error) {
+        console.warn('[automation] failed to send Telegram customer promotion message', error);
+      }
+    }
+  } else {
+    try {
+      await notifyTelegramCustomerOfPromotion(desktopDataPath, {
+        conversationId: prepared.updatedIntake.conversationId,
+        intake: prepared.updatedIntake,
+      });
+    } catch (error) {
+      console.warn('[automation] failed to notify Telegram customer after promotion', error);
+    }
   }
   await invalidateSenaReadCache();
   return {

@@ -4,6 +4,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { AutomationChannelConnection } from '@shared/automation';
 import type { AppLanguage } from '@shared/inventory';
 import { ActionSaveIcon } from '@icons/actions';
+import { StatusWarningIcon } from '@icons/status';
 import { translateUiLiteral } from '@/lib/translations';
 
 function connectionLabel(status: AutomationChannelConnection['status'] | undefined, language: AppLanguage) {
@@ -54,6 +55,18 @@ export function AutomationConnectionCard({
 
   return (
     <div className="grid gap-5">
+      <div className="grid gap-2 rounded-[1.25rem] border border-amber-300/70 bg-amber-50/85 p-4 text-sm leading-6 text-amber-950">
+        <div className="flex items-start gap-3">
+          <StatusWarningIcon className="mt-0.5 size-5 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-semibold">{literal('Advanced experimental automation settings')}</p>
+            <p>
+              {literal('This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.')}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div className="grid gap-3 rounded-[1.25rem] border border-border/60 bg-background/70 p-4">
         <div className="grid gap-1">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{literal('Bot identity')}</p>

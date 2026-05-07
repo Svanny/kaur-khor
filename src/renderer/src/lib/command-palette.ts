@@ -337,7 +337,7 @@ function buildPageCommands(
             aliases: ['inventory'],
             href: buildRememberedCatalogHref(),
             id: 'page:catalog',
-            keywords: ['catalog', 'skus', 'services', 'archive', 'automation', 'exposure'],
+            keywords: ['products', 'catalog', 'skus', 'services', 'archive', 'automation', 'exposure'],
             pageId: 'catalog',
             pageOrder: 3,
             pagePrefix: '/catalog',
@@ -367,7 +367,7 @@ function buildPageCommands(
       aliases: ['archive', 'archived'],
       href: buildRememberedArchiveHref(),
       id: 'page:archive',
-      keywords: ['archive', 'archived', 'catalog'],
+      keywords: ['archive', 'archived', 'products', 'catalog'],
       pageId: 'archive',
       pageOrder: 6,
       pagePrefix: '/catalog',
@@ -453,22 +453,22 @@ function buildOverviewCommands() {
 
 function buildCatalogCommands() {
   const viewCommands: Array<{ label: string; value: CatalogViewValue }> = [
-    { label: 'Catalog / All items', value: 'all' },
-    { label: 'Catalog / SKUs', value: 'skus' },
-    { label: 'Catalog / Services', value: 'services' },
+    { label: 'Products / All items', value: 'all' },
+    { label: 'Products / SKUs', value: 'skus' },
+    { label: 'Products / Services', value: 'services' },
   ];
 
   return viewCommands.map((command, index) =>
     tabCommand({
-      aliases: ['catalog', 'view'],
+      aliases: ['products', 'catalog', 'view'],
       href: buildRememberedCatalogHref({ view: command.value }),
       id: `catalog:view:${command.value}`,
-      keywords: ['catalog', command.value],
+      keywords: ['products', 'catalog', command.value],
       pageId: 'catalog',
       pageOrder: 3,
       pagePrefix: '/catalog',
       priority: 60 + index,
-      subtitle: 'Catalog view',
+      subtitle: 'Products view',
       tabOrder: index,
       title: command.label,
     }),
@@ -715,7 +715,7 @@ function buildWorkflowCommands({ hasWork }: { hasWork: boolean }) {
       aliases: ['create sku', 'new item'],
       emptyQueryRank: 17,
       id: 'workflow:new-sku',
-      keywords: ['create', 'new', 'sku', 'catalog'],
+      keywords: ['create', 'new', 'sku', 'products', 'catalog'],
       kind: 'workflow',
       pageId: 'catalog',
       pageOrder: 3,
@@ -729,7 +729,7 @@ function buildWorkflowCommands({ hasWork }: { hasWork: boolean }) {
       aliases: ['create service'],
       emptyQueryRank: 18,
       id: 'workflow:new-service',
-      keywords: ['create', 'new', 'service', 'catalog'],
+      keywords: ['create', 'new', 'service', 'products', 'catalog'],
       kind: 'workflow',
       pageId: 'catalog',
       pageOrder: 3,
@@ -875,7 +875,7 @@ function buildSettingsCommands({
       title: 'Set view mode to Maximal View',
     }),
     createCommand({
-      action: { effect: 'set-show-explanatory-tooltips', href: '/settings', type: 'settings', value: !showExplanatoryTooltips },
+      action: { effect: 'set-show-explanatory-tooltips', href: '/settings/interface?highlight=help', type: 'settings', value: !showExplanatoryTooltips },
       aliases: ['settings guidance labels', 'settings optional help'],
       id: `settings:help:${showExplanatoryTooltips ? 'off' : 'on'}`,
       keywords: ['settings', 'guidance', 'labels', 'help', 'tooltips', showExplanatoryTooltips ? 'disable' : 'enable'],

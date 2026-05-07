@@ -25,6 +25,8 @@ import type {
   AutomationListIntakesPayload,
   AutomationReadConversationPayload,
   AutomationReadIntakePayload,
+  AutomationReadIntakeThreadPayload,
+  AutomationSendIntakeThreadMessagePayload,
   AutomationResolveIntakePayload,
   DesktopAppContext,
   DesktopBridge,
@@ -799,6 +801,7 @@ export function createMockState(): BrowserMockState {
       'conv-demo': [{
         messageId: 'msg-demo',
         conversationId: 'conv-demo',
+        intakeId: 'intake-demo',
         externalMessageKey: 'telegram-message-demo',
         direction: 'inbound',
         sentAt: nowIso(),
@@ -1239,6 +1242,7 @@ export function createMockAutomationWorkspace(): AutomationWorkspace {
   const messages: AutomationMessageRecord[] = [{
     messageId: 'msg-demo',
     conversationId,
+    intakeId,
     externalMessageKey: 'telegram-message-demo',
     direction: 'inbound',
     sentAt: nowIso(),
@@ -1343,6 +1347,58 @@ function installBrowserDesktopBridge() {
           intakes: clone(browserMockState.automation.intakes.filter((entry) => entry.conversationId === conversationId)),
         };
       },
+      readIntakeThread: async ({ intakeId }: AutomationReadIntakeThreadPayload) => {
+        const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
+        if (!intake) {
+          throw new Error('Automation intake not found.');
+        }
+        const conversation = browserMockState.automation.conversations.find((entry) => entry.conversationId === intake.conversationId);
+        if (!conversation) {
+          throw new Error('Automation conversation not found.');
+        }
+        return {
+          conversation: clone(conversation),
+          intake: clone(intake),
+          messages: clone((browserMockState.automationMessages[intake.conversationId] ?? []).filter((entry) => entry.intakeId === intakeId)),
+        };
+      },
+      sendIntakeThreadMessage: async ({ intakeId, text }: AutomationSendIntakeThreadMessagePayload) => {
+        const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
+        if (!intake) {
+          throw new Error('Automation intake not found.');
+        }
+        const conversation = browserMockState.automation.conversations.find((entry) => entry.conversationId === intake.conversationId);
+        if (!conversation) {
+          throw new Error('Automation conversation not found.');
+        }
+        const sentAt = nowIso();
+        const trimmedText = text.trim();
+        if (!trimmedText) {
+          throw new Error('Enter a message before sending.');
+        }
+        browserMockState.automationMessages[intake.conversationId] = [
+          ...(browserMockState.automationMessages[intake.conversationId] ?? []),
+          {
+            messageId: `browser-message-${Date.now()}`,
+            conversationId: intake.conversationId,
+            intakeId,
+            externalMessageKey: `browser-outbound-${Date.now()}`,
+            direction: 'outbound',
+            sentAt,
+            rawText: trimmedText,
+            normalizedText: null,
+            parseConfidence: null,
+          },
+        ];
+        conversation.lastMessageAt = sentAt;
+        conversation.messageCount += 1;
+        window.dispatchEvent(new Event('kaur-khor-browser-state-changed'));
+        return {
+          conversation: clone(conversation),
+          intake: clone(intake),
+          messages: clone((browserMockState.automationMessages[intake.conversationId] ?? []).filter((entry) => entry.intakeId === intakeId)),
+        };
+      },
       listIntakes: async (payload?: AutomationListIntakesPayload) => clone(
         browserMockState.automation.intakes.filter((entry) =>
           (!payload?.status || entry.status === payload.status)
@@ -1352,7 +1408,7 @@ function installBrowserDesktopBridge() {
       ),
       readIntake: async ({ intakeId }: AutomationReadIntakePayload) =>
         clone(browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId) ?? null),
-      resolveIntake: async ({ intakeId, status, note }: AutomationResolveIntakePayload) => {
+      resolveIntake: async ({ customerMessage, intakeId, status, note }: AutomationResolveIntakePayload) => {
         const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
         if (!intake) {
           throw new Error('Automation intake not found.');
@@ -1360,9 +1416,24 @@ function installBrowserDesktopBridge() {
         intake.status = status;
         intake.notes = note ?? intake.notes;
         intake.updatedAt = nowIso();
+        if (customerMessage?.send && customerMessage.text?.trim()) {
+          const messages = browserMockState.automationMessages[intake.conversationId] ?? [];
+          messages.push({
+            messageId: `browser-outbound-${Date.now()}`,
+            conversationId: intake.conversationId,
+            intakeId,
+            externalMessageKey: `browser-outbound-${Date.now()}`,
+            direction: 'outbound',
+            sentAt: nowIso(),
+            rawText: customerMessage.text.trim(),
+            normalizedText: customerMessage.text.trim().toLowerCase(),
+            parseConfidence: null,
+          });
+          browserMockState.automationMessages[intake.conversationId] = messages;
+        }
         return clone(intake);
       },
-      promoteIntake: async ({ intakeId, mode, ticketId }: PromoteAutomationIntakePayload) => {
+      promoteIntake: async ({ customerMessage, intakeId, mode, ticketId }: PromoteAutomationIntakePayload) => {
         const intake = browserMockState.automation.intakes.find((entry) => entry.intakeId === intakeId);
         if (!intake) {
           throw new Error('Automation intake not found.');
@@ -1370,6 +1441,21 @@ function installBrowserDesktopBridge() {
         intake.status = 'ticketed';
         intake.promotedTicketId = ticketId ?? `ticket:customer:browser:${automationTicketCounter++}`;
         intake.updatedAt = nowIso();
+        if (customerMessage?.send && customerMessage.text?.trim()) {
+          const messages = browserMockState.automationMessages[intake.conversationId] ?? [];
+          messages.push({
+            messageId: `browser-outbound-${Date.now()}`,
+            conversationId: intake.conversationId,
+            intakeId,
+            externalMessageKey: `browser-outbound-${Date.now()}`,
+            direction: 'outbound',
+            sentAt: nowIso(),
+            rawText: customerMessage.text.trim(),
+            normalizedText: customerMessage.text.trim().toLowerCase(),
+            parseConfidence: null,
+          });
+          browserMockState.automationMessages[intake.conversationId] = messages;
+        }
         const result: PromoteAutomationIntakeResult = {
           intake: clone(intake),
           ticketEvent: {

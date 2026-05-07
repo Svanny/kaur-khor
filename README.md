@@ -17,9 +17,17 @@ The guides explain Kaur Khor's current workspaces, lane-based update flows, impo
 
 ## Screenshots
 
-| Overview | Record update |
+| Overview | Supplier queue |
 | --- | --- |
-| ![Kaur Khor overview workspace](docs/readme/overview-fullscreen.png) | ![Kaur Khor record update workspace](docs/readme/record-update-fullscreen.png) |
+| ![Kaur Khor overview workspace](docs/readme/overview-fullscreen.png) | ![Kaur Khor supplier queue workspace](docs/readme/queue-supplier-fullscreen.png) |
+
+| Customer queue | Capture hub |
+| --- | --- |
+| ![Kaur Khor customer queue workspace](docs/readme/queue-customer-fullscreen.png) | ![Kaur Khor capture hub workspace](docs/readme/record-update-fullscreen.png) |
+
+| Stock count capture | Customer order capture |
+| --- | --- |
+| ![Kaur Khor stock count capture session](docs/readme/stock-count-fullscreen.png) | ![Kaur Khor customer order capture session](docs/readme/customer-order-fullscreen.png) |
 
 | Performance | Financials |
 | --- | --- |
@@ -187,6 +195,16 @@ pnpm run build:web
 pnpm run pages:build
 pnpm run preview:web
 ```
+
+### README Screenshots
+
+```bash
+pnpm run data:generate:screenshot
+pnpm build
+pnpm run screenshots:readme
+```
+
+The screenshot fixture seeds the bundled 10 SKU / 10 service catalog, plus customer-order ticket examples for the Queue and Customer Order capture screenshots.
 
 ### Tests
 

@@ -1128,9 +1128,9 @@ function indicatorLabel(language: AppLanguage, id: TradingChartIndicatorId) {
     case 'price':
       return 'Price';
     case 'leadTime':
-      return 'Lead time';
+      return 'ETA';
     case 'leadTimeRange':
-      return 'Lead time range';
+      return 'ETA range';
     case 'regime':
       return 'Sales Pattern';
   }
@@ -1178,9 +1178,9 @@ function indicatorDescription(language: AppLanguage, id: TradingChartIndicatorId
     case 'uncertainty':
       return 'Upper and lower inventory uncertainty around the main forecast.';
     case 'leadTime':
-      return 'Average lead time for the interval.';
+      return 'Average expected time of arrival for the interval.';
     case 'leadTimeRange':
-      return 'Lead time variability range around the interval mean.';
+      return 'ETA variation range around the interval mean.';
   }
   })();
   return translateUiLiteral(language, englishDescription);

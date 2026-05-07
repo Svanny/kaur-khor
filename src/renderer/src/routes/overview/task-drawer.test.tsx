@@ -1,20 +1,17 @@
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from 'react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SenaRecordUpdateContext, SenaTicketSummary } from '@shared/sena';
 import { getTranslation } from '@/lib/translations';
 import { OverviewTaskDrawer } from './task-drawer';
-import type { OverviewSkuTask } from './view-model';
+import type { OverviewSkuTask, OverviewSupplierTicketTask } from './view-model';
 
+const realDate = Date;
 const inventoryHook = vi.fn();
-
 const sheetContext = createContext<{ onOpenChange?: (open: boolean) => void } | null>(null);
 const toggleGroupContext = createContext<{
-  onValueChange?: (value: string) => void;
-  value?: string;
-} | null>(null);
-const selectContext = createContext<{
   onValueChange?: (value: string) => void;
   value?: string;
 } | null>(null);
@@ -25,9 +22,7 @@ vi.mock('@/state/inventory', () => ({
 
 vi.mock('@/state/preferences', () => ({
   usePreferences: () => ({
-    currency: 'USD',
     language: 'en',
-    usdToKhrExchangeRate: 4000,
     t: (key: string, variables?: Record<string, string | number>) => getTranslation('en', key as never, variables),
   }),
 }));
@@ -97,14 +92,10 @@ vi.mock('@/components/ui/toggle-group', () => ({
   ),
   ToggleGroupItem: ({
     children,
-    disableHoverSurface: _disableHoverSurface,
-    disableSelectedShadow: _disableSelectedShadow,
     value,
     ...props
   }: {
     children: ReactNode;
-    disableHoverSurface?: boolean;
-    disableSelectedShadow?: boolean;
     value: string;
   } & ButtonHTMLAttributes<HTMLButtonElement>) => {
     const context = useContext(toggleGroupContext);
@@ -127,137 +118,23 @@ vi.mock('@/components/ui/toggle-group', () => ({
   },
 }));
 
-vi.mock('@/components/ui/select', () => ({
-  Select: ({
-    children,
-    onValueChange,
-    value,
-  }: {
-    children: ReactNode;
-    onValueChange?: (value: string) => void;
-    value?: string;
-  }) => <selectContext.Provider value={{ onValueChange, value }}>{children}</selectContext.Provider>,
-  SelectTrigger: ({ children, ...props }: HTMLAttributes<HTMLButtonElement>) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  ),
-  SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder ?? null}</span>,
-  SelectContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
-  SelectItem: ({ children, value, ...props }: HTMLAttributes<HTMLDivElement> & { value: string }) => {
-    const context = useContext(selectContext);
-    return (
-      <div
-        role="option"
-        aria-selected={context?.value === value}
-        {...props}
-        onClick={(event) => {
-          props.onClick?.(event);
-          context?.onValueChange?.(value);
-        }}
-      >
-        {children}
-      </div>
-    );
-  },
-}));
+function freezeDate(isoString: string) {
+  const fixedDate = new realDate(isoString);
 
-const sampleTask: OverviewSkuTask = {
-  id: 'task-sku-3',
-  kind: 'sku',
-  skuId: 'sku-3',
-  skuName: 'Coke',
-  state: 'ready_to_receive',
-  stateLabel: 'Received today',
-  statusTone: 'success',
-  action: 'receive',
-  actionLabel: 'Receive',
-  defaultDrawerMode: 'goods_received',
-  serviceImpact: 'Could restore comboo',
-  whyNow: 'Receipt logged today',
-  whyDetail: 'Receipt is ready to log.',
-  etaLabel: 'Received today',
-  etaDetail: 'Received today',
-  confidenceCue: 'High confidence',
-  heartbeat: ['Likely on hand 25-42', '53D cover'],
-  nextSteps: ['Kaur Khor will log the receipt and update stock.'],
-  linkedServiceNames: ['Comboo'],
-  supplierName: 'Mekong Looms',
-  batchOrderId: null,
-  childOrderId: null,
-  supplierTicketId: null,
-  batchChildCount: 0,
-  currentStock: 36,
-  costPerUnit: 3,
-  productPrice: 8,
-  soldAsProduct: true,
-  expectedArrivalDate: '2026-04-10',
-  arrivalWindowStart: '2026-04-09T00:00:00.000Z',
-  arrivalWindowEnd: '2026-04-10T23:59:00.000Z',
-  leadTimeMeanDays: 4,
-  leadTimeStdDays: 1,
-  variabilityClass: 'tight',
-  suggestedOrderQuantity: 0,
-  recentOrderQuantity: null,
-  recentReceiptQuantity: 100,
-  latestObservationAt: '2026-04-09T09:59:00.000Z',
-  latestOrderAt: null,
-  latestReceiptAt: '2026-04-09T09:59:00.000Z',
-  hasRecentPriceSignal: false,
-  regimeKey: 'normal',
-  regimeLabel: 'Adjustment pattern',
-  stockoutRisk: 0.05,
-  reorderTriggerProbability: 0,
-  reorderRecommendation: {
-    recommendationIssued: false,
-    recommendedUnits: 0,
-    recommendedUnitsLabel: 'Keep watching',
-    recommendedOrderLabel: 'Recommended range 0-0 units',
-    quietLabel: 'Keep watching',
-    likelyRangeLow: 0,
-    likelyRangeHigh: 0,
-    likelyRangeLabel: 'Recommended range 0-0 units',
-    needProbability: 0,
-    needProbabilityValueLabel: '0%',
-    needProbabilityLabel: 'order likelihood 0%',
-    optionalOrderLabel: false,
-  },
-  daysOfCover: 53,
-};
+  class MockDate extends realDate {
+    constructor(...args: any[]) {
+      super(...(args.length === 0 ? [fixedDate.toISOString()] : args));
+    }
 
-const orderWaitingTask: OverviewSkuTask = {
-  ...sampleTask,
-  defaultDrawerMode: 'ordered_waiting',
-  expectedArrivalDate: '2026-04-14',
-  suggestedOrderQuantity: 12,
-};
+    static now() {
+      return fixedDate.getTime();
+    }
 
-function recordUpdateContextWithSupplierTickets(tickets: SenaTicketSummary[]): SenaRecordUpdateContext {
-  const latestObservedAt = tickets[0]?.occurredAt ?? '2026-04-09T09:59:00.000Z';
-  return {
-    observationFingerprint: { count: tickets.length, latestObservedAt, latestObservationId: 'obs-ticket' },
-    latestObservedAt,
-    latestStockBySku: {},
-    latestRetailSaleBySku: {},
-    latestServiceSaleByService: {},
-    latestOrderBySku: {},
-    latestReceiptBySku: {},
-    openTicketsByFamily: { customer: [], supplier: tickets },
-    latestTicketsById: Object.fromEntries(tickets.map((ticket) => [
-      ticket.ticketId,
-      {
-        observationId: 'obs-ticket',
-        observedAt: ticket.occurredAt,
-        value: ticket,
-      },
-    ])),
-    latestDeliveryFeeByBucket: {},
-    recentActivity: [],
-  };
-}
+    static parse = realDate.parse;
+    static UTC = realDate.UTC;
+  }
 
-function recordUpdateContextWithSupplierTicket(ticket: SenaTicketSummary): SenaRecordUpdateContext {
-  return recordUpdateContextWithSupplierTickets([ticket]);
+  vi.stubGlobal('Date', MockDate as unknown as DateConstructor);
 }
 
 const supplierTicket: SenaTicketSummary = {
@@ -283,296 +160,208 @@ const supplierTicket: SenaTicketSummary = {
   note: null,
 };
 
-const sameEtaSupplierTicket: SenaTicketSummary = {
-  ...supplierTicket,
-  ticketId: 'supplier-ticket-same-eta',
-  revision: 8,
+const childTask: OverviewSkuTask = {
+  id: 'task-sku-3',
+  kind: 'sku',
+  skuId: 'sku-3',
+  skuName: 'Coke',
+  state: 'awaiting_receipt',
+  stateLabel: 'Ordered',
+  statusTone: 'info',
+  action: 'update_eta',
+  actionLabel: 'Update ETA',
+  defaultDrawerMode: 'eta_changed',
+  serviceImpact: 'Could restore combo',
+  whyNow: 'Supplier timing changed',
+  whyDetail: 'Ticket needs a quick timing update.',
+  etaLabel: 'May 14',
+  etaDetail: 'Normal supplier window.',
+  confidenceCue: 'Normal timing',
+  heartbeat: ['8 ordered'],
+  nextSteps: ['Save a quick ticket update or edit in Capture.'],
+  linkedServiceNames: ['Combo'],
+  imagePath: null,
+  supplierName: 'Mekong Looms',
+  batchOrderId: null,
+  childOrderId: null,
+  supplierTicket,
+  supplierTicketId: 'supplier-ticket-1',
+  batchChildCount: 0,
+  currentStock: 36,
+  costPerUnit: 3,
+  productPrice: 8,
+  soldAsProduct: true,
+  expectedArrivalDate: '2026-04-14',
+  arrivalWindowStart: '2026-04-13T00:00:00.000Z',
+  arrivalWindowEnd: '2026-04-15T00:00:00.000Z',
+  leadTimeMeanDays: 4,
+  leadTimeStdDays: 1,
+  variabilityClass: 'tight',
+  suggestedOrderQuantity: 0,
+  recentOrderQuantity: 8,
+  recentReceiptQuantity: null,
+  latestObservationAt: '2026-04-09T09:59:00.000Z',
+  latestOrderAt: '2026-04-09T09:59:00.000Z',
+  latestReceiptAt: null,
+  hasRecentPriceSignal: false,
+  regimeKey: 'normal',
+  regimeLabel: 'Adjustment pattern',
+  stockoutRisk: 0.05,
+  reorderTriggerProbability: 0,
+  reorderRecommendation: {
+    recommendationIssued: true,
+    recommendedUnits: 8,
+    recommendedUnitsLabel: '8 units',
+    recommendedOrderLabel: 'Recommended range 6-10 units',
+    quietLabel: 'Keep watching',
+    likelyRangeLow: 6,
+    likelyRangeHigh: 10,
+    likelyRangeLabel: 'Recommended range 6-10 units',
+    needProbability: 0.75,
+    needProbabilityValueLabel: '75%',
+    needProbabilityLabel: 'order likelihood 75%',
+    optionalOrderLabel: false,
+  },
+  daysOfCover: 2,
 };
+
+const ticketTask: OverviewSupplierTicketTask = {
+  ...childTask,
+  id: 'supplier-ticket:supplier-ticket-1',
+  kind: 'supplier_ticket',
+  ticketId: 'supplier-ticket-1',
+  displayTicketId: '2026-04-09-#1',
+  displayTicketLabel: 'Supplier Ticket ID: 2026-04-09-#1',
+  ticket: supplierTicket,
+  childTasks: [childTask],
+  skuCount: 1,
+  skuSummaryLabel: '1 SKU: Coke',
+  skuNames: ['Coke'],
+};
+
+function recordUpdateContextWithSupplierTicket(ticket: SenaTicketSummary): SenaRecordUpdateContext {
+  return {
+    observationFingerprint: { count: 1, latestObservedAt: ticket.occurredAt, latestObservationId: 'obs-ticket' },
+    latestObservedAt: ticket.occurredAt,
+    latestStockBySku: {},
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+    openTicketsByFamily: { customer: [], supplier: [ticket] },
+    latestTicketsById: {
+      [ticket.ticketId]: {
+        observationId: 'obs-ticket',
+        observedAt: ticket.occurredAt,
+        value: ticket,
+      },
+    },
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
+  };
+}
+
+function renderDrawer(task: OverviewSupplierTicketTask, mode = task.defaultDrawerMode, onOpenChange = vi.fn()) {
+  render(
+    <MemoryRouter>
+      <OverviewTaskDrawer open mode={mode} task={task} onModeChange={vi.fn()} onOpenChange={onOpenChange} />
+    </MemoryRouter>,
+  );
+  return { onOpenChange };
+}
 
 describe('OverviewTaskDrawer', () => {
   beforeEach(() => {
     inventoryHook.mockReturnValue({
       ingestSenaObservation: vi.fn(async (payload: unknown) => payload),
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
-      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
-      isSaving: false,
-    });
-  });
-
-  test('closes the drawer after a successful received-goods save even while refresh is still pending', async () => {
-    let resolveTriggerRun: ((value: { runId: string }) => void) | null = null;
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation: vi.fn(async (payload: unknown) => payload),
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(
-        () =>
-          new Promise<{ runId: string }>((resolve) => {
-            resolveTriggerRun = resolve;
-          }),
-      ),
-      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
-      isSaving: false,
-    });
-
-    function ControlledDrawerHarness() {
-      const [open, setOpen] = useState(true);
-
-      return open ? (
-        <OverviewTaskDrawer
-          mode="goods_received"
-          open={open}
-          task={sampleTask}
-          onModeChange={vi.fn()}
-          onOpenChange={setOpen}
-        />
-      ) : (
-        <div>Drawer closed</div>
-      );
-    }
-
-    render(<ControlledDrawerHarness />);
-
-    fireEvent.change(await screen.findByLabelText('Received quantity'), { target: { value: '24' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
-
-    await waitFor(() => {
-      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledTimes(1);
-      expect(inventoryHook().runWorkspacePreparation).toHaveBeenCalledTimes(1);
-      expect(screen.getByText('Drawer closed')).toBeInTheDocument();
-    });
-
-    resolveTriggerRun?.({ runId: 'run-2' });
-  });
-
-  test('derives variability class from a typed uncertainty value when saving an order update', async () => {
-    render(
-      <OverviewTaskDrawer
-        open
-        task={orderWaitingTask}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.change(await screen.findByLabelText('Custom uncertainty ± days'), { target: { value: '3' } });
-    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
-
-    await waitFor(() => {
-      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
-        leadTimeHints: [
-          expect.objectContaining({
-            variabilityClass: 'very_wide',
-          }),
-        ],
-      }));
-    });
-  });
-
-  test('updates the backing order child before saving a supplier receipt task', async () => {
-    const updateSenaOrderChild = vi.fn(async (payload: unknown) => payload);
-    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation,
       recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
       runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
-      updateSenaOrderChild,
       isSaving: false,
     });
+  });
 
-    render(
-      <OverviewTaskDrawer
-        mode="goods_received"
-        open
-        task={{ ...sampleTask, batchOrderId: 'batch-1', childOrderId: 'child-1' }}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test('defaults supplier task timing fields from the current local system date', async () => {
+    freezeDate(new realDate(2026, 3, 9, 16, 44).toISOString());
+
+    renderDrawer({ ...ticketTask, expectedArrivalDate: null }, 'eta_changed');
+
+    expect(await screen.findByLabelText('Observed at')).toHaveValue('2026-04-09T16:44');
+    expect(screen.getByLabelText('Expected arrival date')).toHaveValue('2026-04-16');
+  });
+
+  test('renders an existing ticket quick-update drawer without detailed quantity or cost editors', async () => {
+    renderDrawer(ticketTask);
+
+    expect(await screen.findByRole('heading', { name: 'Supplier Ticket ID: 2026-04-09-#1' })).toBeInTheDocument();
+    const editLink = screen.getByRole('link', { name: 'Edit in Capture' });
+    expect(editLink).toHaveAttribute(
+      'href',
+      '/work/capture/supplier-order?ticketMode=edit&ticketId=supplier-ticket-1',
     );
-
-    fireEvent.change(await screen.findByLabelText('Received quantity'), { target: { value: '24' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm inventory update' }));
-
-    await waitFor(() => {
-      expect(updateSenaOrderChild).toHaveBeenCalledWith(expect.objectContaining({
-        childOrderId: 'child-1',
-        overrides: expect.objectContaining({
-          receivedQuantity: 24,
-        }),
-        status: 'received',
-      }));
-      expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
-    });
-    expect(updateSenaOrderChild.mock.invocationCallOrder[0]).toBeLessThan(
-      ingestSenaObservation.mock.invocationCallOrder[0],
-    );
+    expect(editLink.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByLabelText('Ordered quantity')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Received quantity')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Received cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
+    expect(screen.queryByText(/next stock/i)).not.toBeInTheDocument();
   });
 
   test('reuses the existing supplier ticket identity when saving an ETA update', async () => {
-    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation,
-      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
-      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
-      isSaving: false,
-    });
-
-    render(
-      <OverviewTaskDrawer
-        mode="eta_changed"
-        open
-        task={{
-          ...orderWaitingTask,
-          defaultDrawerMode: 'eta_changed',
-          childOrderId: 'child-1',
-          recentOrderQuantity: 8,
-        }}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
+    renderDrawer(ticketTask, 'eta_changed');
 
     fireEvent.change(await screen.findByLabelText('Expected arrival date'), { target: { value: '2026-04-16' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
 
     await waitFor(() => {
-      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
         ticketEvents: [
           expect.objectContaining({
             eventType: 'eta_updated',
             revision: 4,
             ticketId: 'supplier-ticket-1',
-          }),
-        ],
-      }));
-    });
-  });
-
-  test('uses the task supplier ticket id when multiple open tickets share sku supplier and ETA', async () => {
-    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation,
-      recordUpdateContext: recordUpdateContextWithSupplierTickets([supplierTicket, sameEtaSupplierTicket]),
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
-      updateSenaOrderChild: vi.fn(async (payload: unknown) => payload),
-      isSaving: false,
-    });
-
-    render(
-      <OverviewTaskDrawer
-        mode="eta_changed"
-        open
-        task={{
-          ...orderWaitingTask,
-          defaultDrawerMode: 'eta_changed',
-          childOrderId: 'child-2',
-          supplierTicketId: 'supplier-ticket-same-eta',
-          expectedArrivalDate: '2026-04-14',
-          recentOrderQuantity: 5,
-        }}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.change(await screen.findByLabelText('Expected arrival date'), { target: { value: '2026-04-17' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
-
-    await waitFor(() => {
-      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
-        ticketEvents: [
-          expect.objectContaining({
-            revision: 9,
-            ticketId: 'supplier-ticket-same-eta',
-          }),
-        ],
-      }));
-    });
-  });
-
-  test('preserves the existing supplier order quantity when an ETA update leaves quantity empty', async () => {
-    const updateSenaOrderChild = vi.fn(async (payload: unknown) => payload);
-    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
-    inventoryHook.mockReturnValue({
-      ingestSenaObservation,
-      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
-      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
-      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
-      updateSenaOrderChild,
-      isSaving: false,
-    });
-
-    render(
-      <OverviewTaskDrawer
-        mode="eta_changed"
-        open
-        task={{
-          ...orderWaitingTask,
-          defaultDrawerMode: 'eta_changed',
-          childOrderId: 'child-1',
-          recentOrderQuantity: 8,
-          suggestedOrderQuantity: 12,
-        }}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.change(await screen.findByLabelText('Ordered quantity'), { target: { value: '' } });
-    fireEvent.change(screen.getByLabelText('Expected arrival date'), { target: { value: '2026-04-16' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
-
-    await waitFor(() => {
-      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
-        orderSignals: [
-          expect.objectContaining({
-            approximateOrderQuantity: 8,
-          }),
-        ],
-        ticketEvents: [
-          expect.objectContaining({
             lines: [
               expect.objectContaining({
+                entityId: 'sku-3',
                 orderedQuantity: 8,
+                expectedArrivalAt: expect.any(String),
               }),
             ],
           }),
         ],
       }));
-      expect(updateSenaOrderChild).toHaveBeenCalledWith(expect.objectContaining({
-        overrides: expect.objectContaining({
-          orderedQuantity: 8,
-        }),
-      }));
     });
   });
 
-  test('derives uncertainty days from the selected variability class when saving an order update', async () => {
-    render(
-      <OverviewTaskDrawer
-        open
-        task={orderWaitingTask}
-        onModeChange={vi.fn()}
-        onOpenChange={vi.fn()}
-      />,
-    );
+  test('marks goods received with existing ticket line quantities', async () => {
+    renderDrawer({ ...ticketTask, defaultDrawerMode: 'goods_received' }, 'goods_received');
 
-    fireEvent.click(await screen.findByRole('option', { name: /Wide/ }));
-    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '12' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save and refresh' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm inventory update' }));
 
     await waitFor(() => {
       expect(inventoryHook().ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
-        leadTimeHints: [
+        orderSignals: [
           expect.objectContaining({
-            highDays: 7.3,
-            lowDays: 2.7,
-            variabilityClass: 'wide',
+            approximateReceiptQuantity: 8,
+            receiptArrived: true,
+            skuId: 'sku-3',
+          }),
+        ],
+        ticketEvents: [
+          expect.objectContaining({
+            eventType: 'fully_received',
+            lifecycle: 'resolved',
+            lines: [
+              expect.objectContaining({
+                entityId: 'sku-3',
+                receivedQuantity: 8,
+              }),
+            ],
           }),
         ],
       }));

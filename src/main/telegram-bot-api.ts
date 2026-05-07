@@ -39,6 +39,10 @@ export type TelegramMessage = {
     last_name?: string;
     user_id?: number;
   };
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
   from?: {
     id: number;
     username?: string;
@@ -62,6 +66,7 @@ export type TelegramKeyboardButton =
   | {
     text: string;
     request_contact?: boolean;
+    request_location?: boolean;
   };
 
 export type TelegramReplyKeyboardMarkup = {

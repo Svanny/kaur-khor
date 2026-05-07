@@ -1,0 +1,97 @@
+import { beforeEach, describe, expect, test } from 'vitest';
+import {
+  curatedProductAttributePresets,
+  customProductAttributePresetsFromDraft,
+  formatProductAttributeSuffix,
+  mergedProductAttributePresets,
+  PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY,
+  productAttributeCombinations,
+  readCustomProductAttributePresets,
+  sanitizeProductAttributePresets,
+  uniqueProductVariantName,
+  writeCustomProductAttributePresets,
+} from './product-attributes';
+
+describe('product attributes helpers', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  test('loads broad curated product and service presets', () => {
+    expect(curatedProductAttributePresets).toEqual(
+      expect.arrayContaining([
+        { name: 'Size', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
+        { name: 'Flavor', options: ['Original', 'Spicy', 'Sweet', 'Sour', 'Savory', 'Unsweetened'] },
+        { name: 'Service type', options: ['Basic', 'Standard', 'Premium', 'Express', 'Custom'] },
+        { name: 'Location', options: ['In-store', 'Delivery', 'On-site', 'Remote'] },
+      ]),
+    );
+  });
+
+  test('sanitizes, merges, persists, and ignores empty custom presets', () => {
+    const presets = sanitizeProductAttributePresets([
+      { name: ' Finish ', options: [' Matte ', '', 'Gloss'] },
+      { name: 'finish', options: ['Gloss', ' Satin '] },
+      { name: '', options: ['Ignored'] },
+      { name: 'Empty', options: [] },
+    ]);
+
+    expect(presets).toEqual([{ name: 'Finish', options: ['Matte', 'Gloss', 'Satin'] }]);
+
+    writeCustomProductAttributePresets(presets);
+    expect(JSON.parse(window.localStorage.getItem(PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY) ?? '[]')).toEqual(presets);
+    expect(readCustomProductAttributePresets()).toEqual(presets);
+    expect(mergedProductAttributePresets(presets)).toEqual(
+      expect.arrayContaining([{ name: 'Finish', options: ['Matte', 'Gloss', 'Satin'] }]),
+    );
+  });
+
+  test('extracts only custom preset additions from a draft', () => {
+    expect(
+      customProductAttributePresetsFromDraft({
+        enabled: true,
+        rows: [
+          { name: 'Color', options: ['Black', 'Copper'], selectedOptions: ['Copper'] },
+          { name: 'Finish', options: ['Matte'], selectedOptions: ['Matte'] },
+        ],
+      }),
+    ).toEqual([
+      { name: 'Color', options: ['Copper'] },
+      { name: 'Finish', options: ['Matte'] },
+    ]);
+  });
+
+  test('builds one-attribute and multi-attribute combinations', () => {
+    expect(
+      productAttributeCombinations({
+        enabled: true,
+        rows: [{ name: 'Size', options: ['S', 'M'], selectedOptions: ['S', 'M'] }],
+      }),
+    ).toEqual([[{ name: 'Size', option: 'S' }], [{ name: 'Size', option: 'M' }]]);
+
+    const combinations = productAttributeCombinations({
+      enabled: true,
+      rows: [
+        { name: 'Size', options: ['S', 'M'], selectedOptions: ['S', 'M'] },
+        { name: 'Color', options: ['Blue'], selectedOptions: ['Blue'] },
+      ],
+    });
+
+    expect(combinations.map(formatProductAttributeSuffix)).toEqual([
+      '(Size: S, Color: Blue)',
+      '(Size: M, Color: Blue)',
+    ]);
+  });
+
+  test('generates unique variant names with incrementing conflicts', () => {
+    const combination = [{ name: 'Size', option: 'XXL' }];
+    expect(uniqueProductVariantName([], 'Hotdog Shirt', combination)).toBe('Hotdog Shirt (Size: XXL)');
+    expect(
+      uniqueProductVariantName(
+        ['Hotdog Shirt (Size: XXL)', 'Hotdog Shirt (Size: XXL) (1)'],
+        'Hotdog Shirt',
+        combination,
+      ),
+    ).toBe('Hotdog Shirt (Size: XXL) (2)');
+  });
+});

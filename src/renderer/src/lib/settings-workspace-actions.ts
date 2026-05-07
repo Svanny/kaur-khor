@@ -188,10 +188,10 @@ export async function exportPlanningDataAction(format: SettingsExportFormat, t: 
       : null;
     const filename = `kaur-khor-sena-data-${formatExportTimestamp()}.${exportFileExtension(format)}`;
     const sections = [
-      ['Catalog SKUs', toRecordRows(catalog?.skus ?? [])],
-      ['Catalog services', toRecordRows(catalog?.services ?? [])],
-      ['Catalog bundles', toRecordRows(catalog?.bundles ?? [])],
-      ['Catalog sharing mask', toRecordRows(catalog?.sharingMask ?? [])],
+      ['Products SKUs', toRecordRows(catalog?.skus ?? [])],
+      ['Products services', toRecordRows(catalog?.services ?? [])],
+      ['Products bundles', toRecordRows(catalog?.bundles ?? [])],
+      ['Products sharing mask', toRecordRows(catalog?.sharingMask ?? [])],
       ['Observation logs', observationLogRows(observations)],
       ['Workspace summary', toRecordRows(summaryRows(workspaceSummary))],
       ['SKU summaries', toRecordRows(skuSummaryRows(workspaceSummary))],

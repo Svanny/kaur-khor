@@ -20,6 +20,50 @@ export interface CaptureSessionTarget {
   targetType: CaptureSessionTargetType;
 }
 
+export type CaptureSessionFlashTarget =
+  | {
+      action: 'stock' | 'sku-price' | 'supplier-order';
+      targetId: string;
+      targetType: 'sku';
+    }
+  | {
+      action: 'customer-order' | 'immediate-sale';
+      targetId: string;
+      targetType: CaptureSessionTargetType;
+    };
+
+export type SupplierTicketCaptureTarget =
+  | {
+      mode: 'edit';
+      ticketId: string;
+      targetId?: string;
+      targetType?: 'sku';
+      skuIds?: string[];
+      flashTargets?: CaptureSessionFlashTarget[];
+    }
+  | {
+      mode: 'new';
+      targetId: string;
+      targetType: 'sku';
+      skuIds?: string[];
+      flashTargets?: CaptureSessionFlashTarget[];
+    };
+
+export type CustomerTicketCaptureTarget =
+  | {
+      mode: 'edit';
+      ticketId: string;
+      targetId?: string;
+      targetType?: CaptureSessionTargetType;
+      flashTargets?: CaptureSessionFlashTarget[];
+    }
+  | {
+      mode: 'new';
+      targetId: string;
+      targetType: CaptureSessionTargetType;
+      flashTargets?: CaptureSessionFlashTarget[];
+    };
+
 export type BaseRecordUpdateLaneId =
   | 'stock-count'
   | 'customer-order-pending'
@@ -195,6 +239,78 @@ export function buildCaptureSessionHref(target: CaptureSessionTarget) {
     params.set('lanes', 'stock-count');
   }
   return `${lane?.path ?? RECORD_UPDATE_HUB_PATH}?${params.toString()}`;
+}
+
+export function buildSupplierTicketCaptureHref(target: SupplierTicketCaptureTarget) {
+  const params = new URLSearchParams();
+  if (target.mode === 'edit') {
+    params.set('ticketMode', 'edit');
+    params.set('ticketId', target.ticketId);
+    if (target.targetId && target.targetType) {
+      params.set('targetAction', 'supplier-order');
+      params.set('targetType', target.targetType);
+      params.set('targetId', target.targetId);
+    }
+  } else {
+    params.set('targetAction', 'supplier-order');
+    params.set('targetType', target.targetType);
+    params.set('targetId', target.targetId);
+    params.set('ticketMode', 'new');
+  }
+  if (target.skuIds && target.skuIds.length > 0) {
+    params.set('skus', [...new Set(target.skuIds)].join(','));
+  }
+  if (target.flashTargets && target.flashTargets.length > 0) {
+    params.set('flashTargets', target.flashTargets.map(captureSessionFlashTargetKey).join(','));
+  }
+  return `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?${params.toString()}`;
+}
+
+export function buildCustomerTicketCaptureHref(target: CustomerTicketCaptureTarget) {
+  const params = new URLSearchParams();
+  if (target.mode === 'edit') {
+    params.set('ticketMode', 'edit');
+    params.set('ticketId', target.ticketId);
+    if (target.targetId && target.targetType) {
+      params.set('targetAction', 'customer-order');
+      params.set('targetType', target.targetType);
+      params.set('targetId', target.targetId);
+    }
+  } else {
+    params.set('targetAction', 'customer-order');
+    params.set('targetType', target.targetType);
+    params.set('targetId', target.targetId);
+    params.set('ticketMode', 'new');
+  }
+  if (target.flashTargets && target.flashTargets.length > 0) {
+    params.set('flashTargets', target.flashTargets.map(captureSessionFlashTargetKey).join(','));
+  }
+  return `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?${params.toString()}`;
+}
+
+export function captureSessionFlashTargetKey(target: CaptureSessionFlashTarget): string {
+  if (target.action === 'stock' || target.action === 'sku-price') {
+    return `stock:${target.targetId}`;
+  }
+  if (target.action === 'supplier-order') {
+    return `supplier-order:${target.targetId}`;
+  }
+  return `${target.targetType === 'service' ? 'service' : 'retail'}:${target.targetId}`;
+}
+
+export function readCaptureSessionFlashTargetKeys(search: string): string[] {
+  const value = new URLSearchParams(search).get('flashTargets');
+  if (!value) {
+    return [];
+  }
+  return [
+    ...new Set(
+      value
+        .split(',')
+        .map((key) => key.trim())
+        .filter((key) => /^(stock|supplier-order|supplier-receipt|retail|service|service-price):[^,\s]+$/.test(key)),
+    ),
+  ];
 }
 
 export function readCaptureSessionTarget(search: string): CaptureSessionTarget | null {

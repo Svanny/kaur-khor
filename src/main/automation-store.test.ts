@@ -11,6 +11,7 @@ import {
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
+  readAutomationIntakeThread,
   recordAutomationWizardItemImageMessage,
   recordAutomationWizardMessage,
   readAutomationWizardSessionForConversation,
@@ -154,18 +155,19 @@ async function completePreferencesOnboarding(
   });
 }
 
-function expectFreshWizardSendRetiresPreviousWizard(
+function expectFreshWizardSendDeletesPreviousWizard(
   result: Awaited<ReturnType<typeof ingestAutomationTelegramUpdates>>,
   messageId: number,
 ) {
-  const freshWizardIndex = result.outboundJobs.findIndex((job) =>
-    job.kind === 'send' && job.storesWizardMessage,
-  );
+  const freshWizardIndex = [...result.outboundJobs]
+    .map((job, index) => ({ job, index }))
+    .filter((entry) => entry.job.kind === 'send' && entry.job.storesWizardMessage)
+    .at(-1)?.index ?? -1;
   expect(freshWizardIndex).toBeGreaterThanOrEqual(0);
  expect(result.outboundJobs.slice(0, freshWizardIndex).some((job) =>
-    job.kind === 'edit_reply_markup' &&
+    job.kind === 'delete_message' &&
     job.messageId === messageId &&
-    job.replyMarkup?.inline_keyboard.length === 0,
+    job.nonFatal === true,
   ), JSON.stringify(result.outboundJobs, null, 2)).toBe(true);
 }
 
@@ -304,15 +306,119 @@ async function createQuotedAutomationIntake(userDataPath: string, chatId: number
   return workspace.intakes[0]!;
 }
 
+async function createWizardCheckoutAutomationIntake(userDataPath: string, chatId: number) {
+  await patchAutomationExposureRow(userDataPath, context as never, {
+    entityId: 'sku-1',
+    entityType: 'sku',
+    exposed: true,
+  });
+  await completePreferencesOnboarding(userDataPath, {
+    chatId,
+    firstName: 'Sela',
+  });
+  await ingestAutomationTelegramUpdates(userDataPath, {
+    context: context as never,
+    currency: 'USD',
+    updates: [
+      {
+        update_id: chatId * 10 + 4,
+        message: {
+          message_id: chatId * 10 + 4,
+          date: 1_745_193_620,
+          text: '/start',
+          chat: { id: chatId, type: 'private' },
+          from: { id: chatId, first_name: 'Sela' },
+        },
+      },
+      {
+        update_id: chatId * 10 + 5,
+        callback_query: {
+          id: `callback-add-${chatId}`,
+          data: 'w:add:sku:sku-1',
+          from: { id: chatId, first_name: 'Sela' },
+          message: { message_id: chatId * 10 + 50, date: 1_745_193_621, chat: { id: chatId, type: 'private' } },
+        },
+      },
+      {
+        update_id: chatId * 10 + 6,
+        callback_query: {
+          id: `callback-checkout-${chatId}`,
+          data: 'w:checkout',
+          from: { id: chatId, first_name: 'Sela' },
+          message: { message_id: chatId * 10 + 50, date: 1_745_193_622, chat: { id: chatId, type: 'private' } },
+        },
+      },
+      {
+        update_id: chatId * 10 + 7,
+        message: {
+          message_id: chatId * 10 + 7,
+          date: 1_745_193_623,
+          text: 'Skip phone',
+          chat: { id: chatId, type: 'private' },
+          from: { id: chatId, first_name: 'Sela' },
+        },
+      },
+      {
+        update_id: chatId * 10 + 8,
+        message: {
+          message_id: chatId * 10 + 8,
+          date: 1_745_193_624,
+          text: 'Skip location',
+          chat: { id: chatId, type: 'private' },
+          from: { id: chatId, first_name: 'Sela' },
+        },
+      },
+      {
+        update_id: chatId * 10 + 9,
+        message: {
+          message_id: chatId * 10 + 9,
+          date: 1_745_193_625,
+          text: 'Skip notes',
+          chat: { id: chatId, type: 'private' },
+          from: { id: chatId, first_name: 'Sela' },
+        },
+      },
+    ],
+  });
+
+  const workspace = await readAutomationWorkspace(userDataPath, context as never);
+  return workspace.intakes[0]!;
+}
+
 describe('automation telegram ingestion', () => {
-  it('creates quoted intake and reply jobs for matched exposed telegram items', async () => {
+  it('exposes sellables by default before the operator writes exposure rules', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(workspace.exposures).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entityType: 'sku',
+        entityId: 'sku-1',
+        exposed: true,
+      }),
+    ]));
+    expect(workspace.metrics.exposedSellables).toBe(1);
+  });
+
+  it('keeps explicit hidden exposure rules hidden', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
       entityId: 'sku-1',
       entityType: 'sku',
-      exposed: true,
+      exposed: false,
     });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(workspace.exposures.find((row) => row.entityId === 'sku-1')?.exposed).toBe(false);
+    expect(workspace.metrics.exposedSellables).toBe(0);
+  });
+
+  it('creates quoted intake and reply jobs for matched exposed telegram items', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
     await completePreferencesOnboarding(userDataPath, {
       chatId: 555_111,
       firstName: 'Sokha',
@@ -355,6 +461,140 @@ describe('automation telegram ingestion', () => {
     const conversation = await readAutomationConversation(userDataPath, workspace.conversations[0]!.conversationId);
     expect(conversation.messages).toHaveLength(2);
     expect(conversation.messages.at(-1)?.rawText).toBe('2 cotton scarf');
+    const thread = await readAutomationIntakeThread(userDataPath, workspace.intakes[0]!.intakeId);
+    expect(thread.messages.some((message) => message.rawText === '2 cotton scarf')).toBe(true);
+    expect(thread.messages.every((message) => message.intakeId === workspace.intakes[0]!.intakeId)).toBe(true);
+  });
+
+  it('routes extra free-text messages in one Telegram chat to the active intake thread', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const firstIntake = await createQuotedAutomationIntake(userDataPath, 555_112);
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 555_112 * 10 + 5,
+          message: {
+            message_id: 555_112 * 10 + 5,
+            date: 1_745_193_700,
+            text: '1 cotton scarf',
+            chat: {
+              id: 555_112,
+              type: 'private',
+            },
+            from: {
+              id: 555_112,
+              first_name: 'Sokha',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.conversations).toHaveLength(1);
+    expect(workspace.intakes).toHaveLength(1);
+    expect(workspace.intakes[0]).toMatchObject({
+      intakeId: firstIntake.intakeId,
+      status: 'needs_review',
+      parseConfidence: 'low',
+    });
+    expect(workspace.intakes[0]?.notes).toContain('Customer follow-up: 1 cotton scarf');
+    const firstThread = await readAutomationIntakeThread(userDataPath, firstIntake.intakeId);
+
+    expect(firstThread.messages.map((message) => message.rawText)).toContain('2 cotton scarf');
+    expect(firstThread.messages.map((message) => message.rawText)).toContain('1 cotton scarf');
+    expect(firstThread.messages.every((message) => message.intakeId === firstIntake.intakeId)).toBe(true);
+  });
+
+  it('routes extra customer chat after wizard checkout to that active order for review', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createWizardCheckoutAutomationIntake(userDataPath, 555_114);
+
+    const result = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 555_114 * 10 + 10,
+          message: {
+            message_id: 555_114 * 10 + 10,
+            date: 1_745_193_700,
+            text: 'Can you confirm my phone and location?',
+            chat: {
+              id: 555_114,
+              type: 'private',
+            },
+            from: {
+              id: 555_114,
+              first_name: 'Sela',
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result.replyJobs).toHaveLength(0);
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes).toHaveLength(1);
+    expect(workspace.intakes[0]).toMatchObject({
+      intakeId: intake.intakeId,
+      status: 'needs_review',
+      parseConfidence: 'low',
+    });
+    expect(workspace.intakes[0]?.notes).toContain('Customer follow-up: Can you confirm my phone and location?');
+    expect(workspace.conversations[0]?.latestIntakeStatus).toBe('needs_review');
+    const thread = await readAutomationIntakeThread(userDataPath, intake.intakeId);
+    expect(thread.messages.map((message) => message.rawText)).toContain('Can you confirm my phone and location?');
+  });
+
+  it('creates a separate intake for a new message after the latest Telegram intake is terminal', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const firstIntake = await createQuotedAutomationIntake(userDataPath, 555_113);
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: firstIntake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+    await finalizeAutomationPromotion(userDataPath, prepared.updatedIntake);
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 555_113 * 10 + 5,
+          message: {
+            message_id: 555_113 * 10 + 5,
+            date: 1_745_193_700,
+            text: '1 cotton scarf',
+            chat: {
+              id: 555_113,
+              type: 'private',
+            },
+            from: {
+              id: 555_113,
+              first_name: 'Sokha',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.conversations).toHaveLength(1);
+    expect(workspace.intakes).toHaveLength(2);
+    const secondIntake = workspace.intakes.find((intake) => intake.intakeId !== firstIntake.intakeId)!;
+    const firstThread = await readAutomationIntakeThread(userDataPath, firstIntake.intakeId);
+    const secondThread = await readAutomationIntakeThread(userDataPath, secondIntake.intakeId);
+
+    expect(firstThread.messages.map((message) => message.rawText)).toContain('2 cotton scarf');
+    expect(firstThread.messages.map((message) => message.rawText)).not.toContain('1 cotton scarf');
+    expect(secondThread.messages.map((message) => message.rawText)).toContain('1 cotton scarf');
+    expect(secondThread.messages.map((message) => message.rawText)).not.toContain('2 cotton scarf');
   });
 
   it('creates needs-review intake when telegram text does not resolve to an exposed sellable', async () => {
@@ -401,6 +641,55 @@ describe('automation telegram ingestion', () => {
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes[0]?.status).toBe('needs_review');
     expect(workspace.intakes[0]?.lines[0]?.ambiguityReason).toBe('item_not_found');
+  });
+
+  it('keeps exposed items with unknown stock distinct from missing items', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const unknownStockContext = {
+      ...context,
+      recordUpdateContext: {
+        ...context.recordUpdateContext,
+        latestStockBySku: {},
+      },
+    };
+
+    await patchAutomationExposureRow(userDataPath, unknownStockContext as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_223,
+      firstName: 'Nary',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: unknownStockContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 102,
+          message: {
+            message_id: 202,
+            date: 1_745_193_602,
+            text: '2 cotton scarf',
+            chat: {
+              id: 555_223,
+              type: 'private',
+            },
+            from: {
+              id: 555_223,
+              first_name: 'Nary',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, unknownStockContext as never);
+    expect(workspace.intakes[0]?.status).toBe('needs_review');
+    expect(workspace.intakes[0]?.lines[0]?.entityId).toBe('sku-1');
+    expect(workspace.intakes[0]?.lines[0]?.ambiguityReason).toBe('availability_unknown');
   });
 
   it('counts ticketed and completed metrics from updatedAt day boundaries', async () => {
@@ -672,9 +961,10 @@ describe('automation telegram ingestion', () => {
         photoPath: '/tmp/cotton-scarf.png',
       }),
       expect.objectContaining({
-        kind: 'edit_reply_markup',
+        kind: 'delete_message',
         conversationId,
         messageId: 999,
+        nonFatal: true,
       }),
       expect.objectContaining({
         kind: 'send',
@@ -1157,7 +1447,7 @@ describe('automation telegram ingestion', () => {
           message: {
             message_id: 4030,
             date: 1_745_193_730,
-            text: 'need 3 winter gloves',
+            text: 'រំលងទីតាំង',
             chat: { id: 555_739, type: 'private' },
             from: { id: 555_739, first_name: 'Pov' },
           },
@@ -1165,11 +1455,45 @@ describe('automation telegram ingestion', () => {
       ],
     }));
 
+    collectKhmer(await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3031,
+          message: {
+            message_id: 4031,
+            date: 1_745_193_731,
+            text: 'រំលងកំណត់ចំណាំ',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    }));
+
+    const postCheckoutFollowup = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3032,
+          message: {
+            message_id: 4032,
+            date: 1_745_193_732,
+            text: 'need 3 winter gloves',
+            chat: { id: 555_739, type: 'private' },
+            from: { id: 555_739, first_name: 'Pov' },
+          },
+        },
+      ],
+    });
+    expect(postCheckoutFollowup.replyJobs).toHaveLength(0);
+
     expect(renderedParts.join('\n')).toContain('<b>ជ្រើសរើសភាសា</b>');
     expect(khmerRenderedParts.join('\n')).toContain('<b>កាតាឡុក</b>');
     expect(khmerRenderedParts.join('\n')).toContain('<b>កន្ត្រករបស់អ្នក</b>');
-    expect(khmerRenderedParts.join('\n')).toContain('<b>សម្រង់តម្លៃការបញ្ជាទិញ</b>');
-    expect(khmerRenderedParts.join('\n')).toContain('<b>ត្រូវការការពិនិត្យ</b>');
+    expect(khmerRenderedParts.join('\n')).toContain('<b>បង្កាន់ដៃ</b>');
     expectNoUnexpectedKhmerLatin(khmerRenderedParts);
   });
 
@@ -1353,7 +1677,7 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    expectFreshWizardSendRetiresPreviousWizard(secondResult, 77);
+    expectFreshWizardSendDeletesPreviousWizard(secondResult, 77);
   });
 
   it('sends a fresh wizard message when Start order is clicked from an older wizard', async () => {
@@ -1397,10 +1721,10 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    expectFreshWizardSendRetiresPreviousWizard(secondResult, 88);
+    expectFreshWizardSendDeletesPreviousWizard(secondResult, 88);
   });
 
-  it('requires every fresh wizard send to retire the older wizard first', async () => {
+  it('requires every fresh wizard send to delete the older wizard first', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
     await patchAutomationExposureRow(userDataPath, context as never, {
@@ -1529,10 +1853,10 @@ describe('automation telegram ingestion', () => {
         updates: [testCase.update],
       });
       try {
-        expectFreshWizardSendRetiresPreviousWizard(result, testCase.messageId);
+        expectFreshWizardSendDeletesPreviousWizard(result, testCase.messageId);
         expectWizardRemainsLatest(result);
       } catch (error) {
-        throw new Error(`${testCase.label} did not retire the previous wizard: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(`${testCase.label} did not delete the previous wizard: ${error instanceof Error ? error.message : String(error)}`);
       }
     }
   });
@@ -1577,14 +1901,14 @@ describe('automation telegram ingestion', () => {
       ],
     });
 
-    expectFreshWizardSendRetiresPreviousWizard(result, 97);
+    expectFreshWizardSendDeletesPreviousWizard(result, 97);
     expect(result.outboundJobs.findIndex((job) => job.kind === 'send_photo')).toBeLessThan(
       result.outboundJobs.findIndex((job) => job.kind === 'send' && job.storesWizardMessage),
     );
     expectWizardRemainsLatest(result);
   });
 
-  it('keeps fresh wizard sends centralized behind retirement-aware helpers', async () => {
+  it('keeps fresh wizard sends centralized behind cleanup-aware helpers', async () => {
     const source = await readFile(AUTOMATION_STORE_SOURCE_PATH, 'utf8');
     const directWizardSendFunctions = [...source.matchAll(/storesWizardMessage:\s*true/g)]
       .map((match) => {
@@ -1593,7 +1917,7 @@ describe('automation telegram ingestion', () => {
       });
 
     expect(directWizardSendFunctions).toEqual([
-      'queueFreshWizardPrompt',
+      'queueGeneratedWizardSend',
     ]);
   });
 
@@ -1684,16 +2008,55 @@ describe('automation telegram ingestion', () => {
             },
           },
         },
+        {
+          update_id: 109,
+          message: {
+            message_id: 209,
+            date: 1_745_193_609,
+            text: 'https://maps.google.com/?q=11.5564,104.9282',
+            chat: {
+              id: 555_444,
+              type: 'private',
+            },
+            from: {
+              id: 555_444,
+              first_name: 'Maly',
+            },
+          },
+        },
+        {
+          update_id: 111,
+          message: {
+            message_id: 211,
+            date: 1_745_193_611,
+            text: 'Please deliver after 6 PM',
+            chat: {
+              id: 555_444,
+              type: 'private',
+            },
+            from: {
+              id: 555_444,
+              first_name: 'Maly',
+            },
+          },
+        },
       ],
     });
 
     expect(checkoutResult.replyJobs.some((job) => job.text.includes('<b>Checkout</b>'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('Google Maps link like <code>https://maps.google.com/?q=11.5564,104.9282</code>'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('Send any notes you want to give'))).toBe(true);
     expect(checkoutResult.replyJobs.some((job) => job.text.includes('<b>Ready to confirm</b>'))).toBe(false);
-    expect(checkoutResult.replyJobs.some((job) => job.text.includes('Quoted total:</b> USD 12.50'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('<b>Receipt</b>'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('<b>Total:</b> USD 12.50'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('Delivery location: https://maps.google.com/?q=11.5564,104.9282'))).toBe(true);
+    expect(checkoutResult.replyJobs.some((job) => job.text.includes('Customer note: Please deliver after 6 PM'))).toBe(true);
 
     let workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes[0]?.status).toBe('quoted');
     expect(workspace.intakes[0]?.quotedTotal).toBe(12.5);
+    expect(workspace.intakes[0]?.notes).toContain('Delivery location: https://maps.google.com/?q=11.5564,104.9282');
+    expect(workspace.intakes[0]?.notes).toContain('Customer note: Please deliver after 6 PM');
 
     await completePreferencesOnboarding(userDataPath, {
       chatId: 555_555,
@@ -1724,6 +2087,95 @@ describe('automation telegram ingestion', () => {
     workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes).toHaveLength(2);
     expect(workspace.intakes.some((entry) => entry.customerDisplayName === 'Rina' && entry.quotedTotal === 25)).toBe(true);
+  });
+
+  it('deletes generated checkout prompts before sending the lasting receipt', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_445,
+      firstName: 'Maly',
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const conversationId = workspace.conversations[0]!.conversationId;
+    const chat = { id: 555_445, type: 'private' as const };
+    const from = { id: 555_445, first_name: 'Maly' };
+
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 301 });
+    const addResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 220,
+        callback_query: { id: 'callback-cleanup-add', data: 'w:add:sku:sku-1', from, message: { message_id: 301, date: 1_745_193_620, chat } },
+      }],
+    });
+    expectFreshWizardSendDeletesPreviousWizard(addResult, 301);
+
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 302 });
+    const checkoutResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 221,
+        callback_query: { id: 'callback-cleanup-checkout', data: 'w:checkout', from, message: { message_id: 302, date: 1_745_193_621, chat } },
+      }],
+    });
+    expectFreshWizardSendDeletesPreviousWizard(checkoutResult, 302);
+
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 303 });
+    const locationResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 222,
+        message: { message_id: 222, date: 1_745_193_622, text: 'Skip phone', chat, from },
+      }],
+    });
+    expectFreshWizardSendDeletesPreviousWizard(locationResult, 303);
+
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 304 });
+    const noteResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 223,
+        message: { message_id: 223, date: 1_745_193_623, text: 'House 12, Street 310, BKK1, Phnom Penh', chat, from },
+      }],
+    });
+    expectFreshWizardSendDeletesPreviousWizard(noteResult, 304);
+
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 305 });
+    const receiptResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 224,
+        message: { message_id: 224, date: 1_745_193_624, text: 'Please deliver after 6 PM', chat, from },
+      }],
+    });
+
+    const receiptIndex = receiptResult.outboundJobs.findIndex((job) =>
+      job.kind === 'send' && job.messageRole === 'receipt',
+    );
+    expect(receiptIndex).toBeGreaterThanOrEqual(0);
+    expect(receiptResult.outboundJobs.slice(0, receiptIndex).some((job) =>
+      job.kind === 'delete_message' && job.messageId === 305 && job.nonFatal === true,
+    ), JSON.stringify(receiptResult.outboundJobs, null, 2)).toBe(true);
+    const receiptJob = receiptResult.outboundJobs[receiptIndex];
+    expect(receiptJob?.kind === 'send' ? receiptJob.storesWizardMessage : true).toBeFalsy();
+    expect(receiptJob?.kind === 'send' ? receiptJob.text : '').toContain('<b>Receipt</b>');
+    expect(receiptJob?.kind === 'send' ? receiptJob.text : '').toContain('Customer note: Please deliver after 6 PM');
+
+    const finalSession = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
+    expect(finalSession?.lastWizardMessageId).toBeNull();
+    expect(finalSession?.generatedWizardMessageIds).toEqual([]);
   });
 
   it('normalizes shared Telegram contact phones before intake and promotion writes', async () => {
@@ -1816,12 +2268,48 @@ describe('automation telegram ingestion', () => {
             },
           },
         },
+        {
+          update_id: 121,
+          message: {
+            message_id: 221,
+            date: 1_745_193_621,
+            location: {
+              latitude: 11.5564,
+              longitude: 104.9282,
+            },
+            chat: {
+              id: 555_556,
+              type: 'private',
+            },
+            from: {
+              id: 555_556,
+              first_name: 'Sophea',
+            },
+          },
+        },
+        {
+          update_id: 122,
+          message: {
+            message_id: 222,
+            date: 1_745_193_622,
+            text: 'Skip notes',
+            chat: {
+              id: 555_556,
+              type: 'private',
+            },
+            from: {
+              id: 555_556,
+              first_name: 'Sophea',
+            },
+          },
+        },
       ],
     });
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.conversations[0]?.phone).toBe('+855 12345678');
     expect(workspace.intakes[0]?.phone).toBe('+855 12345678');
+    expect(workspace.intakes[0]?.notes).toContain('Delivery location: https://maps.google.com/?q=11.5564,104.9282');
 
     const promotion = await prepareAutomationPromotion(userDataPath, {
       intakeId: workspace.intakes[0]!.intakeId,
@@ -1927,6 +2415,38 @@ describe('automation telegram ingestion', () => {
             },
           },
         },
+        {
+          update_id: 124,
+          message: {
+            message_id: 224,
+            date: 1_745_193_624,
+            text: 'Skip location',
+            chat: {
+              id: 555_666,
+              type: 'private',
+            },
+            from: {
+              id: 555_666,
+              first_name: 'Sela',
+            },
+          },
+        },
+        {
+          update_id: 125,
+          message: {
+            message_id: 225,
+            date: 1_745_193_625,
+            text: 'Skip notes',
+            chat: {
+              id: 555_666,
+              type: 'private',
+            },
+            from: {
+              id: 555_666,
+              first_name: 'Sela',
+            },
+          },
+        },
       ],
     });
 
@@ -1935,7 +2455,7 @@ describe('automation telegram ingestion', () => {
       currency: 'USD',
       updates: [
         {
-          update_id: 124,
+          update_id: 126,
           callback_query: {
             id: 'callback-8',
             data: 'w:confirm',
@@ -1945,7 +2465,7 @@ describe('automation telegram ingestion', () => {
             },
             message: {
               message_id: 1011,
-              date: 1_745_193_624,
+              date: 1_745_193_626,
               chat: {
                 id: 555_666,
                 type: 'private',

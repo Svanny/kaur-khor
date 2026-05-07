@@ -202,6 +202,9 @@ function issueLabel(intake: AutomationOrderIntake, language: AppLanguage) {
   if (issue === 'item_not_found') {
     return literal(language, 'Item not found');
   }
+  if (issue === 'availability_unknown') {
+    return literal(language, 'Availability unknown');
+  }
   if (issue === 'quantity_ambiguous') {
     return literal(language, 'Quantity ambiguous');
   }

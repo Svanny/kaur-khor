@@ -91,8 +91,8 @@ export function ArchiveRoute() {
     return (
       <WorkspacePage>
         <WorkspaceEmpty
-          title={translateUiLiteral(language, 'No catalog loaded yet')}
-          hint={translateUiLiteral(language, 'Create the first SKU to initialize the local catalog.')}
+          title={translateUiLiteral(language, 'No products loaded yet')}
+          hint={translateUiLiteral(language, 'Create the first SKU to initialize local products.')}
           action={<CreateFirstSkuButton />}
         />
       </WorkspacePage>
@@ -141,10 +141,10 @@ export function ArchiveRoute() {
             <span className="truncate">{translateUiLiteral(language, 'Archive')}</span>
           </span>
         }
-        descriptor={translateUiLiteral(language, 'Review archived catalog items and restore anything that should return to active workspaces.')}
+        descriptor={translateUiLiteral(language, 'Review archived products and restore anything that should return to active workspaces.')}
       >
-        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(12rem,1fr)_auto_minmax(8rem,10.5rem)] lg:items-center lg:gap-4">
-          <div className="min-w-0">
+        <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(12rem,36rem)_auto_minmax(8rem,10.5rem)] lg:items-center lg:gap-4">
+          <div className="min-w-0 max-w-xl">
             <SearchInput
               ariaLabel={translateUiLiteral(language, 'Search archive')}
               placeholder={t('searchPlaceholder')}
@@ -243,7 +243,7 @@ export function ArchiveRoute() {
         {showServices && archivedServices.length > 0 ? (
           <WorkspacePanel
             title={`${translateUiLiteral(language, 'Services')} (${archivedServices.length})`}
-            descriptor={translateUiLiteral(language, 'Archived services hidden from active planning and catalog workspaces.')}
+            descriptor={translateUiLiteral(language, 'Archived services hidden from active planning and products workspaces.')}
           >
             <div className="grid gap-3">
               {archivedServices.map((service) => (

@@ -11,6 +11,7 @@ export interface CommercialEntitySnapshot {
   reversalWindowQuantity: number;
   canceledWindowQuantity: number;
   latestObservedAt: string | null;
+  oldestOpenPendingAt: string | null;
 }
 
 export interface CommercialSkuSnapshot extends CommercialEntitySnapshot {
@@ -78,6 +79,7 @@ export function buildCommercialEntitySnapshots({
   endAt?: string | null;
 }) {
   const latestObservedAtByEntity = new Map<CommercialEntityKey, string>();
+  const oldestOpenPendingAtByEntity = new Map<CommercialEntityKey, string>();
   const pendingQuantityByEntity = new Map<CommercialEntityKey, number>();
   const realizedWindowQuantityByEntity = new Map<CommercialEntityKey, number>();
   const reversalWindowQuantityByEntity = new Map<CommercialEntityKey, number>();
@@ -93,10 +95,17 @@ export function buildCommercialEntitySnapshots({
         continue;
       }
       const key = entityKey(event.entityType, event.entityId);
-      pendingQuantityByEntity.set(
-        key,
-        (pendingQuantityByEntity.get(key) ?? 0) + (event.stage === 'pending' ? event.quantityDelta : 0),
-      );
+      const previousPendingQuantity = pendingQuantityByEntity.get(key) ?? 0;
+      const nextPendingQuantity = previousPendingQuantity + (event.stage === 'pending' ? event.quantityDelta : 0);
+      pendingQuantityByEntity.set(key, nextPendingQuantity);
+      if (event.stage === 'pending') {
+        if (previousPendingQuantity <= 0 && nextPendingQuantity > 0 && event.quantityDelta > 0) {
+          oldestOpenPendingAtByEntity.set(key, observation.input.observedAt);
+        }
+        if (nextPendingQuantity <= 0) {
+          oldestOpenPendingAtByEntity.delete(key);
+        }
+      }
       latestObservedAtByEntity.set(key, observation.input.observedAt);
     }
   }
@@ -131,6 +140,7 @@ export function buildCommercialEntitySnapshots({
 
   return {
     latestObservedAtByEntity,
+    oldestOpenPendingAtByEntity,
     pendingQuantityByEntity,
     realizedWindowQuantityByEntity,
     reversalWindowQuantityByEntity,
@@ -165,6 +175,7 @@ export function buildSkuCommercialSnapshots({
       reversalWindowQuantity: customer.reversalWindowQuantityByEntity.get(key) ?? 0,
       canceledWindowQuantity: customer.canceledWindowQuantityByEntity.get(key) ?? 0,
       latestObservedAt: customer.latestObservedAtByEntity.get(key) ?? null,
+      oldestOpenPendingAt: customer.oldestOpenPendingAtByEntity.get(key) ?? null,
       blockedPendingQuantity: Math.max(0, pendingQuantity - onHand),
     });
   }
@@ -210,6 +221,7 @@ export function buildServiceCommercialSnapshots({
       reversalWindowQuantity: customer.reversalWindowQuantityByEntity.get(key) ?? 0,
       canceledWindowQuantity: customer.canceledWindowQuantityByEntity.get(key) ?? 0,
       latestObservedAt: customer.latestObservedAtByEntity.get(key) ?? null,
+      oldestOpenPendingAt: customer.oldestOpenPendingAtByEntity.get(key) ?? null,
       blockedPendingQuantity,
       bottleneckSkuId,
     });

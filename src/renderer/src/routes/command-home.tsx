@@ -105,7 +105,7 @@ export function CommandHomeRoute() {
       description: translateUiLiteral(language, 'Manage active and archived SKUs and services.'),
       icon: NavigationCatalogIcon,
       isVisible: navigationAvailability.hasCatalogTab,
-      label: translateUiLiteral(language, 'Open Catalog'),
+      label: translateUiLiteral(language, 'Open Products'),
       to: buildRememberedCatalogHref(),
       tone: 'open-catalog',
     },
@@ -133,7 +133,7 @@ export function CommandHomeRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Home')}
         title={translateUiLiteral(language, 'Command home')}
-        descriptor={translateUiLiteral(language, 'Start with the next operational decision, then move into capture, catalog, or insight work.')}
+        descriptor={translateUiLiteral(language, 'Start with the next operational decision, then move into capture, products, or insight work.')}
         className="rounded-xl"
       >
         <div className="grid gap-3 sm:grid-cols-3" data-slot="command-home-summary-grid">
@@ -147,7 +147,7 @@ export function CommandHomeRoute() {
           <div className="rounded-lg border border-border/60 bg-white px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <EntitySkuIcon className="size-4" aria-hidden="true" />
-              {translateUiLiteral(language, 'Catalog')}
+              {translateUiLiteral(language, 'Products')}
             </p>
             <p className="mt-2 text-base font-semibold text-foreground">
               {translateUiLiteral(language, '{count} items', { count: skuCount + serviceCount })}

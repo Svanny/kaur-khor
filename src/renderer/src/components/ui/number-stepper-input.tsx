@@ -9,6 +9,8 @@ type NumberStepperInputProps = Omit<React.ComponentProps<typeof Input>, "type"> 
   decrementLabel?: string
   incrementLabel?: string
   inputPrefix?: React.ReactNode
+  inputSuffixClassName?: string
+  inputSuffix?: React.ReactNode
   inputWrapperClassName?: string
   variant?: "stacked" | "side-buttons"
   wrapperClassName?: string
@@ -62,6 +64,8 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
       disabled,
       incrementLabel,
       inputPrefix,
+      inputSuffixClassName,
+      inputSuffix,
       inputWrapperClassName,
       max,
       min,
@@ -132,10 +136,18 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
                 {inputPrefix}
               </span>
             ) : null}
+            {inputSuffix ? (
+              <span
+                aria-hidden="true"
+                className={cn("pointer-events-none absolute inset-y-0 right-3 z-10 flex items-center text-sm font-medium leading-none text-muted-foreground", inputSuffixClassName)}
+              >
+                {inputSuffix}
+              </span>
+            ) : null}
             <Input
               ref={assignRef}
               aria-label={ariaLabel}
-              className={className}
+              className={cn(className, inputSuffix ? "pr-16" : undefined)}
               disabled={disabled}
               max={max}
               min={min}
@@ -180,6 +192,14 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
             {inputPrefix}
           </span>
           ) : null}
+          {inputSuffix ? (
+          <span
+            aria-hidden="true"
+            className={cn("pointer-events-none absolute inset-y-0 right-14 z-10 flex items-center text-sm font-medium leading-none text-muted-foreground", inputSuffixClassName)}
+          >
+            {inputSuffix}
+          </span>
+          ) : null}
           <Input
             ref={assignRef}
             aria-invalid={ariaInvalid}
@@ -188,7 +208,8 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
               "min-w-0 flex-1 !rounded-none !border-0 !bg-transparent !shadow-none focus-visible:!border-transparent focus-visible:!ring-0 aria-invalid:!ring-0",
               inputPrefix ? "pl-8" : undefined,
               className,
-              "w-full max-w-none pr-14",
+              inputSuffix ? "pr-20" : undefined,
+              inputSuffix ? "w-full max-w-none" : "w-full max-w-none pr-14",
             )}
             disabled={disabled}
             max={max}

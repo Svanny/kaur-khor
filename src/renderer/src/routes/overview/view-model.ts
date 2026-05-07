@@ -7,6 +7,7 @@ import type {
   SenaRecordUpdateContext,
   SenaSkuDetail,
   SenaSkuSummary,
+  SenaTicketSummary,
   SenaWorkspaceSummary,
 } from '@shared/sena';
 import { activeSenaCatalog } from '@/lib/sena-catalog';
@@ -19,7 +20,7 @@ import {
   type SenaReorderQuantityDisplay,
 } from '@/lib/sena-reorder-quantity';
 import { latestObservationAt } from '@/routes/observation-payload';
-import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
+import { formatSenaDate, formatSenaDateTime, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
 import { getTranslation, translateUiLiteral } from '@/lib/translations';
 
 export type OverviewTaskFilter =
@@ -41,6 +42,7 @@ export type OverviewTaskAction =
 
 export type OverviewTaskDrawerMode =
   | 'not_ordered'
+  | 'order_canceled'
   | 'ordered_waiting'
   | 'eta_changed'
   | 'goods_received';
@@ -57,7 +59,7 @@ export type OverviewDrawerBandId =
 
 interface OverviewTaskBase {
   id: string;
-  kind: 'sku' | 'stale_update_reminder';
+  kind: 'sku' | 'supplier_ticket' | 'stale_update_reminder';
   stateLabel: string;
   statusTone: 'danger' | 'warning' | 'success' | 'info' | 'neutral';
   action: OverviewTaskAction;
@@ -80,6 +82,7 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   supplierName: string | null;
   batchOrderId: string | null;
   childOrderId: string | null;
+  supplierTicket: SenaTicketSummary | null;
   supplierTicketId: string | null;
   batchChildCount: number;
   state: Exclude<OverviewTaskFilter, 'all'>;
@@ -130,7 +133,37 @@ export interface OverviewStaleUpdateReminderTask extends OverviewTaskBase {
   latestObservationAt: string;
 }
 
-export type OverviewTask = OverviewSkuTask | OverviewStaleUpdateReminderTask;
+export interface OverviewSupplierTicketTask extends OverviewTaskBase {
+  kind: 'supplier_ticket';
+  id: string;
+  ticketId: string;
+  displayTicketId: string;
+  displayTicketLabel: string;
+  ticket: SenaTicketSummary;
+  childTasks: OverviewSkuTask[];
+  supplierName: string | null;
+  skuCount: number;
+  skuSummaryLabel: string;
+  skuNames: string[];
+  imagePath: string | null;
+  state: Exclude<OverviewTaskFilter, 'all'>;
+  stateLabel: string;
+  statusTone: 'danger' | 'warning' | 'success' | 'info' | 'neutral';
+  action: OverviewTaskAction;
+  actionLabel: string;
+  defaultDrawerMode: Exclude<OverviewTaskDrawerMode, 'not_ordered'>;
+  latestObservationAt: string | null;
+  latestOrderAt: string | null;
+  latestReceiptAt: string | null;
+  expectedArrivalDate: string | null;
+  arrivalWindowStart: string | null;
+  arrivalWindowEnd: string | null;
+  leadTimeMeanDays: number | null;
+  leadTimeStdDays: number | null;
+  variabilityClass: SenaLeadTimeVariabilityClass | null;
+}
+
+export type OverviewTask = OverviewSkuTask | OverviewSupplierTicketTask | OverviewStaleUpdateReminderTask;
 
 export interface OverviewInTransitRow {
   id: string;
@@ -395,6 +428,58 @@ function resolveSupplierTicketIdForOrderContext({
   return openMatch?.ticketId ?? matchingTicketIds.values().next().value ?? null;
 }
 
+function supplierTicketMatchesSku(ticket: SenaTicketSummary, skuId: string, supplierName: string | null) {
+  return (
+    ticket.ticketFamily === 'supplier' &&
+    ticket.lines.some((line) => line.entityType === 'sku' && line.entityId === skuId) &&
+    (!supplierName || !ticket.party?.supplierName || ticket.party.supplierName === supplierName)
+  );
+}
+
+function latestSupplierTicketForSku({
+  observations,
+  recordUpdateContext,
+  skuId,
+  supplierName,
+}: {
+  observations: SenaObservationRecord[];
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  skuId: string;
+  supplierName: string | null;
+}) {
+  const tickets = new Map<string, SenaTicketSummary>();
+  const rememberTicket = (ticket: SenaTicketSummary) => {
+    if (!supplierTicketMatchesSku(ticket, skuId, supplierName)) {
+      return;
+    }
+    const current = tickets.get(ticket.ticketId);
+    if (
+      !current ||
+      new Date(ticket.occurredAt).getTime() > new Date(current.occurredAt).getTime() ||
+      (ticket.occurredAt === current.occurredAt && ticket.revision > current.revision)
+    ) {
+      tickets.set(ticket.ticketId, ticket);
+    }
+  };
+
+  for (const ticket of Object.values(recordUpdateContext?.latestTicketsById ?? {}).map((anchor) => anchor.value)) {
+    rememberTicket(ticket);
+  }
+
+  for (const observation of observations) {
+    for (const ticket of observation.input.ticketEvents ?? []) {
+      rememberTicket(ticket);
+    }
+  }
+
+  return [...tickets.values()].sort(
+    (left, right) =>
+      new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime() ||
+      right.revision - left.revision ||
+      right.ticketId.localeCompare(left.ticketId),
+  )[0] ?? null;
+}
+
 function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
   const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
   if (latestLeadTime?.observedVariabilityClass) {
@@ -517,26 +602,267 @@ function taskStateLabel(value: Exclude<OverviewTaskFilter, 'all'>, language: App
   }
 }
 
-function taskPriority(value: Exclude<OverviewTaskFilter, 'all'>) {
-  switch (value) {
+function fallbackRecommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
+  const inTransit = detail?.pipelinePosterior.at(-1)?.inTransitMean ?? 0;
+  const lowGap = summary.reorderPoint - summary.credibleIntervalHigh - inTransit;
+  const highGap = summary.reorderPoint + summary.safetyStock - summary.credibleIntervalLow - inTransit;
+  return Math.max(0, Math.ceil(Math.max(lowGap, highGap)));
+}
+
+function queueTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+function overviewTaskFifoTimestamp(task: OverviewTask) {
+  if (task.kind === 'stale_update_reminder') {
+    return task.latestObservationAt;
+  }
+
+  switch (task.state) {
+    case 'awaiting_receipt':
+    case 'follow_up_today':
+    case 'ready_to_receive':
+      return task.latestOrderAt ?? task.arrivalWindowStart ?? task.expectedArrivalDate ?? task.latestObservationAt;
+    case 'received_today':
+      return task.latestReceiptAt ?? task.latestObservationAt;
     case 'to_order':
+      return task.latestObservationAt ?? task.expectedArrivalDate;
+  }
+}
+
+function compareOverviewTasksFifo(left: OverviewTask, right: OverviewTask) {
+  const timestampGap = queueTimestamp(overviewTaskFifoTimestamp(left)) - queueTimestamp(overviewTaskFifoTimestamp(right));
+  if (timestampGap !== 0) {
+    return timestampGap;
+  }
+  return 0;
+}
+
+function supplierTaskUrgencyRank(task: OverviewSkuTask) {
+  switch (task.state) {
+    case 'ready_to_receive':
       return 0;
     case 'follow_up_today':
       return 1;
-    case 'ready_to_receive':
-      return 2;
     case 'awaiting_receipt':
+      return 2;
+    case 'to_order':
       return 3;
     case 'received_today':
       return 4;
   }
 }
 
-function fallbackRecommendedOrderQuantity(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
-  const inTransit = detail?.pipelinePosterior.at(-1)?.inTransitMean ?? 0;
-  const lowGap = summary.reorderPoint - summary.credibleIntervalHigh - inTransit;
-  const highGap = summary.reorderPoint + summary.safetyStock - summary.credibleIntervalLow - inTransit;
-  return Math.max(0, Math.ceil(Math.max(lowGap, highGap)));
+function compareSupplierChildTasks(left: OverviewSkuTask, right: OverviewSkuTask) {
+  const urgencyGap = supplierTaskUrgencyRank(left) - supplierTaskUrgencyRank(right);
+  if (urgencyGap !== 0) {
+    return urgencyGap;
+  }
+  return compareOverviewTasksFifo(left, right);
+}
+
+function ticketSkuSummaryLabel(children: OverviewSkuTask[], language: AppLanguage) {
+  const names = children.map((task) => task.skuName);
+  if (names.length === 0) {
+    return translateUiLiteral(language, 'No SKU lines');
+  }
+  const visibleNames = names.slice(0, 3).join(', ');
+  const hiddenCount = names.length - 3;
+  const suffix = hiddenCount > 0 ? ` +${formatWholeNumber(hiddenCount, language)} more` : '';
+  return `${formatWholeNumber(names.length, language)} ${names.length === 1 ? 'SKU' : 'SKUs'}: ${visibleNames}${suffix}`;
+}
+
+function ticketDisplayDate(value: string | null | undefined) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return value.slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function compareSupplierTicketsByDisplayOrder(left: SenaTicketSummary, right: SenaTicketSummary) {
+  return ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
+    left.occurredAt.localeCompare(right.occurredAt) ||
+    left.ticketId.localeCompare(right.ticketId);
+}
+
+function compareSupplierTicketsByFreshness(left: SenaTicketSummary, right: SenaTicketSummary) {
+  return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime() ||
+    right.revision - left.revision ||
+    right.ticketId.localeCompare(left.ticketId);
+}
+
+function newerSupplierTicket(left: SenaTicketSummary, right: SenaTicketSummary) {
+  return compareSupplierTicketsByFreshness(left, right) <= 0 ? left : right;
+}
+
+function collectSupplierTickets({
+  observations,
+  recordUpdateContext,
+}: {
+  observations: SenaObservationRecord[];
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+}) {
+  const ticketsById = new Map<string, SenaTicketSummary>();
+  const rememberTicket = (ticket: SenaTicketSummary) => {
+    if (ticket.ticketFamily !== 'supplier') {
+      return;
+    }
+    const current = ticketsById.get(ticket.ticketId);
+    ticketsById.set(ticket.ticketId, current ? newerSupplierTicket(ticket, current) : ticket);
+  };
+
+  for (const ticket of Object.values(recordUpdateContext?.latestTicketsById ?? {}).map((anchor) => anchor.value)) {
+    rememberTicket(ticket);
+  }
+  for (const ticket of recordUpdateContext?.openTicketsByFamily.supplier ?? []) {
+    rememberTicket(ticket);
+  }
+  for (const observation of observations) {
+    for (const ticket of observation.input.ticketEvents ?? []) {
+      rememberTicket(ticket);
+    }
+  }
+
+  return [...ticketsById.values()];
+}
+
+function supplierTicketDisplayLabels(tickets: SenaTicketSummary[]) {
+  const labels = new Map<string, string>();
+  const sortedTickets = [...tickets].sort(compareSupplierTicketsByDisplayOrder);
+  const countByDate = new Map<string, number>();
+
+  for (const ticket of sortedTickets) {
+    const date = ticketDisplayDate(ticket.occurredAt);
+    const count = (countByDate.get(date) ?? 0) + 1;
+    countByDate.set(date, count);
+    labels.set(ticket.ticketId, `${date}-#${count}`);
+  }
+
+  return labels;
+}
+
+function orderedTimestampDetail(value: string | null | undefined, language: AppLanguage) {
+  return value
+    ? translate(language, 'overviewTaskWhyOrderedAt', {
+        date: formatSenaDateTime(value, language),
+      })
+    : translate(language, 'overviewTaskWhyReceiptLoop');
+}
+
+function buildSupplierTicketTask({
+  children,
+  displayTicketId,
+  language,
+  ticket,
+}: {
+  children: OverviewSkuTask[];
+  displayTicketId: string;
+  language: AppLanguage;
+  ticket: SenaTicketSummary;
+}): OverviewSupplierTicketTask {
+  const sortedChildren = [...children].sort(compareSupplierChildTasks);
+  const representative = sortedChildren[0]!;
+  const isCanceled = ticket.lifecycle === 'canceled';
+  const state = isCanceled ? 'to_order' : representative.state;
+  const defaultDrawerMode = isCanceled ? 'order_canceled' : representative.defaultDrawerMode === 'not_ordered' ? 'ordered_waiting' : representative.defaultDrawerMode;
+  const etaLabel = isCanceled ? translateUiLiteral(language, 'Order canceled') : representative.etaLabel;
+  const etaDetail = isCanceled
+    ? translateUiLiteral(language, 'The supplier ticket was canceled; keep it closed or edit it in Capture.')
+    : representative.etaDetail;
+  const stateLabel = isCanceled ? translateUiLiteral(language, 'Order canceled') : representative.stateLabel;
+  const actionLabel = isCanceled ? translateUiLiteral(language, 'Review ticket') : representative.actionLabel;
+  const whyDetail = !isCanceled && (representative.action === 'update_eta' || ticket.stage === 'ordered_waiting')
+    ? orderedTimestampDetail(representative.latestOrderAt ?? ticket.occurredAt, language)
+    : representative.whyDetail;
+
+  return {
+    ...representative,
+    id: `supplier-ticket:${ticket.ticketId}`,
+    kind: 'supplier_ticket',
+    ticketId: ticket.ticketId,
+    displayTicketId,
+    displayTicketLabel: `Supplier Ticket ID: ${displayTicketId}`,
+    ticket,
+    childTasks: sortedChildren,
+    supplierName: ticket.party?.supplierName ?? representative.supplierName,
+    skuCount: sortedChildren.length,
+    skuSummaryLabel: ticketSkuSummaryLabel(sortedChildren, language),
+    skuNames: sortedChildren.map((task) => task.skuName),
+    imagePath: representative.imagePath,
+    state,
+    stateLabel,
+    statusTone: isCanceled ? 'neutral' : representative.statusTone,
+    action: isCanceled ? 'review' : representative.action,
+    actionLabel,
+    defaultDrawerMode,
+    etaLabel,
+    etaDetail,
+    whyDetail,
+    confidenceCue: representative.confidenceCue,
+    heartbeat: [
+      `Supplier Ticket ID: ${displayTicketId}`,
+      ticketSkuSummaryLabel(sortedChildren, language),
+      ...representative.heartbeat.slice(0, 1),
+    ],
+    nextSteps: isCanceled
+      ? [translateUiLiteral(language, 'This supplier ticket is canceled. Use Capture to reopen or create a new supplier order.')]
+      : representative.nextSteps,
+  };
+}
+
+function supplierTicketMatchesTaskLine(ticket: SenaTicketSummary, task: OverviewSkuTask) {
+  return ticket.lines.some((line) => line.entityType === 'sku' && line.entityId === task.skuId);
+}
+
+function supplierTicketIsActive(ticket: SenaTicketSummary) {
+  return ticket.lifecycle === 'open';
+}
+
+function supplierTicketForTask(task: OverviewSkuTask, tickets: SenaTicketSummary[]) {
+  const lineMatches = tickets.filter((ticket) => supplierTicketMatchesTaskLine(ticket, task));
+  const activeMatch = lineMatches.filter(supplierTicketIsActive).sort(compareSupplierTicketsByFreshness)[0] ?? null;
+  return activeMatch ?? lineMatches.sort(compareSupplierTicketsByFreshness)[0] ?? null;
+}
+
+function groupSupplierTicketTasks(tasks: OverviewSkuTask[], language: AppLanguage, tickets: SenaTicketSummary[]) {
+  const groups = new Map<string, { ticket: SenaTicketSummary; children: OverviewSkuTask[] }>();
+  const ungrouped: OverviewSkuTask[] = [];
+  const displayLabels = supplierTicketDisplayLabels(tickets);
+
+  for (const task of tasks) {
+    const ticket = supplierTicketForTask(task, tickets);
+    if (!ticket) {
+      ungrouped.push(task);
+      continue;
+    }
+
+    const current = groups.get(ticket.ticketId);
+    if (current) {
+      current.children.push(task);
+    } else {
+      groups.set(ticket.ticketId, { ticket, children: [task] });
+    }
+  }
+
+  return [
+    ...ungrouped,
+    ...[...groups.values()].map((group) =>
+      buildSupplierTicketTask({
+        children: group.children,
+        displayTicketId: displayLabels.get(group.ticket.ticketId) ?? `${ticketDisplayDate(group.ticket.occurredAt)}-#1`,
+        language,
+        ticket: group.ticket,
+      }),
+    ),
+  ];
 }
 
 function serviceImpactLine({
@@ -614,12 +940,16 @@ function nextStepsForTask({
 function taskNarrative({
   language,
   linkedServiceNames,
+  latestOrderAt,
+  orderCanceled,
   receiptWindow,
   summary,
   taskState,
 }: {
   language: AppLanguage;
   linkedServiceNames: string[];
+  latestOrderAt: string | null;
+  orderCanceled: boolean;
   receiptWindow: ReceiptWindowSummary | null;
   summary: SenaSkuSummary;
   taskState: Exclude<OverviewTaskFilter, 'all'>;
@@ -629,7 +959,7 @@ function taskNarrative({
       return {
         action: 'log_order' as OverviewTaskAction,
         actionLabel: translate(language, 'overviewTaskActionLogOrder'),
-        defaultDrawerMode: 'not_ordered' as OverviewTaskDrawerMode,
+        defaultDrawerMode: (orderCanceled ? 'order_canceled' : 'not_ordered') as OverviewTaskDrawerMode,
         statusTone: 'danger' as const,
         whyNow:
           summary.stockoutRisk >= 0.7 && linkedServiceNames.length > 0
@@ -647,7 +977,7 @@ function taskNarrative({
         defaultDrawerMode: 'ordered_waiting' as OverviewTaskDrawerMode,
         statusTone: 'warning' as const,
         whyNow: translate(language, 'overviewTaskWhyOrderedAlready'),
-        whyDetail: receiptWindow?.etaDetail ?? translate(language, 'overviewTaskWhyReceiptLoop'),
+        whyDetail: orderedTimestampDetail(latestOrderAt, language),
       };
     case 'follow_up_today':
       return {
@@ -754,14 +1084,21 @@ function buildTask({
   const observationSignals = summarizeObservations(observations, summary.skuId);
   const orderContext = latestOrderContext(orderBatches, summary.skuId);
   const supplierName = sku.supplierName?.trim() || null;
+  const latestSupplierTicket = latestSupplierTicketForSku({
+    observations,
+    recordUpdateContext,
+    skuId: summary.skuId,
+    supplierName,
+  });
+  const orderCanceled = latestSupplierTicket?.lifecycle === 'canceled';
   const supplierTicketId = resolveSupplierTicketIdForOrderContext({
     observations,
     orderContext,
     recordUpdateContext,
     skuId: summary.skuId,
     supplierName,
-  });
-  const latestOrderAt = orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt;
+  }) ?? latestSupplierTicket?.ticketId ?? null;
+  const latestOrderAt = orderCanceled ? null : (orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt);
   const latestReceiptAt = orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
   const receiptWindow = receiptWindowSummary({
     detail,
@@ -803,7 +1140,9 @@ function buildTask({
   );
   const narrative = taskNarrative({
     language,
+    latestOrderAt,
     linkedServiceNames,
+    orderCanceled,
     receiptWindow,
     summary,
     taskState: state,
@@ -814,13 +1153,17 @@ function buildTask({
   )[0]?.[0] ?? 'normal';
   const etaLabel =
     state === 'to_order'
-      ? translate(language, 'overviewTaskEtaNotOrderedYet')
+      ? orderCanceled
+        ? translate(language, 'overviewTaskEtaOrderCanceled')
+        : translate(language, 'overviewTaskEtaNotOrderedYet')
       : state === 'received_today'
         ? translate(language, 'overviewTaskEtaReceivedToday')
         : (receiptWindow?.etaLabel ?? translate(language, 'overviewReceiptAwaitingSupplierUpdate'));
   const etaDetail =
     state === 'to_order'
-      ? translate(language, 'overviewTaskEtaNotOrderedDetail')
+      ? orderCanceled
+        ? translate(language, 'overviewTaskEtaOrderCanceledDetail')
+        : translate(language, 'overviewTaskEtaNotOrderedDetail')
       : state === 'received_today'
         ? observationSignals.latestReceiptAt
           ? translate(language, 'overviewTaskEtaReceivedLogged', {
@@ -838,6 +1181,7 @@ function buildTask({
     supplierName,
     batchOrderId: orderContext?.batch.batchOrderId ?? null,
     childOrderId: orderContext?.child.childOrderId ?? null,
+    supplierTicket: latestSupplierTicket,
     supplierTicketId,
     batchChildCount: orderContext?.batch.children.length ?? 0,
     state,
@@ -1072,7 +1416,7 @@ export function buildOverviewModel({
     };
   }
 
-  const tasks = workspaceSummary.skuSummaries
+  const skuTasks = workspaceSummary.skuSummaries
     .map((summary) =>
       buildTask({
         catalog: visibleCatalog,
@@ -1085,23 +1429,18 @@ export function buildOverviewModel({
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),
     )
-    .filter((value): value is OverviewSkuTask => value != null)
-    .sort((left, right) => {
-      const priorityGap = taskPriority(left.state) - taskPriority(right.state);
-      if (priorityGap !== 0) {
-        return priorityGap;
-      }
-      return right.stockoutRisk - left.stockoutRisk;
-    });
+    .filter((value): value is OverviewSkuTask => value != null);
+  const supplierTickets = collectSupplierTickets({ observations, recordUpdateContext });
+  const tasks = groupSupplierTicketTasks(skuTasks, language, supplierTickets);
   const staleUpdateReminderTask = buildStaleUpdateReminderTask({
     forceVisible: forceStaleUpdateReminder ?? false,
     language,
     observations,
     snoozeUntil: staleUpdateReminderSnoozeUntil ?? null,
   });
-  const allTasks = staleUpdateReminderTask ? [staleUpdateReminderTask, ...tasks] : tasks;
+  const allTasks = (staleUpdateReminderTask ? [staleUpdateReminderTask, ...tasks] : tasks).sort(compareOverviewTasksFifo);
 
-  const inTransit = tasks
+  const inTransit = skuTasks
     .filter((task) =>
       task.state === 'awaiting_receipt' ||
       task.state === 'follow_up_today' ||
@@ -1117,7 +1456,7 @@ export function buildOverviewModel({
     }))
     .slice(0, 4);
 
-  const recentReceipts = tasks
+  const recentReceipts = skuTasks
     .filter((task) => task.latestReceiptAt)
     .sort((left, right) => new Date(right.latestReceiptAt ?? '').getTime() - new Date(left.latestReceiptAt ?? '').getTime())
     .map((task) => ({
@@ -1139,7 +1478,7 @@ export function buildOverviewModel({
     tasks: allTasks,
     inTransit,
     recentReceipts,
-    signals: buildSignals(tasks, language),
+    signals: buildSignals(skuTasks, language),
     todayCounts: {
       toOrder: tasks.filter((task) => task.state === 'to_order').length,
       followUpToday: tasks.filter((task) => task.state === 'follow_up_today').length,
@@ -1163,6 +1502,24 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
       task.whyDetail,
       task.etaLabel,
       task.etaDetail,
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(normalized);
+  }
+
+  if (task.kind === 'supplier_ticket') {
+    return [
+      task.displayTicketLabel,
+      task.displayTicketId,
+      task.ticketId,
+      task.supplierName,
+      task.skuSummaryLabel,
+      ...task.skuNames,
+      task.whyNow,
+      task.whyDetail,
+      task.etaLabel,
+      task.stateLabel,
     ]
       .join(' ')
       .toLowerCase()
@@ -1195,6 +1552,10 @@ export function shouldShowTask(task: OverviewTask, filter: OverviewTaskFilter) {
 
 export function isOverviewSkuTask(task: OverviewTask): task is OverviewSkuTask {
   return task.kind === 'sku';
+}
+
+export function isOverviewSupplierTicketTask(task: OverviewTask): task is OverviewSupplierTicketTask {
+  return task.kind === 'supplier_ticket';
 }
 
 export function relativeReceiptLabel(value: string | null, language: AppLanguage) {

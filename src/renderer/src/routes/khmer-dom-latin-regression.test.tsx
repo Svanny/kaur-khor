@@ -549,14 +549,12 @@ describe('Khmer DOM Latin guardrail', () => {
         name: 'automation intake drawer',
         renderSurface: () => render(
           <AutomationIntakeDrawer
-            conversationId={null}
             intake={makeIntake()}
             isSaving={false}
             language="km"
             open
             onClose={vi.fn()}
             onPromote={vi.fn()}
-            onReadConversation={vi.fn()}
             onResolve={vi.fn()}
           />,
         ).baseElement,

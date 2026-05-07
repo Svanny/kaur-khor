@@ -22,3 +22,5 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Kaur Khor auto-zoom thresholds must be grounded in common desktop/window-size tiers; use `1600x900` as normal density and zoom out around `1440`, `1280`, `1120`, and sub-`900` heights instead of treating `1280x800` as normal.
 - Browser app auto-zoom resize bugs must be traced through `EmbeddedAutoZoomViewport`; embedded browser mode must keep the full desktop sidebar as layout, not the mobile trigger/sheet path, and verify settled resize plus rotated phone scrolling.
 - Embedded phone-view annotation fixes must be verified against the web dev server `/kaur-khor/demo#/` route at the annotated viewport; `localhost:5174` can render the desktop app and miss rotated embedded layout bugs.
+- Settings redirect highlights must remount the animation element and use the opacity-only `kaur-khor-attention-flash` overlay pattern from PR #15; do not swap in color-surface keyframes or verify only that highlight state is true.
+- Telegram automation polling must keep retrying from `error` status when a bot token exists; transient `getUpdates` conflicts must not permanently stop intake ingestion.

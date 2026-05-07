@@ -36,14 +36,14 @@ describe('NumberStepperInput', () => {
   });
 
   test('uses decimal precision from the configured step', () => {
-    const { values } = renderStepper({ 'aria-label': 'Lead time mean', step: '0.01', value: '1.23' });
+    const { values } = renderStepper({ 'aria-label': 'Expected time of arrival', step: '0.01', value: '1.23' });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Increment Lead time mean' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Increment Expected time of arrival' }));
 
     expect(values.at(-1)).toBe('1.24');
   });
 
-  test('uses 0.1 precision for lead-time uncertainty', () => {
+  test('uses 0.1 precision for ETA uncertainty', () => {
     const { values } = renderStepper({ 'aria-label': 'Custom uncertainty days', step: '0.1', value: '1.2' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Increment Custom uncertainty days' }));

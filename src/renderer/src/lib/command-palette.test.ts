@@ -76,7 +76,7 @@ describe('command palette descriptors', () => {
           navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -145,6 +145,32 @@ describe('command palette descriptors', () => {
     });
     expect(disabledCommands.some((command) => command.id === 'page:automations')).toBe(false);
     expect(disabledCommands.some((command) => command.action.href === '/work/intake')).toBe(false);
+  });
+
+  test('builds the settings command for optional help visibility', () => {
+    const commands = buildCommandDescriptors({
+      currency: 'USD',
+      displayViewMode: 'custom',
+      inventory: createInventory(),
+      language: 'en',
+      senaEngineParameters: { smoothingEnabled: true },
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: true,
+      showAutomationsPage: true,
+      showAnalysisPage: true,
+      t: (key) => key,
+    });
+
+    expect(commands.find((command) => command.id === 'settings:help:off')).toMatchObject({
+      action: {
+        effect: 'set-show-explanatory-tooltips',
+        href: '/settings/interface?highlight=help',
+        type: 'settings',
+        value: false,
+      },
+      title: 'Hide guidance labels',
+    });
   });
 
   test('builds static, entity, and overview workflow commands', () => {
@@ -260,7 +286,7 @@ describe('command palette descriptors', () => {
           navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -330,7 +356,7 @@ describe('command palette descriptors', () => {
           navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -396,7 +422,7 @@ describe('command palette descriptors', () => {
           navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -517,7 +543,7 @@ describe('command palette descriptors', () => {
           navAnalysis: 'Explain',
           navAutomations: 'Automations',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -548,7 +574,7 @@ describe('command palette descriptors', () => {
         pageOrder: 3,
         pagePrefixes: ['/catalog'],
         priority: 20,
-        title: 'Catalog',
+        title: 'Products',
       },
       {
         action: { href: '/analysis', type: 'page' as const },
@@ -694,7 +720,7 @@ describe('command palette descriptors', () => {
         pagePrefixes: ['/catalog'],
         priority: 60,
         tabOrder: 0,
-        title: 'Catalog / SKUs',
+        title: 'Products / SKUs',
       },
       {
         action: { href: '/settings', type: 'page' as const },
@@ -740,7 +766,7 @@ describe('command palette descriptors', () => {
     expect(sections.map((section) => section.title)).toEqual(['Best Matches', 'Pages', 'Tabs', 'Actions']);
     expect(sections[0]?.items.map((item) => item.title)).toEqual(['Zebra item', 'Explain / Timeframe / Recent']);
     expect(sections[1]?.items.map((item) => item.title)).toEqual(['Performance', 'Settings']);
-    expect(sections[2]?.items.map((item) => item.title)).toEqual(['Catalog / SKUs']);
+    expect(sections[2]?.items.map((item) => item.title)).toEqual(['Products / SKUs']);
     expect(sections[3]?.items.map((item) => item.title)).toEqual(['Alpha action']);
   });
 });

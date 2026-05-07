@@ -5,14 +5,30 @@ import type { SenaService } from '@shared/sena';
 import { SearchInput } from '@/components/system/search-input';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
+import { ProductAttributesField } from '@/components/system/product-attributes-field';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
-import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
+import { displayMoneyFromUsd, formatCurrency, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { createUniqueServiceId, emptySenaCatalog, linkedSkuIdsForService, upsertSenaService } from '@/lib/sena-catalog';
+import {
+  createServiceAttributeVariants,
+  createUniqueServiceId,
+  emptySenaCatalog,
+  linkedSkuIdsForService,
+  upsertSenaService,
+} from '@/lib/sena-catalog';
+import {
+  emptyProductAttributeDraft,
+  mergeCustomProductAttributePresets,
+  mergedProductAttributePresets,
+  productAttributeCombinations,
+  productAttributeDraftDirtyKey,
+  readCustomProductAttributePresets,
+  writeCustomProductAttributePresets,
+} from '@/lib/product-attributes';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
@@ -119,6 +135,25 @@ function getSkuSearchScore(sku: { skuId: string; name: string; description: stri
   return score;
 }
 
+function serviceSkuPricingSummary(
+  sku: { costPerUnit: number; productPrice: number | null; soldAsProduct: boolean },
+  options: {
+    currency: 'USD' | 'KHR';
+    language: 'en' | 'km';
+    usdToKhrExchangeRate: number;
+  },
+) {
+  const customerPrice =
+    sku.soldAsProduct && sku.productPrice != null
+      ? formatCurrency(sku.productPrice, options.currency, options.language, options.usdToKhrExchangeRate)
+      : translateUiLiteral(options.language, 'n/a');
+
+  return [
+    `${translateUiLiteral(options.language, 'Supplier cost per unit')}: ${formatCurrency(sku.costPerUnit, options.currency, options.language, options.usdToKhrExchangeRate)}`,
+    `${translateUiLiteral(options.language, 'Customer selling price')}: ${customerPrice}`,
+  ].join(' · ');
+}
+
 function ServiceSkuGridTile({
   checked,
   className,
@@ -126,6 +161,7 @@ function ServiceSkuGridTile({
   imagePath,
   label,
   measure = false,
+  pricingSummary,
   skuId,
   onCheckedChange,
 }: {
@@ -135,6 +171,7 @@ function ServiceSkuGridTile({
   imagePath?: string | null;
   label: string;
   measure?: boolean;
+  pricingSummary: string;
   skuId: string;
   onCheckedChange: (checked: boolean) => void;
 }) {
@@ -190,6 +227,7 @@ function ServiceSkuGridTile({
           {label}
         </div>
         {description ? <div className="truncate text-muted-foreground">{description}</div> : null}
+        <div className="truncate text-muted-foreground">{pricingSummary}</div>
       </div>
     </div>
   );
@@ -197,7 +235,7 @@ function ServiceSkuGridTile({
 
 function ServiceFormLoadingState({ title }: { title: string }) {
   return (
-    <WorkspacePage>
+    <WorkspacePage className="pb-32 md:pb-36">
       <DetailHeroWireframe actionCount={1} badgeCount={0} showBody={false} title={title} />
 
       <div className="grid gap-6">
@@ -251,6 +289,8 @@ export function ServiceFormRoute() {
   const [localSavedService, setLocalSavedService] = useState<SenaService | null>(null);
   const [localSavedSkuIds, setLocalSavedSkuIds] = useState<string[]>([]);
   const [skuSearch, setSkuSearch] = useState('');
+  const [attributeDraft, setAttributeDraft] = useState(emptyProductAttributeDraft);
+  const [customAttributePresets, setCustomAttributePresets] = useState(() => readCustomProductAttributePresets());
   const deferredSkuSearch = useDeferredValue(skuSearch);
   const previousMoneyFormatRef = useRef({ currency, usdToKhrExchangeRate });
   const editing = Boolean(serviceId);
@@ -271,12 +311,14 @@ export function ServiceFormRoute() {
       setForm(existingService);
       setServicePriceDraft(moneyDraftFromUsd(existingService.price, currency, usdToKhrExchangeRate));
       setSelectedSkuIds(baselineSelectedSkuIds);
+      setAttributeDraft(emptyProductAttributeDraft());
     } else if (!editing) {
       setLocalSavedService(null);
       setLocalSavedSkuIds([]);
       setForm(emptyService(''));
       setServicePriceDraft('');
       setSelectedSkuIds([]);
+      setAttributeDraft(emptyProductAttributeDraft());
     }
   }, [editing, existingService?.serviceId]);
 
@@ -322,10 +364,19 @@ export function ServiceFormRoute() {
     ? moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate)
     : '';
   const parsedServicePriceDraft = parseNonNegativeMoneyDraft(servicePriceDraft, currency, usdToKhrExchangeRate);
+  const attributePresets = useMemo(
+    () => mergedProductAttributePresets(customAttributePresets),
+    [customAttributePresets],
+  );
+  const attributeCombinations = useMemo(
+    () => productAttributeCombinations(attributeDraft),
+    [attributeDraft],
+  );
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
     servicePriceDraft !== baselineServicePriceDraft ||
-    JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...localSavedSkuIds].sort());
+    JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...localSavedSkuIds].sort()) ||
+    productAttributeDraftDirtyKey(attributeDraft) !== productAttributeDraftDirtyKey(emptyProductAttributeDraft());
   const serviceValidationErrors = {
     name: !form.name.trim() ? t('catalogServiceEditorNameRequired') : null,
     price: !servicePriceDraft.trim()
@@ -343,6 +394,7 @@ export function ServiceFormRoute() {
     setForm(normalizedBaseline);
     setServicePriceDraft(moneyDraftFromUsd(normalizedBaseline.price, currency, usdToKhrExchangeRate));
     setSelectedSkuIds(localSavedSkuIds);
+    setAttributeDraft(emptyProductAttributeDraft());
     setSaveAttempted(false);
     setSaveErrorFlashKey(0);
   }
@@ -372,7 +424,13 @@ export function ServiceFormRoute() {
     const nextService = editing
       ? { ...normalizedDraft, serviceId: normalizedBaseline.serviceId }
       : { ...normalizedDraft, serviceId: createUniqueServiceId(baseCatalog) };
-    const nextCatalog = upsertSenaService(baseCatalog, nextService, selectedSkuIds, normalizedBaseline.serviceId);
+    const catalogWithBase = upsertSenaService(baseCatalog, nextService, selectedSkuIds, normalizedBaseline.serviceId);
+    const nextCatalog = createServiceAttributeVariants(
+      catalogWithBase,
+      nextService,
+      selectedSkuIds,
+      attributeCombinations,
+    );
     await upsertSenaCatalog(nextCatalog);
     const observation = editing
       ? buildServiceCatalogEditObservation({
@@ -387,6 +445,10 @@ export function ServiceFormRoute() {
     setLocalSavedSkuIds(selectedSkuIds);
     setForm(nextService);
     setServicePriceDraft(moneyDraftFromUsd(nextService.price, currency, usdToKhrExchangeRate));
+    const nextCustomPresets = mergeCustomProductAttributePresets(customAttributePresets, attributeDraft);
+    writeCustomProductAttributePresets(nextCustomPresets);
+    setCustomAttributePresets(readCustomProductAttributePresets());
+    setAttributeDraft(emptyProductAttributeDraft());
     setSaveAttempted(false);
     setSaveErrorFlashKey(0);
     afterSave?.();
@@ -448,7 +510,7 @@ export function ServiceFormRoute() {
   }
 
   return (
-    <WorkspacePage>
+    <WorkspacePage className="pb-32 md:pb-36">
       {discardConfirmDialog}
       <SkuPageHero
         actions={
@@ -515,36 +577,15 @@ export function ServiceFormRoute() {
 
         <WorkspacePanel
           className={editorPanelClassName}
-          descriptor={t('catalogServiceEditorPricingDescriptor')}
-          title={<SectionTitle helpHref="/settings/help#catalog-service-editor-pricing" title={t('editorPricingTitle')} tooltip={t('catalogServiceEditorPricingTooltip')} />}
+          descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this service.')}
+          title={<SectionTitle helpHref="/settings/help#catalog-service-editor-details" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate service variants without copying logs, observations, or captures.')} />}
         >
-          <EditorField
-            error={visibleServiceValidationErrors.price ?? undefined}
-            errorFlashKey={saveErrorFlashKey}
-            helper={t('catalogServiceEditorPriceHelper')}
-            helpHref="/settings/help#catalog-service-editor-pricing"
-            label={t('fieldPrice')}
-            tooltip={t('catalogServiceEditorPriceTooltip')}
-          >
-            <CurrencyNumberInput
-              className={editorInputClassName}
-              currency={currency}
-              min="0"
-              required
-              value={servicePriceDraft}
-              onChange={(event) => {
-                const nextValue = event.target.value;
-                setServicePriceDraft(nextValue);
-                if (!nextValue.trim()) {
-                  return;
-                }
-                setForm((current) => ({
-                  ...current,
-                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
-                }));
-              }}
-            />
-          </EditorField>
+          <ProductAttributesField
+            draft={attributeDraft}
+            language={language}
+            presets={attributePresets}
+            onChange={setAttributeDraft}
+          />
         </WorkspacePanel>
 
         <WorkspacePanel
@@ -585,6 +626,7 @@ export function ServiceFormRoute() {
                     description={sku.description || undefined}
                     imagePath={sku.imagePath}
                     label={sku.name}
+                    pricingSummary={serviceSkuPricingSummary(sku, { currency, language, usdToKhrExchangeRate })}
                     skuId={sku.skuId}
                     onCheckedChange={(checked) =>
                       setSelectedSkuIds((current) =>
@@ -615,11 +657,46 @@ export function ServiceFormRoute() {
                 description={sku.description || undefined}
                 label={sku.name}
                 measure
+                pricingSummary={serviceSkuPricingSummary(sku, { currency, language, usdToKhrExchangeRate })}
                 skuId={sku.skuId}
                 onCheckedChange={() => {}}
               />
             )}
           />
+        </WorkspacePanel>
+
+        <WorkspacePanel
+          className={editorPanelClassName}
+          descriptor={t('catalogServiceEditorPricingDescriptor')}
+          title={<SectionTitle helpHref="/settings/help#catalog-service-editor-pricing" title={t('editorPricingTitle')} tooltip={t('catalogServiceEditorPricingTooltip')} />}
+        >
+          <EditorField
+            error={visibleServiceValidationErrors.price ?? undefined}
+            errorFlashKey={saveErrorFlashKey}
+            helper={t('catalogServiceEditorPriceHelper')}
+            helpHref="/settings/help#catalog-service-editor-pricing"
+            label={t('fieldServiceSellingPrice')}
+            tooltip={t('catalogServiceEditorPriceTooltip')}
+          >
+            <CurrencyNumberInput
+              className={editorInputClassName}
+              currency={currency}
+              min="0"
+              required
+              value={servicePriceDraft}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setServicePriceDraft(nextValue);
+                if (!nextValue.trim()) {
+                  return;
+                }
+                setForm((current) => ({
+                  ...current,
+                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
+                }));
+              }}
+            />
+          </EditorField>
         </WorkspacePanel>
       </form>
     </WorkspacePage>

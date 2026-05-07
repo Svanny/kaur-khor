@@ -76,7 +76,7 @@ export function AnalysisTradingChartLedger({
       subjectId="workbench"
       subtype="analysis"
       title="System timeline"
-      tooltip="Shared analysis chart workspace across inventory, orders, and lead time indicators."
+      tooltip="Shared analysis chart workspace across inventory, orders, and ETA indicators."
       className={className}
       onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
       onChartResolutionChange={onChartResolutionChange}

@@ -30,7 +30,7 @@ import {
   type RecordUpdateLaneId,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
-import { recordTicketOptions, openTicketSummaries } from '@/lib/record-activity';
+import { recordTicketOptions, openTicketSummaries, ticketLineMetadataLabel } from '@/lib/record-activity';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
@@ -411,7 +411,7 @@ function TicketEntryPromptDialog({
 
 export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean } = {}) {
   const { language } = usePreferences();
-  const { loadWorkSupportData, orderBatches, recordUpdateContext } = useInventory();
+  const { catalog, loadWorkSupportData, orderBatches, recordUpdateContext } = useInventory();
   const navigate = useNavigate();
   const [supportDataRequested, setSupportDataRequested] = useState(false);
   const [customDialogOpen, setCustomDialogOpen] = useState(false);
@@ -430,13 +430,13 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
     [orderBatches, recordUpdateContext],
   );
   const customerTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    return recordTicketOptions(recordUpdateContext, 'customer').map((option) => ({
+    return recordTicketOptions(recordUpdateContext, 'customer', catalog).map((option) => ({
       ...option,
       queryParam: 'ticketId',
     }));
-  }, [recordUpdateContext]);
+  }, [catalog, recordUpdateContext]);
   const supplierTicketOptions = useMemo<TicketPickerOption[]>(() => {
-    const fromTicketEvents = recordTicketOptions(recordUpdateContext, 'supplier').map((option) => ({
+    const fromTicketEvents = recordTicketOptions(recordUpdateContext, 'supplier', catalog).map((option) => ({
       ...option,
       queryParam: 'ticketId' as const,
     }));
@@ -448,7 +448,15 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         id: batch.batchOrderId,
         label: batch.supplierName ?? batch.batchOrderId,
         description: supplierBatchOptionDescription(language, batch.children.length, batch.status),
-        metadata: batch.shared.expectedArrivalAt ?? batch.updatedAt,
+        metadata: batch.children.length > 0
+          ? batch.children.map((child) =>
+              ticketLineMetadataLabel({
+                entityType: 'sku',
+                entityId: child.skuId,
+                orderedQuantity: child.effective?.orderedQuantity ?? null,
+              }, catalog),
+            ).join(', ')
+          : batch.shared.expectedArrivalAt ?? batch.updatedAt,
         queryParam: 'batchOrderId' as const,
       }];
     });
@@ -460,7 +468,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
       seen.add(`${option.queryParam}:${option.id}`);
       return true;
     });
-  }, [orderBatches, recordUpdateContext]);
+  }, [catalog, language, orderBatches, recordUpdateContext]);
 
   useEffect(() => {
     writeRecordUpdateSessionViewMode('pos');

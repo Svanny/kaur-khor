@@ -17,6 +17,7 @@ describe('FilterControlRow', () => {
     expect(row).not.toBeNull();
     expect(row?.className).toContain('flex-wrap');
     expect(row?.className).toContain('[&_[data-slot=filter-control-row-search]]:min-w-[14rem]');
+    expect(row?.className).toContain('[&_[data-slot=filter-control-row-search]]:max-w-xl');
     expect(row?.className).toContain('max-[760px]');
     expect(container.querySelector('[data-slot="filter-control-row-search"]')).toContainElement(screen.getByLabelText('Search catalog'));
     expect(container.querySelector('[data-slot="filter-control-row-primary"]')).toHaveTextContent('All');

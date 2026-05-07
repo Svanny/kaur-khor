@@ -1305,6 +1305,7 @@ fn generate_dev_seed_observations() -> Vec<SenaObservationInput> {
             commercial_events: Vec::new(),
             ticket_events: Vec::new(),
             delivery_fee: None,
+            discount: None,
             recipe_usage_hints: service_outcomes
                 .iter()
                 .flat_map(|outcome| outcome.recipe_profiles.iter())

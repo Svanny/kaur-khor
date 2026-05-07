@@ -57,9 +57,9 @@ describe('CommandHomeRoute', () => {
 
     expect(screen.getByRole('link', { name: /Start Work/i })).toHaveAttribute('href', '/work/queue');
     expect(screen.queryByRole('link', { name: /Capture Update/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Open Catalog/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Products/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
-    expect(screen.queryByText('Open Catalog')).not.toBeInTheDocument();
+    expect(screen.queryByText('Open Products')).not.toBeInTheDocument();
     expect(screen.queryByText('Capture Update')).not.toBeInTheDocument();
     expect(screen.queryByText('Open Insights')).not.toBeInTheDocument();
   });
@@ -116,7 +116,7 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByText('Review supplier queue')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Start Work/i })).toHaveAttribute('href', '/work/queue');
     expect(screen.getByRole('link', { name: /Capture Update/i })).toHaveAttribute('href', '/work/capture');
-    expect(screen.getByRole('link', { name: /Open Catalog/i })).toHaveAttribute('href', '/catalog');
+    expect(screen.getByRole('link', { name: /Open Products/i })).toHaveAttribute('href', '/catalog');
     expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
   });
 
@@ -258,7 +258,7 @@ describe('CommandHomeRoute', () => {
 
     expect(screen.getByRole('link', { name: /Start Work/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Capture Update/i })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Open Catalog/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Open Products/i })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
     const grid = document.querySelector('[data-slot="centered-tile-grid"]');
     expect(grid).not.toBeNull();

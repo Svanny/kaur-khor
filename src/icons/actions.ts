@@ -8,6 +8,7 @@ export {
   DatabaseDownloadIcon as ActionDatabaseDownloadIcon,
   DatabaseUploadIcon as ActionDatabaseUploadIcon,
   ExplosionIcon as ActionExplosionIcon,
+  SearchAlertIcon as ActionSearchAlertIcon,
 } from './custom';
 export {
   Archive as ActionArchiveIcon,
@@ -20,10 +21,13 @@ export {
    CheckIcon as ActionSelectCheckIcon,
    Eye as ActionEyeIcon,
   ClipboardPlus as ActionClipboardAddIcon,
+  ClipboardClock as ActionClipboardClockIcon,
   CornerDownLeft as ActionSubmitIcon,
+  Copy as ActionCopyIcon,
   FileDown as ActionExportIcon,
   FolderOpen as ActionOpenFolderIcon,
   GripVertical as ActionDragHandleIcon,
+  Hourglass as ActionWaitingIcon,
   LayoutGrid as ActionLayoutGridIcon,
   Minus as ActionZoomOutIcon,
   Package as ActionPackageIcon,

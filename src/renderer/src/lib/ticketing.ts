@@ -2,6 +2,8 @@ import type {
   SenaDeliveryFeeBucket,
   SenaDeliveryFeeMetadata,
   SenaDeliveryFeePayer,
+  SenaDiscountMetadata,
+  SenaDiscountMode,
   SenaCommercialEntityType,
   SenaObservationRecord,
   SenaTicketEvent,
@@ -20,6 +22,7 @@ export const TICKET_CHANNEL_PRESETS = [
   'Telegram',
   'WhatsApp',
   'Facebook',
+  'Instagram',
   'SMS',
   'Other',
 ] as const;
@@ -29,6 +32,7 @@ export interface CustomerIdentityDraft {
   customChannel: string;
   customerName: string;
   phone: string;
+  location: string;
 }
 
 export interface CustomerLinkDirectory {
@@ -42,6 +46,12 @@ export interface DeliveryFeeSummary {
   displayDeliveryUsd: number | null;
   displayTotalUsd: number | null;
   netSettlementUsd: number | null;
+}
+
+export interface DiscountSummary {
+  subtotalUsd: number | null;
+  displayDiscountUsd: number | null;
+  discountedSubtotalUsd: number | null;
 }
 
 function collapseSpaces(value: string) {
@@ -71,6 +81,7 @@ export function buildTicketPartyMetadata(draft: CustomerIdentityDraft): SenaTick
   const channel = resolveTicketChannel(draft);
   const customerName = collapseSpaces(draft.customerName);
   const phone = normalizePhoneNumber(draft.phone);
+  const location = collapseSpaces(draft.location);
   return {
     role: 'customer',
     channelKey: channel.key,
@@ -79,6 +90,7 @@ export function buildTicketPartyMetadata(draft: CustomerIdentityDraft): SenaTick
     customerNameKey: customerName ? normalizeTicketLookupValue(customerName) : null,
     phone: phone || null,
     phoneKey: phone ? normalizeTicketPhone(phone) : null,
+    location: location || null,
   };
 }
 
@@ -270,6 +282,56 @@ export function buildDeliveryFeeMetadata({
     payer,
     bucket,
     ...summarizeDeliveryFee({ bucket, feeUsd, payer, subtotalUsd }),
+  };
+}
+
+export function summarizeDiscount({
+  amountUsd,
+  mode,
+  percent,
+  subtotalUsd,
+}: {
+  amountUsd: number | null;
+  mode: SenaDiscountMode;
+  percent: number | null;
+  subtotalUsd: number | null;
+}): DiscountSummary {
+  if (subtotalUsd == null) {
+    return {
+      subtotalUsd: null,
+      displayDiscountUsd: null,
+      discountedSubtotalUsd: null,
+    };
+  }
+  const safeSubtotal = Number.isFinite(subtotalUsd) && subtotalUsd > 0 ? subtotalUsd : 0;
+  const rawDiscount =
+    mode === 'percent'
+      ? safeSubtotal * Math.min(100, Math.max(0, percent != null && Number.isFinite(percent) ? percent : 0)) / 100
+      : (amountUsd != null && Number.isFinite(amountUsd) && amountUsd > 0 ? amountUsd : 0);
+  const displayDiscountUsd = Math.min(safeSubtotal, rawDiscount);
+  return {
+    subtotalUsd: safeSubtotal,
+    displayDiscountUsd,
+    discountedSubtotalUsd: Math.max(0, safeSubtotal - displayDiscountUsd),
+  };
+}
+
+export function buildDiscountMetadata({
+  amountUsd,
+  mode,
+  percent,
+  subtotalUsd,
+}: {
+  amountUsd: number | null;
+  mode: SenaDiscountMode;
+  percent: number | null;
+  subtotalUsd: number | null;
+}): SenaDiscountMetadata {
+  return {
+    mode,
+    amountUsd: mode === 'amount' ? amountUsd : null,
+    percent: mode === 'percent' ? percent : null,
+    ...summarizeDiscount({ amountUsd, mode, percent, subtotalUsd }),
   };
 }
 

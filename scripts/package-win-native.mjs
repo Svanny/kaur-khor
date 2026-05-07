@@ -23,6 +23,8 @@ if (process.platform !== 'win32') {
   process.exit(1);
 }
 
+process.env.KAUR_KHOR_ARTIFACT_ARCH = 'x64';
+
 run([process.execPath, resolve(root, 'scripts/stage-desktop-core.mjs'), '--platform=win32', '--arch=x64']);
 run([pnpmCommand, 'build']);
 run([pnpmCommand, 'exec', 'electron-builder', 'install-app-deps', '--platform=win32', '--arch=x64']);

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { PreferencesProvider } from '@/state/preferences';
@@ -92,6 +92,25 @@ describe('OnboardingRoute', () => {
     );
   }
 
+  function LocationProbe() {
+    const location = useLocation();
+    return <div data-testid="location-search">{location.search}</div>;
+  }
+
+  function renderRouteWithLocation(initialEntry = '/onboarding') {
+    render(
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <PreferencesProvider>
+          <LocationProbe />
+          <Routes>
+            <Route element={<OnboardingRoute />} path="/onboarding" />
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </PreferencesProvider>
+      </MemoryRouter>,
+    );
+  }
+
   it('renders the first-run onboarding form and saves the onboarding defaults', async () => {
     renderRoute();
 
@@ -121,7 +140,7 @@ describe('OnboardingRoute', () => {
         showExplanatoryTooltips: true,
         showFloatingTitleActions: true,
         showRightRailCards: false,
-        showOverviewTaskTabs: false,
+        showOverviewTaskTabs: true,
         showAutomationsPage: false,
         showAnalysisPage: true,
         showPerformanceCompareToggle: false,
@@ -160,6 +179,23 @@ describe('OnboardingRoute', () => {
         showHeartbeatRibbons: true,
       }));
     });
+  });
+
+  it('keeps the interface step in the route so loading remounts do not restart onboarding', async () => {
+    renderRouteWithLocation();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText('Choose interface view')).toBeInTheDocument();
+    expect(screen.getByTestId('location-search')).toHaveTextContent('?step=interface');
+  });
+
+  it('opens directly to the interface step from the onboarding route state', async () => {
+    renderRoute('/onboarding?step=interface');
+
+    expect(await screen.findByText('Choose interface view')).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Default View' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('combobox', { name: 'Language' })).not.toBeInTheDocument();
   });
 
   it('shows an alert and lets users retry when onboarding preferences fail to save', async () => {

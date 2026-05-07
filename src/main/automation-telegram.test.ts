@@ -10,13 +10,17 @@ import {
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
+  recordAutomationTelegramError,
+  readAutomationWizardSessionForConversation,
   readAutomationTransportState,
   readAutomationWorkspace,
+  recordAutomationWizardMessage,
 } from './automation-store';
 import {
   notifyTelegramCustomerOfPromotion,
   notifyTelegramCustomerOfTicketUpdate,
   resolveTelegramPhotoPath,
+  sendTelegramCustomerMessageForIntake,
   startTelegramAutomationLoop,
   validateAndSaveTelegramAutomationConnection,
 } from './automation-telegram';
@@ -309,6 +313,180 @@ describe('telegram automation connection setup', () => {
     loop.stop();
   });
 
+  it('keeps polling after a transient Telegram transport error so pending updates recover', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-loop-error-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [
+          {
+            update_id: 42,
+            message: {
+              message_id: 7,
+              date: 1_778_172_699,
+              text: 'Hi?',
+              chat: { id: 555_111, type: 'private' },
+              from: { id: 555_111, first_name: 'Ly' },
+            },
+          },
+        ],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 8,
+          date: 1_778_172_700,
+          text: 'Needs review',
+          chat: { id: 555_111, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+    await recordAutomationTelegramError(userDataPath, 'Conflict: terminated by other getUpdates request');
+
+    const loop = startTelegramAutomationLoop(userDataPath, {
+      loadContext: async () => context as never,
+      loadPreferences: async () => ({
+        currency: 'USD' as const,
+        language: 'en' as const,
+        showAutomationsPage: true,
+        usdToKhrExchangeRate: 4000,
+      }),
+    });
+
+    await waitForAssertion(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+    });
+    loop.stop();
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('connected');
+    expect(transport.connection.lastErrorMessage).toBeNull();
+    expect(transport.telegramUpdateCursor).toBe(43);
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const conversationId = workspace.conversations[0]?.conversationId;
+    expect(conversationId).toBeTruthy();
+    const conversation = await readAutomationConversation(userDataPath, conversationId!);
+    expect(conversation.messages.map((message) => message.rawText)).toContain('Hi?');
+  });
+
+  it('continues sending the next wizard prompt when generated message cleanup is already stale', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-cleanup-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{
+          update_id: 5_557_790,
+          callback_query: {
+            id: 'callback-stale-generated-add',
+            data: 'w:add:sku:sku-1',
+            from: { id: 555_778, first_name: 'Sokha' },
+            message: {
+              message_id: 77,
+              date: 1_745_193_700,
+              chat: { id: 555_778, type: 'private' },
+            },
+          },
+        }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: false,
+        description: 'Bad Request: message to delete not found',
+      }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 78,
+          date: 1_745_193_701,
+          text: 'cart',
+          chat: { id: 555_778, type: 'private' },
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true, result: [] })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, 555_778, 'Sokha');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const conversationId = workspace.conversations[0]!.conversationId;
+    await recordAutomationWizardMessage(userDataPath, { conversationId, messageId: 77 });
+
+    const loop = startTelegramAutomationLoop(userDataPath, {
+      loadContext: async () => context as never,
+      loadPreferences: async () => ({
+        currency: 'USD' as const,
+        language: 'en' as const,
+        showAutomationsPage: true,
+        usdToKhrExchangeRate: 4000,
+      }),
+    });
+
+    await waitForAssertion(() => {
+      expect(fetchMock).toHaveBeenCalledWith('https://api.telegram.org/botsecret-token/sendMessage', expect.anything());
+    });
+    loop.stop();
+
+    const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
+    expect(session?.lastWizardMessageId).toBe(78);
+    expect(session?.generatedWizardMessageIds).toEqual([78]);
+  });
+
   it('notifies the Telegram customer after an intake is promoted to a ticket', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
     const fetchMock = vi.fn()
@@ -388,6 +566,76 @@ describe('telegram automation connection setup', () => {
 
     const updatedConversation = await readAutomationConversation(userDataPath, conversationId);
     expect(updatedConversation.messages.some((entry) => entry.direction === 'outbound' && entry.externalMessageKey === '10')).toBe(true);
+  });
+
+  it('sends an operator-authored intake message and links it to that intake thread', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValue(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 12,
+          date: 1_745_193_702,
+          text: 'Custom &lt;approval&gt;',
+          chat: { id: 555_779, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, 555_779, 'Sokha');
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 3,
+          message: {
+            message_id: 3,
+            date: 1_745_193_602,
+            text: '2 cotton scarf',
+            chat: { id: 555_779, type: 'private' },
+            from: { id: 555_779, first_name: 'Sokha' },
+          },
+        },
+      ],
+    });
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const intake = workspace.intakes[0]!;
+
+    await sendTelegramCustomerMessageForIntake(userDataPath, {
+      conversationId: intake.conversationId,
+      intakeId: intake.intakeId,
+      text: 'Custom <approval>',
+    });
+
+    expect(telegramSendMessageText(fetchMock)).toBe('Custom &lt;approval&gt;');
+    const updatedConversation = await readAutomationConversation(userDataPath, intake.conversationId);
+    expect(updatedConversation.messages.some((entry) =>
+      entry.direction === 'outbound'
+      && entry.intakeId === intake.intakeId
+      && entry.externalMessageKey === '12',
+    )).toBe(true);
   });
 
   it('notifies the Telegram customer after a Telegram customer ticket is updated and escapes note HTML', async () => {
@@ -476,7 +724,11 @@ describe('telegram automation connection setup', () => {
     expect(telegramSendMessageText(fetchMock)).not.toContain('Note: Pickup <a> <b> & <');
 
     const updatedConversation = await readAutomationConversation(userDataPath, intake.conversationId);
-    expect(updatedConversation.messages.some((entry) => entry.direction === 'outbound' && entry.externalMessageKey === '11')).toBe(true);
+    expect(updatedConversation.messages.some((entry) =>
+      entry.direction === 'outbound'
+      && entry.externalMessageKey === '11'
+      && entry.intakeId === intake.intakeId,
+    )).toBe(true);
   });
 
   it('renders Khmer promotion and ticket update notifications without unintended Latin UI copy', async () => {

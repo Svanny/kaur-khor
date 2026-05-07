@@ -390,6 +390,7 @@ fn ticket_summary_from_event(event: &SenaTicketEvent) -> SenaTicketSummary {
         party: event.party.clone(),
         lines: event.lines.clone(),
         delivery_fee: event.delivery_fee.clone(),
+        discount: event.discount.clone(),
         note: event.note.clone(),
     }
 }
@@ -1056,6 +1057,10 @@ fn merge_order_fields(
             .delivery_fee
             .clone()
             .or_else(|| base.delivery_fee.clone()),
+        discount: overrides
+            .discount
+            .clone()
+            .or_else(|| base.discount.clone()),
     }
 }
 
@@ -1109,6 +1114,25 @@ fn validate_delivery_fee(
     Ok(())
 }
 
+fn validate_discount(context: &str, value: &crate::types::SenaDiscountMetadata) -> Result<()> {
+    validate_optional_non_negative_finite(&format!("{context}.amountUsd"), value.amount_usd)?;
+    if let Some(percent) = value.percent {
+        if !percent.is_finite() || !(0.0..=100.0).contains(&percent) {
+            return Err(anyhow!("{context}.percent must be between 0 and 100"));
+        }
+    }
+    validate_optional_non_negative_finite(&format!("{context}.subtotalUsd"), value.subtotal_usd)?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.displayDiscountUsd"),
+        value.display_discount_usd,
+    )?;
+    validate_optional_non_negative_finite(
+        &format!("{context}.discountedSubtotalUsd"),
+        value.discounted_subtotal_usd,
+    )?;
+    Ok(())
+}
+
 fn validate_order_fields(context: &str, fields: &SenaOrderFieldValues) -> Result<()> {
     validate_optional_non_negative_finite(
         &format!("{context}.orderedQuantity"),
@@ -1137,6 +1161,9 @@ fn validate_order_fields(context: &str, fields: &SenaOrderFieldValues) -> Result
     )?;
     if let Some(delivery_fee) = &fields.delivery_fee {
         validate_delivery_fee(&format!("{context}.deliveryFee"), delivery_fee)?;
+    }
+    if let Some(discount) = &fields.discount {
+        validate_discount(&format!("{context}.discount"), discount)?;
     }
     if let (Some(ordered), Some(received)) = (fields.ordered_quantity, fields.received_quantity) {
         if received > ordered {
@@ -2929,6 +2956,7 @@ mod tests {
                 commercial_events: Vec::new(),
                 ticket_events: Vec::new(),
                 delivery_fee: None,
+                discount: None,
                 recipe_usage_hints: Vec::new(),
                 notes: None,
             },
@@ -2991,6 +3019,7 @@ mod tests {
                 display_total_usd: Some(9.25),
                 net_settlement_usd: Some(9.25),
             }),
+            discount: None,
             note: Some("Supplier ticket note".to_string()),
         }
     }
@@ -4121,6 +4150,7 @@ mod tests {
                 display_total_usd: Some(11.25),
                 net_settlement_usd: Some(11.25),
             }),
+            discount: None,
         };
         let overrides = SenaOrderFieldValues {
             supplier_name: None,
@@ -4142,6 +4172,7 @@ mod tests {
                 display_total_usd: Some(10.0),
                 net_settlement_usd: Some(7.5),
             }),
+            discount: None,
         };
 
         let merged = super::merge_order_fields(&base, &overrides);
@@ -4202,6 +4233,7 @@ mod tests {
                     lead_time_days_hint: Some(5.0),
                     lead_time_variability: None,
                     delivery_fee: None,
+                    discount: None,
                 },
                 children: vec![
                     crate::types::SenaOrderBatchCreateChildInput {

@@ -20,12 +20,17 @@ describe('embeddedModeForPath', () => {
 
 describe('webLandingMountForPath', () => {
   test('routes the renderer /main mount to the public web landing page', () => {
-    expect(webLandingMountForPath('/main')).toBe('main');
-    expect(webLandingMountForPath('/main/')).toBe('main');
+    expect(webLandingMountForPath('/main')).toBe('/main');
+    expect(webLandingMountForPath('/main/')).toBe('/main');
+  });
+
+  test('routes the GitHub Pages base path to the public web landing page', () => {
+    expect(webLandingMountForPath('/kaur-khor', '/kaur-khor')).toBe('/kaur-khor');
+    expect(webLandingMountForPath('/kaur-khor/', '/kaur-khor')).toBe('/kaur-khor');
   });
 
   test('leaves embedded and desktop renderer routes alone', () => {
-    expect(webLandingMountForPath('/kaur-khor/demo')).toBeNull();
-    expect(webLandingMountForPath('/')).toBeNull();
+    expect(webLandingMountForPath('/kaur-khor/demo', '/kaur-khor')).toBeNull();
+    expect(webLandingMountForPath('/', '/')).toBeNull();
   });
 });

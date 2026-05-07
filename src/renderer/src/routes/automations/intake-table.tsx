@@ -16,6 +16,7 @@ import { statusPillClassName } from '@/lib/state-tones';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { ActionClipboardAddIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
 import { EntityCustomerIcon } from '@icons/entities';
+import { NavigationLogsIcon } from '@icons/navigation';
 import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { translateUiLiteral } from '@/lib/translations';
 
@@ -43,10 +44,12 @@ export function AutomationIntakeTable({
   rows,
   language = 'en',
   onOpenIntake,
+  onViewChat,
 }: {
   rows: AutomationIntakeTableRow[];
   language?: AppLanguage;
   onOpenIntake: (row: AutomationIntakeTableRow) => void;
+  onViewChat?: (row: AutomationIntakeTableRow) => void;
 }) {
   if (rows.length === 0) {
     return null;
@@ -64,7 +67,7 @@ export function AutomationIntakeTable({
             <HeaderTooltipLabel helpHref="/settings/help#automation-intake-request" tooltip={literal('The parsed customer request before it is attached to a ticket.')}>{literal('Request')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip={literal('Estimated customer-facing total when Kaur Khor has enough matched catalog data.')}>{literal('Quoted total')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-intake-quoted-total" tooltip={literal('Estimated customer-facing total when Kaur Khor has enough matched products data.')}>{literal('Quoted total')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
             <HeaderTooltipLabel helpHref="/settings/help#automation-intake-state" tooltip={literal('Current intake state, including whether operator review is still needed.')}>{literal('State')}</HeaderTooltipLabel>
@@ -104,7 +107,13 @@ export function AutomationIntakeTable({
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Created / updated')}</HeaderedTableMobileLabel>
                 <p className="text-sm leading-6 text-muted-foreground">{row.createdLabel}</p>
               </div>
-              <div className="flex items-start lg:justify-center">
+              <div className="flex flex-wrap items-start gap-2 lg:justify-center">
+                {onViewChat ? (
+                  <Button className="min-w-[120px] justify-center" size="sm" type="button" variant="outline" onClick={() => onViewChat(row)}>
+                    <NavigationLogsIcon className="size-4" />
+                    {literal('View chat')}
+                  </Button>
+                ) : null}
                 {row.ticketHref ? (
                   <Button asChild className={automationActionButtonClassName} size="sm" variant="outline">
                     <Link to={row.ticketHref}>

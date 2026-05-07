@@ -273,6 +273,10 @@ function reportContributorsForOrdering({
   return rankSkuSet({ skus, snapshot, bottleneckSkuId: currentServiceBottleneck(service, snapshot)?.skuId ?? null });
 }
 
+function skuDisplayName(snapshot: InventorySnapshot, skuId: string) {
+  return snapshot.skus.find((sku) => sku.skuId === skuId)?.name ?? skuId;
+}
+
 export function mapServiceTimelineEvents({
   service,
   snapshot,
@@ -328,7 +332,7 @@ export function mapServiceTimelineEvents({
       types.push('linked-sku-change');
       summaries.push(
         translateUiLiteral(language, 'Availability changed through {sku}', {
-          sku: linkedSkuObservation.skuId,
+          sku: skuDisplayName(snapshot, linkedSkuObservation.skuId),
         }),
       );
     }
@@ -340,7 +344,7 @@ export function mapServiceTimelineEvents({
       types.push('limiter-shift');
       summaries.push(
         translateUiLiteral(language, 'Main blocker changed to {sku}', {
-          sku: reportLeader.skuId,
+          sku: reportLeader.name,
         }),
       );
     }

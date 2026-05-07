@@ -126,6 +126,33 @@ export const DatabaseUploadIcon = forwardRef<SVGSVGElement, IconProps>(
   },
 );
 
+export const SearchAlertIcon = forwardRef<SVGSVGElement, IconProps>(
+  function SearchAlertIcon({ className, ...props }, ref) {
+    return (
+      <svg
+        ref={ref}
+        className={className}
+        fill="none"
+        height="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        viewBox="0 0 24 24"
+        width="24"
+        xmlns="http://www.w3.org/2000/svg"
+        {...props}
+      >
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+        <path d="M11 7v4" />
+        <path d="M11 15h.01" />
+      </svg>
+    );
+  },
+);
+SearchAlertIcon.displayName = 'SearchAlertIcon';
+
 export const ExplosionIcon = forwardRef<SVGSVGElement, IconProps>(
   function ExplosionIcon({ className, ...props }, ref) {
     return (

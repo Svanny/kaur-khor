@@ -77,7 +77,7 @@ describe('CommandPaletteProvider', () => {
         ({
           navAnalysis: 'Explain',
           navArchive: 'Archive',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'Logs',
           navOverview: 'Overview',
           navPerformance: 'Performance',
@@ -127,7 +127,7 @@ describe('CommandPaletteProvider', () => {
         <CommandPaletteProvider>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
           </Routes>
         </CommandPaletteProvider>
       </MemoryRouter>,
@@ -136,10 +136,10 @@ describe('CommandPaletteProvider', () => {
     fireEvent.keyDown(window, { ctrlKey: true, key: 'k' });
 
     expect(screen.getByRole('searchbox', { name: 'Search commands' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('option', { name: /^CatalogPage/ }));
+    fireEvent.click(screen.getByRole('option', { name: /^ProductsPage/ }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+      expect(screen.getByText('Products screen')).toBeInTheDocument();
     });
     expect(screen.queryByRole('searchbox', { name: 'Search commands' })).not.toBeInTheDocument();
   }, 10000);
@@ -210,7 +210,7 @@ describe('CommandPaletteProvider', () => {
       target: { value: 'catalog' },
     });
 
-    expect(screen.queryByRole('option', { name: /^CatalogPage/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: /^ProductsPage/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^PerformancePage/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^FinancialsPage/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /^LogsPage/ })).not.toBeInTheDocument();
@@ -281,7 +281,7 @@ describe('CommandPaletteProvider', () => {
         ({
           navAnalysis: 'Explain',
           navArchive: 'បណ្ណសារ',
-          navCatalog: 'កាតាឡុក',
+          navCatalog: 'ទំនិញ',
           navHome: 'Home',
           navInbox: 'Inbox',
           navWork: 'ការងារ',
@@ -539,7 +539,7 @@ describe('CommandPaletteProvider', () => {
       <MemoryRouter initialEntries={['/catalog']}>
         <CommandPaletteProvider>
           <Routes>
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
           </Routes>
         </CommandPaletteProvider>
       </MemoryRouter>,

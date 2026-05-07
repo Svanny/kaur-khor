@@ -180,7 +180,14 @@ describe('SENA routes', () => {
       loadSenaCatalog: vi.fn(async () => sampleCatalog),
       loadSenaObservations: vi.fn(async () => []),
       listSenaObservations: vi.fn(async () => []),
+      listSenaObservationPage: vi.fn(async () => ({
+        hasOlder: false,
+        nextCursor: null,
+        observations: [],
+      })),
+      listSenaOrderBatches: vi.fn(async () => []),
       upsertSenaCatalog: vi.fn(async (payload) => payload),
+      deleteCatalogEntity: vi.fn(async () => sampleCatalog),
       ingestSenaObservation: vi.fn(),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-1' })),
       retrySenaRun: vi.fn(async () => ({ runId: 'run-1' })),
@@ -376,7 +383,7 @@ describe('SENA routes', () => {
     expect(screen.getByText('Offered Selections')).toBeInTheDocument();
     expect(screen.getByText('SKUs')).toBeInTheDocument();
     expect(screen.getByText('Services')).toBeInTheDocument();
-    expect(screen.queryByText('No catalog loaded yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No products loaded yet')).not.toBeInTheDocument();
   });
 
   test('renders inline catalog actions for SKU and service rows', async () => {
@@ -389,8 +396,7 @@ describe('SENA routes', () => {
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
 
-    expect(screen.getByRole('button', { name: 'Record' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+    expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeInTheDocument();
@@ -412,7 +418,6 @@ describe('SENA routes', () => {
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
     continueToCapture();
 
@@ -433,7 +438,6 @@ describe('SENA routes', () => {
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
 
     expect(screen.getByText('Delete saved draft?')).toBeInTheDocument();
@@ -442,7 +446,6 @@ describe('SENA routes', () => {
 
     fireEvent.mouseDown(document.body);
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
     fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
 
@@ -460,10 +463,9 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
+      expect(screen.getByRole('menuitem', { name: 'Updated Price' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Updated Price' }));
     continueToCapture();
 
@@ -485,10 +487,9 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
-      expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
+      expect(screen.getByRole('menuitem', { name: 'Customer Order' })).toBeEnabled();
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Customer Order' }));
     continueToCapture();
 
@@ -570,7 +571,6 @@ describe('SENA routes', () => {
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
     expect(unsellableRow).not.toBeNull();
     fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     expect(screen.queryByRole('menuitem', { name: 'Updated Price' })).not.toBeInTheDocument();
   });
 
@@ -624,21 +624,16 @@ describe('SENA routes', () => {
     fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
 
     await waitFor(() => {
-      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
       const serviceCustomerOrderButton = screen.getByText('Customer Order').closest('button,[role="button"]');
-      const serviceRecordStockButton = screen.getByText('Stock Count').closest('button,[role="button"]');
       expect(serviceCustomerOrderButton).not.toHaveAttribute('aria-disabled', 'true');
-      expect(serviceRecordStockButton).toHaveAttribute('aria-disabled', 'true');
+      expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
     });
 
     await waitFor(() => {
       expect(inventoryHook().loadSenaServiceDetail).toHaveBeenCalledWith('service-1');
     });
 
-    expect(screen.getByText('Stock Count').closest('button,[role="button"]')).toHaveAttribute(
-      'title',
-      'No linked SKU is limiting this service right now.',
-    );
+    expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
   });
 
   test('loads service detail actions lazily when the catalog menu opens', async () => {
@@ -672,7 +667,7 @@ describe('SENA routes', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Service 1')).not.toBeInTheDocument();
-      expect(screen.getByText('No matching catalog items')).toBeInTheDocument();
+      expect(screen.getByText('No matching products')).toBeInTheDocument();
     });
   });
 
@@ -733,7 +728,7 @@ describe('SENA routes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     expect(screen.getByText('Customer Order')).toBeInTheDocument();
     expect(screen.getByText('Immediate Sale')).toBeInTheDocument();
-    expect(screen.getByText('Stock Count')).toBeInTheDocument();
+    expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
     expect(screen.getByText('Updated Price')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('href', '/catalog/services/service-1/edit');
   });
@@ -855,6 +850,6 @@ describe('SENA routes', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Record' }));
     expect(screen.getByRole('menuitem', { name: 'Customer Order' })).not.toHaveAttribute('aria-disabled', 'true');
-    expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByRole('menuitem', { name: 'Stock Count' })).not.toBeInTheDocument();
   });
 });

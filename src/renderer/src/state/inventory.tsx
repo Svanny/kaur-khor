@@ -49,6 +49,8 @@ import { normalizeSenaCatalog } from '@/lib/sena-catalog';
 import {
   archiveSenaService,
   archiveSenaSku,
+  removeSenaService,
+  removeSenaSku,
   type SenaCatalogEntityType,
   unarchiveSenaService,
   unarchiveSenaSku,
@@ -132,6 +134,7 @@ export interface InventoryContextValue {
   upsertSenaCatalog: (payload: SenaCatalog) => Promise<SenaCatalog>;
   renameCatalogEntity: (payload: RenameCatalogEntityPayload) => Promise<SenaCatalog>;
   archiveCatalogEntity: (payload: { entityId: string; entityType: 'sku' | 'service' }) => Promise<SenaCatalog>;
+  deleteCatalogEntity: (payload: { entityId: string; entityType: 'sku' | 'service' }) => Promise<SenaCatalog>;
   unarchiveCatalogEntity: (payload: { entityId: string; entityType: 'sku' | 'service' }) => Promise<SenaCatalog>;
   loadSenaCatalog: () => Promise<SenaCatalog | null>;
   ingestSenaObservation: (payload: SenaObservationInput) => Promise<SenaObservationRecord>;
@@ -762,6 +765,27 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               : archiveSenaService(currentCatalog, entityId);
           const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
           invalidateSenaReads();
+          readCacheRef.current.set('sena:catalog', catalog);
+          setState((current) => ({
+            ...current,
+            catalog,
+            snapshot: deriveProjectedSnapshot(catalog, current.observations, current.workspaceSummary),
+          }));
+          return catalog;
+        }),
+      deleteCatalogEntity: async ({ entityId, entityType }) =>
+        withSaving(async () => {
+          const currentCatalog = normalizeSenaCatalog(stateRef.current.catalog);
+          if (!currentCatalog) {
+            throw new Error('Catalog is not loaded.');
+          }
+          const nextCatalog =
+            entityType === 'sku'
+              ? removeSenaSku(currentCatalog, entityId)
+              : removeSenaService(currentCatalog, entityId);
+          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
+          invalidateSenaReads();
+          await clearSenaDetailCache(entityType, entityId);
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
             ...current,

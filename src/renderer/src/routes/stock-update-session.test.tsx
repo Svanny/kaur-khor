@@ -18,7 +18,7 @@ import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { buildDeliveryFeeMetadata } from '@/lib/ticketing';
 import { getTranslation } from '@/lib/translations';
 import { buildStockRowOrderStorageKey } from './stock-row-order';
-import { dateInputToIso, dateInputValue, StockUpdateSessionRoute } from './stock-update-session';
+import { dateInputToIso, dateInputValue, randomReportNotePlaceholderKeyForLane, StockUpdateSessionRoute } from './stock-update-session';
 
 const inventoryHook = vi.fn();
 const createSenaOrderBatch = vi.fn();
@@ -285,14 +285,14 @@ function renderRoutedSession(nextObservations = observations, initialPath = RECO
         <Route
           element={
             <>
-              <Link to="/catalog">Catalog</Link>
+              <Link to="/catalog">Products</Link>
               <StockUpdateSessionRoute />
             </>
           }
           path={routePath}
         />
         <Route element={<div>Overview destination</div>} path="/" />
-        <Route element={<div>Catalog destination</div>} path="/catalog" />
+        <Route element={<div>Products destination</div>} path="/catalog" />
         <Route element={<div>Help destination</div>} path="/settings/help" />
       </Routes>
     </MemoryRouter>,
@@ -308,7 +308,23 @@ function renderRoutedSessionWithHistory(nextObservations = observations, initial
       <NavigationHistoryProvider>
         <Routes>
           <Route element={<StockUpdateSessionRoute />} path={routePath} />
-          <Route element={<div>Catalog destination</div>} path="/catalog" />
+          <Route element={<div>Products destination</div>} path="/catalog" />
+        </Routes>
+      </NavigationHistoryProvider>
+    </MemoryRouter>,
+  );
+}
+
+function renderRoutedSessionFromCapture(nextObservations = observations, initialPath = RECORD_UPDATE_STOCK_COUNT_PATH) {
+  inventoryHook.mockReturnValue(inventoryState({ observations: nextObservations }));
+
+  return render(
+    <MemoryRouter initialEntries={[RECORD_UPDATE_HUB_PATH, initialPath]} initialIndex={1}>
+      <NavigationHistoryProvider>
+        <Routes>
+          <Route element={<StockUpdateSessionRoute />} path={`${RECORD_UPDATE_HUB_PATH}/*`} />
+          <Route element={<div>Capture destination</div>} path={RECORD_UPDATE_HUB_PATH} />
+          <Route element={<div>Overview destination</div>} path="/" />
         </Routes>
       </NavigationHistoryProvider>
     </MemoryRouter>,
@@ -468,6 +484,28 @@ function closePosMetadataPopup() {
   fireEvent.click(within(posMetadataDialog()).getByRole('button', { name: 'Close' }));
 }
 
+async function fillPendingPosTiming(expectedArrivalDate = '2026-04-18') {
+  openPosMetadataPopup(/^Timing/i);
+  fireEvent.change(within(posMetadataDialog()).getByLabelText('Expected date of arrival'), {
+    target: { value: expectedArrivalDate },
+  });
+  const variabilitySelect = within(posMetadataDialog()).getByRole('combobox', { name: 'ETA variation' });
+  fireEvent.click(variabilitySelect);
+  fireEvent.click(screen.getByRole('option', { name: /^Tight\b/i }));
+  closePosMetadataPopup();
+  await waitFor(() => expect(findPosMetadataDialog()).toBeNull());
+}
+
+function captureDoneButton() {
+  const button = screen
+    .getAllByRole('button', { name: 'Done' })
+    .find((entry) => entry.getAttribute('form') === 'stock-update-session-form');
+  if (!button) {
+    throw new Error('Capture Done button not found');
+  }
+  return button;
+}
+
 function posWorkbenchTileNames() {
   return screen
     .getAllByRole('button')
@@ -541,6 +579,29 @@ describe('StockUpdateSessionRoute', () => {
     window.localStorage.clear();
 	    vi.clearAllMocks();
 	  });
+
+  it('uses lane-specific report notes placeholder examples', () => {
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const placeholder = (laneId: Parameters<typeof randomReportNotePlaceholderKeyForLane>[0], selectedLaneIds: Parameters<typeof randomReportNotePlaceholderKeyForLane>[1] = []) =>
+      getTranslation('en', randomReportNotePlaceholderKeyForLane(laneId, selectedLaneIds));
+
+    expect(placeholder('stock-count')).toBe('Example: found two units in back storage during the count.');
+    expect(placeholder('supplier-order-pending')).toBe('Example: supplier confirmed a smaller case size for this order.');
+    expect(placeholder('supplier-receipt')).toBe('Example: one carton arrived damaged and was counted separately.');
+    expect(placeholder('customer-order-pending')).toBe('Example: customer requested pickup after work.');
+    expect(placeholder('customer-order-completed')).toBe('Example: customer picked up the order in person.');
+    expect(placeholder('custom', ['stock-count', 'supplier-order-pending'])).toBe('Example: found two units in back storage during the count.');
+    expect(placeholder('custom')).toBe('Example: routine update, no unusual context to add.');
+
+    randomSpy.mockReturnValue(0.999);
+    expect(placeholder('stock-count')).toBe('Example: routine count, no unusual stock movement.');
+    expect(placeholder('supplier-order-pending')).toBe('Example: order was grouped with another supplier shipment.');
+    expect(placeholder('supplier-receipt')).toBe('Example: receipt matched the ticket and was shelved immediately.');
+    expect(placeholder('customer-order-pending')).toBe('Example: customer request is pending until payment is confirmed.');
+    expect(placeholder('customer-order-completed')).toBe('Example: customer collected the item but asked for follow-up later.');
+    expect(placeholder('custom', ['stock-count', 'supplier-order-pending'])).toBe('Example: order was grouped with another supplier shipment.');
+    expect(placeholder('custom')).toBe('Example: update was entered from a handwritten shift note.');
+  });
 
   it('shows the 8-step stock-count wizard, preserves state, and keeps future steps locked', () => {
     setStoredSessionViewMode('form');
@@ -620,6 +681,16 @@ describe('StockUpdateSessionRoute', () => {
     expect(workbenchTitle.compareDocumentPosition(receiptTitle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it('does not render form step guidance in the POS workbench header', () => {
+    setStoredSessionViewMode('pos');
+
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    const workbench = screen.getByText('Main workbench').closest('section');
+    expect(workbench).not.toBeNull();
+    expect(within(workbench!).queryByText('Choose Yes or No before continuing.')).not.toBeInTheDocument();
+  });
+
   it('renders POS workbench item cards as square tiles', () => {
     setStoredSessionViewMode('pos');
 
@@ -694,8 +765,8 @@ describe('StockUpdateSessionRoute', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
     expect(within(dialog).getByLabelText('Units in stock')).toHaveValue('12');
-    expect(within(dialog).getByLabelText('Cost per unit')).toHaveValue('4');
-    expect(within(dialog).getByLabelText('Retail price')).toHaveValue('9');
+    expect(within(dialog).getByLabelText('Supplier cost per unit')).toHaveValue('4');
+    expect(within(dialog).getByLabelText('Customer selling price')).toHaveValue('9');
     expect(within(dialog).getByRole('combobox', { name: 'Flags' })).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
     expect(screen.getByRole('listbox')).toHaveClass('z-[110]');
@@ -736,6 +807,9 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new`);
 
     const dialog = await screen.findByRole('dialog', { name: 'Razor refill' });
+    expect(within(dialog).getByText('Recommended order')).toBeInTheDocument();
+    expect(within(dialog).getByText('8 units')).toBeInTheDocument();
+    expect(within(dialog).getByText('Recommended range 6-10 units')).toBeInTheDocument();
     expect(within(dialog).getByLabelText('Quantity for Razor refill')).toBeInTheDocument();
   });
 
@@ -754,7 +828,7 @@ describe('StockUpdateSessionRoute', () => {
     const { unmount } = renderRoute(observations, `${RECORD_UPDATE_STOCK_COUNT_PATH}?targetAction=sku-price&targetType=sku&targetId=sku-1`);
 
     const skuDialog = await screen.findByRole('dialog', { name: 'Razor refill' });
-    expect(within(skuDialog).getByLabelText('Retail price')).toHaveClass('ring-2');
+    expect(within(skuDialog).getByLabelText('Customer selling price')).toHaveClass('ring-2');
 
     unmount();
     renderRoute(observations, `${RECORD_UPDATE_CUSTOM_PATH}?targetAction=service-price&targetType=service&targetId=service-1`);
@@ -780,7 +854,7 @@ describe('StockUpdateSessionRoute', () => {
       });
       fireEvent.pointerUp(getPosWorkbenchTile('Razor refill'));
 
-      expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Done' }).length).toBeGreaterThan(0);
       expect(screen.getByRole('button', { name: 'Save ordering first' })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -809,7 +883,7 @@ describe('StockUpdateSessionRoute', () => {
       });
       fireEvent.pointerUp(getPosWorkbenchTile('Razor refill'));
 
-      expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Done' }).length).toBeGreaterThan(0);
       fireEvent.click(screen.getByRole('button', { name: 'Save ordering first' }));
 
       expect(screen.getByText('Save ordering first?')).toBeInTheDocument();
@@ -828,7 +902,7 @@ describe('StockUpdateSessionRoute', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Razor refill' });
     fireEvent.change(within(dialog).getByLabelText('Units in stock'), { target: { value: '15' } });
-    fireEvent.change(within(dialog).getByLabelText('Cost per unit'), { target: { value: '6' } });
+    fireEvent.change(within(dialog).getByLabelText('Supplier cost per unit'), { target: { value: '6' } });
     fireEvent.click(within(dialog).getByRole('combobox', { name: 'Flags' }));
     fireEvent.click(screen.getByRole('option', { name: 'Stockout' }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Done' }));
@@ -855,12 +929,12 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(getPosWorkbenchTile('Towel'));
     const towelDialog = screen.getByRole('dialog', { name: 'Towel' });
-    expect(within(towelDialog).queryByLabelText('Retail price')).not.toBeInTheDocument();
+    expect(within(towelDialog).queryByLabelText('Customer selling price')).not.toBeInTheDocument();
     fireEvent.click(within(towelDialog).getByRole('combobox', { name: 'Flags' }));
     fireEvent.click(screen.getByRole('option', { name: 'Blocked' }));
     fireEvent.click(within(towelDialog).getByRole('button', { name: 'Done' }));
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review update' })[0]!);
+    fireEvent.click(captureDoneButton());
 
     const reviewDialog = await screen.findByRole('dialog', { name: 'Review update' });
     expect(within(reviewDialog).queryByRole('button', { name: 'Copy receipt' })).not.toBeInTheDocument();
@@ -899,6 +973,59 @@ describe('StockUpdateSessionRoute', () => {
     ).toBeInTheDocument();
   });
 
+  it('activates batch capture targets and keeps their POS card flashing until clicked', async () => {
+    renderRoute(
+      observations,
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new&skus=sku-1&flashTargets=supplier-order%3Asku-1`,
+    );
+
+    const razorTile = getPosWorkbenchTile('Razor refill');
+    const tileVisual = razorTile.querySelector('[data-slot="workbench-tile-visual"]');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).toBeInTheDocument();
+    });
+    expect(tileVisual).toHaveClass('ring-2');
+    expect(tileVisual).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_3000ms_ease-in-out_infinite]');
+    expect(getPosWorkbenchTile('Towel')).toBeInTheDocument();
+
+    fireEvent.click(razorTile);
+
+    expect(screen.getByRole('dialog', { name: 'Razor refill' })).toBeInTheDocument();
+    expect(tileVisual).not.toHaveClass('ring-2');
+  });
+
+  it('keeps all POS cards visible while flashing existing ticket batch targets', async () => {
+    renderRoute(
+      observations,
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=ticket-supplier-1&skus=sku-1&flashTargets=supplier-order%3Asku-1`,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).toBeInTheDocument();
+    });
+    expect(getPosWorkbenchTile('Razor refill')).toBeInTheDocument();
+    expect(getPosWorkbenchTile('Towel')).toBeInTheDocument();
+  });
+
+  it('shows the supplier filter and supplier pills in the supplier order POS workbench', () => {
+    renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
+
+    const workbench = screen.getByText('Main workbench').closest('section');
+    expect(workbench).not.toBeNull();
+    const scopedWorkbench = within(workbench!);
+
+    expect(scopedWorkbench.getByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();
+    expect(getPosWorkbenchTile('Razor refill')).toHaveTextContent('Mekong Looms');
+    expect(getPosWorkbenchTile('Towel')).toHaveTextContent('No supplier');
+
+    fireEvent.click(scopedWorkbench.getByRole('combobox', { name: 'Filter by supplier' }));
+    fireEvent.click(screen.getByRole('option', { name: 'Mekong Looms' }));
+
+    expect(getPosWorkbenchTile('Razor refill')).toBeInTheDocument();
+    expect(scopedWorkbench.queryByText('Towel')).not.toBeInTheDocument();
+  });
+
   it('sizes the POS workbench drag overlay from the active tile instead of the viewport', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/renderer/src/routes/stock-update-session.tsx'), 'utf8');
 
@@ -920,7 +1047,7 @@ describe('StockUpdateSessionRoute', () => {
       });
       fireEvent.pointerUp(getPosWorkbenchTile('Razor refill'));
 
-      expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Done' }).length).toBeGreaterThan(0);
       expect(screen.getByRole('button', { name: 'Save ordering first' })).toBeInTheDocument();
 
       fireEvent.click(screen.getByRole('button', { name: 'Save ordering first' }));
@@ -944,7 +1071,7 @@ describe('StockUpdateSessionRoute', () => {
       screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Review receipt' }).parentElement as HTMLElement);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement);
     expect(screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.')).toHaveAttribute('data-error-flash-key', '1');
     expect(screen.getByText('Count at least one SKU before continuing so Kaur Khor can anchor the first update.')).toHaveClass('motion-safe:animate-[kaur-khor-save-error-flash_1800ms_ease-in-out_1]');
 
@@ -990,18 +1117,25 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByRole('columnheader', { name: 'Last order' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Current order' })).toBeInTheDocument();
     expect(screen.getByLabelText('Current order for Razor refill')).toHaveAttribute('placeholder', 'Kaur Khor recommends 8 units.');
-    expect(screen.getByLabelText('Lead time mean')).toHaveAttribute('placeholder', '6');
+    expect(screen.getByLabelText('Expected time of arrival')).toHaveAttribute('placeholder', '6');
     expect(screen.queryByText('Kaur Khor recommends 8 units.')).not.toBeInTheDocument();
-    const variabilitySelect = screen.getByRole('combobox', { name: 'Lead time variability' });
+    const variabilitySelect = screen.getByRole('combobox', { name: 'ETA variation' });
     fireEvent.click(variabilitySelect);
     expect(screen.getByRole('option', { name: /Very tight/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: 'Custom' }));
+    expect(variabilitySelect).toHaveTextContent('Custom');
+    expect(screen.getByLabelText('Custom ETA variation days')).toBeInTheDocument();
+    expect(screen.getByLabelText('Custom ETA variation hours')).toBeInTheDocument();
+    expect(screen.getByText('d')).toBeInTheDocument();
+    expect(screen.getByText('hr')).toBeInTheDocument();
+    fireEvent.click(variabilitySelect);
     fireEvent.click(screen.getByRole('option', { name: /^Tight\b/i }));
     expect(variabilitySelect).toHaveTextContent(/Tight/i);
 
     fireEvent.change(screen.getByLabelText('Current order for Razor refill'), { target: { value: '9' } });
     const expectedArrivalInput = screen.getByLabelText('Expected date of arrival');
     const initialExpectedArrival = (expectedArrivalInput as HTMLInputElement).value;
-    fireEvent.change(screen.getByLabelText('Lead time mean'), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText('Expected time of arrival'), { target: { value: '7' } });
     await waitFor(() => expect(expectedArrivalInput).not.toHaveValue(initialExpectedArrival));
     fireEvent.change(expectedArrivalInput, { target: { value: '2026-04-18' } });
 
@@ -1051,9 +1185,20 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     openPosMetadataPopup(/^Customer/i);
-    expect(within(posMetadataDialog()).getByRole('heading', { name: 'Customer metadata' })).toBeInTheDocument();
-    expect(within(posMetadataDialog()).getByLabelText('Communication channel')).toBeInTheDocument();
-    expect(within(posMetadataDialog()).queryByLabelText('Report notes')).not.toBeInTheDocument();
+    const customerDialog = posMetadataDialog();
+    expect(within(customerDialog).getByRole('heading', { name: 'Customer metadata' })).toBeInTheDocument();
+    expect(within(customerDialog).queryByLabelText('Report notes')).not.toBeInTheDocument();
+    fireEvent.click(within(customerDialog).getByLabelText('Communication channel'));
+    fireEvent.click(screen.getByRole('option', { name: 'Instagram' }));
+    expect(within(customerDialog).getByLabelText('Communication channel')).toHaveTextContent('Instagram');
+    expect(within(customerDialog).getByLabelText('Location')).toHaveAttribute(
+      'placeholder',
+      'Google Maps link or manual address',
+    );
+    fireEvent.change(within(customerDialog).getByLabelText('Location'), {
+      target: { value: '123 Riverside Lane' },
+    });
+    expect(within(customerDialog).getByLabelText('Location')).toHaveValue('123 Riverside Lane');
 
     openPosMetadataPopup(/^Notes/i);
     expect(within(posMetadataDialog()).getByRole('heading', { name: 'Report notes' })).toBeInTheDocument();
@@ -1061,23 +1206,208 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(posMetadataDialog()).queryByLabelText('Communication channel')).not.toBeInTheDocument();
   });
 
+  it('shows date-based ETA controls in POS Timing for pending supplier and customer orders only', () => {
+    const supplierView = renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    expect(within(posMetadataDialog()).getByLabelText('Observed at')).toBeInTheDocument();
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toBeInTheDocument();
+    expect(within(posMetadataDialog()).getByRole('combobox', { name: 'ETA variation' })).toBeInTheDocument();
+    expect(within(posMetadataDialog()).queryByLabelText('Expected time of arrival')).not.toBeInTheDocument();
+    expect(
+      within(posMetadataDialog()).getByLabelText('Expected date of arrival').compareDocumentPosition(
+        within(posMetadataDialog()).getByRole('combobox', { name: 'ETA variation' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    supplierView.unmount();
+
+    const customerPendingView = renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    expect(within(posMetadataDialog()).getByLabelText('Observed at')).toBeInTheDocument();
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toBeInTheDocument();
+    expect(within(posMetadataDialog()).getByRole('combobox', { name: 'ETA variation' })).toBeInTheDocument();
+    expect(within(posMetadataDialog()).queryByLabelText('Expected time of arrival')).not.toBeInTheDocument();
+    customerPendingView.unmount();
+
+    renderRoute(observations, RECORD_UPDATE_CUSTOMER_COMPLETED_PATH);
+
+    openPosMetadataPopup(/^Timing/i);
+    expect(within(posMetadataDialog()).getByLabelText('Observed at')).toBeInTheDocument();
+    expect(within(posMetadataDialog()).queryByLabelText('Expected date of arrival')).not.toBeInTheDocument();
+    expect(within(posMetadataDialog()).queryByRole('combobox', { name: 'ETA variation' })).not.toBeInTheDocument();
+  });
+
+  it('shows expected arrivals for every selected supplier order item in POS Timing', async () => {
+    renderRoute(
+      observations,
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new&skus=sku-1%2Csku-2&flashTargets=supplier-order%3Asku-1%2Csupplier-order%3Asku-2`,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit Towel receipt line' })).toBeInTheDocument();
+    });
+
+    openPosMetadataPopup(/^Timing/i);
+
+    const dialog = posMetadataDialog();
+    expect(within(dialog).getByText('Suggested Expected Arrivals')).toBeInTheDocument();
+    expect(within(dialog).getByText("Calculated from each item's settings.")).toBeInTheDocument();
+    expect(within(dialog).getByText('Razor refill')).toBeInTheDocument();
+    expect(within(dialog).getByText('Towel')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/ETA:/)).toHaveLength(2);
+    expect(within(dialog).getAllByText(/Variation:/)).toHaveLength(2);
+    expect(within(dialog).queryByText(/ETA variation:/)).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply suggested expected arrival for Towel' }));
+
+    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-11');
+    expect(within(dialog).getByRole('combobox', { name: 'ETA variation' })).toHaveTextContent('Custom');
+  });
+
+  it('routes supplier and customer POS orders to Timing until EDA and ETA variation are filled', async () => {
+    const supplierView = renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    let dialog = posMetadataDialog();
+    const supplierWarning = within(dialog).getByText('Fill out Expected Date of Arrival and ETA Variation first.');
+    expect(within(dialog).getByRole('heading', { name: 'Observed at' })).toBeInTheDocument();
+    expect(
+      supplierWarning.compareDocumentPosition(within(dialog).getByText('Date and time')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole('dialog', { name: 'Confirm receipt' })).not.toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('Expected date of arrival'), {
+      target: { value: '2026-04-18' },
+    });
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Fill out Expected Date of Arrival and ETA Variation first.')).not.toBeInTheDocument();
+    });
+    supplierView.unmount();
+
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    dialog = posMetadataDialog();
+    expect(within(dialog).getByText('Fill out Expected Date of Arrival and ETA Variation first.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Confirm receipt' })).not.toBeInTheDocument();
+
+    fireEvent.change(within(dialog).getByLabelText('Expected date of arrival'), {
+      target: { value: '2026-04-18' },
+    });
+    await waitFor(() => {
+      expect(within(dialog).queryByText('Fill out Expected Date of Arrival and ETA Variation first.')).not.toBeInTheDocument();
+    });
+  });
+
   it('uses dark metadata card headers and lighter summaries in POS capture headers', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
-    const timingCard = screen.getByRole('button', { name: /^Timing/i });
-    expect(timingCard.querySelector('[data-slot="capture-metadata-card-icon"]')).toHaveClass('text-foreground');
-    expect(timingCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-foreground');
-    expect(timingCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-muted-foreground');
+    const metadataCards = screen.getAllByRole('button', { name: /^(Timing|Customer|Notes|Context|Delivery|Discount)/i });
+    expect(metadataCards.slice(-4).map((card) => card.textContent)).toEqual([
+      expect.stringMatching(/^Delivery/),
+      expect.stringMatching(/^Discount/),
+      expect.stringMatching(/^Notes/),
+      expect.stringMatching(/^Context/),
+    ]);
 
+    const timingCard = screen.getByRole('button', { name: /^Timing/i });
+    expect(timingCard).toHaveClass('bg-primary');
+    expect(timingCard).not.toHaveClass('motion-safe:animate-[kaur-khor-pos-metadata-glow_3400ms_ease-in-out_infinite]');
+    expect(timingCard.className).not.toContain('shadow-[');
+    expect(timingCard.querySelector('[data-slot="capture-metadata-card-icon"]')).toHaveClass('text-background');
+    expect(timingCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-background');
+    expect(timingCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-background/80');
+
+    const customerCard = screen.getByRole('button', { name: /^Customer/i });
+    expect(customerCard).toHaveClass('bg-primary');
+    expect(customerCard).toHaveClass('whitespace-normal');
+    expect(customerCard.querySelector('[data-slot="capture-metadata-card-icon"]')).toHaveClass('lucide-user');
+    fireEvent.click(customerCard);
+    const customerDialog = posMetadataDialog();
+    fireEvent.click(within(customerDialog).getByLabelText('Communication channel'));
+    fireEvent.click(screen.getByRole('option', { name: 'Facebook' }));
+    fireEvent.change(within(customerDialog).getByLabelText('Customer name'), { target: { value: 'Vanny' } });
+    fireEvent.change(within(customerDialog).getByLabelText('Phone number'), { target: { value: '+85516709448' } });
+    const updatedCustomerCard = customerCard;
+    expect(updatedCustomerCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('flex-wrap');
+    expect(Array.from(updatedCustomerCard.querySelectorAll('[data-slot="capture-metadata-card-summary-part"]')).map((part) => part.textContent)).toEqual([
+      'Facebook ·',
+      'Vanny ·',
+      '+855 16709448',
+    ]);
+    fireEvent.click(within(customerDialog).getByRole('button', { name: 'Close' }));
     const notesCard = screen.getByRole('button', { name: /^Notes/i });
-    expect(notesCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-foreground');
-    expect(notesCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-muted-foreground');
+    expect(notesCard).toHaveClass('bg-primary');
+    expect(notesCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-background');
+    expect(notesCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-background/80');
+    const contextCard = screen.getByRole('button', { name: /^Context/i });
+    expect(contextCard).toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: /^Discount/i })).toHaveClass('bg-primary');
 
     fireEvent.click(notesCard);
 
+    expect(notesCard).not.toHaveClass('motion-safe:animate-[kaur-khor-pos-metadata-glow_3400ms_ease-in-out_infinite]');
+    expect(timingCard).toHaveClass('bg-primary');
     expect(notesCard.querySelector('[data-slot="capture-metadata-card-icon"]')).toHaveClass('text-background');
     expect(notesCard.querySelector('[data-slot="capture-metadata-card-title"]')).toHaveClass('text-background');
     expect(notesCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('text-background/80');
+  });
+
+  it('resumes touched POS metadata card state from a saved draft', async () => {
+    const { unmount } = renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Expected date of arrival'), {
+      target: { value: '2026-04-18' },
+    });
+    const variabilitySelect = within(posMetadataDialog()).getByRole('combobox', { name: 'ETA variation' });
+    fireEvent.click(variabilitySelect);
+    fireEvent.click(screen.getByRole('option', { name: /^Tight\b/i }));
+    closePosMetadataPopup();
+    await waitFor(() => expect(findPosMetadataDialog()).toBeNull());
+
+    unmount();
+
+    expect(JSON.parse(window.localStorage.getItem(SUPPLIER_PENDING_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        touchedPosMetadataPopupIds: expect.arrayContaining(['timing']),
+      }),
+    );
+
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    await waitFor(() => expect(screen.getByText('Draft resumed')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^Timing/i })).not.toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: /^Notes/i })).toHaveClass('bg-primary');
+  });
+
+  it('derives touched POS metadata cards when editing an existing update', async () => {
+    renderEditRoute(
+      {
+        ...observations[0]!,
+        input: {
+          ...observations[0]!.input,
+          notes: 'Existing note',
+          regimeHint: 'promo',
+        },
+      },
+      observations,
+      RECORD_UPDATE_STOCK_COUNT_PATH,
+    );
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /^Timing/i })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /^Timing/i })).not.toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: /^Notes/i })).not.toHaveClass('bg-primary');
+    expect(screen.getByRole('button', { name: /^Context/i })).not.toHaveClass('bg-primary');
   });
 
   it('defaults customer delivery fee payer to customer without opening the helper tooltip', async () => {
@@ -1189,6 +1519,23 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Quantity for Razor refill')).toHaveValue('1');
   });
 
+  it('shows linked SKUs above the quantity field in service POS popups', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    fireEvent.click(getPosWorkbenchTile('Towel wrap'));
+
+    const dialog = screen.getByRole('dialog', { name: 'Towel wrap' });
+    const linkedSkuLabel = within(dialog).getByText('Linked SKUs:');
+    const linkedSku = within(dialog).getByText('Towel');
+    const quantityInput = within(dialog).getByLabelText('Quantity for Towel wrap');
+
+    expect(linkedSku).toBeInTheDocument();
+    expect(linkedSkuLabel.parentElement?.className).toContain('rounded-[1.35rem]');
+    expect(linkedSkuLabel.parentElement?.className).toContain('flex-wrap');
+    expect(linkedSku.parentElement?.className).not.toContain('border');
+    expect(linkedSkuLabel.compareDocumentPosition(quantityInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows a POS receipt confirmation dialog before saving and copies the plain text receipt', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
@@ -1198,10 +1545,11 @@ describe('StockUpdateSessionRoute', () => {
 
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
+    await fillPendingPosTiming();
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review receipt' })[0]!);
+    fireEvent.click(captureDoneButton());
 
     const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
     expect(ingestSenaObservation).not.toHaveBeenCalled();
@@ -1218,6 +1566,64 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
   }, 10_000);
 
+  it('applies a percentage discount before delivery and saves discount metadata', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    await fillPendingPosTiming();
+    openPosMetadataPopup(/^Delivery/i);
+    fireEvent.change(within(posMetadataDialog()).getByRole('textbox', { name: 'Fee amount' }), { target: { value: '2' } });
+    closePosMetadataPopup();
+
+    openPosMetadataPopup(/^Discount/i);
+    fireEvent.click(within(posMetadataDialog()).getByRole('radio', { name: 'Percent' }));
+    const discountPercentInput = within(posMetadataDialog()).getByLabelText('Dicount Percent (%)');
+    expect(discountPercentInput).toHaveAttribute('step', '0.1');
+    fireEvent.change(discountPercentInput, { target: { value: '5.5' } });
+    closePosMetadataPopup();
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
+    expect(within(dialog).getByText('Discount (5.5%)')).toBeInTheDocument();
+    expect(within(dialog).getByText('-$0.50')).toBeInTheDocument();
+    expect(within(dialog).getByText('$10.51')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy receipt' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Receipt\n\nRazor refill (1)\n\nSubtotal: $9.00\nDiscount (5.5%): -$0.50\nDelivery: $2.00\nTotal: $10.51'));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      discount: expect.objectContaining({
+        mode: 'percent',
+        percent: 5.5,
+        subtotalUsd: 9,
+        displayDiscountUsd: 0.495,
+        discountedSubtotalUsd: 8.505,
+      }),
+      deliveryFee: expect.objectContaining({
+        subtotalUsd: 8.505,
+        displayTotalUsd: 10.505,
+      }),
+      ticketEvents: [
+        expect.objectContaining({
+          discount: expect.objectContaining({
+            mode: 'percent',
+            percent: 5.5,
+          }),
+        }),
+      ],
+    }));
+  }, 10_000);
+
   it('shows supplier delivery fee as merchant-paid and non-editable', () => {
     setStoredSessionViewMode('form');
     renderRoute(observations, RECORD_UPDATE_SUPPLIER_PENDING_PATH);
@@ -1232,6 +1638,7 @@ describe('StockUpdateSessionRoute', () => {
   it('persists merchant-paid delivery math into the receipt review and saved payload', async () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
+    await fillPendingPosTiming();
     openPosMetadataPopup(/^Delivery/i);
     const metadataDialog = posMetadataDialog();
     fireEvent.change(within(metadataDialog).getByRole('textbox', { name: 'Fee amount' }), { target: { value: '3' } });
@@ -1240,7 +1647,7 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Review receipt' })[0]!);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Done' })[0]!);
 
     const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
     expect(within(dialog).getByText('Subtotal')).toBeInTheDocument();
@@ -1264,6 +1671,39 @@ describe('StockUpdateSessionRoute', () => {
         displayTotalUsd: 9,
         netSettlementUsd: 6,
       }),
+    }));
+  }, 10_000);
+
+  it('saves the POS Timing ETA date onto pending customer ticket timing', async () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Expected date of arrival'), {
+      target: { value: '2026-04-18' },
+    });
+    closePosMetadataPopup();
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Done' })[0]!);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      ticketEvents: [
+        expect.objectContaining({
+          nextTouchAt: '2026-04-17T17:00:00.000Z',
+          lines: [
+            expect.objectContaining({
+              entityType: 'sku',
+              entityId: 'sku-1',
+              expectedArrivalAt: '2026-04-17T17:00:00.000Z',
+            }),
+          ],
+        }),
+      ],
     }));
   }, 10_000);
 
@@ -1365,6 +1805,168 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getByText('Supplier Order')).toBeInTheDocument();
   });
 
+  it('injects an existing supplier ticket into the POS order state when editing by ticket id', async () => {
+    const supplierTicket = {
+      ticketId: 'supplier-ticket-real',
+      ticketFamily: 'supplier' as const,
+      lifecycle: 'open' as const,
+      stage: 'ordered_waiting' as const,
+      revision: 3,
+      eventType: 'created' as const,
+      occurredAt: '2026-04-03T12:00:00.000Z',
+      nextTouchAt: '2026-04-10T12:00:00.000Z',
+      party: {
+        role: 'supplier' as const,
+        supplierName: 'Mekong Looms',
+      },
+      lines: [
+        {
+          entityType: 'sku' as const,
+          entityId: 'sku-1',
+          orderedQuantity: 8,
+          receivedQuantity: null,
+          expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+        },
+        {
+          entityType: 'sku' as const,
+          entityId: 'sku-2',
+          orderedQuantity: 3,
+          receivedQuantity: null,
+          expectedArrivalAt: '2026-04-11T12:00:00.000Z',
+        },
+      ],
+      note: 'Supplier confirmed split arrival.',
+    };
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [],
+            supplier: [supplierTicket],
+          },
+          latestTicketsById: {
+            'supplier-ticket-real': {
+              observationId: 'obs-ticket',
+              observedAt: '2026-04-03T12:00:00.000Z',
+              value: supplierTicket,
+            },
+          },
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=supplier-ticket-real`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit Towel receipt line' })).toBeInTheDocument();
+    });
+    expect(screen.getAllByText('$38.00').length).toBeGreaterThan(0);
+
+    openPosMetadataPopup(/^Timing/i);
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-04-10');
+  });
+
+  it('injects an existing customer ticket into the POS order state when editing by ticket id', async () => {
+    const customerTicket = {
+      ticketId: 'customer-ticket-real',
+      ticketFamily: 'customer' as const,
+      lifecycle: 'open' as const,
+      stage: 'pending' as const,
+      revision: 2,
+      eventType: 'created' as const,
+      occurredAt: '2026-04-03T12:00:00.000Z',
+      nextTouchAt: '2026-04-09T12:00:00.000Z',
+      party: {
+        role: 'customer' as const,
+        channelLabel: 'Telegram',
+        customerName: 'Dara',
+        phone: '+85512345678',
+        location: 'Phnom Penh',
+      },
+      lines: [
+        {
+          entityType: 'service' as const,
+          entityId: 'service-1',
+          quantityDelta: 2,
+          expectedArrivalAt: '2026-04-09T12:00:00.000Z',
+        },
+        {
+          entityType: 'sku' as const,
+          entityId: 'sku-1',
+          quantityDelta: 1,
+          expectedArrivalAt: '2026-04-10T12:00:00.000Z',
+        },
+      ],
+      note: 'Prefers evening pickup.',
+    };
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [customerTicket],
+            supplier: [],
+          },
+          latestTicketsById: {
+            'customer-ticket-real': {
+              observationId: 'obs-ticket',
+              observedAt: '2026-04-03T12:00:00.000Z',
+              value: customerTicket,
+            },
+          },
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=customer-ticket-real`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-workbench-tile-key="service:service-1"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('2');
+      expect(document.querySelector('[data-workbench-tile-key="retail:sku-1"] [data-slot="workbench-quantity-pill"]')).toHaveTextContent('1');
+    });
+    expect(screen.getAllByText('$33.00').length).toBeGreaterThan(0);
+
+    openPosMetadataPopup(/^Timing/i);
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-04-09');
+    closePosMetadataPopup();
+
+    openPosMetadataPopup(/^Customer/i);
+    expect(within(posMetadataDialog()).getByLabelText('Customer name')).toHaveValue('Dara');
+    expect(within(posMetadataDialog()).getByLabelText('Phone number')).toHaveValue('+85512345678');
+    closePosMetadataPopup();
+
+    openPosMetadataPopup(/^Notes/i);
+    expect(within(posMetadataDialog()).getByLabelText('Report notes')).toHaveValue('Prefers evening pickup.');
+  });
+
   it('keeps supplier and immediate-sale workbench orders scoped to their own buckets', () => {
     preferenceState.workbenchTileOrderByLane = {
       'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
@@ -1449,6 +2051,62 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.queryByRole('button', { name: 'New' })).not.toBeInTheDocument();
     expect(screen.getByText('Edit / update existing supplier order')).toBeInTheDocument();
     expect(screen.getByText('Select the existing ticket you want to update.')).toBeInTheDocument();
+    expect(screen.getByText('Razor refill · 8u')).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('sku-');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('service-');
+  });
+
+  it('shows catalog names instead of internal ids in the in-session supplier ticket picker', () => {
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations,
+        recordUpdateContext: {
+          observationFingerprint: { count: 1, latestObservedAt: '2026-04-03T12:00:00.000Z', latestObservationId: 'obs-ticket' },
+          latestObservedAt: '2026-04-03T12:00:00.000Z',
+          latestStockBySku: {},
+          latestRetailSaleBySku: {},
+          latestServiceSaleByService: {},
+          latestOrderBySku: {},
+          latestReceiptBySku: {},
+          openTicketsByFamily: {
+            customer: [],
+            supplier: [{
+              ticketId: 'supplier-ticket-real',
+              ticketFamily: 'supplier',
+              lifecycle: 'open',
+              stage: 'ordered_waiting',
+              revision: 3,
+              eventType: 'created',
+              occurredAt: '2026-04-03T12:00:00.000Z',
+              party: {
+                role: 'supplier',
+                supplierName: 'Mekong Looms',
+              },
+              lines: [
+                { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 8 },
+                { entityType: 'sku', entityId: 'sku-2', orderedQuantity: 3 },
+              ],
+              note: null,
+            }],
+          },
+          latestTicketsById: {},
+          latestDeliveryFeeByBucket: {},
+          recentActivity: [],
+        },
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit`]}>
+        <StockUpdateSessionRoute />
+      </MemoryRouter>,
+    );
+
+    const picker = screen.getByRole('dialog');
+    expect(picker).toHaveTextContent('Mekong Looms');
+    expect(picker).toHaveTextContent('Razor refill · 8u, Towel · 3u');
+    expect(picker).not.toHaveTextContent('sku-');
+    expect(picker).not.toHaveTextContent('service-');
   });
 
   it('keeps the edit popup open when edit-update is chosen with a preloaded supplier ticket id', async () => {
@@ -1841,7 +2499,7 @@ describe('StockUpdateSessionRoute', () => {
     goToStockStep();
     expect(
       screen.getByText(
-        'No SKUs are in the catalog yet. Skip this section, or add a SKU first if you need to record stock updates.',
+        'No SKUs are in products yet. Skip this section, or add a SKU first if you need to record stock updates.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText('SKU / latest update')).not.toBeInTheDocument();
@@ -1990,6 +2648,24 @@ describe('StockUpdateSessionRoute', () => {
     rerun.resolve(undefined);
 
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+  });
+
+  it('returns to the capture hub after saving a session launched from capture', async () => {
+    setStoredSessionViewMode('form');
+
+    renderRoutedSessionFromCapture();
+
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText('Capture destination')).toBeInTheDocument());
+    expect(screen.queryByText('Overview destination')).not.toBeInTheDocument();
     expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
@@ -2409,19 +3085,19 @@ describe('StockUpdateSessionRoute', () => {
     goToStockStep();
     fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Discard changes and leave' })).toBeEnabled());
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
 
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products destination')).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+      expect(screen.getByText('Products destination')).toBeInTheDocument();
     });
     expect(JSON.parse(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
       expect.objectContaining({
@@ -2449,14 +3125,14 @@ describe('StockUpdateSessionRoute', () => {
 
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products destination')).not.toBeInTheDocument();
     expect(screen.getAllByLabelText('Current Units')[0]).toHaveValue('7');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Back' })[0]!);
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+      expect(screen.getByText('Products destination')).toBeInTheDocument();
     });
   });
 

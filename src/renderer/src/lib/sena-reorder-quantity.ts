@@ -137,9 +137,9 @@ export function formatSenaReorderQuantity(
     quietLabel,
     protectionHorizonLabel: translateUiLiteral(
       language,
-      'Protection horizon: lead time + {days}d review delay',
+      'Protection horizon: ETA + {days}d review delay',
       { days: formatWholeNumber(ceilUnits(recommendation?.reviewDelayDays), language) },
     ),
-    policyBasisLabel: translateUiLiteral(language, 'Policy basis: on hand + in transit'),
+    policyBasisLabel: translateUiLiteral(language, 'Policy basis: on-hand + in-transit'),
   };
 }

@@ -165,7 +165,7 @@ export async function bootstrapSkuDetail({
 }): Promise<BootstrapSkuDetailResult> {
   const catalog = await inventory.loadSenaCatalog();
   if (!catalog) {
-    throw new Error('Catalog is unavailable.');
+    throw new Error('Products are unavailable.');
   }
   const reports = await inventory.listStockReports();
   const visibleCatalog = activeSenaCatalog(catalog) ?? catalog;

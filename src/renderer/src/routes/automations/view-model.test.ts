@@ -97,7 +97,7 @@ describe('deriveAutomationViewModel', () => {
                 unitPrice: null,
                 lineTotal: null,
                 availabilityStatus: 'unknown',
-                ambiguityReason: 'item_not_found',
+                ambiguityReason: 'availability_unknown',
               },
             ],
           },
@@ -106,19 +106,19 @@ describe('deriveAutomationViewModel', () => {
     });
 
     expect(model.intakeRows[0]?.overviewHref).toBe(
-      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.exceptionRows[0]?.overviewHref).toBe(
-      '/work/queue?workflow=customer&customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
+      '/work/queue?customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
     );
     expect(model.recentActivity[0]?.overviewHref).toBe(
-      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.today.map((row) => row.href)).toEqual([
-      '/work/queue?workflow=customer&customerFilter=review',
-      '/work/queue?workflow=customer&customerFilter=review',
-      '/work/queue?workflow=customer&customerFilter=quoted',
-      '/work/queue?workflow=customer&customerFilter=closed',
+      '/work/queue?customerFilter=review',
+      '/work/queue?customerFilter=review',
+      '/work/queue?customerFilter=quoted',
+      '/work/queue?customerFilter=closed',
     ]);
   });
 
@@ -194,7 +194,7 @@ describe('deriveAutomationViewModel', () => {
                 unitPrice: null,
                 lineTotal: null,
                 availabilityStatus: 'unknown',
-                ambiguityReason: 'item_not_found',
+                ambiguityReason: 'availability_unknown',
               },
             ],
           },
@@ -227,5 +227,6 @@ describe('deriveAutomationViewModel', () => {
     expect(model.ribbon.find((row) => row.key === 'ticketedToday')?.detail).toBe(
       'បានបំលែងទៅជាសំបុត្រការងារកខ',
     );
+    expect(model.exceptionRows[0]?.issueLabel).toBe('មិនដឹងភាពមានស្តុក');
   });
 });

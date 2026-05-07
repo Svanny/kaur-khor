@@ -16,7 +16,7 @@ flowchart LR
   subgraph PrimaryFunctions["Primary functions"]
     DecideNext["Decide next action<br/>what deserves attention now"]:::function
     CaptureReality["Capture reality<br/>save stock, demand, supply, or correction evidence"]:::function
-    ManageCatalog["Manage sellables<br/>create, edit, archive, or open SKUs and services"]:::function
+    ManageProducts["Manage sellables<br/>create, edit, archive, or open SKUs and services"]:::function
     ResolveTickets["Resolve commitments<br/>customer and supplier ticket work"]:::function
     HandleIntake["Handle customer intake<br/>review automation requests and promote clean work"]:::function
   end
@@ -57,8 +57,8 @@ flowchart LR
     SaveEvidence["Save update<br/>writes ticket events and observations"]:::workflow
   end
 
-  subgraph CatalogWorkflows["Workflows for managing sellables"]
-    CatalogSearch["Search or filter catalog<br/>all, SKUs, services, supplier"]:::workflow
+  subgraph ProductsWorkflows["Workflows for managing sellables"]
+    ProductsSearch["Search or filter products<br/>all, SKUs, services, supplier"]:::workflow
     NewSku["Create SKU<br/>identity, supplier, price, image, planning fields"]:::workflow
     NewService["Create service<br/>identity, dependency SKUs, price, image"]:::workflow
     EditSku["Edit SKU definition<br/>names, price, supplier, image, planning controls"]:::workflow
@@ -130,7 +130,7 @@ flowchart LR
     RevealPath["Reveal local data path<br/>inspect files in OS"]:::workflow
     ClearData["Clear current data<br/>confirmed destructive reset"]:::destructive
     ArchiveSearch["Search archive<br/>all, SKUs, services, supplier"]:::workflow
-    Unarchive["Unarchive item<br/>restore to active catalog"]:::workflow
+    Unarchive["Unarchive item<br/>restore to active products"]:::workflow
     HelpSearch["Search help<br/>guide, index, FAQ, controls"]:::workflow
     ExportDiagnostics["Export logs or planning data<br/>developer and support use"]:::workflow
   end
@@ -139,7 +139,7 @@ flowchart LR
     CommandHome["Command Home<br/>default first screen"]:::target
     Inbox["Inbox<br/>recommended move, supplier queue, customer queue, intake review"]:::target
     Capture["Capture<br/>stock count, customer order, immediate sale, supplier order, custom"]:::target
-    Catalog["Catalog<br/>active SKUs, active services, archive access"]:::target
+    Products["Products<br/>active SKUs, active services, archive access"]:::target
     Insights["Insights<br/>performance, financials, analysis, detail charts"]:::target
     History["History<br/>operations, reports, heatmap, edit report"]:::target
     Settings["Settings<br/>preferences, local data, planning, benchmarks, danger zone, help"]:::target
@@ -148,7 +148,7 @@ flowchart LR
 
   subgraph Rearrangement["UI rearrangement rules"]
     Rule1["Make user verbs the top-level mental model<br/>Decide, Capture, Manage, Understand, Maintain"]:::rule
-    Rule2["Keep only daily work in persistent nav<br/>Home, Inbox, Capture, Catalog, Insights"]:::rule
+    Rule2["Keep only daily work in persistent nav<br/>Home, Inbox, Capture, Products, Insights"]:::rule
     Rule3["Move infrequent surfaces behind contextual entry<br/>History, Archive, Benchmarks, Danger zone"]:::rule
     Rule4["Use command palette as the expert layer<br/>pages, tabs, entities, workflows, settings actions"]:::rule
     Rule5["Preserve ticket-backed source of truth<br/>no loose order or receipt authoring"]:::rule
@@ -164,7 +164,7 @@ flowchart LR
 
   Primary --> DecideNext
   Primary --> CaptureReality
-  Primary --> ManageCatalog
+  Primary --> ManageProducts
   Primary --> ResolveTickets
   Primary --> HandleIntake
 
@@ -182,7 +182,7 @@ flowchart LR
   DecideNext --> OverviewHome --> SupplierQueue --> FilterQueue --> OpenTask --> ChooseAction
   OverviewHome --> CustomerQueue --> FilterQueue
   ChooseAction --> Capture
-  ChooseAction --> Catalog
+  ChooseAction --> Products
   ChooseAction --> Insights
 
   CaptureReality --> ChooseLane
@@ -193,12 +193,12 @@ flowchart LR
   ChooseLane --> CustomCapture --> Drafts
   SaveEvidence --> Inbox
 
-  ManageCatalog --> CatalogSearch
-  CatalogSearch --> NewSku --> OpenDetail
-  CatalogSearch --> NewService --> OpenDetail
-  CatalogSearch --> EditSku --> OpenDetail
-  CatalogSearch --> EditService --> OpenDetail
-  CatalogSearch --> ArchiveItem --> Catalog
+  ManageProducts --> ProductsSearch
+  ProductsSearch --> NewSku --> OpenDetail
+  ProductsSearch --> NewService --> OpenDetail
+  ProductsSearch --> EditSku --> OpenDetail
+  ProductsSearch --> EditService --> OpenDetail
+  ProductsSearch --> ArchiveItem --> Products
   OpenDetail --> Insights
 
   ResolveTickets --> TicketFamily
@@ -235,7 +235,7 @@ flowchart LR
   DecideNext -. "maps to" .-> CommandHome
   DecideNext -. "daily queue" .-> Inbox
   CaptureReality -. "write path" .-> Capture
-  ManageCatalog -. "source of truth" .-> Catalog
+  ManageProducts -. "source of truth" .-> Products
   ResolveTickets -. "queue and authoring" .-> Inbox
   HandleIntake -. "staging queue" .-> Inbox
   CompareOps -. "mode" .-> Insights
@@ -250,7 +250,7 @@ flowchart LR
 
   CommandHome --> Inbox
   CommandHome --> Capture
-  CommandHome --> Catalog
+  CommandHome --> Products
   CommandHome --> Insights
   CommandHome --> Palette
   History --> Settings

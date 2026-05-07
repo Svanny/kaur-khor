@@ -9,8 +9,11 @@ import {
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
   buildCaptureSessionHref,
+  buildCustomerTicketCaptureHref,
+  buildSupplierTicketCaptureHref,
   draftStorageKeyForLane,
   laneForCaptureSessionAction,
+  readCaptureSessionFlashTargetKeys,
   readCaptureSessionTarget,
 } from './record-update-routes';
 
@@ -54,6 +57,55 @@ describe('record update routes', () => {
     );
   });
 
+  it('builds explicit supplier ticket capture-session hrefs', () => {
+    expect(buildSupplierTicketCaptureHref({ mode: 'edit', ticketId: 'supplier-ticket-1' })).toBe(
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=supplier-ticket-1`,
+    );
+    expect(buildSupplierTicketCaptureHref({ mode: 'edit', ticketId: 'supplier-ticket-1', targetType: 'sku', targetId: 'sku-1' })).toBe(
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=supplier-ticket-1&targetAction=supplier-order&targetType=sku&targetId=sku-1`,
+    );
+    expect(buildSupplierTicketCaptureHref({ mode: 'new', targetType: 'sku', targetId: 'sku-1' })).toBe(
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new`,
+    );
+    expect(
+      buildSupplierTicketCaptureHref({
+        mode: 'edit',
+        ticketId: 'supplier-ticket-1',
+        skuIds: ['sku-1', 'sku-2'],
+        flashTargets: [
+          { action: 'supplier-order', targetId: 'sku-1', targetType: 'sku' },
+          { action: 'supplier-order', targetId: 'sku-2', targetType: 'sku' },
+        ],
+      }),
+    ).toBe(
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=edit&ticketId=supplier-ticket-1&skus=sku-1%2Csku-2&flashTargets=supplier-order%3Asku-1%2Csupplier-order%3Asku-2`,
+    );
+  });
+
+  it('builds explicit customer ticket capture-session hrefs', () => {
+    expect(buildCustomerTicketCaptureHref({ mode: 'edit', ticketId: 'customer-ticket-1' })).toBe(
+      `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=customer-ticket-1`,
+    );
+    expect(buildCustomerTicketCaptureHref({ mode: 'edit', ticketId: 'customer-ticket-1', targetType: 'service', targetId: 'service-1' })).toBe(
+      `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=customer-ticket-1&targetAction=customer-order&targetType=service&targetId=service-1`,
+    );
+    expect(buildCustomerTicketCaptureHref({ mode: 'new', targetType: 'sku', targetId: 'sku-1' })).toBe(
+      `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?targetAction=customer-order&targetType=sku&targetId=sku-1&ticketMode=new`,
+    );
+    expect(
+      buildCustomerTicketCaptureHref({
+        mode: 'edit',
+        ticketId: 'customer-ticket-1',
+        flashTargets: [
+          { action: 'customer-order', targetId: 'service-1', targetType: 'service' },
+          { action: 'customer-order', targetId: 'sku-1', targetType: 'sku' },
+        ],
+      }),
+    ).toBe(
+      `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=edit&ticketId=customer-ticket-1&flashTargets=service%3Aservice-1%2Cretail%3Asku-1`,
+    );
+  });
+
   it('parses targeted capture-session query params', () => {
     expect(readCaptureSessionTarget('?targetAction=sku-price&targetType=sku&targetId=sku-1')).toEqual({
       action: 'sku-price',
@@ -61,6 +113,12 @@ describe('record update routes', () => {
       targetType: 'sku',
     });
     expect(readCaptureSessionTarget('?targetAction=missing&targetType=sku&targetId=sku-1')).toBeNull();
+  });
+
+  it('parses persistent POS flash target keys', () => {
+    expect(readCaptureSessionFlashTargetKeys('?flashTargets=supplier-order%3Asku-1%2Csupplier-order%3Asku-1%2Cbogus')).toEqual([
+      'supplier-order:sku-1',
+    ]);
   });
 
   it('exposes lane metadata for direct-action draft prompts', () => {

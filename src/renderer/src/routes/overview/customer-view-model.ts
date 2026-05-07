@@ -1,7 +1,7 @@
 import type { AppLanguage } from '@shared/inventory';
 import type { AutomationIntakeLine, AutomationOrderIntake } from '@shared/automation';
 import { formatPhoneForDisplay } from '@shared/phone';
-import type { SenaCatalog, SenaObservationRecord } from '@shared/sena';
+import type { SenaCatalog, SenaObservationRecord, SenaRecordUpdateContext, SenaTicketLine, SenaTicketSummary } from '@shared/sena';
 import {
   buildServiceCommercialSnapshots,
   buildSkuCommercialSnapshots,
@@ -30,6 +30,8 @@ export interface OverviewCustomerTask {
   entityId: string | null;
   entityType: 'sku' | 'service';
   label: string;
+  displayTicketId?: string;
+  displayTicketLabel?: string;
   imagePath: string | null;
   action: OverviewTaskAction;
   actionLabel: string;
@@ -44,8 +46,19 @@ export interface OverviewCustomerTask {
   whyNow: string;
   whyDetail: string;
   summary: string | null;
-  source: 'customer_aggregate' | 'telegram_intake';
+  contactSummary: string;
+  contactDetail: string | null;
+  requestSummary: string;
+  requestDetail: string | null;
+  source: 'customer_aggregate' | 'customer_ticket' | 'telegram_intake';
   sourceLabel: string;
+  queueEnteredAt: string | null;
+  ticket?: SenaTicketSummary;
+  ticketId?: string | null;
+  ticketLineCount?: number;
+  ticketLineSummaryLabel?: string;
+  ticketLineNames?: string[];
+  isLegacyFallback?: boolean;
   automationIntakeId?: string;
   promotedTicketId?: string | null;
   sourceBadgeTone: StatusPillTone;
@@ -81,6 +94,109 @@ function requestSummary(lines: AutomationIntakeLine[], language: AppLanguage) {
     ? literal(language, '{items} +{overflow} more', { items: visible.join(', '), overflow })
     : visible.join(', ');
   return summary || literal(language, 'Telegram intake');
+}
+
+function itemName(catalog: SenaCatalog, line: Pick<SenaTicketLine, 'entityId' | 'entityType'>, language: AppLanguage) {
+  if (line.entityType === 'sku') {
+    return catalog.skus.find((sku) => sku.skuId === line.entityId)?.name ?? literal(language, 'SKU');
+  }
+  return catalog.services.find((service) => service.serviceId === line.entityId)?.name ?? literal(language, 'Service');
+}
+
+function lineQuantity(line: SenaTicketLine) {
+  return Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 1);
+}
+
+function ticketLineSummary(catalog: SenaCatalog, lines: SenaTicketLine[], language: AppLanguage) {
+  const visible = lines.slice(0, 2).map((line) =>
+    literal(language, '{quantity} x {label}', {
+      label: itemName(catalog, line, language),
+      quantity: lineQuantity(line),
+    }),
+  );
+  const overflow = lines.length - visible.length;
+  if (visible.length === 0) {
+    return literal(language, 'No line items');
+  }
+  return overflow > 0
+    ? literal(language, '{items} +{overflow} more', { items: visible.join(', '), overflow })
+    : visible.join(', ');
+}
+
+function ticketDisplayDate(value: string | null | undefined) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return value.slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function customerTicketDisplayLabels(recordUpdateContext: SenaRecordUpdateContext | null | undefined) {
+  const labels = new Map<string, string>();
+  const tickets = Object.values(recordUpdateContext?.latestTicketsById ?? {})
+    .map((anchor) => anchor.value)
+    .filter((ticket) => ticket.ticketFamily === 'customer')
+    .sort((left, right) =>
+      ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
+      left.occurredAt.localeCompare(right.occurredAt) ||
+      left.ticketId.localeCompare(right.ticketId),
+    );
+  const countByDate = new Map<string, number>();
+
+  for (const ticket of tickets) {
+    const date = ticketDisplayDate(ticket.occurredAt);
+    const count = (countByDate.get(date) ?? 0) + 1;
+    countByDate.set(date, count);
+    labels.set(ticket.ticketId, `${date}-#${count}`);
+  }
+
+  return labels;
+}
+
+function ticketContactSummary(ticket: SenaTicketSummary, language: AppLanguage) {
+  return ticket.party?.customerName
+    ?? (ticket.party?.phone ? formatPhoneForDisplay(ticket.party.phone) : null)
+    ?? ticket.party?.channelLabel
+    ?? ticket.party?.channelKey
+    ?? literal(language, 'No customer details');
+}
+
+function ticketContactDetail(ticket: SenaTicketSummary) {
+  const parts = [
+    ticket.party?.phone ? formatPhoneForDisplay(ticket.party.phone) : null,
+    ticket.party?.channelLabel ?? ticket.party?.channelKey ?? null,
+    ticket.party?.location ?? null,
+  ].filter((value): value is string => Boolean(value));
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+function ticketTimingDetail(ticket: SenaTicketSummary, language: AppLanguage) {
+  const expectedArrival = ticket.lines.find((line) => line.expectedArrivalAt)?.expectedArrivalAt;
+  if (expectedArrival) {
+    return literal(language, 'ETA {value}', { value: new Date(expectedArrival).toLocaleDateString() });
+  }
+  if (ticket.nextTouchAt) {
+    return literal(language, 'Next touch {value}', { value: new Date(ticket.nextTouchAt).toLocaleDateString() });
+  }
+  return null;
+}
+
+function isSameLocalDay(value: string | null | undefined, reference = new Date()) {
+  if (!value) {
+    return false;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return false;
+  }
+  return (
+    date.getFullYear() === reference.getFullYear() &&
+    date.getMonth() === reference.getMonth() &&
+    date.getDate() === reference.getDate()
+  );
 }
 
 function automationTaskState(intake: AutomationOrderIntake): Exclude<OverviewCustomerFilter, 'all'> {
@@ -200,21 +316,37 @@ function customerTaskStateTone(state: Exclude<OverviewCustomerFilter, 'all'>): S
   }
 }
 
-function buildAutomationCustomerTasks(intakes: AutomationOrderIntake[], language: AppLanguage): OverviewCustomerTask[] {
+function buildAutomationCustomerTasks({
+  catalog,
+  intakes,
+  language,
+  ticketById,
+}: {
+  catalog: SenaCatalog;
+  intakes: AutomationOrderIntake[];
+  language: AppLanguage;
+  ticketById: Map<string, SenaTicketSummary>;
+}): OverviewCustomerTask[] {
   return intakes.map((intake) => {
+    const promotedTicket = intake.promotedTicketId ? ticketById.get(intake.promotedTicketId) ?? null : null;
     const firstLine = intake.lines[0] ?? null;
     const state = automationTaskState(intake);
     const action = automationTaskAction(intake, language, state);
-    const entityType = firstLine?.entityType ?? 'sku';
+    const entityType = promotedTicket?.lines[0]?.entityType ?? firstLine?.entityType ?? 'sku';
     const pendingQuantity = intake.status === 'ticketed' ? Math.max(1, intake.lines.length) : ['new', 'needs_review', 'quoted', 'failed'].includes(intake.status) ? 1 : 0;
     const completedToday = intake.status === 'completed' ? 1 : 0;
     const canceledToday = intake.status === 'canceled' ? 1 : 0;
+    const contactSummary = promotedTicket ? ticketContactSummary(promotedTicket, language) : customerLabel(intake, language);
+    const contactDetail = promotedTicket
+      ? ticketContactDetail(promotedTicket)
+      : [intake.customerHandle, intake.phone ? formatPhoneForDisplay(intake.phone) : null, intake.channel].filter(Boolean).join(' · ') || null;
+    const promotedRequestSummary = promotedTicket ? ticketLineSummary(catalog, promotedTicket.lines, language) : null;
 
     return {
       id: `automation:intake:${intake.intakeId}`,
-      entityId: firstLine?.entityId ?? null,
+      entityId: promotedTicket?.lines[0]?.entityId ?? firstLine?.entityId ?? null,
       entityType,
-      label: customerLabel(intake, language),
+      label: contactSummary,
       imagePath: null,
       action: action.action,
       actionLabel: action.actionLabel,
@@ -235,9 +367,16 @@ function buildAutomationCustomerTasks(intakes: AutomationOrderIntake[], language
       stateBadgeTone: customerTaskStateTone(state),
       whyNow: automationTaskWhyNow(intake, language, state),
       whyDetail: automationTaskWhyDetail(intake, language, state),
-      summary: requestSummary(intake.lines, language),
+      summary: promotedRequestSummary ?? requestSummary(intake.lines, language),
+      contactSummary,
+      contactDetail,
+      requestSummary: promotedRequestSummary ?? requestSummary(intake.lines, language),
+      requestDetail: promotedTicket ? ticketTimingDetail(promotedTicket, language) : intake.notes,
       source: 'telegram_intake',
       sourceLabel: literal(language, 'Telegram'),
+      queueEnteredAt: intake.createdAt ?? intake.updatedAt,
+      ticket: promotedTicket ?? undefined,
+      ticketId: intake.promotedTicketId,
       automationIntakeId: intake.intakeId,
       promotedTicketId: intake.promotedTicketId,
       sourceBadgeTone: 'info',
@@ -245,8 +384,126 @@ function buildAutomationCustomerTasks(intakes: AutomationOrderIntake[], language
   });
 }
 
+function queueTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : Number.POSITIVE_INFINITY;
+}
+
+function compareCustomerTasksFifo(left: OverviewCustomerTask, right: OverviewCustomerTask) {
+  const timestampGap = queueTimestamp(left.queueEnteredAt) - queueTimestamp(right.queueEnteredAt);
+  if (timestampGap !== 0) {
+    return timestampGap;
+  }
+  return 0;
+}
+
 export function shouldShowCustomerTask(task: OverviewCustomerTask, filter: OverviewCustomerFilter) {
-  return filter === 'all' ? true : task.state === filter;
+  return filter === 'all' ? task.state !== 'closed' : task.state === filter;
+}
+
+function ticketTaskState(ticket: SenaTicketSummary): Exclude<OverviewCustomerFilter, 'all'> | null {
+  if (ticket.lifecycle === 'open') {
+    return ticket.stage === 'ready' ? 'review' : 'open';
+  }
+  if (isSameLocalDay(ticket.occurredAt)) {
+    return 'closed';
+  }
+  return null;
+}
+
+function ticketTaskAction(ticket: SenaTicketSummary, language: AppLanguage) {
+  if (ticket.lifecycle === 'open') {
+    return {
+      action: 'mark_completed' as const,
+      actionLabel: literal(language, 'Review'),
+    };
+  }
+  return {
+    action: ticket.lifecycle === 'canceled' ? ('review_cancellation' as const) : ('review' as const),
+    actionLabel: literal(language, 'Review'),
+  };
+}
+
+function buildCustomerTicketTasks({
+  catalog,
+  displayLabels,
+  language,
+  tickets,
+}: {
+  catalog: SenaCatalog;
+  displayLabels: Map<string, string>;
+  language: AppLanguage;
+  tickets: SenaTicketSummary[];
+}) {
+  return tickets.flatMap((ticket): OverviewCustomerTask[] => {
+    if (ticket.ticketFamily !== 'customer') {
+      return [];
+    }
+    const state = ticketTaskState(ticket);
+    if (!state) {
+      return [];
+    }
+    const action = ticketTaskAction(ticket, language);
+    const firstLine = ticket.lines[0] ?? null;
+    const pendingQuantity = ticket.lifecycle === 'open'
+      ? ticket.lines.reduce((sum, line) => sum + lineQuantity(line), 0)
+      : 0;
+    const completedToday = ticket.lifecycle === 'resolved' && isSameLocalDay(ticket.occurredAt)
+      ? ticket.lines.reduce((sum, line) => sum + lineQuantity(line), 0)
+      : 0;
+    const canceledToday = ticket.lifecycle === 'canceled' && isSameLocalDay(ticket.occurredAt)
+      ? ticket.lines.reduce((sum, line) => sum + lineQuantity(line), 0)
+      : 0;
+    const contactSummary = ticketContactSummary(ticket, language);
+    const request = ticketLineSummary(catalog, ticket.lines, language);
+    const displayTicketId = displayLabels.get(ticket.ticketId) ?? `${ticketDisplayDate(ticket.occurredAt)}-#1`;
+    const ticketLineNames = ticket.lines.map((line) => itemName(catalog, line, language));
+
+    return [{
+      id: `customer:ticket:${ticket.ticketId}`,
+      entityId: firstLine?.entityId ?? null,
+      entityType: firstLine?.entityType ?? 'sku',
+      label: `Customer Ticket ID: ${displayTicketId}`,
+      displayTicketId,
+      displayTicketLabel: `Customer Ticket ID: ${displayTicketId}`,
+      imagePath: null,
+      action: action.action,
+      actionLabel: action.actionLabel,
+      href: buildTicketEditHref(ticket.ticketId),
+      pendingQuantity,
+      completedToday,
+      canceledToday,
+      blockedQuantity: state === 'review' ? pendingQuantity : 0,
+      state,
+      stateLabel:
+        state === 'closed'
+          ? literal(language, 'Closed')
+          : state === 'review'
+            ? literal(language, 'Review')
+            : literal(language, 'Open'),
+      stateBadgeTone: customerTaskStateTone(state),
+      whyNow: request,
+      whyDetail: ticket.note ?? '',
+      summary: request,
+      contactSummary,
+      contactDetail: ticketContactDetail(ticket),
+      requestSummary: request,
+      requestDetail: ticketTimingDetail(ticket, language) ?? ticket.note ?? null,
+      source: 'customer_ticket',
+      sourceLabel: literal(language, 'Customer ticket'),
+      queueEnteredAt: ticket.lifecycle === 'open' ? ticket.occurredAt : ticket.occurredAt,
+      ticket,
+      ticketId: ticket.ticketId,
+      ticketLineCount: ticket.lines.length,
+      ticketLineSummaryLabel: request,
+      ticketLineNames,
+      promotedTicketId: null,
+      sourceBadgeTone: 'neutral',
+    }];
+  });
 }
 
 export function buildCustomerOverviewModel({
@@ -254,11 +511,13 @@ export function buildCustomerOverviewModel({
   catalog,
   language,
   observations,
+  recordUpdateContext,
 }: {
   automationIntakes?: AutomationOrderIntake[];
   catalog: SenaCatalog | null;
   language: AppLanguage;
   observations: SenaObservationRecord[];
+  recordUpdateContext?: SenaRecordUpdateContext | null;
 }): OverviewCustomerModel {
   if (!catalog) {
     return {
@@ -282,10 +541,30 @@ export function buildCustomerOverviewModel({
     .filter((event) => event.party === 'customer' && event.stage === 'pending' && event.quantityDelta < 0)
     .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
   const tasks: OverviewCustomerTask[] = [];
+  const latestCustomerTickets = Object.values(recordUpdateContext?.latestTicketsById ?? {})
+    .map((anchor) => anchor.value)
+    .filter((ticket) => ticket.ticketFamily === 'customer');
+  const ticketById = new Map(latestCustomerTickets.map((ticket) => [ticket.ticketId, ticket]));
+  const displayLabels = customerTicketDisplayLabels(recordUpdateContext);
+  const ticketEntityKeys = new Set(
+    latestCustomerTickets.flatMap((ticket) =>
+      ticket.lines.map((line) => `${line.entityType}:${line.entityId}`),
+    ),
+  );
+
+  tasks.push(...buildCustomerTicketTasks({
+    catalog,
+    displayLabels,
+    language,
+    tickets: latestCustomerTickets,
+  }));
 
   for (const sku of catalog.skus.filter((entry) => !entry.archived && entry.soldAsProduct)) {
     const snapshot = skuSnapshots.get(sku.skuId);
     if (!snapshot) {
+      continue;
+    }
+    if (ticketEntityKeys.has(`sku:${sku.skuId}`)) {
       continue;
     }
     const completedToday = dayEvents
@@ -319,7 +598,9 @@ export function buildCustomerOverviewModel({
             ? literal(language, 'Open pending')
             : literal(language, 'Mark completed'),
       href:
-        state === 'closed' && completedToday > 0
+        state === 'open'
+          ? buildCaptureSessionHref({ action: 'immediate-sale', targetId: sku.skuId, targetType: 'sku' })
+          : state === 'closed' && completedToday > 0
           ? `${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?skus=${encodeURIComponent(sku.skuId)}`
           : `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?skus=${encodeURIComponent(sku.skuId)}`,
       pendingQuantity: snapshot.pendingQuantity,
@@ -356,16 +637,26 @@ export function buildCustomerOverviewModel({
                 }),
       whyDetail: literal(language, 'Kaur Khor is tracking this from customer order signals recorded in Record Updates.'),
       summary: null,
+      contactSummary: literal(language, 'Legacy customer signal'),
+      contactDetail: null,
+      requestSummary: sku.name,
+      requestDetail: literal(language, 'No ticket metadata saved for this row.'),
       source: 'customer_aggregate',
-      sourceLabel: literal(language, 'Customer queue'),
+      sourceLabel: literal(language, 'Legacy signal'),
+      queueEnteredAt: snapshot.oldestOpenPendingAt ?? snapshot.latestObservedAt,
+      ticketId: null,
+      isLegacyFallback: true,
       promotedTicketId: null,
-      sourceBadgeTone: 'neutral',
+      sourceBadgeTone: 'warning',
     });
   }
 
   for (const service of catalog.services.filter((entry) => !entry.archived)) {
     const snapshot = serviceSnapshots.get(service.serviceId);
     if (!snapshot) {
+      continue;
+    }
+    if (ticketEntityKeys.has(`service:${service.serviceId}`)) {
       continue;
     }
     const completedToday = dayEvents
@@ -399,7 +690,9 @@ export function buildCustomerOverviewModel({
             ? literal(language, 'Open pending')
             : literal(language, 'Mark completed'),
       href:
-        state === 'closed' && completedToday > 0
+        state === 'open'
+          ? buildCaptureSessionHref({ action: 'immediate-sale', targetId: service.serviceId, targetType: 'service' })
+          : state === 'closed' && completedToday > 0
           ? buildCaptureSessionHref({ action: 'customer-order', targetId: service.serviceId, targetType: 'service' })
           : buildCaptureSessionHref({ action: 'customer-order', targetId: service.serviceId, targetType: 'service' }),
       pendingQuantity: snapshot.pendingQuantity,
@@ -436,14 +729,21 @@ export function buildCustomerOverviewModel({
                 }),
       whyDetail: literal(language, 'Kaur Khor is tracking this from customer order signals recorded in Record Updates.'),
       summary: null,
+      contactSummary: literal(language, 'Legacy customer signal'),
+      contactDetail: null,
+      requestSummary: service.name,
+      requestDetail: literal(language, 'No ticket metadata saved for this row.'),
       source: 'customer_aggregate',
-      sourceLabel: literal(language, 'Customer queue'),
+      sourceLabel: literal(language, 'Legacy signal'),
+      queueEnteredAt: snapshot.oldestOpenPendingAt ?? snapshot.latestObservedAt,
+      ticketId: null,
+      isLegacyFallback: true,
       promotedTicketId: null,
-      sourceBadgeTone: 'neutral',
+      sourceBadgeTone: 'warning',
     });
   }
 
-  tasks.push(...buildAutomationCustomerTasks(automationIntakes, language));
+  tasks.push(...buildAutomationCustomerTasks({ catalog, intakes: automationIntakes, language, ticketById }));
 
   const counts = {
     review: tasks.filter((task) => task.state === 'review').length,
@@ -453,7 +753,7 @@ export function buildCustomerOverviewModel({
   };
 
   return {
-    tasks,
+    tasks: [...tasks].sort(compareCustomerTasksFifo),
     counts,
     signals: [
       {

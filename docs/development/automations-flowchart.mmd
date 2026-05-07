@@ -10,7 +10,7 @@ flowchart LR
     SeedEnd["benchmark.phase.seed_end"]:::metric
     MeasureStart["benchmark.phase.measurement_start"]:::metric
     Nav["Click Automations sidebar"]:::process
-    CatalogTab["Open Catalog tab"]:::process
+    ProductsTab["Open Products tab"]:::process
     ExposureToggle["Toggle All and Exposed filters"]:::process
     IntakeTab["Open Live intake tab"]:::process
     OpenDrawer["Open intake drawer"]:::process
@@ -21,7 +21,7 @@ flowchart LR
   subgraph Route["Automations route"]
     Ready["route.automations.ready"]:::metric
     Connection["Current connection card<br/>Last webhook"]:::route
-    Catalog["Sellables exposed to Telegram"]:::route
+    Products["Sellables exposed to Telegram"]:::route
     Intake["Live intake table"]:::route
     Exceptions["Needs review exceptions"]:::route
     Drawer["AutomationIntakeDrawer"]:::route
@@ -55,15 +55,15 @@ flowchart LR
   Start --> Launch --> WaitWorkspace --> Seed --> Writer --> Store
   Seed --> SeedEnd --> MeasureStart --> Nav --> Ready
   Nav --> Connection --> NavMetric
-  Nav --> CatalogTab --> Catalog --> ExposureMetric
-  CatalogTab --> ExposureToggle --> Catalog --> ExposureMetric
+  Nav --> ProductsTab --> Products --> ExposureMetric
+  ProductsTab --> ExposureToggle --> Products --> ExposureMetric
   Nav --> IntakeTab --> Intake --> IntakeMetric
   IntakeTab --> OpenDrawer --> Drawer --> DrawerMetric
   Nav --> ExceptionsTab --> Exceptions --> ExceptionsMetric
   ExceptionsTab --> MeasureEnd --> Summary
 
   Ready --> Provider
-  Catalog --> Provider
+  Products --> Provider
   Intake --> Provider
   Exceptions --> Provider
   Drawer --> Conversation

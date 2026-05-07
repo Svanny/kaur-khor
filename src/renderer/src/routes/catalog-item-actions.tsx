@@ -42,6 +42,7 @@ import {
 } from '@/components/system/lead-time-variability-field';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
 import { translateUiLiteral } from '@/lib/translations';
 import {
   buildCaptureSessionHref,
@@ -77,6 +78,8 @@ export interface SkuMutationActionsProps {
   showEditButton?: boolean;
   showActionButtons?: boolean;
   layout?: 'row' | 'menu';
+  recordActionLayout?: 'grouped' | 'direct';
+  onCaptureActionStart?: () => void;
   catalogEntityName?: string;
 }
 
@@ -88,22 +91,16 @@ export interface ServiceMutationActionsProps {
   onActionStart?: (mode: ServiceActionMode) => void;
   showEditButton?: boolean;
   showPrimarySkuButton?: boolean;
+  showStockCountAction?: boolean;
   showActionButtons?: boolean;
   layout?: 'row' | 'menu';
+  recordActionLayout?: 'grouped' | 'direct';
+  onCaptureActionStart?: () => void;
   catalogEntityName?: string;
 }
 
-function padLocalDatePart(value: number) {
-  return String(value).padStart(2, '0');
-}
-
 export function formatDatetimeLocalValue(value: string | Date) {
-  const date = value instanceof Date ? value : new Date(value);
-  return [
-    date.getFullYear(),
-    padLocalDatePart(date.getMonth() + 1),
-    padLocalDatePart(date.getDate()),
-  ].join('-') + `T${padLocalDatePart(date.getHours())}:${padLocalDatePart(date.getMinutes())}`;
+  return formatLocalDateTimeInputValue(value);
 }
 
 export function parseDatetimeLocalIso(value: string) {
@@ -119,8 +116,8 @@ export function parseDatetimeLocalIso(value: string) {
   return date.toISOString();
 }
 
-function initialObservedAt(value: string | null) {
-  return formatDatetimeLocalValue(value ?? new Date());
+function initialObservedAt() {
+  return formatLocalDateTimeInputValue();
 }
 
 export function buildLeadTimeHintFromInputs({
@@ -226,10 +223,14 @@ function RecordCaptureActionMenu({
   actions,
   className,
   language,
+  layout = 'grouped',
+  onCaptureActionStart,
 }: {
   actions: RecordCaptureAction[];
   className?: string;
   language: AppLanguage;
+  layout?: 'grouped' | 'direct';
+  onCaptureActionStart?: () => void;
 }) {
   const navigate = useNavigate();
   const [confirmPrompt, setConfirmPrompt] = useState<CaptureConfirmPrompt | null>(null);
@@ -239,6 +240,7 @@ function RecordCaptureActionMenu({
     if (action.disabled) {
       return;
     }
+    onCaptureActionStart?.();
     const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action.action));
     setPendingAction(action);
     setConfirmPrompt(hasSavedCaptureDraft(draftStorageKey) ? 'saved-draft' : 'leave-page');
@@ -263,45 +265,53 @@ function RecordCaptureActionMenu({
     }));
   }
 
+  function renderMenuItems(closeMenu: () => void) {
+    return (
+      <div className="grid gap-1">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button
+              key={`${action.action}:${action.targetType}:${action.targetId}`}
+              aria-disabled={action.disabled ? 'true' : undefined}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
+              disabled={action.disabled}
+              role="menuitem"
+              title={action.disabled ? action.disabledReason : undefined}
+              type="button"
+              onClick={() => requestCaptureSession(action, closeMenu)}
+            >
+              <Icon className="size-4" />
+              {action.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const directMenuContent = layout === 'direct' ? renderMenuItems(() => {}) : null;
+
   return (
     <>
-      <AnchoredMenu
-        align="left"
-        className="w-64 p-1"
-        label={translateUiLiteral(language, 'Record')}
-        triggerClassName={className}
-        triggerIcon={
-          <span className="inline-flex items-center gap-2">
-            <ActionClipboardAddIcon className="size-4" />
-            {translateUiLiteral(language, 'Record')}
-            <NavigationExpandIcon className="size-4" />
-          </span>
-        }
-        triggerSize="sm"
-      >
-        {(closeMenu) => (
-          <div className="grid gap-1">
-            {actions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={`${action.action}:${action.targetType}:${action.targetId}`}
-                  aria-disabled={action.disabled ? 'true' : undefined}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-50"
-                  disabled={action.disabled}
-                  role="menuitem"
-                  title={action.disabled ? action.disabledReason : undefined}
-                  type="button"
-                  onClick={() => requestCaptureSession(action, closeMenu)}
-                >
-                  <Icon className="size-4" />
-                  {action.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </AnchoredMenu>
+      {directMenuContent ?? (
+        <AnchoredMenu
+          align="left"
+          className="w-64 p-1"
+          label={translateUiLiteral(language, 'Record')}
+          triggerClassName={className}
+          triggerIcon={
+            <span className="inline-flex items-center gap-2">
+              <ActionClipboardAddIcon className="size-4" />
+              {translateUiLiteral(language, 'Record')}
+              <NavigationExpandIcon className="size-4" />
+            </span>
+          }
+          triggerSize="sm"
+        >
+          {renderMenuItems}
+        </AnchoredMenu>
+      )}
       <CaptureConfirmDialog
         language={language}
         open={confirmPrompt != null}
@@ -400,13 +410,15 @@ export function SkuMutationActions({
   showEditButton = true,
   showActionButtons = true,
   layout = 'row',
+  recordActionLayout = 'grouped',
+  onCaptureActionStart,
   catalogEntityName,
 }: SkuMutationActionsProps) {
   const location = useLocation();
   const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
-  const [observedAt, setObservedAt] = useState(() => initialObservedAt(actionContext.latestObservationAt));
+  const [observedAt, setObservedAt] = useState(() => initialObservedAt());
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(String(Math.round(actionContext.currentStock)));
   const [costPerUnit, setCostPerUnit] = useState(formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate));
@@ -477,7 +489,7 @@ export function SkuMutationActions({
   function resetForm(nextMode: SkuActionMode) {
     setMode(nextMode);
     onActionStart?.(nextMode);
-    setObservedAt(initialObservedAt(actionContext.latestObservationAt));
+    setObservedAt(initialObservedAt());
     setNotes('');
     setUnitsInStock(String(Math.round(actionContext.currentStock)));
     setCostPerUnit(formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate));
@@ -516,7 +528,7 @@ export function SkuMutationActions({
   function skuActionBaselineSnapshot(modeValue: SkuActionMode) {
     return {
       mode: modeValue,
-      observedAt: initialObservedAt(actionContext.latestObservationAt),
+      observedAt: initialObservedAt(),
       notes: '',
       unitsInStock: String(Math.round(actionContext.currentStock)),
       costPerUnit: formatMoneyDraft(actionContext.costPerUnit, currency, usdToKhrExchangeRate),
@@ -701,6 +713,8 @@ export function SkuMutationActions({
           <RecordCaptureActionMenu
             className={layout === 'menu' ? 'w-full justify-start' : undefined}
             language={language}
+            layout={recordActionLayout}
+            onCaptureActionStart={onCaptureActionStart}
             actions={[
               {
                 action: 'stock',
@@ -962,15 +976,18 @@ export function ServiceMutationActions({
   onActionStart,
   showEditButton = true,
   showPrimarySkuButton = true,
+  showStockCountAction = true,
   showActionButtons = true,
   layout = 'row',
+  recordActionLayout = 'grouped',
+  onCaptureActionStart,
   catalogEntityName,
 }: ServiceMutationActionsProps) {
   const location = useLocation();
   const { ingestSenaObservation, isSaving, runWorkspacePreparation, triggerSenaRun } = useInventory();
   const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
   const [mode, setMode] = useControllableMode(controlledMode, onModeChange);
-  const [observedAt, setObservedAt] = useState(() => initialObservedAt(actions.latestObservedAt));
+  const [observedAt, setObservedAt] = useState(() => initialObservedAt());
   const [notes, setNotes] = useState('');
   const [unitsInStock, setUnitsInStock] = useState(
     actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0',
@@ -1040,7 +1057,7 @@ export function ServiceMutationActions({
   function resetForm(nextMode: ServiceActionMode) {
     setMode(nextMode);
     onActionStart?.(nextMode);
-    setObservedAt(initialObservedAt(actions.latestObservedAt));
+    setObservedAt(initialObservedAt());
     setNotes('');
     setUnitsInStock(actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0');
     setCostPerUnit(actions.bottleneckSku ? formatMoneyDraft(actions.bottleneckSku.costPerUnit, currency, usdToKhrExchangeRate) : '0');
@@ -1067,7 +1084,7 @@ export function ServiceMutationActions({
   function serviceActionBaselineSnapshot(modeValue: ServiceActionMode) {
     return {
       mode: modeValue,
-      observedAt: initialObservedAt(actions.latestObservedAt),
+      observedAt: initialObservedAt(),
       notes: '',
       unitsInStock: actions.bottleneckSku ? String(Math.round(actions.bottleneckSku.unitsInStock)) : '0',
       costPerUnit: actions.bottleneckSku ? formatMoneyDraft(actions.bottleneckSku.costPerUnit, currency, usdToKhrExchangeRate) : '0',
@@ -1246,16 +1263,20 @@ export function ServiceMutationActions({
           <RecordCaptureActionMenu
             className={layout === 'menu' ? 'w-full justify-start' : undefined}
             language={language}
+            layout={recordActionLayout}
+            onCaptureActionStart={onCaptureActionStart}
             actions={[
-              {
-                action: 'stock',
-                disabled: bottleneckUnavailable,
-                disabledReason: bottleneckUnavailable ? actions.noBottleneckHint : undefined,
-                icon: ActionReceiveInventoryIcon,
-                label: translateUiLiteral(language, 'Stock Count'),
-                targetId: actions.bottleneckSku?.skuId ?? '',
-                targetType: 'sku',
-              },
+              ...(showStockCountAction
+                ? [{
+                    action: 'stock' as const,
+                    disabled: bottleneckUnavailable,
+                    disabledReason: bottleneckUnavailable ? actions.noBottleneckHint : undefined,
+                    icon: ActionReceiveInventoryIcon,
+                    label: translateUiLiteral(language, 'Stock Count'),
+                    targetId: actions.bottleneckSku?.skuId ?? '',
+                    targetType: 'sku' as const,
+                  }]
+                : []),
               {
                 action: 'customer-order',
                 icon: EntityCustomerIcon,

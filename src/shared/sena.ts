@@ -64,6 +64,7 @@ export interface SenaObservationInput {
   ticketEvents?: SenaTicketEvent[];
   recipeUsageHints?: SenaRecipeUsageHint[];
   deliveryFee?: SenaDeliveryFeeMetadata | null;
+  discount?: SenaDiscountMetadata | null;
   notes: string | null;
 }
 
@@ -115,6 +116,7 @@ export type SenaTicketFamily = 'customer' | 'supplier' | 'adjustment';
 export type SenaTicketLifecycle = 'open' | 'resolved' | 'canceled';
 export type SenaDeliveryFeePayer = 'customer' | 'merchant';
 export type SenaDeliveryFeeBucket = 'supplier' | 'customer_order' | 'immediate_sale';
+export type SenaDiscountMode = 'amount' | 'percent';
 
 export interface SenaDeliveryFeeMetadata {
   feeUsd: number | null;
@@ -124,6 +126,15 @@ export interface SenaDeliveryFeeMetadata {
   displayDeliveryUsd: number | null;
   displayTotalUsd: number | null;
   netSettlementUsd: number | null;
+}
+
+export interface SenaDiscountMetadata {
+  mode: SenaDiscountMode;
+  amountUsd: number | null;
+  percent: number | null;
+  subtotalUsd: number | null;
+  displayDiscountUsd: number | null;
+  discountedSubtotalUsd: number | null;
 }
 
 export type SenaCustomerTicketStage = 'pending' | 'ready' | 'fulfilled_immediate';
@@ -159,6 +170,7 @@ export interface SenaTicketPartyMetadata {
   customerNameKey?: string | null;
   phone?: string | null;
   phoneKey?: string | null;
+  location?: string | null;
   supplierName?: string | null;
 }
 
@@ -186,6 +198,7 @@ export interface SenaTicketEvent {
   party?: SenaTicketPartyMetadata | null;
   lines: SenaTicketLine[];
   deliveryFee?: SenaDeliveryFeeMetadata | null;
+  discount?: SenaDiscountMetadata | null;
   note?: string | null;
 }
 
@@ -216,6 +229,7 @@ export interface SenaOrderFieldValues {
   leadTimeDaysHint: number | null;
   leadTimeVariability: SenaLeadTimeVariabilityClass | null;
   deliveryFee?: SenaDeliveryFeeMetadata | null;
+  discount?: SenaDiscountMetadata | null;
 }
 
 export interface SenaOrderChildRecord {
@@ -374,6 +388,7 @@ export interface SenaTicketSummary {
   party?: SenaTicketPartyMetadata | null;
   lines: SenaTicketLine[];
   deliveryFee?: SenaDeliveryFeeMetadata | null;
+  discount?: SenaDiscountMetadata | null;
   note?: string | null;
 }
 
