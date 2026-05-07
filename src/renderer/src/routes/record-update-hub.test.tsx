@@ -11,7 +11,7 @@ import {
 import { recordUpdateSessionViewStorageKey } from '@/lib/record-update-session-view';
 import { translateUiLiteral } from '@/lib/translations';
 import { RecordUpdateHubRoute } from './record-update-hub';
-import type { SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
+import type { SenaCatalog, SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
 
 const inventoryHook = vi.fn();
 const preferenceState = {
@@ -26,6 +26,46 @@ vi.mock('../state/preferences', () => ({
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
 }));
+
+const catalog: SenaCatalog = {
+  schemaVersion: 1,
+  skus: [
+    {
+      skuId: 'sku-1',
+      name: 'Razor refill',
+      description: 'Refill pack',
+      supplierName: 'Mekong Looms',
+      costPerUnit: 4,
+      archived: false,
+      soldAsProduct: true,
+      productPrice: 9,
+      leadTimeMeanDaysHint: null,
+      leadTimeStdDaysHint: null,
+    },
+    {
+      skuId: 'sku-2',
+      name: 'Cotton towel',
+      description: 'Towel',
+      supplierName: 'Mekong Looms',
+      costPerUnit: 2,
+      archived: false,
+      soldAsProduct: false,
+      productPrice: null,
+      leadTimeMeanDaysHint: null,
+      leadTimeStdDaysHint: null,
+    },
+  ],
+  services: [{
+    serviceId: 'service-1',
+    name: 'Haircut',
+    description: '',
+    price: 12,
+    archived: false,
+    bundle: false,
+  }],
+  bundles: [],
+  sharingMask: [],
+};
 
 function recordUpdateContextFromObservations(observations: SenaObservationRecord[]): SenaRecordUpdateContext {
   const tickets = observations.flatMap((observation) =>
@@ -64,6 +104,7 @@ function recordUpdateContextFromObservations(observations: SenaObservationRecord
 function inventoryState(overrides: Record<string, unknown> = {}) {
   const observations = (overrides.observations ?? []) as SenaObservationRecord[];
   return {
+    catalog,
     loadWorkSupportData: vi.fn(async () => null),
     observations: [],
     orderBatches: [],
@@ -357,6 +398,67 @@ describe('RecordUpdateHubRoute', () => {
     fireEvent.click(within(picker).getByRole('button', { name: /Mekong Looms/i }));
 
     expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
+  });
+
+  it('shows catalog names instead of internal ids in the supplier ticket picker', () => {
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        observations: [
+          {
+            observationId: 'obs-supplier-ticket',
+            ownerSub: 'desktop-owner',
+            input: {
+              observedAt: '2026-04-03T12:00:00.000Z',
+              stockSnapshot: [],
+              serviceRankings: [],
+              retailRankings: [],
+              serviceStockouts: [],
+              retailStockouts: [],
+              orderSignals: [],
+              servicePrices: [],
+              retailPrices: [],
+              leadTimeHints: [],
+              adjustmentSignals: [],
+              recipeUsageHints: [],
+              notes: null,
+              ticketEvents: [
+                {
+                  ticketId: 'supplier-ticket-1',
+                  ticketFamily: 'supplier',
+                  eventType: 'created',
+                  lifecycle: 'open',
+                  stage: 'ordered_waiting',
+                  revision: 1,
+                  occurredAt: '2026-04-03T12:00:00.000Z',
+                  party: {
+                    role: 'supplier',
+                    supplierName: 'Mekong Looms',
+                  },
+                  lines: [
+                    { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 8 },
+                    { entityType: 'sku', entityId: 'sku-2', orderedQuantity: 3 },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' }));
+
+    const picker = screen.getByRole('dialog');
+    expect(picker).toHaveTextContent('Mekong Looms');
+    expect(picker).toHaveTextContent('Razor refill · 8u, Cotton towel · 3u');
+    expect(picker).not.toHaveTextContent('sku-');
+    expect(picker).not.toHaveTextContent('service-');
   });
 
   it('localizes legacy supplier batch option descriptions in Khmer mode', () => {

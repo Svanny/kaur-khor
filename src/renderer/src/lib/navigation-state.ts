@@ -79,6 +79,7 @@ export const automationSectionValues = [
   'overview',
   'catalog',
   'intake',
+  'chat',
   'exceptions',
   'settings',
 ] as const;
@@ -303,7 +304,7 @@ export function readOverviewRouteState(searchParams: URLSearchParams): OverviewR
     supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
     taskId: taskId?.trim() ? taskId : null,
     taskMode: taskId?.trim() ? taskMode : null,
-    workflow: readEnumValue(searchParams, 'workflow', overviewWorkflowValues, 'supplier'),
+    workflow: readEnumValue(searchParams, 'workflow', overviewWorkflowValues, 'customer'),
     customerFilter: readEnumValue(searchParams, 'customerFilter', overviewCustomerFilterValues, 'all'),
     customerTaskId: searchParams.get('customerTask')?.trim() ? searchParams.get('customerTask')!.trim() : null,
   };
@@ -323,7 +324,7 @@ export function buildOverviewSearchParams(
   writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
   writeOptionalValue(searchParams, 'task', resolvedState.taskId);
   writeOptionalValue(searchParams, 'taskMode', resolvedState.taskId ? resolvedState.taskMode : null);
-  writeEnumValue(searchParams, 'workflow', resolvedState.workflow, 'supplier');
+  writeEnumValue(searchParams, 'workflow', resolvedState.workflow, 'customer');
   writeEnumValue(searchParams, 'customerFilter', resolvedState.customerFilter, 'all');
   writeOptionalValue(searchParams, 'customerTask', resolvedState.customerTaskId);
   return searchParams;

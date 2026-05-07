@@ -1253,11 +1253,42 @@ describe('SettingsRoute', () => {
       intersectionObserver.triggerVisible();
     });
 
-    expect(highlightedRow).toHaveAttribute('data-highlighted', 'true');
+    await waitFor(() => {
+      expect(highlightedRow).toHaveAttribute('data-highlighted', 'true');
+    });
     expect(highlightedRow).not.toHaveClass('px-2');
     expect(highlightedRow).not.toHaveClass('bg-primary/10');
+    expect(highlightedRow).toHaveAttribute('data-highlight-flash-key', '1');
     const highlight = screen.getByTestId('settings-automations-highlight');
     expect(highlight).toHaveClass('inset-0');
+    expect(highlight).toHaveClass('opacity-0');
+    expect(highlight).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
+    expect(intersectionObserver.disconnect).toHaveBeenCalled();
+    intersectionObserver.restore();
+  });
+
+  it('highlights the optional guidance row from a Settings interface help redirect', async () => {
+    const intersectionObserver = mockIntersectionObserver();
+
+    renderSettingsRoute('/settings/interface?highlight=help');
+
+    await checkboxInRow('Optional guidance');
+    const highlightedRow = document.querySelector('[data-settings-interface-row="help"]');
+    expect(highlightedRow).not.toHaveAttribute('data-highlighted', 'true');
+    expect(screen.queryByTestId('settings-help-highlight')).not.toBeInTheDocument();
+    expect(intersectionObserver.observe).toHaveBeenCalled();
+
+    act(() => {
+      intersectionObserver.triggerVisible();
+    });
+
+    await waitFor(() => {
+      expect(highlightedRow).toHaveAttribute('data-highlighted', 'true');
+    });
+    expect(highlightedRow).toHaveAttribute('data-highlight-flash-key', '1');
+    const highlight = screen.getByTestId('settings-help-highlight');
+    expect(highlight).toHaveClass('inset-0');
+    expect(highlight).toHaveClass('opacity-0');
     expect(highlight).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
@@ -1429,7 +1460,7 @@ describe('SettingsRoute', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: false,
-      showOverviewTaskTabs: false,
+      showOverviewTaskTabs: true,
       showAutomationsPage: false,
       showAnalysisPage: true,
       showPerformanceCompareToggle: false,
@@ -1439,7 +1470,7 @@ describe('SettingsRoute', () => {
       customShowExplanatoryTooltips: true,
       customShowFloatingTitleActions: true,
       customShowRightRailCards: false,
-      customShowOverviewTaskTabs: false,
+      customShowOverviewTaskTabs: true,
       customShowAutomationsPage: false,
       customShowAnalysisPage: true,
       customShowPerformanceCompareToggle: false,
@@ -1466,7 +1497,7 @@ describe('SettingsRoute', () => {
       showExplanatoryTooltips: true,
       showFloatingTitleActions: true,
       showRightRailCards: false,
-      showOverviewTaskTabs: false,
+      showOverviewTaskTabs: true,
       showAutomationsPage: false,
       showAnalysisPage: true,
       showPerformanceCompareToggle: false,
@@ -1815,10 +1846,10 @@ describe('SettingsRoute', () => {
     render(
       <MemoryRouter initialEntries={['/settings/interface']}>
         <PreferencesProvider>
-          <Link to="/catalog">Catalog</Link>
+          <Link to="/catalog">Products</Link>
           <Routes>
             <Route element={<SettingsRoute />} path="/settings/*" />
-            <Route element={<div>Catalog destination</div>} path="/catalog" />
+            <Route element={<div>Products destination</div>} path="/catalog" />
           </Routes>
         </PreferencesProvider>
       </MemoryRouter>,
@@ -1826,21 +1857,21 @@ describe('SettingsRoute', () => {
 
     const checkbox = await checkboxInRow('Optional guidance');
     fireEvent.click(checkbox);
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
 
     const leaveDialog = screen.getByRole('dialog');
     expect(leaveDialog).toHaveTextContent('Discard changes?');
     expect(screen.getByRole('button', { name: 'Discard changes' })).toHaveAttribute('data-variant', 'destructive-outline');
     expect(within(leaveDialog).getByRole('button', { name: 'Save preferences' })).toHaveAttribute('data-variant', 'default');
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.queryByText('Catalog destination')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products destination')).not.toBeInTheDocument();
     expect(checkbox).not.toBeChecked();
 
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+      expect(screen.getByText('Products destination')).toBeInTheDocument();
     });
   });
 
@@ -1848,10 +1879,10 @@ describe('SettingsRoute', () => {
     render(
       <MemoryRouter initialEntries={['/settings/interface']}>
         <PreferencesProvider>
-          <Link to="/catalog">Catalog</Link>
+          <Link to="/catalog">Products</Link>
           <Routes>
             <Route element={<SettingsRoute />} path="/settings/*" />
-            <Route element={<div>Catalog destination</div>} path="/catalog" />
+            <Route element={<div>Products destination</div>} path="/catalog" />
           </Routes>
         </PreferencesProvider>
       </MemoryRouter>,
@@ -1859,14 +1890,14 @@ describe('SettingsRoute', () => {
 
     const checkbox = await checkboxInRow('Optional guidance');
     fireEvent.click(checkbox);
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save preferences' }));
 
     await waitFor(() => {
       expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
         showExplanatoryTooltips: false,
       }));
-      expect(screen.getByText('Catalog destination')).toBeInTheDocument();
+      expect(screen.getByText('Products destination')).toBeInTheDocument();
     });
   });
 });

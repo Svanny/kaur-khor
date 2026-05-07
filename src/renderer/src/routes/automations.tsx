@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import type { AutomationExposureRow, AutomationOrderIntake } from '@shared/automation';
+import type { AutomationConversationSummary, AutomationExposureRow, AutomationMessageRecord, AutomationOrderIntake } from '@shared/automation';
 import type { IconComponent } from '@icons';
 import {
   ActionClipboardAddIcon,
@@ -26,6 +26,7 @@ import {
   NavigationCatalogIcon,
   NavigationDashboardIcon,
   NavigationListIcon,
+  NavigationLogsIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
 } from '@icons/navigation';
@@ -45,6 +46,7 @@ import { SearchInput } from '@/components/system/search-input';
 import { WorkspaceActionRow, WorkspaceBanner, WorkspacePage, WorkspaceTitleCard, useWorkspaceWindowMinHeight } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { hasRenderableRows } from '@/components/system/headered-table';
 import {
   type AutomationExposureValue,
@@ -59,6 +61,7 @@ import { deriveNavigationAvailability } from '@/lib/navigation-availability';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { statusPillClassName, tintedSurfaceClassName } from '@/lib/state-tones';
 import { getTranslation, translateUiLiteral } from '@/lib/translations';
+import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
 import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
@@ -81,7 +84,7 @@ import { PerformanceSectionShell, PERFORMANCE_HEADER_SURFACE_CLASS_NAME } from '
 import { SectionLabel } from './sku-detail/section-heading';
 
 type ExposureTypeFilter = 'all' | 'sku' | 'service';
-type ExceptionIssueFilter = 'all' | 'parser_failed' | 'quantity_ambiguous' | 'item_not_found';
+type ExceptionIssueFilter = 'all' | 'parser_failed' | 'quantity_ambiguous' | 'item_not_found' | 'availability_unknown';
 type ExceptionConfidenceFilter = 'all' | 'high' | 'medium' | 'low';
 
 function matchesQuery(row: AutomationExposureRow, query: string | null) {
@@ -227,7 +230,7 @@ function OverviewColumn({
 function AutomationTabs({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
   const tabOptions = [
     { value: 'overview', label: translateUiLiteral(language, 'Overview'), icon: <NavigationDashboardIcon className="size-4" /> },
-    { value: 'catalog', label: translateUiLiteral(language, 'Catalog'), icon: <NavigationCatalogIcon className="size-4" /> },
+    { value: 'catalog', label: translateUiLiteral(language, 'Products'), icon: <NavigationCatalogIcon className="size-4" /> },
     { value: 'intake', label: translateUiLiteral(language, 'Live intake'), icon: <StatusSendIcon className="size-4" /> },
     { value: 'exceptions', label: translateUiLiteral(language, 'Needs review'), icon: <StatusWarningIcon className="size-4" /> },
     { value: 'settings', label: translateUiLiteral(language, 'Settings'), icon: <NavigationSettingsIcon className="size-4" /> },
@@ -253,6 +256,9 @@ function IntakeViewTabs({ language }: { language: Parameters<typeof translateUiL
         <ChromeTabsTrigger leading={<StatusSendIcon className="size-4" />} value="intake">
           {translateUiLiteral(language, 'Live intake')}
         </ChromeTabsTrigger>
+        <ChromeTabsTrigger leading={<NavigationLogsIcon className="size-4" />} value="chat">
+          {translateUiLiteral(language, 'Chat')}
+        </ChromeTabsTrigger>
         <ChromeTabsTrigger leading={<EntityPreviewIcon className="size-4" />} value="exposed">
           {translateUiLiteral(language, 'Exposed sellables')}
         </ChromeTabsTrigger>
@@ -265,6 +271,201 @@ function CardControlRow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-start lg:gap-4">
       {children}
+    </div>
+  );
+}
+
+function AutomationExperimentalWarning({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
+  return (
+    <div className="mb-6 mt-2 rounded-[1rem] border border-amber-300/70 bg-amber-50/85 px-4 py-4 text-sm leading-6 text-amber-950">
+      <div className="flex items-center gap-3">
+        <StatusWarningIcon className="size-5 shrink-0" />
+        <div className="min-w-0">
+          <p className="font-semibold">{translateUiLiteral(language, 'Advanced experimental automation settings')}</p>
+          <p>
+            {translateUiLiteral(language, 'This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.')}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function messageTimeLabel(value: string, language: Parameters<typeof translateUiLiteral>[0]) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat(language === 'km' ? 'km-KH' : 'en-US', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+  }).format(date);
+}
+
+function intakeRequestLabel(intake: AutomationOrderIntake) {
+  return intake.lines
+    .map((line) => {
+      const label = line.resolvedLabel ?? line.requestedLabel;
+      return line.quantity != null ? `${line.quantity} x ${label}` : label;
+    })
+    .join(', ');
+}
+
+function AutomationIntakeChatView({
+  intakes,
+  language,
+  onOpenIntake,
+  onSelectIntake,
+  onSendMessage,
+  routeIntakeId,
+  thread,
+  threadError,
+  threadLoading,
+}: {
+  intakes: AutomationOrderIntake[];
+  language: Parameters<typeof translateUiLiteral>[0];
+  onOpenIntake: (intake: AutomationOrderIntake) => void;
+  onSelectIntake: (intakeId: string) => void;
+  onSendMessage: (intakeId: string, text: string) => Promise<void>;
+  routeIntakeId: string | null;
+  thread: {
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  } | null;
+  threadError: string | null;
+  threadLoading: boolean;
+}) {
+  const literal = (value: string) => translateUiLiteral(language, value);
+  const selectedIntakeId = thread?.intake.intakeId ?? routeIntakeId;
+  const threadEndRef = useRef<HTMLDivElement | null>(null);
+  const [messageDraft, setMessageDraft] = useState('');
+  const [messageError, setMessageError] = useState<string | null>(null);
+  const [sendingMessage, setSendingMessage] = useState(false);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [thread?.intake.intakeId, thread?.messages.length]);
+
+  async function handleSendMessage() {
+    if (!thread) {
+      return;
+    }
+    const text = messageDraft.trim();
+    if (!text) {
+      setMessageError(literal('Enter a message before sending.'));
+      return;
+    }
+    setSendingMessage(true);
+    setMessageError(null);
+    try {
+      await onSendMessage(thread.intake.intakeId, text);
+      setMessageDraft('');
+    } catch (error) {
+      setMessageError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSendingMessage(false);
+    }
+  }
+
+  if (!selectedIntakeId) {
+    return (
+      <div className="grid gap-3">
+        {intakes.length > 0 ? intakes.map((intake) => (
+          <button
+            key={intake.intakeId}
+            className="flex min-w-0 items-center justify-between gap-4 rounded-[1rem] border border-border/60 bg-white px-4 py-3 text-left transition-colors hover:border-primary/50 hover:bg-primary/5"
+            type="button"
+            onClick={() => onSelectIntake(intake.intakeId)}
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-medium text-foreground">{intake.customerDisplayName ?? intake.customerHandle ?? literal('Telegram customer')}</span>
+              <span className="mt-1 block truncate text-sm text-muted-foreground">{intakeRequestLabel(intake)}</span>
+            </span>
+            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(intake.status === 'canceled' ? 'danger' : intake.status === 'ticketed' ? 'success' : intake.status === 'needs_review' ? 'warning' : 'neutral')}`}>
+              {translateUiLiteral(language, intake.status.replaceAll('_', ' '))}
+            </span>
+          </button>
+        )) : (
+          <AutomationEmptyState body={literal('No Telegram intake matches this view.')} title={literal('No Telegram intake')} />
+        )}
+      </div>
+    );
+  }
+
+  if (threadLoading) {
+    return <p className="text-sm text-muted-foreground">{literal('Loading latest Telegram message...')}</p>;
+  }
+
+  if (threadError) {
+    return <p className="rounded-[1rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">{threadError}</p>;
+  }
+
+  if (!thread) {
+    return <AutomationEmptyState body={literal('No intake selected.')} title={literal('No Telegram intake')} />;
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="rounded-[1rem] border border-border/60 bg-white px-4 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <p className="font-semibold text-foreground">{thread.intake.customerDisplayName ?? thread.intake.customerHandle ?? literal('Telegram customer')}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {[thread.intake.customerHandle, thread.intake.phone].filter(Boolean).join(' · ') || literal('No Telegram handle captured')}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-foreground">{intakeRequestLabel(thread.intake)}</p>
+          </div>
+          <Button size="sm" type="button" variant="outline" onClick={() => onOpenIntake(thread.intake)}>
+            <ActionOpenExternalIcon className="size-4" />
+            {literal('Open intake')}
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto rounded-[1rem] border border-border/60 bg-white px-4 py-4">
+        {thread.messages.length > 0 ? thread.messages.map((message) => (
+          <div key={message.messageId} className={`flex ${message.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[min(34rem,84%)] rounded-[1rem] border px-4 py-3 ${message.direction === 'outbound' ? 'border-primary/30 bg-primary/10' : 'border-border/60 bg-secondary/35'}`}>
+              <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{message.rawText}</p>
+              <p className="mt-2 text-[0.72rem] text-muted-foreground">
+                {message.direction === 'outbound' ? literal('Kaur Khor') : (thread.intake.customerHandle ?? literal('Customer'))}
+                {' · '}
+                {messageTimeLabel(message.sentAt, language)}
+              </p>
+            </div>
+          </div>
+        )) : (
+          <AutomationEmptyState body={literal('No Telegram message captured yet.')} title={literal('No linked chat messages')} />
+        )}
+        <div ref={threadEndRef} aria-hidden="true" />
+      </div>
+
+      <div className="rounded-[1rem] border border-border/60 bg-white px-4 py-4">
+        <label className="text-sm font-medium text-foreground" htmlFor="automation-chat-message">
+          {literal('Message customer')}
+        </label>
+        <Textarea
+          className="mt-2 min-h-24 rounded-[1rem] border-border/70 bg-background/60 text-base shadow-inner"
+          id="automation-chat-message"
+          placeholder={literal('Write a Telegram message...')}
+          value={messageDraft}
+          onChange={(event) => setMessageDraft(event.target.value)}
+        />
+        {messageError ? (
+          <p className="mt-2 rounded-[0.875rem] border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {messageError}
+          </p>
+        ) : null}
+        <div className="mt-3 flex justify-end">
+          <Button disabled={sendingMessage || messageDraft.trim().length === 0} type="button" onClick={() => { void handleSendMessage(); }}>
+            <StatusSendIcon className="size-4" />
+            {sendingMessage ? literal('Sending...') : literal('Send message')}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -322,10 +523,11 @@ export function AutomationsRoute({
     isSaving,
     patchExposureRow,
     promoteIntake,
-    readConversation,
+    readIntakeThread,
     reload,
     resolveIntake,
     saveConnection,
+    sendIntakeThreadMessage,
     testTelegramConnection,
     metrics,
   } = useAutomation();
@@ -349,10 +551,26 @@ export function AutomationsRoute({
     intakeId: string;
   } | null>(null);
   const [hasUnlockedAutomationTabs, setHasUnlockedAutomationTabs] = useState(false);
-  const [intakeTab, setIntakeTab] = useState<'intake' | 'exposed'>('intake');
+  const [intakeTab, setIntakeTab] = useState<'intake' | 'chat' | 'exposed'>('intake');
+  const [intakeThread, setIntakeThread] = useState<{
+    conversation: AutomationConversationSummary;
+    intake: AutomationOrderIntake;
+    messages: AutomationMessageRecord[];
+  } | null>(null);
+  const [intakeThreadError, setIntakeThreadError] = useState<string | null>(null);
+  const [intakeThreadLoading, setIntakeThreadLoading] = useState(false);
+  const selectedChatIntakeUpdatedAt = useMemo(() => (
+    routeState.intakeId
+      ? intakes.find((intake) => intake.intakeId === routeState.intakeId)?.updatedAt ?? null
+      : null
+  ), [intakes, routeState.intakeId]);
   const navigationAvailability = useMemo(
     () => deriveNavigationAvailability(inventory),
     [inventory],
+  );
+  const customerTicketOptions = useMemo(
+    () => sortRecordTicketOptionsByRecent(recordTicketOptions(inventory.recordUpdateContext, 'customer', inventory.catalog)),
+    [inventory.catalog, inventory.recordUpdateContext],
   );
   const shouldRedirectHome =
     !forcedSection &&
@@ -370,6 +588,24 @@ export function AutomationsRoute({
   }, [connection?.hasBotToken]);
 
   useEffect(() => {
+    if (forcedSection !== 'intake') {
+      return;
+    }
+    if (routeState.section === 'chat') {
+      setIntakeTab('chat');
+      return;
+    }
+    if (routeState.section === 'catalog') {
+      setIntakeTab('exposed');
+      return;
+    }
+    setIntakeTab('intake');
+  }, [forcedSection, routeState.section]);
+
+  useEffect(() => {
+    if (forcedSection === 'intake') {
+      return;
+    }
     if (!routeState.intakeId) {
       return;
     }
@@ -390,7 +626,39 @@ export function AutomationsRoute({
         intakeId: matchingIntake.intakeId,
       };
     });
-  }, [intakes, routeState.conversationId, routeState.intakeId]);
+  }, [forcedSection, intakes, routeState.conversationId, routeState.intakeId]);
+
+  useEffect(() => {
+    if (forcedSection !== 'intake' || intakeTab !== 'chat' || !routeState.intakeId) {
+      setIntakeThread(null);
+      setIntakeThreadError(null);
+      setIntakeThreadLoading(false);
+      return;
+    }
+    let canceled = false;
+    setIntakeThreadLoading(true);
+    setIntakeThreadError(null);
+    readIntakeThread({ intakeId: routeState.intakeId })
+      .then((thread) => {
+        if (!canceled) {
+          setIntakeThread(thread);
+        }
+      })
+      .catch((threadError) => {
+        if (!canceled) {
+          setIntakeThread(null);
+          setIntakeThreadError(threadError instanceof Error ? threadError.message : String(threadError));
+        }
+      })
+      .finally(() => {
+        if (!canceled) {
+          setIntakeThreadLoading(false);
+        }
+      });
+    return () => {
+      canceled = true;
+    };
+  }, [forcedSection, intakeTab, readIntakeThread, routeState.intakeId, selectedChatIntakeUpdatedAt]);
 
   const workspace = useMemo(() => (
     connection && metrics
@@ -438,6 +706,9 @@ export function AutomationsRoute({
   const visibleIntakeRows = useMemo(() => (model?.intakeRows ?? []).filter((row) => {
     const intake = intakes.find((entry) => entry.intakeId === row.intakeId);
     if (!intake || !matchesIntakeQuery(intake, routeState.q)) {
+      return false;
+    }
+    if (routeState.intakeFilter === 'all' && intake.status === 'canceled') {
       return false;
     }
     if (routeState.intakeFilter !== 'all' && intake.status !== routeState.intakeFilter) {
@@ -617,6 +888,7 @@ export function AutomationsRoute({
   const showSettingsSection = section === 'settings';
   const showCatalogSection = section === 'catalog' || (forcedSection === 'intake' && intakeTab === 'exposed');
   const showIntakeSection = section === 'intake' && (forcedSection !== 'intake' || intakeTab === 'intake');
+  const showChatSection = forcedSection === 'intake' && intakeTab === 'chat';
   const showExceptionsSection = section === 'exceptions';
   const connectionStatus = connection?.status ?? 'disconnected';
   const isDisconnected = connectionStatus === 'disconnected';
@@ -663,6 +935,7 @@ export function AutomationsRoute({
   const issueFilterOptions = [
     { icon: StatusWarningIcon, label: translateUiLiteral(language, 'All issues'), value: 'all' },
     { icon: ActionSearchOffIcon, label: translateUiLiteral(language, 'Item not found'), value: 'item_not_found' },
+    { icon: StatusHelpIcon, label: translateUiLiteral(language, 'Availability unknown'), value: 'availability_unknown' },
     { icon: StatusHelpIcon, label: translateUiLiteral(language, 'Quantity ambiguous'), value: 'quantity_ambiguous' },
     { icon: EntityEvidenceIcon, label: translateUiLiteral(language, 'Parser failed'), value: 'parser_failed' },
   ] satisfies Array<{ icon: IconComponent; label: string; value: ExceptionIssueFilter }>;
@@ -714,6 +987,22 @@ export function AutomationsRoute({
         <StatusSendIcon className="size-4" />
         {translateUiLiteral(language, isBrowserRuntime ? 'Poll Telegram now' : 'Test message')}
       </Button>
+      {forcedSection === 'settings' ? null : (
+        <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
+          <Link to="/settings/automation">
+            <NavigationSettingsIcon className="size-4" />
+            {translateUiLiteral(language, 'Open settings')}
+          </Link>
+        </Button>
+      )}
+      {forcedSection === 'intake' ? null : (
+        <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
+          <Link to="/work/intake">
+            <NavigationAutomationIcon className="size-4" />
+            {translateUiLiteral(language, 'Open intake')}
+          </Link>
+        </Button>
+      )}
       {openBotUrl ? (
         <Button
           className={compactActionButtonClassName}
@@ -769,6 +1058,7 @@ export function AutomationsRoute({
         }
         descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
       >
+        {forcedSection === 'intake' ? <AutomationExperimentalWarning language={language} /> : null}
         {isBrowserRuntime ? (
           <div className="mt-4 rounded-[1rem] border border-amber-300/60 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-950">
             <p className="font-semibold">
@@ -841,7 +1131,13 @@ export function AutomationsRoute({
             value={forcedSection === 'intake' && hasSavedTelegramConfiguration ? intakeTab : section}
             onValueChange={(value) => {
               if (forcedSection === 'intake' && hasSavedTelegramConfiguration) {
-                setIntakeTab(value as 'intake' | 'exposed');
+                const nextTab = value as 'intake' | 'chat' | 'exposed';
+                setIntakeTab(nextTab);
+                updateRouteState({
+                  conversationId: nextTab === 'chat' ? routeState.conversationId : null,
+                  intakeId: nextTab === 'chat' ? routeState.intakeId : null,
+                  section: nextTab === 'exposed' ? 'catalog' : nextTab,
+                });
               } else {
                 updateRouteState({ section: value as typeof automationSectionValues[number] });
               }
@@ -865,8 +1161,8 @@ export function AutomationsRoute({
                   title={translateUiLiteral(language, 'Unavailable sellables are still exposed')}
                   description={
                     unavailableExposedCount === 1
-                      ? translateUiLiteral(language, '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.')
-                      : translateUiLiteral(language, '{count} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.', { count: unavailableExposedCount })
+                      ? translateUiLiteral(language, '1 customer-facing Telegram item is unavailable but still toggled on. Review Products coverage and hide it until it is ready.')
+                      : translateUiLiteral(language, '{count} customer-facing Telegram items are unavailable but still toggled on. Review Products coverage and hide them until they are ready.', { count: unavailableExposedCount })
                   }
                   action={(
                     <Button size="sm" type="button" variant="outline" onClick={() => updateRouteState({ section: 'catalog', exposure: 'exposed' })}>
@@ -887,7 +1183,7 @@ export function AutomationsRoute({
                     {hasRenderableRows(model?.recentActivity) ? <RecentAutomationActivityRail language={language} rows={model?.recentActivity ?? []} onOpenIntake={openIntakeDrawer} /> : null}
                   </OverviewColumn>
 
-                  <OverviewColumn title={translateUiLiteral(language, 'Coverage')} tooltip={translateUiLiteral(language, 'How much of the sellable catalog Telegram can safely offer right now.')}>
+                  <OverviewColumn title={translateUiLiteral(language, 'Coverage')} tooltip={translateUiLiteral(language, 'How much of the sellable products list Telegram can safely offer right now.')}>
                     {hasRenderableRows(model?.coverage) ? <RailRows rows={model?.coverage ?? []} /> : null}
                   </OverviewColumn>
                 </div>
@@ -923,6 +1219,8 @@ export function AutomationsRoute({
 
           {showCatalogSection ? (
             <PerformanceSectionShell
+              className={forcedSection === 'intake' ? 'min-h-full bg-white [background:white]' : undefined}
+              contentClassName={forcedSection === 'intake' ? 'flex min-h-0 flex-1 flex-col bg-white' : undefined}
               descriptor={translateUiLiteral(language, 'Choose exactly which customer-facing SKUs and services the bot may offer.')}
               helpHref="/settings/help#automation-sellables-exposed"
               headerControls={(
@@ -975,6 +1273,8 @@ export function AutomationsRoute({
 
           {showIntakeSection ? (
             <PerformanceSectionShell
+              className={forcedSection === 'intake' ? 'min-h-full bg-white [background:white]' : undefined}
+              contentClassName={forcedSection === 'intake' ? 'flex min-h-0 flex-1 flex-col bg-white' : undefined}
               descriptor={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into Kaur Khor tickets.')}
               helpHref="/settings/help#automation-live-intake"
               headerControls={(
@@ -992,13 +1292,44 @@ export function AutomationsRoute({
               tooltip={translateUiLiteral(language, 'Incoming Telegram requests waiting for review, confirmation, or promotion into Kaur Khor tickets.')}
             >
               {visibleIntakeRows.length > 0 ? (
-                <AutomationIntakeTable language={language} rows={visibleIntakeRows} onOpenIntake={openIntakeDrawer} />
+                <AutomationIntakeTable
+                  language={language}
+                  rows={visibleIntakeRows}
+                  onOpenIntake={openIntakeDrawer}
+                  onViewChat={forcedSection === 'intake' ? (row) => updateRouteState({ intakeId: row.intakeId, section: 'chat' }) : undefined}
+                />
               ) : (
                 <AutomationEmptyState
                   body={translateUiLiteral(language, 'No Telegram intake matches this view.')}
                   title={translateUiLiteral(language, 'No Telegram intake')}
                 />
               )}
+            </PerformanceSectionShell>
+          ) : null}
+
+          {showChatSection ? (
+            <PerformanceSectionShell
+              className="min-h-full bg-white [background:white]"
+              contentClassName="flex min-h-0 flex-1 flex-col bg-white"
+              descriptor={translateUiLiteral(language, 'Review the Telegram messages attached to one specific intake order.')}
+              helpHref="/settings/help#automation-live-intake"
+              title={translateUiLiteral(language, 'Chat')}
+              tooltip={translateUiLiteral(language, 'Review the Telegram messages attached to one specific intake order.')}
+            >
+              <AutomationIntakeChatView
+                intakes={intakes}
+                language={language}
+                routeIntakeId={routeState.intakeId}
+                thread={intakeThread}
+                threadError={intakeThreadError}
+                threadLoading={intakeThreadLoading}
+                onOpenIntake={(intake) => setSelectedIntakeRequest({ conversationId: intake.conversationId, intakeId: intake.intakeId })}
+                onSelectIntake={(intakeId) => updateRouteState({ intakeId, section: 'chat' })}
+                onSendMessage={async (intakeId, text) => {
+                  const threadResult = await sendIntakeThreadMessage({ intakeId, text });
+                  setIntakeThread(threadResult);
+                }}
+              />
             </PerformanceSectionShell>
           ) : null}
 
@@ -1045,15 +1376,18 @@ export function AutomationsRoute({
       </div>
 
       <AutomationIntakeDrawer
-        conversationId={selectedIntakeRequest?.conversationId ?? null}
         intake={selectedIntake}
         isSaving={isSaving}
         language={language}
         open={selectedIntake != null}
         onClose={closeIntakeDrawer}
         onPromote={promoteIntake}
-        onReadConversation={readConversation}
         onResolve={resolveIntake}
+        onViewChat={(intakeId) => {
+          updateRouteState({ intakeId, section: 'chat' });
+          setSelectedIntakeRequest(null);
+        }}
+        ticketOptions={customerTicketOptions}
       />
     </WorkspacePage>
   );

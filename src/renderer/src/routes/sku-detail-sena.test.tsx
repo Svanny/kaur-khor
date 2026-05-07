@@ -892,7 +892,7 @@ describe('SKU detail SENA helpers', () => {
     ).not.toThrow();
   });
 
-  test('builds a lead-time hint payload from typical days and ordinal variability', () => {
+  test('builds an ETA hint payload from typical days and ordinal variability', () => {
     const hint = buildLeadTimeHintFromInputs({
       skuId: 'sku-1',
       typicalLeadTimeDays: '5',

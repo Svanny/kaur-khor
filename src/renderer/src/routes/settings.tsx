@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import {
   ActionDatabaseDownloadIcon,
@@ -83,6 +83,93 @@ const exportActionButtonClassName =
   'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
 const CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN = 'DELETE CURRENT DATA';
 const settingsInterfaceHighlightDelayMs = 500;
+const settingsInterfaceHighlightDurationMs = 1900;
+const settingsInterfaceHighlightTargets = ['help', 'automations'] as const;
+type SettingsInterfaceHighlightTarget = typeof settingsInterfaceHighlightTargets[number];
+
+function readSettingsInterfaceHighlight(search: string): SettingsInterfaceHighlightTarget | null {
+  const value = new URLSearchParams(search).get('highlight');
+  return settingsInterfaceHighlightTargets.find((target) => target === value) ?? null;
+}
+
+function readSettingsInterfaceHashHighlight(hash: string): SettingsInterfaceHighlightTarget | null {
+  const queryStart = hash.indexOf('?');
+  if (queryStart === -1) {
+    return null;
+  }
+
+  return readSettingsInterfaceHighlight(hash.slice(queryStart));
+}
+
+function useSettingsInterfaceHighlight(highlightTarget: SettingsInterfaceHighlightTarget | null, triggerKey: string) {
+  const flashSequenceRef = useRef(0);
+  const [activeHighlight, setActiveHighlight] = useState<{ flashKey: number; target: SettingsInterfaceHighlightTarget } | null>(null);
+
+  useEffect(() => {
+    if (!highlightTarget) {
+      setActiveHighlight(null);
+      return;
+    }
+
+    const target = document.querySelector(`[data-settings-interface-row="${highlightTarget}"]`);
+    if (!target) {
+      setActiveHighlight(null);
+      return;
+    }
+
+    let highlighted = false;
+    let startHighlightId: number | null = null;
+    let clearHighlightId: number | null = null;
+    const startHighlight = () => {
+      if (highlighted) {
+        return;
+      }
+
+      highlighted = true;
+      setActiveHighlight(null);
+      startHighlightId = window.setTimeout(() => {
+        const flashKey = flashSequenceRef.current + 1;
+        flashSequenceRef.current = flashKey;
+        setActiveHighlight({ flashKey, target: highlightTarget });
+        clearHighlightId = window.setTimeout(() => {
+          setActiveHighlight((current) => (current?.target === highlightTarget && current.flashKey === flashKey ? null : current));
+        }, settingsInterfaceHighlightDurationMs);
+      }, 0);
+    };
+
+    target.scrollIntoView({
+      block: 'center',
+      behavior: 'smooth',
+    });
+
+    const fallbackDelayId = window.setTimeout(startHighlight, settingsInterfaceHighlightDelayMs);
+    let observer: IntersectionObserver | null = null;
+
+    if ('IntersectionObserver' in window) {
+      observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          startHighlight();
+          observer?.disconnect();
+        }
+      }, { threshold: 0.2 });
+
+      observer.observe(target);
+    }
+
+    return () => {
+      window.clearTimeout(fallbackDelayId);
+      if (startHighlightId != null) {
+        window.clearTimeout(startHighlightId);
+      }
+      if (clearHighlightId != null) {
+        window.clearTimeout(clearHighlightId);
+      }
+      observer?.disconnect();
+    };
+  }, [highlightTarget, triggerKey]);
+
+  return activeHighlight;
+}
 
 const EXPORT_FORMAT_OPTIONS: Array<{ value: SettingsExportFormat; label: string }> = [
   { value: 'excel', label: 'Excel' },
@@ -760,47 +847,12 @@ function InterfaceVisibilityPage({
   t: TranslateFn;
 }) {
   const location = useLocation();
-  const highlightAutomations = new URLSearchParams(location.search).get('highlight') === 'automations';
-  const [showAutomationsHighlight, setShowAutomationsHighlight] = useState(false);
-
-  useEffect(() => {
-    if (!highlightAutomations) {
-      setShowAutomationsHighlight(false);
-      return;
-    }
-    const target = document.querySelector('[data-settings-interface-row="automations"]');
-    if (!target) {
-      return;
-    }
-
-    setShowAutomationsHighlight(false);
-    target.scrollIntoView({
-      block: 'center',
-      behavior: 'smooth',
-    });
-
-    if ('IntersectionObserver' in window) {
-      const observer = new IntersectionObserver((entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          setShowAutomationsHighlight(true);
-          observer.disconnect();
-        }
-      }, { threshold: 0.2 });
-
-      observer.observe(target);
-      return () => {
-        observer.disconnect();
-      };
-    }
-
-    const delayId = window.setTimeout(() => {
-      setShowAutomationsHighlight(true);
-    }, settingsInterfaceHighlightDelayMs);
-
-    return () => {
-      window.clearTimeout(delayId);
-    };
-  }, [highlightAutomations]);
+  const activeHighlight = useSettingsInterfaceHighlight(
+    readSettingsInterfaceHighlight(location.search) ?? readSettingsInterfaceHashHighlight(window.location.hash),
+    `${location.key}:${window.location.hash}`,
+  );
+  const showHelpHighlight = activeHighlight?.target === 'help';
+  const showAutomationsHighlight = activeHighlight?.target === 'automations';
 
   return (
     <WorkspacePanel>
@@ -824,7 +876,14 @@ function InterfaceVisibilityPage({
           onDisplayViewModeChange={setDisplayViewMode}
         />
         <div className="grid">
-          <div>
+          <AttentionFlash
+            active={showHelpHighlight}
+            data-settings-interface-row="help"
+            data-highlighted={showHelpHighlight ? 'true' : undefined}
+            data-highlight-flash-key={showHelpHighlight ? String(activeHighlight?.flashKey) : undefined}
+            overlayClassName="inset-0"
+            overlayTestId="settings-help-highlight"
+          >
             <CheckboxRow
               checked={showExplanatoryTooltips}
               hint={translateUiLiteral(language, 'Shows optional explanatory labels, helper text, and tooltips. Required field guidance stays visible.')}
@@ -833,7 +892,7 @@ function InterfaceVisibilityPage({
               onCheckedChange={setShowExplanatoryTooltips}
               variant="flat"
             />
-          </div>
+          </AttentionFlash>
         <div className="border-b border-border/60" />
         <div>
           <CheckboxRow
@@ -872,6 +931,7 @@ function InterfaceVisibilityPage({
           active={showAutomationsHighlight}
           data-settings-interface-row="automations"
           data-highlighted={showAutomationsHighlight ? 'true' : undefined}
+          data-highlight-flash-key={showAutomationsHighlight ? String(activeHighlight?.flashKey) : undefined}
           overlayClassName="inset-0"
           overlayTestId="settings-automations-highlight"
         >

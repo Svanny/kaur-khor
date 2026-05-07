@@ -1,3 +1,37 @@
+function padLocalDatePart(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function dateFromInputValue(value: string | Date | null | undefined): Date {
+  if (value instanceof Date) {
+    return value;
+  }
+  if (!value) {
+    return new Date();
+  }
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+}
+
+export function formatLocalDateInputValue(value?: string | Date | null): string {
+  const date = dateFromInputValue(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return [
+    date.getFullYear(),
+    padLocalDatePart(date.getMonth() + 1),
+    padLocalDatePart(date.getDate()),
+  ].join('-');
+}
+
+export function formatLocalDateTimeInputValue(value?: string | Date | null): string {
+  const date = dateFromInputValue(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+  return `${formatLocalDateInputValue(date)}T${padLocalDatePart(date.getHours())}:${padLocalDatePart(date.getMinutes())}`;
+}
+
 export function dateInputValueFromIsoString(value: string | null | undefined): string {
   if (!value) {
     return '';

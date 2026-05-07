@@ -76,6 +76,7 @@ describe('domain icon mappings', () => {
     expect(duplicateNames).toEqual([
       'ClipboardList',
       'ClipboardList',
+      'SearchAlertIcon',
       'Send',
       'Package',
     ]);

@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SenaSkuDetail } from '@shared/sena';
+import type { SenaObservationRecord, SenaRecordUpdateContext, SenaSkuDetail, SenaTicketSummary } from '@shared/sena';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
@@ -186,9 +186,12 @@ const preferenceState = {
 vi.mock('../state/inventory', () => ({
   useInventory: () => inventoryHook(),
   useInventoryActions: () => ({
+    ingestSenaObservation: inventoryHook().ingestSenaObservation,
     loadSenaOrderBatches: inventoryHook().loadSenaOrderBatches,
     loadSenaSkuDetail: inventoryHook().loadSenaSkuDetail,
     loadWorkSupportData: inventoryHook().loadWorkSupportData,
+    runWorkspacePreparation: inventoryHook().runWorkspacePreparation,
+    triggerSenaRun: inventoryHook().triggerSenaRun,
   }),
   useInventoryState: () => inventoryHook(),
 }));
@@ -511,6 +514,153 @@ const detailBySkuId: Record<string, SenaSkuDetail> = {
   },
 };
 
+function recordUpdateContextWithCustomerTickets(tickets: SenaTicketSummary[]): SenaRecordUpdateContext {
+  const latestObservedAt = tickets[0]?.occurredAt ?? null;
+  return {
+    observationFingerprint: {
+      count: tickets.length,
+      latestObservedAt,
+      latestObservationId: tickets.length > 0 ? 'obs-ticket' : null,
+    },
+    latestObservedAt,
+    latestStockBySku: {},
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+    openTicketsByFamily: { customer: tickets.filter((ticket) => ticket.lifecycle === 'open'), supplier: [] },
+    latestTicketsById: Object.fromEntries(
+      tickets.map((ticket) => [
+        ticket.ticketId,
+        {
+          observationId: `obs-${ticket.ticketId}`,
+          observedAt: ticket.occurredAt,
+          value: ticket,
+        },
+      ]),
+    ),
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
+  };
+}
+
+function recordUpdateContextWithSupplierTickets(tickets: SenaTicketSummary[]): SenaRecordUpdateContext {
+  const latestObservedAt = tickets[0]?.occurredAt ?? null;
+  return {
+    observationFingerprint: {
+      count: tickets.length,
+      latestObservedAt,
+      latestObservationId: tickets.length > 0 ? 'obs-ticket' : null,
+    },
+    latestObservedAt,
+    latestStockBySku: {},
+    latestRetailSaleBySku: {},
+    latestServiceSaleByService: {},
+    latestOrderBySku: {},
+    latestReceiptBySku: {},
+    openTicketsByFamily: { customer: [], supplier: tickets.filter((ticket) => ticket.lifecycle === 'open') },
+    latestTicketsById: Object.fromEntries(
+      tickets.map((ticket) => [
+        ticket.ticketId,
+        {
+          observationId: `obs-${ticket.ticketId}`,
+          observedAt: ticket.occurredAt,
+          value: ticket,
+        },
+      ]),
+    ),
+    latestDeliveryFeeByBucket: {},
+    recentActivity: [],
+  };
+}
+
+function supplierTicketForSku({
+  expectedArrivalAt = '2026-04-03T12:00:00.000Z',
+  lifecycle = 'open',
+  skuId,
+  stage = 'ordered_waiting',
+  ticketId,
+}: {
+  expectedArrivalAt?: string | null;
+  lifecycle?: SenaTicketSummary['lifecycle'];
+  skuId: string;
+  stage?: SenaTicketSummary['stage'];
+  ticketId: string;
+}): SenaTicketSummary {
+  return {
+    ticketId,
+    ticketFamily: 'supplier',
+    lifecycle,
+    stage,
+    revision: 2,
+    eventType: lifecycle === 'canceled' ? 'canceled' : 'created',
+    occurredAt: '2026-04-01T09:00:00.000Z',
+    nextTouchAt: expectedArrivalAt,
+    party: {
+      role: 'supplier',
+      supplierName: null,
+    },
+    lines: [
+      {
+        entityType: 'sku',
+        entityId: skuId,
+        orderedQuantity: lifecycle === 'canceled' ? null : 8,
+        receivedQuantity: null,
+        expectedArrivalAt,
+      },
+    ],
+    note: null,
+  };
+}
+
+function customerTicketFixture(overrides: Partial<SenaTicketSummary> = {}): SenaTicketSummary {
+  return {
+    ticketId: 'ticket-customer-1',
+    ticketFamily: 'customer',
+    lifecycle: 'open',
+    stage: 'pending',
+    revision: 2,
+    eventType: 'created',
+    occurredAt: '2026-04-01T09:00:00.000Z',
+    nextTouchAt: '2026-04-04T09:00:00.000Z',
+    party: {
+      role: 'customer',
+      channelKey: 'instagram',
+      channelLabel: 'Instagram',
+      customerName: 'Dara',
+      phone: '+85512345678',
+      location: 'Phnom Penh',
+    },
+    lines: [
+      {
+        entityType: 'service',
+        entityId: 'service-1',
+        quantityDelta: 1,
+        expectedArrivalAt: '2026-04-05T09:00:00.000Z',
+      },
+    ],
+    deliveryFee: {
+      feeUsd: 1,
+      payer: 'customer',
+      bucket: 'customer_order',
+      subtotalUsd: 12,
+      displayDeliveryUsd: 1,
+      displayTotalUsd: 13,
+      netSettlementUsd: 13,
+    },
+    discount: {
+      mode: 'percent',
+      amountUsd: null,
+      percent: 10,
+      subtotalUsd: 12,
+      displayDiscountUsd: 1.2,
+      discountedSubtotalUsd: 10.8,
+    },
+    note: 'Prefers evening pickup',
+    ...overrides,
+  };
+}
+
 function renderRoute() {
   return render(
     <MemoryRouter>
@@ -581,6 +731,7 @@ describe('DashboardRoute', () => {
       loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
       loadWorkSupportData: vi.fn(async () => null),
       ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
       isSaving: false,
     });
@@ -591,6 +742,7 @@ describe('DashboardRoute', () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -606,12 +758,18 @@ describe('DashboardRoute', () => {
     expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
     expect(within(scopeToggle).queryByRole('radio', { name: 'All' })).toBeNull();
+    expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
+    expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
+
+    await user.click(within(scopeToggle).getByRole('radio', { name: 'Supplier' }));
+
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Awaiting receipt' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
     expect(screen.getAllByRole('button', { name: 'Record Supplier order' }).length).toBeGreaterThan(0);
     expect(screen.getByText('Rec. 15u · likely 78%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Update ETA' }).querySelector('.lucide-calendar-clock')).not.toBeNull();
+    expect(screen.getByText(/^Ordered Apr 1/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
     expect(screen.getByText('Cotton pads')).toBeInTheDocument();
     await waitFor(() => {
@@ -634,6 +792,55 @@ describe('DashboardRoute', () => {
       expect(screen.queryAllByRole('button', { name: 'Update ETA' })).toHaveLength(0);
       expect(screen.getByRole('button', { name: 'Receive' })).toBeInTheDocument();
     });
+  });
+
+  test('shows canceled supplier tickets instead of the never-ordered state', async () => {
+    const canceledTicket: SenaTicketSummary = {
+      ticketId: 'ticket-supplier-canceled',
+      ticketFamily: 'supplier',
+      lifecycle: 'canceled',
+      stage: 'to_order',
+      revision: 2,
+      eventType: 'canceled',
+      occurredAt: '2026-04-03T09:00:00.000Z',
+      nextTouchAt: null,
+      party: {
+        role: 'supplier',
+        supplierName: null,
+      },
+      lines: [
+        {
+          entityType: 'sku',
+          entityId: 'sku-1',
+          orderedQuantity: null,
+          receivedQuantity: null,
+          expectedArrivalAt: null,
+        },
+      ],
+      note: 'Supplier canceled the order.',
+    };
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([canceledTicket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=supplier');
+
+    expect(await screen.findByText('Supplier Ticket ID: 2026-04-03-#1')).toBeInTheDocument();
+    const canceledRow = Array.from(document.querySelectorAll('[data-slot="overview-task-row"]'))
+      .find((row) => row.textContent?.includes('Supplier Ticket ID: 2026-04-03-#1'));
+    expect(canceledRow).toHaveTextContent('Order canceled');
+    expect(canceledRow).not.toHaveTextContent('Not ordered yet');
+
+    expect(within(canceledRow as HTMLElement).getByRole('button', { name: 'Review ticket' })).toBeInTheDocument();
   });
 
   test('requests Work support data on cold queue entry', async () => {
@@ -694,7 +901,7 @@ describe('DashboardRoute', () => {
   });
 
   test.skip('prefills the drawer order quantity from the reorder recommendation', async () => {
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
@@ -711,7 +918,7 @@ describe('DashboardRoute', () => {
   });
 
   test.skip('asks before closing a dirty overview task drawer', async () => {
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
@@ -764,7 +971,7 @@ describe('DashboardRoute', () => {
       isSaving: false,
     });
 
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     await user.click(screen.getByRole('tab', { name: 'To order' }));
 
@@ -801,7 +1008,7 @@ describe('DashboardRoute', () => {
       isSaving: false,
     });
 
-    const { container } = renderRoute();
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
 
     await user.click(screen.getByRole('tab', { name: 'To order' }));
 
@@ -811,19 +1018,16 @@ describe('DashboardRoute', () => {
 
   test('switches between customer and supplier ticket families', async () => {
     renderRoute();
-    await waitFor(() => {
-      expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalled();
-    });
 
-    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: 'Customer' }));
-
+    expect(screen.getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
     expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Filter by supplier' })).not.toBeInTheDocument();
     expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
+    await waitFor(() => {
+      expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalled();
+    });
 
     expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filter by supplier' })).toBeInTheDocument();
@@ -875,15 +1079,307 @@ describe('DashboardRoute', () => {
       ],
     });
 
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     await user.click(screen.getByRole('radio', { name: 'Customer' }));
     await user.type(screen.getByPlaceholderText('Search name or description…'), 'dara');
 
     await waitFor(() => {
-      expect(screen.getByText('Dara')).toBeInTheDocument();
+      expect(screen.getAllByText('Dara').length).toBeGreaterThan(0);
       expect(screen.queryByText('Malis')).not.toBeInTheDocument();
     });
+  });
+
+  test('opens customer completion rows in the queue drawer instead of the capture prompt', async () => {
+    const user = userEvent.setup();
+    freezeDate(new realDate(2026, 3, 9, 16, 44).toISOString());
+    const triggerRun = deferred<{ runId: string }>();
+    const runWorkspacePreparation = vi.fn(async (task) => task());
+    const initialObservations: SenaObservationRecord[] = [
+      ...sampleObservations,
+      {
+        observationId: 'obs-customer-pending',
+        ownerSub: 'desktop-owner',
+        input: {
+          observedAt: '2026-04-03T09:00:00.000Z',
+          stockSnapshot: [
+            {
+              skuId: 'sku-1',
+              unitsInStock: 10,
+              costPerUnit: 4,
+              productPrice: 9,
+            },
+          ],
+          serviceRankings: [],
+          retailRankings: [],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [],
+          servicePrices: [],
+          retailPrices: [],
+          leadTimeHints: [],
+          commercialEvents: [
+            {
+              party: 'customer',
+              entityType: 'service',
+              entityId: 'service-1',
+              stage: 'pending',
+              quantityDelta: 1,
+              flow: 'scheduled',
+              reason: 'new_pending',
+              note: null,
+            },
+          ],
+          notes: null,
+        },
+      },
+    ];
+    let completionObservation: (typeof initialObservations)[number] | null = null;
+    let currentInventory = {
+      catalog: sampleCatalog,
+      observations: initialObservations,
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => {
+        completionObservation = {
+          observationId: 'obs-customer-completed',
+          ownerSub: 'desktop-owner',
+          input: payload,
+        };
+        return completionObservation;
+      }),
+      runWorkspacePreparation,
+      triggerSenaRun: vi.fn(() =>
+        triggerRun.promise.then((run) => {
+          currentInventory = {
+            ...currentInventory,
+            observations: completionObservation ? [completionObservation, ...initialObservations] : initialObservations,
+          };
+          return run;
+        }),
+      ),
+      isSaving: false,
+    };
+    inventoryHook.mockImplementation(() => currentInventory);
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    expect((await screen.findAllByText('Haircut')).length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-customer-task-id="customer:service:service-1"]')).not.toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Mark completed' }));
+
+    expect(await screen.findByRole('heading', { name: 'Haircut' })).toBeInTheDocument();
+    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    expect(within(dialog).getByLabelText('Completed date and time')).toHaveValue('2026-04-09T16:44');
+    expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?customerTask=customer%3Aservice%3Aservice-1');
+
+    await user.click(within(dialog).getByRole('button', { name: 'Mark completed' }));
+
+    await waitFor(() => {
+      expect(currentInventory.ingestSenaObservation).toHaveBeenCalled();
+    });
+    expect(document.querySelector('[data-slot="loading-more-intervals"]')).not.toBeNull();
+    expect(screen.getByText('Saving...')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+    expect(runWorkspacePreparation).not.toHaveBeenCalled();
+    expect(currentInventory.ingestSenaObservation.mock.calls[0]![0]).toMatchObject({
+      commercialEvents: [
+        {
+          party: 'customer',
+          entityType: 'service',
+          entityId: 'service-1',
+          stage: 'pending',
+          quantityDelta: -1,
+          flow: 'scheduled',
+          reason: 'from_pending',
+        },
+        {
+          party: 'customer',
+          entityType: 'service',
+          entityId: 'service-1',
+          stage: 'realized',
+          quantityDelta: 1,
+          flow: 'scheduled',
+          reason: 'from_pending',
+        },
+      ],
+      serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 1 }],
+    });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+
+    act(() => {
+      triggerRun.resolve({ runId: 'run-2' });
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="loading-more-intervals"]')).toBeNull();
+      expect(document.querySelector('[data-customer-task-id="customer:service:service-1"]')).toBeNull();
+    });
+  });
+
+  test('opens customer ticket identity in the quick drawer and fulfills the selected ticket', async () => {
+    const user = userEvent.setup();
+    const triggerRun = deferred<{ runId: string }>();
+    const runWorkspacePreparation = vi.fn(async (task) => task());
+    const ticket = customerTicketFixture();
+    let currentInventory = {
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation,
+      triggerSenaRun: vi.fn(() =>
+        triggerRun.promise.then((run) => {
+          currentInventory = {
+            ...currentInventory,
+            recordUpdateContext: recordUpdateContextWithCustomerTickets([{
+              ...ticket,
+              lifecycle: 'resolved',
+              stage: 'fulfilled_immediate',
+              eventType: 'fulfilled_immediate',
+              occurredAt: '2026-04-03T12:00:00.000Z',
+              revision: 3,
+            }]),
+          };
+          return run;
+        }),
+      ),
+      isSaving: false,
+    };
+    inventoryHook.mockImplementation(() => currentInventory);
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    expect(await screen.findByText('Customer work')).toBeInTheDocument();
+    expect(screen.getAllByText('Contact').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Request').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Why now')).not.toBeInTheDocument();
+    expect(screen.queryByText('Open / today')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Dara').length).toBeGreaterThan(0);
+    expect(screen.getByText(/Instagram/)).toBeInTheDocument();
+    expect(screen.getByText(/Phnom Penh/)).toBeInTheDocument();
+    expect(screen.getAllByText(/1 x Haircut/).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' }));
+
+    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    expect(await within(dialog).findByRole('heading', { name: 'Customer Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
+    expect(within(dialog).getByText('Prefers evening pickup')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Quantity completed')).toBeNull();
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=customer');
+    expect(within(dialog).getByRole('link', { name: 'Edit in Capture' })).toHaveAttribute(
+      'href',
+      '/work/capture/customer-order?ticketMode=edit&ticketId=ticket-customer-1',
+    );
+
+    await user.click(within(dialog).getByRole('button', { name: 'Mark fulfilled' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save quick update' }));
+
+    await waitFor(() => {
+      expect(currentInventory.ingestSenaObservation).toHaveBeenCalled();
+    });
+    expect(document.querySelector('[data-slot="loading-more-intervals"]')).not.toBeNull();
+    expect(screen.getByText('Saving...')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+    expect(runWorkspacePreparation).not.toHaveBeenCalled();
+    expect(currentInventory.ingestSenaObservation.mock.calls[0]![0]).toMatchObject({
+      commercialEvents: [
+        {
+          party: 'customer',
+          entityType: 'service',
+          entityId: 'service-1',
+          stage: 'pending',
+          quantityDelta: -1,
+          flow: 'scheduled',
+          reason: 'from_pending',
+        },
+        {
+          party: 'customer',
+          entityType: 'service',
+          entityId: 'service-1',
+          stage: 'realized',
+          quantityDelta: 1,
+          flow: 'scheduled',
+          reason: 'from_pending',
+        },
+      ],
+      serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 1 }],
+      ticketEvents: [
+        {
+          ticketId: 'ticket-customer-1',
+          ticketFamily: 'customer',
+          lifecycle: 'resolved',
+          stage: 'fulfilled_immediate',
+          revision: 3,
+          eventType: 'fulfilled_immediate',
+          party: ticket.party,
+          lines: ticket.lines,
+          deliveryFee: ticket.deliveryFee,
+          discount: ticket.discount,
+        },
+      ],
+    });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+
+    act(() => {
+      triggerRun.resolve({ runId: 'run-2' });
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="loading-more-intervals"]')).toBeNull();
+      expect(document.querySelector('[data-customer-task-id="customer:ticket:ticket-customer-1"]')).toBeNull();
+    });
+  });
+
+  test('opens customer ticket review actions in the queue drawer', async () => {
+    const user = userEvent.setup();
+    const ticket = customerTicketFixture({
+      lines: [
+        { entityType: 'service', entityId: 'service-1', quantityDelta: 1 },
+        { entityType: 'service', entityId: 'service-2', quantityDelta: 1 },
+        { entityType: 'sku', entityId: 'sku-4', quantityDelta: 1 },
+      ],
+    });
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    const ticketButton = await screen.findByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' });
+    const ticketRow = ticketButton.closest('[data-customer-task-id]') as HTMLElement;
+    const reviewButton = within(ticketRow).getByRole('button', { name: 'Review' });
+    expect(reviewButton.querySelector('circle[cx="11"][cy="11"][r="8"]')).not.toBeNull();
+    expect(reviewButton.querySelector('path[d="M11 7v4"]')).not.toBeNull();
+    await user.click(reviewButton);
+
+    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    expect(await within(dialog).findByRole('heading', { name: 'Customer Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
+    expect(within(dialog).getByText('1 x Haircut, 1 x Coloring +1 more')).toBeInTheDocument();
+    expect(within(dialog).getByText('ETA')).toBeInTheDocument();
+    expect(within(dialog).getByText('Next touch 4/4/2026')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Follow up' }).querySelector('.lucide-clipboard-clock')).not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Cancel ticket' }).querySelector('.lucide-x')).not.toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Mark fulfilled' }).querySelector('.lucide-check')).not.toBeNull();
+    expect(dialog).toHaveClass('overflow-hidden');
+    expect(dialog.querySelector('[data-slot="customer-queue-drawer-scroll"]')).toHaveClass('overflow-y-auto');
+    expect(dialog.querySelector('[data-slot="customer-queue-drawer-footer"]')).toHaveClass('shrink-0');
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=customer');
+    expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
   });
 
   test('deep-links into customer workflow and highlights a Telegram intake task', async () => {
@@ -929,11 +1425,11 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
       expect(screen.getByRole('tab', { name: 'Quoted' })).toHaveAttribute('data-state', 'active');
-      expect(screen.getByText('Dara')).toBeInTheDocument();
+      expect(screen.getAllByText('Dara').length).toBeGreaterThan(0);
     });
 
     const highlightedRow = document.querySelector('[data-customer-task-id="automation:intake:intake-1"]');
-    expect(highlightedRow?.className).toContain('ring-emerald-300');
+    expect(highlightedRow?.className).not.toContain('ring-emerald-300');
     expect(screen.getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
     expect(screen.getByTestId('route-location')).toHaveTextContent(
       '/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
@@ -1003,7 +1499,7 @@ describe('DashboardRoute', () => {
     renderRouteWithLocation('/?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
 
     await waitFor(() => {
-      expect(screen.getByText('Dara')).toBeInTheDocument();
+      expect(screen.getAllByText('Dara').length).toBeGreaterThan(0);
     });
 
     await user.click(screen.getByRole('button', { name: 'Open intake' }));
@@ -1043,7 +1539,7 @@ describe('DashboardRoute', () => {
       isSaving: false,
     });
 
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     await waitFor(() => {
       expect(loadSenaSkuDetail).toHaveBeenCalledTimes(2);
@@ -1078,20 +1574,26 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('button', { name: 'Receive' })).not.toBeInTheDocument();
   });
 
-  test('opens overview task actions without the legacy batch prompt', async () => {
-    renderRoute();
+  test('opens supplier SKU actions in the quick-update drawer instead of the batch prompt', async () => {
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
 
     await act(async () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
     });
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+    });
+    expect(screen.getByRole('heading', { name: 'Supplier order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'overviewDrawerSubmitDefault' })).toBeInTheDocument();
     expect(savePreferencesMock).not.toHaveBeenCalled();
   });
 
   test('navigates to the SKU detail page when clicking an overview item', async () => {
     const user = userEvent.setup();
-    renderRouteWithLocation();
+    renderRouteWithLocation('/?workflow=supplier');
 
     await user.click(screen.getByRole('link', { name: /Razor refill/i }));
 
@@ -1104,58 +1606,247 @@ describe('DashboardRoute', () => {
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
       observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([
+        supplierTicketForSku({ skuId: 'sku-3', ticketId: 'ticket-supplier-ready', stage: 'ordered_waiting' }),
+      ]),
       workspaceSummary: sampleWorkspaceSummary,
       loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
       isSaving: false,
     });
 
-    const { container } = renderRouteWithLocation();
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
+
+    fireEvent.click(screen.getByRole('button', { name: /Supplier Ticket ID:/ }));
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+    });
+  });
+
+  test('opens supplier ticket action buttons in the quick-update drawer', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([
+        supplierTicketForSku({ skuId: 'sku-3', ticketId: 'ticket-supplier-ready', stage: 'ordered_waiting' }),
+      ]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      isSaving: false,
+    });
+
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
 
     fireEvent.click(screen.getByRole('button', { name: 'Receive' }));
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
     });
+    expect(screen.getByRole('heading', { name: 'Supplier Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'overviewDrawerSubmitGoodsReceived' })).toBeInTheDocument();
+  });
+
+  test('opens observation-backed supplier ticket actions without the batch prompt', async () => {
+    const ticket = supplierTicketForSku({ skuId: 'sku-3', ticketId: 'ticket-supplier-observation', stage: 'ordered_waiting' });
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: [{
+        observationId: 'obs-ticket-supplier-observation',
+        ownerSub: 'desktop-owner',
+        input: {
+          observedAt: '2026-04-01T09:00:00.000Z',
+          stockSnapshot: [],
+          serviceRankings: [],
+          retailRankings: [],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [{
+            skuId: 'sku-3',
+            orderPlaced: true,
+            receiptArrived: false,
+            approximateOrderQuantity: 8,
+            approximateReceiptQuantity: null,
+          }],
+          servicePrices: [],
+          retailPrices: [],
+          leadTimeHints: [],
+          ticketEvents: [ticket],
+          notes: null,
+        },
+      }],
+      recordUpdateContext: null,
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      isSaving: false,
+    });
+
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Update ETA' }));
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+    });
+    expect(screen.getByRole('heading', { name: 'Supplier Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
+  });
+
+  test('renders shared supplier ticket SKU rows as one queue row', async () => {
+    const ticket: SenaTicketSummary = {
+      ...supplierTicketForSku({ skuId: 'sku-2', ticketId: 'ticket-supplier-shared', stage: 'ordered_waiting' }),
+      lines: [
+        { entityType: 'sku', entityId: 'sku-2', orderedQuantity: 18, receivedQuantity: null, expectedArrivalAt: '2026-04-03T12:00:00.000Z' },
+        { entityType: 'sku', entityId: 'sku-3', orderedQuantity: 24, receivedQuantity: null, expectedArrivalAt: '2026-04-03T12:00:00.000Z' },
+      ],
+    };
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=supplier');
+
+    expect(await screen.findByRole('button', { name: /Supplier Ticket ID: 2026-04-01-#1/i })).toBeInTheDocument();
+    const rows = Array.from(document.querySelectorAll('[data-slot="overview-task-row"]'));
+    const ticketRows = rows.filter((row) => row.textContent?.includes('Supplier Ticket ID: 2026-04-01-#1'));
+    expect(ticketRows).toHaveLength(1);
+    expect(ticketRows[0]).toHaveTextContent('2 SKUs');
+  });
+
+  test('opens grouped supplier ticket row actions in the quick-update drawer', async () => {
+    const ticket: SenaTicketSummary = {
+      ...supplierTicketForSku({ skuId: 'sku-2', ticketId: 'ticket-supplier-shared', stage: 'ordered_waiting' }),
+      lines: [
+        { entityType: 'sku', entityId: 'sku-2', orderedQuantity: 18, receivedQuantity: null, expectedArrivalAt: '2026-04-03T12:00:00.000Z' },
+        { entityType: 'sku', entityId: 'sku-3', orderedQuantity: 24, receivedQuantity: null, expectedArrivalAt: '2026-04-03T12:00:00.000Z' },
+      ],
+    };
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      isSaving: false,
+    });
+
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Receive' }));
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
+    });
+    expect(screen.getByRole('heading', { name: 'Supplier Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
   });
 
   test('opens supplier task deep-links before clearing task route state', async () => {
-    const { container } = renderRouteWithLocation('/?task=sku-1&taskMode=not_ordered');
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([
+        supplierTicketForSku({ skuId: 'sku-3', ticketId: 'ticket-supplier-ready', stage: 'ordered_waiting' }),
+      ]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      isSaving: false,
+    });
+    const { container } = renderRouteWithLocation('/?workflow=supplier&task=supplier-ticket%3Aticket-supplier-ready&taskMode=goods_received');
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
     });
 
-    expect(screen.getByTestId('route-location')).toHaveTextContent('/?task=sku-1&taskMode=not_ordered');
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier&task=supplier-ticket%3Aticket-supplier-ready&taskMode=goods_received');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
     });
   });
 
-  test('ignores legacy grouped batch preferences without writing popup state to the route', async () => {
+  test('opens supplier queue actions in the drawer despite a saved batch preference', async () => {
     preferenceState.taskBatchUpdatePreferences = {
       ...preferenceState.taskBatchUpdatePreferences,
       logOrder: 'always_batch',
     };
 
-    const { container } = renderRouteWithLocation();
+    const { container } = renderRouteWithLocation('/?workflow=supplier');
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Record Supplier order' }))[0]!);
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
+    });
+    expect(screen.getByRole('heading', { name: 'Supplier order' })).toBeInTheDocument();
+    expect(savePreferencesMock).not.toHaveBeenCalled();
+  });
+
+  test('shows the shared saving island while supplier queue saves refresh', async () => {
+    const user = userEvent.setup();
+    const triggerRun = deferred<{ runId: string }>();
+    const runWorkspacePreparation = vi.fn(async (task) => task());
+    const ticket = supplierTicketForSku({ skuId: 'sku-3', ticketId: 'ticket-supplier-ready', stage: 'ordered_waiting' });
+    const currentInventory = {
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation,
+      triggerSenaRun: vi.fn(() => triggerRun.promise),
+      isSaving: false,
+    };
+    inventoryHook.mockReturnValue(currentInventory);
+
+    const { container } = renderRouteWithLocation('/?workflow=supplier&filter=ready_to_receive');
+
+    await user.click(await screen.findByRole('button', { name: 'Receive' }));
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
+    });
+
+    await user.click(await screen.findByRole('button', { name: 'overviewDrawerSubmitGoodsReceived' }));
+
+    await waitFor(() => {
+      expect(currentInventory.ingestSenaObservation).toHaveBeenCalled();
+    });
+    expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
+    expect(document.querySelector('[data-slot="loading-more-intervals"]')).not.toBeNull();
+    expect(screen.getByText('Saving...')).toBeInTheDocument();
+    expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+    expect(runWorkspacePreparation).not.toHaveBeenCalled();
+
+    act(() => {
+      triggerRun.resolve({ runId: 'run-2' });
+    });
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-slot="loading-more-intervals"]')).toBeNull();
     });
   });
 
   test('hides the overview right rail when the global toggle is off', async () => {
     preferenceState.showRightRailCards = false;
 
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Today' })).not.toBeInTheDocument();
@@ -1164,10 +1855,10 @@ describe('DashboardRoute', () => {
     expect(screen.queryByRole('heading', { level: 2, name: 'Business signals' })).not.toBeInTheDocument();
   });
 
-  test('hides the overview tabs and defaults to the supplier queue when tab view is disabled', async () => {
+  test('hides the overview tabs and keeps explicit supplier queue when tab view is disabled', async () => {
     preferenceState.showOverviewTaskTabs = false;
 
-    renderRouteWithLocation('/?filter=ready_to_receive');
+    renderRouteWithLocation('/?workflow=supplier&filter=ready_to_receive');
 
     expect(await screen.findByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Awaiting receipt' })).not.toBeInTheDocument();
@@ -1188,14 +1879,14 @@ describe('DashboardRoute', () => {
 
     renderRouteWithOptionalHelp(false);
 
-    expect(await screen.findByText('Work needs the catalog first')).toBeInTheDocument();
-    expect(screen.queryByText('Create the first SKU or service so Kaur Khor can build an action list from real catalog work.')).not.toBeInTheDocument();
+    expect(await screen.findByText('Work needs products first')).toBeInTheDocument();
+    expect(screen.queryByText('Create the first SKU or service so Kaur Khor can build an action list from real products work.')).not.toBeInTheDocument();
   });
 
   test('hides overview task queue helper copy when optional help is disabled', async () => {
     preferenceState.showExplanatoryTooltips = false;
 
-    renderRoute();
+    renderRouteWithLocation('/?workflow=supplier');
 
     expect(await screen.findByText('Razor refill')).toBeInTheDocument();
     expect(screen.getAllByText('Order now').length).toBeGreaterThan(0);

@@ -47,7 +47,14 @@ vi.mock('./automations/exposure-table', () => ({
 }));
 
 vi.mock('./automations/intake-table', () => ({
-  AutomationIntakeTable: () => <div>Intake table</div>,
+  AutomationIntakeTable: ({ rows }: { rows: Array<{ intakeId: string; customerLabel: string }> }) => (
+    <div>
+      <div>Intake table</div>
+      {rows.map((row) => (
+        <div key={row.intakeId} data-testid={`intake-row-${row.intakeId}`}>{row.customerLabel}</div>
+      ))}
+    </div>
+  ),
 }));
 
 vi.mock('./automations/exception-table', () => ({
@@ -125,6 +132,8 @@ function makeAutomationState(hasBotToken: boolean, overrides: Partial<Automation
     saveConnection: vi.fn(),
     patchExposureRow: vi.fn(),
     readConversation: vi.fn(),
+    readIntakeThread: vi.fn(),
+    sendIntakeThreadMessage: vi.fn(),
     listIntakes: vi.fn(),
     readIntake: vi.fn(),
     resolveIntake: vi.fn(),
@@ -173,6 +182,7 @@ function makeIntake(overrides: Partial<AutomationOrderIntake> = {}): AutomationO
 describe('AutomationsRoute', () => {
   beforeEach(() => {
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+    Element.prototype.scrollIntoView = vi.fn();
     Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
       value: {
@@ -313,6 +323,405 @@ describe('AutomationsRoute', () => {
     expect(screen.getByText('Intake drawer for intake-1')).toBeInTheDocument();
   });
 
+  it('excludes canceled intake rows from the default all filter while keeping the canceled filter explicit', () => {
+    const activeIntake = makeIntake({
+      intakeId: 'intake-active',
+      conversationId: 'conv-active',
+      customerDisplayName: 'Active customer',
+      status: 'quoted',
+    });
+    const canceledIntake = makeIntake({
+      intakeId: 'intake-canceled',
+      conversationId: 'conv-canceled',
+      customerDisplayName: 'Canceled customer',
+      status: 'canceled',
+    });
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [activeIntake, canceledIntake],
+    }));
+    deriveAutomationViewModel.mockReturnValue({
+      ribbon: [],
+      today: [],
+      recentActivity: [],
+      coverage: [],
+      intakeRows: [
+        {
+          intakeId: 'intake-active',
+          conversationId: 'conv-active',
+          customerLabel: 'Active customer',
+          customerMeta: null,
+          requestLabel: '1 scarf',
+          quoteLabel: '$12.00',
+          statusLabel: 'Quoted',
+          statusTone: 'info',
+          createdLabel: 'Created now',
+          actionLabel: 'Open intake',
+          href: '#',
+          ticketHref: null,
+          overviewHref: '#',
+        },
+        {
+          intakeId: 'intake-canceled',
+          conversationId: 'conv-canceled',
+          customerLabel: 'Canceled customer',
+          customerMeta: null,
+          requestLabel: '1 scarf',
+          quoteLabel: '$12.00',
+          statusLabel: 'Canceled',
+          statusTone: 'neutral',
+          createdLabel: 'Created now',
+          actionLabel: 'Open intake',
+          href: '#',
+          ticketHref: null,
+          overviewHref: '#',
+        },
+      ],
+      exceptionRows: [],
+    });
+
+    const renderedAll = renderForcedIntake('/work/intake?section=intake');
+
+    expect(screen.getByTestId('intake-row-intake-active')).toBeInTheDocument();
+    expect(screen.queryByTestId('intake-row-intake-canceled')).not.toBeInTheDocument();
+
+    renderedAll.unmount();
+    renderForcedIntake('/work/intake?section=intake&filter=canceled');
+
+    expect(screen.queryByTestId('intake-row-intake-active')).not.toBeInTheDocument();
+    expect(screen.getByTestId('intake-row-intake-canceled')).toBeInTheDocument();
+  });
+
+  it('renders the Work intake chat tab for one selected intake thread', async () => {
+    const intake = makeIntake();
+    const readIntakeThread = vi.fn(async () => ({
+      conversation: {
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'telegram-chat-1',
+        customerDisplayName: 'Ada',
+        customerHandle: '@ada',
+        phone: '+85512345678',
+        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        messageCount: 2,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      },
+      intake,
+      messages: [
+        {
+          messageId: 'msg-in',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-21T00:00:00.000Z',
+          rawText: '1 scarf',
+          normalizedText: '1 scarf',
+          parseConfidence: 'high',
+        },
+        {
+          messageId: 'msg-out',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '2',
+          direction: 'outbound',
+          sentAt: '2026-04-21T00:01:00.000Z',
+          rawText: 'Your order has been approved.',
+          normalizedText: null,
+          parseConfidence: null,
+        },
+      ],
+    }));
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [intake],
+      readIntakeThread,
+    }));
+
+    renderForcedIntake('/work/intake?section=chat&intake=intake-1');
+
+    expect(await screen.findByRole('tab', { name: /Chat/i })).toBeInTheDocument();
+    expect(await screen.findByText('1 scarf')).toBeInTheDocument();
+    expect(screen.getByText('Your order has been approved.')).toBeInTheDocument();
+    expect(readIntakeThread).toHaveBeenCalledWith({ intakeId: 'intake-1' });
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'end' });
+    expect(screen.queryByRole('dialog', { name: 'Ada intake drawer' })).not.toBeInTheDocument();
+  });
+
+  it('refreshes an open Work intake chat thread when the selected intake updates', async () => {
+    const intake = makeIntake();
+    const updatedIntake = makeIntake({
+      parseConfidence: 'low',
+      status: 'needs_review',
+      updatedAt: '2026-04-21T00:02:00.000Z',
+    });
+    const readIntakeThread = vi
+      .fn()
+      .mockResolvedValueOnce({
+        conversation: {
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          externalConversationKey: 'telegram-chat-1',
+          customerDisplayName: 'Ada',
+          customerHandle: '@ada',
+          phone: '+85512345678',
+          lastMessageAt: '2026-04-21T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: 'new',
+          latestTicketId: null,
+        },
+        intake,
+        messages: [
+          {
+            messageId: 'msg-in',
+            conversationId: 'conv-1',
+            intakeId: 'intake-1',
+            externalMessageKey: '1',
+            direction: 'inbound',
+            sentAt: '2026-04-21T00:00:00.000Z',
+            rawText: '1 scarf',
+            normalizedText: '1 scarf',
+            parseConfidence: 'high',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        conversation: {
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          externalConversationKey: 'telegram-chat-1',
+          customerDisplayName: 'Ada',
+          customerHandle: '@ada',
+          phone: '+85512345678',
+          lastMessageAt: '2026-04-21T00:02:00.000Z',
+          messageCount: 2,
+          latestIntakeStatus: 'needs_review',
+          latestTicketId: null,
+        },
+        intake: updatedIntake,
+        messages: [
+          {
+            messageId: 'msg-in',
+            conversationId: 'conv-1',
+            intakeId: 'intake-1',
+            externalMessageKey: '1',
+            direction: 'inbound',
+            sentAt: '2026-04-21T00:00:00.000Z',
+            rawText: '1 scarf',
+            normalizedText: '1 scarf',
+            parseConfidence: 'high',
+          },
+          {
+            messageId: 'msg-follow-up',
+            conversationId: 'conv-1',
+            intakeId: 'intake-1',
+            externalMessageKey: '2',
+            direction: 'inbound',
+            sentAt: '2026-04-21T00:02:00.000Z',
+            rawText: 'Hi?',
+            normalizedText: 'hi?',
+            parseConfidence: 'low',
+          },
+        ],
+      });
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [intake],
+      readIntakeThread,
+    }));
+
+    const rendered = renderForcedIntake('/work/intake?section=chat&intake=intake-1');
+
+    expect(await screen.findByText('1 scarf')).toBeInTheDocument();
+    await waitFor(() => expect(readIntakeThread).toHaveBeenCalledTimes(1));
+
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [updatedIntake],
+      readIntakeThread,
+    }));
+    rendered.rerender(
+      <MemoryRouter initialEntries={['/work/intake?section=chat&intake=intake-1']}>
+        <AutomationsRoute forcedSection="intake" />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(readIntakeThread).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText('Hi?')).toBeInTheDocument();
+  });
+
+  it('sends a customer message from the Work intake chat thread and renders the refreshed history', async () => {
+    const intake = makeIntake();
+    const readIntakeThread = vi.fn(async () => ({
+      conversation: {
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'telegram-chat-1',
+        customerDisplayName: 'Ada',
+        customerHandle: '@ada',
+        phone: '+85512345678',
+        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        messageCount: 1,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      },
+      intake,
+      messages: [
+        {
+          messageId: 'msg-in',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-21T00:00:00.000Z',
+          rawText: '1 scarf',
+          normalizedText: '1 scarf',
+          parseConfidence: 'high',
+        },
+      ],
+    }));
+    const sendIntakeThreadMessage = vi.fn(async () => ({
+      conversation: {
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'telegram-chat-1',
+        customerDisplayName: 'Ada',
+        customerHandle: '@ada',
+        phone: '+85512345678',
+        lastMessageAt: '2026-04-21T00:01:00.000Z',
+        messageCount: 2,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      },
+      intake,
+      messages: [
+        {
+          messageId: 'msg-in',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-21T00:00:00.000Z',
+          rawText: '1 scarf',
+          normalizedText: '1 scarf',
+          parseConfidence: 'high',
+        },
+        {
+          messageId: 'msg-out',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '2',
+          direction: 'outbound',
+          sentAt: '2026-04-21T00:01:00.000Z',
+          rawText: 'We can deliver tomorrow.',
+          normalizedText: null,
+          parseConfidence: null,
+        },
+      ],
+    }));
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [intake],
+      readIntakeThread,
+      sendIntakeThreadMessage,
+    }));
+
+    renderForcedIntake('/work/intake?section=chat&intake=intake-1');
+    fireEvent.change(await screen.findByLabelText('Message customer'), {
+      target: { value: 'We can deliver tomorrow.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(sendIntakeThreadMessage).toHaveBeenCalledWith({
+      intakeId: 'intake-1',
+      text: 'We can deliver tomorrow.',
+    }));
+    expect(await screen.findByText('We can deliver tomorrow.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Message customer')).toHaveValue('');
+  });
+
+  it('selects a Work intake chat list item without opening the intake drawer', async () => {
+    const intake = makeIntake();
+    const readIntakeThread = vi.fn(async () => ({
+      conversation: {
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'telegram-chat-1',
+        customerDisplayName: 'Ada',
+        customerHandle: '@ada',
+        phone: '+85512345678',
+        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        messageCount: 1,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      },
+      intake,
+      messages: [
+        {
+          messageId: 'msg-in',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-21T00:00:00.000Z',
+          rawText: '1 scarf',
+          normalizedText: '1 scarf',
+          parseConfidence: 'high',
+        },
+      ],
+    }));
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [intake],
+      readIntakeThread,
+    }));
+
+    renderForcedIntake('/work/intake?section=chat');
+    fireEvent.click(await screen.findByRole('button', { name: /Ada/i }));
+
+    await waitFor(() => expect(readIntakeThread).toHaveBeenCalledWith({ intakeId: 'intake-1' }));
+    expect(await screen.findByText('1 scarf')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Ada intake drawer' })).not.toBeInTheDocument();
+  });
+
+  it('leaves Work intake chat for live intake without opening the selected chat intake drawer', async () => {
+    const intake = makeIntake();
+    const readIntakeThread = vi.fn(async () => ({
+      conversation: {
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'telegram-chat-1',
+        customerDisplayName: 'Ada',
+        customerHandle: '@ada',
+        phone: '+85512345678',
+        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        messageCount: 1,
+        latestIntakeStatus: 'new',
+        latestTicketId: null,
+      },
+      intake,
+      messages: [
+        {
+          messageId: 'msg-in',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+          externalMessageKey: '1',
+          direction: 'inbound',
+          sentAt: '2026-04-21T00:00:00.000Z',
+          rawText: '1 scarf',
+          normalizedText: '1 scarf',
+          parseConfidence: 'high',
+        },
+      ],
+    }));
+    automationHook.mockReturnValue(makeAutomationState(true, {
+      intakes: [intake],
+      readIntakeThread,
+    }));
+
+    renderForcedIntake('/work/intake?section=chat&intake=intake-1');
+    expect(await screen.findByText('1 scarf')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: /Live intake/i }));
+
+    expect(screen.queryByRole('dialog', { name: 'Ada intake drawer' })).not.toBeInTheDocument();
+  });
+
   it('shows browser while-tab-open messaging and polling action in browser mode', async () => {
     Object.defineProperty(window, 'kaurKhorDesktop', {
       configurable: true,
@@ -357,9 +766,20 @@ describe('AutomationsRoute', () => {
     const { container } = renderForcedIntake();
 
     expect(screen.getByRole('tab', { name: /Live intake/i })).toBeInTheDocument();
+    expect(screen.getByText('Advanced experimental automation settings')).toBeInTheDocument();
+    expect(screen.getByText('This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.')).toBeInTheDocument();
     expect(container.querySelector('[data-work-window-root="intake"]')?.className).toContain('flex-1');
     expect(container.querySelector('[data-work-window="intake"]')?.className).toContain('shrink-0');
     expect(container.querySelector('[data-work-bottom-breathing-room="intake"]')?.className).toContain('h-32');
+  });
+
+  it('shows new and quoted filters in live intake', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderForcedIntake('/work/intake?section=intake');
+
+    expect(screen.getByRole('radio', { name: 'New' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Quoted' })).toBeInTheDocument();
   });
 
   it('localizes automation route chrome and filters when Khmer is active', () => {
@@ -432,6 +852,30 @@ describe('AutomationsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open bot' }));
 
     expect(openExternalUrl).toHaveBeenCalledWith('tg://resolve?domain=configured_bot');
+  });
+
+  it('links from Telegram bot settings to Work intake', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderRoute();
+
+    expect(screen.getByRole('link', { name: 'Open intake' })).toHaveAttribute('href', '/work/intake');
+  });
+
+  it('links from Work intake to Telegram automation settings', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderForcedIntake();
+
+    expect(screen.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', '/settings/automation');
+  });
+
+  it('hides the Work intake link while already embedded in Work intake', () => {
+    automationHook.mockReturnValue(makeAutomationState(true));
+
+    renderForcedIntake();
+
+    expect(screen.queryByRole('link', { name: 'Open intake' })).not.toBeInTheDocument();
   });
 
   it('builds the Telegram app link from the current bot username draft', () => {

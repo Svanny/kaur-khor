@@ -30,7 +30,7 @@ describe('navigation-state', () => {
       supplier: null,
       taskId: 'sku-1',
       taskMode: 'not_ordered',
-      workflow: 'supplier',
+      workflow: 'customer',
       customerFilter: 'all',
       customerTaskId: null,
       section: 'queue',
@@ -48,7 +48,7 @@ describe('navigation-state', () => {
         customerFilter: 'quoted',
         customerTaskId: 'automation:intake:intake-1',
       }),
-    ).toBe('/work/queue?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received&workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
+    ).toBe('/work/queue?filter=ready_to_receive&scope=services&task=sku-1&taskMode=goods_received&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1');
 
     expect(buildAnalysisHref({ section: 'pressure', timeframe: '1Y', supplier: 'Mekong Looms' })).toBe(
       '/insights/explain?section=pressure&supplier=Mekong+Looms&timeframe=1Y',
@@ -232,6 +232,6 @@ describe('navigation-state', () => {
       workflow: 'customer',
       customerFilter: 'open',
       customerTaskId: 'automation:intake:intake-9',
-    })).toBe('/work/queue?workflow=customer&customerFilter=open&customerTask=automation%3Aintake%3Aintake-9');
+    })).toBe('/work/queue?customerFilter=open&customerTask=automation%3Aintake%3Aintake-9');
   });
 });

@@ -5,8 +5,11 @@ import type { SenaLeadTimeVariabilityClass, SenaSku } from '@shared/sena';
 import {
   deriveLeadTimeFromStdDays,
   deriveLeadTimeFromVariabilityClass,
+  leadTimeVariabilityOptions,
+  uniqueLeadTimePresetStdDaysForClass,
 } from '@shared/sena-lead-time';
 import { CheckboxRow } from '@/components/system/checkbox-row';
+import { ProductAttributesField } from '@/components/system/product-attributes-field';
 import {
   derivedStdDaysDraft,
   LeadTimeVariabilityField,
@@ -21,7 +24,21 @@ import { Input } from '@/components/ui/input';
 import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
-import { createUniqueSkuId, emptySenaCatalog, upsertSenaSku } from '@/lib/sena-catalog';
+import {
+  createSkuAttributeVariants,
+  createUniqueSkuId,
+  emptySenaCatalog,
+  upsertSenaSku,
+} from '@/lib/sena-catalog';
+import {
+  emptyProductAttributeDraft,
+  mergeCustomProductAttributePresets,
+  mergedProductAttributePresets,
+  productAttributeCombinations,
+  productAttributeDraftDirtyKey,
+  readCustomProductAttributePresets,
+  writeCustomProductAttributePresets,
+} from '@/lib/product-attributes';
 import { translateUiLiteral } from '@/lib/translations';
 import { useInventory } from '@/state/inventory';
 import { buildKaurKhorNavigationState, useNavigationHistory } from '@/state/navigation-history';
@@ -94,7 +111,24 @@ function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdTo
 }
 
 function deriveCatalogVariabilityClass(sku: SenaSku): SenaLeadTimeVariabilityClass | null {
+  if (sku.leadTimeStdDaysHint != null) {
+    const matchingPreset = leadTimeVariabilityOptions().find((option) => {
+      const presetStdDays = uniqueLeadTimePresetStdDaysForClass(sku.leadTimeMeanDaysHint, option);
+      return presetStdDays != null && Math.abs(presetStdDays - sku.leadTimeStdDaysHint!) < 0.0001;
+    });
+    if (matchingPreset) {
+      return matchingPreset;
+    }
+  }
   return deriveLeadTimeFromStdDays(sku.leadTimeMeanDaysHint, sku.leadTimeStdDaysHint).variabilityClass;
+}
+
+function matchesLeadTimePresetStdDays(sku: SenaSku, variabilityClass: SenaLeadTimeVariabilityClass | null) {
+  if (sku.leadTimeStdDaysHint == null || variabilityClass == null) {
+    return false;
+  }
+  const presetStdDays = uniqueLeadTimePresetStdDaysForClass(sku.leadTimeMeanDaysHint, variabilityClass);
+  return presetStdDays != null && Math.abs(presetStdDays - sku.leadTimeStdDaysHint) < 0.0001;
 }
 
 function stdDaysDraftFromValue(value: number | null) {
@@ -102,7 +136,8 @@ function stdDaysDraftFromValue(value: number | null) {
 }
 
 function deriveLeadTimeDraftMode(sku: SenaSku): LeadTimeVariabilityDraftMode {
-  return sku.leadTimeStdDaysHint == null && deriveCatalogVariabilityClass(sku) ? 'class' : 'std';
+  const variabilityClass = deriveCatalogVariabilityClass(sku);
+  return matchesLeadTimePresetStdDays(sku, variabilityClass) ? 'class' : 'std';
 }
 
 export function SkuFormRoute() {
@@ -133,6 +168,8 @@ export function SkuFormRoute() {
   );
   const [saveAttempted, setSaveAttempted] = useState(false);
   const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
+  const [attributeDraft, setAttributeDraft] = useState(emptyProductAttributeDraft);
+  const [customAttributePresets, setCustomAttributePresets] = useState(() => readCustomProductAttributePresets());
   const formId = 'sku-editor-form';
   const existingSku = useMemo(
     () => catalog?.skus.find((entry) => entry.skuId === skuId) ?? null,
@@ -149,6 +186,7 @@ export function SkuFormRoute() {
       setLeadTimeStdDaysDraft(stdDaysDraftFromValue(existingSku.leadTimeStdDaysHint));
       setLeadTimeVariability(deriveCatalogVariabilityClass(existingSku) ?? '');
       setLeadTimeDraftMode(deriveLeadTimeDraftMode(existingSku));
+      setAttributeDraft(emptyProductAttributeDraft());
     } else if (!editing) {
       setLocalSavedSku(null);
       setForm(emptySku(''));
@@ -157,6 +195,7 @@ export function SkuFormRoute() {
       setLeadTimeStdDaysDraft('');
       setLeadTimeVariability('');
       setLeadTimeDraftMode('std');
+      setAttributeDraft(emptyProductAttributeDraft());
     }
   }, [editing, existingSku?.skuId]);
 
@@ -240,7 +279,6 @@ export function SkuFormRoute() {
     : null;
   const skuValidationErrors = {
     name: !form.name.trim() ? t('catalogSkuEditorNameRequired') : null,
-    supplier: !form.supplierName?.trim() ? t('catalogSkuEditorSupplierRequired') : null,
     costPerUnit: !costPerUnitDraft.trim()
       ? t('catalogSkuEditorCostRequired')
       : parsedCostPerUnitDraft == null
@@ -252,7 +290,11 @@ export function SkuFormRoute() {
         : null,
     leadTimeMeanDays: form.leadTimeMeanDaysHint == null ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
     leadTimeUncertainty:
-      !leadTimeStdDaysDraft.trim() && !leadTimeVariability
+      leadTimeDraftMode === 'std'
+        ? !leadTimeStdDaysDraft.trim()
+          ? t('catalogSkuEditorLeadTimeUncertaintyRequired')
+          : null
+        : !leadTimeVariability
         ? t('catalogSkuEditorLeadTimeUncertaintyRequired')
         : null,
   };
@@ -262,9 +304,18 @@ export function SkuFormRoute() {
     costPerUnit: skuValidationErrors.costPerUnit,
     productPrice: skuValidationErrors.productPrice,
   };
+  const attributePresets = useMemo(
+    () => mergedProductAttributePresets(customAttributePresets),
+    [customAttributePresets],
+  );
+  const attributeCombinations = useMemo(
+    () => productAttributeCombinations(attributeDraft),
+    [attributeDraft],
+  );
   const hasUnsavedSkuChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
-    costPerUnitDraft !== baselineCostPerUnitDraft;
+    costPerUnitDraft !== baselineCostPerUnitDraft ||
+    productAttributeDraftDirtyKey(attributeDraft) !== productAttributeDraftDirtyKey(emptyProductAttributeDraft());
   function resetSkuDraft() {
     setForm(normalizedBaseline);
     setCostPerUnitDraft(moneyDraftFromUsd(normalizedBaseline.costPerUnit, currency, usdToKhrExchangeRate));
@@ -272,6 +323,7 @@ export function SkuFormRoute() {
     setLeadTimeStdDaysDraft(stdDaysDraftFromValue(normalizedBaseline.leadTimeStdDaysHint));
     setLeadTimeVariability(baselineLeadTimeVariability);
     setLeadTimeDraftMode(deriveLeadTimeDraftMode(normalizedBaseline));
+    setAttributeDraft(emptyProductAttributeDraft());
     setSaveAttempted(false);
     setSaveErrorFlashKey(0);
   }
@@ -329,7 +381,8 @@ export function SkuFormRoute() {
           ...normalizedDraft,
           skuId: createUniqueSkuId(baseCatalog),
         };
-    const nextCatalog = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
+    const catalogWithBase = upsertSenaSku(baseCatalog, nextSku, normalizedBaseline.skuId);
+    const nextCatalog = createSkuAttributeVariants(catalogWithBase, nextSku, attributeCombinations);
     await upsertSenaCatalog(nextCatalog);
     const observation = editing
       ? buildSkuCatalogEditObservation({
@@ -348,6 +401,10 @@ export function SkuFormRoute() {
     setLeadTimeStdDaysDraft(stdDaysDraftFromValue(nextSku.leadTimeStdDaysHint));
     setLeadTimeVariability(deriveCatalogVariabilityClass(nextSku) ?? '');
     setLeadTimeDraftMode(deriveLeadTimeDraftMode(nextSku));
+    const nextCustomPresets = mergeCustomProductAttributePresets(customAttributePresets, attributeDraft);
+    writeCustomProductAttributePresets(nextCustomPresets);
+    setCustomAttributePresets(readCustomProductAttributePresets());
+    setAttributeDraft(emptyProductAttributeDraft());
     setSaveAttempted(false);
     setSaveErrorFlashKey(0);
     afterSave?.();
@@ -392,7 +449,7 @@ export function SkuFormRoute() {
   }
 
   return (
-    <WorkspacePage>
+    <WorkspacePage className="pb-32 md:pb-36">
       {discardConfirmDialog}
       <SkuPageHero
         actions={
@@ -446,7 +503,6 @@ export function SkuFormRoute() {
                 />
               </EditorField>
               <EditorField
-                error={visibleSkuValidationErrors.supplier ?? undefined}
                 errorFlashKey={saveErrorFlashKey}
                 helper={t('catalogSkuEditorSupplierHelper')}
                 label={t('fieldSupplier')}
@@ -476,6 +532,19 @@ export function SkuFormRoute() {
               name={form.name || 'SKU image'}
               type="sku"
               onChange={(value) => setForm((current) => ({ ...current, imagePath: value }))}
+            />
+          </WorkspacePanel>
+
+          <WorkspacePanel
+            className={editorPanelClassName}
+            descriptor={translateUiLiteral(language, 'Create active variants from selected attributes when saving this SKU.')}
+            title={<SectionTitle helpHref="/settings/help#catalog-sku-editor-details" title={translateUiLiteral(language, 'Attributes')} tooltip={translateUiLiteral(language, 'Generate SKU variants without copying logs, observations, or captures.')} />}
+          >
+            <ProductAttributesField
+              draft={attributeDraft}
+              language={language}
+              presets={attributePresets}
+              onChange={setAttributeDraft}
             />
           </WorkspacePanel>
 

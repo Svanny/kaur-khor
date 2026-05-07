@@ -1,11 +1,14 @@
+import * as React from 'react';
 import { useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import type { DesktopSeenUnlockedNavItemId } from '@shared/ipc';
 import {
+  NavigationAutomationIcon,
   NavigationBackIcon,
   NavigationCatalogIcon,
   NavigationCommandPaletteIcon,
   NavigationDashboardIcon,
+  NavigationNextIcon,
   NavigationRightPanelIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
@@ -33,7 +36,14 @@ import {
 } from '@/components/ui/sidebar';
 import { WorkspaceBanner } from '@/components/system/workspace';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { buildRememberedPageHref, usePageStateMemoryVersion } from '@/lib/page-state-memory';
+import {
+  buildRememberedAnalysisHref,
+  buildRememberedFinancialsHref,
+  buildRememberedInboxHref,
+  buildRememberedPageHref,
+  buildRememberedPerformanceHref,
+  usePageStateMemoryVersion,
+} from '@/lib/page-state-memory';
 import { resolveSettingsSection, visibleSettingsSections, type SettingsSectionConfig } from '@/lib/settings-navigation';
 import {
   deriveNavigationAvailability,
@@ -47,7 +57,15 @@ import { useInventory } from '@/state/inventory';
 import { buildKaurKhorNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import brandLogo from '@/assets/kaur-khor-logo.svg';
-import { ActionRefreshIcon } from '@icons/actions';
+import { ActionCreatePackageIcon, ActionRefreshIcon } from '@icons/actions';
+import { RECORD_UPDATE_LANES } from '@/lib/record-update-routes';
+import {
+  EntityComparisonIcon,
+  EntityRevenueIcon,
+  EntityServiceIcon,
+  EntitySignalIcon,
+  EntitySkuIcon,
+} from '@icons/entities';
 
 type ShellSectionConfig = {
   destination: string;
@@ -55,18 +73,43 @@ type ShellSectionConfig = {
   gatedNavItemId?: DesktopSeenUnlockedNavItemId;
   icon: IconComponent;
   id:
+    | 'capture'
+    | `capture-${string}`
     | 'catalog'
     | 'home'
     | 'insights'
+    | 'insights-analysis'
+    | 'insights-financials'
+    | 'insights-performance'
+    | 'intake'
+    | 'queue'
     | 'work'
     | 'settings';
   labelKey:
     | 'navHome'
     | 'navWork'
+    | 'navInbox'
+    | 'navCapture'
+    | 'navAutomations'
     | 'navInsights'
+    | 'navPerformance'
+    | 'navFinancials'
+    | 'navAnalysis'
     | 'navCatalog'
     | 'navSettings';
   matches: (pathname: string) => boolean;
+};
+
+type ShellTreeItemConfig = ShellSectionConfig & {
+  children?: ShellTreeItemConfig[];
+  label?: string;
+};
+
+const captureLaneIconById: Partial<Record<string, IconComponent>> = {
+  'stock-count': EntitySkuIcon,
+  'customer-order-pending': EntityRevenueIcon,
+  'customer-order-completed': EntityServiceIcon,
+  'supplier-order-pending': ActionCreatePackageIcon,
 };
 
 type SidebarSectionLabelKey = 'sidebarSectionMain' | 'sidebarSectionOther';
@@ -157,11 +200,11 @@ const settingsNavigationGroups = (sections: SettingsSectionConfig[]): SettingsSi
   },
 ];
 
-function SidebarSectionMenu({
+function SidebarTreeMenu({
   language,
   location,
-  sections,
   pathname,
+  sections,
   showSidebarText,
   onNavigate,
   isSectionNew,
@@ -169,59 +212,107 @@ function SidebarSectionMenu({
 }: {
   language: 'en' | 'km';
   location: ReturnType<typeof useLocation>;
-  sections: ShellSectionConfig[];
+  sections: ShellTreeItemConfig[];
   pathname: string;
   showSidebarText: boolean;
   onNavigate: () => void;
-  isSectionNew: (section: ShellSectionConfig) => boolean;
+  isSectionNew: (section: ShellTreeItemConfig) => boolean;
   t: (key: ShellSectionConfig['labelKey'] | SidebarSectionLabelKey) => string;
 }) {
-  return (
-    <SidebarMenu className="group-data-[collapsible=icon]:items-center">
-      {sections.map((section) => {
-        const label = t(section.labelKey);
-        const newLabel = translateUiLiteral(language, 'New!');
-        const isActive = section.matches(pathname);
-        const isNew = isSectionNew(section);
-        const state = section.id === 'settings'
-          ? {
-            ...buildKaurKhorNavigationState(location),
-            kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
-          }
-          : { kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE };
+  const [expandedIds, setExpandedIds] = React.useState<Record<string, boolean>>({});
 
-        return (
-          <SidebarMenuItem key={section.destination} className="group/menu-item">
-            <SidebarMenuButton
-              asChild
-              className={cn(
-                'justify-start group-data-[collapsible=icon]:justify-center',
-                isNew && !isActive ? 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : null,
-              )}
-              isActive={isActive}
-              tooltip={isNew ? newLabel : label}
+  function renderTreeItem(section: ShellTreeItemConfig, depth = 0) {
+    const label = section.label ?? t(section.labelKey);
+    const newLabel = translateUiLiteral(language, 'New!');
+    const hasChildren = Boolean(section.children?.length);
+    const isRouteExpanded = hasChildren && section.children?.some((child) => matchesTreeItem(pathname, child));
+    const isExpanded = Boolean(isRouteExpanded || expandedIds[section.id]);
+    const isActive = !isRouteExpanded && section.matches(pathname);
+    const isNew = isSectionNew(section);
+    const nestedOffset = showSidebarText && depth > 0 ? `${depth * 0.8}rem` : null;
+    const state = section.id === 'settings'
+      ? {
+        ...buildKaurKhorNavigationState(location),
+        kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,
+      }
+      : { kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE };
+
+    return (
+      <SidebarMenuItem key={`${section.destination}-${depth}`} className="group/menu-item">
+        <div className="relative">
+          <SidebarMenuButton
+            asChild
+            className={cn(
+              'min-w-0 justify-start gap-2 py-1.5 group-data-[collapsible=icon]:justify-center',
+              hasChildren && showSidebarText ? 'pr-8' : null,
+              depth > 0 && showSidebarText ? 'text-sidebar-foreground/80' : null,
+              isNew && !isActive ? 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : null,
+            )}
+            isActive={isActive}
+            tooltip={isNew ? newLabel : label}
+          >
+            <NavLink
+              aria-label={label}
+              className="group-data-[collapsible=icon]:justify-center"
+              data-sidebar-tree-depth={depth}
+              state={state}
+              style={nestedOffset ? { marginLeft: nestedOffset, width: `calc(100% - ${nestedOffset})` } : undefined}
+              to={section.destination === '/work/queue' ? buildRememberedInboxHref() : buildRememberedPageHref(section.destination)}
+              onClick={onNavigate}
             >
-              <NavLink
-                aria-label={label}
-                className="group-data-[collapsible=icon]:justify-center"
-                state={state}
-                to={buildRememberedPageHref(section.destination)}
-                onClick={onNavigate}
-              >
-                <section.icon className="size-4" />
-                {showSidebarText ? <span>{label}</span> : null}
-              </NavLink>
-            </SidebarMenuButton>
-            {isNew && showSidebarText ? (
-              <SidebarMenuBadge className="khmer-safe-label right-2 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground">
-                {newLabel}
-              </SidebarMenuBadge>
-            ) : null}
-          </SidebarMenuItem>
-        );
-      })}
+              <section.icon className="size-4" />
+              {showSidebarText ? <span>{label}</span> : null}
+            </NavLink>
+          </SidebarMenuButton>
+          {hasChildren && showSidebarText ? (
+            <button
+              aria-expanded={isExpanded}
+              aria-label={translateUiLiteral(language, isExpanded ? `Collapse ${label}` : `Expand ${label}`)}
+              className="absolute right-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md text-sidebar-foreground/70 ring-sidebar-ring outline-none transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2"
+              type="button"
+              onClick={() => {
+                setExpandedIds((current) => ({
+                  ...current,
+                  [section.id]: !isExpanded,
+                }));
+              }}
+            >
+              <NavigationNextIcon
+                aria-hidden="true"
+                className={cn(
+                  'size-4 transition-transform duration-120 ease-out motion-reduce:transition-none',
+                  isExpanded ? 'rotate-90' : null,
+                )}
+              />
+            </button>
+          ) : null}
+          {isNew && showSidebarText ? (
+            <SidebarMenuBadge className={cn(
+              'khmer-safe-label top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground',
+              hasChildren ? 'right-9' : 'right-2',
+            )}>
+              {newLabel}
+            </SidebarMenuBadge>
+          ) : null}
+        </div>
+        {hasChildren && showSidebarText && isExpanded ? (
+          <SidebarMenu className="mt-0.5 gap-0.5">
+            {section.children!.map((child) => renderTreeItem(child, depth + 1))}
+          </SidebarMenu>
+        ) : null}
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <SidebarMenu className="gap-0.5 group-data-[collapsible=icon]:items-center">
+      {sections.map((section) => renderTreeItem(section))}
     </SidebarMenu>
   );
+}
+
+function matchesTreeItem(pathname: string, section: ShellTreeItemConfig): boolean {
+  return section.matches(pathname) || Boolean(section.children?.some((child) => matchesTreeItem(pathname, child)));
 }
 
 function SidebarCommandPaletteHint({ language, showSidebarText }: { language: 'en' | 'km'; showSidebarText: boolean }) {
@@ -365,6 +456,8 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
     language,
     markUnlockedNavItemSeen,
     seenUnlockedNavItems,
+    showAnalysisPage,
+    showAutomationsPage,
     t,
   } = usePreferences();
   const inventory = useInventory();
@@ -389,6 +482,87 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
         ? isUnlockedNavItemVisible(section.gatedNavItemId, navigationAvailability)
         : true,
   );
+  const visibleAppSectionIds = new Set(visibleAppSections.map((section) => section.id));
+  const visibleTreeSections: ShellTreeItemConfig[] = [
+    APP_SECTIONS[0],
+    visibleAppSectionIds.has('work')
+      ? {
+          ...APP_SECTIONS[1],
+          children: [
+            {
+              id: 'queue',
+              destination: buildRememberedInboxHref(),
+              label: translateUiLiteral(language, 'Queue'),
+              labelKey: 'navInbox',
+              icon: NavigationTaskListIcon,
+              matches: (pathname: string) => pathname === '/work/queue',
+            },
+            ...(showAutomationsPage && navigationAvailability.hasWorkIntake
+              ? [{
+                  id: 'intake' as const,
+                  destination: '/work/intake',
+                  label: translateUiLiteral(language, 'Intake'),
+                  labelKey: 'navAutomations' as const,
+                  icon: NavigationAutomationIcon,
+                  matches: (pathname: string) => matchesSection(pathname, '/work/intake'),
+                }]
+              : []),
+            ...(navigationAvailability.hasWorkCapture
+              ? [{
+                  id: 'capture' as const,
+                  destination: '/work/capture',
+                  labelKey: 'navCapture' as const,
+                  icon: ActionCreatePackageIcon,
+                  matches: (pathname: string) => matchesSection(pathname, '/work/capture'),
+                  children: RECORD_UPDATE_LANES
+                    .filter((lane) => lane.id !== 'custom')
+                    .map((lane) => ({
+                      id: `capture-${lane.id}` as const,
+                      destination: lane.path,
+                      label: translateUiLiteral(language, lane.title),
+                      labelKey: 'navCapture' as const,
+                      icon: captureLaneIconById[lane.id] ?? ActionCreatePackageIcon,
+                      matches: (pathname: string) => pathname === lane.path,
+                    })),
+                }]
+              : []),
+          ],
+        }
+      : null,
+    visibleAppSectionIds.has('catalog') ? APP_SECTIONS[2] : null,
+    visibleAppSectionIds.has('insights')
+      ? {
+          ...APP_SECTIONS[3],
+          children: [
+            {
+              id: 'insights-performance',
+              destination: buildRememberedPerformanceHref(),
+              label: translateUiLiteral(language, 'Pressure'),
+              labelKey: 'navPerformance',
+              icon: EntityComparisonIcon,
+              matches: (pathname: string) => pathname === '/insights/pressure',
+            },
+            {
+              id: 'insights-financials',
+              destination: buildRememberedFinancialsHref(),
+              label: translateUiLiteral(language, 'Money'),
+              labelKey: 'navFinancials',
+              icon: EntityRevenueIcon,
+              matches: (pathname: string) => pathname === '/insights/money',
+            },
+            ...(showAnalysisPage
+              ? [{
+                  id: 'insights-analysis' as const,
+                  destination: buildRememberedAnalysisHref(),
+                  labelKey: 'navAnalysis' as const,
+                  icon: EntitySignalIcon,
+                  matches: (pathname: string) => pathname === '/insights/explain',
+                }]
+              : []),
+          ],
+        }
+      : null,
+  ].filter((section): section is ShellTreeItemConfig => section != null);
   const isSettingsRoute = matchesSection(location.pathname, '/settings');
 
   useEffect(() => {
@@ -515,14 +689,14 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
             </div>
           ) : (
             <div className="flex flex-1 flex-col gap-3">
-              {visibleAppSections.length > 0 ? (
+              {visibleTreeSections.length > 0 ? (
                 <SidebarGroup className={sidebarSectionGroupClassName}>
                   <SidebarGroupLabel className={sidebarSectionLabelClassName}>{t('sidebarSectionMain')}</SidebarGroupLabel>
                   <SidebarGroupContent>
-                    <SidebarSectionMenu
+                    <SidebarTreeMenu
                       location={location}
                       pathname={location.pathname}
-                      sections={visibleAppSections}
+                      sections={visibleTreeSections}
                       language={language}
                       showSidebarText={showSidebarText}
                       isSectionNew={isSectionNew}
@@ -579,6 +753,7 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
                       <NavLink
                         aria-label={t(SETTINGS_SECTION.labelKey)}
                         className="group-data-[collapsible=icon]:justify-center"
+                        data-sidebar-tree-depth={0}
                         state={{
                           ...buildKaurKhorNavigationState(location),
                           kaurKhorNavigationSource: SIDEBAR_NAVIGATION_SOURCE,

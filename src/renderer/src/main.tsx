@@ -10,7 +10,7 @@ import './globals.css';
 const EmbeddedAppRoute = React.lazy(() => import('./routes/web/embedded-app').then((module) => ({ default: module.EmbeddedAppRoute })));
 const WebRoutes = React.lazy(() => import('./routes/web/landing').then((module) => ({ default: module.WebRoutes })));
 const embeddedMode = embeddedModeForPath(window.location.pathname, import.meta.env.BASE_URL.replace(/\/$/, ''));
-const webLandingMount = webLandingMountForPath(window.location.pathname);
+const webLandingMount = webLandingMountForPath(window.location.pathname, import.meta.env.BASE_URL.replace(/\/$/, ''));
 
 installBrowserDesktopBridge();
 
@@ -20,7 +20,7 @@ const desktopApp = (
   </HashRouter>
 );
 const webLandingApp = (
-  <BrowserRouter basename={webLandingMount === 'main' ? '/main' : undefined}>
+  <BrowserRouter basename={webLandingMount ?? undefined}>
     <WebRoutes />
   </BrowserRouter>
 );

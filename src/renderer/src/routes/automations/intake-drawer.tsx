@@ -1,21 +1,27 @@
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import type {
-  AutomationMessageRecord,
   AutomationOrderIntake,
   PromoteAutomationIntakeResult,
 } from '@shared/automation';
 import type {
-  AutomationReadConversationPayload,
   AutomationResolveIntakePayload,
   PromoteAutomationIntakePayload,
 } from '@shared/ipc';
 import type { AppLanguage } from '@shared/inventory';
 import { formatPhoneForDisplay, normalizePhoneNumber } from '@shared/phone';
 import { ActionClipboardAddIcon, ActionCloseIcon, ActionEditIcon, ActionOpenExternalIcon } from '@icons/actions';
-import { StatusWarningIcon } from '@icons/status';
+import { StatusNarrativeIcon, StatusWarningIcon } from '@icons/status';
 import { Button } from '@/components/ui/button';
 import { SaveErrorFlash } from '@/components/system/save-error-flash';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Sheet,
   SheetClose,
@@ -32,10 +38,17 @@ import { translateUiLiteral } from '@/lib/translations';
 import {
   ActionSheetField,
   actionSheetInputClassName,
+  actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
 
 type DrawerAction = 'create_ticket' | 'append_ticket' | 'needs_review' | 'canceled';
+export interface AutomationIntakeTicketOption {
+  description: string;
+  id: string;
+  label: string;
+  metadata: string;
+}
 
 function drawerActionOptions(language: AppLanguage) {
   return [
@@ -61,15 +74,18 @@ function sectionTitleClassName() {
 function DrawerBand({
   children,
   className,
+  icon: Icon,
   title,
 }: {
   children: React.ReactNode;
   className?: string;
+  icon: ComponentType<{ className?: string }>;
   title: string;
 }) {
   return (
     <section className={cn(drawerBandClassName(), className)}>
       <div className="mb-4 flex items-center gap-2.5">
+        <Icon className="size-4 text-primary" />
         <p className={sectionTitleClassName()}>{title}</p>
       </div>
       {children}
@@ -90,10 +106,6 @@ function confidenceTone(intake: AutomationOrderIntake | null) {
   return 'danger';
 }
 
-function lastInboundMessage(messages: AutomationMessageRecord[]) {
-  return messages.find((message) => message.direction === 'inbound') ?? messages[0] ?? null;
-}
-
 function canPromote(intake: AutomationOrderIntake | null) {
   if (!intake || intake.quotedTotal == null) {
     return false;
@@ -101,41 +113,72 @@ function canPromote(intake: AutomationOrderIntake | null) {
   return intake.lines.every((line) => line.entityId != null && line.quantity != null && line.quantity > 0 && line.unitPrice != null);
 }
 
+function moneyLabel(value: number | null | undefined) {
+  return value == null ? 'Pending' : `$${value.toFixed(2)}`;
+}
+
+function buildCustomerMessageDraft(
+  intake: AutomationOrderIntake | null,
+  action: DrawerAction,
+) {
+  if (!intake) {
+    return '';
+  }
+  const lineSummary = intake.lines
+    .map((line) => {
+      const label = line.resolvedLabel ?? line.requestedLabel;
+      const quantity = line.quantity ?? 1;
+      const total = moneyLabel(line.lineTotal);
+      return `- ${quantity} x ${label}: ${total}`;
+    })
+    .join('\n');
+  const total = moneyLabel(intake.quotedTotal ?? intake.quotedSubtotal);
+  if (action === 'create_ticket') {
+    return `Your order has been approved.\n\n${lineSummary}\n\nTotal: ${total}\n\nKaur Khor will continue tracking this order with our operator team.`;
+  }
+  if (action === 'append_ticket') {
+    return `Your new request has been added to your existing customer ticket.\n\n${lineSummary}\n\nTotal: ${total}\n\nKaur Khor will continue the follow-up from that ticket.`;
+  }
+  if (action === 'canceled') {
+    return 'Your order request has been canceled. Message us again if you want to start a new order.';
+  }
+  return 'Your order request needs a little more review before we can approve it. Kaur Khor will follow up after an operator checks it.';
+}
+
 export function AutomationIntakeDrawer({
-  conversationId,
   intake,
   isSaving,
   language,
   open,
   onClose,
   onPromote,
-  onReadConversation,
   onResolve,
+  onViewChat,
+  ticketOptions = [],
 }: {
-  conversationId: string | null;
   intake: AutomationOrderIntake | null;
   isSaving: boolean;
   language: AppLanguage;
   open: boolean;
   onClose: () => void;
   onPromote: (payload: PromoteAutomationIntakePayload) => Promise<PromoteAutomationIntakeResult>;
-  onReadConversation: (payload: AutomationReadConversationPayload) => Promise<{
-    conversation: { conversationId: string };
-    messages: AutomationMessageRecord[];
-    intakes: AutomationOrderIntake[];
-  }>;
   onResolve: (payload: AutomationResolveIntakePayload) => Promise<AutomationOrderIntake>;
+  onViewChat?: (intakeId: string) => void;
+  ticketOptions?: AutomationIntakeTicketOption[];
 }) {
   const [action, setAction] = useState<DrawerAction>('create_ticket');
   const [appendTicketId, setAppendTicketId] = useState('');
   const [customerNameOverride, setCustomerNameOverride] = useState('');
   const [phoneOverride, setPhoneOverride] = useState('');
   const [operatorNote, setOperatorNote] = useState('');
-  const [messages, setMessages] = useState<AutomationMessageRecord[]>([]);
+  const [customerMessageText, setCustomerMessageText] = useState('');
+  const [customerMessageEdited, setCustomerMessageEdited] = useState(false);
+  const [sendCustomerMessage, setSendCustomerMessage] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
-  const [isLoadingConversation, setIsLoadingConversation] = useState(false);
   const [showDetailBody, setShowDetailBody] = useState(false);
+  const errorRef = useRef<HTMLParagraphElement | null>(null);
+  const errorScrollTokenRef = useRef(0);
 
   useEffect(() => {
     if (!open || !intake) {
@@ -150,51 +193,83 @@ export function AutomationIntakeDrawer({
     setCustomerNameOverride(intake.customerDisplayName ?? '');
     setPhoneOverride(formatPhoneForDisplay(intake.phone));
     setOperatorNote(intake.notes ?? '');
+    setCustomerMessageText(buildCustomerMessageDraft(intake, intake.status === 'quoted' ? 'create_ticket' : intake.status === 'canceled' ? 'canceled' : 'needs_review'));
+    setCustomerMessageEdited(false);
+    setSendCustomerMessage(true);
     setError(null);
     setSaveErrorFlashKey(0);
     return () => window.cancelAnimationFrame(frameId);
   }, [intake, open]);
 
-  useEffect(() => {
-    if (!open || !conversationId) {
-      setMessages([]);
-      return;
-    }
-    let active = true;
-    const timeoutId = window.setTimeout(() => {
-      if (!active) {
-        return;
-      }
-      setIsLoadingConversation(true);
-      void onReadConversation({ conversationId })
-        .then((result) => {
-          if (!active) {
-            return;
-          }
-          setMessages(result.messages);
-        })
-        .catch((nextError) => {
-          if (!active) {
-            return;
-          }
-          setError(nextError instanceof Error ? nextError.message : String(nextError));
-        })
-        .finally(() => {
-          if (active) {
-            setIsLoadingConversation(false);
-          }
-        });
-    }, 150);
-    return () => {
-      active = false;
-      window.clearTimeout(timeoutId);
-    };
-  }, [conversationId, onReadConversation, open]);
-
-  const inboundMessage = useMemo(() => lastInboundMessage(messages), [messages]);
   const promotionAllowed = canPromote(intake);
   const actionOptions = useMemo(() => drawerActionOptions(language), [language]);
   const literal = (value: string) => translateUiLiteral(language, value);
+
+  useEffect(() => {
+    if (!customerMessageEdited) {
+      setCustomerMessageText(buildCustomerMessageDraft(intake, action));
+    }
+  }, [action, customerMessageEdited, intake]);
+
+  function showError(nextError: string) {
+    setError(nextError);
+    setSaveErrorFlashKey(0);
+  }
+
+  useEffect(() => {
+    if (!error) {
+      return;
+    }
+    const token = errorScrollTokenRef.current + 1;
+    errorScrollTokenRef.current = token;
+    let playTimeoutId: number | null = null;
+    let fallbackTimeoutId: number | null = null;
+    let observer: IntersectionObserver | null = null;
+    const playFlash = () => {
+      if (errorScrollTokenRef.current !== token) {
+        return;
+      }
+      setSaveErrorFlashKey((current) => current + 1);
+    };
+    const frameId = window.requestAnimationFrame(() => {
+      const node = errorRef.current;
+      if (!node) {
+        playFlash();
+        return;
+      }
+      node.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (typeof IntersectionObserver === 'undefined') {
+        playTimeoutId = window.setTimeout(playFlash, 250);
+        return;
+      }
+      observer = new IntersectionObserver((entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+        observer?.disconnect();
+        if (fallbackTimeoutId != null) {
+          window.clearTimeout(fallbackTimeoutId);
+        }
+        playTimeoutId = window.setTimeout(playFlash, 80);
+      }, { threshold: 0.9 });
+      observer.observe(node);
+      fallbackTimeoutId = window.setTimeout(() => {
+        observer?.disconnect();
+        playFlash();
+      }, 600);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (playTimeoutId != null) {
+        window.clearTimeout(playTimeoutId);
+      }
+      if (fallbackTimeoutId != null) {
+        window.clearTimeout(fallbackTimeoutId);
+      }
+      observer?.disconnect();
+    };
+  }, [error]);
 
   async function handleSubmit() {
     if (!intake) {
@@ -204,6 +279,10 @@ export function AutomationIntakeDrawer({
     try {
       if (action === 'needs_review') {
         await onResolve({
+          customerMessage: {
+            send: sendCustomerMessage,
+            text: customerMessageText.trim() || null,
+          },
           intakeId: intake.intakeId,
           note: operatorNote || null,
           status: 'needs_review',
@@ -213,6 +292,10 @@ export function AutomationIntakeDrawer({
       }
       if (action === 'canceled') {
         await onResolve({
+          customerMessage: {
+            send: sendCustomerMessage,
+            text: customerMessageText.trim() || null,
+          },
           intakeId: intake.intakeId,
           note: operatorNote || null,
           status: 'canceled',
@@ -221,16 +304,18 @@ export function AutomationIntakeDrawer({
         return;
       }
       if (!promotionAllowed) {
-        setError(literal('Every line must resolve to a priced sellable before Kaur Khor can create a customer ticket.'));
-        setSaveErrorFlashKey((current) => current + 1);
+        showError(literal('Every line must resolve to a priced sellable before Kaur Khor can create a customer ticket.'));
         return;
       }
       if (action === 'append_ticket' && !appendTicketId.trim()) {
-        setError(literal('Choose a customer ticket before appending Telegram intake.'));
-        setSaveErrorFlashKey((current) => current + 1);
+        showError(literal('Choose a customer ticket before appending Telegram intake.'));
         return;
       }
       await onPromote({
+        customerMessage: {
+          send: sendCustomerMessage,
+          text: customerMessageText.trim() || null,
+        },
         intakeId: intake.intakeId,
         mode: action,
         note: operatorNote || null,
@@ -242,8 +327,7 @@ export function AutomationIntakeDrawer({
       });
       onClose();
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : String(nextError));
-      setSaveErrorFlashKey((current) => current + 1);
+      showError(nextError instanceof Error ? nextError.message : String(nextError));
     }
   }
 
@@ -281,80 +365,66 @@ export function AutomationIntakeDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-8 py-6 pb-44">
             <section className={drawerCanvasClassName()}>
-              <DrawerBand title={literal('What came in')}>
+              <DrawerBand icon={StatusNarrativeIcon} title={literal('What came in')}>
             {intake ? (
               <div className="grid gap-4">
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                <div className="grid gap-4 rounded-[1rem] border border-border/60 bg-background/70 p-4 sm:grid-cols-[minmax(0,1fr)_1px_minmax(0,1fr)] sm:items-start">
+                  <div className="min-w-0">
                     <p className={sectionTitleClassName()}>{literal('Customer')}</p>
                     <div className="mt-2">
-                    <p className="text-sm font-medium text-foreground">{intake.customerDisplayName ?? literal('Telegram customer')}</p>
-                    <p className="text-sm text-muted-foreground">{intake.customerHandle ?? literal('No Telegram handle captured')}</p>
+                      <p className="text-sm font-medium text-foreground">{intake.customerDisplayName ?? literal('Telegram customer')}</p>
+                      <p className="text-sm font-semibold text-primary">{intake.customerHandle ?? literal('No Telegram handle captured')}</p>
                     </div>
                   </div>
-                  <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                  <div className="hidden h-full min-h-16 w-px bg-border/60 sm:block" aria-hidden="true" />
+                  <div className="min-w-0 border-t border-border/60 pt-4 sm:border-t-0 sm:pt-0">
                     <p className={sectionTitleClassName()}>{literal('Phone')}</p>
                     <div className="mt-2">
-                    <p className="text-sm font-medium text-foreground">
-                      {intake.phone ? formatPhoneForDisplay(intake.phone) : literal('No phone captured')}
-                    </p>
-                    <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName(confidenceTone(intake))}`}>
-                      {translateUiLiteral(language, '{confidence} confidence', { confidence: intake.parseConfidence.toUpperCase() })}
-                    </span>
+                      <p className="text-sm font-medium text-foreground">
+                        {intake.phone ? formatPhoneForDisplay(intake.phone) : literal('No phone captured')}
+                      </p>
                     </div>
                   </div>
                 </div>
+                {onViewChat ? (
+                  <Button className="w-full justify-center" type="button" variant="outline" onClick={() => onViewChat(intake.intakeId)}>
+                    <ActionOpenExternalIcon className="size-4" />
+                    {literal('View chat')}
+                  </Button>
+                ) : null}
 
-                    <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                      <p className={sectionTitleClassName()}>{literal('Raw incoming text')}</p>
-                      <p className="mt-2 text-sm leading-6 text-foreground">
-                        {inboundMessage?.rawText ?? (isLoadingConversation ? literal('Loading latest Telegram message...') : literal('No Telegram message captured yet.'))}
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      {intake.lines.map((line) => (
-                        <div key={line.lineId} className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <p className="font-medium text-foreground">{line.resolvedLabel ?? line.requestedLabel}</p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {translateUiLiteral(language, 'Requested: {label}', { label: line.requestedLabel })}
-                                {line.quantity != null
-                                  ? ` · ${translateUiLiteral(language, 'Qty {quantity}', { quantity: line.quantity })}`
-                                  : ` · ${literal('Quantity unresolved')}`}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-medium text-foreground">
-                                {line.lineTotal == null ? literal('Pending line total') : `$${line.lineTotal.toFixed(2)}`}
-                              </p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {line.unitPrice == null ? literal('No unit price') : translateUiLiteral(language, '{price} each', { price: `$${line.unitPrice.toFixed(2)}` })}
-                              </p>
-                            </div>
+                <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                  <div className="space-y-4">
+                    {intake.lines.map((line) => (
+                      <div key={line.lineId} className="border-b border-border/50 pb-4 last:border-b-0 last:pb-0">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-foreground">{line.resolvedLabel ?? line.requestedLabel}</p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {translateUiLiteral(language, 'Requested: {label}', { label: line.requestedLabel })}
+                              {line.quantity != null
+                                ? ` · ${translateUiLiteral(language, 'Qty {quantity}', { quantity: line.quantity })}`
+                                : ` · ${literal('Quantity unresolved')}`}
+                            </p>
                           </div>
-                          {line.ambiguityReason ? (
-                            <p className="mt-3 text-sm text-amber-700">{translateUiLiteral(language, 'Issue: {issue}', { issue: line.ambiguityReason.replaceAll('_', ' ') })}</p>
-                          ) : null}
+                          <div className="text-right">
+                            <p className="font-medium text-foreground">
+                              {line.lineTotal == null ? literal('Pending line total') : `$${line.lineTotal.toFixed(2)}`}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {line.unitPrice == null ? literal('No unit price') : translateUiLiteral(language, '{price} each', { price: `$${line.unitPrice.toFixed(2)}` })}
+                            </p>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-
-                <div className="grid gap-2 sm:grid-cols-3">
-                  <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>{literal('Quoted subtotal')}</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedSubtotal == null ? literal('Pending') : `$${intake.quotedSubtotal.toFixed(2)}`}</p>
+                        {line.ambiguityReason ? (
+                          <p className="mt-3 text-sm text-amber-700">{translateUiLiteral(language, 'Issue: {issue}', { issue: line.ambiguityReason.replaceAll('_', ' ') })}</p>
+                        ) : null}
+                      </div>
+                    ))}
                   </div>
-                  <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
+                  <div className="mt-4 border-t border-border/60 pt-4">
                     <p className={sectionTitleClassName()}>{literal('Quoted total')}</p>
                     <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedTotal == null ? literal('Pending') : `$${intake.quotedTotal.toFixed(2)}`}</p>
-                  </div>
-                  <div className="rounded-[1rem] border border-border/60 bg-background/70 p-4">
-                    <p className={sectionTitleClassName()}>{literal('Source')}</p>
-                    <span className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[0.72rem] font-medium ${statusPillClassName('info')}`}>
-                      {literal('Telegram')}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -363,7 +433,7 @@ export function AutomationIntakeDrawer({
             )}
               </DrawerBand>
 
-              <DrawerBand title={literal('What do you want to do?')}>
+              <DrawerBand icon={ActionClipboardAddIcon} title={literal('What do you want to do?')}>
             <div className="grid gap-3 sm:grid-cols-2">
               {actionOptions.map((option) => {
                 const OptionIcon = option.icon;
@@ -385,13 +455,42 @@ export function AutomationIntakeDrawer({
 
             <div className="mt-5 grid gap-5">
               {action === 'append_ticket' ? (
-                <ActionSheetField label={literal('Existing customer ticket id')}>
-                  <Input
-                    className={actionSheetInputClassName}
-                    placeholder={literal('Existing customer ticket id')}
+                <ActionSheetField
+                  description={
+                    ticketOptions.length === 0
+                      ? literal('No open customer tickets available.')
+                      : undefined
+                  }
+                  label={literal('Existing customer ticket')}
+                >
+                  <Select
+                    disabled={ticketOptions.length === 0}
                     value={appendTicketId}
-                    onChange={(event) => setAppendTicketId(event.target.value)}
-                  />
+                    onValueChange={setAppendTicketId}
+                  >
+                    <SelectTrigger
+                      aria-label={literal('Existing customer ticket')}
+                      className={cn(
+                        actionSheetSelectTriggerClassName,
+                        '*:data-[slot=select-value]:flex-1 *:data-[slot=select-value]:justify-start *:data-[slot=select-value]:text-left',
+                      )}
+                    >
+                      <SelectValue placeholder={literal('Choose a customer ticket')} />
+                    </SelectTrigger>
+                    <SelectContent align="start">
+                      {ticketOptions.map((option) => (
+                        <SelectItem key={option.id} value={option.id}>
+                          <span className="flex min-w-0 flex-col">
+                            <span className="truncate font-medium">{option.label}</span>
+                            <span className="truncate text-xs text-muted-foreground">
+                              {option.description}
+                              {option.metadata ? ` · ${option.metadata}` : ''}
+                            </span>
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </ActionSheetField>
               ) : null}
               <ActionSheetField label={literal('Customer name override')}>
@@ -419,22 +518,29 @@ export function AutomationIntakeDrawer({
                   onChange={(event) => setOperatorNote(event.target.value)}
                 />
               </ActionSheetField>
+              <label className="flex items-center gap-3 text-sm font-medium text-foreground">
+                <Checkbox
+                  checked={sendCustomerMessage}
+                  onCheckedChange={(value) => setSendCustomerMessage(Boolean(value))}
+                />
+                {literal('Send message to customer')}
+              </label>
+              <ActionSheetField label={literal('Message to customer')}>
+                <Textarea
+                  className={cn('min-h-36', actionSheetTextareaClassName)}
+                  disabled={!sendCustomerMessage}
+                  placeholder={literal('Message to customer')}
+                  value={customerMessageText}
+                  onChange={(event) => {
+                    setCustomerMessageEdited(true);
+                    setCustomerMessageText(event.target.value);
+                  }}
+                />
+              </ActionSheetField>
             </div>
               </DrawerBand>
-
-              <DrawerBand title={literal('What Kaur Khor will do next')}>
-            <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
-              <div className="grid gap-3">
-              <p>{literal('Kaur Khor will write a customer-side ticket event instead of creating a parallel Telegram order system.')}</p>
-              <p>{literal('Kaur Khor will write customer commercial events that flow into Overview, Record Update, and Financials.')}</p>
-              <p>{literal('Kaur Khor will attach Telegram channel metadata to the customer ticket party.')}</p>
-              <p>{literal('Kaur Khor will keep this intake out of supplier workflows and raw stock-count truth.')}</p>
-              </div>
-            </div>
-              </DrawerBand>
-
               {error ? (
-                <SaveErrorFlash as="p" className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
+                <SaveErrorFlash ref={errorRef} as="p" className="mt-5 rounded-[1.25rem] border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" flashKey={saveErrorFlashKey}>
                   {error}
                 </SaveErrorFlash>
               ) : null}

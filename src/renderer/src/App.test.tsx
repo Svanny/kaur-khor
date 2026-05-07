@@ -61,7 +61,7 @@ vi.mock('@/routes/automations', () => ({
   AutomationsRoute: () => <div>Automations screen</div>,
 }));
 vi.mock('@/routes/inventory', () => ({
-  InventoryRoute: () => <div>Catalog screen</div>,
+  InventoryRoute: () => <div>Products screen</div>,
 }));
 vi.mock('@/routes/help', () => ({
   HelpRoute: () => <div>Help screen</div>,

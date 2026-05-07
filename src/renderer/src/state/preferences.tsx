@@ -198,7 +198,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [showExplanatoryTooltips, setShowExplanatoryTooltipsState] = useState(true);
   const [showFloatingTitleActions, setShowFloatingTitleActionsState] = useState(true);
   const [showRightRailCards, setShowRightRailCardsState] = useState(false);
-  const [showOverviewTaskTabs, setShowOverviewTaskTabsState] = useState(false);
+  const [showOverviewTaskTabs, setShowOverviewTaskTabsState] = useState(true);
   const [showAutomationsPage, setShowAutomationsPageState] = useState(false);
   const [showAnalysisPage, setShowAnalysisPageState] = useState(true);
   const [showPerformanceCompareToggle, setShowPerformanceCompareToggleState] = useState(false);
@@ -210,7 +210,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [customShowExplanatoryTooltips, setCustomShowExplanatoryTooltipsState] = useState(true);
   const [customShowFloatingTitleActions, setCustomShowFloatingTitleActionsState] = useState(true);
   const [customShowRightRailCards, setCustomShowRightRailCardsState] = useState(false);
-  const [customShowOverviewTaskTabs, setCustomShowOverviewTaskTabsState] = useState(false);
+  const [customShowOverviewTaskTabs, setCustomShowOverviewTaskTabsState] = useState(true);
   const [customShowAutomationsPage, setCustomShowAutomationsPageState] = useState(false);
   const [customShowAnalysisPage, setCustomShowAnalysisPageState] = useState(true);
   const [customShowPerformanceCompareToggle, setCustomShowPerformanceCompareToggleState] = useState(false);
@@ -239,7 +239,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedShowExplanatoryTooltips, setPersistedShowExplanatoryTooltips] = useState(true);
   const [persistedShowFloatingTitleActions, setPersistedShowFloatingTitleActions] = useState(true);
   const [persistedShowRightRailCards, setPersistedShowRightRailCards] = useState(false);
-  const [persistedShowOverviewTaskTabs, setPersistedShowOverviewTaskTabs] = useState(false);
+  const [persistedShowOverviewTaskTabs, setPersistedShowOverviewTaskTabs] = useState(true);
   const [persistedShowAutomationsPage, setPersistedShowAutomationsPage] = useState(false);
   const [persistedShowAnalysisPage, setPersistedShowAnalysisPage] = useState(true);
   const [persistedShowPerformanceCompareToggle, setPersistedShowPerformanceCompareToggle] = useState(false);
@@ -251,7 +251,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [persistedCustomShowExplanatoryTooltips, setPersistedCustomShowExplanatoryTooltips] = useState(true);
   const [persistedCustomShowFloatingTitleActions, setPersistedCustomShowFloatingTitleActions] = useState(true);
   const [persistedCustomShowRightRailCards, setPersistedCustomShowRightRailCards] = useState(false);
-  const [persistedCustomShowOverviewTaskTabs, setPersistedCustomShowOverviewTaskTabs] = useState(false);
+  const [persistedCustomShowOverviewTaskTabs, setPersistedCustomShowOverviewTaskTabs] = useState(true);
   const [persistedCustomShowAutomationsPage, setPersistedCustomShowAutomationsPage] = useState(false);
   const [persistedCustomShowAnalysisPage, setPersistedCustomShowAnalysisPage] = useState(true);
   const [persistedCustomShowPerformanceCompareToggle, setPersistedCustomShowPerformanceCompareToggle] = useState(false);

@@ -206,7 +206,7 @@ export function CatalogImageField({
           </div>
           {isBrowserRuntime ? (
             <p className="text-xs leading-5 text-muted-foreground">
-              {translateUiLiteral(language, 'Browser mode keeps catalog data in OPFS, but persistent image assets are desktop-only for now.')}
+              {translateUiLiteral(language, 'Browser mode keeps products data in OPFS, but persistent image assets are desktop-only for now.')}
             </p>
           ) : null}
         </div>

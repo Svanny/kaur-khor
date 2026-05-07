@@ -12,6 +12,7 @@ import {
   hasRankingChanged,
   normalizeReportRanking,
 } from '@/components/system/merchandising-editor';
+import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
 import { formatEditableWholeNumber, sanitizeWholeNumberForDisplay } from '@/lib/format';
 
 export type OperationsSessionPreset = 'small' | 'medium' | 'big';
@@ -68,10 +69,7 @@ interface OperationsSessionContextValue {
 const OperationsSessionContext = createContext<OperationsSessionContextValue | null>(null);
 
 function toLocalDateTimeValue(value?: string) {
-  const date = value ? new Date(value) : new Date();
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60_000);
-  return local.toISOString().slice(0, 16);
+  return formatLocalDateTimeInputValue(value);
 }
 
 export function createOperationsSessionDraft(

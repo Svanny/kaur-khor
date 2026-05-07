@@ -40,7 +40,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   workspaceStarting: 'កំពុងចាប់ផ្តើមផ្នែកក្នុងម៉ាស៊ីន និងផ្ទុកស្ថានភាពចុងក្រោយ។',
   workspaceComputingTitle: 'កខកំពុងរៀបចំកន្លែងធ្វើការរបស់អ្នក',
   workspaceComputingBody:
-    'កខកំពុងផ្ទុកកាតាឡុក ការអាប់ដេតថ្មីៗ និងការវិភាគចុងក្រោយក្នុងម៉ាស៊ីន។',
+    'កខកំពុងផ្ទុកទំនិញ ការអាប់ដេតថ្មីៗ និងការវិភាគចុងក្រោយក្នុងម៉ាស៊ីន។',
   workspaceComputingHint:
     'ការបើកលើកដំបូងបន្ទាប់ពីកំណត់ឡើងវិញ ឬវិភាគម្តងទៀត អាចចំណាយពេលបន្ថែមបន្តិច ខណៈ កខ កំពុងសង់ទិដ្ឋភាពថ្មីៗឡើងវិញ។',
   workspaceUnavailable: 'កន្លែងធ្វើការក្នុងម៉ាស៊ីនមិនអាចប្រើបាន។',
@@ -48,7 +48,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'មើលអ្វីដែលត្រូវយកចិត្តទុកដាក់ឥឡូវនេះ អ្វីដែលបានផ្លាស់ប្តូរថ្មីៗ និងអ្វីដែលត្រូវធ្វើបន្ទាប់។',
   overviewSupportPromptBody:
     'ទំព័រ Work សម្រាប់សកម្មភាពបន្ទាប់ក្នុងការងារ។ ការកែប្រែ កំណត់ហេតុ និងផែនការមាននៅកន្លែងផ្សេង។',
-  overviewDecisionSupportCatalogTitle: 'ការធ្វើផែនការចាប់ផ្តើមបន្ទាប់ពីមានកាតាឡុក',
+  overviewDecisionSupportCatalogTitle: 'ការធ្វើផែនការចាប់ផ្តើមបន្ទាប់ពីមានទំនិញ',
   overviewDecisionSupportCatalogBody:
     'បន្ថែម SKU ដំបូង ដើម្បីឲ្យ កខ អាចបង្កើតការងារពីស្តុកពិត និងសកម្មភាពសេវាកម្ម។',
   overviewDecisionSupportRiskTitle: 'សេចក្តីសង្ខេបហានិភ័យបច្ចុប្បន្ន',
@@ -57,9 +57,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewDecisionSupportReorderTitle: 'សម្ពាធកំពុងកើនមុនហានិភ័យឡើងខ្ពស់',
   overviewDecisionSupportReorderBody:
     'សម្ពាធបញ្ជាទិញបន្ថែមកំពុងកើនឡើង។ ពិនិត្យអាទិភាពឥឡូវនេះ មុនពេល SKU ច្រើនទៀតក្លាយជាបន្ទាន់។',
-  overviewDecisionSupportFirstReportTitle: 'កាតាឡុកត្រូវការការអាប់ដេតពិតលើកដំបូង',
+  overviewDecisionSupportFirstReportTitle: 'ទំនិញត្រូវការការអាប់ដេតពិតលើកដំបូង',
   overviewDecisionSupportFirstReportBody:
-    'កាតាឡុករួចរាល់ហើយ ប៉ុន្តែ កខ នៅតែត្រូវការការអាប់ដេតពិតមួយ មុនពេលអាចទុកចិត្តលើស្ថានភាពបច្ចុប្បន្នបាន។',
+    'ទំនិញរួចរាល់ហើយ ប៉ុន្តែ កខ នៅតែត្រូវការការអាប់ដេតពិតមួយ មុនពេលអាចទុកចិត្តលើស្ថានភាពបច្ចុប្បន្នបាន។',
   overviewDecisionSupportSteadyTitle: 'ស្ថានភាពចុងក្រោយមើលទៅមានស្ថិរភាព',
   overviewDecisionSupportSteadyBody:
     'មិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ ជំហានបន្ទាប់ល្អបំផុត គឺកត់ត្រាការអាប់ដេតស្តុកបន្ទាប់ ហើយរក្សា Work ឲ្យទាន់សម័យ។',
@@ -71,7 +71,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ពិនិត្យ SKU ដែលមានសម្ពាធខ្លាំងបំផុត មុនពេលសេចក្តីសម្រេចស្តុកបន្ទាប់យឺតពេល។',
   overviewPrimaryStartUpdateSessionDescription:
     'បើកលំហូរអាប់ដេតដែលមានការណែនាំ ដើម្បីកត់ត្រាស្ថានភាពស្តុកបន្ទាប់។',
-  overviewOpenCatalogDescription: 'ពិនិត្យកាតាឡុក ឬបន្ថែមអេសខេយូ ឬសេវាកម្ម។',
+  overviewOpenCatalogDescription: 'ពិនិត្យទំនិញ ឬបន្ថែមអេសខេយូ ឬសេវាកម្ម។',
   overviewOpenOperationsDescription: 'ពិនិត្យការអាប់ដេតដែលបានរក្សាទុក ឬចាប់ផ្តើមមួយថ្មី។',
   overviewOpenPlanningDescription: 'ពិនិត្យអាទិភាពលក់ និងសម្ពាធបញ្ជាទិញបន្ថែមជាមួយគ្នា។',
   overviewReviewRecentActivityDescription:
@@ -92,7 +92,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewQueueReorderPressureDescription:
     'សញ្ញាផែនការនៅតែសកម្ម ទោះមិនមានជួរខាងលើក៏ដោយ។ បើកជួរបញ្ជាទិញបន្ថែម ដើម្បីបញ្ជាក់ថាអ្វីគួរធ្វើមុន។',
   overviewQueueHealthyDescription:
-    'ឥឡូវនេះមិនមានសេចក្តីសម្រេចអំពីការបញ្ជាទិញបន្ថែម ឬផលប៉ះពាល់លើសេវាកម្មដែលបន្ទាន់ទេ។ បន្តកត់ត្រា ឬរៀបចំកាតាឡុកបន្ត។',
+    'ឥឡូវនេះមិនមានសេចក្តីសម្រេចអំពីការបញ្ជាទិញបន្ថែម ឬផលប៉ះពាល់លើសេវាកម្មដែលបន្ទាន់ទេ។ បន្តកត់ត្រា ឬរៀបចំទំនិញបន្ត។',
   overviewRecentActivityDescription:
     'មើលអ្វីដែលបានផ្លាស់ប្តូរថ្មីៗបំផុត ក្នុងការអាប់ដេតស្តុក ការផ្លាស់ប្តូរតម្លៃ និងសញ្ញាលំដាប់លក់។',
   overviewRecentActivityFallback:
@@ -102,13 +102,13 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewQuickActionsDescription:
     'រក្សាកខនេះឲ្យខ្លី ដើម្បីឲ្យ Work ផ្តោតលើសកម្មភាព មិនមែនការរៀបចំ។',
   overviewQuickActionOperationsDescription: 'កត់ត្រាការអាប់ដេតស្តុកបន្ទាប់។',
-  overviewQuickActionCatalogDescription: 'ពិនិត្យកាតាឡុក ឬបង្កើតធាតុថ្មី។',
+  overviewQuickActionCatalogDescription: 'ពិនិត្យទំនិញ ឬបង្កើតធាតុថ្មី។',
   overviewQuickActionPlanningDescription: 'ពិនិត្យអាទិភាពលក់ និងបរិបទបញ្ជាទិញបន្ថែម។',
   overviewSupportMetricsDescription:
     'ប្រើសូចនាករទាំងនេះជាព័ត៌មានគាំទ្រ បន្ទាប់ពីផ្នែកសកម្មភាព មិនមែនជាទំព័រសម្រាប់សម្រេចចិត្តសំខាន់ទេ។',
   overviewSupportMetricsValueDetail: 'តម្លៃប៉ាន់ស្មាននៃឯកតាដែលមានក្នុងស្តុកឥឡូវនេះ។',
   overviewSupportMetricsSaleReadyDetail: 'SKU ដែលអាចលក់បាននៅហាងឥឡូវនេះ។',
-  overviewSupportMetricsServicesDetail: 'បណ្ដុំសេវាកម្មដែលបានកំណត់ក្នុងកាតាឡុកឥឡូវនេះ។',
+  overviewSupportMetricsServicesDetail: 'បណ្ដុំសេវាកម្មដែលបានកំណត់ក្នុងទំនិញឥឡូវនេះ។',
   overviewQueueSummaryReorderCandidates: 'ត្រូវគិតបញ្ជាទិញបន្ថែម',
   overviewQueueSummaryDueSoon: 'ដល់ក្នុង 48 ម៉ោង',
   overviewQueueReasonServiceImpact: 'ប៉ះពាល់ {count} {noun}',
@@ -136,6 +136,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewTaskActionReview: 'ពិនិត្យ',
   overviewTaskWhyDetailOrder: 'ថ្ងៃគ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {probability}',
   overviewTaskWhyOrderedAlready: 'បានបញ្ជាទិញរួចហើយ',
+  overviewTaskWhyOrderedAt: 'បានបញ្ជាទិញ {date}',
   overviewTaskWhyReceiptLoop: 'កខ កំពុងរក្សាវានៅក្នុងជួរទទួលទំនិញសកម្ម។',
   overviewTaskWhyCheckSupplier: 'ត្រូវការព័ត៌មានថ្មីពីអ្នកផ្គត់ផ្គង់',
   overviewTaskWhyReceiptWindowPassed: 'រយៈពេលដែលរំពឹងបានផុត ដោយគ្មានការអាប់ដេតថ្មី។',
@@ -146,6 +147,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   overviewTaskServiceImpactBlocks: 'រារាំង {services}',
   overviewTaskServiceImpactAffects: 'ប៉ះពាល់ {services}',
   overviewTaskEtaNotOrderedYet: 'មិនទាន់បានបញ្ជាទិញទេ',
+  overviewTaskEtaOrderCanceled: 'បានលុបចោលការបញ្ជាទិញ',
   overviewTaskEtaReceivedToday: 'បានទទួលថ្ងៃនេះ',
   overviewTaskEtaReceivedLogged: 'បានកត់ត្រា {date}',
   overviewTaskEtaReceivedFallback: 'បានកត់ត្រាការទទួលទំនិញថ្ងៃនេះ។',
@@ -170,7 +172,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'បើថ្ងៃនេះនៅមុនពេក សូមពន្យារការរំលឹកនេះ ហើយកខ នឹងយកវាមកវិញថ្ងៃស្អែក។',
   overviewSignalPromo: 'លំនាំពេលផ្សព្វផ្សាយ អាចបានជួយបង្កើនតម្រូវការសម្រាប់ {name}។',
   dashboardBody:
-    'កខ រក្សាការងារកាតាឡុក លំដាប់លក់ និងស្តុក នៅលើ Mac នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំ cloud។',
+    'កខ រក្សាការងារទំនិញ លំដាប់លក់ និងស្តុក នៅលើ Mac នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំ cloud។',
   dashboardHealthDescription:
     'បង្ហាញថា សែលក្នុងម៉ាស៊ីន និងកន្លែងផ្ទុកទិន្នន័យរួចរាល់សម្រាប់ការងារឬអត់។',
   dashboardRecentDescription:
@@ -184,7 +186,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   catalogItemEditorIdentifierErrorInvalid:
     'ប្រើអក្សរតូច លេខ សហសញ្ញា ឬសញ្ញាគូសក្រោម ចន្លោះ 3 ដល់ 64 តួអក្សរ។',
   catalogItemEditorIdentifierErrorDuplicate:
-    'លេខសម្គាល់នេះ កំពុងត្រូវបានប្រើដោយធាតុកាតាឡុកផ្សេងទៀត រួមទាំងធាតុដែលបានដាក់បណ្ណសារ។',
+    'លេខសម្គាល់នេះ កំពុងត្រូវបានប្រើដោយធាតុទំនិញផ្សេងទៀត រួមទាំងធាតុដែលបានដាក់បណ្ណសារ។',
   catalogSkuEditorNameHelper: 'ដាក់ឈ្មោះ SKU តាមរបៀបដែលបុគ្គលិកនឹងស្វែងរកវា។',
   catalogSkuEditorNameRequired: 'សូមបញ្ចូលឈ្មោះ SKU មុនពេលរក្សាទុក។',
   catalogSkuEditorDescriptionHelper:
@@ -207,7 +209,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'កំណត់ឈ្មោះ SKU និងការពិពណ៌នាខាងក្នុង ដែល កខ នឹងប្រើនៅទូទាំងកម្មវិធី។',
   catalogSkuEditorPricingDescriptor:
     'កំណត់ថ្លៃដើម និងការកំណត់លក់ផ្ទាល់ ដែល កខ គួរប្រើសម្រាប់ SKU នេះ។',
-  catalogSkuEditorRetailPriceHelper: 'បញ្ចូលតម្លៃលក់រាយ តែបើអតិថិជនទិញ SKU នេះដោយផ្ទាល់។',
+  catalogSkuEditorRetailPriceHelper: 'បញ្ចូលតម្លៃលក់ឱ្យអតិថិជន។',
   catalogSkuEditorSellAsProductHelper: 'បើកជម្រើសនេះ នៅពេលអតិថិជនអាចទិញ SKU នេះដោយផ្ទាល់។',
   catalogSkuEditorPlanningDescriptor:
     'បន្ថែមព័ត៌មានអំពីពេលវេលាពីអ្នកផ្គត់ផ្គង់ តែបើវាជួយធ្វើឲ្យសេចក្តីសម្រេចបំពេញស្តុកបន្ទាប់ប្រសើរឡើង។',
@@ -215,8 +217,8 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ជ្រើសថាពេលវេលាពីអ្នកផ្គត់ផ្គង់ ជាទូទៅប្រែប្រួលជុំវិញមធ្យមប៉ុន្មាន។',
   catalogServiceEditorNameHelper: 'ដាក់ឈ្មោះសេវាកម្ម តាមរបៀបដែលបុគ្គលិកអាចស្គាល់វាបានភ្លាម។',
   catalogServiceEditorNameRequired: 'សូមបញ្ចូលឈ្មោះសេវាកម្ម មុនពេលរក្សាទុក។',
-  catalogServiceEditorDescriptionHelper: 'ពិពណ៌នាថាសេវាកម្មនេះជាអ្វី ដើម្បីឲ្យកាតាឡុកមើលងាយស្រួល។',
-  catalogServiceEditorPriceHelper: 'តម្លៃលក់ដែលបុគ្គលិក និងរបាយការណ៍គួរប្រើសម្រាប់សេវាកម្មនេះ។',
+  catalogServiceEditorDescriptionHelper: 'ពិពណ៌នាថាសេវាកម្មនេះជាអ្វី ដើម្បីឲ្យទំនិញមើលងាយស្រួល។',
+  catalogServiceEditorPriceHelper: 'បញ្ចូលតម្លៃលក់សម្រាប់សេវាកម្មនេះ។',
   catalogServiceEditorPriceRequired: 'សូមបញ្ចូលតម្លៃសេវាកម្ម មុនពេលរក្សាទុក។',
   catalogServiceEditorLinkedSkusDescriptor:
     'ភ្ជាប់ SKU ដែលសេវាកម្មនេះប្រើ ដើម្បីឲ្យ កខ អាចតាមដានការគ្របដណ្តប់ និងចំណុចរារាំងបាន។',
@@ -230,7 +232,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ជ្រើស SKU ទាំងអស់ ដែលជាទូទៅត្រូវបានប្រើ នៅពេលសេវាកម្មនេះត្រូវបានលក់។',
   analysisRouteDescriptor:
     'មើលថាការអាប់ដេតដែលបានរក្សាទុក បានក្លាយជាស្ថានភាពបច្ចុប្បន្នរបស់ កខ អំពីតម្រូវការ ស្តុកកំពុងមកដល់ ពេលវេលាមកដល់ និងតម្លៃ យ៉ាងដូចម្តេច។',
-  analysisRouteNeedCatalogTitle: 'Explain ត្រូវការកាតាឡុកជាមុន',
+  analysisRouteNeedCatalogTitle: 'Explain ត្រូវការទំនិញជាមុន',
   analysisRouteNeedCatalogHint: 'បង្កើត SKU ដំបូងរបស់អ្នក ដើម្បីឲ្យ កខ មានធាតុពិតសម្រាប់វិភាគ។',
   analysisRouteNeedRunTitle: 'Explain ត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
   analysisRouteNeedRunHint: 'រក្សាទុកការអាប់ដេតពិតមួយ ដើម្បីឲ្យ កខ អាចពន្យល់ថាស្ថានភាពបច្ចុប្បន្ន ត្រូវបានបង្កើតឡើងយ៉ាងដូចម្តេច។',
@@ -549,7 +551,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateStepRankingsDescription: 'ស្រេចចិត្ត។ អូសតែពេលលំដាប់លក់ពិតបានផ្លាស់ប្តូរ។',
   stockUpdateStepReviewDescription: 'ពិនិត្យការអាប់ដេតនេះ មុនពេលរក្សាទុក។',
   stockUpdateStockViewTooltip:
-    'Priority បង្ហាញ SKU ដែលបានណែនាំ Counted បង្ហាញជួរដែលបានផ្លាស់ប្តូរ ឬមានសញ្ញា ហើយ All SKUs បង្ហាញកាតាឡុកទាំងមូល។',
+    'Priority បង្ហាញ SKU ដែលបានណែនាំ Counted បង្ហាញជួរដែលបានផ្លាស់ប្តូរ ឬមានសញ្ញា ហើយ All SKUs បង្ហាញទំនិញទាំងមូល។',
   stockUpdateStockStepTooltip: 'រក្សាទុកតែជួរស្តុកដែលបានផ្លាស់ប្តូរ និងសញ្ញាជួរដែលកំពុងសកម្មប៉ុណ្ណោះ។',
   stockUpdateSkuFlagsTooltip:
     'បន្ថែមព្រឹត្តិការណ៍ក្នុងរយៈពេលនេះសម្រាប់ SKU នេះ ដូចជាការបញ្ជាទិញ ការដឹកមកដល់ ឬស្ថានភាពត្រូវរារាំង។',
@@ -567,7 +569,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   stockUpdateOrderSignalSaved:
     'បរិមាណបញ្ជាទិញ និងទទួលទំនិញ នឹងត្រូវបានរក្សាទុកជាសញ្ញាការបញ្ជាទិញសម្រាប់រយៈពេលនេះ។',
   stockUpdateServicePriceSaved:
-    'តម្លៃសេវាកម្ម ត្រូវបានរក្សាទុកតែសម្រាប់ជួរដែលតម្លៃថ្មីខុសពីតម្លៃចុងក្រោយក្នុងកាតាឡុក។',
+    'តម្លៃសេវាកម្ម ត្រូវបានរក្សាទុកតែសម្រាប់ជួរដែលតម្លៃថ្មីខុសពីតម្លៃចុងក្រោយក្នុងទំនិញ។',
   stockUpdateGuidanceChooseObservedAt: 'ជ្រើសពេលវេលាដែលបានសង្កេតត្រឹមត្រូវ មុនពេលបន្ត។',
   stockUpdateGuidanceCountOneSku:
     'រាប់ SKU យ៉ាងហោចណាស់មួយ មុនពេលបន្ត ដើម្បីឲ្យ កខ ចាប់យកការអាប់ដេតដំបូងបាន។',
@@ -633,6 +635,126 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
     'ប្រើកំណត់ចំណាំសម្រាប់បរិបទមនុស្ស។ បន្ថែមសញ្ញាមានរចនាសម្ព័ន្ធ នៅពេល កខ គួររៀនពីការផ្លាស់ប្តូរនេះ។',
   stockUpdateNotesHelp:
     'កំណត់ចំណាំជួយពន្យល់ការអាប់ដេត ប៉ុន្តែវាមិនរាប់ជាសញ្ញាអាជីវកម្មដោយខ្លួនឯងទេ។',
+  stockUpdateNotesPlaceholderStockCountBackStorage:
+    'ឧទាហរណ៍: រកឃើញពីរឯកតានៅឃ្លាំងក្រោយពេលរាប់។',
+  stockUpdateNotesPlaceholderStockCountFrontShelf:
+    'ឧទាហរណ៍: បានផ្លាស់ទីការតាំងបង្ហាញទៅធ្នើមុខបន្ទាប់ពីរាប់។',
+  stockUpdateNotesPlaceholderStockCountTester:
+    'ឧទាហរណ៍: បានរាប់របស់សាកល្បងមួយដាច់ដោយឡែកពីស្តុកសម្រាប់លក់។',
+  stockUpdateNotesPlaceholderStockCountMissingLabel:
+    'ឧទាហរណ៍: បានពិនិត្យចំនួនលើធ្នើពីរដង ព្រោះបាត់ស្លាក។',
+  stockUpdateNotesPlaceholderStockCountCleaning:
+    'ឧទាហរណ៍: ដាក់មួយឯកតាដាច់ដោយឡែកសម្រាប់សម្អាតមុនលក់។',
+  stockUpdateNotesPlaceholderStockCountBehindDisplay:
+    'ឧទាហរណ៍: បុគ្គលិករកឃើញស្តុកបន្ថែមនៅខាងក្រោយការតាំងបង្ហាញ។',
+  stockUpdateNotesPlaceholderStockCountOpenedSample:
+    'ឧទាហរណ៍: បានរាប់គំរូបើករួចដាច់ដោយឡែកពីស្តុកក្នុងប្រអប់។',
+  stockUpdateNotesPlaceholderStockCountAisleRestocked:
+    'ឧទាហរណ៍: បានបំពេញការតាំងបង្ហាញតាមច្រកដើរឡើងវិញបន្ទាប់ពីរាប់។',
+  stockUpdateNotesPlaceholderStockCountRoomMatched:
+    'ឧទាហរណ៍: ចំនួនក្នុងបន្ទប់ស្តុកត្រូវគ្នាជាមួយធ្នើមុខ។',
+  stockUpdateNotesPlaceholderStockCountRoutine:
+    'ឧទាហរណ៍: ការរាប់ធម្មតា មិនមានចលនាស្តុកមិនប្រក្រតី។',
+  stockUpdateNotesPlaceholderSupplierOrderCaseSize:
+    'ឧទាហរណ៍: អ្នកផ្គត់ផ្គង់បញ្ជាក់ទំហំកេសតូចជាងសម្រាប់ការបញ្ជាទិញនេះ។',
+  stockUpdateNotesPlaceholderSupplierOrderFollowUp:
+    'ឧទាហរណ៍: បុគ្គលិកនឹងតាមដានជាមួយអ្នកផ្គត់ផ្គង់នៅព្រឹកស្អែក។',
+  stockUpdateNotesPlaceholderSupplierOrderSplitDelivery:
+    'ឧទាហរណ៍: អ្នកលក់ស្នើឲ្យបំបែកការបញ្ជាទិញនេះជាពីរដងដឹកមក។',
+  stockUpdateNotesPlaceholderSupplierOrderNextWeek:
+    'ឧទាហរណ៍: អ្នកផ្គត់ផ្គង់ថាទំនិញនេះមានតែសប្តាហ៍ក្រោយ។',
+  stockUpdateNotesPlaceholderSupplierOrderReducedQuantity:
+    'ឧទាហរណ៍: បានកាត់បន្ថយចំនួនបញ្ជាទិញបន្ទាប់ពីពិនិត្យស្តុកអ្នកផ្គត់ផ្គង់។',
+  stockUpdateNotesPlaceholderSupplierOrderSubstituteColor:
+    'ឧទាហរណ៍: អ្នកផ្គត់ផ្គង់ផ្តល់ពណ៌ជំនួសសម្រាប់ការបញ្ជាទិញនេះ។',
+  stockUpdateNotesPlaceholderSupplierOrderPhoneConfirmation:
+    'ឧទាហរណ៍: បុគ្គលិកបានដាក់បញ្ជាទិញតាមទូរស័ព្ទបន្ទាប់ពីបញ្ជាក់តាមសារ។',
+  stockUpdateNotesPlaceholderSupplierOrderPrepay:
+    'ឧទាហរណ៍: អ្នកផ្គត់ផ្គង់ស្នើឲ្យបង់ប្រាក់មុនពេលផ្ញើចេញ។',
+  stockUpdateNotesPlaceholderSupplierOrderNoArrivalDate:
+    'ឧទាហរណ៍: អ្នកលក់បញ្ជាក់ការបញ្ជាទិញ ប៉ុន្តែមិនទាន់បញ្ជាក់ថ្ងៃមកដល់។',
+  stockUpdateNotesPlaceholderSupplierOrderGroupedShipment:
+    'ឧទាហរណ៍: ការបញ្ជាទិញនេះត្រូវបានដាក់រួមជាមួយការដឹកជញ្ជូនអ្នកផ្គត់ផ្គង់មួយទៀត។',
+  stockUpdateNotesPlaceholderSupplierReceiptDamagedCarton:
+    'ឧទាហរណ៍: កេសមួយមកដល់ខូច ហើយត្រូវបានរាប់ដាច់ដោយឡែក។',
+  stockUpdateNotesPlaceholderSupplierReceiptPartial:
+    'ឧទាហរណ៍: ទទួលបានមួយផ្នែក; ឯកតាដែលនៅសល់កំពុងដឹកមក។',
+  stockUpdateNotesPlaceholderSupplierReceiptLabelMismatch:
+    'ឧទាហរណ៍: ស្លាកកញ្ចប់មិនត្រូវនឹងចំនួនដែលបានបញ្ជាទិញ។',
+  stockUpdateNotesPlaceholderSupplierReceiptEarly:
+    'ឧទាហរណ៍: ការដឹកមកដល់លឿនជាងការប៉ាន់ស្មានរបស់អ្នកផ្គត់ផ្គង់។',
+  stockUpdateNotesPlaceholderSupplierReceiptCountedTwice:
+    'ឧទាហរណ៍: បុគ្គលិកបានរាប់ការទទួលពីរដងមុនដាក់លើធ្នើ។',
+  stockUpdateNotesPlaceholderSupplierReceiptMissingItem:
+    'ឧទាហរណ៍: ទំនិញមួយខ្វះពីកញ្ចប់របស់អ្នកផ្គត់ផ្គង់។',
+  stockUpdateNotesPlaceholderSupplierReceiptExtraUnit:
+    'ឧទាហរណ៍: អ្នកផ្គត់ផ្គង់បន្ថែមមួយឯកតាដោយមិនគិតថ្លៃ។',
+  stockUpdateNotesPlaceholderSupplierReceiptBackStorage:
+    'ឧទាហរណ៍: ទំនិញដែលទទួលបានត្រូវបានដាក់ក្នុងឃ្លាំងក្រោយជាមុន។',
+  stockUpdateNotesPlaceholderSupplierReceiptWetPackaging:
+    'ឧទាហរណ៍: ការវេចខ្ចប់សើម ប៉ុន្តែឯកតាសម្រាប់លក់នៅល្អ។',
+  stockUpdateNotesPlaceholderSupplierReceiptMatchedTicket:
+    'ឧទាហរណ៍: ការទទួលត្រូវនឹងសំបុត្រ ហើយបានដាក់លើធ្នើភ្លាមៗ។',
+  stockUpdateNotesPlaceholderCustomerPendingAfterWork:
+    'ឧទាហរណ៍: អតិថិជនស្នើមកយកបន្ទាប់ពីចេញពីការងារ។',
+  stockUpdateNotesPlaceholderCustomerPendingColorChange:
+    'ឧទាហរណ៍: អតិថិជនប្តូរចំណូលចិត្តពណ៌មុនពេលបំពេញការបញ្ជាទិញ។',
+  stockUpdateNotesPlaceholderCustomerPendingHoldTomorrow:
+    'ឧទាហរណ៍: អតិថិជនស្នើឲ្យទុកការបញ្ជាទិញដល់ថ្ងៃស្អែក។',
+  stockUpdateNotesPlaceholderCustomerPendingDelivery:
+    'ឧទាហរណ៍: អតិថិជនស្នើឲ្យដឹកជូនជំនួសការមកយក។',
+  stockUpdateNotesPlaceholderCustomerPendingSizeConfirm:
+    'ឧទាហរណ៍: អតិថិជនកំពុងរង់ចាំការបញ្ជាក់ទំហំ។',
+  stockUpdateNotesPlaceholderCustomerPendingCombineRequest:
+    'ឧទាហរណ៍: អតិថិជនស្នើឲ្យបញ្ចូលជាមួយសំណើមួយទៀត។',
+  stockUpdateNotesPlaceholderCustomerPendingMessageBeforePrep:
+    'ឧទាហរណ៍: អតិថិជនចង់បានសារមុនពេលរៀបចំទំនិញ។',
+  stockUpdateNotesPlaceholderCustomerPendingStillWants:
+    'ឧទាហរណ៍: បុគ្គលិកបញ្ជាក់ថាអតិថិជននៅតែចង់បានការបញ្ជាទិញ។',
+  stockUpdateNotesPlaceholderCustomerPendingSubstitute:
+    'ឧទាហរណ៍: អតិថិជនស្នើទំនិញជំនួស ប្រសិនបើជម្រើសដំបូងមិនមាន។',
+  stockUpdateNotesPlaceholderCustomerPendingPayment:
+    'ឧទាហរណ៍: សំណើអតិថិជនកំពុងរង់ចាំរហូតដល់បញ្ជាក់ការបង់ប្រាក់។',
+  stockUpdateNotesPlaceholderCustomerCompletedPickup:
+    'ឧទាហរណ៍: អតិថិជនមកយកការបញ្ជាទិញដោយផ្ទាល់។',
+  stockUpdateNotesPlaceholderCustomerCompletedWrongSizeRefund:
+    'ឧទាហរណ៍: បានដោះស្រាយការបង្វិលប្រាក់បន្ទាប់ពីត្រឡប់ទំហំខុស។',
+  stockUpdateNotesPlaceholderCustomerCompletedLateArrival:
+    'ឧទាហរណ៍: សេវាកម្មបញ្ចប់យឺត ព្រោះអតិថិជនមកដល់ក្រោយម៉ោងបិទ។',
+  stockUpdateNotesPlaceholderCustomerCompletedCash:
+    'ឧទាហរណ៍: អតិថិជនបង់សាច់ប្រាក់នៅពេលមកយក។',
+  stockUpdateNotesPlaceholderCustomerCompletedDelivered:
+    'ឧទាហរណ៍: ការបញ្ជាទិញត្រូវបានដឹកជូនអតិថិជនបន្ទាប់ពីបញ្ជាក់។',
+  stockUpdateNotesPlaceholderCustomerCompletedAcceptedSubstitute:
+    'ឧទាហរណ៍: អតិថិជនទទួលយកទំនិញជំនួស។',
+  stockUpdateNotesPlaceholderCustomerCompletedServiceAdjustment:
+    'ឧទាហរណ៍: ការបញ្ជាទិញដែលបញ្ចប់មានការកែសម្រួលសេវាកម្មបន្ថែម។',
+  stockUpdateNotesPlaceholderCustomerCompletedAfterMessage:
+    'ឧទាហរណ៍: បុគ្គលិកសម្គាល់ថាការបញ្ជាទិញបានបញ្ចប់បន្ទាប់ពីសារអតិថិជន។',
+  stockUpdateNotesPlaceholderCustomerCompletedReturnSetAside:
+    'ឧទាហរណ៍: បានដំណើរការការត្រឡប់ ហើយដាក់ស្តុកដែលអាចប្រើបានដាច់ដោយឡែក។',
+  stockUpdateNotesPlaceholderCustomerCompletedFollowUp:
+    'ឧទាហរណ៍: អតិថិជនបានយកទំនិញ ប៉ុន្តែស្នើឲ្យតាមដានពេលក្រោយ។',
+  stockUpdateNotesPlaceholderNeutralRoutine:
+    'ឧទាហរណ៍: ការអាប់ដេតធម្មតា មិនមានបរិបទមិនប្រក្រតីត្រូវបន្ថែម។',
+  stockUpdateNotesPlaceholderNeutralNoAction:
+    'ឧទាហរណ៍: ក្រុមបានកត់សម្គាល់ការផ្លាស់ប្តូរ ប៉ុន្តែមិនទាន់ត្រូវការសកម្មភាពទេ។',
+  stockUpdateNotesPlaceholderNeutralManagerReviewed:
+    'ឧទាហរណ៍: អ្នកគ្រប់គ្រងបានពិនិត្យការអាប់ដេតមុនបិទហាង។',
+  stockUpdateNotesPlaceholderNeutralAfterShift:
+    'ឧទាហរណ៍: ការអាប់ដេតត្រូវបានកត់ត្រាបន្ទាប់ពីបញ្ចប់វេន។',
+  stockUpdateNotesPlaceholderNeutralCheckedNumbers:
+    'ឧទាហរណ៍: បុគ្គលិកបានពិនិត្យតួលេខមុនរក្សាទុក។',
+  stockUpdateNotesPlaceholderNeutralNextOperator:
+    'ឧទាហរណ៍: បានបន្ថែមបរិបទសម្រាប់អ្នកធ្វើការបន្ទាប់។',
+  stockUpdateNotesPlaceholderNeutralNoFollowUp:
+    'ឧទាហរណ៍: មិនត្រូវការតាមដានអតិថិជន ឬអ្នកផ្គត់ផ្គង់ទេ។',
+  stockUpdateNotesPlaceholderNeutralDailyClose:
+    'ឧទាហរណ៍: ការផ្លាស់ប្តូរត្រូវបានពិនិត្យក្នុងពេលបិទប្រចាំថ្ងៃ។',
+  stockUpdateNotesPlaceholderNeutralAudit:
+    'ឧទាហរណ៍: បុគ្គលិកបន្ថែមកំណត់ចំណាំនេះសម្រាប់បរិបទសវនកម្ម។',
+  stockUpdateNotesPlaceholderNeutralHandwritten:
+    'ឧទាហរណ៍: ការអាប់ដេតត្រូវបានបញ្ចូលពីកំណត់ចំណាំវេនសរសេរដៃ។',
   stockUpdateRankingsTooltip:
     'លំដាប់ទាំងនេះជាភស្តុតាងនៃលំដាប់លក់។ ទុកវាដដែល ប្រសិនបើលំដាប់លក់មិនបានផ្លាស់ប្តូរយ៉ាងមានន័យទេ។',
   stockUpdateSaveObservedAtError: 'ជ្រើសពេលវេលាដែលបានសង្កេតត្រឹមត្រូវ មុនពេលរក្សាទុក។',
@@ -910,7 +1032,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   financialsRouteScopeAll: 'ទាំងអស់',
   financialsRouteScopeServices: 'សេវាកម្ម',
   financialsRouteScopeSkus: 'SKU',
-  financialsRouteEmptyCatalogTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការកាតាឡុកជាមុន',
+  financialsRouteEmptyCatalogTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការទំនិញជាមុន',
   financialsRouteEmptyCatalogHint:
     'បង្កើត SKU ដំបូង ដើម្បីឲ្យ កខ អាចអានការលក់ ប្រាក់ចំណេញ តម្លៃស្តុក និងការប្តេជ្ញាជាមួយអ្នកផ្គត់ផ្គង់។',
   financialsRouteEmptyWorkspaceTitle: 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការការរត់ SENA ដំបូង',
@@ -935,7 +1057,7 @@ const overviewTranslations: Partial<Record<TranslationKey, string>> = {
   overviewHighRiskSkuCount: 'SKU ហានិភ័យខ្ពស់',
   overviewHealthyStateTitle: 'មិនមានសញ្ញាផែនការបន្ទាន់ទេ',
   overviewHealthyStateDescription:
-    'ឥឡូវនេះមិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ បន្តកត់ត្រាកំណត់ហេតុ ឬបន្តរៀបចំកាតាឡុក។',
+    'ឥឡូវនេះមិនមានអ្វីបន្ទាន់កំពុងរង់ចាំទេ។ បន្តកត់ត្រាកំណត់ហេតុ ឬបន្តរៀបចំទំនិញ។',
   overviewQueueHealthyTitle: 'ជួរផែនការទំនេរ',
   overviewReorderPressureOnlyTitle: 'សម្ពាធបញ្ជាទិញបន្ថែមកំពុងកើនឡើង',
   overviewReorderPressureOnlyDescription:
@@ -951,7 +1073,7 @@ const overviewTranslations: Partial<Record<TranslationKey, string>> = {
 const dashboardTranslations: Partial<Record<TranslationKey, string>> = {
   dashboardHeading: 'ការគ្រប់គ្រងប្រចាំថ្ងៃសម្រាប់ស្តុក ចលនាស្តុក និងអាទិភាពលក់នៅហាង',
   dashboardBody:
-    'កខរក្សាការងារកាតាឡុក លំដាប់លក់ និងស្តុកនៅលើឧបករណ៍នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំប្រព័ន្ធអនឡាញ។',
+    'កខរក្សាការងារទំនិញ លំដាប់លក់ និងស្តុកនៅលើឧបករណ៍នេះ ដើម្បីឲ្យក្រុមអាចបន្តការងារបានដោយមិនចាំបាច់រង់ចាំប្រព័ន្ធអនឡាញ។',
   dashboardHealthStarting: 'កំពុងចាប់ផ្តើមម៉ាស៊ីនមូលដ្ឋាន និងផ្ទុកស្ថានភាពចុងក្រោយ។',
   dashboardRecentDescription:
     'ពិនិត្យមើលថាក្រុមលក់ទំនងជានឹងលើកមុខអ្វីមុន បន្ទាប់មកកែសម្រួលលំដាប់លក់ បើចាំបាច់។',
@@ -960,14 +1082,14 @@ const dashboardTranslations: Partial<Record<TranslationKey, string>> = {
 };
 
 const inventoryTranslations: Partial<Record<TranslationKey, string>> = {
-  inventoryBody: 'រកមើលកាតាឡុក ស្វែងរកតាមលេខសម្គាល់ ឬឈ្មោះ ហើយចូលទៅកាន់ការកែប្រែបន្ទាប់ភ្លាមៗ។',
-  searchSyncPending: 'កំពុងធ្វើបច្ចុប្បន្នភាពទិដ្ឋភាពកាតាឡុក…',
+  inventoryBody: 'រកមើលទំនិញ ស្វែងរកតាមលេខសម្គាល់ ឬឈ្មោះ ហើយចូលទៅកាន់ការកែប្រែបន្ទាប់ភ្លាមៗ។',
+  searchSyncPending: 'កំពុងធ្វើបច្ចុប្បន្នភាពទិដ្ឋភាពទំនិញ…',
   stockFlow: 'បើកផ្ទាំងអាប់ដេត',
   rankingFlow: 'បើកការរៀបចំលក់',
   createServiceAction: 'បន្ថែមសេវាកម្ម',
   inventoryColumnSellable: 'ឯកតាដែលអាចលក់បាន',
-  inventoryNoResultsTitle: 'មិនមានធាតុកាតាឡុកណាត្រូវនឹងការស្វែងរកទេ',
-  inventoryNoResultsDescription: 'សាកល្បងស្វែងរកម្ដងទៀត ឬបន្ថែម SKU ថ្មី ដើម្បីចាប់ផ្តើមរៀបចំកាតាឡុក។',
+  inventoryNoResultsTitle: 'មិនមានធាតុទំនិញណាត្រូវនឹងការស្វែងរកទេ',
+  inventoryNoResultsDescription: 'សាកល្បងស្វែងរកម្ដងទៀត ឬបន្ថែម SKU ថ្មី ដើម្បីចាប់ផ្តើមរៀបចំទំនិញ។',
 };
 
 const catalogTranslations: Partial<Record<TranslationKey, string>> = {
@@ -982,10 +1104,10 @@ const catalogTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSenaSkuOpenPipelineEmpty: 'មិនទាន់មានសញ្ញាការបញ្ជាទិញ ឬការទទួលទំនិញថ្មីៗទេ។',
   catalogSenaSkuRegimePriceLaneTooltip: 'មើលលំនាំលក់សំខាន់ និងការផ្លាស់ប្តូរតម្លៃថ្មីៗនៅជាប់គ្នា។',
   catalogSkuDetailNotFoundDescription:
-    'មិនមាន SKU នេះនៅក្នុងកាតាឡុកបច្ចុប្បន្នទេ។ ត្រឡប់ទៅកាតាឡុក ដើម្បីជ្រើសកំណត់ត្រាផ្សេង។',
+    'មិនមាន SKU នេះនៅក្នុងទំនិញបច្ចុប្បន្នទេ។ ត្រឡប់ទៅទំនិញ ដើម្បីជ្រើសកំណត់ត្រាផ្សេង។',
   catalogServiceDetailNotFoundTitle: 'រកមិនឃើញសេវាកម្ម',
   catalogServiceDetailNotFoundDescription:
-    'មិនមានសេវាកម្មនេះនៅក្នុងកាតាឡុកបច្ចុប្បន្នទេ។ ត្រឡប់ទៅកាតាឡុក ដើម្បីជ្រើសកំណត់ត្រាផ្សេង។',
+    'មិនមានសេវាកម្មនេះនៅក្នុងទំនិញបច្ចុប្បន្នទេ។ ត្រឡប់ទៅទំនិញ ដើម្បីជ្រើសកំណត់ត្រាផ្សេង។',
   catalogServiceDetailUnavailableTitle: 'មិនអាចបង្ហាញព័ត៌មានលម្អិតសេវាកម្មបាន',
   catalogServiceDetailUnavailableDescription: 'កខមិនទាន់មានទិន្នន័យដែលបានរក្សាទុកគ្រប់គ្រាន់ សម្រាប់សេវាកម្មនេះនៅឡើយទេ។',
   catalogSkuDetailWorkDescription: 'ពិនិត្យស្តុក ថ្លៃដើម និងភាពអាចលក់បាន មុនពេលកែប្រែ SKU នេះ។',
@@ -1033,7 +1155,7 @@ const catalogTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuPlanningSignalsFallback: 'មិនអាចផ្ទុកបរិបទផែនការលម្អិតបានទេ។ កំពុងបង្ហាញតម្លៃសង្ខេបចុងក្រោយជំនួស។',
   catalogSkuDetailLoaderTitle: 'ព័ត៌មានលម្អិតបន្ថែម',
   catalogSkuDetailLoaderDescription: 'ផ្ទុកព័ត៌មានលម្អិតបន្ថែម នៅពេលវាមាន ដោយមិនរារាំងការគ្រប់គ្រងសំខាន់ៗរបស់ SKU ទេ។',
-  catalogSkuEditorDescription: 'កែប្រែវាលសំខាន់ៗក្នុងកាតាឡុកសម្រាប់ SKU នេះ ហើយរក្សាទុកទៅកន្លែងធ្វើការក្នុងម៉ាស៊ីន។',
+  catalogSkuEditorDescription: 'កែប្រែវាលសំខាន់ៗក្នុងទំនិញសម្រាប់ SKU នេះ ហើយរក្សាទុកទៅកន្លែងធ្វើការក្នុងម៉ាស៊ីន។',
   catalogServiceEditorDescription: 'កែប្រែព័ត៌មានលម្អិតសេវាកម្ម និង SKU ដែលភ្ជាប់ នៅក្នុងកន្លែងធ្វើការក្នុងម៉ាស៊ីន។',
 };
 
@@ -1092,9 +1214,9 @@ const operationsAndStockTranslations: Partial<Record<TranslationKey, string>> = 
   stockSessionServicesOptionalDescription:
     'រំលងផ្នែកនេះបាន បើមិនមានស្ថានភាពអស់ស្តុកសេវាកម្ម ឬការផ្លាស់ប្តូរតម្លៃសេវាកម្មត្រូវកត់ត្រា។',
   stockUpdateNoSkusHelper:
-    'មិនទាន់មាន SKU ណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែម SKU ជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតស្តុក។',
+    'មិនទាន់មាន SKU ណាមួយនៅក្នុងទំនិញទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែម SKU ជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតស្តុក។',
   stockUpdateNoServicesHelper:
-    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតសេវាកម្ម។',
+    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងទំនិញទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវកត់ត្រាការអាប់ដេតសេវាកម្ម។',
   stockSalesSignalSupportCopy:
     'រៀបលំដាប់សេវាកម្ម និង SKU ដែលអាចលក់បាន តាមតម្រូវការឬភាពពេញនិយមដែលបានឃើញថ្មីៗ។ ការប៉ាន់ស្មានមិនចាំបាច់ត្រូវបានតឹងរឹងពេកក៏បាន។',
   stockSalesSignalExplainerTitle: 'ហេតុអ្វីសញ្ញានេះសំខាន់',
@@ -1102,7 +1224,7 @@ const operationsAndStockTranslations: Partial<Record<TranslationKey, string>> = 
     'ប្រើលំដាប់លក់ថ្មីៗ ដើម្បីជួយកខអានតម្រូវការ។ រៀបលំដាប់អ្វីដែលលក់មុន ឬលក់ញឹកញាប់ជាងគេថ្មីៗ។ នេះជាសញ្ញាតម្រូវការ មិនមែនកខអ្វីដែលត្រូវរុញលក់ឡើយ។',
   stockSalesSignalEmptyDescription: 'បន្ថែមសេវាកម្ម ឬ SKU ដែលអាចលក់បាន មុនពេលប្រើជំហាននេះ។',
   stockUpdateNoServicesRankingHelper:
-    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងកាតាឡុកទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវរៀបលំដាប់តម្រូវការសេវាកម្ម។',
+    'មិនទាន់មានសេវាកម្មណាមួយនៅក្នុងទំនិញទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬបន្ថែមសេវាកម្មជាមុនសិន បើត្រូវរៀបលំដាប់តម្រូវការសេវាកម្ម។',
   stockUpdateNoRetailRankingHelper:
     'មិនទាន់មាន SKU ដែលអាចលក់បានសម្រាប់រៀបលំដាប់ទេ។ អ្នកអាចរំលងផ្នែកនេះ ឬកំណត់ SKU មួយឲ្យលក់បានជាមុនសិន ដោយបើកការលក់ផ្ទាល់ និងកំណត់តម្លៃលក់។',
   stockServiceSummaryEmpty:
@@ -1118,7 +1240,7 @@ const operationsAndStockTranslations: Partial<Record<TranslationKey, string>> = 
   stockObservationsFilterEmpty: 'មិនទាន់មានជួរណាមួយត្រូវបានកែប្រែទេ។',
   stockFocusServiceHint: 'បានបើកពីសេវាកម្មនេះ',
   stockServiceStockoutToggle: 'សម្គាល់ថាអស់ស្តុក',
-  stockServicePriceHint: 'កំពុងប្រើតម្លៃបច្ចុប្បន្នក្នុងកាតាឡុក',
+  stockServicePriceHint: 'កំពុងប្រើតម្លៃបច្ចុប្បន្នក្នុងទំនិញ',
   stockServiceSummaryFlagSingular: 'សញ្ញាសេវាកម្ម',
   stockServiceSummaryFlagPlural: 'សញ្ញាសេវាកម្ម',
   stockServiceSummaryPriceSingular: 'ការកែតម្លៃ',
@@ -1226,7 +1348,8 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   preferencesSistTitle: 'លំនាំដើមសម្រាប់ផែនការ',
   preferencesSistDescription: 'កែតែពេលកន្លែងធ្វើការនេះ ត្រូវការឥរិយាបថផែនការខុសពីធម្មតា។',
   serviceEditorTitle: 'កម្មវិធីកែសេវាកម្ម',
-  fieldProductPrice: 'តម្លៃលក់',
+  fieldCostPerUnit: 'ថ្លៃដើមពីអ្នកផ្គត់ផ្គង់ក្នុងមួយឯកតា',
+  fieldProductPrice: 'តម្លៃលក់ឱ្យអតិថិជន',
   fieldLeadTimeMeanDays: 'ពេលវេលាមកដល់មធ្យម (ថ្ងៃ)',
   fieldLeadTimeStdDays: 'គម្លាតពេលវេលាមកដល់ (ថ្ងៃ)',
   fieldSkuSelectionHint: 'ជ្រើស SKU ដែលសេវាកម្មនេះប្រើជាទូទៅ។',
@@ -1236,9 +1359,9 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   skuEditorSellAsProductDescription:
     'បើកជម្រើសនេះ តែពេល SKU អាចលក់ផ្ទាល់បាន និងត្រូវការតម្លៃលក់ផ្ទាល់របស់វា។',
   skuEditorImpactSellableEnabled:
-    'បន្ទាប់ពីអ្នករក្សាទុក កាតាឡុក និងផែនការ នឹងចាត់ទុក SKU នេះថាអាចលក់បាន។',
+    'បន្ទាប់ពីអ្នករក្សាទុក ទំនិញ និងផែនការ នឹងចាត់ទុក SKU នេះថាអាចលក់បាន។',
   skuEditorImpactSellableDisabled:
-    'បន្ទាប់ពីអ្នករក្សាទុក កាតាឡុក និងផែនការ នឹងឈប់បង្ហាញ SKU នេះក្នុងទិដ្ឋភាពដែលអាចលក់បាន។',
+    'បន្ទាប់ពីអ្នករក្សាទុក ទំនិញ និងផែនការ នឹងឈប់បង្ហាញ SKU នេះក្នុងទិដ្ឋភាពដែលអាចលក់បាន។',
   skuEditorImpactPrice: 'ការរៀបចំលក់ផ្ទាល់ នឹងប្រើតម្លៃលក់ដែលបានអាប់ដេត បន្ទាប់ពីអ្នករក្សាទុក។',
   skuEditorImpactPlanning: 'ការគណនាផែនការ នឹងផ្ទុកការសន្មត់អំពីពេលវេលាមកដល់ឡើងវិញ បន្ទាប់ពីអ្នករក្សាទុក។',
   editorDetailsTitle: 'ព័ត៌មានលម្អិតសំខាន់',
@@ -1294,9 +1417,9 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuEditorDescriptionNew:
     'បង្កើត SKU ជាមុនសិន។ ការងារផែនការ និងស្តុកបន្ថែម អាចធ្វើបន្តពីទំព័រព័ត៌មានលម្អិតរបស់វា។',
   catalogSkuEditorDescriptionEdit:
-    'អាប់ដេតព័ត៌មាន SKU ដែលកខប្រើសម្រាប់កាតាឡុក តម្លៃ និងផែនការ។',
+    'អាប់ដេតព័ត៌មាន SKU ដែលកខប្រើសម្រាប់ទំនិញ តម្លៃ និងផែនការ។',
   catalogSkuEditorSupplierHelper:
-    'ជ្រើសអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់ ឬវាយឈ្មោះអ្នកផ្គត់ផ្គង់ថ្មី។',
+    'ជ្រើសអ្នកផ្គត់ផ្គង់ដែលមានស្រាប់ វាយឈ្មោះអ្នកផ្គត់ផ្គង់ថ្មី ឬទុកថាគ្មានអ្នកផ្គត់ផ្គង់។',
   catalogSkuEditorSupplierRequired:
     'សូមជ្រើស ឬបញ្ចូលឈ្មោះអ្នកផ្គត់ផ្គង់ មុនពេលរក្សាទុក។',
   catalogSkuEditorSupplierPlaceholder: 'ជ្រើសអ្នកផ្គត់ផ្គង់របស់អ្នក...',
@@ -1304,7 +1427,7 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   catalogSkuPlanningInputsDescription:
     'ព័ត៌មានអំពីពេលវេលារបស់អ្នកផ្គត់ផ្គង់តាមជម្រើស។ អាប់ដេតវា ពេលរូបភាពពេលវេលាមកដល់ផ្លាស់ប្តូរ។',
   catalogSkuEditorDetailsTooltip:
-    'វាលអត្តសញ្ញាណ កំណត់របៀបដែលកខដាក់ឈ្មោះ និងស្វែងរក SKU នេះ នៅទូទាំងកាតាឡុក កំណត់ហេតុ និងផែនការ។',
+    'វាលអត្តសញ្ញាណ កំណត់របៀបដែលកខដាក់ឈ្មោះ និងស្វែងរក SKU នេះ នៅទូទាំងទំនិញ កំណត់ហេតុ និងផែនការ។',
   catalogSkuEditorPlanningTooltip:
     'ព័ត៌មានផែនការ ពិពណ៌នាពេលវេលារបស់អ្នកផ្គត់ផ្គង់ ដើម្បីឲ្យកខអាចប៉ាន់ស្មានរយៈពេលបំពេញស្តុកបាន។',
   catalogSkuEditorSellAsProductTooltip:
@@ -1345,11 +1468,11 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
   catalogServiceEditorDescriptionNew:
     'បង្កើតសេវាកម្មជាមុនសិន។ អ្នកអាចពិនិត្យការបំពេញសេវាកម្ម និងកំណត់ហេតុបន្តពីទំព័រព័ត៌មានលម្អិតរបស់វា។',
   catalogServiceEditorDescriptionEdit:
-    'អាប់ដេតព័ត៌មានសេវាកម្ម ដែលកខប្រើសម្រាប់កាតាឡុក តម្លៃ និងការគ្របដណ្តប់។',
+    'អាប់ដេតព័ត៌មានសេវាកម្ម ដែលកខប្រើសម្រាប់ទំនិញ តម្លៃ និងការគ្របដណ្តប់។',
   catalogServiceEditorIdentifierDescription:
     'រក្សាលេខសម្គាល់សេវាកម្មនេះឲ្យមានស្ថិរភាព លុះត្រាតែអ្នកត្រូវប្ដូរឈ្មោះវានៅគ្រប់កន្លែងដែល កខ តាមដានវា។',
   catalogServiceEditorDetailsTooltip:
-    'វាលអត្តសញ្ញាណ កំណត់របៀបដែលកខដាក់ឈ្មោះ និងស្វែងរកសេវាកម្មនេះ នៅទូទាំងកាតាឡុក កំណត់ហេតុ និងការវិភាគ។',
+    'វាលអត្តសញ្ញាណ កំណត់របៀបដែលកខដាក់ឈ្មោះ និងស្វែងរកសេវាកម្មនេះ នៅទូទាំងទំនិញ កំណត់ហេតុ និងការវិភាគ។',
   catalogServiceEditorPricingTooltip: 'ការកំណត់តម្លៃ កំណត់ចំនួនទឹកប្រាក់ដែលកខបង្ហាញឲ្យអតិថិជនសម្រាប់សេវាកម្មនេះ។',
   catalogServiceEditorLinkedSkusTooltip:
     'SKU ដែលភ្ជាប់ គឺជាទិន្នន័យស្តុកដែលកខពិនិត្យ មុនពេលសម្គាល់ថាសេវាកម្មនេះអាចលក់បាន។',
@@ -1368,6 +1491,7 @@ const refinementTranslations: Partial<Record<TranslationKey, string>> = {
     'បានអាប់ដេតស្តុកថ្មីៗ ហើយគួរពិនិត្យការស្ដារសេវាកម្មបន្ថែមទៀត។',
   overviewTaskServiceImpactNone: 'មិនទាន់មានការភ្ជាប់ផលប៉ះពាល់លើសេវាកម្មនៅឡើយទេ។',
   overviewTaskEtaNotOrderedDetail: 'មិនទាន់មានការបញ្ជាទិញកំពុងដំណើរការណាមួយត្រូវបានកត់ត្រាទេ។',
+  overviewTaskEtaOrderCanceledDetail: 'សំបុត្រអ្នកផ្គត់ផ្គង់ចុងក្រោយត្រូវបានលុបចោល ហើយមិនមានការបញ្ជាទិញកំពុងដំណើរការទេ។',
   overviewTaskEtaWaitingSignal: 'កខកំពុងរង់ចាំសញ្ញាថ្មីពីអ្នកផ្គត់ផ្គង់។',
   overviewTaskConfidencePriority: 'អាទិភាពកំពុងខ្ពស់',
   overviewTaskHeartbeatReorder: 'សញ្ញាបញ្ជាទិញបន្ថែម {probability}',
@@ -1392,7 +1516,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   workspaceStarting: 'កំពុងចាប់ផ្តើមផ្នែកក្នុងម៉ាស៊ីន និងផ្ទុកកន្លែងធ្វើការចុងក្រោយ។',
   workspaceComputingTitle: 'កខកំពុងរៀបចំកន្លែងធ្វើការរបស់អ្នក',
   workspaceComputingBody:
-    'កខកំពុងផ្ទុកកាតាឡុក ការអាប់ដេតថ្មីៗ និងទិដ្ឋភាពផែនការចុងក្រោយក្នុងម៉ាស៊ីន។',
+    'កខកំពុងផ្ទុកទំនិញ ការអាប់ដេតថ្មីៗ និងទិដ្ឋភាពផែនការចុងក្រោយក្នុងម៉ាស៊ីន។',
   workspaceUnavailable: 'កន្លែងធ្វើការផែនការក្នុងម៉ាស៊ីនមិនអាចប្រើបាន។',
   dashboardHealthStarting: 'កំពុងចាប់ផ្តើមផ្នែកក្នុងម៉ាស៊ីន និងផ្ទុកកន្លែងធ្វើការចុងក្រោយ',
   dashboardRiskTitle: 'ស្ថានភាពផែនការ',
@@ -1552,6 +1676,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     overviewTaskWhyOrderSoon: 'ស្តុកកំពុងតែអស់',
     overviewTaskWhyDetailOrder:
       'គ្រប់គ្រាន់ {cover} · សញ្ញាបញ្ជាទិញបន្ថែម {probability}',
+    overviewTaskWhyOrderedAt: 'បានបញ្ជាទិញ {date}',
     overviewTaskWhyReceiptLoop:
       'កខ កំពុងតែតាមដានការដឹកមកដល់នេះនៅឡើយ។',
     overviewTaskHeartbeatOnHand:
@@ -1634,7 +1759,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       performanceRouteConfidenceTitle: 'ទំនុកចិត្ត និងការគ្របដណ្តប់',
       performanceRouteConfidenceThin: 'ការគ្របដណ្តប់នៅស្តើង · មិនទាន់មានការអាប់ដេតពិតទេ',
       performanceRouteTimelineTitle: 'បន្ទាត់ពេលវេលាអាជីវកម្ម',
-      analysisRouteNeedCatalogTitle: 'ការវិភាគត្រូវការកាតាឡុកជាមុន',
+      analysisRouteNeedCatalogTitle: 'ការវិភាគត្រូវការទំនិញជាមុន',
       analysisRouteNeedRunTitle: 'ការវិភាគត្រូវការការអាប់ដេតដំបូងរបស់អ្នក',
       analysisRouteOpenWork: 'បើកប្រអប់ការងារ',
       analysisWorkbenchSettingsRunIdTooltip: 'លេខសម្គាល់តែមួយគត់ សម្រាប់ Explain បច្ចុប្បន្ន។',
@@ -1673,7 +1798,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       analysisWorkbenchLeadTimePointAria: 'ពេលវេលាមកដល់ {days} ថ្ងៃ',
       analysisWorkbenchSettingsTooltip: 'ព័ត៌មានអំពី Explain និងភស្តុតាង សម្រាប់រយៈពេលបច្ចុប្បន្ន ដែលអាចអានបានតែប៉ុណ្ណោះ។',
       stockUpdateStockViewTooltip:
-        'អាទិភាព បង្ហាញ SKU ដែលបានណែនាំ បានរាប់ បង្ហាញជួរដែលបានផ្លាស់ប្តូរ ឬមានសញ្ញា ហើយ SKU ទាំងអស់ បង្ហាញកាតាឡុកទាំងមូល។',
+        'អាទិភាព បង្ហាញ SKU ដែលបានណែនាំ បានរាប់ បង្ហាញជួរដែលបានផ្លាស់ប្តូរ ឬមានសញ្ញា ហើយ SKU ទាំងអស់ បង្ហាញទំនិញទាំងមូល។',
       stockUpdateStockStepTooltipLabel: 'ព័ត៌មានលម្អិតអំពីការរាប់ស្តុក',
       stockUpdateLatestCost: 'ថ្លៃដើមចុងក្រោយ',
       stockUpdateCurrentCost: 'ថ្លៃដើមបច្ចុប្បន្ន',
@@ -1703,6 +1828,8 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
       overviewDrawerModeNotOrderedTitle: 'មិនទាន់បានបញ្ជាទិញ',
       overviewDrawerModeNotOrderedDescription: 'ទុកការងារនេះឱ្យនៅបើក',
     },
+    overviewDrawerModeOrderCanceledTitle: 'បានលុបចោលការបញ្ជាទិញ',
+    overviewDrawerModeOrderCanceledDescription: 'កត់ត្រាការលុបចោលពីអ្នកផ្គត់ផ្គង់',
     overviewDrawerModeOrderedWaitingTitle: 'បានបញ្ជាទិញ កំពុងរង់ចាំ',
     overviewDrawerModeOrderedWaitingDescription: 'កត់ត្រាការបញ្ជាទិញដែលកំពុងរង់ចាំ',
     overviewDrawerModeEtaChangedTitle: 'ETA បានផ្លាស់ប្ដូរ',
@@ -1710,6 +1837,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
     overviewDrawerModeGoodsReceivedTitle: 'បានទទួលទំនិញ',
     overviewDrawerModeGoodsReceivedDescription: 'កត់ត្រាការទទួលទំនិញ',
     overviewDrawerModeSummaryNotOrdered: 'កខ នឹងទុកការងារនេះឱ្យនៅបើក រហូតដល់ស្ថានភាពបញ្ជាទិញផ្លាស់ប្ដូរ។',
+    overviewDrawerModeSummaryOrderCanceled: 'កខ នឹងរក្សាទុកសំបុត្រអ្នកផ្គត់ផ្គង់ដែលបានលុបចោល ហើយរក្សាការងារនេះនៅក្នុងបញ្ជាទិញឥឡូវ។',
     overviewDrawerModeSummaryOrderedWaiting: 'កខ នឹងរក្សាទុកសញ្ញាបញ្ជាទិញ និងរយៈពេលមកដល់បច្ចុប្បន្ន។',
     overviewDrawerModeSummaryEtaChanged: 'កខ នឹងធ្វើឱ្យរយៈពេលមកដល់សម្រាប់ការងារនេះទាន់សម័យ។',
     overviewDrawerModeSummaryGoodsReceived: 'កខ នឹងកត់ត្រាការទទួលទំនិញ និងធ្វើឱ្យស្តុកទាន់សម័យ។',
@@ -1751,6 +1879,7 @@ const finalPassTranslations: Partial<Record<TranslationKey, string>> = {
   overviewDrawerNextStepsTitle: 'អ្វីដែលកខ នឹងធ្វើបន្ទាប់',
   overviewDrawerModeLabel: 'របៀប៖ {value}',
   overviewDrawerSubmitGoodsReceived: 'បញ្ជាក់ការអាប់ដេតស្តុក',
+  overviewDrawerSubmitOrderCanceled: 'រក្សាទុកការលុបចោល',
   overviewDrawerSubmitNotOrdered: 'រក្សាទុកកំណត់ចំណាំ',
   overviewDrawerSubmitDefault: 'រក្សាទុក ហើយផ្ទុកឡើងវិញ',
   overviewDrawerSaveFailed: 'កខ មិនអាចរក្សាទុកការអាប់ដេតនេះបានទេ។ សូមព្យាយាមម្ដងទៀត។',
@@ -1771,7 +1900,101 @@ const directKeyTranslations: Partial<Record<TranslationKey, string>> = {
 };
 
 const exactValueTranslations: Record<string, string> = {
-  Catalog: 'កាតាឡុក',
+  Catalog: 'ទំនិញ',
+  Products: 'ទំនិញ',
+  products: 'ទំនិញ',
+  Attributes: 'លក្ខណៈ',
+  'Enable attributes': 'បើកលក្ខណៈ',
+  'Choose attributes and options to create variant copies when saving.':
+    'ជ្រើសលក្ខណៈ និងជម្រើស ដើម្បីបង្កើតច្បាប់ចម្លងប្រភេទផ្សេងៗពេលរក្សាទុក។',
+  'Attribute preset': 'គំរូលក្ខណៈ',
+  'Add attribute': 'បន្ថែមលក្ខណៈ',
+  'Add selected attribute': 'បន្ថែមលក្ខណៈដែលបានជ្រើស',
+  'Add custom attribute': 'បន្ថែមលក្ខណៈផ្ទាល់ខ្លួន',
+  'e.g.': 'ឧ.',
+  'Add an attribute to start generating variants.': 'បន្ថែមលក្ខណៈមួយ ដើម្បីចាប់ផ្តើមបង្កើតប្រភេទផ្សេងៗ។',
+  'Attribute name': 'ឈ្មោះលក្ខណៈ',
+  'Option name': 'ឈ្មោះជម្រើស',
+  'Enter option name': 'បញ្ចូលឈ្មោះជម្រើស',
+  'Add option': 'បន្ថែមជម្រើស',
+  'Remove attribute': 'ដកលក្ខណៈចេញ',
+  'Remove option': 'ដកជម្រើសចេញ',
+  'Select option': 'ជ្រើសជម្រើស',
+  '{count} variant will be created': 'នឹងបង្កើតប្រភេទ {count}',
+  '{count} variants will be created': 'នឹងបង្កើតប្រភេទផ្សេងៗ {count}',
+  'No variants will be created until at least one option is selected.':
+    'មិនបង្កើតប្រភេទផ្សេងៗទេ រហូតដល់ជ្រើសជម្រើសយ៉ាងតិចមួយ។',
+  'No attributes selected yet.': 'មិនទាន់បានជ្រើសលក្ខណៈទេ។',
+  'Create active variants from selected attributes when saving this SKU.':
+    'បង្កើតប្រភេទផ្សេងៗដែលសកម្មពីលក្ខណៈដែលបានជ្រើស ពេលរក្សាទុកទំនិញនេះ។',
+  'Create active variants from selected attributes when saving this service.':
+    'បង្កើតប្រភេទសេវាកម្មផ្សេងៗដែលសកម្មពីលក្ខណៈដែលបានជ្រើស ពេលរក្សាទុកសេវាកម្មនេះ។',
+  'Generate SKU variants without copying logs, observations, or captures.':
+    'បង្កើតប្រភេទទំនិញផ្សេងៗ ដោយមិនចម្លងកំណត់ហេតុ ការសង្កេត ឬការកត់ត្រា។',
+  'Generate service variants without copying logs, observations, or captures.':
+    'បង្កើតប្រភេទសេវាកម្មផ្សេងៗ ដោយមិនចម្លងកំណត់ហេតុ ការសង្កេត ឬការកត់ត្រា។',
+  Size: 'ទំហំ',
+  Color: 'ពណ៌',
+  Flavor: 'រសជាតិ',
+  'Pack size': 'ទំហំកញ្ចប់',
+  Material: 'សម្ភារៈ',
+  Quality: 'គុណភាព',
+  Format: 'ទ្រង់ទ្រាយ',
+  Duration: 'រយៈពេល',
+  'Service type': 'ប្រភេទសេវាកម្ម',
+  XS: 'តូចខ្លាំង',
+  S: 'តូច',
+  M: 'មធ្យម',
+  L: 'ធំ',
+  XL: 'ធំខ្លាំង',
+  XXL: 'ធំខ្លាំងណាស់',
+  Black: 'ខ្មៅ',
+  White: 'ស',
+  Red: 'ក្រហម',
+  Blue: 'ខៀវ',
+  Green: 'បៃតង',
+  Yellow: 'លឿង',
+  Pink: 'ផ្កាឈូក',
+  Purple: 'ស្វាយ',
+  Gray: 'ប្រផេះ',
+  Brown: 'ត្នោត',
+  Original: 'ដើម',
+  Spicy: 'ហឹរ',
+  Sweet: 'ផ្អែម',
+  Sour: 'ជូរ',
+  Savory: 'ប្រៃឆ្ងាញ់',
+  Unsweetened: 'មិនផ្អែម',
+  Single: 'មួយ',
+  '2-pack': 'កញ្ចប់២',
+  '3-pack': 'កញ្ចប់៣',
+  '6-pack': 'កញ្ចប់៦',
+  '12-pack': 'កញ្ចប់១២',
+  Bulk: 'ចំនួនច្រើន',
+  Cotton: 'កប្បាស',
+  Plastic: 'ប្លាស្ទិក',
+  Metal: 'លោហៈ',
+  Glass: 'កញ្ចក់',
+  Wood: 'ឈើ',
+  Ceramic: 'សេរ៉ាមិច',
+  Leather: 'ស្បែក',
+  Standard: 'ស្តង់ដារ',
+  Premium: 'គុណភាពខ្ពស់',
+  Economy: 'សន្សំសំចៃ',
+  Limited: 'មានកំណត់',
+  Physical: 'រូបវន្ត',
+  Digital: 'ឌីជីថល',
+  Printed: 'បោះពុម្ព',
+  Refillable: 'បំពេញឡើងវិញបាន',
+  '30 min': '៣០ នាទី',
+  '60 min': '៦០ នាទី',
+  '90 min': '៩០ នាទី',
+  'Half day': 'កន្លះថ្ងៃ',
+  'Full day': 'ពេញមួយថ្ងៃ',
+  Basic: 'មូលដ្ឋាន',
+  Express: 'រហ័ស',
+  'In-store': 'ក្នុងហាង',
+  'On-site': 'នៅទីតាំង',
+  Remote: 'ពីចម្ងាយ',
   Automations: 'ស្វ័យប្រវត្តិកម្ម',
   Configuration: 'ការកំណត់រចនាសម្ព័ន្ធ',
   Overview: 'ទិដ្ឋភាពទូទៅ',
@@ -1812,7 +2035,8 @@ const exactValueTranslations: Record<string, string> = {
   '{count} row{suffix} changed': 'ជួរ {count} {suffix} បានផ្លាស់ប្តូរ',
   Expand: 'ពង្រីក',
   Collapse: 'បង្រួម',
-  'Back to catalog': 'ត្រឡប់ទៅកាតាឡុក',
+  'Back to catalog': 'ត្រឡប់ទៅទំនិញ',
+  'Back to products': 'ត្រឡប់ទៅទំនិញ',
   'Back to app': 'ត្រឡប់ទៅកម្មវិធី',
   'Skip to content': 'រំលងទៅមាតិកា',
   'Open navigation': 'បើកម៉ឺនុយ',
@@ -1899,7 +2123,9 @@ const exactValueTranslations: Record<string, string> = {
   'All suppliers': 'អ្នកផ្គត់ផ្គង់ទាំងអស់',
   'No supplier': 'គ្មានអ្នកផ្គត់ផ្គង់',
   'Custom supplier': 'អ្នកផ្គត់ផ្គង់ផ្ទាល់ខ្លួន',
-  'Custom uncertainty ± days': 'ភាពមិនច្បាស់លាស់ផ្ទាល់ខ្លួន ± ថ្ងៃ',
+  'Custom ETA variation': 'ភាពប្រែប្រួលពេលមកដល់ផ្ទាល់ខ្លួន',
+  'Custom ETA variation days': 'ថ្ងៃភាពប្រែប្រួលពេលមកដល់ផ្ទាល់ខ្លួន',
+  'Custom ETA variation hours': 'ម៉ោងភាពប្រែប្រួលពេលមកដល់ផ្ទាល់ខ្លួន',
   'Customer pending mode': 'របៀបបញ្ជាទិញអតិថិជនកំពុងបើក',
   'New pending': 'បើកថ្មី',
   'Modify pending': 'កែការបើក',
@@ -1982,10 +2208,17 @@ const exactValueTranslations: Record<string, string> = {
   'All {kind} States': 'ស្ថានភាព {kind} ទាំងអស់',
   '{count} {kind} States': 'ស្ថានភាព {kind} {count}',
   Filter: 'តម្រង',
-  'Lead time mean': 'មធ្យមពេលមកដល់',
+  'Expected time of arrival': 'ពេលមកដល់ដែលរំពឹង',
   'Select variability': 'ជ្រើសភាពប្រែប្រួល',
   'Set mean days first': 'កំណត់ចំនួនថ្ងៃមធ្យមជាមុន',
-  '±{days} days': '±{days} ថ្ងៃ',
+  '± {hours}h': '± {hours} ម៉ោង',
+  '± {days}d & {hours}h': '± {days} ថ្ងៃ និង {hours} ម៉ោង',
+  '± {hours} hr': '± {hours} hr',
+  '± {days} d & {hours} hr': '± {days} d និង {hours} hr',
+  Days: 'ថ្ងៃ',
+  Hours: 'ម៉ោង',
+  d: 'd',
+  hr: 'hr',
   'Expected date of arrival': 'កាលបរិច្ឆេទមកដល់ដែលរំពឹង',
   'Current order': 'ការបញ្ជាទិញបច្ចុប្បន្ន',
   'Current order for {name}': 'ការបញ្ជាទិញបច្ចុប្បន្នសម្រាប់ {name}',
@@ -2025,18 +2258,22 @@ const exactValueTranslations: Record<string, string> = {
     'តើអ្នកដឹងចំនួនសេវាកម្មដែលអាចលក់បានដែលបានលក់ក្នុងចន្លោះនេះពិតប្រាកដទេ?',
   'Use ranking when exact service sales are unknown. This remains linked to SENA ordinal ranking.':
     'ប្រើលំដាប់នៅពេលមិនដឹងចំនួនលក់សេវាកម្មពិតប្រាកដ។ វានៅតែភ្ជាប់នឹងលំដាប់ SENA។',
-  'Log new orders, confirm expected arrival timing, and optionally adjust lead time assumptions before saving.':
+  'Log new orders, confirm expected arrival timing, and optionally adjust ETA assumptions before saving.':
     'កត់ត្រាការបញ្ជាទិញថ្មី បញ្ជាក់ពេលមកដល់ដែលរំពឹង ហើយបើចាំបាច់កែការសន្មត់ពេលមកដល់មុនរក្សាទុក។',
   'Reorder table': 'តារាងបញ្ជាទិញបន្ថែម',
   'No SKUs are in the catalog yet. Add a SKU first if you need to record a reorder.':
-    'មិនទាន់មាន SKU ក្នុងកាតាឡុកទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការបញ្ជាទិញបន្ថែម។',
+    'មិនទាន់មាន SKU ក្នុងទំនិញទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការបញ្ជាទិញបន្ថែម។',
+  'No SKUs are in products yet. Add a SKU first if you need to record a reorder.':
+    'មិនទាន់មាន SKU ក្នុងទំនិញទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការបញ្ជាទិញបន្ថែម។',
   'Last order': 'ការបញ្ជាទិញចុងក្រោយ',
   'កខ recommends {count} units.': 'កខ ណែនាំ {count} ឯកតា។',
   'Record the stock that physically arrived and confirm the received date before saving.':
     'កត់ត្រាស្តុកដែលបានមកដល់ពិតប្រាកដ ហើយបញ្ជាក់កាលបរិច្ឆេទបានទទួលមុនរក្សាទុក។',
   'Record receipt': 'កត់ត្រាការទទួល',
   'No SKUs are in the catalog yet. Add a SKU first if you need to record a receipt.':
-    'មិនទាន់មាន SKU ក្នុងកាតាឡុកទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការទទួល។',
+    'មិនទាន់មាន SKU ក្នុងទំនិញទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការទទួល។',
+  'No SKUs are in products yet. Add a SKU first if you need to record a receipt.':
+    'មិនទាន់មាន SKU ក្នុងទំនិញទេ។ បន្ថែម SKU មុន ប្រសិនបើអ្នកត្រូវការកត់ត្រាការទទួល។',
   'Last receipt': 'ការទទួលចុងក្រោយ',
   '{count} supplier order row{suffix}': 'ជួរបញ្ជាទិញអ្នកផ្គត់ផ្គង់ {count}',
   'Pending supplier commitments': 'ការប្តេជ្ញាពីអ្នកផ្គត់ផ្គង់កំពុងរង់ចាំ',
@@ -2071,6 +2308,8 @@ const exactValueTranslations: Record<string, string> = {
   'Customer metadata': 'ព័ត៌មានអតិថិជន',
   'Channel, customer name, and phone live in notes, but are stored as structured ticket fields.':
     'ប្រភពទំនាក់ទំនង ឈ្មោះអតិថិជន និងលេខទូរស័ព្ទស្ថិតក្នុងផ្នែកកំណត់ចំណាំ ប៉ុន្តែរក្សាទុកជាវាលសំបុត្រដែលមានរចនាសម្ព័ន្ធ។',
+  'Channel, customer name, phone, and location live in notes, but are stored as structured ticket fields.':
+    'ប្រភពទំនាក់ទំនង ឈ្មោះអតិថិជន លេខទូរស័ព្ទ និងទីតាំងស្ថិតក្នុងផ្នែកកំណត់ចំណាំ ប៉ុន្តែរក្សាទុកជាវាលសំបុត្រដែលមានរចនាសម្ព័ន្ធ។',
   'Communication channel': 'ប្រភពទំនាក់ទំនង',
   'No channel': 'គ្មានប្រភព',
   'Walk-in': 'មកផ្ទាល់',
@@ -2078,10 +2317,19 @@ const exactValueTranslations: Record<string, string> = {
   Telegram: 'តេលេក្រាម',
   WhatsApp: 'WhatsApp',
   Facebook: 'Facebook',
+  Instagram: 'Instagram',
   SMS: 'SMS',
   'Custom communication channel': 'ប្រភពទំនាក់ទំនងផ្ទាល់ខ្លួន',
   'Customer name': 'ឈ្មោះអតិថិជន',
   'Phone number': 'លេខទូរស័ព្ទ',
+  Location: 'ទីតាំង',
+  'Google Maps link or manual address': 'តំណផែនទី ឬសរសេរអាសយដ្ឋានដោយផ្ទាល់',
+  'Mark completed': 'សម្គាល់ថាបានបញ្ចប់',
+  'Complete {item} from the customer queue.': 'បញ្ចប់ {item} ពីជួរអតិថិជន។',
+  'Complete customer work from the queue.': 'បញ្ចប់ការងារអតិថិជនពីជួរ។',
+  'Quantity completed': 'ចំនួនដែលបានបញ្ចប់',
+  'Completed date and time': 'កាលបរិច្ឆេទ និងពេលវេលាបញ្ចប់',
+  'Unable to save customer completion.': 'មិនអាចរក្សាទុកការបញ្ចប់របស់អតិថិជនបានទេ។',
   New: 'ថ្មី',
   'Edit/Update': 'កែ/អាប់ដេត',
   'What do you want to do?': 'តើអ្នកចង់ធ្វើអ្វី?',
@@ -2170,7 +2418,10 @@ const exactValueTranslations: Record<string, string> = {
   'Start first update session': 'ចាប់ផ្តើមវគ្គអាប់ដេតដំបូង',
   'Review reorder priorities': 'ពិនិត្យអាទិភាពបញ្ជាទិញបន្ថែម',
   'Start update session': 'ចាប់ផ្តើមវគ្គអាប់ដេត',
-  'Open catalog': 'បើកកាតាឡុក',
+  'Open catalog': 'បើកទំនិញ',
+  'Open products': 'បើកទំនិញ',
+  'Open Catalog': 'បើកទំនិញ',
+  'Open Products': 'បើកទំនិញ',
   'Open logs': 'បើកកំណត់ហេតុ',
   'Open planning': 'បើកផែនការ',
   'Open reorder queue': 'បើកជួរបញ្ជាទិញបន្ថែម',
@@ -2196,7 +2447,8 @@ const exactValueTranslations: Record<string, string> = {
   'Service bundles': 'បណ្ដុំសេវាកម្ម',
   'Merchandising slots': 'ទីតាំងរៀបចំលក់',
   'Units on hand': 'ឯកតាក្នុងស្តុក',
-  'Catalog coverage': 'ការគ្របដណ្តប់កាតាឡុក',
+  'Catalog coverage': 'ការគ្របដណ្តប់ទំនិញ',
+  'Products coverage': 'ការគ្របដណ្តប់ទំនិញ',
   'Local runtime': 'ស្ថានភាពក្នុងម៉ាស៊ីន',
   'Connected and ready for edits': 'ភ្ជាប់រួច ហើយត្រៀមសម្រាប់កែប្រែ',
   'The local API needs attention before changes can be saved':
@@ -2218,22 +2470,26 @@ const exactValueTranslations: Record<string, string> = {
   'New SKU': 'បន្ថែមអេសខេយូ',
   Status: 'ស្ថានភាព',
   'Linked SKUs': 'SKU ដែលភ្ជាប់',
+  'No linked SKUs': 'គ្មាន SKU ដែលភ្ជាប់',
   'Potential revenue': 'ចំណូលសក្តានុពល',
   'Potential gross margin': 'ប្រាក់ចំណេញដុលសក្តានុពល',
   'Internal only': 'សម្រាប់ប្រើខាងក្នុងប៉ុណ្ណោះ',
   'SKU value metric': 'សូចនាករតម្លៃ SKU',
   Revenue: 'ចំណូល',
   'Gross margin': 'ប្រាក់ចំណេញដុល',
-  'No matching catalog items': 'រកមិនឃើញធាតុកាតាឡុកដែលត្រូវគ្នា',
+  'No matching catalog items': 'រកមិនឃើញធាតុទំនិញដែលត្រូវគ្នា',
+  'No matching products': 'រកមិនឃើញធាតុទំនិញដែលត្រូវគ្នា',
+  'No product matches': 'មិនមានធាតុទំនិញណាត្រូវនឹងការស្វែងរកទេ',
   'Clear filters': 'សម្អាតតម្រង',
   'Create new SKU': 'បង្កើតអេសខេយូ',
-  'Start the catalog': 'ចាប់ផ្តើមកាតាឡុក',
+  'Start the catalog': 'ចាប់ផ្តើមទំនិញ',
+  'Start products': 'ចាប់ផ្តើមទំនិញ',
   'Create first SKU': 'បង្កើត SKU ដំបូង',
   'Days of cover': 'ថ្ងៃគ្រប់គ្រាន់',
   'Stockout risk': 'ហានិភ័យអស់ស្តុក',
   'Reorder point': 'ចំណុចបញ្ជាទិញបន្ថែម',
   Confidence: 'ទំនុកចិត្ត',
-  'Lead time': 'ពេលវេលាមកដល់',
+  ETA: 'ពេលមកដល់',
   'SKU detail': 'ព័ត៌មាន SKU',
   'Stock snapshot': 'ស្ថានភាពស្តុក',
   'Key signals': 'សញ្ញាសំខាន់',
@@ -2260,12 +2516,14 @@ const exactValueTranslations: Record<string, string> = {
   'Observed at': 'បានសង្កេតនៅ',
   'Units in stock': 'ឯកតាក្នុងស្តុក',
   'Cost per unit': 'ថ្លៃដើមក្នុងមួយឯកតា',
+  'Supplier cost per unit': 'ថ្លៃដើមពីអ្នកផ្គត់ផ្គង់ក្នុងមួយឯកតា',
   'Product price': 'តម្លៃលក់',
   'Approximate order quantity': 'បរិមាណបញ្ជាទិញប្រហាក់ប្រហែល',
   'Approximate receipt quantity': 'បរិមាណទទួលប្រហាក់ប្រហែល',
-  'Typical lead time days': 'ចំនួនថ្ងៃមកដល់ជាទូទៅ',
-  'Lead time variability': 'ការប្រែប្រួលពេលវេលាមកដល់',
+  'Typical ETA days': 'ចំនួនថ្ងៃពេលមកដល់ជាទូទៅ',
+  'ETA variation': 'ភាពប្រែប្រួលពេលមកដល់',
   'Service price': 'តម្លៃសេវាកម្ម',
+  'Selling service price': 'តម្លៃលក់សេវាកម្ម',
   Notes: 'កំណត់ចំណាំ',
   'Save and refresh view': 'រក្សាទុក ហើយផ្ទុកទិដ្ឋភាពឡើងវិញ',
   'Save and refresh': 'រក្សាទុក ហើយផ្ទុកឡើងវិញ',
@@ -2508,7 +2766,10 @@ const exactValueTranslations: Record<string, string> = {
   'High confidence': 'ទំនុកចិត្តខ្ពស់',
   'Medium confidence': 'ទំនុកចិត្តមធ្យម',
   'Low confidence': 'ទំនុកចិត្តទាប',
-  'Pressure needs the catalog first': 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការកាតាឡុកជាមុន',
+  'Pressure needs the catalog first': 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការទំនិញជាមុន',
+  'Pressure needs products first': 'ទំព័រសុខភាពអាជីវកម្ម ត្រូវការទំនិញជាមុន',
+  'Money needs products first': 'ទំព័រហិរញ្ញវត្ថុ ត្រូវការទំនិញជាមុន',
+  'Explain needs products first': 'ការវិភាគត្រូវការទំនិញជាមុន',
   'Compare view': 'ទិដ្ឋភាពប្រៀបធៀប',
   'Single view': 'ទិដ្ឋភាពតែមួយ',
   'Real-world update loaded': 'បានផ្ទុកការអាប់ដេតពិត',
@@ -2615,6 +2876,8 @@ const exactValueTranslations: Record<string, string> = {
   'Selected day': 'ថ្ងៃដែលបានជ្រើស',
   Heatmap: 'ផែនទីកម្តៅ',
   Search: 'ស្វែងរក',
+  Duplicate: 'ចម្លង',
+  Delete: 'លុប',
   Minimize: 'បង្រួម',
   'Latest observation': 'ការអាប់ដេតចុងក្រោយ',
   'No timing label': 'មិនមានស្លាកពេលវេលា',
@@ -2624,6 +2887,21 @@ const exactValueTranslations: Record<string, string> = {
   'Check {date}': 'ពិនិត្យ {date}',
   'Next check pending': 'កំពុងរង់ចាំពេលពិនិត្យបន្ទាប់',
   'Starting the desktop core and opening the local workspace.': 'កំពុងចាប់ផ្តើមផ្នែកក្នុងម៉ាស៊ីន និងបើកកន្លែងធ្វើការក្នុងម៉ាស៊ីន។',
+  'Cannot delete {name}': 'មិនអាចលុប {name} បានទេ',
+  'Could not duplicate {name}': 'មិនអាចចម្លង {name} បានទេ',
+  'Delete {name}?': 'លុប {name} ឬ?',
+  'Kaur Khor is still checking whether this product has saved history. Try again in a moment.':
+    'កខកំពុងពិនិត្យថាទំនិញនេះមានប្រវត្តិដែលបានរក្សាទុកឬអត់។ សូមសាកល្បងម្តងទៀតបន្តិចទៀត។',
+  'Kaur Khor could not check this product history yet. Try again after the page finishes loading.':
+    'កខមិនទាន់អាចពិនិត្យប្រវត្តិទំនិញនេះបានទេ។ សូមសាកល្បងម្តងទៀតបន្ទាប់ពីទំព័រផ្ទុករួច។',
+  'This SKU is linked to a service. Unlink it from services before deleting it.':
+    'អេសខេយូនេះភ្ជាប់ទៅសេវាកម្ម។ ដោះការភ្ជាប់ពីសេវាកម្មសិន មុននឹងលុប។',
+  'At least one SKU must remain in Products.': 'ត្រូវទុកអេសខេយូយ៉ាងហោចណាស់មួយក្នុងទំនិញ។',
+  'This product has saved logs, observations, edits, or captures. Archive it instead so its history stays intact.':
+    'ទំនិញនេះមានកំណត់ហេតុ ការសង្កេត ការកែប្រែ ឬការកត់ត្រាដែលបានរក្សាទុក។ សូមដាក់ក្នុងបណ្ណសារជំនួស ដើម្បីរក្សាប្រវត្តិ។',
+  'Kaur Khor could not duplicate this product. Try again.': 'កខមិនអាចចម្លងទំនិញនេះបានទេ។ សូមសាកល្បងម្តងទៀត។',
+  'This permanently removes the product from Products because no saved history references it.':
+    'វានឹងលុបទំនិញនេះចេញពីទំនិញជាអចិន្ត្រៃយ៍ ព្រោះគ្មានប្រវត្តិដែលបានរក្សាទុកយោងទៅវា។',
   "The task list built from កខ's orders, deliveries, and arrival timing.":
     'កខការងារដែលបង្កើតពីការបញ្ជាទិញ ការដឹកមកដល់ និងពេលវេលាមកដល់របស់ កខ។',
   'Business signals': 'សញ្ញាអាជីវកម្ម',
@@ -2700,7 +2978,7 @@ const exactValueTranslations: Record<string, string> = {
     'Main evidence': 'ភស្តុតាងសំខាន់ៗ',
     'Affected items': 'ធាតុដែលរងផលប៉ះពាល់',
     'Open details': 'បើកព័ត៌មានលម្អិត',
-    'Catalog workspace': 'កន្លែងធ្វើការកាតាឡុក',
+    'Catalog workspace': 'កន្លែងធ្វើការទំនិញ',
     'Offered Selections': 'ជម្រើសដែលផ្តល់ជូន',
     'Telegram Bot': 'បុត Telegram',
     'No counted stock update yet': 'មិនទាន់មានការរាប់ស្តុកចុងក្រោយទេ',
@@ -2711,9 +2989,11 @@ const exactValueTranslations: Record<string, string> = {
       'លំនាំលក់ និងការផ្លាស់ប្តូរតម្លៃ នឹងបង្ហាញនៅទីនេះ នៅពេលកខមានទិន្នន័យគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
     'Regime and price shifts will surface here once កខ sees enough motion to explain them.':
       'លំនាំលក់ និងការផ្លាស់ប្តូរតម្លៃ នឹងបង្ហាញនៅទីនេះ នៅពេលកខមានទិន្នន័យគ្រប់គ្រាន់សម្រាប់ពន្យល់។',
-    'Build the SENA catalog': 'រៀបចំកាតាឡុករបស់កខ',
-    'Set up the catalog': 'រៀបចំកាតាឡុក',
-    'No catalog loaded yet': 'មិនទាន់មានកាតាឡុកដែលបានផ្ទុកទេ',
+    'Build the SENA catalog': 'រៀបចំទំនិញរបស់កខ',
+    'Set up the catalog': 'រៀបចំទំនិញ',
+    'Set up products': 'រៀបចំទំនិញ',
+    'No catalog loaded yet': 'មិនទាន់មានទំនិញដែលបានផ្ទុកទេ',
+    'No products loaded yet': 'មិនទាន់មានទំនិញដែលបានផ្ទុកទេ',
     Detail: 'លម្អិត',
     'More actions': 'សកម្មភាពបន្ថែម',
     'No description': 'មិនមានការពិពណ៌នា',
@@ -2728,7 +3008,7 @@ const exactValueTranslations: Record<string, string> = {
     'Estimated recommendation': 'ការណែនាំប៉ាន់ស្មាន',
     'Order likelihood': 'លទ្ធភាពត្រូវបញ្ជាទិញ',
     'Keep watching': 'បន្តតាមដាន',
-    'Policy basis: on hand + in transit': 'មូលដ្ឋាននៃការណែនាំ៖ ស្តុកមានស្រាប់ + ស្តុកកំពុងដឹកមកដល់',
+    'Policy basis: on-hand + in-transit': 'មូលដ្ឋាននៃការណែនាំ៖ ស្តុកមានស្រាប់ + ស្តុកកំពុងដឹកមកដល់',
     'Open queue': 'បើកជួរ',
     'Open service': 'បើកសេវាកម្ម',
     'Open SKU': 'បើក SKU',
@@ -2798,7 +3078,7 @@ const exactValueTranslations: Record<string, string> = {
   'retail ranking': 'អាទិភាពធាតុលក់',
   'item priority': 'អាទិភាពធាតុលក់',
   'price signal': 'សញ្ញាតម្លៃ',
-  'lead-time hint': 'សញ្ញាពេលវេលាមកដល់',
+  'ETA hint': 'សញ្ញាពេលមកដល់',
   'delivery note': 'កំណត់ចំណាំអំពីពេលមកដល់',
   'order placed': 'បានបញ្ជាទិញ',
   'receipt arrived': 'ការទទួលបានមកដល់',
@@ -2808,7 +3088,7 @@ const exactValueTranslations: Record<string, string> = {
   'pipeline pressure': 'សម្ពាធពីស្តុកកំពុងមកដល់',
   'incoming-stock pressure': 'សម្ពាធពីស្តុកកំពុងមកដល់',
   'incoming stock risk': 'ហានិភ័យពីស្តុកកំពុងមកដល់',
-  'lead-time drift': 'ភាពរំខាននៃពេលវេលាមកដល់',
+  'ETA drift': 'ភាពរំខាននៃពេលមកដល់',
   'delivery timing shift': 'ការផ្លាស់ប្តូរពេលវេលាមកដល់',
   'delivery timing change': 'ការផ្លាស់ប្តូរពេលវេលាមកដល់',
   'contributor bottleneck': 'ចំណុចរារាំងពីអ្នករួមចំណែក',
@@ -2821,7 +3101,7 @@ const exactValueTranslations: Record<string, string> = {
   'Current sales pattern': 'លំនាំលក់បច្ចុប្បន្ន',
   'Pipeline pressure': 'សម្ពាធពីស្តុកកំពុងមកដល់',
   'Incoming-stock risk': 'ហានិភ័យពីស្តុកកំពុងមកដល់',
-  'Lead-time stability': 'ស្ថិរភាពនៃពេលវេលាមកដល់',
+  'ETA stability': 'ស្ថិរភាពនៃពេលមកដល់',
   'Delivery timing stability': 'ស្ថិរភាពនៃពេលវេលាមកដល់',
   'Price shift activity': 'សកម្មភាពផ្លាស់ប្តូរតម្លៃ',
   'Model coverage': 'កម្រិតគ្របដណ្តប់របស់គំរូ',
@@ -2887,10 +3167,14 @@ const exactValueTranslations: Record<string, string> = {
   'Work scope': 'វិសាលភាពទិដ្ឋភាពទូទៅ',
   'All work tasks': 'ការងារទាំងអស់',
   'Work filter': 'តម្រងទិដ្ឋភាពទូទៅ',
-  'Catalog / All items': 'កាតាឡុក / ធាតុទាំងអស់',
-  'Catalog / SKUs': 'កាតាឡុក / SKU',
-  'Catalog / Services': 'កាតាឡុក / សេវាកម្ម',
-  'Catalog view': 'ទិដ្ឋភាពកាតាឡុក',
+  'Catalog / All items': 'ទំនិញ / ធាតុទាំងអស់',
+  'Catalog / SKUs': 'ទំនិញ / SKU',
+  'Catalog / Services': 'ទំនិញ / សេវាកម្ម',
+  'Catalog view': 'ទិដ្ឋភាពទំនិញ',
+  'Products / All items': 'ទំនិញ / ធាតុទាំងអស់',
+  'Products / SKUs': 'ទំនិញ / SKU',
+  'Products / Services': 'ទំនិញ / សេវាកម្ម',
+  'Products view': 'ទិដ្ឋភាពទំនិញ',
   'Logs / All items': 'កំណត់ហេតុ / ធាតុទាំងអស់',
   'Logs / SKUs': 'កំណត់ហេតុ / SKU',
   'Logs / Services': 'កំណត់ហេតុ / សេវាកម្ម',
@@ -2934,11 +3218,15 @@ const exactValueTranslations: Record<string, string> = {
   'Archived items disappear from active work, but their history stays available in កខ.':
     'ធាតុដែលបានទុកក្នុងបណ្ណសារ នឹងបាត់ពីការងារសកម្ម ប៉ុន្តែប្រវត្តិរបស់វានៅតែអាចមើលបានក្នុង កខ។',
   'Review archived catalog items and restore anything that should return to active workspaces.':
-    'ពិនិត្យធាតុកាតាឡុកដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
+    'ពិនិត្យធាតុទំនិញដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
+  'Review archived products and restore anything that should return to active workspaces.':
+    'ពិនិត្យធាតុទំនិញដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
   'Archived stock-carrying items stay in កខ history but stay hidden from active workspaces.':
     'ធាតុស្តុកដែលបានទុកក្នុងបណ្ណសារ នឹងនៅសល់ក្នុងប្រវត្តិរបស់ កខ ប៉ុន្តែលាក់ចេញពីកន្លែងធ្វើការសកម្ម។',
   'Archived services hidden from active planning and catalog workspaces.':
-    'សេវាកម្មដែលបានទុកក្នុងបណ្ណសារ ត្រូវបានលាក់ចេញពីកន្លែងធ្វើការផែនការ និងកាតាឡុកដែលកំពុងសកម្ម។',
+    'សេវាកម្មដែលបានទុកក្នុងបណ្ណសារ ត្រូវបានលាក់ចេញពីកន្លែងធ្វើការផែនការ និងទំនិញដែលកំពុងសកម្ម។',
+  'Archived services hidden from active planning and products workspaces.':
+    'សេវាកម្មដែលបានទុកក្នុងបណ្ណសារ ត្រូវបានលាក់ចេញពីកន្លែងធ្វើការផែនការ និងទំនិញដែលកំពុងសកម្ម។',
   'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.':
     'ស្វែងរកការអាប់ដេតដែលបានរក្សាទុក មើលថាតើសកម្មភាពជាក់ស្តែងត្រូវបានកត់ត្រាពេលណា ហើយពិនិត្យសំណុំសញ្ញាដែលនៅពីក្រោយចន្លោះនីមួយៗ។',
   'Create a new SKU': 'បង្កើតអេសខេយូ',
@@ -2962,11 +3250,14 @@ const exactValueTranslations: Record<string, string> = {
   'Show right rail cards': 'បង្ហាញកាតផ្នែកខាងស្តាំ',
   'Enable smoothing': 'បើកការធ្វើឲ្យរលោង',
   'Disable smoothing': 'បិទការធ្វើឲ្យរលោង',
-  'Work needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការកាតាឡុកជាមុនសិន',
+  'Work needs the catalog first': 'ទិដ្ឋភាពទូទៅត្រូវការទំនិញជាមុនសិន',
+  'Work needs products first': 'ទិដ្ឋភាពទូទៅត្រូវការទំនិញជាមុនសិន',
   'Create the first SKU so កខ can build an action list from real stock work.':
     'បង្កើត SKU ដំបូងសិន ដើម្បីឲ្យកខអាចរៀបចំកខសកម្មភាពចេញពីការងារស្តុកពិតបាន។',
   'Create the first SKU or service so កខ can build an action list from real catalog work.':
-    'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យកខអាចរៀបចំកខសកម្មភាពចេញពីកាតាឡុកពិតបាន។',
+    'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យកខអាចរៀបចំកខសកម្មភាពចេញពីទំនិញពិតបាន។',
+  'Create the first SKU or service so កខ can build an action list from real products work.':
+    'បង្កើត SKU ឬសេវាកម្មដំបូងសិន ដើម្បីឲ្យកខអាចរៀបចំកខសកម្មភាពចេញពីទំនិញពិតបាន។',
   'Create first service': 'បង្កើតសេវាកម្មដំបូង',
   'Work needs the first SENA run': 'ទិដ្ឋភាពទូទៅត្រូវការការអាប់ដេតដំបូង',
   'Capture a live observation so កខ can build the order, receipt, and follow-up queue.':
@@ -2976,7 +3267,7 @@ const exactValueTranslations: Record<string, string> = {
     'មើលថាតើអ្វីត្រូវការការយកចិត្តទុកដាក់បន្ទាប់ អ្វីកំពុងដំណើរការ និងពេលណាកខនឹងត្រឡប់មកពិនិត្យម្តងទៀត។',
   'Search overview': 'ស្វែងរកក្នុងទិដ្ឋភាពទូទៅ',
   'Filter overview tasks': 'តម្រងការងារសង្ខេប',
-  "The human task ledger on top of SENA's order, receipt, and lead-time loop.":
+  "The human task ledger on top of SENA's order, receipt, and ETA loop.":
     'កខការងារតាមដានលើការបញ្ជាទិញ ការទទួលទំនិញ និងពេលវេលាមកដល់។',
   'Item / impact': 'ទំនិញ / ផលប៉ះពាល់',
   'ETA / window': 'ពេលរំពឹង / រយៈពេល',
@@ -2989,15 +3280,21 @@ const exactValueTranslations: Record<string, string> = {
   'កខ is not seeing an immediate reorder, receipt, or follow-up action. Keep logs moving or capture the next live signal.':
     'កខមិនទាន់ឃើញសកម្មភាពបញ្ជាទិញ ការទទួល ឬការតាមដានបន្ទាន់នៅពេលនេះទេ។ បន្តកត់ត្រា ឬកត់សញ្ញាពិតបន្ទាប់។',
   'Browse the catalog, search by name or description, and jump straight into the next edit.':
-    'រកមើលកាតាឡុក ស្វែងរកតាមឈ្មោះ ឬការពិពណ៌នា ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
-  'SENA Integrated': 'កន្លែងធ្វើការកាតាឡុក',
+    'រកមើលទំនិញ ស្វែងរកតាមឈ្មោះ ឬការពិពណ៌នា ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
+  'Browse products, search by name or description, and jump straight into the next edit.':
+    'រកមើលទំនិញ ស្វែងរកតាមឈ្មោះ ឬការពិពណ៌នា ហើយចូលទៅកែប្រែបន្ទាប់បានភ្លាមៗ។',
+  'SENA Integrated': 'កន្លែងធ្វើការទំនិញ',
   'Stock-carrying items កខ tracks directly.': 'ទំនិញដែលមានស្តុក ហើយកខតាមដានដោយផ្ទាល់។',
   'Sellable services and the SKUs that support them.': 'សេវាកម្មដែលអាចលក់បាន និង SKU ដែលគាំទ្រពួកវា។',
   'Start with the first SKU. កខ uses the catalog to connect stock, services, and planning.':
-    'ចាប់ផ្តើមពី SKU ដំបូងសិន។ កខប្រើកាតាឡុកដើម្បីភ្ជាប់ស្តុក សេវាកម្ម និងផែនការ។',
+    'ចាប់ផ្តើមពី SKU ដំបូងសិន។ កខប្រើទំនិញដើម្បីភ្ជាប់ស្តុក សេវាកម្ម និងផែនការ។',
+  'Start with the first SKU. កខ uses products to connect stock, services, and planning.':
+    'ចាប់ផ្តើមពី SKU ដំបូងសិន។ កខប្រើទំនិញដើម្បីភ្ជាប់ស្តុក សេវាកម្ម និងផែនការ។',
   'New service': 'បន្ថែមសេវាកម្ម',
-  'Create the first SKU to initialize the local catalog.': 'បង្កើត SKU ដំបូង ដើម្បីចាប់ផ្តើមកាតាឡុកក្នុងម៉ាស៊ីននេះ។',
-  'Search catalog': 'ស្វែងរកកាតាឡុក',
+  'Create the first SKU to initialize the local catalog.': 'បង្កើត SKU ដំបូង ដើម្បីចាប់ផ្តើមទំនិញក្នុងម៉ាស៊ីននេះ។',
+  'Create the first SKU to initialize local products.': 'បង្កើត SKU ដំបូង ដើម្បីចាប់ផ្តើមទំនិញក្នុងម៉ាស៊ីននេះ។',
+  'Search catalog': 'ស្វែងរកទំនិញ',
+  'Search products': 'ស្វែងរកទំនិញ',
   'Try another search or create a new item that fits this view.':
     'សាកល្បងស្វែងរកម្តងទៀត ឬបង្កើតធាតុថ្មីមួយដែលសមនឹងទិដ្ឋភាពនេះ។',
   'No limiting contributor is active right now.': 'ឥឡូវនេះមិនមានអ្នករួមចំណែកណាមួយដែលកំពុងកំណត់ស្ថានភាពទេ។',
@@ -3089,6 +3386,16 @@ const exactValueTranslations: Record<string, string> = {
   'Paid by': 'បង់ដោយ',
   Merchant: 'អ្នកលក់',
   'Select who pays delivery': 'ជ្រើសអ្នកដែលបង់ថ្លៃដឹកជញ្ជូន',
+  Discount: 'បញ្ចុះតម្លៃ',
+  'Discount type': 'ប្រភេទបញ្ចុះតម្លៃ',
+  'Discount amount': 'ចំនួនបញ្ចុះតម្លៃ',
+  'Discount percent': 'ភាគរយបញ្ចុះតម្លៃ',
+  'Dicount Percent (%)': 'ភាគរយបញ្ចុះតម្លៃ (%)',
+  'Select discount type': 'ជ្រើសប្រភេទបញ្ចុះតម្លៃ',
+  Amount: 'ចំនួនទឹកប្រាក់',
+  Percent: 'ភាគរយ',
+  'Subtract a flat amount or percentage from the receipt subtotal before delivery is added.':
+    'ដកចំនួនទឹកប្រាក់ ឬភាគរយពីសរុបរងបង្កាន់ដៃ មុនពេលបន្ថែមថ្លៃដឹកជញ្ជូន។',
   'Counted {count}': 'បានរាប់ {count}',
   'Last count {date}': 'ការរាប់ចុងក្រោយ {date}',
   'Not counted yet': 'មិនទាន់បានរាប់',
@@ -3116,10 +3423,11 @@ const exactValueTranslations: Record<string, string> = {
   'Availability and reorder guidance will update after save.':
     'ការណែនាំអំពីភាពមានស្រាប់ និងការបញ្ជាទិញបន្ថែម នឹងអាប់ដេតបន្ទាប់ពីរក្សាទុក។',
   Units: 'ឯកតា',
+  Quantity: 'បរិមាណ',
   'Fee amount': 'ចំនួនថ្លៃ',
   'Date and time': 'កាលបរិច្ឆេទ និងពេលវេលា',
   'Notes text': 'អត្ថបទកំណត់ចំណាំ',
-  'Regime signal': 'សញ្ញាលំនាំ',
+  Signal: 'សញ្ញា',
   'Changed items': 'ធាតុដែលបានផ្លាស់ប្តូរ',
   'Changed SKU fields for the current record update.':
     'វាល SKU ដែលបានផ្លាស់ប្តូរ សម្រាប់ការអាប់ដេតបច្ចុប្បន្ន។',
@@ -3163,11 +3471,14 @@ const exactValueTranslations: Record<string, string> = {
   'Could not copy receipt to clipboard.': 'មិនអាចចម្លងបង្កាន់ដៃទៅក្តារតម្បៀតខ្ទាស់បានទេ។',
   'Confirm save': 'បញ្ជាក់ការរក្សាទុក',
   'Delivery fee must be a non-negative amount.': 'ថ្លៃដឹកជញ្ជូន ត្រូវតែជាចំនួនមិនអវិជ្ជមាន។',
+  'Discount must be a non-negative amount.': 'ការបញ្ចុះតម្លៃ ត្រូវតែជាចំនួនមិនអវិជ្ជមាន។',
+  'Discount percent must be between 0 and 100.': 'ភាគរយបញ្ចុះតម្លៃ ត្រូវតែស្ថិតនៅចន្លោះ 0 និង 100។',
   'Store the default delivery charge and who covers it for this order.':
     'រក្សាទុកថ្លៃដឹកជញ្ជូនលំនាំដើម និងអ្នកដែលទទួលបន្ទុកវា សម្រាប់ការបញ្ជាទិញនេះ។',
   'Set the delivery charge and choose whether the customer or merchant covers it.':
     'កំណត់ថ្លៃដឹកជញ្ជូន ហើយជ្រើសថាអតិថិជន ឬអ្នកលក់ជាអ្នកទទួលបន្ទុក។',
   'Retail price': 'តម្លៃលក់រាយ',
+  'Customer selling price': 'តម្លៃលក់ទៅអតិថិជន',
   'n/a': 'មិនមាន',
 };
 
@@ -3186,7 +3497,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'User guide, feature explanations, and FAQ': 'មគ្គុទ្ទេសក៍អ្នកប្រើ ការពន្យល់មុខងារ និងសំណួរញឹកញាប់',
   'Work scope': 'វិសាលភាពការងារ',
   'Work filter': 'តម្រងការងារ',
-  'Catalog view': 'ទិដ្ឋភាពកាតាឡុក',
+  'Catalog view': 'ទិដ្ឋភាពទំនិញ',
   'Archive view': 'ទិដ្ឋភាពបណ្ណសារ',
   'Pressure range': 'ចន្លោះសម្ពាធ',
   'Pressure scope': 'វិសាលភាពសម្ពាធ',
@@ -3228,7 +3539,9 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Browser image storage is unavailable in this release. Use the desktop app to attach persistent item pictures.':
     'ការផ្ទុករូបភាពក្នុងកម្មវិធីរុករកមិនទាន់អាចប្រើបានក្នុងកំណែនេះទេ។ ប្រើកម្មវិធីកុំព្យូទ័រ ដើម្បីភ្ជាប់រូបភាពធាតុអចិន្ត្រៃយ៍។',
   'Browser mode keeps catalog data in OPFS, but persistent image assets are desktop-only for now.':
-    'របៀបកម្មវិធីរុករករក្សាទិន្នន័យកាតាឡុកក្នុងអូភីអេហ្វអេស ប៉ុន្តែទ្រព្យសកម្មរូបភាពអចិន្ត្រៃយ៍នៅតែប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រឥឡូវនេះ។',
+    'របៀបកម្មវិធីរុករករក្សាទិន្នន័យទំនិញក្នុងអូភីអេហ្វអេស ប៉ុន្តែទ្រព្យសកម្មរូបភាពអចិន្ត្រៃយ៍នៅតែប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រឥឡូវនេះ។',
+  'Browser mode keeps products data in OPFS, but persistent image assets are desktop-only for now.':
+    'របៀបកម្មវិធីរុករករក្សាទិន្នន័យទំនិញក្នុងអូភីអេហ្វអេស ប៉ុន្តែទ្រព្យសកម្មរូបភាពអចិន្ត្រៃយ៍នៅតែប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រឥឡូវនេះ។',
   'Browser data lives in this browser profile.': 'ទិន្នន័យកម្មវិធីរុករកស្ថិតនៅក្នុងប្រវត្តិរូបកម្មវិធីរុករកនេះ។',
   'Use the browser app banner to export or import backups. Native folder reveal, desktop snapshots, and log export are desktop-only. Clearing browser data can remove this workspace.':
     'ប្រើបដាកម្មវិធីរុករក ដើម្បីនាំចេញ ឬនាំចូលច្បាប់បម្រុង។ ការបង្ហាញថតក្នុងម៉ាស៊ីន ស្នេបស្ហតកុំព្យូទ័រ និងការនាំចេញកំណត់ហេតុ ប្រើបានតែក្នុងកម្មវិធីកុំព្យូទ័រ។ ការសម្អាតទិន្នន័យកម្មវិធីរុករកអាចលុបកន្លែងធ្វើការនេះ។',
@@ -3340,7 +3653,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Previous interval': 'ចន្លោះពេលមុន',
   'Previous interval start date': 'កាលបរិច្ឆេទចាប់ផ្តើមនៃចន្លោះពេលមុន',
   'Previous interval end date': 'កាលបរិច្ឆេទបញ្ចប់នៃចន្លោះពេលមុន',
-  'Protection horizon: lead time + {days}d review delay':
+  'Protection horizon: ETA + {days}d review delay':
     'រយៈពេលការពារ៖ ពេលវេលាមកដល់ + ការពន្យារពិនិត្យ {days} ថ្ងៃ',
   'Unarchive {name}?': 'ស្ដារ {name} ចេញពីបណ្ណសារឬ?',
   'Archive {name}?': 'ដាក់ {name} ក្នុងបណ្ណសារឬ?',
@@ -3380,6 +3693,7 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Resume intake': 'បន្តទទួលសំណើ',
   'Pause intake': 'ផ្អាកទទួលសំណើ',
   'Test message': 'សាកល្បងសារ',
+  'Open settings': 'បើកការកំណត់',
   'Open bot': 'បើកបូត',
   OK: 'យល់ព្រម',
   Retry: 'សាកម្ដងទៀត',
@@ -3391,14 +3705,19 @@ const runtimeLiteralTranslations: Record<string, string> = {
   Canceled: 'បានលុបចោល',
   'All issues': 'បញ្ហាទាំងអស់',
   'Item not found': 'រកធាតុមិនឃើញ',
+  'Availability unknown': 'មិនដឹងភាពមានស្តុក',
   'Quantity ambiguous': 'បរិមាណមិនច្បាស់',
   'Parser failed': 'ការបកស្រាយបរាជ័យ',
   'All confidence': 'កម្រិតទុកចិត្តទាំងអស់',
   'Unavailable sellables are still exposed': 'ធាតុលក់ដែលមិនមាន នៅតែត្រូវបានបង្ហាញ',
   '1 customer-facing Telegram item is unavailable but still toggled on. Review Catalog coverage and hide it until it is ready.':
-    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន 1 មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងកាតាឡុក ហើយលាក់វារហូតដល់រួចរាល់។',
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន 1 មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងទំនិញ ហើយលាក់វារហូតដល់រួចរាល់។',
+  '1 customer-facing Telegram item is unavailable but still toggled on. Review Products coverage and hide it until it is ready.':
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន 1 មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងទំនិញ ហើយលាក់វារហូតដល់រួចរាល់។',
   '{count} customer-facing Telegram items are unavailable but still toggled on. Review Catalog coverage and hide them until they are ready.':
-    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន {count} មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងកាតាឡុក ហើយលាក់វារហូតដល់រួចរាល់។',
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន {count} មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងទំនិញ ហើយលាក់វារហូតដល់រួចរាល់។',
+  '{count} customer-facing Telegram items are unavailable but still toggled on. Review Products coverage and hide them until they are ready.':
+    'ធាតុតេលេក្រាមសម្រាប់អតិថិជន {count} មិនមាន ប៉ុន្តែនៅតែបើក។ ពិនិត្យការគ្របដណ្តប់ក្នុងទំនិញ ហើយលាក់វារហូតដល់រួចរាល់។',
   'Review exposed sellables': 'ពិនិត្យធាតុលក់ដែលបានបង្ហាញ',
   'Recent automation activity': 'សកម្មភាពស្វ័យប្រវត្តិកម្មថ្មីៗ',
   Coverage: 'ការគ្របដណ្តប់',
@@ -3409,7 +3728,9 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'The latest Telegram intake and promotion movement.':
     'សំណើតេលេក្រាម និងចលនាផ្សព្វផ្សាយចុងក្រោយ។',
   'How much of the sellable catalog Telegram can safely offer right now.':
-    'ចំណែកនៃកាតាឡុកដែលអាចលក់បាន ដែលតេលេក្រាមអាចបង្ហាញដោយសុវត្ថិភាពឥឡូវនេះ។',
+    'ចំណែកនៃទំនិញដែលអាចលក់បាន ដែលតេលេក្រាមអាចបង្ហាញដោយសុវត្ថិភាពឥឡូវនេះ។',
+  'How much of the sellable products list Telegram can safely offer right now.':
+    'ចំណែកនៃទំនិញដែលអាចលក់បាន ដែលតេលេក្រាមអាចបង្ហាញដោយសុវត្ថិភាពឥឡូវនេះ។',
   'Configure the Telegram bot connection and keep កខ as the source of pricing, tickets, and fulfillment truth.':
     'កំណត់ការភ្ជាប់បូតតេលេក្រាម ហើយរក្សាកខជាប្រភពពិតសម្រាប់តម្លៃ សំបុត្រការងារ និងការបំពេញការបញ្ជាទិញ។',
   'Choose exactly which customer-facing SKUs and services the bot may offer.':
@@ -3481,6 +3802,9 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Closed Telegram-origin customer work': 'បានបិទការងារអតិថិជនដែលមកពីតេលេក្រាម',
   'Bot identity': 'អត្តសញ្ញាណបូត',
   'Telegram bot not named yet': 'បូតតេលេក្រាមមិនទាន់មានឈ្មោះ',
+  'Advanced experimental automation settings': 'ការកំណត់ស្វ័យប្រវត្តិកម្មកម្រិតខ្ពស់សាកល្បង',
+  'This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.':
+    'ផ្ទាំងនេះកំពុងស្ថិតក្នុងការអភិវឌ្ឍ។ ស្វ័យប្រវត្តិកម្មតេលេក្រាមនៅជាការសាកល្បង អាចផ្លាស់ប្តូរ និងអាចមិនមានស្ថេរភាព។',
   'Connection state': 'ស្ថានភាពការភ្ជាប់',
   'Last webhook': 'សញ្ញាភ្ជាប់ចុងក្រោយ',
   'No webhook received yet': 'មិនទាន់ទទួលបានសញ្ញាភ្ជាប់',
@@ -3502,18 +3826,26 @@ const runtimeLiteralTranslations: Record<string, string> = {
     'កំណត់ត្រាអេសខេយូ ឬសេវាកម្មខាងក្នុង ដែលអាចបង្ហាញឱ្យអតិថិជនបាន។',
   Type: 'ប្រភេទ',
   'Whether the exposed catalog record is a stock-carrying SKU or a linked service.':
-    'បង្ហាញថាកំណត់ត្រាកាតាឡុកដែលបានបង្ហាញ ជាអេសខេយូដែលមានស្តុក ឬសេវាកម្មដែលបានភ្ជាប់។',
+    'បង្ហាញថាកំណត់ត្រាទំនិញដែលបានបង្ហាញ ជាអេសខេយូដែលមានស្តុក ឬសេវាកម្មដែលបានភ្ជាប់។',
+  'Whether the exposed product record is a stock-carrying SKU or a linked service.':
+    'បង្ហាញថាកំណត់ត្រាទំនិញដែលបានបង្ហាញ ជាអេសខេយូដែលមានស្តុក ឬសេវាកម្មដែលបានភ្ជាប់។',
   Price: 'តម្លៃ',
   'Customer-facing price currently available for automation replies.':
     'តម្លៃសម្រាប់អតិថិជន ដែលអាចប្រើបានឥឡូវនេះសម្រាប់ចម្លើយស្វ័យប្រវត្តិ។',
   Availability: 'ភាពអាចប្រើបាន',
   'Whether the item can be offered from current catalog and availability data.':
-    'បង្ហាញថាធាតុនេះអាចផ្តល់ជូនបានឬអត់ ពីទិន្នន័យកាតាឡុក និងភាពអាចប្រើបានបច្ចុប្បន្ន។',
+    'បង្ហាញថាធាតុនេះអាចផ្តល់ជូនបានឬអត់ ពីទិន្នន័យទំនិញ និងភាពអាចប្រើបានបច្ចុប្បន្ន។',
+  'Whether the item can be offered from current products and availability data.':
+    'បង្ហាញថាធាតុនេះអាចផ្តល់ជូនបានឬអត់ ពីទិន្នន័យទំនិញ និងភាពអាចប្រើបានបច្ចុប្បន្ន។',
   'Controls whether this catalog record is visible to customer-facing automation.':
-    'គ្រប់គ្រងថាកំណត់ត្រាកាតាឡុកនេះអាចមើលឃើញក្នុងស្វ័យប្រវត្តិកម្មសម្រាប់អតិថិជនឬអត់។',
+    'គ្រប់គ្រងថាកំណត់ត្រាទំនិញនេះអាចមើលឃើញក្នុងស្វ័យប្រវត្តិកម្មសម្រាប់អតិថិជនឬអត់។',
+  'Controls whether this product record is visible to customer-facing automation.':
+    'គ្រប់គ្រងថាកំណត់ត្រាទំនិញនេះអាចមើលឃើញក្នុងស្វ័យប្រវត្តិកម្មសម្រាប់អតិថិជនឬអត់។',
   Alias: 'ឈ្មោះហៅក្រៅ',
   'Optional customer-facing name used by the automation instead of the internal catalog name.':
-    'ឈ្មោះសម្រាប់អតិថិជនស្រេចចិត្ត ដែលស្វ័យប្រវត្តិកម្មប្រើជំនួសឈ្មោះកាតាឡុកខាងក្នុង។',
+    'ឈ្មោះសម្រាប់អតិថិជនស្រេចចិត្ត ដែលស្វ័យប្រវត្តិកម្មប្រើជំនួសឈ្មោះទំនិញខាងក្នុង។',
+  'Optional customer-facing name used by the automation instead of the internal product name.':
+    'ឈ្មោះសម្រាប់អតិថិជនស្រេចចិត្ត ដែលស្វ័យប្រវត្តិកម្មប្រើជំនួសឈ្មោះទំនិញខាងក្នុង។',
   Service: 'សេវាកម្ម',
   'No price': 'មិនមានតម្លៃ',
   'Customer-facing alias': 'ឈ្មោះហៅក្រៅសម្រាប់អតិថិជន',
@@ -3523,7 +3855,9 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'The parsed customer request before it is attached to a ticket.':
     'សំណើអតិថិជនដែលបានបកស្រាយ មុនពេលភ្ជាប់ទៅសំបុត្រការងារ។',
   'Estimated customer-facing total when កខ has enough matched catalog data.':
-    'សរុបប៉ាន់ស្មានសម្រាប់អតិថិជន នៅពេលកខមានទិន្នន័យកាតាឡុកដែលត្រូវគ្នាគ្រប់គ្រាន់។',
+    'សរុបប៉ាន់ស្មានសម្រាប់អតិថិជន នៅពេលកខមានទិន្នន័យទំនិញដែលត្រូវគ្នាគ្រប់គ្រាន់។',
+  'Estimated customer-facing total when កខ has enough matched products data.':
+    'សរុបប៉ាន់ស្មានសម្រាប់អតិថិជន នៅពេលកខមានទិន្នន័យទំនិញដែលត្រូវគ្នាគ្រប់គ្រាន់។',
   State: 'ស្ថានភាព',
   'Current intake state, including whether operator review is still needed.':
     'ស្ថានភាពសំណើបច្ចុប្បន្ន រួមទាំងថាតើនៅត្រូវការការពិនិត្យពីប្រតិបត្តិករឬអត់។',
@@ -3607,11 +3941,15 @@ const runtimeLiteralTranslations: Record<string, string> = {
   Pending: 'កំពុងរង់ចាំ',
   'No intake selected.': 'មិនមានសំណើត្រូវបានជ្រើសទេ។',
   'What do you want to do?': 'តើអ្នកចង់ធ្វើអ្វី?',
+  'Existing customer ticket': 'សំបុត្រការងារអតិថិជនដែលមានស្រាប់',
   'Existing customer ticket id': 'លេខសម្គាល់សំបុត្រការងារអតិថិជនដែលមានស្រាប់',
+  'Choose a customer ticket': 'ជ្រើសសំបុត្រការងារអតិថិជន',
+  'No open customer tickets available.': 'មិនមានសំបុត្រការងារអតិថិជនបើកដែលអាចប្រើបានទេ។',
   'Customer name override': 'ជំនួសឈ្មោះអតិថិជន',
   'Phone override': 'ជំនួសលេខទូរស័ព្ទ',
   'Operator note': 'កំណត់ចំណាំប្រតិបត្តិករ',
   'What កខ will do next': 'អ្វីដែលកខនឹងធ្វើបន្ទាប់',
+  'What KAUR KHOR will do next': 'អ្វីដែលកខនឹងធ្វើបន្ទាប់',
   'កខ will write a customer-side ticket event instead of creating a parallel Telegram order system.':
     'កខនឹងសរសេរព្រឹត្តិការណ៍សំបុត្រការងារខាងអតិថិជន ជំនួសឱ្យការបង្កើតប្រព័ន្ធបញ្ជាទិញតេលេក្រាមដាច់ដោយឡែក។',
   'កខ will write customer commercial events that flow into Overview, Record Update, and Financials.':
@@ -3639,7 +3977,9 @@ const runtimeLiteralTranslations: Record<string, string> = {
     'ការពន្យល់លម្អិត ការសង្កេត ភាពងាយខូច និងការកំណត់គំនូសតាង។',
   'Command home': 'ទំព័រដើមបញ្ជា',
   'Start with the next operational decision, then move into capture, catalog, or insight work.':
-    'ចាប់ផ្តើមពីសេចក្តីសម្រេចប្រតិបត្តិការបន្ទាប់ បន្ទាប់មកចូលទៅកត់ត្រា កាតាឡុក ឬការយល់ដឹង។',
+    'ចាប់ផ្តើមពីសេចក្តីសម្រេចប្រតិបត្តិការបន្ទាប់ បន្ទាប់មកចូលទៅកត់ត្រា ទំនិញ ឬការយល់ដឹង។',
+  'Start with the next operational decision, then move into capture, products, or insight work.':
+    'ចាប់ផ្តើមពីសេចក្តីសម្រេចប្រតិបត្តិការបន្ទាប់ បន្ទាប់មកចូលទៅកត់ត្រា ទំនិញ ឬការយល់ដឹង។',
   'Next move': 'សកម្មភាពបន្ទាប់',
   '{count} items': 'ធាតុ {count}',
   '{count} updates': 'ការអាប់ដេត {count}',
@@ -3922,8 +4262,10 @@ const runtimeLiteralTranslations: Record<string, string> = {
 const phraseTranslations: ReadonlyArray<readonly [string, string]> = [
   ['Work', 'ទិដ្ឋភាពទូទៅ'],
   ['overview', 'ទិដ្ឋភាពទូទៅ'],
-  ['catalog', 'កាតាឡុក'],
-  ['Catalog', 'កាតាឡុក'],
+  ['products', 'ទំនិញ'],
+  ['Products', 'ទំនិញ'],
+  ['catalog', 'ទំនិញ'],
+  ['Catalog', 'ទំនិញ'],
   ['settings', 'ការកំណត់'],
   ['Settings', 'ការកំណត់'],
   ['parameters', 'ប៉ារ៉ាម៉ែត្រ'],
@@ -3961,8 +4303,7 @@ const phraseTranslations: ReadonlyArray<readonly [string, string]> = [
   ['next blocker', 'ចំណុចរារាំងបន្ទាប់'],
   ['blocker', 'ចំណុចរារាំង'],
   ['delivery timing', 'ពេលវេលាមកដល់'],
-  ['lead time', 'ពេលវេលាមកដល់'],
-  ['lead-time', 'ពេលវេលាមកដល់'],
+  ['ETA', 'ពេលមកដល់'],
   ['safety stock', 'ស្តុកសុវត្ថិភាព'],
   ['stockout risk', 'ហានិភ័យអស់ស្តុក'],
   ['stockout', 'អស់ស្តុក'],
@@ -4144,7 +4485,7 @@ function localizeKhmerProductWords(text: string): string {
         chain: 'ខ្សែ',
         changed: 'បានផ្លាស់ប្តូរ',
         changes: 'ការផ្លាស់ប្តូរ',
-        Catalog: 'កាតាឡុក',
+        Catalog: 'ទំនិញ',
         chooses: 'ជ្រើស',
         Choose: 'ជ្រើស',
         click: 'ចុច',

@@ -88,6 +88,30 @@
   }
 }
 
+@keyframes kaur-khor-attention-flash-text {
+  0%, 34%, 100% {
+    color: var(--foreground);
+  }
+
+  14% {
+    color: var(--background);
+  }
+}
+
+@keyframes kaur-khor-attention-flash-badge {
+  0%, 34%, 100% {
+    background-color: white;
+    border-color: color-mix(in oklch, var(--border) 70%, transparent);
+    color: color-mix(in oklch, var(--foreground) 70%, white 30%);
+  }
+
+  14% {
+    background-color: color-mix(in oklch, var(--background) 15%, transparent);
+    border-color: color-mix(in oklch, var(--background) 35%, transparent);
+    color: var(--background);
+  }
+}
+
 @keyframes kaur-khor-save-error-flash {
   0%, 45%, 100% {
     opacity: 1;
@@ -95,6 +119,42 @@
 
   18%, 68% {
     opacity: 0;
+  }
+}
+
+@keyframes kaur-khor-surface-gleam {
+  from {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+
+  to {
+    transform: translateX(840%) skewX(-18deg);
+  }
+}
+
+.pos-metadata-surface-gleam {
+  position: relative;
+  overflow: hidden;
+}
+
+.pos-metadata-surface-gleam::before {
+  content: "";
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 14%;
+  opacity: 0.35;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.18), transparent);
+  transform: translateX(-140%) skewX(-18deg);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pos-metadata-surface-gleam::before {
+    display: block;
+    animation: kaur-khor-surface-gleam 10s linear infinite;
+    will-change: transform;
   }
 }
 

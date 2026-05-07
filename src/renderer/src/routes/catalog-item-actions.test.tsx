@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   buildLeadTimeHintFromInputs,
   formatDatetimeLocalValue,
@@ -59,7 +59,7 @@ describe('catalog item action sheets', () => {
       t: (key: string) =>
         ({
           catalogSenaSkuDialogDescription: 'Capture the signal.',
-          catalogSenaSkuLeadTimeVariability: 'Lead time variability',
+          catalogSenaSkuLeadTimeVariability: 'ETA variation',
           catalogSenaSkuLeadTimeVariabilityHint: 'Choose variability.',
           catalogSenaSkuLogOrder: 'Record Supplier order',
           catalogSenaSkuLogReceipt: 'Record Customer order',
@@ -72,7 +72,7 @@ describe('catalog item action sheets', () => {
           catalogSenaSkuSaving: 'Saving',
           catalogSenaSkuApproximateOrderQuantity: 'Approximate order quantity',
           catalogSenaSkuApproximateReceiptQuantity: 'Approximate receipt quantity',
-          catalogSenaSkuTypicalLeadTimeDays: 'Typical lead time days',
+          catalogSenaSkuTypicalLeadTimeDays: 'Typical ETA days',
           catalogSenaSkuUnitsInStock: 'Units in stock',
           catalogSenaSkuCostPerUnit: 'Cost per unit',
           catalogSkuEditAction: 'Edit SKU',
@@ -83,7 +83,11 @@ describe('catalog item action sheets', () => {
     });
   });
 
-  test('builds preset lead-time hints from the jittered std-days value', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  test('builds preset ETA hints from the jittered std-days value', () => {
     expect(
       buildLeadTimeHintFromInputs({
         skuId: 'sku-1',
@@ -99,7 +103,7 @@ describe('catalog item action sheets', () => {
     });
   });
 
-  test('builds custom lead-time hints from typed uncertainty days', () => {
+  test('builds custom ETA hints from typed ETA variation days', () => {
     expect(
       buildLeadTimeHintFromInputs({
         skuId: 'sku-1',
@@ -122,6 +126,56 @@ describe('catalog item action sheets', () => {
 
     expect(parseDatetimeLocalIso(localValue)).toBe(new Date(sourceIso).toISOString());
     expect(parseDatetimeLocalIso('')).toBeNull();
+  });
+
+  test('defaults new SKU and service action timestamps to the current system time', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 3, 9, 16, 44));
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <SkuMutationActions
+          actionContext={skuActionContext}
+          mode="stock"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+          skuId="sku-1"
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('Observed at')).toHaveValue('2026-04-09T16:44');
+
+    rerender(
+      <MemoryRouter>
+        <ServiceMutationActions
+          actions={{
+            bottleneckSku: {
+              costPerUnit: 4,
+              name: 'SKU 1',
+              productPrice: 9,
+              skuId: 'sku-1',
+              soldAsProduct: true,
+              unitsInStock: 12,
+            },
+            editServiceHref: '/catalog/services/service-1/edit',
+            latestObservedAt: '2026-04-02T00:00:00Z',
+            noBottleneckHint: 'No bottleneck',
+            primarySkuHref: '/catalog/skus/sku-1',
+            servicePrice: {
+              currentPrice: 18,
+              serviceId: 'service-1',
+              serviceName: 'Service 1',
+            },
+          }}
+          mode="price"
+          onComplete={vi.fn(async () => {})}
+          onModeChange={vi.fn()}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('Observed at')).toHaveValue('2026-04-09T16:44');
   });
 
   test('opens the controlled SKU sheet and clears mode on close', async () => {

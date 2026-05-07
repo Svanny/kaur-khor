@@ -820,7 +820,7 @@ export function StockUpdateRoute() {
         }
       >
         <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:justify-start lg:gap-4">
-          <div className="min-w-[12rem] flex-1">
+          <div className="min-w-[12rem] w-full max-w-xl">
             <SearchInput
               ariaLabel={translateUiLiteral(language, 'Search observations')}
               placeholder={t('searchPlaceholder')}

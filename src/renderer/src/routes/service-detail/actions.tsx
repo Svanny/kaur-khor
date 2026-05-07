@@ -19,6 +19,7 @@ export function ServiceDetailActions({
       mode={mode}
       onModeChange={onModeChange}
       onComplete={onComplete}
+      showStockCountAction={false}
     />
   );
 }

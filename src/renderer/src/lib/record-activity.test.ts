@@ -1,11 +1,37 @@
 import { describe, expect, test } from 'vitest';
-import type { SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
+import type { SenaCatalog, SenaObservationRecord, SenaRecordUpdateContext } from '@shared/sena';
 import {
   buildCustomerLinkDirectoryFromContext,
   latestDeliveryFeeMetadataFromContext,
   observationRecordActivityEntries,
   recordTicketOptions,
 } from './record-activity';
+
+const catalog: SenaCatalog = {
+  schemaVersion: 1,
+  skus: [{
+    skuId: 'sku-1',
+    name: 'Razor refill',
+    description: 'Refill pack',
+    supplierName: 'Mekong Looms',
+    costPerUnit: 2,
+    archived: false,
+    soldAsProduct: true,
+    productPrice: 5,
+    leadTimeMeanDaysHint: null,
+    leadTimeStdDaysHint: null,
+  }],
+  services: [{
+    serviceId: 'service-1',
+    name: 'Haircut',
+    description: '',
+    price: 12,
+    archived: false,
+    bundle: false,
+  }],
+  bundles: [],
+  sharingMask: [],
+};
 
 const ticketObservation: SenaObservationRecord = {
   observationId: 'obs-1',
@@ -113,12 +139,102 @@ const context: SenaRecordUpdateContext = {
 
 describe('record activity helpers', () => {
   test('builds open ticket options from compact context', () => {
-    expect(recordTicketOptions(context, 'customer')).toEqual([{
+    expect(recordTicketOptions(context, 'customer', catalog)).toEqual([{
       id: 'ticket-customer-1',
-      label: 'Dara',
-      description: 'Telegram · 1 item',
+      label: 'Ticket ID: 2026-04-21-#1',
+      description: 'Dara · Telegram · 1 item',
       metadata: '+855 12345678',
+      sortAt: '2026-04-21T10:05:00.000Z',
     }]);
+  });
+
+  test('builds supplier ticket options with catalog names instead of internal ids', () => {
+    const supplierContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [],
+        supplier: [{
+          ticketId: 'ticket-supplier-1',
+          ticketFamily: 'supplier',
+          lifecycle: 'open',
+          stage: 'ordered_waiting',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-21T10:10:00.000Z',
+          party: { role: 'supplier', supplierName: 'Mekong Looms' },
+          lines: [{ entityType: 'sku', entityId: 'sku-1', orderedQuantity: 4 }],
+        }],
+      },
+    };
+
+    const [option] = recordTicketOptions(supplierContext, 'supplier', catalog);
+
+    expect(option).toMatchObject({
+      label: 'Mekong Looms',
+      description: 'Mekong Looms',
+      metadata: 'Razor refill · 4u',
+      sortAt: '2026-04-21T10:10:00.000Z',
+    });
+    expect([option?.label, option?.description, option?.metadata].join(' ')).not.toContain('sku-');
+  });
+
+  test('builds customer ticket options with service and sku names when no party name exists', () => {
+    const customerContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [{
+          ticketId: 'ticket-customer-lines',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-21T10:10:00.000Z',
+          lines: [
+            { entityType: 'sku', entityId: 'sku-1', quantityDelta: 2 },
+            { entityType: 'service', entityId: 'service-1', quantityDelta: 1 },
+          ],
+        }],
+        supplier: [],
+      },
+    };
+
+    const [option] = recordTicketOptions(customerContext, 'customer', catalog);
+
+    expect(option?.label).toBe('Ticket ID: 2026-04-21-#2');
+    expect(option?.description).toBe('Razor refill, Haircut · No channel · 2 items');
+    expect(option?.label).not.toContain('sku-');
+    expect(option?.label).not.toContain('service-');
+  });
+
+  test('uses non-leaky fallbacks when ticket entity ids are not in the catalog', () => {
+    const supplierContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [],
+        supplier: [{
+          ticketId: 'ticket-supplier-missing',
+          ticketFamily: 'supplier',
+          lifecycle: 'open',
+          stage: 'ordered_waiting',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-21T10:10:00.000Z',
+          lines: [
+            { entityType: 'sku', entityId: 'sku-secret', orderedQuantity: 4 },
+            { entityType: 'service', entityId: 'service-secret', orderedQuantity: 1 },
+          ],
+        }],
+      },
+    };
+
+    const [option] = recordTicketOptions(supplierContext, 'supplier', catalog);
+    const visibleText = [option?.label, option?.description, option?.metadata].join(' ');
+
+    expect(option?.label).toBe('SKU, Service');
+    expect(option?.metadata).toBe('SKU · 4u, Service · 1u');
+    expect(visibleText).not.toContain('sku-secret');
+    expect(visibleText).not.toContain('service-secret');
   });
 
   test('builds customer directory from compact ticket summaries', () => {

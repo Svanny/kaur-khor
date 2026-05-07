@@ -5,10 +5,10 @@ import type {
   OverviewTaskAction,
   OverviewTaskFilter,
 } from '../renderer/src/routes/overview/view-model';
+import { ActionSearchAlertIcon } from './actions';
 import type { IconComponent } from './types';
 import {
   Archive,
-  AlertTriangle,
   BadgeCheck,
   BadgePercent,
   BellRing,
@@ -45,7 +45,7 @@ export const overviewTaskActionIcons: Record<OverviewTaskAction, IconComponent |
   update_eta: CalendarClock,
   follow_up: Send,
   receive: ScanLine,
-  review: null,
+  review: ActionSearchAlertIcon,
   start_update: ClipboardList,
   remind_tomorrow: BellRing,
 };
@@ -61,7 +61,7 @@ export const overviewTaskFilterIcons: Record<OverviewTaskFilter, IconComponent> 
 
 export const overviewCustomerFilterIcons: Record<OverviewCustomerFilter, IconComponent> = {
   all: ClipboardList,
-  review: AlertTriangle,
+  review: ActionSearchAlertIcon,
   quoted: Send,
   open: ShoppingBag,
   closed: BadgeCheck,

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { SenaObservationRecord } from '@shared/sena';
 import {
   buildDeliveryFeeMetadata,
+  buildDiscountMetadata,
   buildCustomerLinkDirectory,
   buildTicketPartyMetadata,
   customerLinkWarning,
@@ -10,6 +11,7 @@ import {
   makeNewTicketId,
   makeTicketId,
   normalizeTicketPhone,
+  summarizeDiscount,
   summarizeDeliveryFee,
 } from './ticketing';
 
@@ -53,9 +55,11 @@ describe('ticketing phone normalization', () => {
       customChannel: '',
       customerName: 'Sokha',
       phone: '012345678',
+      location: 'https://maps.google.com/?q=Phnom+Penh',
     })).toMatchObject({
       phone: '+855 12345678',
       phoneKey: '+85512345678',
+      location: 'https://maps.google.com/?q=Phnom+Penh',
     });
 
     expect(normalizeTicketPhone('+855 12345678')).toBe('+85512345678');
@@ -93,12 +97,14 @@ describe('ticketing phone normalization', () => {
       customChannel: '',
       customerName: 'Sokha',
       phone: '012345678',
+      location: '',
     }, directory)).toBeNull();
     expect(customerLinkWarning({
       channel: 'Telegram',
       customChannel: '',
       customerName: 'Dara',
       phone: '012345678',
+      location: '',
     }, directory)).toBe('This phone was previously linked to a different customer. Save if this is intentional.');
     expect(directory.nameToPhone.get('sokha')).toBe('+855 12345678');
   });
@@ -184,5 +190,85 @@ describe('ticketing phone normalization', () => {
       payer: 'merchant',
     });
     expect(latestDeliveryFeeMetadata(observations, 'supplier')).toBeNull();
+  });
+
+  test('summarizes flat amount discounts against subtotal', () => {
+    expect(summarizeDiscount({
+      amountUsd: 5,
+      mode: 'amount',
+      percent: null,
+      subtotalUsd: 20,
+    })).toEqual({
+      subtotalUsd: 20,
+      displayDiscountUsd: 5,
+      discountedSubtotalUsd: 15,
+    });
+  });
+
+  test('summarizes percent discounts and clamps at subtotal', () => {
+    expect(buildDiscountMetadata({
+      amountUsd: null,
+      mode: 'percent',
+      percent: 10,
+      subtotalUsd: 50,
+    })).toEqual({
+      mode: 'percent',
+      amountUsd: null,
+      percent: 10,
+      subtotalUsd: 50,
+      displayDiscountUsd: 5,
+      discountedSubtotalUsd: 45,
+    });
+    expect(summarizeDiscount({
+      amountUsd: null,
+      mode: 'percent',
+      percent: 250,
+      subtotalUsd: 12,
+    })).toMatchObject({
+      displayDiscountUsd: 12,
+      discountedSubtotalUsd: 0,
+    });
+  });
+
+  test('applies delivery after discount', () => {
+    const discount = buildDiscountMetadata({
+      amountUsd: 5,
+      mode: 'amount',
+      percent: null,
+      subtotalUsd: 20,
+    });
+
+    expect(buildDeliveryFeeMetadata({
+      bucket: 'customer_order',
+      feeUsd: 2,
+      payer: 'customer',
+      subtotalUsd: discount.discountedSubtotalUsd,
+    })).toMatchObject({
+      subtotalUsd: 15,
+      displayDeliveryUsd: 2,
+      displayTotalUsd: 17,
+      netSettlementUsd: 17,
+    });
+  });
+
+  test('treats invalid or empty discount values as zero', () => {
+    expect(summarizeDiscount({
+      amountUsd: Number.NaN,
+      mode: 'amount',
+      percent: null,
+      subtotalUsd: 20,
+    })).toMatchObject({
+      displayDiscountUsd: 0,
+      discountedSubtotalUsd: 20,
+    });
+    expect(summarizeDiscount({
+      amountUsd: null,
+      mode: 'percent',
+      percent: null,
+      subtotalUsd: 20,
+    })).toMatchObject({
+      displayDiscountUsd: 0,
+      discountedSubtotalUsd: 20,
+    });
   });
 });

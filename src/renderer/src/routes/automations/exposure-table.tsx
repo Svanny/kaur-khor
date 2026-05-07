@@ -82,19 +82,19 @@ export function AutomationExposureTable({
             <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-entity" tooltip={literal('The internal SKU or service record that can be shown to customers.')}>{literal('Entity')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-type" tooltip={literal('Whether the exposed catalog record is a stock-carrying SKU or a linked service.')}>{literal('Type')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-type" tooltip={literal('Whether the exposed product record is a stock-carrying SKU or a linked service.')}>{literal('Type')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
             <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-price" tooltip={literal('Customer-facing price currently available for automation replies.')}>{literal('Price')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-availability" tooltip={literal('Whether the item can be offered from current catalog and availability data.')}>{literal('Availability')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-availability" tooltip={literal('Whether the item can be offered from current products and availability data.')}>{literal('Availability')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell align="center">
-            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-exposed" tooltip={literal('Controls whether this catalog record is visible to customer-facing automation.')}>{literal('Exposed')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-exposed" tooltip={literal('Controls whether this product record is visible to customer-facing automation.')}>{literal('Exposed')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
           <HeaderedTableHeaderCell>
-            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-alias" tooltip={literal('Optional customer-facing name used by the automation instead of the internal catalog name.')}>{literal('Alias')}</HeaderTooltipLabel>
+            <HeaderTooltipLabel helpHref="/settings/help#automation-exposure-alias" tooltip={literal('Optional customer-facing name used by the automation instead of the internal product name.')}>{literal('Alias')}</HeaderTooltipLabel>
           </HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={layout.bodyClassName}>

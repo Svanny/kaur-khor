@@ -6,10 +6,12 @@ const LOADING_ISLAND_MIN_VISIBLE_MS = 450;
 
 export function LoadingMoreIntervalsIsland({
   className,
+  label = 'Loading data',
   visible,
 }: {
   className?: string;
   currentBatch?: number | null;
+  label?: string;
   totalBatches?: number | null;
   visible: boolean;
 }) {
@@ -37,8 +39,6 @@ export function LoadingMoreIntervalsIsland({
   if (!renderVisible) {
     return null;
   }
-
-  const label = 'Loading data';
 
   return (
     <div

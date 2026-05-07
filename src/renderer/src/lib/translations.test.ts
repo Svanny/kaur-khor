@@ -276,10 +276,10 @@ describe('getTranslation', () => {
     expect(
       translateUiLiteral(
         'km',
-        'Review archived catalog items and restore anything that should return to active workspaces.',
+        'Review archived products and restore anything that should return to active workspaces.',
       ),
     ).toBe(
-      'ពិនិត្យធាតុកាតាឡុកដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
+      'ពិនិត្យធាតុទំនិញដែលបានទុកក្នុងបណ្ណសារ ហើយស្ដារអ្វីដែលគួរត្រឡប់ទៅកន្លែងធ្វើការសកម្មវិញ។',
     );
     expect(
       translateUiLiteral(

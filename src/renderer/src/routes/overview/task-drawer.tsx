@@ -1,14 +1,19 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import type { SenaLeadTimeVariabilityClass, SenaRecordUpdateContext, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
+import { Link } from 'react-router-dom';
 import {
   deriveLeadTimeFromStdDays,
   deriveLeadTimeFromVariabilityClass,
 } from '@shared/sena-lead-time';
 import {
   ActionCloseIcon,
+  ActionClipboardClockIcon,
   ActionConfirmIcon,
+  ActionDismissIcon,
+  ActionOpenExternalIcon,
   ActionReceiveInventoryIcon,
   ActionSaveIcon,
+  ActionWaitingIcon,
 } from '@icons/actions';
 import { overviewDrawerBandIcons } from '@icons/domain';
 import { ItemAvatar } from '@/components/system/item-identity';
@@ -22,9 +27,7 @@ import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { SupplierBadge } from '@/components/system/supplier';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
-import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import {
   Sheet,
   SheetClose,
@@ -37,8 +40,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { formatLocalDateInputValue, formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
+import { buildSupplierTicketCaptureHref } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
 import { makeNewTicketId } from '@/lib/ticketing';
@@ -53,24 +57,23 @@ import { createEmptyObservationInput, hasStructuredObservationSignal } from '@/r
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import type { TranslationKey, TranslationVariables } from '@/lib/translations';
-import type { OverviewDrawerBandId, OverviewSkuTask, OverviewTaskDrawerMode } from './view-model';
+import type { IconComponent } from '@icons';
+import type { OverviewDrawerBandId, OverviewSupplierTicketTask, OverviewTaskDrawerMode } from './view-model';
 
 type DrawerTranslate = (key: TranslationKey, variables?: TranslationVariables) => string;
+const DRAFT_SUPPLIER_TICKET_ID_PREFIX = 'draft-supplier-ticket:';
 
 function initialObservedAt(value: string | null) {
-  if (value) {
-    return new Date(value).toISOString().slice(0, 16);
-  }
-  return new Date().toISOString().slice(0, 16);
+  return formatLocalDateTimeInputValue(value);
 }
 
 function initialExpectedArrivalDate(value: string | null) {
   if (value) {
-    return new Date(value).toISOString().slice(0, 10);
+    return formatLocalDateInputValue(value);
   }
   const nextWeek = new Date();
   nextWeek.setDate(nextWeek.getDate() + 7);
-  return nextWeek.toISOString().slice(0, 10);
+  return formatLocalDateInputValue(nextWeek);
 }
 
 function daysBetween(start: string, endDate: string) {
@@ -126,12 +129,10 @@ function supplierTicketEventFromDrawer({
   eventType,
   expectedArrivalDate,
   lifecycle,
+  lines,
   mode,
   note,
   observedAt,
-  quantity,
-  receivedCost,
-  skuId,
   supplierName,
   ticketId,
   revision,
@@ -139,12 +140,10 @@ function supplierTicketEventFromDrawer({
   eventType: SenaTicketEventType;
   expectedArrivalDate: string;
   lifecycle: SenaTicketEvent['lifecycle'];
+  lines: SenaTicketEvent['lines'];
   mode: OverviewTaskDrawerMode;
   note: string | null;
   observedAt: string;
-  quantity: number | null;
-  receivedCost: number | null;
-  skuId: string;
   supplierName: string | null;
   ticketId: string;
   revision: number;
@@ -152,6 +151,8 @@ function supplierTicketEventFromDrawer({
   const stage: SenaTicketStage =
     mode === 'goods_received'
       ? 'received'
+      : mode === 'order_canceled'
+        ? 'to_order'
       : 'ordered_waiting';
   return {
     ticketId,
@@ -161,91 +162,71 @@ function supplierTicketEventFromDrawer({
     revision,
     eventType,
     occurredAt: observedAt,
-    nextTouchAt: mode === 'goods_received' ? null : dateInputToIsoDate(expectedArrivalDate),
+    nextTouchAt: mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate),
     party: {
       role: 'supplier',
       supplierName,
     },
-    lines: [{
-      entityType: 'sku',
-      entityId: skuId,
-      orderedQuantity: mode === 'goods_received' ? null : quantity,
-      receivedQuantity: mode === 'goods_received' ? quantity : null,
-      expectedArrivalAt: mode === 'goods_received' ? null : dateInputToIsoDate(expectedArrivalDate),
-      unitCost: receivedCost,
-      note,
-    }],
+    lines,
     note,
   };
 }
 
-function dateKey(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-  const time = new Date(value).getTime();
-  if (Number.isNaN(time)) {
-    return value.slice(0, 10) || null;
-  }
-  return new Date(time).toISOString().slice(0, 10);
-}
-
-function supplierTicketMatchesDrawerContext(ticket: SenaTicketSummary, task: OverviewSkuTask) {
-  if (!ticket.lines.some((line) => line.entityType === 'sku' && line.entityId === task.skuId)) {
-    return false;
-  }
-  if (task.supplierName && ticket.party?.supplierName && ticket.party.supplierName !== task.supplierName) {
-    return false;
-  }
-
-  const taskExpectedDate = dateKey(task.expectedArrivalDate);
-  if (!taskExpectedDate) {
-    return true;
-  }
-
-  return ticket.lines.some((line) => dateKey(line.expectedArrivalAt) === taskExpectedDate)
-    || dateKey(ticket.nextTouchAt) === taskExpectedDate;
-}
-
 function supplierTicketIdentityForDrawer({
-  eventType,
-  observedAt,
   recordUpdateContext,
   task,
+  eventType,
+  observedAt,
 }: {
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  task: OverviewSupplierTicketTask;
   eventType: SenaTicketEventType;
   observedAt: string;
-  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
-  task: OverviewSkuTask;
 }) {
-  if (task.supplierTicketId) {
-    const latestTicket = recordUpdateContext?.latestTicketsById[task.supplierTicketId]?.value;
+  if (task.ticketId.startsWith(DRAFT_SUPPLIER_TICKET_ID_PREFIX)) {
     return {
-      ticketId: task.supplierTicketId,
-      revision: (latestTicket?.revision ?? 0) + 1,
+      ticketId: makeNewTicketId({
+        eventType,
+        family: 'supplier',
+        lines: task.ticket.lines.map((line) => ({
+          entityId: line.entityId,
+          entityType: line.entityType,
+        })),
+        observedAt,
+      }),
+      revision: 1,
     };
   }
-
-  const existingTicket = recordUpdateContext?.openTicketsByFamily.supplier.find((ticket) =>
-    supplierTicketMatchesDrawerContext(ticket, task),
-  ) ?? null;
-  if (existingTicket) {
-    const latestRevision = recordUpdateContext?.latestTicketsById[existingTicket.ticketId]?.value.revision ?? existingTicket.revision;
-    return {
-      ticketId: existingTicket.ticketId,
-      revision: latestRevision + 1,
-    };
-  }
-
+  const latestTicket = recordUpdateContext?.latestTicketsById[task.ticketId]?.value;
   return {
-    ticketId: makeNewTicketId({
-      eventType,
-      family: 'supplier',
-      lines: [{ entityType: 'sku', entityId: task.skuId }],
-      observedAt,
-    }),
-    revision: 1,
+    ticketId: task.ticketId,
+    revision: (latestTicket?.revision ?? task.ticket.revision ?? 0) + 1,
   };
+}
+
+function ticketLinesForDrawer({
+  expectedArrivalDate,
+  mode,
+  note,
+  task,
+}: {
+  expectedArrivalDate: string;
+  mode: OverviewTaskDrawerMode;
+  note: string | null;
+  task: OverviewSupplierTicketTask;
+}): SenaTicketEvent['lines'] {
+  const expectedArrivalAt = mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate);
+
+  return task.ticket.lines.map((line) => {
+    const orderedQuantity = line.orderedQuantity ?? null;
+    return {
+      ...line,
+      orderedQuantity: mode === 'order_canceled' ? null : orderedQuantity,
+      receivedQuantity: mode === 'goods_received' ? orderedQuantity : line.receivedQuantity ?? null,
+      expectedArrivalAt,
+      note,
+    };
+  });
 }
 
 function dateInputToIsoDate(value: string) {
@@ -279,21 +260,25 @@ function drawerModeOptions(
 ) {
   return [
     {
-      value: 'not_ordered' as const,
-      title: t('overviewDrawerModeNotOrderedTitle'),
-      description: t('overviewDrawerModeNotOrderedDescription'),
+      icon: ActionDismissIcon,
+      value: 'order_canceled' as const,
+      title: t('overviewDrawerModeOrderCanceledTitle'),
+      description: t('overviewDrawerModeOrderCanceledDescription'),
     },
     {
+      icon: ActionWaitingIcon,
       value: 'ordered_waiting' as const,
       title: t('overviewDrawerModeOrderedWaitingTitle'),
       description: t('overviewDrawerModeOrderedWaitingDescription'),
     },
     {
+      icon: ActionClipboardClockIcon,
       value: 'eta_changed' as const,
       title: t('overviewDrawerModeEtaChangedTitle'),
       description: t('overviewDrawerModeEtaChangedDescription'),
     },
     {
+      icon: ActionReceiveInventoryIcon,
       value: 'goods_received' as const,
       title: t('overviewDrawerModeGoodsReceivedTitle'),
       description: t('overviewDrawerModeGoodsReceivedDescription'),
@@ -344,6 +329,8 @@ function drawerModeSummary(
       return t('overviewDrawerModeSummaryOrderedWaiting');
     case 'eta_changed':
       return t('overviewDrawerModeSummaryEtaChanged');
+    case 'order_canceled':
+      return t('overviewDrawerModeSummaryOrderCanceled');
     case 'not_ordered':
       return t('overviewDrawerModeSummaryNotOrdered');
   }
@@ -401,11 +388,13 @@ function DrawerBandField({
 
 function DrawerModeTile({
   description,
+  icon: Icon,
   measure = false,
   selected,
   title,
 }: {
   description: string;
+  icon: IconComponent;
   measure?: boolean;
   selected: boolean;
   title: string;
@@ -433,45 +422,11 @@ function DrawerModeTile({
         <ActionConfirmIcon className="size-3.5" />
       </div>
       <div className="min-w-0">
-        <span className="block text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">{title}</span>
+        <span className="flex min-w-0 items-center gap-2 text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">
+          <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 truncate">{title}</span>
+        </span>
         <span className="mt-1 block text-[0.73rem] leading-4.5 text-muted-foreground">{description}</span>
-      </div>
-    </div>
-  );
-}
-
-function RecommendedOrderPanel({
-  task,
-  t,
-}: {
-  task: OverviewSkuTask;
-  t: DrawerTranslate;
-}) {
-  const recommendation = task.reorderRecommendation;
-
-  return (
-    <div className="mt-5 rounded-[1.35rem] border border-border/65 bg-background/75 px-4 py-4 shadow-[0_1px_0_rgba(255,255,255,0.85)]">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-            {t('overviewDrawerRecommendedOrderTitle')}
-          </p>
-          <p className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-foreground">
-            {recommendation.recommendationIssued || recommendation.optionalOrderLabel
-              ? recommendation.recommendedUnitsLabel
-              : recommendation.quietLabel}
-          </p>
-        </div>
-        {recommendation.recommendationIssued ? (
-          <span className="rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-            {t('overviewDrawerRecommendedOrderLikely', { value: recommendation.needProbabilityValueLabel })}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-3 grid gap-1 text-sm leading-6 text-muted-foreground">
-        <p>{recommendation.likelyRangeLabel}</p>
-        {recommendation.recommendationIssued ? <p>{recommendation.needProbabilityLabel}</p> : null}
-        <p>{t('overviewDrawerRecommendedOrderBasis')}</p>
       </div>
     </div>
   );
@@ -491,6 +446,7 @@ function finalizeSuccessfulDrawerSave({
 }
 
 export function OverviewTaskDrawer({
+  onPrepareAfterSave,
   open,
   mode: controlledMode,
   onModeChange,
@@ -499,23 +455,21 @@ export function OverviewTaskDrawer({
 }: {
   open: boolean;
   mode?: OverviewTaskDrawerMode | null;
+  onPrepareAfterSave?: () => Promise<unknown>;
   onModeChange?: (mode: OverviewTaskDrawerMode) => void;
-  task: OverviewSkuTask | null;
+  task: OverviewSupplierTicketTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { ingestSenaObservation, isSaving, recordUpdateContext, runWorkspacePreparation, triggerSenaRun, updateSenaOrderChild } = useInventory();
-  const { currency, language, t, usdToKhrExchangeRate } = usePreferences();
+  const { ingestSenaObservation, isSaving, recordUpdateContext, runWorkspacePreparation, triggerSenaRun } = useInventory();
+  const { language, t } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
   const [notes, setNotes] = useState('');
-  const [orderedQuantity, setOrderedQuantity] = useState('');
   const [expectedArrivalDate, setExpectedArrivalDate] = useState(initialExpectedArrivalDate(null));
   const [uncertaintyDays, setUncertaintyDays] = useState('');
   const [variabilityClass, setVariabilityClass] = useState<SenaLeadTimeVariabilityClass | ''>('');
   const [leadTimeDraftMode, setLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('std');
   const [useLeadTimeEstimate, setUseLeadTimeEstimate] = useState(true);
-  const [receivedQuantity, setReceivedQuantity] = useState('');
-  const [receivedCost, setReceivedCost] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
   const [drawerWidth, setDrawerWidth] = useState(() => clampDrawerWidth(DRAWER_DEFAULT_WIDTH));
@@ -523,7 +477,6 @@ export function OverviewTaskDrawer({
   const [showDetailBody, setShowDetailBody] = useState(false);
   const [initializedTaskId, setInitializedTaskId] = useState<string | null>(null);
   const [hasUserEditedDraft, setHasUserEditedDraft] = useState(false);
-  const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
   const modeInteractionRef = useRef(false);
   const markDraftEdited = useCallback(() => setHasUserEditedDraft(true), []);
 
@@ -540,16 +493,13 @@ export function OverviewTaskDrawer({
       setShowDetailBody(true);
     });
     setMode(task.defaultDrawerMode);
-    setObservedAt(initialObservedAt(task.defaultDrawerMode === 'goods_received' ? null : task.latestObservationAt));
+    setObservedAt(initialObservedAt(null));
     setNotes('');
-    setOrderedQuantity(task.recentOrderQuantity != null ? String(Math.round(task.recentOrderQuantity)) : String(task.suggestedOrderQuantity || ''));
     setExpectedArrivalDate(initialExpectedArrivalDate(task.expectedArrivalDate));
     setUncertaintyDays(task.leadTimeStdDays != null ? String(Math.max(1, Math.round(task.leadTimeStdDays))) : '2');
     setVariabilityClass(task.variabilityClass ?? '');
     setLeadTimeDraftMode('std');
     setUseLeadTimeEstimate(true);
-    setReceivedQuantity(task.recentReceiptQuantity != null ? String(Math.round(task.recentReceiptQuantity)) : '');
-    setReceivedCost(task.costPerUnit ? formatEditableMoneyFromUsd(task.costPerUnit, currency, usdToKhrExchangeRate) : '');
     setError(null);
     setSaveErrorFlashKey(0);
     setInitializedTaskId(task.id);
@@ -559,24 +509,6 @@ export function OverviewTaskDrawer({
   useEffect(() => {
     setDismissedAfterSave(false);
   }, [task?.id]);
-
-  useEffect(() => {
-    const previous = previousMoneyPreferencesRef.current;
-    if (previous.currency === currency && previous.usdToKhrExchangeRate === usdToKhrExchangeRate) {
-      return;
-    }
-
-    setReceivedCost((current) =>
-      reformatMoneyDraftValue({
-        value: current,
-        previousCurrency: previous.currency,
-        previousUsdToKhrExchangeRate: previous.usdToKhrExchangeRate,
-        nextCurrency: currency,
-        nextUsdToKhrExchangeRate: usdToKhrExchangeRate,
-      }),
-    );
-    previousMoneyPreferencesRef.current = { currency, usdToKhrExchangeRate };
-  }, [currency, usdToKhrExchangeRate]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -626,7 +558,6 @@ export function OverviewTaskDrawer({
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
       return {
         ...baseSnapshot,
-        orderedQuantity,
         expectedArrivalDate,
         uncertaintyDays,
         variabilityClass,
@@ -634,44 +565,24 @@ export function OverviewTaskDrawer({
       };
     }
 
-    if (mode === 'goods_received') {
-      return {
-        ...baseSnapshot,
-        receivedQuantity,
-        receivedCost,
-      };
-    }
-
     return baseSnapshot;
   }
 
-  function drawerBaselineSnapshot(nextTask: OverviewSkuTask) {
+  function drawerBaselineSnapshot(nextTask: OverviewSupplierTicketTask) {
     const nextMode = nextTask.defaultDrawerMode;
     const baseSnapshot = {
       mode: nextMode,
-      observedAt: initialObservedAt(nextMode === 'goods_received' ? null : nextTask.latestObservationAt),
+      observedAt: initialObservedAt(null),
       notes: '',
     };
 
     if (nextMode === 'ordered_waiting' || nextMode === 'eta_changed') {
       return {
         ...baseSnapshot,
-        orderedQuantity:
-          nextTask.recentOrderQuantity != null
-            ? String(Math.round(nextTask.recentOrderQuantity))
-            : String(nextTask.suggestedOrderQuantity || ''),
         expectedArrivalDate: initialExpectedArrivalDate(nextTask.expectedArrivalDate),
         uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
         variabilityClass: nextTask.variabilityClass ?? '',
         useLeadTimeEstimate: true,
-      };
-    }
-
-    if (nextMode === 'goods_received') {
-      return {
-        ...baseSnapshot,
-        receivedQuantity: nextTask.recentReceiptQuantity != null ? String(Math.round(nextTask.recentReceiptQuantity)) : '',
-        receivedCost: nextTask.costPerUnit ? formatEditableMoneyFromUsd(nextTask.costPerUnit, currency, usdToKhrExchangeRate) : '',
       };
     }
 
@@ -710,19 +621,11 @@ export function OverviewTaskDrawer({
   }
 
   const activeTask = task;
-  const baselineSnapshot = {
-    skuId: activeTask.skuId,
-    unitsInStock: Math.max(0, Math.round(activeTask.currentStock)),
-    costPerUnit: activeTask.costPerUnit,
-    productPrice: activeTask.productPrice,
-  };
 
   async function submit() {
     setError(null);
     if (
-      (mode === 'ordered_waiting' && !orderedQuantity) ||
-      ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate) ||
-      (mode === 'goods_received' && (!receivedQuantity || Number(receivedQuantity) <= 0))
+      ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate)
     ) {
       return false;
     }
@@ -732,92 +635,105 @@ export function OverviewTaskDrawer({
       notes: notes.trim() || null,
     });
     if (mode === 'ordered_waiting' || mode === 'eta_changed') {
-      const quantity = orderedQuantity ? Number(orderedQuantity) : (activeTask.recentOrderQuantity ?? (activeTask.suggestedOrderQuantity || null));
       const eventType: SenaTicketEventType =
         mode === 'eta_changed'
           ? 'eta_updated'
-          : activeTask.childOrderId
-            ? 'revised'
-            : 'created';
+          : activeTask.ticketId.startsWith(DRAFT_SUPPLIER_TICKET_ID_PREFIX)
+            ? 'created'
+            : 'revised';
       const ticketIdentity = supplierTicketIdentityForDrawer({
         eventType,
         observedAt: observedAtIso,
         recordUpdateContext,
         task: activeTask,
       });
-      senaPayload.orderSignals = [
-        {
-          skuId: activeTask.skuId,
-          orderPlaced: true,
-          receiptArrived: false,
-          approximateOrderQuantity: quantity,
-          approximateReceiptQuantity: null,
-        },
-      ];
       senaPayload.ticketEvents = [
         supplierTicketEventFromDrawer({
           eventType,
           expectedArrivalDate,
           lifecycle: 'open',
+          lines: ticketLinesForDrawer({
+            expectedArrivalDate,
+            mode,
+            note: notes.trim() || null,
+            task: activeTask,
+          }),
           mode,
           note: notes.trim() || null,
           observedAt: observedAtIso,
-          quantity,
-          receivedCost: null,
-          skuId: activeTask.skuId,
           supplierName: activeTask.supplierName,
           ...ticketIdentity,
         }),
       ];
-      senaPayload.leadTimeHints = leadTimeHintFromTaskInputs({
-        observedAt,
-        skuId: activeTask.skuId,
-        uncertaintyDays,
-        useLeadTimeEstimate,
-        variabilityClass,
-        expectedArrivalDate,
+      senaPayload.leadTimeHints = activeTask.childTasks.flatMap((child) =>
+        leadTimeHintFromTaskInputs({
+          observedAt,
+          skuId: child.skuId,
+          uncertaintyDays,
+          useLeadTimeEstimate,
+          variabilityClass,
+          expectedArrivalDate,
+        }),
+      );
+    }
+
+    if (mode === 'order_canceled') {
+      const ticketIdentity = supplierTicketIdentityForDrawer({
+        eventType: 'canceled',
+        observedAt: observedAtIso,
+        recordUpdateContext,
+        task: activeTask,
       });
+      senaPayload.ticketEvents = [
+        supplierTicketEventFromDrawer({
+          eventType: 'canceled',
+          expectedArrivalDate: '',
+          lifecycle: 'canceled',
+          lines: ticketLinesForDrawer({
+            expectedArrivalDate: '',
+            mode,
+            note: notes.trim() || null,
+            task: activeTask,
+          }),
+          mode,
+          note: notes.trim() || null,
+          observedAt: observedAtIso,
+          supplierName: activeTask.supplierName,
+          ...ticketIdentity,
+        }),
+      ];
     }
 
     if (mode === 'goods_received') {
-      const receivedUnits = Number(receivedQuantity);
-      const updatedUnitsInStock = Math.max(0, Math.round(activeTask.currentStock) + receivedUnits);
-      const nextCost = receivedCost
-        ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
-        : activeTask.costPerUnit;
       const ticketIdentity = supplierTicketIdentityForDrawer({
         eventType: 'fully_received',
         observedAt: observedAtIso,
         recordUpdateContext,
         task: activeTask,
       });
-      senaPayload.stockSnapshot = [
-        {
-          ...baselineSnapshot,
-          unitsInStock: updatedUnitsInStock,
-          costPerUnit: nextCost,
-        },
-      ];
-      senaPayload.orderSignals = [
-        {
-          skuId: activeTask.skuId,
+      senaPayload.orderSignals = activeTask.ticket.lines
+        .filter((line) => line.entityType === 'sku')
+        .map((line) => ({
+          skuId: line.entityId,
           orderPlaced: false,
           receiptArrived: true,
           approximateOrderQuantity: null,
-          approximateReceiptQuantity: receivedUnits,
-        },
-      ];
+          approximateReceiptQuantity: line.orderedQuantity ?? line.receivedQuantity ?? null,
+        }));
       senaPayload.ticketEvents = [
         supplierTicketEventFromDrawer({
           eventType: 'fully_received',
           expectedArrivalDate: '',
           lifecycle: 'resolved',
+          lines: ticketLinesForDrawer({
+            expectedArrivalDate: '',
+            mode,
+            note: notes.trim() || null,
+            task: activeTask,
+          }),
           mode,
           note: notes.trim() || null,
           observedAt: observedAtIso,
-          quantity: receivedUnits,
-          receivedCost: nextCost,
-          skuId: activeTask.skuId,
           supplierName: activeTask.supplierName,
           ...ticketIdentity,
         }),
@@ -829,43 +745,14 @@ export function OverviewTaskDrawer({
         onOpenChange(false);
         return true;
       }
-      if (activeTask.childOrderId && (mode === 'ordered_waiting' || mode === 'eta_changed')) {
-        const quantity = orderedQuantity ? Number(orderedQuantity) : (activeTask.recentOrderQuantity ?? (activeTask.suggestedOrderQuantity || null));
-        await updateSenaOrderChild({
-          childOrderId: activeTask.childOrderId,
-          appendSupplierNote: notes.trim() || null,
-          overrides: {
-            expectedArrivalAt: dateInputToIsoDate(expectedArrivalDate),
-            orderedQuantity: quantity,
-            placementTimestamp: observedAtIso,
-          },
-          status: mode === 'eta_changed' ? 'follow_up' : 'awaiting_receipt',
-        });
-      }
-      if (activeTask.childOrderId && mode === 'goods_received') {
-        const receivedUnits = Number(receivedQuantity);
-        const nextCost = receivedCost
-          ? usdMoneyFromDisplay(Number(receivedCost), currency, usdToKhrExchangeRate)
-          : activeTask.costPerUnit;
-        await updateSenaOrderChild({
-          childOrderId: activeTask.childOrderId,
-          appendSupplierNote: notes.trim() || null,
-          overrides: {
-            costPerUnit: nextCost,
-            receivedQuantity: receivedUnits,
-            receiptTimestamp: observedAtIso,
-          },
-          status: 'received',
-        });
-      }
       await ingestSenaObservation(senaPayload);
       finalizeSuccessfulDrawerSave({
         close: () => {
           setDismissedAfterSave(true);
           onOpenChange(false);
         },
-        prepareWorkspace: () =>
-          runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' })),
+        prepareWorkspace: onPrepareAfterSave ??
+          (() => runWorkspacePreparation(() => triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' }))),
       });
       return true;
     } catch (nextError) {
@@ -875,20 +762,18 @@ export function OverviewTaskDrawer({
     }
   }
 
-  const receiptPreviewQuantity = receivedQuantity ? Number(receivedQuantity) : 0;
-  const receiptPreviewNextStock = Math.max(0, Math.round(task.currentStock) + receiptPreviewQuantity);
   const submitLabel =
     mode === 'goods_received'
       ? t('overviewDrawerSubmitGoodsReceived')
+      : mode === 'order_canceled'
+        ? t('overviewDrawerSubmitOrderCanceled')
       : mode === 'not_ordered'
         ? t('overviewDrawerSubmitNotOrdered')
         : t('overviewDrawerSubmitDefault');
   const RealLifeIcon = overviewDrawerBandIcons.real_life;
   const submitDisabled =
     isSaving ||
-    (mode === 'ordered_waiting' && !orderedQuantity) ||
-    ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate) ||
-    (mode === 'goods_received' && (!receivedQuantity || Number(receivedQuantity) <= 0));
+    ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate);
 
   function startDrawerResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (typeof window === 'undefined') {
@@ -951,10 +836,10 @@ export function OverviewTaskDrawer({
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <div className="flex items-start gap-4">
-                <ItemAvatar imagePath={task.imagePath} name={task.skuName} size="hero" type="sku" />
+                <ItemAvatar imagePath={task.imagePath} name={task.displayTicketLabel} size="hero" type="sku" />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.skuName}</SheetTitle>
+                    <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.displayTicketLabel}</SheetTitle>
                     <SupplierBadge supplierName={task.supplierName} />
                     <span
                       className={cn(
@@ -968,7 +853,7 @@ export function OverviewTaskDrawer({
                 </div>
               </div>
               <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
-                {task.whyNow} · {task.serviceImpact} · {task.etaLabel}
+                {task.whyNow} · {task.skuSummaryLabel} · {task.etaLabel}
               </SheetDescription>
               <div className="mt-4 flex flex-wrap gap-2.5">
                 {task.heartbeat.map((line) => (
@@ -1042,6 +927,7 @@ export function OverviewTaskDrawer({
                           >
                             <DrawerModeTile
                               description={option.description}
+                              icon={option.icon}
                               selected={mode === option.value}
                               title={option.title}
                             />
@@ -1054,6 +940,7 @@ export function OverviewTaskDrawer({
                     <DrawerModeTile
                       key={`${option.value}-measure`}
                       description={option.description}
+                      icon={option.icon}
                       measure
                       selected={mode === option.value}
                       title={option.title}
@@ -1062,14 +949,12 @@ export function OverviewTaskDrawer({
                 />
               </div>
 
-              {mode === 'not_ordered' ? <RecommendedOrderPanel task={task} t={t} /> : null}
-
               <DrawerBand
                 bandId="timing"
                 className="mt-6"
                 title={mode === 'goods_received' ? t('overviewDrawerReceiptTimingTitle') : t('overviewDrawerTimingTitle')}
               >
-                <div className={cn(mode === 'goods_received' || mode === 'not_ordered' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
+                <div className={cn(mode === 'goods_received' || mode === 'not_ordered' || mode === 'order_canceled' ? 'grid gap-5' : 'grid gap-5 md:grid-cols-2')}>
                   <ActionSheetField
                     description={mode === 'goods_received' ? t('overviewDrawerReceiptConfirmedDescription') : t('overviewDrawerObservedAtDescription')}
                     label={mode === 'goods_received' ? t('overviewDrawerReceivedDateTimeLabel') : t('overviewDrawerObservedAtLabel')}
@@ -1109,64 +994,39 @@ export function OverviewTaskDrawer({
 
               {(mode === 'ordered_waiting' || mode === 'eta_changed') ? (
                 <>
-                  <DrawerBand bandId="order_shape" title={t('overviewDrawerOrderShapeTitle')}>
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <ActionSheetField
-                        description={
-                          task.reorderRecommendation.recommendationIssued
-                            ? `${task.reorderRecommendation.recommendedOrderLabel}. Edit if the supplier batch differs.`
-                            : task.reorderRecommendation.optionalOrderLabel
-                              ? `${task.reorderRecommendation.quietLabel}. Edit if the supplier batch differs.`
-                            : t('overviewDrawerOrderedQuantityFallback')
-                        }
-                        label={t('overviewDrawerOrderedQuantityLabel')}
-                      >
-                        <NumberStepperInput
-                          aria-label={t('overviewDrawerOrderedQuantityLabel')}
-                          className={actionSheetInputClassName}
-                          min="0"
-                          step="1"
-                          variant="side-buttons"
-                          value={orderedQuantity}
-                          onChange={(event) => {
-                            markDraftEdited();
-                            setOrderedQuantity(event.target.value);
-                          }}
-                        />
-                      </ActionSheetField>
-                      <ActionSheetField
-                        description={t('overviewDrawerVariabilityDescription')}
-                        label={t('fieldLeadTimeVariability')}
-                      >
-                        <LeadTimeVariabilityField
-                          customInputClassName={actionSheetInputClassName}
-                          customStdDays={uncertaintyDays}
-                          language={language}
-                          meanDays={daysBetween(observedAt, expectedArrivalDate)}
-                          mode={leadTimeDraftMode}
-                          numberInputVariant="side-buttons"
-                          placeholder={t('overviewDrawerVariabilityPlaceholder')}
-                          selectTriggerClassName={actionSheetSelectTriggerClassName}
-                          value={variabilityClass}
-                          onCustomStdDaysChange={(value) => {
-                            markDraftEdited();
-                            setLeadTimeDraftMode('std');
-                            setUncertaintyDays(value);
-                          }}
-                          onModeChange={(value) => {
-                            markDraftEdited();
-                            setLeadTimeDraftMode(value);
-                          }}
-                          onValueChange={(value) => {
-                            markDraftEdited();
-                            setVariabilityClass(value);
-                            if (value) {
-                              setUncertaintyDays(derivedStdDaysDraft(daysBetween(observedAt, expectedArrivalDate), value));
-                            }
-                          }}
-                        />
-                      </ActionSheetField>
-                    </div>
+                  <DrawerBand bandId="order_shape" title={t('fieldLeadTimeVariability')}>
+                    <ActionSheetField
+                      description={t('overviewDrawerVariabilityDescription')}
+                      label={t('fieldLeadTimeVariability')}
+                    >
+                      <LeadTimeVariabilityField
+                        customInputClassName={actionSheetInputClassName}
+                        customStdDays={uncertaintyDays}
+                        language={language}
+                        meanDays={daysBetween(observedAt, expectedArrivalDate)}
+                        mode={leadTimeDraftMode}
+                        numberInputVariant="side-buttons"
+                        placeholder={t('overviewDrawerVariabilityPlaceholder')}
+                        selectTriggerClassName={actionSheetSelectTriggerClassName}
+                        value={variabilityClass}
+                        onCustomStdDaysChange={(value) => {
+                          markDraftEdited();
+                          setLeadTimeDraftMode('std');
+                          setUncertaintyDays(value);
+                        }}
+                        onModeChange={(value) => {
+                          markDraftEdited();
+                          setLeadTimeDraftMode(value);
+                        }}
+                        onValueChange={(value) => {
+                          markDraftEdited();
+                          setVariabilityClass(value);
+                          if (value) {
+                            setUncertaintyDays(derivedStdDaysDraft(daysBetween(observedAt, expectedArrivalDate), value));
+                          }
+                        }}
+                      />
+                    </ActionSheetField>
                   </DrawerBand>
 
                   <DrawerBand bandId="optional_learning" title={t('overviewDrawerOptionalLearningTitle')}>
@@ -1181,58 +1041,6 @@ export function OverviewTaskDrawer({
                       />
                       <span>{t('overviewDrawerOptionalLearningDescription')}</span>
                     </label>
-                  </DrawerBand>
-                </>
-              ) : null}
-
-              {mode === 'goods_received' ? (
-                <>
-                  <DrawerBand bandId="receipt_details" title={t('overviewDrawerReceiptDetailsTitle')}>
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <ActionSheetField
-                        description={t('overviewDrawerReceivedQuantityDescription')}
-                        label={t('overviewDrawerReceivedQuantityLabel')}
-                      >
-                        <NumberStepperInput
-                          aria-label={t('overviewDrawerReceivedQuantityLabel')}
-                          className={actionSheetInputClassName}
-                          min="0"
-                          step="1"
-                          variant="side-buttons"
-                          value={receivedQuantity}
-                          onChange={(event) => {
-                            markDraftEdited();
-                            setReceivedQuantity(event.target.value);
-                          }}
-                        />
-                      </ActionSheetField>
-                      <ActionSheetField
-                        description={t('overviewDrawerReceivedCostDescription')}
-                        label={t('overviewDrawerReceivedCostLabel')}
-                      >
-                        <CurrencyNumberInput
-                          aria-label={t('overviewDrawerReceivedCostLabel')}
-                          className={actionSheetInputClassName}
-                          currency={currency}
-                          min="0"
-                          variant="side-buttons"
-                          value={receivedCost}
-                          onChange={(event) => {
-                            markDraftEdited();
-                            setReceivedCost(event.target.value);
-                          }}
-                        />
-                      </ActionSheetField>
-                    </div>
-                  </DrawerBand>
-
-                  <DrawerBand bandId="preview" title={t('overviewDrawerPreviewTitle')}>
-                    <div className="rounded-[1.3rem] border border-emerald-200 bg-emerald-50/85 px-4 py-4 text-sm leading-6 text-emerald-900">
-                      {t('overviewDrawerPreviewDescription', {
-                        quantity: receiptPreviewQuantity || 0,
-                        stock: receiptPreviewNextStock,
-                      })}
-                    </div>
                   </DrawerBand>
                 </>
               ) : null}
@@ -1254,7 +1062,7 @@ export function OverviewTaskDrawer({
                     aria-label={mode === 'ordered_waiting' || mode === 'eta_changed' ? t('overviewDrawerSupplierNoteTitle') : t('overviewDrawerNoteTitle')}
                     className={cn(
                       actionSheetTextareaClassName,
-                      mode === 'not_ordered' ? 'min-h-24' : '',
+                      mode === 'not_ordered' || mode === 'order_canceled' ? 'min-h-24' : '',
                       mode === 'goods_received' ? 'min-h-28' : '',
                     )}
                     value={notes}
@@ -1264,19 +1072,6 @@ export function OverviewTaskDrawer({
                     }}
                   />
                 </DrawerBandField>
-              </DrawerBand>
-
-              <DrawerBand bandId="next_steps" title={t('overviewDrawerNextStepsTitle')}>
-                <div className="rounded-[1.35rem] border border-border/65 bg-secondary/35 px-4 py-4">
-                  <div className="grid gap-3">
-                    {task.nextSteps.map((line) => (
-                      <div key={line} className="flex items-start gap-3 text-sm leading-6 text-foreground">
-                        <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/70" />
-                        <span>{line}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </DrawerBand>
 
               {error ? (
@@ -1296,16 +1091,24 @@ export function OverviewTaskDrawer({
               <p className="text-sm font-medium text-foreground">{t('overviewDrawerModeLabel', { value: drawerModeLabel(t, mode) })}</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">{drawerModeSummary(t, mode)}</p>
             </div>
-            <Button
-              className="w-full sm:w-auto sm:min-w-[15rem]"
-              disabled={submitDisabled}
-              size="lg"
-              type="button"
-              onClick={() => void submit()}
-            >
-              {mode === 'goods_received' ? <ActionReceiveInventoryIcon className="size-4" /> : <ActionSaveIcon className="size-4" />}
-              {isSaving ? translateUiLiteral(language, 'Saving…') : submitLabel}
-            </Button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <Button asChild className="w-full sm:w-auto sm:min-w-[11rem]" size="lg" variant="outline">
+                <Link to={buildSupplierTicketCaptureHref({ mode: 'edit', ticketId: task.ticketId })}>
+                  <ActionOpenExternalIcon data-icon="inline-start" />
+                  {translateUiLiteral(language, 'Edit in Capture')}
+                </Link>
+              </Button>
+              <Button
+                className="w-full sm:w-auto sm:min-w-[15rem]"
+                disabled={submitDisabled}
+                size="lg"
+                type="button"
+                onClick={() => void submit()}
+              >
+                {mode === 'goods_received' ? <ActionReceiveInventoryIcon className="size-4" /> : <ActionSaveIcon className="size-4" />}
+                {isSaving ? translateUiLiteral(language, 'Saving…') : submitLabel}
+              </Button>
+            </div>
           </div>
         </SheetFooter>
       </SheetContent>

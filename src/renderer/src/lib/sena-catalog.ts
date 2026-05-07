@@ -1,8 +1,11 @@
-import type { SenaCatalog, SenaService, SenaServiceSkuMaskEntry, SenaSku } from '@shared/sena';
+import type { SenaCatalog, SenaObservationInput, SenaObservationRecord, SenaOrderBatchRecord, SenaService, SenaServiceSkuMaskEntry, SenaSku } from '@shared/sena';
 import { createOpaqueInventoryId } from './ids';
+import type { ProductAttributeCombination } from './product-attributes';
+import { uniqueProductVariantName } from './product-attributes';
 import { validateEntryId } from './validation';
 
 export type SenaCatalogEntityType = 'sku' | 'service';
+export type CatalogDeleteBlocker = 'activity' | 'linked-service' | 'last-sku';
 
 export function normalizeSenaSku(sku: SenaSku): SenaSku {
   return {
@@ -319,6 +322,63 @@ export function removeSenaSku(catalog: SenaCatalog, skuId: string): SenaCatalog 
   };
 }
 
+export function nextCatalogCopyName(existingNames: string[], sourceName: string) {
+  const baseName = sourceName.trim() || 'Untitled';
+  const normalizedNames = new Set(existingNames.map((name) => name.trim().toLocaleLowerCase()));
+  const firstCandidate = `${baseName} (copy)`;
+  if (!normalizedNames.has(firstCandidate.toLocaleLowerCase())) {
+    return firstCandidate;
+  }
+
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidate = `${firstCandidate} (${index})`;
+    if (!normalizedNames.has(candidate.toLocaleLowerCase())) {
+      return candidate;
+    }
+  }
+
+  return `${firstCandidate} (${Date.now()})`;
+}
+
+export function duplicateSenaSku(
+  catalog: SenaCatalog,
+  sku: SenaSku,
+  createId: (catalog: SenaCatalog | null | undefined) => string = createUniqueSkuId,
+): SenaCatalog {
+  return upsertSenaSku(catalog, {
+    ...sku,
+    archived: false,
+    name: nextCatalogCopyName(catalog.skus.map((entry) => entry.name), sku.name),
+    skuId: createId(catalog),
+  });
+}
+
+export function createSkuAttributeVariants(
+  catalog: SenaCatalog,
+  sku: SenaSku,
+  combinations: ProductAttributeCombination[],
+  createId: (catalog: SenaCatalog | null | undefined) => string = createUniqueSkuId,
+): SenaCatalog {
+  let nextCatalog = catalog;
+  const plannedNames = [...catalog.skus.map((entry) => entry.name)];
+
+  for (const combination of combinations) {
+    if (combination.length === 0) {
+      continue;
+    }
+    const name = uniqueProductVariantName(plannedNames, sku.name, combination);
+    plannedNames.push(name);
+    nextCatalog = upsertSenaSku(nextCatalog, {
+      ...sku,
+      archived: false,
+      name,
+      skuId: createId(nextCatalog),
+    });
+  }
+
+  return nextCatalog;
+}
+
 export function linkedSkuIdsForService(catalog: SenaCatalog, serviceId: string) {
   return catalog.sharingMask
     .filter((entry) => entry.serviceId === serviceId && entry.enabled)
@@ -366,6 +426,52 @@ export function upsertSenaService(
   };
 }
 
+export function duplicateSenaService(
+  catalog: SenaCatalog,
+  service: SenaService,
+  createId: (catalog: SenaCatalog | null | undefined) => string = createUniqueServiceId,
+): SenaCatalog {
+  const linkedSkuIds = linkedSkuIdsForService(catalog, service.serviceId);
+  const nextService = {
+    ...service,
+    archived: false,
+    name: nextCatalogCopyName(catalog.services.map((entry) => entry.name), service.name),
+    serviceId: createId(catalog),
+  };
+  return upsertSenaService(catalog, nextService, linkedSkuIds);
+}
+
+export function createServiceAttributeVariants(
+  catalog: SenaCatalog,
+  service: SenaService,
+  skuIds: string[],
+  combinations: ProductAttributeCombination[],
+  createId: (catalog: SenaCatalog | null | undefined) => string = createUniqueServiceId,
+): SenaCatalog {
+  let nextCatalog = catalog;
+  const plannedNames = [...catalog.services.map((entry) => entry.name)];
+
+  for (const combination of combinations) {
+    if (combination.length === 0) {
+      continue;
+    }
+    const name = uniqueProductVariantName(plannedNames, service.name, combination);
+    plannedNames.push(name);
+    nextCatalog = upsertSenaService(
+      nextCatalog,
+      {
+        ...service,
+        archived: false,
+        name,
+        serviceId: createId(nextCatalog),
+      },
+      skuIds,
+    );
+  }
+
+  return nextCatalog;
+}
+
 export function archiveSenaSku(catalog: SenaCatalog, skuId: string): SenaCatalog {
   return {
     ...catalog,
@@ -405,4 +511,76 @@ export function removeSenaService(catalog: SenaCatalog, serviceId: string): Sena
     bundles: catalog.bundles.filter((bundle) => bundle.serviceId !== serviceId),
     sharingMask: catalog.sharingMask.filter((entry) => entry.serviceId !== serviceId),
   };
+}
+
+function ticketEventsReferenceEntity(input: SenaObservationInput, entityType: SenaCatalogEntityType, entityId: string) {
+  return (input.ticketEvents ?? []).some((event) =>
+    event.lines.some((line) => line.entityType === entityType && line.entityId === entityId),
+  );
+}
+
+function observationReferencesSku(input: SenaObservationInput, skuId: string) {
+  return (
+    input.stockSnapshot.some((entry) => entry.skuId === skuId) ||
+    (input.retailSalesSnapshot ?? []).some((entry) => entry.skuId === skuId) ||
+    input.retailRankings.includes(skuId) ||
+    input.retailStockouts.includes(skuId) ||
+    input.orderSignals.some((entry) => entry.skuId === skuId) ||
+    input.retailPrices.some((entry) => entry.skuId === skuId) ||
+    input.leadTimeHints.some((entry) => entry.skuId === skuId) ||
+    (input.adjustmentSignals ?? []).some((entry) => entry.skuId === skuId) ||
+    (input.commercialEvents ?? []).some((entry) => entry.entityType === 'sku' && entry.entityId === skuId) ||
+    (input.recipeUsageHints ?? []).some((entry) => entry.skuId === skuId) ||
+    ticketEventsReferenceEntity(input, 'sku', skuId)
+  );
+}
+
+function observationReferencesService(input: SenaObservationInput, serviceId: string) {
+  return (
+    (input.serviceSalesSnapshot ?? []).some((entry) => entry.serviceId === serviceId) ||
+    input.serviceRankings.includes(serviceId) ||
+    input.serviceStockouts.includes(serviceId) ||
+    input.servicePrices.some((entry) => entry.serviceId === serviceId) ||
+    (input.commercialEvents ?? []).some((entry) => entry.entityType === 'service' && entry.entityId === serviceId) ||
+    (input.recipeUsageHints ?? []).some((entry) => entry.serviceId === serviceId) ||
+    ticketEventsReferenceEntity(input, 'service', serviceId)
+  );
+}
+
+export function catalogEntityActivityBlockers({
+  catalog,
+  entityId,
+  entityType,
+  observations,
+  orderBatches,
+}: {
+  catalog: SenaCatalog;
+  entityId: string;
+  entityType: SenaCatalogEntityType;
+  observations: SenaObservationRecord[];
+  orderBatches: SenaOrderBatchRecord[];
+}): CatalogDeleteBlocker[] {
+  const blockers = new Set<CatalogDeleteBlocker>();
+
+  if (entityType === 'sku') {
+    if (catalog.skus.length <= 1) {
+      blockers.add('last-sku');
+    }
+    if (catalog.sharingMask.some((entry) => entry.enabled && entry.skuId === entityId)) {
+      blockers.add('linked-service');
+    }
+    if (
+      observations.some((observation) => observationReferencesSku(observation.input, entityId)) ||
+      orderBatches.some((batch) => batch.children.some((child) => child.skuId === entityId))
+    ) {
+      blockers.add('activity');
+    }
+    return Array.from(blockers);
+  }
+
+  if (observations.some((observation) => observationReferencesService(observation.input, entityId))) {
+    blockers.add('activity');
+  }
+
+  return Array.from(blockers);
 }

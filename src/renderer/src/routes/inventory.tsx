@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ActionArchiveIcon,
+  ActionCopyIcon,
   ActionCreatePackageIcon,
+  ActionDeleteIcon,
   ActionEditPencilIcon,
   ActionSearchOffIcon,
 } from '@icons/actions';
@@ -42,11 +44,15 @@ import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-d
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import {
   activeSenaCatalog,
+  catalogEntityActivityBlockers,
+  duplicateSenaService,
+  duplicateSenaSku,
   linkedServiceIdsForSku,
   linkedSkuIdsForService,
   matchesServiceSupplier,
   matchesSkuSupplier,
   skuSearchParts,
+  type CatalogDeleteBlocker,
 } from '@/lib/sena-catalog';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { translateUiLiteral } from '@/lib/translations';
@@ -60,6 +66,7 @@ import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { ArchiveRoute } from './archive';
 import { AutomationsRoute } from './automations';
+import type { SenaObservationRecord } from '@shared/sena';
 
 function updateCatalogSearchParams(
   current: URLSearchParams,
@@ -110,6 +117,26 @@ function skuMetaLine(
     }),
   );
   return parts.join(' · ');
+}
+
+function catalogEntityKey(entityType: 'sku' | 'service', entityId: string) {
+  return `${entityType}:${entityId}`;
+}
+
+function deleteBlockerDescription(language: 'en' | 'km', blockers: CatalogDeleteBlocker[] | 'checking' | 'failed') {
+  if (blockers === 'checking') {
+    return translateUiLiteral(language, 'Kaur Khor is still checking whether this product has saved history. Try again in a moment.');
+  }
+  if (blockers === 'failed') {
+    return translateUiLiteral(language, 'Kaur Khor could not check this product history yet. Try again after the page finishes loading.');
+  }
+  if (blockers.includes('linked-service')) {
+    return translateUiLiteral(language, 'This SKU is linked to a service. Unlink it from services before deleting it.');
+  }
+  if (blockers.includes('last-sku')) {
+    return translateUiLiteral(language, 'At least one SKU must remain in Products.');
+  }
+  return translateUiLiteral(language, 'This product has saved logs, observations, edits, or captures. Archive it instead so its history stays intact.');
 }
 
 function CatalogActionMenu({
@@ -212,6 +239,7 @@ function CatalogSkuRowActions({
             }}
             onComplete={async () => {}}
             onModeChange={setMode}
+            recordActionLayout="direct"
             showEditButton={false}
             skuId={skuId}
           />
@@ -278,8 +306,10 @@ function CatalogServiceRowActions({
             }}
             onComplete={async () => {}}
             onModeChange={setMode}
+            recordActionLayout="direct"
             showEditButton={false}
             showPrimarySkuButton={false}
+            showStockCountAction={false}
           />
         )}
       </CatalogActionMenu>
@@ -330,8 +360,8 @@ function CatalogLoadingState() {
             <Skeleton className="h-10 w-32 rounded-full" />
           </WorkspaceActionRow>
         }
-        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
-        eyebrow={translateUiLiteral(language, 'Catalog')}
+        descriptor={translateUiLiteral(language, 'Browse products, search by name or description, and jump straight into the next edit.')}
+        eyebrow={translateUiLiteral(language, 'Products')}
         title={translateUiLiteral(language, 'Offered Selections')}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-start lg:gap-4">
@@ -370,6 +400,7 @@ function CatalogLoadingState() {
 export function InventoryRoute() {
   const inventory = useInventory();
   const { catalog, diagnostics, observations, orderBatches, reports, snapshot, workspaceSummary } = inventory;
+  const { listSenaObservationPage, listSenaOrderBatches } = inventory;
   const location = useLocation();
   const { currency, language, showAutomationsPage, t, usdToKhrExchangeRate } = usePreferences();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -379,6 +410,19 @@ export function InventoryRoute() {
     entityName: string;
     entityType: 'sku' | 'service';
   } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    entityId: string;
+    entityName: string;
+    entityType: 'sku' | 'service';
+  } | null>(null);
+  const [productActionNotice, setProductActionNotice] = useState<{
+    reason: string;
+    title: string;
+  } | null>(null);
+  const [deleteScan, setDeleteScan] = useState<{
+    blockersByKey: Record<string, CatalogDeleteBlocker[]>;
+    status: 'checking' | 'failed' | 'ready';
+  }>({ blockersByKey: {}, status: 'checking' });
 
   const visibleCatalog = useMemo(() => activeSenaCatalog(catalog), [catalog]);
 
@@ -421,6 +465,69 @@ export function InventoryRoute() {
   const hasResults =
     (showSkus && filteredSkus.length > 0) ||
     (showServices && filteredServices.length > 0);
+
+  useEffect(() => {
+    if (!catalog || catalogRouteState.status === 'archived' || catalogRouteState.section === 'automation') {
+      return;
+    }
+
+    let cancelled = false;
+    setDeleteScan({ blockersByKey: {}, status: 'checking' });
+
+    async function scanDeleteEligibility() {
+      const scannedObservations: SenaObservationRecord[] = [];
+      let beforeObservedAt: string | null = null;
+      let beforeObservationId: string | null = null;
+
+      do {
+        const page = await listSenaObservationPage({
+          beforeObservedAt,
+          beforeObservationId,
+          limit: 250,
+        });
+        scannedObservations.push(...page.observations);
+        beforeObservedAt = page.nextCursor?.observedAt ?? null;
+        beforeObservationId = page.nextCursor?.observationId ?? null;
+        if (!page.hasOlder) {
+          break;
+        }
+      } while (beforeObservedAt && beforeObservationId);
+
+      const scannedOrderBatches = await listSenaOrderBatches();
+      const blockersByKey: Record<string, CatalogDeleteBlocker[]> = {};
+      for (const sku of catalog.skus) {
+        blockersByKey[catalogEntityKey('sku', sku.skuId)] = catalogEntityActivityBlockers({
+          catalog,
+          entityId: sku.skuId,
+          entityType: 'sku',
+          observations: scannedObservations,
+          orderBatches: scannedOrderBatches,
+        });
+      }
+      for (const service of catalog.services) {
+        blockersByKey[catalogEntityKey('service', service.serviceId)] = catalogEntityActivityBlockers({
+          catalog,
+          entityId: service.serviceId,
+          entityType: 'service',
+          observations: scannedObservations,
+          orderBatches: scannedOrderBatches,
+        });
+      }
+      if (!cancelled) {
+        setDeleteScan({ blockersByKey, status: 'ready' });
+      }
+    }
+
+    void scanDeleteEligibility().catch(() => {
+      if (!cancelled) {
+        setDeleteScan({ blockersByKey: {}, status: 'failed' });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [catalog, catalogRouteState.section, catalogRouteState.status, listSenaObservationPage, listSenaOrderBatches]);
 
   if (catalogRouteState.status === 'archived') {
     return <ArchiveRoute />;
@@ -482,6 +589,72 @@ export function InventoryRoute() {
     }).actionContext;
   }
 
+  async function handleDuplicateSku(skuId: string) {
+    const sku = catalog?.skus.find((entry) => entry.skuId === skuId);
+    if (!catalog || !sku) {
+      return;
+    }
+    try {
+      await inventory.upsertSenaCatalog(duplicateSenaSku(catalog, sku));
+    } catch {
+      setProductActionNotice({
+        reason: translateUiLiteral(language, 'Kaur Khor could not duplicate this product. Try again.'),
+        title: translateUiLiteral(language, 'Could not duplicate {name}', { name: sku.name }),
+      });
+    }
+  }
+
+  async function handleDuplicateService(serviceId: string) {
+    const service = catalog?.services.find((entry) => entry.serviceId === serviceId);
+    if (!catalog || !service) {
+      return;
+    }
+    try {
+      await inventory.upsertSenaCatalog(duplicateSenaService(catalog, service));
+    } catch {
+      setProductActionNotice({
+        reason: translateUiLiteral(language, 'Kaur Khor could not duplicate this product. Try again.'),
+        title: translateUiLiteral(language, 'Could not duplicate {name}', { name: service.name }),
+      });
+    }
+  }
+
+  function requestDeleteProduct(target: { entityId: string; entityName: string; entityType: 'sku' | 'service' }) {
+    const key = catalogEntityKey(target.entityType, target.entityId);
+    if (deleteScan.status !== 'ready') {
+      setProductActionNotice({
+        reason: deleteBlockerDescription(language, deleteScan.status),
+        title: translateUiLiteral(language, 'Cannot delete {name}', { name: target.entityName }),
+      });
+      return;
+    }
+
+    const blockers = deleteScan.blockersByKey[key] ?? [];
+    if (blockers.length > 0) {
+      setProductActionNotice({
+        reason: deleteBlockerDescription(language, blockers),
+        title: translateUiLiteral(language, 'Cannot delete {name}', { name: target.entityName }),
+      });
+      return;
+    }
+
+    setPendingDelete(target);
+  }
+
+  function deleteButtonState(entityType: 'sku' | 'service', entityId: string) {
+    if (deleteScan.status !== 'ready') {
+      return {
+        ariaDisabled: true,
+        reason: deleteBlockerDescription(language, deleteScan.status),
+      };
+    }
+    const blockers = deleteScan.blockersByKey[catalogEntityKey(entityType, entityId)] ?? [];
+    return {
+      ariaDisabled: blockers.length > 0,
+      reason: blockers.length > 0 ? deleteBlockerDescription(language, blockers) : undefined,
+    };
+  }
+
   if (inventory.isLoading && !catalog) {
     return <CatalogLoadingState />;
   }
@@ -490,9 +663,9 @@ export function InventoryRoute() {
     return (
       <WorkspacePage>
         <WorkspaceTitleCard
-          eyebrow={translateUiLiteral(language, 'Catalog')}
-          title={translateUiLiteral(language, 'Set up the catalog')}
-          descriptor={translateUiLiteral(language, 'Start with the first SKU. Kaur Khor uses the catalog to connect stock, services, and planning.')}
+          eyebrow={translateUiLiteral(language, 'Products')}
+          title={translateUiLiteral(language, 'Set up products')}
+          descriptor={translateUiLiteral(language, 'Start with the first SKU. Kaur Khor uses products to connect stock, services, and planning.')}
           actions={
             <Button asChild>
               <Link state={buildKaurKhorNavigationState(location, '/catalog')} to="/catalog/skus/new">
@@ -503,8 +676,8 @@ export function InventoryRoute() {
           }
         />
         <WorkspaceEmpty
-          title={translateUiLiteral(language, 'No catalog loaded yet')}
-          hint={translateUiLiteral(language, 'Create the first SKU to initialize the local catalog.')}
+          title={translateUiLiteral(language, 'No products loaded yet')}
+          hint={translateUiLiteral(language, 'Create the first SKU to initialize local products.')}
           action={<CreateFirstSkuButton variant="outline" />}
         />
       </WorkspacePage>
@@ -514,9 +687,9 @@ export function InventoryRoute() {
   return (
     <WorkspacePage>
       <WorkspaceTitleCard
-        eyebrow={translateUiLiteral(language, 'Catalog')}
+        eyebrow={translateUiLiteral(language, 'Products')}
         title={translateUiLiteral(language, 'Offered Selections')}
-        descriptor={translateUiLiteral(language, 'Browse the catalog, search by name or description, and jump straight into the next edit.')}
+        descriptor={translateUiLiteral(language, 'Browse products, search by name or description, and jump straight into the next edit.')}
         actions={
           <WorkspaceActionRow>
             <Button asChild>
@@ -543,7 +716,7 @@ export function InventoryRoute() {
         <FilterControlRow
           search={
             <SearchInput
-              ariaLabel={translateUiLiteral(language, 'Search catalog')}
+              ariaLabel={translateUiLiteral(language, 'Search products')}
               className="h-12 min-w-0 rounded-full"
               placeholder={t('searchPlaceholder')}
               value={query}
@@ -584,7 +757,7 @@ export function InventoryRoute() {
 
       {!hasResults ? (
         <WorkspaceEmpty
-          title={translateUiLiteral(language, 'No matching catalog items')}
+          title={translateUiLiteral(language, 'No matching products')}
           hint={translateUiLiteral(language, 'Try another search or create a new item that fits this view.')}
           action={
             <WorkspaceActionRow>
@@ -641,15 +814,63 @@ export function InventoryRoute() {
         }}
       />
 
+      <ConfirmActionDialog
+        open={productActionNotice != null}
+        title={productActionNotice?.title ?? ''}
+        description={productActionNotice?.reason}
+        confirmLabel={translateUiLiteral(language, 'Close')}
+        confirmVariant="default"
+        hideCancel
+        icon={<ActionDeleteIcon className="size-4" />}
+        iconTone="default"
+        onCancel={() => setProductActionNotice(null)}
+        onConfirm={() => setProductActionNotice(null)}
+      />
+
+      <ConfirmActionDialog
+        open={pendingDelete != null}
+        title={pendingDelete ? translateUiLiteral(language, 'Delete {name}?', { name: pendingDelete.entityName }) : ''}
+        description={
+          pendingDelete
+            ? translateUiLiteral(
+                language,
+                'This permanently removes the product from Products because no saved history references it.',
+              )
+            : undefined
+        }
+        confirmIcon={<ActionDeleteIcon />}
+        confirmLabel={translateUiLiteral(language, 'Delete')}
+        isSubmitting={inventory.isSaving}
+        onCancel={() => {
+          if (!inventory.isSaving) {
+            setPendingDelete(null);
+          }
+        }}
+        onConfirm={() => {
+          if (!pendingDelete) {
+            return;
+          }
+          void inventory
+            .deleteCatalogEntity({
+              entityId: pendingDelete.entityId,
+              entityType: pendingDelete.entityType,
+            })
+            .then(() => {
+              setPendingDelete(null);
+            });
+        }}
+      />
+
       {showSkus && filteredSkus.length > 0 ? (
             <WorkspacePanel
               title={translateUiLiteral(language, 'SKUs ({count})', { count: filteredSkus.length })}
               descriptor={translateUiLiteral(language, 'Stock-carrying items Kaur Khor tracks directly.')}
-              helperExemptReason="Catalog list panel descriptor supplies the active section guidance."
+              helperExemptReason="Products list panel descriptor supplies the active section guidance."
             >
               <div className="grid">
                 {filteredSkus.map((sku) => {
                   const linkedServices = linkedServiceIdsForSku(catalog, sku.skuId);
+                  const deleteState = deleteButtonState('sku', sku.skuId);
                   const fallbackSkuActionContext = {
                     currentStock:
                       activeSnapshot?.skus.find((entry) => entry.skuId === sku.skuId)?.unitsInStock ?? 0,
@@ -710,6 +931,17 @@ export function InventoryRoute() {
                             type="button"
                             variant="outline"
                             onClick={() => {
+                              void handleDuplicateSku(sku.skuId);
+                            }}
+                          >
+                            <ActionCopyIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Duplicate')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
                               setPendingArchive({
                                 entityId: sku.skuId,
                                 entityName: sku.name,
@@ -719,6 +951,24 @@ export function InventoryRoute() {
                           >
                             <StatusArchiveIcon data-icon="inline-start" />
                             {translateUiLiteral(language, 'Archive')}
+                          </Button>
+                          <Button
+                            aria-disabled={deleteState.ariaDisabled || undefined}
+                            className={deleteState.ariaDisabled ? 'opacity-50' : undefined}
+                            size="sm"
+                            title={deleteState.reason}
+                            type="button"
+                            variant="destructive-outline"
+                            onClick={() => {
+                              requestDeleteProduct({
+                                entityId: sku.skuId,
+                                entityName: sku.name,
+                                entityType: 'sku',
+                              });
+                            }}
+                          >
+                            <ActionDeleteIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Delete')}
                           </Button>
                           <CatalogSkuRowActions
                             actionContextFreshnessKey={skuActionContextFreshnessKey}
@@ -742,11 +992,12 @@ export function InventoryRoute() {
             <WorkspacePanel
               title={`${translateUiLiteral(language, 'Services')} (${filteredServices.length})`}
               descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
-              helperExemptReason="Catalog list panel descriptor supplies the active section guidance."
+              helperExemptReason="Products list panel descriptor supplies the active section guidance."
             >
               <div className="grid">
                 {filteredServices.map((service) => {
                   const linkedSkus = linkedSkuIdsForService(catalog, service.serviceId);
+                  const deleteState = deleteButtonState('service', service.serviceId);
                   const fallbackServiceActions = {
                     primarySkuHref: linkedSkus[0] ? `/catalog/skus/${linkedSkus[0]}` : '/catalog',
                     editServiceHref: `/catalog/services/${service.serviceId}/edit`,
@@ -806,6 +1057,17 @@ export function InventoryRoute() {
                             type="button"
                             variant="outline"
                             onClick={() => {
+                              void handleDuplicateService(service.serviceId);
+                            }}
+                          >
+                            <ActionCopyIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Duplicate')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
                               setPendingArchive({
                                 entityId: service.serviceId,
                                 entityName: service.name,
@@ -815,6 +1077,24 @@ export function InventoryRoute() {
                           >
                             <StatusArchiveIcon data-icon="inline-start" />
                             {translateUiLiteral(language, 'Archive')}
+                          </Button>
+                          <Button
+                            aria-disabled={deleteState.ariaDisabled || undefined}
+                            className={deleteState.ariaDisabled ? 'opacity-50' : undefined}
+                            size="sm"
+                            title={deleteState.reason}
+                            type="button"
+                            variant="destructive-outline"
+                            onClick={() => {
+                              requestDeleteProduct({
+                                entityId: service.serviceId,
+                                entityName: service.name,
+                                entityType: 'service',
+                              });
+                            }}
+                          >
+                            <ActionDeleteIcon data-icon="inline-start" />
+                            {translateUiLiteral(language, 'Delete')}
                           </Button>
                           <CatalogServiceRowActions
                             fallbackActions={fallbackServiceActions}

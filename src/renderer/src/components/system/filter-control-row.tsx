@@ -18,7 +18,7 @@ export function FilterControlRow({
     <div
       className={cn(
         'flex min-w-0 flex-wrap items-center gap-3',
-        '[&_[data-slot=filter-control-row-search]]:min-w-[14rem] [&_[data-slot=filter-control-row-search]]:flex-[1_1_18rem]',
+        '[&_[data-slot=filter-control-row-search]]:min-w-[14rem] [&_[data-slot=filter-control-row-search]]:max-w-xl [&_[data-slot=filter-control-row-search]]:flex-[1_1_18rem]',
         '[&_[data-slot=filter-control-row-primary]]:min-w-0 [&_[data-slot=filter-control-row-primary]]:flex-[0_1_auto]',
         '[&_[data-slot=filter-control-row-secondary]]:min-w-0 [&_[data-slot=filter-control-row-secondary]]:flex-[0_1_auto]',
         '[&_[data-slot=filter-control-row-trailing]]:min-w-0 [&_[data-slot=filter-control-row-trailing]]:flex-[0_1_auto]',

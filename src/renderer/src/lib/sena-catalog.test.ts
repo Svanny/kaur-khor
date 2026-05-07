@@ -1,232 +1,223 @@
-import type { SenaCatalog } from '@shared/sena';
-import { vi } from 'vitest';
+import { describe, expect, test } from 'vitest';
+import type { SenaCatalog, SenaObservationRecord, SenaOrderBatchRecord, SenaService, SenaSku } from '@shared/sena';
 import {
-  createUniqueServiceId,
-  createUniqueSkuId,
-  hasCatalogEntityIdConflict,
-  matchesServiceSupplier,
-  matchesSkuSupplier,
-  normalizeSenaSku,
-  skuSearchParts,
-  supplierNamesForService,
-  supplierNamesFromCatalog,
-  upsertSenaService,
-  upsertSenaSku,
+  catalogEntityActivityBlockers,
+  createServiceAttributeVariants,
+  createSkuAttributeVariants,
+  duplicateSenaService,
+  duplicateSenaSku,
+  nextCatalogCopyName,
 } from './sena-catalog';
 
-const sampleCatalog: SenaCatalog = {
-  schemaVersion: 1,
-  skus: [
-    {
-      skuId: 'sku-1',
-      name: 'SKU 1',
-      description: 'Primary SKU',
-      supplierName: 'Mekong Looms',
-      costPerUnit: 4,
-      archived: false,
-      soldAsProduct: true,
-      productPrice: 9,
-      leadTimeMeanDaysHint: 5,
-      leadTimeStdDaysHint: 1,
-    },
-    {
-      skuId: 'sku-archived',
-      name: 'Archived SKU',
-      description: 'Archived',
-      supplierName: null,
-      costPerUnit: 6,
-      archived: true,
-      soldAsProduct: false,
-      productPrice: null,
-      leadTimeMeanDaysHint: null,
-      leadTimeStdDaysHint: null,
-    },
-    {
-      skuId: 'sku-2',
-      name: 'SKU 2',
-      description: 'Secondary SKU',
-      supplierName: 'Tonle Supply',
-      costPerUnit: 5,
-      archived: false,
-      soldAsProduct: true,
-      productPrice: 10,
-      leadTimeMeanDaysHint: 4,
-      leadTimeStdDaysHint: 1,
-    },
-  ],
-  services: [
-    {
-      serviceId: 'service-1',
-      name: 'Service 1',
-      description: 'Primary service',
-      price: 20,
-      archived: false,
-      bundle: false,
-    },
-    {
-      serviceId: 'service-archived',
-      name: 'Archived service',
-      description: 'Archived',
-      price: 18,
-      archived: true,
-      bundle: false,
-    },
-    {
-      serviceId: 'service-2',
-      name: 'Service 2',
-      description: 'Secondary service',
-      price: 16,
-      archived: false,
-      bundle: false,
-    },
-    {
-      serviceId: 'service-3',
-      name: 'Service 3',
-      description: 'No supplier service',
-      price: 14,
-      archived: false,
-      bundle: false,
-    },
-  ],
-  bundles: [
-    {
-      bundleId: 'bundle-1',
-      serviceId: 'service-1',
-      name: 'Bundle 1',
-    },
-  ],
-  sharingMask: [
-    {
-      enabled: true,
-      serviceId: 'service-1',
-      skuId: 'sku-1',
-      usageProbability: null,
-    },
-    {
-      enabled: true,
-      serviceId: 'service-2',
-      skuId: 'sku-2',
-      usageProbability: null,
-    },
-    {
-      enabled: true,
-      serviceId: 'service-3',
-      skuId: 'sku-archived',
-      usageProbability: null,
-    },
-  ],
+const sku: SenaSku = {
+  archived: false,
+  costPerUnit: 4,
+  description: 'Thread',
+  imagePath: '/thread.png',
+  leadTimeMeanDaysHint: 5,
+  leadTimeStdDaysHint: 1,
+  name: 'Thread',
+  productPrice: 9,
+  skuId: 'sku-1',
+  soldAsProduct: true,
+  supplierName: 'Supplier A',
 };
 
-describe('sena catalog helpers', () => {
-  it('renames a sku and rewrites sharing mask references', () => {
-    const nextCatalog = upsertSenaSku(
-      sampleCatalog,
-      {
-        ...sampleCatalog.skus[0],
-        skuId: 'sku-1-renamed',
-      },
-      'sku-1',
-    );
+const service: SenaService = {
+  archived: false,
+  bundle: false,
+  description: 'Repair service',
+  imagePath: '/repair.png',
+  name: 'Repair',
+  price: 12,
+  serviceId: 'service-1',
+};
 
-    expect(nextCatalog.skus[0]).toMatchObject({
-      skuId: 'sku-1-renamed',
-      archived: false,
-    });
-    expect(nextCatalog.sharingMask).toEqual(
-      expect.arrayContaining([
-        {
-          enabled: true,
-          serviceId: 'service-1',
-          skuId: 'sku-1-renamed',
-          usageProbability: null,
-        },
-      ]),
+function catalog(overrides: Partial<SenaCatalog> = {}): SenaCatalog {
+  return {
+    bundles: [],
+    schemaVersion: 1,
+    services: [service],
+    sharingMask: [],
+    skus: [sku],
+    ...overrides,
+  };
+}
+
+function observation(input: Partial<SenaObservationRecord['input']>): SenaObservationRecord {
+  return {
+    input: {
+      adjustmentSignals: [],
+      commercialEvents: [],
+      leadTimeHints: [],
+      notes: null,
+      observedAt: '2026-05-01T00:00:00Z',
+      orderSignals: [],
+      recipeUsageHints: [],
+      retailPrices: [],
+      retailRankings: [],
+      retailStockouts: [],
+      servicePrices: [],
+      serviceRankings: [],
+      serviceStockouts: [],
+      stockSnapshot: [],
+      ticketEvents: [],
+      ...input,
+    },
+    observationId: 'obs-1',
+    ownerSub: 'owner',
+  };
+}
+
+describe('sena catalog product helpers', () => {
+  test('generates copy names with incrementing conflicts', () => {
+    expect(nextCatalogCopyName(['Thread'], 'Thread')).toBe('Thread (copy)');
+    expect(nextCatalogCopyName(['Thread', 'Thread (copy)'], 'Thread')).toBe('Thread (copy) (1)');
+    expect(nextCatalogCopyName(['Thread', 'Thread (copy)', 'Thread (copy) (1)'], 'Thread')).toBe(
+      'Thread (copy) (2)',
     );
   });
 
-  it('renames a service and rewrites sharing mask and bundle references', () => {
-    const nextCatalog = upsertSenaService(
-      sampleCatalog,
-      {
-        ...sampleCatalog.services[0],
-        serviceId: 'service-1-renamed',
-      },
-      ['sku-1'],
-      'service-1',
+  test('duplicates SKU metadata without service links or activity references', () => {
+    const nextCatalog = duplicateSenaSku(
+      catalog({
+        sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null }],
+      }),
+      sku,
+      () => 'sku-copy',
     );
 
-    expect(nextCatalog.services[0]).toMatchObject({
-      serviceId: 'service-1-renamed',
+    const copy = nextCatalog.skus.find((entry) => entry.skuId === 'sku-copy');
+    expect(copy).toEqual({
+      ...sku,
       archived: false,
+      name: 'Thread (copy)',
+      skuId: 'sku-copy',
     });
-    expect(nextCatalog.bundles).toEqual([
-      {
-        bundleId: 'bundle-1',
-        serviceId: 'service-1-renamed',
-        name: 'Bundle 1',
-      },
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
     ]);
-    expect(nextCatalog.sharingMask).toEqual(
-      expect.arrayContaining([
-        {
-          enabled: true,
-          serviceId: 'service-1-renamed',
-          skuId: 'sku-1',
-          usageProbability: null,
-        },
-      ]),
+  });
+
+  test('duplicates service metadata and linked SKUs without activity references', () => {
+    const nextCatalog = duplicateSenaService(
+      catalog({
+        sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null }],
+      }),
+      service,
+      () => 'service-copy',
     );
+
+    const copy = nextCatalog.services.find((entry) => entry.serviceId === 'service-copy');
+    expect(copy).toEqual({
+      ...service,
+      archived: false,
+      name: 'Repair (copy)',
+      serviceId: 'service-copy',
+    });
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
+      { enabled: true, serviceId: 'service-copy', skuId: 'sku-1', usageProbability: null },
+    ]);
   });
 
-  it('treats archived ids as conflicts', () => {
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'sku-archived')).toBe(true);
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'service-archived')).toBe(true);
+  test('creates SKU attribute variants from metadata only', () => {
+    const nextCatalog = createSkuAttributeVariants(
+      catalog({
+        sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null }],
+      }),
+      sku,
+      [[{ name: 'Size', option: 'XXL' }]],
+      () => 'sku-variant',
+    );
+
+    const variant = nextCatalog.skus.find((entry) => entry.skuId === 'sku-variant');
+    expect(variant).toEqual({
+      ...sku,
+      archived: false,
+      name: 'Thread (Size: XXL)',
+      skuId: 'sku-variant',
+    });
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null },
+    ]);
   });
 
-  it('treats cross-type ids as conflicts and allows unchanged ids while editing', () => {
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'service-1')).toBe(true);
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'sku-1')).toBe(true);
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'sku', 'sku-1', 'sku-1')).toBe(false);
-    expect(hasCatalogEntityIdConflict(sampleCatalog, 'service', 'service-1', 'service-1')).toBe(false);
+  test('creates service attribute variants with selected linked SKUs', () => {
+    const nextCatalog = createServiceAttributeVariants(
+      catalog(),
+      service,
+      ['sku-1'],
+      [[{ name: 'Location', option: 'On-site' }]],
+      () => 'service-variant',
+    );
+
+    const variant = nextCatalog.services.find((entry) => entry.serviceId === 'service-variant');
+    expect(variant).toEqual({
+      ...service,
+      archived: false,
+      name: 'Repair (Location: On-site)',
+      serviceId: 'service-variant',
+    });
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-variant', skuId: 'sku-1', usageProbability: null },
+    ]);
   });
 
-  it('creates a unique opaque sku id and retries collisions', () => {
-    const createId = vi
-      .fn<(prefix: 'sku') => string>()
-      .mockReturnValueOnce('sku-1')
-      .mockReturnValueOnce('service-1')
-      .mockReturnValueOnce('sku-generated-unique');
+  test('blocks SKU delete for activity, linked services, order batches, and last SKU', () => {
+    const blockers = catalogEntityActivityBlockers({
+      catalog: catalog({
+        sharingMask: [{ enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: null }],
+      }),
+      entityId: 'sku-1',
+      entityType: 'sku',
+      observations: [
+        observation({
+          ticketEvents: [{
+            eventType: 'created',
+            lifecycle: 'open',
+            lines: [{ entityId: 'sku-1', entityType: 'sku' }],
+            occurredAt: '2026-05-01T00:00:00Z',
+            revision: 1,
+            stage: 'pending',
+            ticketFamily: 'customer',
+            ticketId: 'ticket-1',
+          }],
+        }),
+      ],
+      orderBatches: [{
+        batchOrderId: 'batch-1',
+        children: [{
+          childOrderId: 'child-1',
+          createdAt: '2026-05-01T00:00:00Z',
+          effective: {} as SenaOrderBatchRecord['children'][number]['effective'],
+          inheritedFromBatch: true,
+          overrides: {},
+          skuId: 'sku-1',
+          status: 'open',
+          updatedAt: '2026-05-01T00:00:00Z',
+        }],
+        createdAt: '2026-05-01T00:00:00Z',
+        ownerSub: 'owner',
+        shared: {} as SenaOrderBatchRecord['shared'],
+        status: 'open',
+        supplierName: null,
+        updatedAt: '2026-05-01T00:00:00Z',
+      }],
+    });
 
-    expect(createUniqueSkuId(sampleCatalog, createId)).toBe('sku-generated-unique');
-    expect(createId).toHaveBeenCalledTimes(3);
+    expect(blockers).toEqual(['last-sku', 'linked-service', 'activity']);
   });
 
-  it('creates a unique opaque service id and retries collisions', () => {
-    const createId = vi
-      .fn<(prefix: 'service') => string>()
-      .mockReturnValueOnce('service-1')
-      .mockReturnValueOnce('sku-1')
-      .mockReturnValueOnce('service-generated-unique');
-
-    expect(createUniqueServiceId(sampleCatalog, createId)).toBe('service-generated-unique');
-    expect(createId).toHaveBeenCalledTimes(3);
-  });
-
-  it('normalizes supplier names and exposes supplier filters', () => {
-    const primaryService = sampleCatalog.services.find((service) => service.serviceId === 'service-1')!;
-    const secondaryService = sampleCatalog.services.find((service) => service.serviceId === 'service-2')!;
-    const noSupplierService = sampleCatalog.services.find((service) => service.serviceId === 'service-3')!;
-
-    expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '  Mekong Looms  ' }).supplierName).toBe('Mekong Looms');
-    expect(normalizeSenaSku({ ...sampleCatalog.skus[0], supplierName: '   ' }).supplierName).toBeNull();
-    expect(supplierNamesFromCatalog(sampleCatalog)).toEqual(['Mekong Looms', 'Tonle Supply']);
-    expect(matchesSkuSupplier(sampleCatalog.skus[0], 'Mekong Looms')).toBe(true);
-    expect(matchesSkuSupplier(sampleCatalog.skus[0], 'none')).toBe(false);
-    expect(matchesSkuSupplier(sampleCatalog.skus[1], 'none')).toBe(true);
-    expect(supplierNamesForService(sampleCatalog, 'service-1')).toEqual(['Mekong Looms']);
-    expect(matchesServiceSupplier(primaryService, sampleCatalog, 'Mekong Looms')).toBe(true);
-    expect(matchesServiceSupplier(secondaryService, sampleCatalog, 'Mekong Looms')).toBe(false);
-    expect(matchesServiceSupplier(noSupplierService, sampleCatalog, 'none')).toBe(true);
-    expect(skuSearchParts(sampleCatalog.skus[0])).toEqual(['sku-1', 'SKU 1', 'Primary SKU', 'Mekong Looms']);
+  test('blocks service delete for saved activity references', () => {
+    expect(
+      catalogEntityActivityBlockers({
+        catalog: catalog(),
+        entityId: 'service-1',
+        entityType: 'service',
+        observations: [observation({ servicePrices: [{ price: 12, serviceId: 'service-1' }] })],
+        orderBatches: [],
+      }),
+    ).toEqual(['activity']);
   });
 });

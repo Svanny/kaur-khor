@@ -15,10 +15,10 @@ export type GridCardColorKey =
   | 'explain';
 
 const GRID_CARD_COLOR_CLASS_NAMES: Record<GridCardColorKey, string> = {
-  'continue-work': 'backdrop-blur-md saturate-[1.3] border-[#DC2626]/35 bg-[#DC2626]/12',
-  'capture-update': 'backdrop-blur-md saturate-[1.3] border-[#16A34A]/35 bg-[#16A34A]/12',
-  'open-catalog': 'backdrop-blur-md saturate-[1.3] border-[#D97706]/35 bg-[#D97706]/12',
-  'open-insights': 'backdrop-blur-md saturate-[1.3] border-[#2563EB]/35 bg-[#2563EB]/12',
+  'continue-work': 'backdrop-blur-md saturate-[1.3] border-[#9333EA]/35 bg-[#9333EA]/12',
+  'capture-update': 'backdrop-blur-md saturate-[1.3] border-[#CA8A04]/35 bg-[#CA8A04]/12',
+  'open-catalog': 'backdrop-blur-md saturate-[1.3] border-[#DC2626]/35 bg-[#DC2626]/12',
+  'open-insights': 'backdrop-blur-md saturate-[1.3] border-[#16A34A]/35 bg-[#16A34A]/12',
   queue: 'backdrop-blur-md saturate-[1.3] border-[#9333EA]/35 bg-[#9333EA]/12',
   intake: 'backdrop-blur-md saturate-[1.3] border-[#0891B2]/35 bg-[#0891B2]/12',
   capture: 'backdrop-blur-md saturate-[1.3] border-[#CA8A04]/35 bg-[#CA8A04]/12',

@@ -405,7 +405,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getAllByText('78%').length).toBeGreaterThan(0);
 
     const protectionHorizon = screen
-      .getAllByText('lead time + 0d review delay')
+      .getAllByText('ETA + 0d review delay')
       .find((node) => node.className.includes('[overflow-wrap:anywhere]'));
     expect(protectionHorizon).toBeTruthy();
     expect(protectionHorizon).toHaveClass('min-w-0', 'break-words', 'text-right');

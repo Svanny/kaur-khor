@@ -104,7 +104,7 @@ describe('KaurKhorShell', () => {
           navFinancials: 'Financials',
           navAutomations: 'Automations',
           navAnalysis: 'Explain',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'History',
           navHistory: 'History',
           navArchive: 'Archive',
@@ -146,7 +146,7 @@ describe('KaurKhorShell', () => {
         <KaurKhorShell>
           <Routes>
             <Route element={<div>Overview screen</div>} path="/" />
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
             <Route element={<div>Help screen</div>} path="/help" />
             <Route element={<div>Settings screen</div>} path="/settings" />
           </Routes>
@@ -159,10 +159,10 @@ describe('KaurKhorShell', () => {
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
-    fireEvent.click(screen.getByRole('link', { name: 'Catalog' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+      expect(screen.getByText('Products screen')).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
     });
   });
@@ -216,7 +216,7 @@ describe('KaurKhorShell', () => {
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Products' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Performance' })).not.toBeInTheDocument();
@@ -230,8 +230,8 @@ describe('KaurKhorShell', () => {
     expect(screen.queryByRole('link', { name: 'SIST' })).not.toBeInTheDocument();
     const navLinks = screen.getAllByRole('link').map((link) => link.getAttribute('aria-label'));
     expect(navLinks.indexOf('Home')).toBeLessThan(navLinks.indexOf('Work'));
-    expect(navLinks.indexOf('Work')).toBeLessThan(navLinks.indexOf('Catalog'));
-    expect(navLinks.indexOf('Catalog')).toBeLessThan(navLinks.indexOf('Insights'));
+    expect(navLinks.indexOf('Work')).toBeLessThan(navLinks.indexOf('Products'));
+    expect(navLinks.indexOf('Products')).toBeLessThan(navLinks.indexOf('Insights'));
     expect(navLinks.indexOf('Insights')).toBeLessThan(navLinks.indexOf('Settings'));
 
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
@@ -242,6 +242,99 @@ describe('KaurKhorShell', () => {
     expect(screen.getByLabelText('Command')).toBeInTheDocument();
     expect(screen.getByText('K')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Custom View' })).not.toBeInTheDocument();
+  });
+
+  test('renders Work and Insights as expandable sidebar trees', () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Expand Work' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Expand Insights' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Queue' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Pressure' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Work' }));
+    expect(screen.getByRole('link', { name: 'Queue' })).toHaveAttribute('href', '/work/queue');
+    expect(screen.getByRole('link', { name: 'Intake' })).toHaveAttribute('href', '/work/intake');
+    expect(screen.getByRole('link', { name: 'Capture' })).toHaveAttribute('href', '/work/capture');
+    const workChildLinks = ['Queue', 'Intake', 'Capture'].map((label) =>
+      screen.getByRole('link', { name: label }).getAttribute('aria-label'),
+    );
+    expect(workChildLinks).toEqual(['Queue', 'Intake', 'Capture']);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Capture' }));
+    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', '/work/capture/stock-count');
+    expect(screen.getByRole('link', { name: 'Customer Order' })).toHaveAttribute('href', '/work/capture/customer-order');
+    expect(screen.getByRole('link', { name: 'Immediate Sale' })).toHaveAttribute('href', '/work/capture/immediate-sale');
+    expect(screen.getByRole('link', { name: 'Supplier Order' })).toHaveAttribute('href', '/work/capture/supplier-order');
+    expect(screen.queryByRole('link', { name: 'Custom' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Insights' }));
+    expect(screen.getByRole('link', { name: 'Pressure' })).toHaveAttribute('href', '/insights/pressure');
+    expect(screen.getByRole('link', { name: 'Money' })).toHaveAttribute('href', '/insights/money');
+    expect(screen.getByRole('link', { name: 'Explain' })).toHaveAttribute('href', '/insights/explain');
+
+    const topLevelLinks = Array.from(document.querySelectorAll('[data-sidebar-tree-depth="0"]'))
+      .map((link) => link.getAttribute('aria-label'));
+    expect(topLevelLinks).toEqual(['Home', 'Work', 'Products', 'Insights', 'Settings']);
+  });
+
+  test('auto-expands active sidebar tree branches', () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/work/capture/supplier-order']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Supplier order screen</div>} path="/work/capture/supplier-order" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'Work' })).toHaveAttribute('data-active', 'false');
+    expect(screen.getByRole('link', { name: 'Capture' })).toHaveAttribute('data-active', 'false');
+    expect(screen.getByRole('link', { name: 'Supplier Order' })).toHaveAttribute('data-active', 'true');
+  });
+
+  test('hides nested sidebar tree rows in the collapsed desktop rail', async () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Work' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Capture' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Insights' }));
+    expect(screen.getByRole('link', { name: 'Queue' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Pressure' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('link', { name: 'Queue' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Capture' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Pressure' })).not.toBeInTheDocument();
+      const topLevelLinks = Array.from(document.querySelectorAll('[data-sidebar-tree-depth="0"]'))
+        .map((link) => link.getAttribute('aria-label'));
+      expect(topLevelLinks).toEqual(['Home', 'Work', 'Products', 'Insights', 'Settings']);
+    });
   });
 
   test('localizes the command shortcut glyph label in Khmer', () => {
@@ -288,7 +381,7 @@ describe('KaurKhorShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Catalog' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
+    expect(screen.getByRole('link', { name: 'Products' })).toHaveAttribute('href', '/catalog?q=scarf&view=skus');
     expect(screen.getByRole('link', { name: 'Insights' })).toHaveAttribute('href', '/insights');
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings/interface');
   });
@@ -382,7 +475,7 @@ describe('KaurKhorShell', () => {
               <Route
                 element={(
                   <div>
-                    Catalog screen
+                    Products screen
                     <LocationProbe />
                   </div>
                 )}
@@ -395,7 +488,7 @@ describe('KaurKhorShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.getByText('Products screen')).toBeInTheDocument();
     expect(screen.getByTestId('location')).toHaveTextContent('/catalog?q=scarf&view=skus');
 
     fireEvent.click(screen.getByRole('link', { name: 'Settings' }));
@@ -414,7 +507,7 @@ describe('KaurKhorShell', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Back to app' }));
 
     await waitFor(() => {
-      expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+      expect(screen.getByText('Products screen')).toBeInTheDocument();
       expect(screen.getByTestId('location')).toHaveTextContent('/catalog?q=scarf&view=skus');
     });
   });
@@ -436,7 +529,7 @@ describe('KaurKhorShell', () => {
 
     expect(screen.getByText('Archive screen')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Back to app' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Products' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Work' })).toBeInTheDocument();
     const brandToggle = screen.getByTestId('sidebar-collapse-toggle');
     expect(within(brandToggle).getByText('KAUR KHOR')).toBeInTheDocument();
@@ -466,13 +559,14 @@ describe('KaurKhorShell', () => {
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
+          navWork: 'Work',
           navRecordUpdate: 'Capture',
           navCapture: 'Capture',
           navPerformance: 'Performance',
           navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Explain',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'History',
           navHistory: 'History',
           navArchive: 'Archive',
@@ -529,7 +623,7 @@ describe('KaurKhorShell', () => {
 
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Work' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Catalog' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Products' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Insights' })).not.toBeInTheDocument();
   });
 
@@ -587,7 +681,7 @@ describe('KaurKhorShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Catalog' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Products' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'History' })).not.toBeInTheDocument();
@@ -642,6 +736,7 @@ describe('KaurKhorShell', () => {
           navOverview: 'Inbox',
           navHome: 'Home',
           navInbox: 'Inbox',
+          navWork: 'Work',
           navRecordUpdate: 'Capture',
           navCapture: 'Capture',
           navPerformance: 'Performance',
@@ -649,7 +744,7 @@ describe('KaurKhorShell', () => {
           navFinancials: 'Financials',
           navAutomations: 'Automations',
           navAnalysis: 'Explain',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'History',
           navHistory: 'History',
           navArchive: 'Archive',
@@ -673,7 +768,8 @@ describe('KaurKhorShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.queryByRole('link', { name: 'Automations' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Work' }));
+    expect(screen.queryByRole('link', { name: 'Intake' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
   });
 
@@ -769,7 +865,7 @@ describe('KaurKhorShell', () => {
           navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Explain',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'History',
           navHistory: 'History',
           navArchive: 'Archive',
@@ -830,7 +926,7 @@ describe('KaurKhorShell', () => {
           navInsights: 'ការយល់ដឹង',
           navFinancials: 'ហិរញ្ញវត្ថុ',
           navAnalysis: 'ពន្យល់',
-          navCatalog: 'កាតាឡុក',
+          navCatalog: 'ទំនិញ',
           navOperations: 'ប្រវត្តិ',
           navHistory: 'ប្រវត្តិ',
           navArchive: 'បណ្ណសារ',
@@ -887,7 +983,7 @@ describe('KaurKhorShell', () => {
           navInsights: 'Insights',
           navFinancials: 'Financials',
           navAnalysis: 'Explain',
-          navCatalog: 'Catalog',
+          navCatalog: 'Products',
           navOperations: 'History',
           navHistory: 'History',
           navArchive: 'Archive',
@@ -913,8 +1009,9 @@ describe('KaurKhorShell', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Insights' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand Insights' }));
     expect(screen.queryByRole('link', { name: 'Explain' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Financials' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Money' })).toBeInTheDocument();
   });
 
   test('renders the sidebar search hint in Khmer', () => {
@@ -942,7 +1039,7 @@ describe('KaurKhorShell', () => {
           navPerformance: 'សុខភាពអាជីវកម្ម',
           navFinancials: 'ហិរញ្ញវត្ថុ',
           navAnalysis: 'Explain',
-          navCatalog: 'កាតាឡុក',
+          navCatalog: 'ទំនិញ',
           navOperations: 'កំណត់ហេតុ',
           navArchive: 'បណ្ណសារ',
           navHelp: 'ជំនួយ',
@@ -1032,14 +1129,14 @@ describe('KaurKhorShell', () => {
       <MemoryRouter initialEntries={['/catalog']}>
         <KaurKhorShell>
           <Routes>
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
           </Routes>
         </KaurKhorShell>
       </MemoryRouter>,
     );
 
     expect(screen.getByTestId('workspace-computing-screen')).toBeInTheDocument();
-    expect(screen.queryByText('Catalog screen')).not.toBeInTheDocument();
+    expect(screen.queryByText('Products screen')).not.toBeInTheDocument();
   });
 
   test('offers a retry action when workspace loading fails', () => {
@@ -1109,13 +1206,13 @@ describe('KaurKhorShell', () => {
       <MemoryRouter initialEntries={['/catalog']}>
         <KaurKhorShell>
           <Routes>
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
           </Routes>
         </KaurKhorShell>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.getByText('Products screen')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
   });
 
@@ -1133,13 +1230,13 @@ describe('KaurKhorShell', () => {
       <MemoryRouter initialEntries={['/catalog']}>
         <KaurKhorShell>
           <Routes>
-            <Route element={<div>Catalog screen</div>} path="/catalog" />
+            <Route element={<div>Products screen</div>} path="/catalog" />
           </Routes>
         </KaurKhorShell>
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Catalog screen')).toBeInTheDocument();
+    expect(screen.getByText('Products screen')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
   });
 

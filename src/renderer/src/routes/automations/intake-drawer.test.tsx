@@ -1,7 +1,15 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, test, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { beforeAll, describe, expect, test, vi } from 'vitest';
 import type { AutomationOrderIntake } from '@shared/automation';
 import { AutomationIntakeDrawer } from './intake-drawer';
+
+beforeAll(() => {
+  Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+  Element.prototype.releasePointerCapture ??= vi.fn();
+  Element.prototype.setPointerCapture ??= vi.fn();
+  Element.prototype.scrollIntoView ??= vi.fn();
+});
 
 function makeIntake(): AutomationOrderIntake {
   return {
@@ -37,23 +45,108 @@ function makeIntake(): AutomationOrderIntake {
 }
 
 describe('AutomationIntakeDrawer', () => {
-  test('localizes the source badge in Khmer', async () => {
+  test('shows intake details without the raw source cards', async () => {
     render(
       <AutomationIntakeDrawer
-        conversationId={null}
         intake={makeIntake()}
         isSaving={false}
-        language="km"
+        language="en"
         open
         onClose={vi.fn()}
         onPromote={vi.fn()}
-        onReadConversation={vi.fn()}
         onResolve={vi.fn()}
       />,
     );
 
-    await waitFor(() => expect(screen.getByText('ប្រភព')).toBeInTheDocument());
-    expect(screen.getByText('តេលេក្រាម')).toBeInTheDocument();
-    expect(screen.queryByText('Telegram')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Dara')).toBeInTheDocument());
+    expect(screen.queryByText('Quoted subtotal')).not.toBeInTheDocument();
+    expect(screen.getByText('Quoted total')).toBeInTheDocument();
+    expect(screen.queryByText('Raw incoming text')).not.toBeInTheDocument();
+    expect(screen.queryByText('Source')).not.toBeInTheDocument();
+  });
+
+  test('selects an existing customer ticket before appending intake', async () => {
+    const user = userEvent.setup();
+    const onPromote = vi.fn(async () => ({
+      intake: makeIntake(),
+      ticketEvent: {
+        ticketId: 'ticket-customer-1',
+      },
+    }));
+
+    render(
+      <AutomationIntakeDrawer
+        intake={makeIntake()}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={onPromote}
+        onResolve={vi.fn()}
+        ticketOptions={[
+          {
+            id: 'ticket-customer-1',
+            label: 'Dara',
+            description: 'Telegram · 1 item',
+            metadata: '+855 12345678',
+          },
+        ]}
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Append to existing customer ticket' }));
+    expect(screen.queryByPlaceholderText('Existing customer ticket id')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: /Existing customer ticket/i }));
+    await user.click(await screen.findByRole('option', { name: /Dara/i }));
+    await user.click(screen.getByRole('button', { name: /^Append to existing ticket$/ }));
+
+    await waitFor(() => expect(onPromote).toHaveBeenCalledWith(expect.objectContaining({
+      customerMessage: expect.objectContaining({
+        send: true,
+        text: expect.stringContaining('added to your existing customer ticket'),
+      }),
+      mode: 'append_ticket',
+      ticketId: 'ticket-customer-1',
+    })));
+  });
+
+  test('shows telegram handle, chat link, and sends edited customer message payload', async () => {
+    const user = userEvent.setup();
+    const onPromote = vi.fn(async () => ({
+      intake: makeIntake(),
+      ticketEvent: {
+        ticketId: 'ticket-customer-1',
+      },
+    }));
+    const onViewChat = vi.fn();
+
+    render(
+      <AutomationIntakeDrawer
+        intake={makeIntake()}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={onPromote}
+        onResolve={vi.fn()}
+        onViewChat={onViewChat}
+      />,
+    );
+
+    expect(await screen.findByText('@dara')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'View chat' }));
+    expect(onViewChat).toHaveBeenCalledWith('intake-1');
+    const messageBox = screen.getByPlaceholderText('Message to customer');
+    await user.clear(messageBox);
+    await user.type(messageBox, 'Custom approval message');
+    const createButtons = screen.getAllByRole('button', { name: /^Create customer ticket$/ });
+    await user.click(createButtons.at(-1)!);
+
+    await waitFor(() => expect(onPromote).toHaveBeenCalledWith(expect.objectContaining({
+      customerMessage: {
+        send: true,
+        text: 'Custom approval message',
+      },
+    })));
   });
 });

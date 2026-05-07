@@ -13,7 +13,7 @@ export const enUiCopyV1 = {
   navFinancials: 'Money',
   navAutomations: 'Automation',
   navAnalysis: 'Explain',
-  navCatalog: 'Catalog',
+  navCatalog: 'Products',
   navOperations: 'History',
   navArchive: 'Archive',
   navHelp: 'Help',
@@ -41,11 +41,11 @@ export const enUiCopyV1 = {
   navPlanning: 'Planning',
   shellGroupWorkflows: 'Workflows',
   navDashboard: 'Work',
-  navInventory: 'Catalog',
+  navInventory: 'Products',
   navStock: 'Update Sheet',
   navRanking: 'Merchandising',
   navSettings: 'Settings',
-  backToCatalog: 'Back to catalog',
+  backToCatalog: 'Back to products',
   skipToContent: 'Skip to content',
   openNavigation: 'Open navigation',
   collapseNavigation: 'Collapse navigation',
@@ -57,7 +57,7 @@ export const enUiCopyV1 = {
   workspaceStarting: 'Starting the desktop core and loading the latest SENA state.',
   workspaceComputingTitle: 'SENA is computing your workspace',
   workspaceComputingBody:
-    'Kaur Khor is loading your catalog, recent evidence, and the latest local analysis.',
+    'Kaur Khor is loading your products, recent evidence, and the latest local analysis.',
   workspaceComputingHint:
     'First launch after a reset or reanalysis can take longer while Kaur Khor rebuilds local views.',
   workspaceUnavailable: 'The local SENA workspace is unavailable.',
@@ -71,7 +71,7 @@ export const enUiCopyV1 = {
   overviewSupportPromptLabel: 'What this page is for',
   overviewSupportPromptBody:
     'Work is for the next operational move. Editing, history, and planning live elsewhere.',
-  overviewDecisionSupportCatalogTitle: 'Planning starts after the catalog exists',
+  overviewDecisionSupportCatalogTitle: 'Planning starts after products exist',
   overviewDecisionSupportCatalogBody:
     'Add the first SKU so Kaur Khor can build tasks from real stock and service activity.',
   overviewDecisionSupportRiskTitle: 'Current risk summary',
@@ -80,9 +80,9 @@ export const enUiCopyV1 = {
   overviewDecisionSupportReorderTitle: 'Pressure is building before risk peaks',
   overviewDecisionSupportReorderBody:
     'Reorder pressure is rising. Review priorities now before more SKUs turn urgent.',
-  overviewDecisionSupportFirstReportTitle: 'The catalog needs its first live update',
+  overviewDecisionSupportFirstReportTitle: 'Products need their first live update',
   overviewDecisionSupportFirstReportBody:
-    'The catalog is ready, but Kaur Khor still needs a live observation before it can trust the current picture.',
+    'Products are ready, but Kaur Khor still needs a live observation before it can trust the current picture.',
   overviewDecisionSupportSteadyTitle: 'The latest picture looks steady',
   overviewDecisionSupportSteadyBody:
     'Nothing urgent is waiting. The best next step is to log the next stock update and keep Work current.',
@@ -98,8 +98,8 @@ export const enUiCopyV1 = {
   overviewPrimaryStartUpdateSession: 'Start update session',
   overviewPrimaryStartUpdateSessionDescription:
     'Open the guided update flow to record the next stock picture.',
-  overviewOpenCatalog: 'Open catalog',
-  overviewOpenCatalogDescription: 'Review the catalog or add a new SKU or service.',
+  overviewOpenCatalog: 'Open products',
+  overviewOpenCatalogDescription: 'Review products or add a new SKU or service.',
   overviewOpenOperations: 'Open logs',
   overviewOpenOperationsDescription: 'Review saved updates or start a new one.',
   overviewOpenPlanning: 'Open planning',
@@ -152,10 +152,10 @@ export const enUiCopyV1 = {
   overviewDaysOfCoverSuffix: 'days of cover',
   overviewHealthyStateTitle: 'No urgent planning signals',
   overviewHealthyStateDescription:
-    'Nothing urgent is waiting. Keep logs moving or keep shaping the catalog.',
+    'Nothing urgent is waiting. Keep logs moving or keep shaping products.',
   overviewQueueHealthyTitle: 'Planning queue is clear',
   overviewQueueHealthyDescription:
-    'No urgent reorder or service-impact decisions are waiting. Keep logs moving or keep shaping the catalog.',
+    'No urgent reorder or service-impact decisions are waiting. Keep logs moving or keep shaping products.',
   overviewReorderPressureOnlyTitle: 'Reorder pressure is rising',
   overviewReorderPressureOnlyDescription:
     'Reorder pressure is rising even though no SKU is in the top risk list yet.',
@@ -173,7 +173,7 @@ export const enUiCopyV1 = {
   overviewQuickActionOperationsDescription:
     'Capture the next stock update.',
   overviewQuickActionCatalogDescription:
-    'Review the catalog or create a new item.',
+    'Review products or create a new item.',
   overviewQuickActionPlanningDescription:
     'Review sales priority and reorder context.',
   overviewSupportMetricsTitle: 'Support metrics',
@@ -181,18 +181,18 @@ export const enUiCopyV1 = {
     'Use these as background context after the action sections, not as the main decision surface.',
   overviewSupportMetricsValueDetail: 'Estimated value of units currently on hand.',
   overviewSupportMetricsSaleReadyDetail: 'Sellable SKUs currently available to the storefront.',
-  overviewSupportMetricsServicesDetail: 'Service bundles currently defined in the catalog.',
+  overviewSupportMetricsServicesDetail: 'Service bundles currently defined in products.',
   overviewRankingCoverage: 'Latest ranking coverage',
   dashboardEyebrow: 'Warm, local-first retail logs',
   dashboardHeading: 'Daily control for inventory, stock moves, and storefront priorities',
   dashboardBody:
-    'Kaur Khor keeps catalog, ranking, and stock work on this Mac so the team can keep moving without waiting on the cloud.',
+    'Kaur Khor keeps products, ranking, and stock work on this Mac so the team can keep moving without waiting on the cloud.',
   dashboardTotalValue: 'Inventory value',
   dashboardSaleReady: 'Sale-ready SKUs',
   dashboardServices: 'Service bundles',
   dashboardRanked: 'Merchandising slots',
   dashboardInventoryDepth: 'Units on hand',
-  dashboardMarginMix: 'Catalog coverage',
+  dashboardMarginMix: 'Products coverage',
   dashboardHealthTitle: 'Local runtime',
   dashboardHealthDescription:
     'Shows whether the local desktop shell and workspace store are ready for work.',
@@ -213,11 +213,11 @@ export const enUiCopyV1 = {
   dashboardHighRisk: 'High-risk SKUs',
   dashboardNoRisk: 'No urgent reorder signals yet.',
   inventoryBody:
-    'Browse the catalog, search by name or description, and jump straight into the next edit.',
-  allItemsTitle: 'Catalog',
+    'Browse products, search by name or description, and jump straight into the next edit.',
+  allItemsTitle: 'Products',
   searchItems: 'Search and segment',
   searchPlaceholder: 'Search name or description…',
-  searchSyncPending: 'Updating the catalog view…',
+  searchSyncPending: 'Updating the products view…',
   catalogExpand: 'Expand',
   catalogCollapse: 'Collapse',
   filterAll: 'Everything',
@@ -250,14 +250,14 @@ export const enUiCopyV1 = {
   catalogSkuMetricToggle: 'SKU value metric',
   catalogSkuMetricRevenue: 'Revenue',
   catalogSkuMetricGrossMargin: 'Gross margin',
-  inventoryNoResultsTitle: 'No catalog matches',
-  inventoryNoResultsDescription: 'Try another query or add a new SKU to start shaping the catalog.',
-  catalogNoResultsTitle: 'No matching catalog items',
+  inventoryNoResultsTitle: 'No product matches',
+  inventoryNoResultsDescription: 'Try another query or add a new SKU to start shaping products.',
+  catalogNoResultsTitle: 'No matching products',
   catalogNoResultsDescription:
     'Try another search or create a new item that belongs here.',
   catalogNoResultsClearAction: 'Clear filters',
   catalogNoResultsCreateAction: 'Create new SKU',
-  catalogEmptyTitle: 'Start the catalog',
+  catalogEmptyTitle: 'Start products',
   catalogEmptyDescription:
     'Create the first SKU or service so Kaur Khor has something to browse and compare.',
   catalogEmptyPrimaryAction: 'Create first SKU',
@@ -273,7 +273,7 @@ export const enUiCopyV1 = {
   catalogStockoutRisk: 'Stockout risk',
   catalogReorderPoint: 'Reorder point',
   catalogConfidence: 'Confidence',
-  catalogLeadTime: 'Lead time',
+  catalogLeadTime: 'ETA',
   catalogSkuDetailTitle: 'SKU detail',
   catalogSenaSkuHeroTitle: 'SENA heartbeat',
   catalogSenaSkuHeroTooltip:
@@ -293,7 +293,7 @@ export const enUiCopyV1 = {
     'Dependency impact shows which services depend on this SKU. It matters because a weak SKU can block more than one service at once.',
   catalogSenaSkuEvidenceTimeline: 'Evidence timeline',
   catalogSenaSkuEvidenceTimelineTooltip:
-    'The evidence timeline shows which observations informed SENA’s current read. It includes stock snapshots, price signals, order and receipt signals, stockout cues, lead-time hints, and notes.',
+    'The evidence timeline shows which observations informed SENA’s current read. It includes stock snapshots, price signals, order and receipt signals, stockout cues, ETA hints, and notes.',
   catalogSenaSkuSelectedInterval: 'Selected interval',
   catalogSenaSkuSelectedIntervalTooltip:
     'Selected interval summarizes the time slice you are inspecting right now. It keeps the rail aligned with the same interval shown in the ledger.',
@@ -321,8 +321,8 @@ export const enUiCopyV1 = {
   catalogSenaSkuCostPerUnit: 'Cost per unit',
   catalogSenaSkuProductPrice: 'Product price',
   catalogSenaSkuApproximateOrderQuantity: 'Approximate order quantity',
-  catalogSenaSkuTypicalLeadTimeDays: 'Typical lead time days',
-  catalogSenaSkuLeadTimeVariability: 'Lead time variability',
+  catalogSenaSkuTypicalLeadTimeDays: 'Typical ETA days',
+  catalogSenaSkuLeadTimeVariability: 'ETA variation',
   catalogSenaSkuLeadTimeVariabilityHint:
     'Choose the timing band that best matches this supplier update.',
   catalogSenaSkuApproximateReceiptQuantity: 'Approximate receipt quantity',
@@ -351,11 +351,11 @@ export const enUiCopyV1 = {
   catalogSenaSkuEvidencePageLabel: 'Page {current} of {total}',
   catalogSkuDetailNotFoundTitle: 'SKU not found',
   catalogSkuDetailNotFoundDescription:
-    'This SKU is not in the current catalog. Return to Catalog to choose another record.',
+    'This SKU is not in the current products list. Return to Products to choose another record.',
   catalogServiceDetailTitle: 'Service detail',
   catalogServiceDetailNotFoundTitle: 'Service not found',
   catalogServiceDetailNotFoundDescription:
-    'This service is not in the current catalog. Return to Catalog to choose another record.',
+    'This service is not in the current products list. Return to Products to choose another record.',
   catalogServiceDetailUnavailableTitle: 'SENA service detail unavailable',
   catalogServiceDetailUnavailableDescription:
     'No service viability detail is available for this service yet.',
@@ -367,7 +367,7 @@ export const enUiCopyV1 = {
   catalogSkuEditAction: 'Edit SKU',
   catalogSkuStockAction: 'Record stock update',
   catalogSkuDirectSellStatus: 'Direct sell status',
-  catalogSkuLeadTimeSummary: 'Lead-time summary',
+  catalogSkuLeadTimeSummary: 'ETA summary',
   catalogSkuSnapshotFallback: 'Using snapshot planning data while richer detail is unavailable.',
   catalogSkuOperationalStatusTitle: 'Operational status',
   catalogSkuOperationalHealthy: 'Healthy',
@@ -440,7 +440,7 @@ export const enUiCopyV1 = {
     'Load richer SIST detail when it is available without blocking the core SKU controls.',
   catalogSkuEditorTitle: 'Edit SKU',
   catalogSkuEditorDescription:
-    'Change the core catalog fields for this SKU and save them to the local workspace.',
+    'Change the core product fields for this SKU and save them to the local workspace.',
   catalogSkuEditorNameHelper: 'Name the SKU the way staff will search for it.',
   catalogSkuEditorNameRequired: 'Enter a SKU name before saving.',
   catalogSkuEditorDescriptionHelper:
@@ -452,13 +452,13 @@ export const enUiCopyV1 = {
   catalogSkuEditorCostRequired:
     'Enter a cost per unit before saving.',
   catalogSkuEditorLeadTimeMeanHelper:
-    'Typical supplier lead time Kaur Khor should use before newer evidence arrives.',
+    'Typical expected time of arrival Kaur Khor should use before newer evidence arrives.',
   catalogSkuEditorLeadTimeMeanRequired:
-    'Enter the lead time mean days before saving.',
+    'Enter the expected time of arrival days before saving.',
   catalogSkuEditorLeadTimeStdHelper:
     'How much the supplier timing usually moves around the average.',
   catalogSkuEditorLeadTimeUncertaintyRequired:
-    'Enter uncertainty days or choose a lead time variability before saving.',
+    'Enter ETA variation days and hours or choose an ETA variation before saving.',
   catalogSkuEditorSellableHelper:
     'Turn this on when the SKU is sold directly and needs a retail price.',
   catalogSkuEditorPriceHelper:
@@ -469,9 +469,9 @@ export const enUiCopyV1 = {
   catalogServiceEditorNameHelper: 'Name the service the way staff will recognize it.',
   catalogServiceEditorNameRequired: 'Enter a service name before saving.',
   catalogServiceEditorDescriptionHelper:
-    'Describe what the service is so the catalog stays easy to scan.',
+    'Describe what the service is so products stay easy to scan.',
   catalogServiceEditorPriceHelper:
-    'Selling price staff and reporting should use for this service.',
+    'Enter a selling price for this service.',
   catalogServiceEditorPriceRequired:
     'Enter a service price before saving.',
   catalogServiceEditorLinkedSkusDescriptor:
@@ -592,9 +592,9 @@ export const enUiCopyV1 = {
   stockSessionServicesOptionalDescription:
     'Skip this section when there are no service stockouts or service price changes to log.',
   stockUpdateNoSkusHelper:
-    'No SKUs are in the catalog yet. Skip this section, or add a SKU first if you need to record stock updates.',
+    'No SKUs are in products yet. Skip this section, or add a SKU first if you need to record stock updates.',
   stockUpdateNoServicesHelper:
-    'No services are in the catalog yet. Skip this section, or add a service first if you need to record a service update.',
+    'No services are in products yet. Skip this section, or add a service first if you need to record a service update.',
   stockSalesSignalPanelTitle: 'Recent selling order',
   stockSalesSignalSupportCopy:
     'Rank services and sellable SKUs by recent observed demand/popularity. Noisy estimates are okay!',
@@ -610,7 +610,7 @@ export const enUiCopyV1 = {
   stockSalesSignalEmptyDescription:
     'Add a service or a sellable SKU before using this step.',
   stockUpdateNoServicesRankingHelper:
-    'No services are in the catalog yet. Skip this section, or add a service first if you need to rank service demand.',
+    'No services are in products yet. Skip this section, or add a service first if you need to rank service demand.',
   stockUpdateNoRetailRankingHelper:
     'No sellable SKUs are ready for ranking yet. Skip this section, or mark a SKU sellable with a selling price first.',
   stockServiceSummaryEmpty:
@@ -640,7 +640,7 @@ export const enUiCopyV1 = {
   stockFocusSkuHint: 'Opened from this SKU',
   stockFocusServiceHint: 'Opened from this service',
   stockServiceStockoutToggle: 'Mark stockout',
-  stockServicePriceHint: 'Using the current catalog price',
+  stockServicePriceHint: 'Using the current products price',
   stockServiceSummaryFlagSingular: 'service flag',
   stockServiceSummaryFlagPlural: 'service flags',
   stockServiceSummaryPriceSingular: 'price edit',
@@ -724,7 +724,7 @@ export const enUiCopyV1 = {
   planningEmptyTitle: 'Planning needs rankable items',
   planningEmptyDescription:
     'Add a service or a sellable SKU before setting sales priority.',
-  planningEmptyAction: 'Open catalog',
+  planningEmptyAction: 'Open products',
   merchandisingTopThreeTitle: 'Top of list preview',
   merchandisingTopThreeDescription:
     'These are the first entries your team will see when deciding what to push first.',
@@ -800,13 +800,14 @@ export const enUiCopyV1 = {
   fieldDescription: 'Description',
   fieldSupplier: 'Supplier',
   fieldUnitsInStock: 'Units in stock',
-  fieldCostPerUnit: 'Cost per unit',
+  fieldCostPerUnit: 'Supplier Cost per Unit',
   fieldSoldAsProduct: 'Sell as product',
-  fieldProductPrice: 'Selling price',
-  fieldLeadTimeMeanDays: 'Lead time mean (days)',
-  fieldLeadTimeVariability: 'Lead time variability',
-  fieldLeadTimeStdDays: 'Lead time std. dev. (days)',
+  fieldProductPrice: 'Customer Selling Price',
+  fieldLeadTimeMeanDays: 'Expected time of arrival (days)',
+  fieldLeadTimeVariability: 'ETA variation',
+  fieldLeadTimeStdDays: 'ETA spread (days)',
   fieldPrice: 'Service price',
+  fieldServiceSellingPrice: 'Selling service price',
   fieldLinkedSkus: 'Linked SKUs',
   fieldSkuSelectionHint: 'Select the SKUs this service normally consumes.',
   serviceEditorDetailsTitle: 'Service details',
@@ -820,13 +821,13 @@ export const enUiCopyV1 = {
     'Turn this on only when the SKU can be sold directly and needs its own selling price.',
   skuEditorImpactTitle: 'Change impact',
   skuEditorImpactSellableEnabled:
-    'Catalog and Planning will treat this SKU as sellable after you save.',
+    'Products and Planning will treat this SKU as sellable after you save.',
   skuEditorImpactSellableDisabled:
-    'Catalog and Planning will stop showing this SKU in sellable views after you save.',
+    'Products and Planning will stop showing this SKU in sellable views after you save.',
   skuEditorImpactPrice:
     'Direct-sale merchandising will use the updated selling price after you save.',
   skuEditorImpactPlanning:
-    'Planning calculations will refresh lead-time assumptions after you save.',
+    'Planning calculations will refresh ETA assumptions after you save.',
   editorDetailsTitle: 'Core details',
   editorInventoryTitle: 'Inventory profile',
   editorPricingTitle: 'Commercial setup',
@@ -950,7 +951,7 @@ export const enUiCopyV1 = {
   catalogSkuDetailReports: 'Supporting reports',
   catalogSkuDetailPosteriorUnits: 'Posterior units',
   catalogSkuDetailDemandPerDay: 'Expected demand/day',
-  catalogSkuParametersLeadTimeAverage: 'Average lead time',
+  catalogSkuParametersLeadTimeAverage: 'Average ETA',
   catalogSkuParametersDemandAnalysis: 'Demand analysis',
   catalogSkuParametersDemandInterval: 'Demand interval',
   catalogSkuParametersConfidenceInterval: '95% confidence interval',
@@ -978,26 +979,26 @@ export const enUiCopyV1 = {
   catalogItemEditorIdentifierErrorInvalid:
     'Use 3 to 64 lowercase letters, numbers, hyphens, or underscores.',
   catalogItemEditorIdentifierErrorDuplicate:
-    'This identifier is already used by another catalog item, including archived items.',
+    'This identifier is already used by another product, including archived items.',
   catalogSkuEditorDetailsTitleEdit: 'Edit SKU details',
   catalogSkuEditorDescriptionNew:
     'Create the SKU first. You can handle follow-up planning and stock work from its detail page.',
   catalogSkuEditorDescriptionEdit:
-    'Update the SKU details Kaur Khor uses for catalog, pricing, and planning.',
+    'Update the SKU details Kaur Khor uses for products, pricing, and planning.',
   catalogSkuEditorDetailsDescriptor:
     'Set the SKU name and internal description Kaur Khor will use across the app.',
   catalogSkuEditorSupplierHelper:
-    'Choose an existing supplier or type a new supplier name.',
+    'Choose an existing supplier, type a new supplier name, or keep no supplier.',
   catalogSkuEditorSupplierRequired:
     'Choose or enter a supplier before saving.',
   catalogSkuEditorSupplierPlaceholder: 'Choose your supplier...',
   catalogSkuPlanningInputsTitle: 'Planning inputs',
   catalogSkuPlanningInputsDescription:
-    'Optional supplier timing inputs. Update them when the lead-time picture changes.',
+    'Optional supplier timing inputs. Update them when the expected time of arrival picture changes.',
   catalogSkuEditorPricingDescriptor:
     'Set the cost and direct-sell setup Kaur Khor should use for this SKU.',
   catalogSkuEditorRetailPriceHelper:
-    'Enter a retail price only if customers buy this SKU directly.',
+    'Enter a customer selling price.',
   catalogSkuEditorRetailPriceEnableHint:
     'To enter a selling price, click the Sell as product box below first.',
   catalogSkuEditorSellAsProductHelper:
@@ -1007,7 +1008,7 @@ export const enUiCopyV1 = {
   catalogSkuEditorLeadTimeVariabilityHelper:
     'Choose how wide supplier timing usually swings around that average.',
   catalogSkuEditorDetailsTooltip:
-    'Identity fields define how Kaur Khor names and finds this SKU across catalog, logs, and planning.',
+    'Identity fields define how Kaur Khor names and finds this SKU across products, logs, and planning.',
   catalogSkuEditorPricingTooltip:
     'Pricing defines the unit economics for this SKU and whether it has a direct retail offer.',
   catalogSkuEditorPlanningTooltip:
@@ -1017,9 +1018,9 @@ export const enUiCopyV1 = {
   catalogSkuEditorRetailPriceTooltip:
     'Retail price is the direct selling price for this SKU when it is sold on its own.',
   catalogSkuEditorLeadTimeMeanTooltip:
-    'Lead time mean is the typical number of days between placing the order and receiving it.',
+    'Expected time of arrival is the typical number of days between placing the order and receiving it.',
   catalogSkuEditorLeadTimeVariabilityTooltip:
-    'Lead-time variability describes how wide the receipt window usually is around the typical lead time.',
+    'ETA variation describes how wide the receipt window usually is around the typical expected time of arrival.',
   catalogSkuEditorLeadTimeVariabilityHint:
     'Pick the class that best matches recent supplier timing.',
   catalogSkuLeadTimeVariabilityPlaceholder: 'Select variability',
@@ -1097,7 +1098,7 @@ export const enUiCopyV1 = {
   catalogServiceEditorDescriptionNew:
     'Create the service first. You can review fulfillment and logs from its detail page.',
   catalogServiceEditorDescriptionEdit:
-    'Update the service details Kaur Khor uses for catalog, pricing, and coverage.',
+    'Update the service details Kaur Khor uses for products, pricing, and coverage.',
   catalogServiceEditorIdentifierDescription:
     'Keep this service id stable unless you need to rename it everywhere Kaur Khor tracks it.',
   catalogServiceEditorDetailsDescriptor:
@@ -1105,7 +1106,7 @@ export const enUiCopyV1 = {
   catalogServiceEditorIdentifierHelper:
     'Use a stable service id. Kaur Khor will block duplicates across active and archived items.',
   catalogServiceEditorDetailsTooltip:
-    'Identity fields define how Kaur Khor names and finds this service across catalog, logs, and analysis.',
+    'Identity fields define how Kaur Khor names and finds this service across products, logs, and analysis.',
   catalogServiceEditorPricingTooltip:
     'Pricing defines the customer-facing amount Kaur Khor shows for this service.',
   catalogServiceEditorPricingDescriptor:
@@ -1202,7 +1203,7 @@ export const enUiCopyV1 = {
   settingsReviewDelayDaysHelp:
     'Extra days Kaur Khor protects before sizing the order.',
   settingsReviewDelayDaysTooltip:
-    'Review delay is added to lead time so the recommendation covers time until the next practical replenishment decision.',
+    'Review delay is added to ETA so the recommendation covers time until the next practical replenishment decision.',
   settingsEnableSmoothingLabel: 'Enable smoothing',
   settingsEnableSmoothingHelp:
     'Smooth posterior traces before Kaur Khor summarizes them.',
@@ -1300,6 +1301,7 @@ export const enUiCopyV1 = {
   overviewTaskWhyDetailOrder:
     '{cover} cover · reorder trigger {probability}',
   overviewTaskWhyOrderedAlready: 'Ordered already',
+  overviewTaskWhyOrderedAt: 'Ordered {date}',
   overviewTaskWhyReceiptLoop:
     'Kaur Khor is holding this in the active receipt loop.',
   overviewTaskWhyCheckSupplier: 'Check supplier update',
@@ -1322,6 +1324,9 @@ export const enUiCopyV1 = {
   overviewTaskEtaNotOrderedYet: 'Not ordered yet',
   overviewTaskEtaNotOrderedDetail:
     'No open order is recorded yet.',
+  overviewTaskEtaOrderCanceled: 'Order canceled',
+  overviewTaskEtaOrderCanceledDetail:
+    'The latest supplier ticket was canceled; no open order is recorded.',
   overviewTaskEtaReceivedToday:
     'Received today',
   overviewTaskEtaReceivedLogged: 'Logged {date}',
@@ -1428,10 +1433,10 @@ export const enUiCopyV1 = {
   skuVmEvidencePriceChanged: 'Price changed',
   skuVmEvidenceRetailStockout: 'Retail stockout',
   skuVmEvidenceRetailStockoutDetail: 'SKU marked out of stock at retail.',
-  skuVmEvidenceLeadTimeHint: 'Lead-time hint',
+  skuVmEvidenceLeadTimeHint: 'ETA hint',
   skuVmEvidenceLeadTimeTypical: '{days}d typical',
   skuVmEvidenceLeadTimeRange: '{low}-{high}d range',
-  skuVmEvidenceLeadTimeCaptured: 'Lead-time hint captured.',
+  skuVmEvidenceLeadTimeCaptured: 'ETA hint captured.',
   skuVmEvidenceNotes: 'Notes',
   skuVmActCaptureMore: 'Capture one more observation',
   skuVmActReorderNow: 'Reorder now',
@@ -1552,7 +1557,7 @@ export const enUiCopyV1 = {
   performanceVmRibbonRevenueAtRisk: 'Revenue at risk',
   performanceVmLastUpdated: 'Updated {date} · {window}',
   performanceVmWaitingForUpdates: 'Waiting for SENA evidence',
-  performanceRouteEmptyCatalogTitle: 'Pressure needs the catalog first',
+  performanceRouteEmptyCatalogTitle: 'Pressure needs products first',
   performanceRouteEmptyCatalogHint:
     'Create the first SKU so Kaur Khor can compare demand, coverage, and price in one business view.',
   performanceRouteEmptyWorkspaceTitle: 'Pressure needs the first SENA run',
@@ -1643,7 +1648,7 @@ export const enUiCopyV1 = {
   financialsRouteScopeAll: 'All',
   financialsRouteScopeServices: 'Services',
   financialsRouteScopeSkus: 'SKUs',
-  financialsRouteEmptyCatalogTitle: 'Money needs the catalog first',
+  financialsRouteEmptyCatalogTitle: 'Money needs products first',
   financialsRouteEmptyCatalogHint:
     'Create the first SKU so Kaur Khor can read stock-linked sales, margin, inventory value, and supplier commitments.',
   financialsRouteEmptyWorkspaceTitle: 'Money needs the first SENA run',
@@ -1652,8 +1657,8 @@ export const enUiCopyV1 = {
   analysisRouteEyebrow: 'Explain',
   analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
-    'Inspect how SENA reconstructed demand, order flow, receipts, lead-time drift, and price effects from sparse observations.',
-  analysisRouteNeedCatalogTitle: 'Explain needs the catalog first',
+    'Inspect how SENA reconstructed demand, order flow, receipts, ETA drift, and price effects from sparse observations.',
+  analysisRouteNeedCatalogTitle: 'Explain needs products first',
   analysisRouteNeedCatalogHint: 'Create the first SKU so SENA has real entities to inspect.',
   analysisRouteNeedRunTitle: 'Explain needs the first SENA run',
   analysisRouteNeedRunHint:
@@ -1700,7 +1705,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchSelectSurface: 'Select Explain view',
   analysisWorkbenchLedgerTitle: 'SENA system ledger',
   analysisWorkbenchLedgerTooltip:
-    'Interval-by-interval Explain view across regime, inventory, pipeline, and lead time.',
+    'Interval-by-interval Explain view across regime, inventory, pipeline, and ETA.',
   analysisWorkbenchLedgerDescriptor:
     'Inspect how observations turned into the current system reading.',
   analysisWorkbenchLaneRegimeTitle: 'Regime + price lane',
@@ -1730,27 +1735,27 @@ export const enUiCopyV1 = {
   analysisWorkbenchOverdueWindow: 'Overdue window',
   analysisWorkbenchOrderCue: 'Order cue',
   analysisWorkbenchReceiptCue: 'Receipt cue',
-  analysisWorkbenchLaneLeadTimeTitle: 'Lead-time lane',
+  analysisWorkbenchLaneLeadTimeTitle: 'ETA lane',
   analysisWorkbenchLaneLeadTimeSubtitle:
-    'Lead-time drift reads as a trajectory with spread, while variability class stays available on selection instead of printed everywhere.',
-  analysisWorkbenchLaneLeadTimeTooltip: 'Estimated lead-time level and spread across intervals.',
+    'ETA drift reads as a trajectory with spread, while variation class stays available on selection instead of printed everywhere.',
+  analysisWorkbenchLaneLeadTimeTooltip: 'Estimated ETA level and spread across intervals.',
   analysisWorkbenchSpreadBand: 'Spread band',
-  analysisWorkbenchMeanLeadTime: 'Mean lead time',
+  analysisWorkbenchMeanLeadTime: 'Mean ETA',
   analysisWorkbenchNoNamedEntity: 'No named entity',
   analysisWorkbenchPressureTitle: 'Entity pressure explorer',
   analysisWorkbenchPressureTooltip:
     'Ranked table of entities showing where structural pressure comes from.',
   analysisWorkbenchPressureDescriptor:
-    'Compare whether pressure is coming from demand, pipeline, lead time, or price.',
+    'Compare whether pressure is coming from demand, pipeline, ETA, or price.',
   analysisWorkbenchPressureScoreHeader: 'Pressure score',
   analysisWorkbenchPressureScoreHeaderTooltip:
     'Composite pressure score from 0 to 100. Higher means stronger operational pressure.',
   analysisWorkbenchPipelineRiskHeader: 'Pipeline risk',
   analysisWorkbenchPipelineRiskHeaderTooltip:
     'How much inbound timing and pipeline posture are driving pressure.',
-  analysisWorkbenchLeadTimeRiskHeader: 'Lead time risk',
+  analysisWorkbenchLeadTimeRiskHeader: 'ETA risk',
   analysisWorkbenchLeadTimeRiskHeaderTooltip:
-    'How much lead-time delay or variability is driving pressure.',
+    'How much ETA delay or variation is driving pressure.',
   analysisWorkbenchPriceSensitivityHeader: 'Price sensitivity',
   analysisWorkbenchPriceSensitivityHeaderTooltip:
     'How much pricing conditions appear to be affecting pressure.',
@@ -1802,21 +1807,21 @@ export const enUiCopyV1 = {
   analysisWorkbenchOrderCueKind: 'Order',
   analysisWorkbenchReceiptCueKind: 'Receipt',
   analysisWorkbenchPipelineMarkerAria: '{kind} cue {quantity} units',
-  analysisWorkbenchLeadTimePointAria: 'Lead time {days} days',
+  analysisWorkbenchLeadTimePointAria: 'ETA {days} days',
   analysisWorkbenchLeadTimeSelectedLabel: '{mean} ± {spread} Days',
   analysisWorkbenchWhatHappenedTitle: 'What happened',
   analysisWorkbenchWhatHappenedTooltip:
     'The main demand and inventory movements in this interval.',
-  analysisWorkbenchOrdersTransitLeadTimeTitle: 'Orders, transit, lead time',
+  analysisWorkbenchOrdersTransitLeadTimeTitle: 'Orders, transit, ETA',
   analysisWorkbenchOrdersTransitLeadTimeTooltip:
-    'Order, inbound, and lead-time conditions in this interval.',
+    'Order, inbound, and ETA conditions in this interval.',
   analysisWorkbenchInTransit: 'In transit',
   analysisWorkbenchOrderProbability: 'Order probability',
   analysisWorkbenchOrderQuantity: 'Order quantity',
   analysisWorkbenchReceiptQuantity: 'Receipt quantity',
   analysisWorkbenchTransitAge: 'Transit age',
-  analysisWorkbenchLeadTimeSpread: 'Lead-time spread',
-  analysisWorkbenchLeadTimeClass: 'Lead-time class',
+  analysisWorkbenchLeadTimeSpread: 'ETA spread',
+  analysisWorkbenchLeadTimeClass: 'ETA class',
   analysisWorkbenchSelectedSkuTitle: 'Selected SKU',
   analysisWorkbenchSelectedServiceTitle: 'Selected service',
   analysisWorkbenchSelectedEntityTooltip:
@@ -1830,7 +1835,7 @@ export const enUiCopyV1 = {
   analysisWorkbenchReorderTrigger: 'Reorder trigger',
   analysisWorkbenchReorderPolicyTitle: 'Reorder policy',
   analysisWorkbenchReorderPolicyTooltip:
-    'Shows the posterior order recommendation after current stock, inbound pipeline, demand, and lead time are accounted for.',
+    'Shows the posterior order recommendation after current stock, inbound pipeline, demand, and ETA are accounted for.',
   analysisWorkbenchNeedProbability: 'Need probability',
   analysisWorkbenchRecommendedOrder: 'Recommended order',
   analysisWorkbenchLikelyRange: 'Likely range',
@@ -1881,7 +1886,7 @@ export const enUiCopyV1 = {
   stockUpdateClearRanking: 'Clear ranking',
   stockUpdateStockViewLabel: 'View',
   stockUpdateStockViewTooltip:
-    'Priority shows suggested SKUs, Counted shows changed or flagged rows, and All SKUs shows the full catalog.',
+    'Priority shows suggested SKUs, Counted shows changed or flagged rows, and All SKUs shows all products.',
   stockUpdateStockViewAria: 'Stock count view',
   stockUpdateStockStepTooltip:
     'Only changed stock rows and active row flags are saved; unchanged SKUs are left latent.',
@@ -2004,7 +2009,7 @@ export const enUiCopyV1 = {
   stockUpdateOrderSignalSaved:
     'Ordered and receipt quantities will be saved as interval order signals.',
   stockUpdateServicePriceSaved:
-    'Service prices are saved only for rows whose new price differs from the latest catalog value.',
+    'Service prices are saved only for rows whose new price differs from the latest products value.',
   stockUpdateStepCountAtLeastOneSku: 'Count at least one SKU',
   stockUpdateStepOptionalLater: 'Optional on later updates',
   stockUpdateStepOptional: 'Optional',
@@ -2111,6 +2116,126 @@ export const enUiCopyV1 = {
     'Example: moved the display near the entrance after the count.',
   stockUpdateNotesPlaceholderNothingSpecial:
     'Example: routine count, nothing unusual to add.',
+  stockUpdateNotesPlaceholderStockCountBackStorage:
+    'Example: found two units in back storage during the count.',
+  stockUpdateNotesPlaceholderStockCountFrontShelf:
+    'Example: display moved to the front shelf after counting.',
+  stockUpdateNotesPlaceholderStockCountTester:
+    'Example: counted one tester separately from sellable stock.',
+  stockUpdateNotesPlaceholderStockCountMissingLabel:
+    'Example: shelf count was checked twice because the label was missing.',
+  stockUpdateNotesPlaceholderStockCountCleaning:
+    'Example: one unit was set aside for cleaning before sale.',
+  stockUpdateNotesPlaceholderStockCountBehindDisplay:
+    'Example: staff found extra stock behind the display.',
+  stockUpdateNotesPlaceholderStockCountOpenedSample:
+    'Example: counted opened sample separately from boxed inventory.',
+  stockUpdateNotesPlaceholderStockCountAisleRestocked:
+    'Example: aisle display was restocked after the count.',
+  stockUpdateNotesPlaceholderStockCountRoomMatched:
+    'Example: stock room count matched the front shelf.',
+  stockUpdateNotesPlaceholderStockCountRoutine:
+    'Example: routine count, no unusual stock movement.',
+  stockUpdateNotesPlaceholderSupplierOrderCaseSize:
+    'Example: supplier confirmed a smaller case size for this order.',
+  stockUpdateNotesPlaceholderSupplierOrderFollowUp:
+    'Example: staff will follow up with the supplier tomorrow morning.',
+  stockUpdateNotesPlaceholderSupplierOrderSplitDelivery:
+    'Example: vendor asked to split this order across two deliveries.',
+  stockUpdateNotesPlaceholderSupplierOrderNextWeek:
+    'Example: supplier said this item is available only next week.',
+  stockUpdateNotesPlaceholderSupplierOrderReducedQuantity:
+    'Example: order quantity was reduced after supplier stock check.',
+  stockUpdateNotesPlaceholderSupplierOrderSubstituteColor:
+    'Example: supplier offered a substitute color for this order.',
+  stockUpdateNotesPlaceholderSupplierOrderPhoneConfirmation:
+    'Example: staff placed the order by phone after chat confirmation.',
+  stockUpdateNotesPlaceholderSupplierOrderPrepay:
+    'Example: supplier requested payment before dispatch.',
+  stockUpdateNotesPlaceholderSupplierOrderNoArrivalDate:
+    'Example: vendor confirmed the order but not the arrival date.',
+  stockUpdateNotesPlaceholderSupplierOrderGroupedShipment:
+    'Example: order was grouped with another supplier shipment.',
+  stockUpdateNotesPlaceholderSupplierReceiptDamagedCarton:
+    'Example: one carton arrived damaged and was counted separately.',
+  stockUpdateNotesPlaceholderSupplierReceiptPartial:
+    'Example: receipt was partial; remaining units are still in transit.',
+  stockUpdateNotesPlaceholderSupplierReceiptLabelMismatch:
+    'Example: package label did not match the ordered quantity.',
+  stockUpdateNotesPlaceholderSupplierReceiptEarly:
+    'Example: delivery arrived earlier than the supplier estimate.',
+  stockUpdateNotesPlaceholderSupplierReceiptCountedTwice:
+    'Example: staff counted receipt twice before shelving.',
+  stockUpdateNotesPlaceholderSupplierReceiptMissingItem:
+    'Example: one item was missing from the supplier package.',
+  stockUpdateNotesPlaceholderSupplierReceiptExtraUnit:
+    'Example: supplier included an extra unit at no charge.',
+  stockUpdateNotesPlaceholderSupplierReceiptBackStorage:
+    'Example: received items were placed in back storage first.',
+  stockUpdateNotesPlaceholderSupplierReceiptWetPackaging:
+    'Example: packaging was wet, but sellable units were fine.',
+  stockUpdateNotesPlaceholderSupplierReceiptMatchedTicket:
+    'Example: receipt matched the ticket and was shelved immediately.',
+  stockUpdateNotesPlaceholderCustomerPendingAfterWork:
+    'Example: customer requested pickup after work.',
+  stockUpdateNotesPlaceholderCustomerPendingColorChange:
+    'Example: customer changed color preference before fulfillment.',
+  stockUpdateNotesPlaceholderCustomerPendingHoldTomorrow:
+    'Example: customer asked to hold the order until tomorrow.',
+  stockUpdateNotesPlaceholderCustomerPendingDelivery:
+    'Example: customer requested delivery instead of pickup.',
+  stockUpdateNotesPlaceholderCustomerPendingSizeConfirm:
+    'Example: customer is waiting for size confirmation.',
+  stockUpdateNotesPlaceholderCustomerPendingCombineRequest:
+    'Example: customer asked to combine this with another request.',
+  stockUpdateNotesPlaceholderCustomerPendingMessageBeforePrep:
+    'Example: customer wants a message before the item is prepared.',
+  stockUpdateNotesPlaceholderCustomerPendingStillWants:
+    'Example: staff confirmed the customer still wants the order.',
+  stockUpdateNotesPlaceholderCustomerPendingSubstitute:
+    'Example: customer asked for a substitute if first choice is unavailable.',
+  stockUpdateNotesPlaceholderCustomerPendingPayment:
+    'Example: customer request is pending until payment is confirmed.',
+  stockUpdateNotesPlaceholderCustomerCompletedPickup:
+    'Example: customer picked up the order in person.',
+  stockUpdateNotesPlaceholderCustomerCompletedWrongSizeRefund:
+    'Example: refund was handled after the wrong size was returned.',
+  stockUpdateNotesPlaceholderCustomerCompletedLateArrival:
+    'Example: service was completed late because the customer arrived after closing.',
+  stockUpdateNotesPlaceholderCustomerCompletedCash:
+    'Example: customer paid by cash at pickup.',
+  stockUpdateNotesPlaceholderCustomerCompletedDelivered:
+    'Example: order was delivered to the customer after confirmation.',
+  stockUpdateNotesPlaceholderCustomerCompletedAcceptedSubstitute:
+    'Example: customer accepted the substitute item.',
+  stockUpdateNotesPlaceholderCustomerCompletedServiceAdjustment:
+    'Example: completed order included an extra service adjustment.',
+  stockUpdateNotesPlaceholderCustomerCompletedAfterMessage:
+    'Example: staff marked the order complete after customer message.',
+  stockUpdateNotesPlaceholderCustomerCompletedReturnSetAside:
+    'Example: return was processed and usable stock was set aside.',
+  stockUpdateNotesPlaceholderCustomerCompletedFollowUp:
+    'Example: customer collected the item but asked for follow-up later.',
+  stockUpdateNotesPlaceholderNeutralRoutine:
+    'Example: routine update, no unusual context to add.',
+  stockUpdateNotesPlaceholderNeutralNoAction:
+    'Example: team noted the change but no action is needed yet.',
+  stockUpdateNotesPlaceholderNeutralManagerReviewed:
+    'Example: manager reviewed the update before closing.',
+  stockUpdateNotesPlaceholderNeutralAfterShift:
+    'Example: update was recorded after the shift ended.',
+  stockUpdateNotesPlaceholderNeutralCheckedNumbers:
+    'Example: staff checked the numbers before saving.',
+  stockUpdateNotesPlaceholderNeutralNextOperator:
+    'Example: context was added for the next operator.',
+  stockUpdateNotesPlaceholderNeutralNoFollowUp:
+    'Example: no customer or supplier follow-up is needed.',
+  stockUpdateNotesPlaceholderNeutralDailyClose:
+    'Example: change was reviewed during the daily close.',
+  stockUpdateNotesPlaceholderNeutralAudit:
+    'Example: staff added this note for audit context.',
+  stockUpdateNotesPlaceholderNeutralHandwritten:
+    'Example: update was entered from a handwritten shift note.',
   stockUpdateRankingsTooltip:
     'Rankings are sellability evidence. Leave them unchanged if the selling order did not meaningfully change.',
   stockUpdateRankingsTooltipLabel: 'Ranking details',
@@ -2130,20 +2255,23 @@ export const enUiCopyV1 = {
   stockUpdatePriceChangedAria: 'Price if changed for {name}',
   overviewDrawerModeNotOrderedTitle: 'Not ordered yet',
   overviewDrawerModeNotOrderedDescription: 'Leave this task open',
+  overviewDrawerModeOrderCanceledTitle: 'Order canceled',
+  overviewDrawerModeOrderCanceledDescription: 'Record the supplier cancellation',
   overviewDrawerModeOrderedWaitingTitle: 'Ordered, waiting',
   overviewDrawerModeOrderedWaitingDescription: 'Record the open order',
-  overviewDrawerModeEtaChangedTitle: 'ETA changed',
+  overviewDrawerModeEtaChangedTitle: "Order's ETA changed",
   overviewDrawerModeEtaChangedDescription: 'Update the arrival date',
-  overviewDrawerModeGoodsReceivedTitle: 'Goods received',
+  overviewDrawerModeGoodsReceivedTitle: 'Order recieved',
   overviewDrawerModeGoodsReceivedDescription: 'Log the receipt',
   overviewDrawerModeSummaryNotOrdered: 'Kaur Khor will keep this task open until the order state changes.',
+  overviewDrawerModeSummaryOrderCanceled: 'Kaur Khor will save the canceled supplier ticket and keep this task in To order.',
   overviewDrawerModeSummaryOrderedWaiting: 'Kaur Khor will save the order signal and the current arrival window.',
   overviewDrawerModeSummaryEtaChanged: 'Kaur Khor will refresh the arrival window for this task.',
   overviewDrawerModeSummaryGoodsReceived: 'Kaur Khor will log the receipt and update stock.',
   overviewDrawerRealLifeTitle: 'What happened in real life',
   overviewDrawerRecommendedOrderTitle: 'Recommended order',
   overviewDrawerRecommendedOrderLikely: '{value} likely',
-  overviewDrawerRecommendedOrderBasis: 'Based on on hand + in transit + lead time.',
+  overviewDrawerRecommendedOrderBasis: 'Based on on-hand + in-transit + ETA.',
   overviewDrawerTimingTitle: 'Timing',
   overviewDrawerReceiptTimingTitle: 'Receipt timing',
   overviewDrawerObservedAtDescription: 'Choose when you confirmed this update.',
@@ -2161,7 +2289,7 @@ export const enUiCopyV1 = {
   overviewDrawerVariabilityDescription: 'Choose how steady or variable supplier timing has been.',
   overviewDrawerVariabilityPlaceholder: 'Choose variability',
   overviewDrawerOptionalLearningTitle: 'Optional learning',
-  overviewDrawerOptionalLearningDescription: 'Use this update to refine future lead-time estimates.',
+  overviewDrawerOptionalLearningDescription: 'Use this update to refine future ETA estimates.',
   overviewDrawerReceiptDetailsTitle: 'Receipt details',
   overviewDrawerReceivedQuantityLabel: 'Received quantity',
   overviewDrawerReceivedQuantityDescription: 'Enter the units that actually arrived.',
@@ -2177,6 +2305,7 @@ export const enUiCopyV1 = {
   overviewDrawerNextStepsTitle: 'What Kaur Khor will do next',
   overviewDrawerModeLabel: 'Mode: {value}',
   overviewDrawerSubmitGoodsReceived: 'Confirm inventory update',
+  overviewDrawerSubmitOrderCanceled: 'Save cancellation',
   overviewDrawerSubmitNotOrdered: 'Save note',
   overviewDrawerSubmitDefault: 'Save and refresh',
   overviewDrawerSaveFailed: "Kaur Khor could not save this update. Try again.",
@@ -2196,7 +2325,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   workspaceStarting: 'Starting the desktop core and loading the latest local workspace.',
   workspaceComputingTitle: 'Kaur Khor is preparing your workspace',
   workspaceComputingBody:
-    'Kaur Khor is loading your catalog, recent updates, and the latest local planning read.',
+    'Kaur Khor is loading your products, recent updates, and the latest local planning read.',
   workspaceComputingHint:
     'The first launch after a reset can take longer while Kaur Khor rebuilds local views.',
   workspaceUnavailable: 'The local workspace is unavailable.',
@@ -2373,7 +2502,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   settingsReviewDelayDaysHelp:
     'Extra days Kaur Khor protects before the next likely reorder decision.',
   settingsReviewDelayDaysTooltip:
-    'Kaur Khor adds these days on top of lead time when sizing the suggested order.',
+    'Kaur Khor adds these days on top of ETA when sizing the suggested order.',
   settingsEnableSmoothingLabel: 'Soften noisy charts',
   settingsEnableSmoothingHelp:
     'Smooth the lines before Kaur Khor summarizes them.',
@@ -2436,6 +2565,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   overviewTaskWhyOrderBlocksService: 'A service could be blocked',
   overviewTaskWhyOrderSoon: 'Stock is running low',
   overviewTaskWhyOrderedAlready: 'Order already placed',
+  overviewTaskWhyOrderedAt: 'Ordered {date}',
   overviewTaskWhyCheckSupplier: 'Supplier update needed',
   overviewTaskWhyReceiptDue: 'Delivery window is open',
   overviewTaskWhyDetailOrder: '{cover} of cover · reorder signal {probability}',
@@ -2644,7 +2774,7 @@ export const enUiCopyV2: EnglishUiCopy = {
   analysisRouteTitle: 'Explain',
   analysisRouteDescriptor:
     'See how saved updates turned into Kaur Khor’s current picture of demand, incoming stock, delivery timing, and price.',
-  analysisRouteNeedCatalogTitle: 'Explain needs a catalog first',
+  analysisRouteNeedCatalogTitle: 'Explain needs products first',
   analysisRouteNeedCatalogHint:
     'Create your first SKU so Kaur Khor has real items to analyze.',
   analysisRouteNeedRunTitle: 'Explain needs your first update',
@@ -2898,7 +3028,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     workspaceStarting: 'Starting the desktop core and loading the latest local workspace.',
     workspaceComputingTitle: 'Kaur Khor is preparing your workspace',
     workspaceComputingBody:
-      'Kaur Khor is loading your catalog, recent updates, and the latest local planning view.',
+      'Kaur Khor is loading your products, recent updates, and the latest local planning view.',
     workspaceUnavailable: 'The local planning workspace is unavailable.',
     dashboardHealthStarting: 'Starting the desktop core and loading the latest local workspace',
     dashboardRiskTitle: 'Planning pulse',

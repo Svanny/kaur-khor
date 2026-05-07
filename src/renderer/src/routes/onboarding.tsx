@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS } from '@shared/ipc';
 import {
@@ -22,6 +22,10 @@ const onboardingCopyEnglishAnimationName = 'kaur-khor-onboarding-copy-english';
 const onboardingCopyKhmerAnimationName = 'kaur-khor-onboarding-copy-khmer';
 const onboardingCopyCycleMs = 9000;
 type OnboardingStep = 'preferences' | 'interface';
+
+function readOnboardingStep(searchParams: URLSearchParams): OnboardingStep {
+  return searchParams.get('step') === 'interface' ? 'interface' : 'preferences';
+}
 
 function onboardingCopy(englishText: string) {
   const khmerByEnglishText: Record<string, string> = {
@@ -192,6 +196,7 @@ function usePrefersReducedMotion() {
 
 export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: boolean } = {}) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     currency,
     isHydrated,
@@ -202,7 +207,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const [selectedLanguage, setSelectedLanguage] = useState<AppLanguage>(language);
   const [selectedCurrency, setSelectedCurrency] = useState<AppCurrency>(currency);
   const [selectedViewMode, setSelectedViewMode] = useState<InterfaceViewMode>('default');
-  const [step, setStep] = useState<OnboardingStep>('preferences');
+  const step = readOnboardingStep(searchParams);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const seededPreferencesRef = useRef(false);
@@ -262,7 +267,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   async function handleContinue() {
     if (step === 'preferences') {
       setSaveError(false);
-      setStep('interface');
+      setSearchParams({ step: 'interface' }, { replace: true });
       return;
     }
 
@@ -300,7 +305,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
 
   function handleBack() {
     setSaveError(false);
-    setStep('preferences');
+    setSearchParams({}, { replace: true });
   }
 
   return (

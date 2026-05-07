@@ -1,10 +1,12 @@
 import type {
   SenaDeliveryFeeBucket,
   SenaDeliveryFeeMetadata,
+  SenaCatalog,
   SenaObservationRecord,
   SenaRecordActivityEntry,
   SenaRecordUpdateContext,
   SenaTicketFamily,
+  SenaTicketLine,
   SenaTicketSummary,
 } from '@shared/sena';
 import { formatPhoneForDisplay, normalizePhoneLookupKey } from '@shared/phone';
@@ -18,7 +20,10 @@ export interface RecordTicketOption {
   id: string;
   label: string;
   metadata: string;
+  sortAt: string | null;
 }
+
+type TicketDisplayCatalog = Pick<SenaCatalog, 'services' | 'skus'> | null | undefined;
 
 function collapseSpaces(value: string) {
   return value.trim().replace(/\s+/g, ' ');
@@ -28,13 +33,81 @@ function normalizeTicketLookupValue(value: string) {
   return collapseSpaces(value).toLowerCase();
 }
 
-export function ticketSummaryLabel(ticket: Pick<SenaTicketSummary, 'lines' | 'party' | 'ticketId'>) {
+function ticketLineFallbackLabel(line: Pick<SenaTicketLine, 'entityType'>) {
+  return line.entityType === 'service' ? 'Service' : 'SKU';
+}
+
+export function ticketLineDisplayName(
+  line: Pick<SenaTicketLine, 'entityId' | 'entityType'>,
+  catalog?: TicketDisplayCatalog,
+) {
+  if (line.entityType === 'sku') {
+    return catalog?.skus.find((sku) => sku.skuId === line.entityId)?.name ?? ticketLineFallbackLabel(line);
+  }
+  return catalog?.services.find((service) => service.serviceId === line.entityId)?.name ?? ticketLineFallbackLabel(line);
+}
+
+function ticketLineDisplayQuantity(line: Pick<SenaTicketLine, 'orderedQuantity' | 'quantityDelta' | 'receivedQuantity'>) {
+  return line.orderedQuantity ?? line.receivedQuantity ?? (line.quantityDelta != null ? Math.abs(line.quantityDelta) : null);
+}
+
+export function ticketLineMetadataLabel(line: SenaTicketLine, catalog?: TicketDisplayCatalog) {
+  const quantity = ticketLineDisplayQuantity(line);
+  return `${ticketLineDisplayName(line, catalog)}${quantity ? ` · ${quantity}u` : ''}`;
+}
+
+export function ticketSummaryLabel(
+  ticket: Pick<SenaTicketSummary, 'lines' | 'party' | 'ticketId'>,
+  catalog?: TicketDisplayCatalog,
+) {
   const partyName = ticket.party?.customerName ?? ticket.party?.supplierName ?? null;
   const lineSummary = ticket.lines
-    .map((line) => line.entityId)
+    .map((line) => ticketLineDisplayName(line, catalog))
     .slice(0, 2)
     .join(', ');
-  return partyName ?? lineSummary ?? ticket.ticketId;
+  return partyName ?? (lineSummary || 'Ticket');
+}
+
+function ticketDisplayDate(value: string | null | undefined) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) {
+    return value.slice(0, 10);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function ticketDisplayLabels(
+  context: SenaRecordUpdateContext | null,
+  family: Extract<SenaTicketFamily, 'customer' | 'supplier'>,
+) {
+  const labels = new Map<string, string>();
+  const ticketsById = new Map<string, SenaTicketSummary>();
+  for (const ticket of Object.values(context?.latestTicketsById ?? {}).map((anchor) => anchor.value)) {
+    if (ticket.ticketFamily === family) {
+      ticketsById.set(ticket.ticketId, ticket);
+    }
+  }
+  for (const ticket of openTicketSummaries(context, family)) {
+    ticketsById.set(ticket.ticketId, ticket);
+  }
+
+  const tickets = [...ticketsById.values()].sort((left, right) =>
+    ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
+    left.occurredAt.localeCompare(right.occurredAt) ||
+    left.ticketId.localeCompare(right.ticketId),
+  );
+  const countByDate = new Map<string, number>();
+  for (const ticket of tickets) {
+    const date = ticketDisplayDate(ticket.occurredAt);
+    const count = (countByDate.get(date) ?? 0) + 1;
+    countByDate.set(date, count);
+    labels.set(ticket.ticketId, `${date}-#${count}`);
+  }
+
+  return labels;
 }
 
 export function openTicketSummaries(
@@ -47,24 +120,44 @@ export function openTicketSummaries(
 export function recordTicketOptions(
   context: SenaRecordUpdateContext | null,
   family: Extract<SenaTicketFamily, 'customer' | 'supplier'>,
+  catalog?: TicketDisplayCatalog,
 ): RecordTicketOption[] {
+  const displayLabels = ticketDisplayLabels(context, family);
   return openTicketSummaries(context, family).map((ticket) => {
     if (family === 'customer') {
       const channel = ticket.party?.channelLabel ?? ticket.party?.channelKey ?? 'No channel';
+      const summary = ticketSummaryLabel(ticket, catalog);
+      const displayTicketId = displayLabels.get(ticket.ticketId) ?? `${ticketDisplayDate(ticket.occurredAt)}-#1`;
       return {
         id: ticket.ticketId,
-        label: ticketSummaryLabel(ticket),
-        description: `${channel} · ${ticket.lines.length} item${ticket.lines.length === 1 ? '' : 's'}`,
+        label: `Ticket ID: ${displayTicketId}`,
+        description: `${summary} · ${channel} · ${ticket.lines.length} item${ticket.lines.length === 1 ? '' : 's'}`,
         metadata: ticket.party?.phone ? formatPhoneForDisplay(ticket.party.phone) : ticket.note ?? ticket.occurredAt,
+        sortAt: ticket.occurredAt,
       };
     }
     return {
       id: ticket.ticketId,
-      label: ticketSummaryLabel(ticket),
+      label: ticketSummaryLabel(ticket, catalog),
       description: ticket.party?.supplierName ?? ticket.stage,
-      metadata: ticket.lines.map((line) => `${line.entityId}${line.orderedQuantity ? ` · ${line.orderedQuantity}u` : ''}`).join(', '),
+      metadata: ticket.lines.map((line) => ticketLineMetadataLabel(line, catalog)).join(', ') || ticket.note || ticket.occurredAt,
+      sortAt: ticket.occurredAt,
     };
   });
+}
+
+function ticketOptionSortValue(option: Pick<RecordTicketOption, 'sortAt'>) {
+  if (!option.sortAt) {
+    return 0;
+  }
+  const time = new Date(option.sortAt).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+export function sortRecordTicketOptionsByRecent<TOption extends Pick<RecordTicketOption, 'sortAt'>>(
+  options: TOption[],
+) {
+  return [...options].sort((left, right) => ticketOptionSortValue(right) - ticketOptionSortValue(left));
 }
 
 export function buildCustomerLinkDirectoryFromContext(

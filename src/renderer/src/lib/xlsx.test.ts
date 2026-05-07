@@ -5,7 +5,7 @@ describe('createWorkbook', () => {
   it('builds a real xlsx zip archive with one worksheet per table', () => {
     const workbook = createWorkbook([
       {
-        name: 'Catalog SKUs',
+        name: 'Products SKUs',
         rows: [{ skuId: 'sku-1', onHand: 12 }],
       },
       {
@@ -21,7 +21,7 @@ describe('createWorkbook', () => {
     expect(archiveText).toContain('xl/workbook.xml');
     expect(archiveText).toContain('xl/worksheets/sheet1.xml');
     expect(archiveText).toContain('xl/worksheets/sheet2.xml');
-    expect(archiveText).toContain('Catalog SKUs');
+    expect(archiveText).toContain('Products SKUs');
     expect(archiveText).toContain('Diagnostics');
     expect(archiveText).toContain('sku-1');
     expect(archiveText).toContain('<v>12</v>');

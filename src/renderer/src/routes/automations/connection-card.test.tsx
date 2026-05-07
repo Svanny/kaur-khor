@@ -3,6 +3,28 @@ import { describe, expect, test, vi } from 'vitest';
 import { AutomationConnectionCard } from './connection-card';
 
 describe('AutomationConnectionCard', () => {
+  test('shows the experimental automation disclaimer', () => {
+    render(
+      <AutomationConnectionCard
+        botDisplayName=""
+        botToken=""
+        botUsername=""
+        connection={null}
+        externalLink=""
+        isSaving={false}
+        language="en"
+        onBotDisplayNameChange={vi.fn()}
+        onBotTokenChange={vi.fn()}
+        onBotUsernameChange={vi.fn()}
+        onExternalLinkChange={vi.fn()}
+        onSave={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('Advanced experimental automation settings')).toBeInTheDocument();
+    expect(screen.getByText('This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.')).toBeInTheDocument();
+  });
+
   test('localizes Telegram identity placeholders in Khmer', () => {
     render(
       <AutomationConnectionCard

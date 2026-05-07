@@ -22,7 +22,7 @@ function OverviewPage() {
     <div>
       <CurrentPath />
       <Link state={buildKaurKhorNavigationState(location)} to="/catalog">
-        Open Catalog
+        Open Products
       </Link>
       <Link state={buildKaurKhorNavigationState(location)} to="/work/capture">
         Open Capture
@@ -67,7 +67,7 @@ function NestedDetailPage() {
   );
 }
 
-function CatalogPage() {
+function ProductsPage() {
   const location = useLocation();
   return (
     <div>
@@ -118,7 +118,7 @@ function renderHistoryApp(initialEntries: Array<string | { pathname: string; sea
           <Route element={<OverviewPage />} path="/" />
           <Route element={<FinancialsPage />} path="/financials" />
           <Route element={<ServiceDetailPage />} path="/catalog/services/:serviceId" />
-          <Route element={<CatalogPage />} path="/catalog" />
+          <Route element={<ProductsPage />} path="/catalog" />
           <Route element={<NestedDetailPage />} path="/catalog/skus/:skuId" />
           <Route element={<CapturePage />} path="/work/capture" />
           <Route element={<StockCountPage />} path="/work/capture/stock-count" />
@@ -254,7 +254,7 @@ describe('NavigationHistoryProvider', () => {
     const user = userEvent.setup();
     renderHistoryApp(['/']);
 
-    await user.click(screen.getByRole('link', { name: 'Open Catalog' }));
+    await user.click(screen.getByRole('link', { name: 'Open Products' }));
     expect(screen.getByTestId('path')).toHaveTextContent(/^\/catalog$/);
 
     await user.click(screen.getByRole('link', { name: 'Open Archive' }));

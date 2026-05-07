@@ -87,7 +87,7 @@ export function SupplierField({
     if (isExistingSupplier) {
       return normalizedValue;
     }
-    return undefined;
+    return noSupplierFieldValue;
   }, [customMode, isCustomSupplier, isExistingSupplier, normalizedValue]);
 
   useEffect(() => {
