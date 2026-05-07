@@ -194,9 +194,9 @@ jobs:
           ls -la dist
           test -n "$(find dist -maxdepth 1 -name '*.dmg' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*.exe' -print -quit)"
-          test -n "$(find dist -maxdepth 1 -name '*-linux-x86_64.AppImage' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -name '*-linux-x64.AppImage' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*-linux-arm64.AppImage' -print -quit)"
-          test -n "$(find dist -maxdepth 1 -name '*-linux-amd64.deb' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -name '*-linux-x64.deb' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*-linux-arm64.deb' -print -quit)"
 
       - name: Generate SHA256 checksums
