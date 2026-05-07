@@ -692,6 +692,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
             language,
             'Choose the physical, customer, or supplier ticket flow that matches the work you are recording.',
           )}
+          helperExemptReason="Record update hub title is route framing; each selectable lane card carries the actionable workflow explanation."
         />
       ) : null}
       <CenteredTileGrid>

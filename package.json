@@ -1,6 +1,6 @@
 {
   "name": "kaur-khor",
-  "version": "0.2.2",
+  "version": "0.2.5",
   "private": true,
   "description": "Electron desktop inventory workspace for Kaur Khor, with a bundled Rust desktop-core runtime for local persistence and analysis flows.",
   "author": {
