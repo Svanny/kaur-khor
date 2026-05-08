@@ -394,7 +394,9 @@ describe('SENA routes', () => {
 
     const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
     expect(skuRow).not.toBeNull();
-    fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+    await act(async () => {
+      fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
+    });
 
     expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Stock Count' })).toBeInTheDocument();
@@ -570,7 +572,9 @@ describe('SENA routes', () => {
 
     const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
     expect(unsellableRow).not.toBeNull();
-    fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
+    await act(async () => {
+      fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
+    });
     expect(screen.queryByRole('menuitem', { name: 'Updated Price' })).not.toBeInTheDocument();
   });
 

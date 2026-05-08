@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
-import { Sheet, SheetContent, SheetTitle } from './sheet';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from './sheet';
 
 describe('Sheet portal target', () => {
   afterEach(() => {
@@ -18,6 +18,7 @@ describe('Sheet portal target', () => {
         <Sheet open>
           <SheetContent>
             <SheetTitle>Drawer title</SheetTitle>
+            <SheetDescription>Drawer description</SheetDescription>
           </SheetContent>
         </Sheet>,
       );

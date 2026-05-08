@@ -97,7 +97,15 @@ vi.mock('@/components/ui/toggle-group', () => ({
   }: {
     children: ReactNode;
     value: string;
-  } & ButtonHTMLAttributes<HTMLButtonElement>) => {
+  } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'value'> & {
+    disableHoverSurface?: boolean;
+    disableSelectedShadow?: boolean;
+  }) => {
+    const {
+      disableHoverSurface: _disableHoverSurface,
+      disableSelectedShadow: _disableSelectedShadow,
+      ...buttonProps
+    } = props;
     const context = useContext(toggleGroupContext);
     const checked = context?.value === value;
     return (
@@ -106,9 +114,9 @@ vi.mock('@/components/ui/toggle-group', () => ({
         type="button"
         aria-checked={checked}
         data-state={checked ? 'on' : 'off'}
-        {...props}
+        {...buttonProps}
         onClick={(event) => {
-          props.onClick?.(event);
+          buttonProps.onClick?.(event);
           context?.onValueChange?.(value);
         }}
       >
