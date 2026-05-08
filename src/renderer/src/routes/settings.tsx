@@ -1578,7 +1578,7 @@ export function SettingsRoute() {
       onboardingCompletedAt: null,
       seenUnlockedNavItems: DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
     });
-    navigate('/onboarding');
+    navigate('/onboarding', { state: { kaurKhorAllowCompletedOnboarding: true } });
   }
 
   return (

@@ -216,6 +216,11 @@ export function AppRoutes() {
 function AppFrame() {
   const { isHydrated, language, onboardingCompletedAt } = usePreferences();
   const location = useLocation();
+  const allowCompletedOnboarding =
+    typeof location.state === 'object' &&
+    location.state != null &&
+    'kaurKhorAllowCompletedOnboarding' in location.state &&
+    location.state.kaurKhorAllowCompletedOnboarding === true;
   const preferencesHydrationRecordedRef = useRef(false);
 
   useEffect(() => {
@@ -250,7 +255,7 @@ function AppFrame() {
     );
   }
 
-  if (location.pathname === '/onboarding') {
+  if (location.pathname === '/onboarding' && allowCompletedOnboarding) {
     return <OnboardingRoute allowCompleted />;
   }
 

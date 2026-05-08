@@ -92,7 +92,9 @@ vi.mock('@/routes/stock-update-session', () => ({
   StockUpdateSessionRoute: () => <div>Stock update session screen</div>,
 }));
 vi.mock('@/routes/onboarding', () => ({
-  OnboardingRoute: () => <div>Onboarding screen</div>,
+  OnboardingRoute: ({ allowCompleted = false }: { allowCompleted?: boolean }) => (
+    <div>{allowCompleted ? 'Onboarding screen reopened' : 'Onboarding screen'}</div>
+  ),
 }));
 
 import { AppRoutes, LoadedApp, routeBenchmarkName } from './App';
@@ -269,14 +271,30 @@ describe('LoadedApp', () => {
     expect(screen.queryByText('Work screen')).not.toBeInTheDocument();
   });
 
-  it('lets completed users explicitly reopen onboarding', async () => {
+  it('redirects completed users away from stale onboarding routes', async () => {
     render(
       <MemoryRouter initialEntries={['/onboarding']}>
         <LoadedApp />
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('Onboarding screen')).toBeInTheDocument();
+    expect(await screen.findByText('Home screen')).toBeInTheDocument();
+    expect(screen.queryByText('Onboarding screen')).not.toBeInTheDocument();
+  });
+
+  it('lets completed users explicitly reopen onboarding', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={[{
+          pathname: '/onboarding',
+          state: { kaurKhorAllowCompletedOnboarding: true },
+        }]}
+      >
+        <LoadedApp />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Onboarding screen reopened')).toBeInTheDocument();
     expect(screen.queryByText('Home screen')).not.toBeInTheDocument();
   });
 
