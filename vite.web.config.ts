@@ -17,6 +17,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@sqlite.org/sqlite-wasm'],
   },
+  preview: {
+    host: true,
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
@@ -25,5 +28,8 @@ export default defineConfig({
       '@renderer': resolve(__dirname, 'src/renderer/src'),
       '@shared': resolve(__dirname, 'src/shared'),
     },
+  },
+  server: {
+    host: true,
   },
 });

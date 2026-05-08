@@ -309,8 +309,8 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-6 py-10">
-      <div className="hero-mesh editorial-panel w-full max-w-4xl rounded-[2rem] p-8 md:p-10">
+    <div className="flex min-h-svh items-center justify-center px-6 py-10" data-slot="onboarding-page">
+      <div className="hero-mesh editorial-panel w-full max-w-4xl rounded-[2rem] p-8 md:p-10" data-slot="onboarding-card">
         <style>{`
           @keyframes ${onboardingCopyEnglishAnimationName} {
             0%, 44% {
@@ -345,6 +345,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
         `}</style>
         <p
           aria-label={step === 'preferences' ? copy.welcome[selectedLanguage] : copy.welcome[interfaceLanguage]}
+          data-slot="onboarding-eyebrow"
           className={cn(
             'text-xs font-semibold text-primary/80',
             (step === 'preferences' ? selectedLanguage : interfaceLanguage) === 'km'
@@ -371,6 +372,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
         </p>
         <h1
           aria-label={step === 'preferences' ? activeTitle[selectedLanguage] : activeTitle[interfaceLanguage]}
+          data-slot="onboarding-title"
           className={cn(
             'mt-3 text-4xl font-semibold text-foreground',
             (step === 'preferences' ? selectedLanguage : interfaceLanguage) === 'km'
@@ -395,7 +397,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
             />
           )}
         </h1>
-        <p aria-label={step === 'preferences' ? activeDescription[selectedLanguage] : activeDescription[interfaceLanguage]} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground">
+        <p aria-label={step === 'preferences' ? activeDescription[selectedLanguage] : activeDescription[interfaceLanguage]} className="mt-4 max-w-xl text-base leading-7 text-muted-foreground" data-slot="onboarding-description">
           {step === 'preferences' ? (
             <CyclingOnboardingCopy
               className="h-[5.5rem] md:h-[4rem]"
@@ -415,7 +417,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
         </p>
 
         {step === 'preferences' ? (
-          <div className="mt-8 grid gap-5 md:grid-cols-2">
+          <div className="mt-8 grid gap-5 md:grid-cols-2" data-slot="onboarding-controls">
             <div className="grid gap-2">
               <label aria-label={copy.language[selectedLanguage]} className="text-sm font-semibold text-foreground" htmlFor="onboarding-language">
                 <CyclingOnboardingCopy
@@ -467,7 +469,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
             </div>
           </div>
         ) : (
-          <div className="mt-8 grid gap-3">
+          <div className="mt-8 grid gap-3" data-slot="onboarding-controls">
             <p aria-label={copy.interfaceView[interfaceLanguage]} className="text-sm font-semibold text-foreground">
               <LocalizedOnboardingCopy
                 className="block h-[1.6rem]"
@@ -490,7 +492,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
           </p>
         ) : null}
 
-        <div className="mt-8 flex items-center justify-between">
+        <div className="mt-8 flex items-center justify-between" data-slot="onboarding-actions">
           {step === 'interface' ? (
             <Button
               className="inline-grid w-fit min-w-0 grid-cols-[auto_auto] items-center gap-2 px-5"

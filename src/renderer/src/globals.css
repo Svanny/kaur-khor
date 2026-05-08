@@ -318,6 +318,33 @@
     height: var(--kaur-khor-embedded-shell-content-height, var(--kaur-khor-effective-viewport-height, 100svh));
   }
 
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-viewport"] {
+    background-color: var(--foreground);
+  }
+
+  html[data-kaur-khor-embedded-phone-landscape="true"],
+  html[data-kaur-khor-embedded-phone-landscape="true"] body,
+  html[data-kaur-khor-embedded-phone-landscape="true"] #root {
+    background-color: var(--foreground);
+    background-image: none;
+  }
+
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-phone-landscape-frame"] {
+    background-color: var(--foreground);
+    position: relative;
+  }
+
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-layout-spacer"] {
+    background-color: var(--background);
+    overflow: hidden;
+    position: relative;
+  }
+
+  html[data-kaur-khor-embedded-viewport="true"] [data-slot="embedded-auto-zoom-surface"] .hero-mesh.editorial-panel {
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.88) !important;
+  }
+
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="sidebar"],
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="sidebar-gap"],
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="sidebar-container"],
@@ -389,8 +416,13 @@
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="sidebar-inset"],
-  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="shell-viewport-frame"],
-  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="shell-main-content"],
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="shell-viewport-frame"] {
+    flex: 0 0 auto;
+    height: var(--kaur-khor-effective-viewport-height, 100svh) !important;
+    min-height: var(--kaur-khor-effective-viewport-height, 100svh);
+    overflow: hidden !important;
+  }
+
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="shell-main-frame"] {
     flex: 0 0 auto;
     height: auto !important;
@@ -398,12 +430,24 @@
     overflow: visible !important;
   }
 
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="shell-main-content"] {
+    background-color: var(--background);
+    flex: 1 1 auto;
+    height: var(--kaur-khor-effective-viewport-height, 100svh) !important;
+    min-height: 0;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-fit-viewport="true"],
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="command-home-page"],
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="centered-tile-grid"] {
     flex: 0 0 auto;
-    height: auto;
-    min-height: max-content;
+    height: auto !important;
+    min-height: var(--kaur-khor-embedded-shell-content-height, var(--kaur-khor-effective-viewport-height, 100svh));
+    overflow: visible;
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="embedded-auto-zoom-surface"] .min-h-svh {
@@ -423,7 +467,7 @@
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="centered-tile-grid"] {
     align-content: start;
     align-items: start;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     justify-items: center;
     padding-block: 1rem 2rem;
     place-content: start center;
@@ -454,7 +498,7 @@
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="tooltip-content"] {
-    rotate: -90deg;
+    pointer-events: none;
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="command-home-summary-grid"] {
@@ -467,9 +511,30 @@
   }
 
   html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="command-home-page"] {
-    flex: 1 1 auto;
-    height: auto;
-    min-height: var(--kaur-khor-embedded-shell-content-height, var(--kaur-khor-effective-viewport-height, 100svh));
+    flex: 0 0 auto;
+    gap: 0.75rem;
+    height: auto !important;
+    overflow: visible;
+  }
+
+  html[data-kaur-khor-embedded-phone-landscape="true"] [data-slot="onboarding-page"] {
+    align-items: flex-start;
+    margin-top: -3rem;
+    padding-top: 0.75rem !important;
+  }
+
+  html[data-kaur-khor-embedded-viewport="true"] [data-slot="onboarding-card"] {
+    position: relative;
+  }
+
+  html[data-kaur-khor-embedded-viewport="true"] [data-slot="onboarding-actions"] {
+    gap: 0.5rem;
+    justify-content: flex-end;
+    margin-top: 0 !important;
+    position: absolute;
+    right: 1.25rem;
+    top: 1.25rem;
+    z-index: 2;
   }
 
   .embedded-sidebar-action-label-medium,

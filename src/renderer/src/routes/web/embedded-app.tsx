@@ -540,15 +540,15 @@ function WebAppActionLabel({
   sidebarCollapsed: boolean;
 }) {
   if (isOnboarding) {
-    return <span>{full}</span>;
+    return <span data-slot="web-app-banner-action-label">{full}</span>;
   }
 
   const collapsedClassName = compactMode ? 'sr-only' : sidebarCollapsed ? 'md:sr-only' : undefined;
   return (
     <>
-      <span className={cn('embedded-sidebar-action-label-full', collapsedClassName)}>{full}</span>
-      <span className={cn('embedded-sidebar-action-label-medium', collapsedClassName)}>{medium}</span>
-      <span className={cn('embedded-sidebar-action-label-compact', collapsedClassName)}>{compact}</span>
+      <span className={cn('embedded-sidebar-action-label-full', collapsedClassName)} data-slot="web-app-banner-action-label">{full}</span>
+      <span className={cn('embedded-sidebar-action-label-medium', collapsedClassName)} data-slot="web-app-banner-action-label">{medium}</span>
+      <span className={cn('embedded-sidebar-action-label-compact', collapsedClassName)} data-slot="web-app-banner-action-label">{compact}</span>
     </>
   );
 }
@@ -581,9 +581,6 @@ function WebAppBanner({
   const importShortLabel = translateUiLiteral(language, 'Import');
   const resetLabel = translateUiLiteral(language, isDemo ? 'Reset demo' : 'Reset workspace');
   const resetShortLabel = translateUiLiteral(language, 'Reset');
-  const destinationLabel = translateUiLiteral(language, 'Download app');
-  const destinationMediumLabel = translateUiLiteral(language, 'Download');
-  const destinationCompactLabel = translateUiLiteral(language, 'Download');
   const mainPageLabel = translateUiLiteral(language, 'Main page');
   const mainPageCompactLabel = translateUiLiteral(language, 'Main');
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -620,19 +617,22 @@ function WebAppBanner({
           compactSidebarBanner ? 'justify-items-center' : null,
           sidebarCollapsed && !isOnboarding ? 'md:justify-items-center' : null,
           isOnboarding ? 'flex min-w-0 flex-1 items-center gap-3' : null,
-        )}>
+        )} data-slot="web-app-banner-copy">
           <span className={cn('grid size-9 shrink-0 place-items-center justify-self-center rounded-[0.85rem] bg-amber-100 text-amber-950 md:size-8 md:rounded-md', isOnboarding ? 'size-9 rounded-lg' : null)}>
             <StatusWarningIcon className="size-4" />
           </span>
-          <div className={cn('min-w-0 text-left', compactSidebarBanner ? 'sr-only' : null, sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'flex-1' : null)}>
-            <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)}>
+          <div
+            className={cn('min-w-0 text-left', compactSidebarBanner ? 'sr-only' : null, sidebarCollapsed && !isOnboarding ? 'md:sr-only' : null, isOnboarding ? 'flex-1' : null)}
+            data-slot="web-app-banner-text"
+          >
+            <p className={cn('font-semibold md:leading-4', isOnboarding ? 'whitespace-normal break-words leading-snug' : null)} data-slot="web-app-banner-title">
               {translateUiLiteral(language, isDemo ? 'Demo data - not your real workspace.' : 'Export a backup before closing.')}
             </p>
             {isDemo ? (
-              <p className="hidden text-muted-foreground md:block">{translateUiLiteral(language, 'Sample workspace. Reset anytime.')}</p>
+              <p className="hidden text-muted-foreground md:block" data-slot="web-app-banner-description">{translateUiLiteral(language, 'Sample workspace. Reset anytime.')}</p>
             ) : (
               <>
-                <p className="text-muted-foreground">{appWarningMessage}</p>
+                <p className="text-muted-foreground" data-slot="web-app-banner-description">{appWarningMessage}</p>
                 {appActionableErrorMessage ? <p className="text-destructive" role="alert">{appActionableErrorMessage}</p> : null}
               </>
             )}
@@ -656,14 +656,6 @@ function WebAppBanner({
             <ActionResetIcon className="size-4" />
             <WebAppActionLabel compact={resetShortLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? resetShortLabel : resetLabel} isOnboarding={isOnboarding} medium={resetShortLabel} sidebarCollapsed={sidebarCollapsed} />
           </Button>
-          {!isDemo ? (
-            <Button asChild className={actionButtonClassName} size="sm" variant="outline">
-              <a aria-label={destinationLabel} href={publicPath('/#releases')}>
-                <WebDownloadIcon className="size-4" />
-                <WebAppActionLabel compact={destinationCompactLabel} compactMode={compactSidebarBanner} full={isSidebarBanner ? destinationMediumLabel : destinationLabel} isOnboarding={isOnboarding} medium={destinationMediumLabel} sidebarCollapsed={sidebarCollapsed} />
-              </a>
-            </Button>
-          ) : null}
           <Button asChild className={actionButtonClassName} size="sm" variant="outline">
             <a aria-label={mainPageLabel} href={publicPath('/')}>
               <WebHomeIcon className="size-4" />

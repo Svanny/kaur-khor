@@ -17,6 +17,7 @@ vi.mock('@/runtime/web', async (importOriginal) => {
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import { RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE } from '@shared/responsive-zoom';
 import { setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
@@ -37,7 +38,6 @@ import {
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
   isBrowserTelegramLiveListening,
-  landscapeScrollWidthForContent,
   WebRoutes,
 } from './index';
 
@@ -656,7 +656,8 @@ describe('WebRoutes releases section', () => {
     await waitFor(() => expect(select).toBeDisabled());
     expect(select.value).toBe('');
     expect(screen.getByRole('heading', { name: 'Android app is not supported' })).toBeInTheDocument();
-    expect(screen.getAllByText('Android app is not supported. Use the browser app instead.')).toHaveLength(2);
+    expect(screen.getByText('Download is unavailable.')).toBeInTheDocument();
+    expect(screen.getAllByText('Android app is not supported. Use the browser app instead.')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
   });
@@ -674,7 +675,8 @@ describe('WebRoutes releases section', () => {
     await waitFor(() => expect(select).toBeDisabled());
     expect(select.value).toBe('');
     expect(screen.getByRole('heading', { name: 'iOS app is not supported' })).toBeInTheDocument();
-    expect(screen.getAllByText('iOS app is not supported. Use the browser app instead.')).toHaveLength(2);
+    expect(screen.getByText('Download is unavailable.')).toBeInTheDocument();
+    expect(screen.getAllByText('iOS app is not supported. Use the browser app instead.')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
   });
@@ -1248,7 +1250,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('នាំចេញច្បាប់បម្រុងមុនពេលបិទ។')).toBeInTheDocument();
     expect(screen.getByText(/កន្លែងធ្វើការកខរបស់អ្នកត្រូវបានរក្សាទុក/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'កំណត់កន្លែងធ្វើការឡើងវិញ' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'ទាញយកកម្មវិធី' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ទាញយកកម្មវិធី' })).not.toBeInTheDocument();
     expect(screen.queryByText('Export a backup before closing.')).not.toBeInTheDocument();
   });
 
@@ -1361,6 +1363,8 @@ describe('WebRoutes embedded app fallback state', () => {
 
   test('uses a landscape-first embedded product shell for portrait phones', async () => {
     mockViewport(390, 844);
+    const phoneLandscapeWidth = 844;
+    const phoneLandscapeHeight = 475;
 
     const { container } = render(
       <EmbeddedAutoZoomViewport>
@@ -1376,31 +1380,35 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(frame).not.toBeNull();
     expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
     expect(viewport).toHaveAttribute('data-zoom-level', '-2');
-    expect(viewport).toHaveClass('overflow-x-auto', 'overflow-y-hidden');
-    expect(viewport).not.toHaveClass('overflow-hidden');
+    expect(viewport).toHaveClass('overflow-hidden');
+    expect(viewport).not.toHaveClass('overflow-x-auto', 'overflow-y-hidden');
+    expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(phoneLandscapeHeight / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+    expect(viewport).toHaveAttribute('data-measured-area', String(phoneLandscapeWidth * phoneLandscapeHeight));
     expect(viewport).toHaveStyle({
-      '--kaur-khor-embedded-shell-content-height': `${390 / (1.2 ** -2)}px`,
-      '--kaur-khor-embedded-shell-content-width': `${844 / (1.2 ** -2)}px`,
+      '--kaur-khor-embedded-shell-content-height': `${phoneLandscapeHeight / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE}px`,
+      '--kaur-khor-embedded-shell-content-width': `${phoneLandscapeWidth / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE}px`,
     });
     expect(spacer).toHaveStyle({
       minHeight: '844px',
-      width: '390px',
+      width: `${phoneLandscapeHeight}px`,
     });
     expect(frame).toHaveStyle({
-      height: '390px',
+      height: `${phoneLandscapeHeight}px`,
       left: '0px',
       position: 'absolute',
-      top: '844px',
+      top: `${phoneLandscapeWidth}px`,
       transform: 'rotate(-90deg)',
-      width: '844px',
+      width: `${phoneLandscapeWidth}px`,
     });
     await waitFor(() => {
-      expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportWidth)).toBe(Math.round(844 / (1.2 ** -2)));
+      expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportWidth)).toBe(Math.round(phoneLandscapeWidth / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE));
+      expect(Number(document.documentElement.dataset.kaurKhorEffectiveViewportHeight)).toBe(Math.round(phoneLandscapeHeight / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE));
     });
   });
 
-  test('expands the embedded shell height when phone landscape content needs scroll', async () => {
+  test('keeps phone landscape shell fixed when content would otherwise need scroll', async () => {
     mockViewport(390, 844);
+    const phoneLandscapeHeight = 475;
     const originalGetBoundingClientRect = HTMLElement.prototype.getBoundingClientRect;
     HTMLElement.prototype.getBoundingClientRect = function getBoundingClientRect() {
       if (this instanceof HTMLElement && this.dataset.slot === 'embedded-auto-zoom-viewport') {
@@ -1427,8 +1435,9 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(viewport).not.toBeNull();
       await waitFor(() => {
         expect(viewport).toHaveStyle({
-          '--kaur-khor-embedded-shell-content-height': `${landscapeScrollWidthForContent(390, 560) / (1.2 ** -2)}px`,
+          '--kaur-khor-embedded-shell-content-height': `${phoneLandscapeHeight / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE}px`,
         });
+        expect(viewport).toHaveClass('overflow-hidden');
       });
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect;
@@ -1483,13 +1492,13 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'true');
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '-2');
       expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / (1.2 ** -2))));
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
     });
   });
 
-  test.each(['demo', 'app'] as const)('refreshes embedded route auto zoom from phone landscape to wide browser in %s mode', async (mode) => {
-    mockViewport(844, 390);
+  test.each(['demo', 'app'] as const)('refreshes embedded route auto zoom from phone portrait to wide browser and back in %s mode', async (mode) => {
+    mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
 
     const { container } = render(<EmbeddedAppRoute mode={mode} />);
@@ -1497,7 +1506,10 @@ describe('WebRoutes embedded app fallback state', () => {
     const viewport = await waitFor(() => {
       const current = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
       expect(current).not.toBeNull();
+      expect(current).toHaveAttribute('data-phone-landscape', 'true');
       expect(current).toHaveAttribute('data-zoom-level', '-2');
+      expect(current).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(current).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
       return current;
     });
 
@@ -1510,6 +1522,17 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(viewport).toHaveAttribute('data-effective-width', '1600');
       expect(viewport).toHaveAttribute('data-effective-height', '900');
       expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+    });
+
+    mockViewport(390, 844);
+    fireEvent.resize(window);
+
+    await waitFor(() => {
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
+      expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+      expect(viewport).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
     });
   });
 
@@ -1558,6 +1581,20 @@ describe('WebRoutes embedded app fallback state', () => {
 
     expect(screen.queryByRole('dialog', { name: 'Rotate screen' })).not.toBeInTheDocument();
     expect(document.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
+    expect(document.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveClass('overflow-hidden');
+    expect(document.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-width', String(Math.round(693 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+    expect(document.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-height', String(Math.round(390 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+    expect(document.querySelector('[data-slot="embedded-phone-landscape-frame"]')).toHaveStyle({
+      height: '390px',
+      width: '844px',
+    });
+    expect(document.querySelector('[data-slot="embedded-auto-zoom-layout-spacer"]')).toHaveStyle({
+      height: '390px',
+      left: '75.5px',
+      position: 'absolute',
+      top: '0px',
+      width: '693px',
+    });
   });
 
   test('refreshes root embedded viewport metadata after phone rotation with stable effective dimensions', async () => {
@@ -1572,7 +1609,11 @@ describe('WebRoutes embedded app fallback state', () => {
     const viewport = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
     expect(viewport).not.toBeNull();
     await waitFor(() => {
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(693 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(viewport?.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
     });
 
     mockViewport(390, 844);
@@ -1581,14 +1622,9 @@ describe('WebRoutes embedded app fallback state', () => {
     await waitFor(() => {
       expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
       expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / (1.2 ** -2))));
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(390 / (1.2 ** -2))));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
     });
-  });
-
-  test('does not add phone landscape scroll width when content already fits', () => {
-    expect(landscapeScrollWidthForContent(532, 532.375)).toBe(532);
-    expect(landscapeScrollWidthForContent(532, 540)).toBe(556);
   });
 
   test('renders the embedded onboarding banner in the app flow', () => {
@@ -1643,6 +1679,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(bannerCard).not.toHaveClass('backdrop-blur-xl');
     expect(screen.getByText('Export a backup before closing.')).toHaveClass('whitespace-normal', 'break-words');
     expect(screen.getByRole('button', { name: 'Export backup' })).toHaveClass('w-36', 'sm:w-44', 'rounded-lg');
+    expect(screen.queryByRole('link', { name: 'Download app' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
   });
 
@@ -1662,6 +1699,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('Export a backup before closing.')).toBeInTheDocument();
     expect(screen.getByText(BROWSER_WORKSPACE_CLOSE_WARNING)).toBeInTheDocument();
     expect(screen.queryByText(/Reports and Telegram checks only keep running/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Download app' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Main page' })).toHaveAttribute('href', '/');
   });
 

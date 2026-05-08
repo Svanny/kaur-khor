@@ -3,6 +3,8 @@ export const RESPONSIVE_ZOOM_HEIGHT_HYSTERESIS_PX = 16;
 export const RESPONSIVE_ZOOM_AREA_HYSTERESIS_PX = 32_000;
 export const RESPONSIVE_ZOOM_HYSTERESIS_PX = RESPONSIVE_ZOOM_WIDTH_HYSTERESIS_PX;
 export const RESPONSIVE_PHONE_WIDTH_THRESHOLD_PX = 740;
+export const RESPONSIVE_PHONE_LANDSCAPE_MAX_ASPECT_RATIO = 16 / 9;
+export const RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE = 0.4;
 
 export type ResponsiveZoomLevel = 0 | -0.5 | -1 | -1.5 | -2;
 
@@ -169,6 +171,44 @@ export function isPhonePortraitViewport(width: number, height: number) {
   return normalizedWidth > 0 && normalizedWidth < RESPONSIVE_PHONE_WIDTH_THRESHOLD_PX && normalizedHeight > normalizedWidth;
 }
 
+export function isPhoneLandscapeViewport(width: number, height: number) {
+  const normalizedWidth = finiteMeasuredDimension(width);
+  const normalizedHeight = finiteMeasuredDimension(height);
+  return normalizedHeight > 0 && normalizedHeight < RESPONSIVE_PHONE_WIDTH_THRESHOLD_PX && normalizedWidth > normalizedHeight;
+}
+
+export function derivePhoneLandscapeViewportDimensions(width: number, height: number) {
+  const normalizedWidth = finiteMeasuredDimension(width);
+  const normalizedHeight = finiteMeasuredDimension(height);
+  const rawLandscapeWidth = Math.max(normalizedWidth, normalizedHeight);
+  const rawLandscapeHeight = Math.min(normalizedWidth, normalizedHeight);
+  const measuredHeight = Math.max(
+    rawLandscapeHeight,
+    Math.ceil(rawLandscapeWidth / RESPONSIVE_PHONE_LANDSCAPE_MAX_ASPECT_RATIO),
+  );
+
+  return {
+    measuredHeight,
+    measuredWidth: rawLandscapeWidth,
+    sidePadding: (measuredHeight - rawLandscapeHeight) / 2,
+  };
+}
+
+export function deriveNativePhoneLandscapeViewportDimensions(width: number, height: number) {
+  const normalizedWidth = finiteMeasuredDimension(width);
+  const normalizedHeight = finiteMeasuredDimension(height);
+  const measuredWidth = Math.min(
+    normalizedWidth,
+    Math.floor(normalizedHeight * RESPONSIVE_PHONE_LANDSCAPE_MAX_ASPECT_RATIO),
+  );
+
+  return {
+    measuredHeight: normalizedHeight,
+    measuredWidth,
+    sidePadding: (normalizedWidth - measuredWidth) / 2,
+  };
+}
+
 export function deriveResponsiveViewportPolicy({
   height,
   previousLevel,
@@ -181,8 +221,14 @@ export function deriveResponsiveViewportPolicy({
   const normalizedWidth = finiteMeasuredDimension(width);
   const normalizedHeight = finiteMeasuredDimension(height);
   const phoneLandscape = isPhonePortraitViewport(normalizedWidth, normalizedHeight);
-  const measuredWidth = phoneLandscape ? normalizedHeight : normalizedWidth;
-  const measuredHeight = phoneLandscape ? normalizedWidth : normalizedHeight;
+  const phoneViewport = phoneLandscape || isPhoneLandscapeViewport(normalizedWidth, normalizedHeight);
+  const phoneLandscapeDimensions = phoneLandscape
+    ? derivePhoneLandscapeViewportDimensions(normalizedWidth, normalizedHeight)
+    : isPhoneLandscapeViewport(normalizedWidth, normalizedHeight)
+      ? deriveNativePhoneLandscapeViewportDimensions(normalizedWidth, normalizedHeight)
+      : null;
+  const measuredWidth = phoneLandscapeDimensions?.measuredWidth ?? normalizedWidth;
+  const measuredHeight = phoneLandscapeDimensions?.measuredHeight ?? normalizedHeight;
   const constraintLevels = deriveResponsiveZoomConstraintLevels({
     height: measuredHeight,
     previousLevel,
@@ -193,7 +239,10 @@ export function deriveResponsiveViewportPolicy({
     constraintLevels.heightLevel,
     constraintLevels.areaLevel,
   ) as ResponsiveZoomLevel;
-  const scale = zoomLevelToScale(zoomLevel);
+  const responsiveScale = zoomLevelToScale(zoomLevel);
+  const scale = phoneViewport
+    ? Math.min(responsiveScale, RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)
+    : responsiveScale;
 
   return {
     constraintLevels,
@@ -203,6 +252,8 @@ export function deriveResponsiveViewportPolicy({
     measuredHeight,
     measuredWidth,
     phoneLandscape,
+    phoneViewport,
+    phoneLandscapeSidePadding: phoneLandscapeDimensions?.sidePadding ?? 0,
     scale,
     zoomLevel,
   };

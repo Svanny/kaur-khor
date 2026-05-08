@@ -188,6 +188,14 @@ pnpm install
 pnpm dev
 ```
 
+For phone or tablet checks against the browser surface:
+
+```bash
+pnpm run dev:web
+```
+
+Use the printed `Network` URL with `/kaur-khor/demo` for LAN HTTP testing. The real `/kaur-khor/app` browser workspace needs a secure browser context for OPFS-backed storage, so plain `http://<LAN IP>:<port>` shows the storage limitation screen instead of storing real app data.
+
 ### Web Build
 
 ```bash

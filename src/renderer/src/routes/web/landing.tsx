@@ -241,6 +241,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Count Stock': 'រាប់ស្តុក',
   Demo: 'សាកល្បង',
   'Download': 'ទាញយក',
+  'Download is unavailable.': 'ការទាញយកមិនអាចប្រើបានទេ។',
   'Download only from the official GitHub release. Verify release files against': 'ទាញយកតែពី GitHub release ផ្លូវការ។ ផ្ទៀងផ្ទាត់ឯកសារ release ជាមួយ',
   'Download selected': 'ទាញយកជម្រើស',
   'Download the desktop app': 'ទាញយកដេសថបអេប',
@@ -1225,7 +1226,7 @@ function ReleasesSection({ language }: { language: AppLanguage }) {
   const releaseStatusText = downloadState.status === 'error'
     ? landingText(language, 'Release downloads are unavailable right now.')
     : isMobileDetectedPlatform
-      ? landingText(language, `${platformDescription}. Use the browser app instead.`)
+      ? landingText(language, 'Download is unavailable.')
     : language === 'km'
       ? `${landingText(language, platformDescription)}${downloadState.releaseName ? ` ${landingText(language, 'from')} ${downloadState.releaseName}` : ''}។`
       : `${platformDescription}${downloadState.releaseName ? ` from ${downloadState.releaseName}` : ''}.`;

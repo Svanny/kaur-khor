@@ -889,7 +889,10 @@ describe('KaurKhorShell', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getAllByText('New!').length).toBeGreaterThan(0);
+    const unlockedBadges = screen.getAllByText('New!');
+
+    expect(unlockedBadges.length).toBeGreaterThan(0);
+    expect(unlockedBadges.every((badge) => badge.className.includes('right-9'))).toBe(true);
 
     await waitFor(() => {
       expect(markUnlockedNavItemSeen).toHaveBeenCalledWith('insights');

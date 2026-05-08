@@ -12,9 +12,12 @@ import {
   updateAutomaticWindowZoomLevel,
 } from './window-zoom';
 import {
+  deriveNativePhoneLandscapeViewportDimensions,
+  derivePhoneLandscapeViewportDimensions,
   deriveResponsiveZoomConstraintLevels,
   deriveResponsiveViewportPolicy,
   isPhonePortraitViewport,
+  RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE,
   selectResponsiveZoomLevel,
   zoomLevelToScale,
 } from '@shared/responsive-zoom';
@@ -79,16 +82,41 @@ describe('responsive zoom policy', () => {
     expect(deriveResponsiveZoomConstraintLevels({ width: 1600, height: 921, previousLevel: -0.5 }).areaLevel).toBe(0);
   });
 
-  test('derives landscape-first phone dimensions before scale', () => {
+  test('derives padded landscape-first phone dimensions before scale', () => {
     const policy = deriveResponsiveViewportPolicy({ width: 390, height: 844 });
+    const phoneDimensions = derivePhoneLandscapeViewportDimensions(390, 844);
 
     expect(isPhonePortraitViewport(390, 844)).toBe(true);
+    expect(phoneDimensions).toEqual({
+      measuredHeight: 475,
+      measuredWidth: 844,
+      sidePadding: 42.5,
+    });
     expect(policy.phoneLandscape).toBe(true);
+    expect(policy.phoneViewport).toBe(true);
     expect(policy.measuredWidth).toBe(844);
-    expect(policy.measuredHeight).toBe(390);
+    expect(policy.measuredHeight).toBe(475);
+    expect(policy.phoneLandscapeSidePadding).toBe(42.5);
     expect(policy.zoomLevel).toBe(-2);
-    expect(policy.effectiveWidth).toBeCloseTo(844 / zoomLevelToScale(-2));
-    expect(policy.effectiveHeight).toBeCloseTo(390 / zoomLevelToScale(-2));
+    expect(policy.effectiveWidth).toBeCloseTo(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE);
+    expect(policy.effectiveHeight).toBeCloseTo(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE);
+  });
+
+  test('pads native phone landscape horizontally without inventing visible height', () => {
+    const policy = deriveResponsiveViewportPolicy({ width: 844, height: 390 });
+
+    expect(deriveNativePhoneLandscapeViewportDimensions(844, 390)).toEqual({
+      measuredHeight: 390,
+      measuredWidth: 693,
+      sidePadding: 75.5,
+    });
+    expect(policy.phoneLandscape).toBe(false);
+    expect(policy.phoneViewport).toBe(true);
+    expect(policy.measuredWidth).toBe(693);
+    expect(policy.measuredHeight).toBe(390);
+    expect(policy.phoneLandscapeSidePadding).toBe(75.5);
+    expect(policy.effectiveWidth).toBeCloseTo(693 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE);
+    expect(policy.effectiveHeight).toBeCloseTo(390 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE);
   });
 });
 

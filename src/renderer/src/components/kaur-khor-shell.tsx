@@ -244,7 +244,7 @@ function SidebarTreeMenu({
             asChild
             className={cn(
               'min-w-0 justify-start gap-2 py-1.5 group-data-[collapsible=icon]:justify-center',
-              hasChildren && showSidebarText ? 'pr-8' : null,
+              (hasChildren || isNew) && showSidebarText ? 'pr-8' : null,
               depth > 0 && showSidebarText ? 'text-sidebar-foreground/80' : null,
               isNew && !isActive ? 'border border-primary/30 bg-primary/10 text-primary hover:bg-primary/15' : null,
             )}
@@ -288,8 +288,7 @@ function SidebarTreeMenu({
           ) : null}
           {isNew && showSidebarText ? (
             <SidebarMenuBadge className={cn(
-              'khmer-safe-label top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground',
-              hasChildren ? 'right-9' : 'right-2',
+              'khmer-safe-label right-9 top-1/2 -translate-y-1/2 rounded-full bg-primary px-2 text-[0.65rem] font-semibold uppercase tracking-[0.12em] text-primary-foreground',
             )}>
               {newLabel}
             </SidebarMenuBadge>

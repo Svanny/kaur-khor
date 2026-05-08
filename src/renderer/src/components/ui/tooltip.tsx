@@ -42,12 +42,19 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          "z-[120] max-w-[min(20rem,calc(100vw-2rem))] min-w-0 origin-(--radix-tooltip-content-transform-origin) animate-in rounded-md bg-foreground px-3 py-1.5 text-left text-xs leading-5 whitespace-normal break-words text-background shadow-lg fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-          className
+          "z-[120] min-w-0 origin-(--radix-tooltip-content-transform-origin) animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
         )}
         {...props}
       >
-        {children}
+        <div
+          data-slot="tooltip-content-frame"
+          className={cn(
+            "max-w-[min(20rem,calc(100vw-2rem))] min-w-0 rounded-md bg-foreground px-3 py-1.5 text-left text-xs leading-5 whitespace-normal break-words text-background shadow-lg",
+            className
+          )}
+        >
+          {children}
+        </div>
         <TooltipPrimitive.Arrow className="z-[120] size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-foreground fill-foreground" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>

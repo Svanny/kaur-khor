@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type TouchEvent, type WheelEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { deriveResponsiveViewportPolicy, isPhonePortraitViewport } from '@shared/responsive-zoom';
 import { cn } from '@/lib/utils';
 
@@ -11,16 +11,19 @@ type ScrollAreaSize = {
   width: number;
 };
 
-export function landscapeScrollWidthForContent(baseWidth: number, contentRight: number) {
-  const overflow = contentRight - baseWidth;
-  return overflow > 2 ? Math.ceil(contentRight + 16) : baseWidth;
-}
-
 function readViewportSize() {
   const visualViewport = window.visualViewport;
+  const documentElement = document.documentElement;
+  const visibleWidth = visualViewport?.width ?? Number.POSITIVE_INFINITY;
+  const visibleHeight = visualViewport?.height ?? Number.POSITIVE_INFINITY;
+  const innerWidth = window.innerWidth || Number.POSITIVE_INFINITY;
+  const innerHeight = window.innerHeight || Number.POSITIVE_INFINITY;
+  const clientWidth = documentElement?.clientWidth || Number.POSITIVE_INFINITY;
+  const clientHeight = documentElement?.clientHeight || Number.POSITIVE_INFINITY;
+
   return {
-    height: Math.max(0, Math.round(visualViewport?.height ?? window.innerHeight ?? 0)),
-    width: Math.max(0, Math.round(visualViewport?.width ?? window.innerWidth ?? 0)),
+    height: Math.max(0, Math.round(Math.min(visibleHeight, innerHeight, clientHeight))),
+    width: Math.max(0, Math.round(Math.min(visibleWidth, innerWidth, clientWidth))),
   };
 }
 
@@ -40,7 +43,6 @@ export function EmbeddedAutoZoomViewport({
   const scrollRootRef = useRef<HTMLDivElement | null>(null);
   const landscapeSpacerRef = useRef<HTMLDivElement | null>(null);
   const landscapeSurfaceRef = useRef<HTMLDivElement | null>(null);
-  const lastTouchPointRef = useRef<{ x: number; y: number } | null>(null);
   const [viewportSize, setViewportSize] = useState(readViewportSize);
   const [previousLevel, setPreviousLevel] = useState<number | null>(null);
   const [landscapeScrollArea, setLandscapeScrollArea] = useState<ScrollAreaSize | null>(null);
@@ -53,10 +55,10 @@ export function EmbeddedAutoZoomViewport({
   const policy = useMemo(
     () => deriveResponsiveViewportPolicy({
       height: policyViewportSize.height,
-      previousLevel: phoneLandscape ? null : previousLevel,
+      previousLevel,
       width: policyViewportSize.width,
     }),
-    [phoneLandscape, policyViewportSize.height, policyViewportSize.width, previousLevel],
+    [policyViewportSize.height, policyViewportSize.width, previousLevel],
   );
 
   useEffect(() => {
@@ -90,7 +92,7 @@ export function EmbeddedAutoZoomViewport({
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.kaurKhorEmbeddedViewport = 'true';
-    root.dataset.kaurKhorEmbeddedPhoneLandscape = policy.phoneLandscape ? 'true' : 'false';
+    root.dataset.kaurKhorEmbeddedPhoneLandscape = policy.phoneViewport ? 'true' : 'false';
     root.dataset.kaurKhorEffectiveViewportWidth = String(Math.round(policy.effectiveWidth));
     root.dataset.kaurKhorEffectiveViewportHeight = String(Math.round(policy.effectiveHeight));
     root.style.setProperty('--kaur-khor-embedded-scale', String(policy.scale));
@@ -116,7 +118,7 @@ export function EmbeddedAutoZoomViewport({
     policy.effectiveWidth,
     policy.measuredHeight,
     policy.measuredWidth,
-    policy.phoneLandscape,
+    policy.phoneViewport,
     policy.scale,
   ]);
 
@@ -145,30 +147,11 @@ export function EmbeddedAutoZoomViewport({
       }
       frameId = window.requestAnimationFrame(() => {
         frameId = null;
-        const rootRect = root.getBoundingClientRect();
-        let contentRight = baseArea.width;
-        const visibleElements = Array.from(surface.querySelectorAll<HTMLElement>('*'));
-
-        for (const element of visibleElements) {
-          if (
-            element.closest('[data-slot="sidebar"]') ||
-            element.dataset.slot === 'sidebar-wrapper' ||
-            element.dataset.slot === 'sidebar-inset'
-          ) {
-            continue;
-          }
-          const rect = element.getBoundingClientRect();
-          if (rect.width <= 0 || rect.height <= 0) {
-            continue;
-          }
-          contentRight = Math.max(contentRight, rect.right - rootRect.left + root.scrollLeft);
-        }
-
         const nextArea = {
           minHeight: baseArea.minHeight,
           surfaceHeight: baseArea.surfaceHeight,
-          surfaceWidth: Math.ceil(Math.max(baseArea.surfaceWidth, surface.scrollWidth)),
-          width: landscapeScrollWidthForContent(baseArea.width, contentRight),
+          surfaceWidth: baseArea.surfaceWidth,
+          width: baseArea.width,
         };
         setLandscapeScrollArea((current) => (
           current?.minHeight === nextArea.minHeight
@@ -203,22 +186,37 @@ export function EmbeddedAutoZoomViewport({
       window.removeEventListener('resize', measure);
       document.documentElement.removeEventListener(EMBEDDED_VIEWPORT_CHANGE_EVENT, measure);
     };
-  }, [policy.effectiveHeight, policy.effectiveWidth, policy.measuredHeight, policy.measuredWidth, policy.phoneLandscape]);
+  }, [policy.effectiveHeight, policy.effectiveWidth, policy.measuredHeight, policy.measuredWidth, policy.phoneLandscape, policy.phoneLandscapeSidePadding]);
 
+  const useTransformScale = policy.phoneViewport || !cssZoomSupported;
   const surfaceStyle = {
     '--kaur-khor-embedded-effective-height': `${policy.effectiveHeight}px`,
     '--kaur-khor-embedded-effective-width': `${policy.effectiveWidth}px`,
     '--kaur-khor-embedded-scale': String(policy.scale),
     minHeight: `${policy.effectiveHeight}px`,
-    transform: cssZoomSupported ? undefined : `scale(${policy.scale})`,
+    transform: useTransformScale ? `scale(${policy.scale})` : undefined,
     transformOrigin: 'top left',
     width: `${policy.effectiveWidth}px`,
-    zoom: cssZoomSupported ? policy.scale : undefined,
+    zoom: useTransformScale ? undefined : policy.scale,
   } as CSSProperties;
   const measuredViewportStyle = {
     height: `${policy.measuredHeight}px`,
     width: `${policy.measuredWidth}px`,
   } as CSSProperties;
+  const nativePhoneFrameStyle = policy.phoneViewport && !policy.phoneLandscape && policy.phoneLandscapeSidePadding > 0
+    ? {
+        height: `${policy.measuredHeight}px`,
+        width: `${policy.measuredWidth + policy.phoneLandscapeSidePadding * 2}px`,
+      } as CSSProperties
+    : null;
+  const nativePhoneWindowStyle = nativePhoneFrameStyle
+    ? {
+        ...measuredViewportStyle,
+        left: `${policy.phoneLandscapeSidePadding}px`,
+        position: 'absolute',
+        top: 0,
+      } as CSSProperties
+    : measuredViewportStyle;
   const embeddedShellContentHeight = policy.phoneLandscape
     ? (landscapeScrollArea?.width ?? policy.measuredHeight) / policy.scale
     : policy.effectiveHeight;
@@ -229,68 +227,30 @@ export function EmbeddedAutoZoomViewport({
     minHeight: `${landscapeScrollArea?.minHeight ?? policy.measuredWidth}px`,
     width: `${landscapeScrollArea?.width ?? policy.measuredHeight}px`,
   } as CSSProperties;
-  const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (!policy.phoneLandscape || event.ctrlKey) {
-      return;
-    }
-    const dominantDelta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
-    if (dominantDelta === 0) {
-      return;
-    }
-    scrollRootRef.current?.scrollBy({ left: dominantDelta });
-  };
-  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
-    if (!policy.phoneLandscape) {
-      return;
-    }
-    const touch = event.touches[0];
-    lastTouchPointRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-  };
-  const handleTouchMove = (event: TouchEvent<HTMLDivElement>) => {
-    if (!policy.phoneLandscape) {
-      return;
-    }
-    const previousTouch = lastTouchPointRef.current;
-    const touch = event.touches[0];
-    if (!previousTouch || !touch) {
-      return;
-    }
-    const deltaX = previousTouch.x - touch.clientX;
-    const deltaY = previousTouch.y - touch.clientY;
-    const dominantDelta = Math.abs(deltaY) >= Math.abs(deltaX) ? deltaY : -deltaX;
-    if (dominantDelta !== 0) {
-      scrollRootRef.current?.scrollBy({ left: dominantDelta });
-    }
-    lastTouchPointRef.current = { x: touch.clientX, y: touch.clientY };
-  };
-  const handleTouchEnd = () => {
-    lastTouchPointRef.current = null;
-  };
-
   return (
     <div
       ref={scrollRootRef}
       className={cn(
         'bg-background',
-        policy.phoneLandscape ? 'relative h-svh w-screen overflow-x-auto overflow-y-hidden' : 'h-svh overflow-auto',
+        policy.phoneViewport
+          ? policy.phoneLandscape
+            ? 'relative h-svh w-screen overflow-hidden'
+            : 'relative h-svh overflow-hidden'
+          : 'h-svh overflow-auto',
       )}
-      data-phone-landscape={policy.phoneLandscape ? 'true' : 'false'}
+      data-phone-landscape={policy.phoneViewport ? 'true' : 'false'}
       data-slot="embedded-auto-zoom-viewport"
       data-effective-height={Math.round(policy.effectiveHeight)}
       data-effective-width={Math.round(policy.effectiveWidth)}
       data-measured-area={Math.round(policy.measuredArea)}
       data-zoom-level={policy.zoomLevel}
-      onTouchCancel={handleTouchEnd}
-      onTouchEnd={handleTouchEnd}
-      onTouchMove={handleTouchMove}
-      onTouchStart={handleTouchStart}
-      onWheel={handleWheel}
       style={{
         '--kaur-khor-embedded-measured-height': `${policy.measuredHeight}px`,
         '--kaur-khor-embedded-measured-width': `${policy.measuredWidth}px`,
+        '--kaur-khor-embedded-phone-side-padding': `${policy.phoneLandscapeSidePadding}px`,
         '--kaur-khor-embedded-shell-content-height': `${embeddedShellContentHeight}px`,
         '--kaur-khor-embedded-shell-content-width': `${embeddedShellContentWidth}px`,
-        touchAction: policy.phoneLandscape ? 'none' : undefined,
+        touchAction: policy.phoneViewport ? 'pan-y' : undefined,
       } as CSSProperties}
     >
       {policy.phoneLandscape ? (
@@ -312,11 +272,21 @@ export function EmbeddedAutoZoomViewport({
           </div>
         </div>
       ) : (
-        <div data-slot="embedded-auto-zoom-layout-spacer" style={measuredViewportStyle}>
-          <div data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
-            {children}
+        nativePhoneFrameStyle ? (
+          <div data-slot="embedded-phone-landscape-frame" style={nativePhoneFrameStyle}>
+            <div data-slot="embedded-auto-zoom-layout-spacer" style={nativePhoneWindowStyle}>
+              <div data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
+                {children}
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div data-slot="embedded-auto-zoom-layout-spacer" style={measuredViewportStyle}>
+            <div data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
+              {children}
+            </div>
+          </div>
+        )
       )}
       {phonePortrait && phoneLandscapeOverlay ? (
         <div data-slot="embedded-phone-landscape-overlay" className="pointer-events-none fixed inset-0 z-[70]">
