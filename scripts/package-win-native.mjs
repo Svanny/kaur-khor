@@ -51,7 +51,7 @@ run([
   '--publish',
   'never',
 ]);
-openInstaller();
+handoffInstaller();
 
 function run(commandParts) {
   const [command, ...args] = commandParts;
@@ -76,13 +76,19 @@ function run(commandParts) {
   }
 }
 
-function openInstaller() {
+function handoffInstaller() {
   const releaseDir = resolve(root, 'release');
   console.log(`Build artifacts are in ${releaseDir}.`);
   const installerPath = findWindowsInstaller(releaseDir);
   if (!installerPath) {
     console.warn(`Could not find Windows setup installer in ${releaseDir}; opening release folder instead.`);
     openReleaseFolder(releaseDir);
+    return;
+  }
+
+  if (shouldSkipInstallerHandoff()) {
+    console.log(`Windows installer is ready at ${installerPath}.`);
+    console.log('Skipping installer launch because this build is running in CI or non-interactive mode.');
     return;
   }
 
@@ -103,6 +109,14 @@ function openInstaller() {
   }
 
   console.log('Windows setup finished. You can now close this terminal window.');
+}
+
+function shouldSkipInstallerHandoff() {
+  return (
+    process.env.KAUR_KHOR_SKIP_INSTALLER_HANDOFF === '1' ||
+    process.env.GITHUB_ACTIONS === 'true' ||
+    process.env.CI === 'true'
+  );
 }
 
 function openReleaseFolder(releaseDir) {

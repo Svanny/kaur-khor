@@ -391,16 +391,22 @@ chmod +x "$node_dir/node"
     expect(packageJson).toContain('"rcedit": "5.0.2"');
   });
 
-  test('Windows packaging opens the generated installer after packaging', () => {
+  test('Windows packaging opens the generated installer for interactive local packaging', () => {
     const script = readFileSync(resolve('scripts/package-win-native.mjs'), 'utf8');
 
-    expect(script).toContain('openInstaller();');
+    expect(script).toContain('handoffInstaller();');
     expect(script).toContain("const releaseDir = resolve(root, 'release');");
     expect(script).toContain('findWindowsInstaller(releaseDir)');
+    expect(script).toContain('shouldSkipInstallerHandoff()');
     expect(script).toContain('spawnSync(installerPath, []');
     expect(script).toContain("stdio: 'inherit'");
     expect(script).toContain('windowsHide: false');
     expect(script).toContain('Windows setup finished. You can now close this terminal window.');
+    expect(script).toContain('Windows installer is ready at ${installerPath}.');
+    expect(script).toContain('Skipping installer launch because this build is running in CI or non-interactive mode.');
+    expect(script).toContain("process.env.KAUR_KHOR_SKIP_INSTALLER_HANDOFF === '1'");
+    expect(script).toContain("process.env.GITHUB_ACTIONS === 'true'");
+    expect(script).toContain("process.env.CI === 'true'");
     expect(script).toContain('/^kaur-khor-v.+-win-x64\\.exe$/.test(entry)');
     expect(script).toContain('opening release folder instead');
     expect(script).toContain("spawn('explorer.exe', [releaseDir]");
