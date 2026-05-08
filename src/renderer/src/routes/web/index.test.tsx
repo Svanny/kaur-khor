@@ -1794,7 +1794,7 @@ describe('WebRoutes embedded app fallback state', () => {
 });
 
 describe('WebRoutes build from source section', () => {
-  test('links to the official source page and uses the cross-platform source build script', () => {
+  test('links to the official source page and uses the shell source build script by default', () => {
     const { container } = renderWebHome();
     const section = getBuildFromSourceSection(container);
 
@@ -1814,5 +1814,34 @@ describe('WebRoutes build from source section', () => {
     expect(section).not.toHaveTextContent('node scripts/build-from-source.mjs');
     expect(section).not.toHaveTextContent('build-mac-from-source.sh');
     expect(section).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip -o kaur-khor.zip');
+  });
+
+  test('uses PowerShell source build commands on Windows', async () => {
+    mockNavigator({
+      platform: 'Win32',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    });
+
+    const { container } = renderWebHome();
+    const section = getBuildFromSourceSection(container);
+    const snippet = section.querySelector('pre code');
+
+    await waitFor(() => {
+      expect(section).toHaveTextContent('PowerShell');
+    });
+
+    expect(snippet).not.toBeNull();
+    expect(section).toHaveTextContent('Open PowerShell.');
+    expect(section).toHaveTextContent('Copy the code below and paste it inside PowerShell.');
+    expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.ps1 for your platform.');
+    expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
+    expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"');
+    expect(snippet).toHaveTextContent('Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."');
+    expect(snippet).toHaveTextContent('Set-Location "kaur-khor-main"');
+    expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1');
+    expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
+    expect(snippet).not.toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
+    expect(snippet).not.toHaveTextContent('./scripts/build-from-source.sh');
+    expect(snippet).not.toHaveTextContent('node .\\scripts\\build-from-source.mjs');
   });
 });

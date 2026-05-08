@@ -64,11 +64,17 @@ import type { AppLanguage } from '@shared/inventory';
 const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
 const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
-const sourceBuildCommands = [
+const shellSourceBuildCommands = [
   'curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz',
   'tar -xzf kaur-khor-source.tar.gz',
   'cd kaur-khor-main',
   './scripts/build-from-source.sh',
+] as const;
+const powershellSourceBuildCommands = [
+  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"',
+  'Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."',
+  'Set-Location "kaur-khor-main"',
+  '.\\scripts\\build-from-source.ps1',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const screenshotWidth = 3456;
@@ -238,6 +244,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Copy': 'ចម្លង',
   'Copy failed': 'ចម្លងមិនបាន',
   'Copy the code below and paste it inside Terminal.': 'ចម្លងកូដខាងក្រោម រួចបិទភ្ជាប់ក្នុង Terminal។',
+  'Copy the code below and paste it inside PowerShell.': 'ចម្លងកូដខាងក្រោម រួចបិទភ្ជាប់ក្នុង PowerShell។',
   'Count Stock': 'រាប់ស្តុក',
   Demo: 'សាកល្បង',
   'Download': 'ទាញយក',
@@ -293,6 +300,7 @@ const landingKhmerCopy: Record<string, string> = {
   'official GitHub page': 'ទំព័រ GitHub ផ្លូវការ',
   'Official source page': 'ទំព័រកូដប្រភពផ្លូវការ',
   'Open the DMG and drag Kaur Khor to Applications if prompted.': 'បើក DMG ហើយអូស កខ ទៅ Applications បើមានសារ។',
+  'Open PowerShell.': 'បើក PowerShell។',
   'Open the Terminal app.': 'បើក Terminal អេប។',
   'for your platform.': 'សម្រាប់ប្រព័ន្ធរបស់អ្នក។',
   'Place Supplier Orders': 'បញ្ជាទិញពីអ្នកផ្គត់ផ្គង់',
@@ -683,6 +691,18 @@ function findRecommendedOption(options: DownloadOption[], platform: DetectedPlat
   return options.find((option) => option.platform === platform) ?? null;
 }
 
+function sourceBuildSnippetForPlatform(platform: DetectedPlatform) {
+  const isWindows = platform === 'windows-x64';
+  return {
+    commands: isWindows ? powershellSourceBuildCommands : shellSourceBuildCommands,
+    firstStep: isWindows ? 'Open PowerShell.' : 'Open the Terminal app.',
+    pasteStep: isWindows ? 'Copy the code below and paste it inside PowerShell.' : 'Copy the code below and paste it inside Terminal.',
+    platformFlagExample: isWindows ? '.\\scripts\\build-from-source.ps1 --platform=windows-x64' : './scripts/build-from-source.sh --platform=linux-x64',
+    scriptPath: isWindows ? 'scripts/build-from-source.ps1' : 'scripts/build-from-source.sh',
+    shellLabel: isWindows ? 'PowerShell' : 'Shell',
+  };
+}
+
 function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['platform']): ReleaseInstallGuide {
   switch (platform) {
     case 'android':
@@ -950,6 +970,8 @@ function LandingLanguageSelect({
 
 function HomeRoute() {
   const [language, setLanguage] = useState<AppLanguage>('en');
+  const [detectedPlatform, setDetectedPlatform] = useState<DetectedPlatform>('unknown');
+  const sourceBuildSnippet = sourceBuildSnippetForPlatform(detectedPlatform);
 
   useEffect(() => {
     let cancelScheduledScroll = () => {};
@@ -969,6 +991,18 @@ function HomeRoute() {
     return () => {
       cancelScheduledScroll();
       window.removeEventListener('hashchange', handleHashSectionScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    void detectDownloadPlatform().then((platform) => {
+      if (isMounted) {
+        setDetectedPlatform(platform);
+      }
+    });
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -1012,23 +1046,23 @@ function HomeRoute() {
               <p className={cn('text-xs font-semibold text-muted-foreground', language === 'km' ? 'tracking-normal' : 'uppercase tracking-[0.16em]')}>{landingText(language, 'Advanced users')}</p>
               <h2 className="mt-3 text-3xl font-semibold tracking-normal">{landingText(language, 'Build From Source')}</h2>
               <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">scripts/build-from-source.sh</code> {landingText(language, 'for your platform.')} {landingText(language, 'It detects your computer and installs')} {landingText(language, 'build dependencies before packaging Kaur Khor.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
+                {landingText(language, 'Inspect the source on the')} <a className="font-medium text-foreground underline decoration-border underline-offset-4 hover:text-primary" href={sourceUrl} rel="noreferrer" target="_blank">{landingText(language, 'official GitHub page')}</a> {landingText(language, 'and run')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">{sourceBuildSnippet.scriptPath}</code> {landingText(language, 'for your platform.')} {landingText(language, 'It detects your computer and installs')} {landingText(language, 'build dependencies before packaging Kaur Khor.')} {landingText(language, 'Building locally avoids downloading a prebuilt app, but it does not magically make software safe.')}
               </p>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">
-                {landingText(language, 'To choose a native build explicitly, pass a platform flag such as')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">./scripts/build-from-source.sh --platform=linux-x64</code>.
+                {landingText(language, 'To choose a native build explicitly, pass a platform flag such as')} <code className="rounded-md bg-muted px-1.5 py-0.5 text-foreground">{sourceBuildSnippet.platformFlagExample}</code>.
               </p>
               <ul className="mt-4 grid gap-2 text-sm leading-6 text-muted-foreground">
                 <li className="flex gap-3">
                   <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-                  <span>{landingText(language, 'Open the Terminal app.')}</span>
+                  <span>{landingText(language, sourceBuildSnippet.firstStep)}</span>
                 </li>
                 <li className="flex gap-3">
                   <span aria-hidden="true" className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-                  <span>{landingText(language, 'Copy the code below and paste it inside Terminal.')}</span>
+                  <span>{landingText(language, sourceBuildSnippet.pasteStep)}</span>
                 </li>
               </ul>
             </div>
-            <SourceBuildSnippet language={language} />
+            <SourceBuildSnippet commands={sourceBuildSnippet.commands} language={language} shellLabel={sourceBuildSnippet.shellLabel} />
           </div>
         </section>
       </main>
@@ -1398,12 +1432,20 @@ function ProductCard({ language, tier }: { language: AppLanguage; tier: ProductT
   );
 }
 
-function SourceBuildSnippet({ language }: { language: AppLanguage }) {
+function SourceBuildSnippet({
+  commands,
+  language,
+  shellLabel,
+}: {
+  commands: readonly string[];
+  language: AppLanguage;
+  shellLabel: string;
+}) {
   const codeRef = useRef<HTMLElement | null>(null);
   const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   async function copyCommands() {
-    if (await writeClipboardText(sourceBuildCommands.join('\n'))) {
+    if (await writeClipboardText(commands.join('\n'))) {
       setCopyStatus('copied');
     } else {
       selectElementText(codeRef.current);
@@ -1431,7 +1473,7 @@ function SourceBuildSnippet({ language }: { language: AppLanguage }) {
       <div className="flex items-center justify-between border-b border-white/10 bg-white/[0.04] px-4 py-3">
         <span className="inline-flex items-center gap-2 font-sans text-sm font-semibold text-background">
           <Code2 className="size-4" />
-          Shell
+          {shellLabel}
         </span>
         <button
           aria-label={copyLabel}
@@ -1449,10 +1491,10 @@ function SourceBuildSnippet({ language }: { language: AppLanguage }) {
         style={{ fontFamily: sourceBuildCodeFontFamily }}
       >
         <code ref={codeRef} className="source-code-island" lang="en" style={{ fontFamily: sourceBuildCodeFontFamily }}>
-          {sourceBuildCommands.map((command, index) => (
+          {commands.map((command, index) => (
             <span key={command}>
               {renderSourceBuildCommand(command)}
-              {index < sourceBuildCommands.length - 1 ? '\n' : null}
+              {index < commands.length - 1 ? '\n' : null}
             </span>
           ))}
         </code>

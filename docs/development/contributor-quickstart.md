@@ -33,6 +33,8 @@ pnpm package:linux
 pnpm package:win:native
 ```
 
+On macOS, `pnpm package:mac` builds into `release/`, uses the nested `release/mac-*` runnable app folder, and installs `KAUR KHOR.app` into `/Applications` after packaging. Set `KAUR_KHOR_SKIP_APPLICATIONS_INSTALL=1` to leave the app only in `release/`.
+
 ## Repo Shape
 
 The paths that matter most during normal contributor work:

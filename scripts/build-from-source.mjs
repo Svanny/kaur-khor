@@ -88,7 +88,7 @@ async function main(options) {
   }
 
   runPnpm(pnpm, packagePlan.args, sourceRoot, packagePlan.env);
-  openReleaseFolder(sourceRoot);
+  openReleaseFolder(sourceRoot, target);
 }
 
 function isDirectExecution() {
@@ -508,17 +508,36 @@ function runPnpm(pnpm, args, cwd, extraEnv = {}) {
   });
 }
 
-function openReleaseFolder(sourceRoot) {
+function openReleaseFolder(sourceRoot, target) {
   const releaseDir = resolve(sourceRoot, 'release');
+  const runnableDir = resolveRunnableAppFolder(releaseDir, target);
   console.log(`Build artifacts are in ${releaseDir}.`);
+  console.log(`Runnable app folder is ${runnableDir}.`);
 
   if (process.platform === 'darwin' && findCommand('open')) {
-    run('open', [releaseDir], { cwd: sourceRoot, allowFailure: true });
+    run('open', [runnableDir], { cwd: sourceRoot, allowFailure: true });
   } else if (process.platform === 'win32') {
-    run('explorer.exe', [releaseDir], { cwd: sourceRoot, allowFailure: true });
+    run('explorer.exe', [runnableDir], { cwd: sourceRoot, allowFailure: true });
   } else if (findCommand('xdg-open')) {
-    run('xdg-open', [releaseDir], { cwd: sourceRoot, allowFailure: true });
+    run('xdg-open', [runnableDir], { cwd: sourceRoot, allowFailure: true });
   }
+}
+
+function resolveRunnableAppFolder(releaseDir, target) {
+  const candidates = target.os === 'mac'
+    ? [target.arch === 'arm64' ? 'mac-arm64' : 'mac', 'mac']
+    : target.os === 'windows'
+      ? ['win-unpacked']
+      : ['linux-unpacked'];
+
+  for (const candidate of candidates) {
+    const candidatePath = resolve(releaseDir, candidate);
+    if (existsSync(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return releaseDir;
 }
 
 function findCommand(command, extraDirs = []) {

@@ -68,6 +68,8 @@ pnpm package:linux
 pnpm package:win:native
 ```
 
+`pnpm package:mac` installs the unpacked app from the nested `release/mac-*` runnable folder into `/Applications` after packaging unless `KAUR_KHOR_SKIP_APPLICATIONS_INSTALL=1` is set.
+
 ## Documentation Map
 
 ### Development

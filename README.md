@@ -65,7 +65,7 @@ The public landing page now presents the ways to start in plain user terms:
 - Demo: try sample shelves, see the workflow, and reset anytime.
 - Browser App: everything in the demo plus real work in this browser, then export and import backups.
 - Desktop App: everything in the browser app plus local app files, snapshots, automation, item images, and logs.
-- Source Build: everything in the desktop app plus code inspection and a local macOS source build path.
+- Source Build: everything in the desktop app plus code inspection and a local native source build path.
 
 All entry points are free, require no sign-up or login, and keep data on the user's device.
 
@@ -246,3 +246,5 @@ pnpm package:mac
 pnpm package:linux
 pnpm package:win:native
 ```
+
+macOS packaging writes artifacts under `release/`, installs the unpacked app from the runnable `release/mac-*` folder into `/Applications`, and can skip that install with `KAUR_KHOR_SKIP_APPLICATIONS_INSTALL=1 pnpm package:mac`.

@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -8,6 +8,7 @@ import { describe, expect, test } from 'vitest';
 
 const scriptPath = resolve('scripts/build-from-source.mjs');
 const shellBootstrapPath = resolve('scripts/build-from-source.sh');
+const powershellBootstrapPath = resolve('scripts/build-from-source.ps1');
 
 function runScript(args: string[]) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
@@ -217,6 +218,15 @@ chmod +x "$node_dir/node"
     expect(result.stdout).toContain('verified fake node');
     expect(result.stdout).toContain('scripts/build-from-source.mjs --resolve-only');
     expect(existsSync(fixture.tarMarker)).toBe(true);
+  });
+
+  test('PowerShell bootstrap pins the Windows Node archive before delegation', () => {
+    const script = readFileSync(powershellBootstrapPath, 'utf8');
+
+    expect(script).toContain('node-v${NodeVersion}-${NodePlatform}.zip');
+    expect(script).toContain('3c624e9fbe07e3217552ec52a0f84e2bdc2e6ffa7348f3fdfb9fbf8f42e23fcf');
+    expect(script).toContain('Get-FileHash -Algorithm SHA256');
+    expect(script).toContain('build-from-source.mjs');
   });
 
   test('rustup verifier rejects a bad digest', async () => {
