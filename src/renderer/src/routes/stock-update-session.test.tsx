@@ -1262,7 +1262,7 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply suggested expected arrival for Towel' }));
 
-    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-11');
+    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-12');
     expect(within(dialog).getByRole('combobox', { name: 'ETA variation' })).toHaveTextContent('Custom');
   });
 

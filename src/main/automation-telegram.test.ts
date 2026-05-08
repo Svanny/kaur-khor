@@ -25,19 +25,19 @@ import {
   validateAndSaveTelegramAutomationConnection,
 } from './automation-telegram';
 
-async function waitForAssertion(assertion: () => void) {
+async function waitForAssertion(assertion: () => void | Promise<void>) {
   const startedAt = Date.now();
   let lastError: unknown;
   while (Date.now() - startedAt < 250) {
     try {
-      assertion();
+      await assertion();
       return;
     } catch (error) {
       lastError = error;
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
   }
-  assertion();
+  await assertion();
   throw lastError;
 }
 
@@ -477,8 +477,11 @@ describe('telegram automation connection setup', () => {
       }),
     });
 
-    await waitForAssertion(() => {
+    await waitForAssertion(async () => {
       expect(fetchMock).toHaveBeenCalledWith('https://api.telegram.org/botsecret-token/sendMessage', expect.anything());
+      const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
+      expect(session?.lastWizardMessageId).toBe(78);
+      expect(session?.generatedWizardMessageIds).toEqual([78]);
     });
     loop.stop();
 
