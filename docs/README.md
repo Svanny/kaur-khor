@@ -69,6 +69,7 @@ pnpm package:win:native
 ```
 
 `pnpm package:mac` installs the unpacked app from the nested `release/mac-*` runnable folder into `/Applications` after packaging unless `KAUR_KHOR_SKIP_APPLICATIONS_INSTALL=1` is set.
+On Windows PowerShell, use `$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:native` for a local-only unsigned package.
 
 ## Documentation Map
 

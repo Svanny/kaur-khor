@@ -10,9 +10,10 @@ const scriptPath = resolve('scripts/build-from-source.mjs');
 const shellBootstrapPath = resolve('scripts/build-from-source.sh');
 const powershellBootstrapPath = resolve('scripts/build-from-source.ps1');
 
-function runScript(args: string[]) {
+function runScript(args: string[], env: NodeJS.ProcessEnv = process.env) {
   return spawnSync(process.execPath, [scriptPath, ...args], {
     encoding: 'utf8',
+    env,
   });
 }
 
@@ -74,6 +75,62 @@ printf '%s  %s\\n' "$KAUR_KHOR_FAKE_SHA256" "$3"
   };
 }
 
+function createSourceBuildToolchainFixture({
+  cargoVersion,
+  rustupExitCode = 0,
+}: {
+  cargoVersion: string;
+  rustupExitCode?: number;
+}) {
+  const root = mkdtempSync(join(tmpdir(), 'kaur-khor-build-source-toolchain-test-'));
+  const fakeBin = join(root, 'bin');
+  const cargoHomeBin = join(root, '.cargo', 'bin');
+  const rustupMarker = join(root, 'rustup-called');
+  const pnpmMarker = join(root, 'pnpm-called');
+
+  mkdirSync(fakeBin, { recursive: true });
+  mkdirSync(cargoHomeBin, { recursive: true });
+  writeExecutable(join(fakeBin, 'cargo'), `#!/bin/sh
+printf 'cargo ${cargoVersion} (fixture)\\n'
+`);
+  writeExecutable(join(fakeBin, 'pnpm'), `#!/bin/sh
+printf '%s\\n' "$*" >> "$KAUR_KHOR_PNPM_MARKER"
+`);
+  writeExecutable(join(fakeBin, 'rustup'), `#!/bin/sh
+printf '%s\\n' "$*" >> "$KAUR_KHOR_RUSTUP_MARKER"
+exit ${rustupExitCode}
+`);
+  writeExecutable(join(cargoHomeBin, 'cargo'), `#!/bin/sh
+printf 'cargo 1.85.0 (fixture)\\n'
+`);
+  writeExecutable(join(fakeBin, 'xcode-select'), `#!/bin/sh
+printf '/Applications/Xcode.app/Contents/Developer\\n'
+`);
+  writeExecutable(join(fakeBin, 'cc'), `#!/bin/sh
+exit 0
+`);
+  writeExecutable(join(fakeBin, 'open'), `#!/bin/sh
+exit 0
+`);
+  writeExecutable(join(fakeBin, 'xdg-open'), `#!/bin/sh
+exit 0
+`);
+
+  return {
+    root,
+    pnpmMarker,
+    rustupMarker,
+    env: {
+      ...process.env,
+      HOME: root,
+      PATH: `${fakeBin}:/bin:/usr/bin`,
+      KAUR_KHOR_SKIP_RUST_TESTS: '1',
+      KAUR_KHOR_PNPM_MARKER: pnpmMarker,
+      KAUR_KHOR_RUSTUP_MARKER: rustupMarker,
+    },
+  };
+}
+
 function expectedNativeTarget() {
   if (process.platform === 'darwin' && process.arch === 'arm64') {
     return { aliases: ['darwin-arm64'], id: 'mac-arm64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:mac' };
@@ -92,7 +149,7 @@ function expectedNativeTarget() {
   }
 
   if (process.platform === 'win32' && process.arch === 'x64') {
-    return { aliases: ['win-x64'], id: 'windows-x64', packageCommand: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:win:native' };
+    return { aliases: ['win-x64'], id: 'windows-x64', packageCommand: '$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:native' };
   }
 
   return null;
@@ -208,6 +265,7 @@ mkdir -p "$node_dir"
 cat > "$node_dir/node" <<'NODE'
 #!/bin/sh
 printf 'verified fake node %s\\n' "$*"
+printf 'PATH=%s\\n' "$PATH"
 NODE
 chmod +x "$node_dir/node"
 `,
@@ -216,8 +274,89 @@ chmod +x "$node_dir/node"
 
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('verified fake node');
+    expect(result.stdout).toContain(`${fixture.root}/tools/node-v22.21.1/bin`);
     expect(result.stdout).toContain('scripts/build-from-source.mjs --resolve-only');
     expect(existsSync(fixture.tarMarker)).toBe(true);
+  });
+
+  test('source build updates Rust stable when Cargo is too old for Edition 2024 crates', () => {
+    const expected = expectedNativeTarget();
+    if (!expected) {
+      return;
+    }
+
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.83.0' });
+    const result = runScript([`--platform=${expected.id}`], fixture.env);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('older than 1.85.0');
+    expect(readFileSync(fixture.rustupMarker, 'utf8')).toContain('toolchain install stable');
+    expect(readFileSync(fixture.rustupMarker, 'utf8')).toContain('default stable');
+    expect(readFileSync(fixture.pnpmMarker, 'utf8')).toContain('install --frozen-lockfile');
+  }, 10_000);
+
+  test('source build keeps current Cargo without invoking rustup', () => {
+    const expected = expectedNativeTarget();
+    if (!expected) {
+      return;
+    }
+
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.85.0' });
+    const result = runScript([`--platform=${expected.id}`], fixture.env);
+
+    expect(result.status).toBe(0);
+    expect(existsSync(fixture.rustupMarker)).toBe(false);
+    expect(readFileSync(fixture.pnpmMarker, 'utf8')).toContain('install --frozen-lockfile');
+  });
+
+  test('Cargo bootstrap puts updated rustup Cargo first for packaging child processes', async () => {
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.83.0' });
+    const originalHome = process.env.HOME;
+    const originalPath = process.env.PATH;
+    process.env.HOME = fixture.root;
+    process.env.PATH = fixture.env.PATH;
+    process.env.KAUR_KHOR_RUSTUP_MARKER = fixture.rustupMarker;
+
+    try {
+      const { ensureCargo } = await import(pathToFileURL(scriptPath).href) as {
+        ensureCargo: (target: { id: string; os: string; arch: string }) => Promise<string>;
+      };
+      const cargo = await ensureCargo({ id: 'windows-x64', os: 'windows', arch: 'x64' });
+      const cargoHomeBin = join(fixture.root, '.cargo', 'bin');
+      const pathDelimiter = process.platform === 'win32' ? ';' : ':';
+
+      expect(cargo).toBe(join(cargoHomeBin, 'cargo'));
+      expect(process.env.PATH?.split(pathDelimiter)[0]).toBe(cargoHomeBin);
+      expect(readFileSync(fixture.rustupMarker, 'utf8')).toContain('toolchain install stable');
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.PATH = originalPath;
+      delete process.env.KAUR_KHOR_RUSTUP_MARKER;
+    }
+  });
+
+  test('Cargo bootstrap accepts rustup self-update cleanup failures after Cargo updates', async () => {
+    const fixture = createSourceBuildToolchainFixture({ cargoVersion: '1.83.0', rustupExitCode: 1 });
+    const originalHome = process.env.HOME;
+    const originalPath = process.env.PATH;
+    process.env.HOME = fixture.root;
+    process.env.PATH = fixture.env.PATH;
+    process.env.KAUR_KHOR_RUSTUP_MARKER = fixture.rustupMarker;
+
+    try {
+      const { ensureCargo } = await import(pathToFileURL(scriptPath).href) as {
+        ensureCargo: (target: { id: string; os: string; arch: string }) => Promise<string>;
+      };
+      const cargo = await ensureCargo({ id: 'windows-x64', os: 'windows', arch: 'x64' });
+
+      expect(cargo).toBe(join(fixture.root, '.cargo', 'bin', 'cargo'));
+      expect(readFileSync(fixture.rustupMarker, 'utf8')).toContain('toolchain install stable');
+      expect(readFileSync(fixture.rustupMarker, 'utf8')).toContain('default stable');
+    } finally {
+      process.env.HOME = originalHome;
+      process.env.PATH = originalPath;
+      delete process.env.KAUR_KHOR_RUSTUP_MARKER;
+    }
   });
 
   test('PowerShell bootstrap pins the Windows Node archive before delegation', () => {
@@ -226,7 +365,89 @@ chmod +x "$node_dir/node"
     expect(script).toContain('node-v${NodeVersion}-${NodePlatform}.zip');
     expect(script).toContain('3c624e9fbe07e3217552ec52a0f84e2bdc2e6ffa7348f3fdfb9fbf8f42e23fcf');
     expect(script).toContain('Get-FileHash -Algorithm SHA256');
+    expect(script).toContain('Remove-Item -Force $ArchivePath');
     expect(script).toContain('build-from-source.mjs');
+  });
+
+  test('Windows packaging applies app icon without signing tools for unsigned local packages', () => {
+    const script = readFileSync(resolve('scripts/package-win-native.mjs'), 'utf8');
+    const unsignedConfig = readFileSync(resolve('electron-builder.unsigned-win.yml'), 'utf8');
+    const iconHook = readFileSync(resolve('scripts/after-pack-win-unsigned-icon.mjs'), 'utf8');
+    const packageJson = readFileSync(resolve('package.json'), 'utf8');
+
+    expect(script).toContain("const isUnsignedLocalPackage = process.env.ALLOW_UNSIGNED_PACKAGING === '1' && !hasWindowsSigningConfig");
+    expect(script).toContain("const electronBuilderConfig = isUnsignedLocalPackage ? 'electron-builder.unsigned-win.yml' : 'electron-builder.yml'");
+    expect(script).toContain("process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = 'true'");
+    expect(script).toContain('ensureProjectDependencies();');
+    expect(script).toContain("hasResolvablePackage('rcedit')");
+    expect(script).toContain("'install', '--frozen-lockfile'");
+    expect(unsignedConfig).toContain('extends: ./electron-builder.yml');
+    expect(unsignedConfig).toContain('afterPack: ./scripts/after-pack-win-unsigned-icon.mjs');
+    expect(unsignedConfig).toContain('signAndEditExecutable: false');
+    expect(unsignedConfig).toContain("    - '!.exe'");
+    expect(iconHook).toContain("import { rcedit } from 'rcedit'");
+    expect(iconHook).toContain("resources/windows/kaur-khor.ico");
+    expect(iconHook).toContain("await rcedit(exePath");
+    expect(packageJson).toContain('"rcedit": "5.0.2"');
+  });
+
+  test('Windows packaging opens the generated installer after packaging', () => {
+    const script = readFileSync(resolve('scripts/package-win-native.mjs'), 'utf8');
+
+    expect(script).toContain('openInstaller();');
+    expect(script).toContain("const releaseDir = resolve(root, 'release');");
+    expect(script).toContain('findWindowsInstaller(releaseDir)');
+    expect(script).toContain('spawnSync(installerPath, []');
+    expect(script).toContain("stdio: 'inherit'");
+    expect(script).toContain('windowsHide: false');
+    expect(script).toContain('Windows setup finished. You can now close this terminal window.');
+    expect(script).toContain('/^kaur-khor-v.+-win-x64\\.exe$/.test(entry)');
+    expect(script).toContain('opening release folder instead');
+    expect(script).toContain("spawn('explorer.exe', [releaseDir]");
+  });
+
+  test('source build wrapper leaves Windows post-build handoff to the installer script', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(script).toContain("if (target.os === 'mac') {");
+    expect(script).toContain('openReleaseFolder(sourceRoot, target);');
+    expect(script).toContain("target.os === 'windows'\n      ? ['win-unpacked']");
+  });
+
+  test('Linux packaging installs the generated deb and falls back to release folder', () => {
+    const script = readFileSync(resolve('scripts/package-linux.sh'), 'utf8');
+    const sourceScript = readFileSync(scriptPath, 'utf8');
+
+    expect(sourceScript).toContain('const linuxInstallEnv = prepareLinuxInstallPrivilege(target);');
+    expect(sourceScript).toContain('Requesting sudo now so the generated .deb can be installed after packaging...');
+    expect(sourceScript).toContain("KAUR_KHOR_LINUX_INSTALL_PRECHECK: 'ready'");
+    expect(script).toContain('find_deb_installer()');
+    expect(script).toContain('kaur-khor-v*-linux-${target_arch}.deb');
+    expect(script).toContain('KAUR_KHOR_LINUX_INSTALL_PRECHECK');
+    expect(script).toContain('sudo -v');
+    expect(script).toContain('install_deb="$(mktemp --tmpdir "kaur-khor-${target_arch}.XXXXXX.deb")"');
+    expect(script).toContain('chmod 0644 "${install_deb}"');
+    expect(script).toContain('trap \'rm -f "${install_deb}"\' EXIT');
+    expect(script).toContain('DEBIAN_FRONTEND=noninteractive');
+    expect(script).toContain('APT_LISTCHANGES_FRONTEND=none');
+    expect(script).toContain('apt-get install --reinstall -y "${install_deb}"');
+    expect(script).toContain('Linux install failed; opening release folder instead.');
+    expect(script).toContain('Linux install finished. You can now close this terminal window.');
+    expect(script).toContain('xdg-open "${release_dir}"');
+  });
+
+  test('source build skips Electron development binary download during install', () => {
+    const script = readFileSync(scriptPath, 'utf8');
+
+    expect(script).toContain("ELECTRON_SKIP_BINARY_DOWNLOAD: '1'");
+    expect(script).toContain("runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot, {");
+  });
+
+  test('Windows packaging uses a Windows ico for installed app identity', () => {
+    const config = readFileSync(resolve('electron-builder.yml'), 'utf8');
+
+    expect(config).toContain('icon: resources/windows/kaur-khor.ico');
+    expect(existsSync(resolve('resources/windows/kaur-khor.ico'))).toBe(true);
   });
 
   test('rustup verifier rejects a bad digest', async () => {

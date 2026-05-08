@@ -31,7 +31,7 @@ mac:
 win:
   target:
     - nsis
-  icon: resources/mac/icon.png
+  icon: resources/windows/kaur-khor.ico
 
 linux:
   target:

@@ -67,12 +67,14 @@ const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/relea
 const shellSourceBuildCommands = [
   'curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz',
   'tar -xzf kaur-khor-source.tar.gz',
+  'rm kaur-khor-source.tar.gz',
   'cd kaur-khor-main',
   './scripts/build-from-source.sh',
 ] as const;
 const powershellSourceBuildCommands = [
   'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"',
   'Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."',
+  'Remove-Item -Path "kaur-khor-source.zip"',
   'Set-Location "kaur-khor-main"',
   '.\\scripts\\build-from-source.ps1',
 ] as const;

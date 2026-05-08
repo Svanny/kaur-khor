@@ -32,11 +32,12 @@ Approved flow:
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. Copy the code below and paste it inside Terminal on macOS or Linux:
+To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. If it finds an older Cargo, it updates Rust stable with rustup before building. Copy the code below and paste it inside Terminal on macOS or Linux:
 
 ```sh
 curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz
 tar -xzf kaur-khor-source.tar.gz
+rm kaur-khor-source.tar.gz
 cd kaur-khor-main
 ./scripts/build-from-source.sh
 ```
@@ -58,16 +59,23 @@ If Windows shows SmartScreen for an unsigned build:
 
 This approves the downloaded app without changing SmartScreen system-wide.
 
-To build from source on Windows, use PowerShell-native commands. PowerShell aliases `curl` to `Invoke-WebRequest`, so `curl -L` will fail there. The bootstrap script installs a local pinned Node.js if `node` is not already available, then installs the remaining build dependencies:
+To build from source on Windows, use PowerShell-native commands. PowerShell aliases `curl` to `Invoke-WebRequest`, so `curl -L` will fail there. The bootstrap script installs a local pinned Node.js if `node` is not already available, updates old Rust stable toolchains through rustup, then installs the remaining build dependencies:
 
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"
 Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."
+Remove-Item -Path "kaur-khor-source.zip"
 Set-Location "kaur-khor-main"
 .\scripts\build-from-source.ps1
 ```
 
-After a successful Windows source build, open the nested runnable folder under `release\`, such as `release\win-unpacked`, or run the generated installer from `release\`.
+After a successful Windows source build, the script opens the generated setup installer from `release\`. Complete that installer to register the app with Windows instead of launching `release\win-unpacked` directly.
+
+For a manual local-only unsigned Windows package, use PowerShell environment syntax. This uses a standalone unsigned-only app-icon stamping step, skips `.exe` signing, and avoids electron-builder's bundled signing-tool extraction path that requires symlink privileges on some Windows setups:
+
+```powershell
+$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:native
+```
 
 ## Linux
 
@@ -76,6 +84,10 @@ For Debian or Ubuntu:
 ```bash
 sudo apt install ./kaur-khor-v<version>-linux-<arch>.deb
 ```
+
+When building from source on Debian or Ubuntu, the Linux packaging script installs the generated `.deb` automatically after packaging with `apt-get install --reinstall`, so repeated local builds replace the installed app even when the version number has not changed. If automatic install fails, it opens `release/` so you can install the `.deb` or run the AppImage manually.
+
+Linux desktop builds disable Electron hardware acceleration at startup to avoid black windows on VM or Wayland GPU stacks that cannot provide the requested EGL context.
 
 For AppImage:
 

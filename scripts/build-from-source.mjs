@@ -21,6 +21,7 @@ import { gunzipSync } from 'node:zlib';
 
 const PNPM_VERSION = '10.32.1';
 const RUSTUP_VERSION = '1.28.2';
+const MINIMUM_CARGO_VERSION = '1.85.0';
 const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
 const DEFAULT_REF = 'main';
 const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
@@ -73,11 +74,14 @@ async function main(options) {
   const sourceRoot = await resolveSourceRoot();
   process.chdir(sourceRoot);
 
+  const linuxInstallEnv = prepareLinuxInstallPrivilege(target);
   ensurePlatformTools(target);
   const pnpm = ensurePnpm();
   const cargo = await ensureCargo(target);
 
-  runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot);
+  runPnpm(pnpm, ['install', '--frozen-lockfile'], sourceRoot, {
+    ELECTRON_SKIP_BINARY_DOWNLOAD: '1',
+  });
 
   if (process.env.KAUR_KHOR_SKIP_RUST_TESTS === '1') {
     console.log('Skipping Rust desktop-core tests because KAUR_KHOR_SKIP_RUST_TESTS=1.');
@@ -87,8 +91,37 @@ async function main(options) {
     });
   }
 
-  runPnpm(pnpm, packagePlan.args, sourceRoot, packagePlan.env);
-  openReleaseFolder(sourceRoot, target);
+  runPnpm(pnpm, packagePlan.args, sourceRoot, {
+    ...packagePlan.env,
+    ...linuxInstallEnv,
+  });
+  if (target.os === 'mac') {
+    openReleaseFolder(sourceRoot, target);
+  }
+}
+
+function prepareLinuxInstallPrivilege(target) {
+  if (target.os !== 'linux') {
+    return {};
+  }
+
+  if (!findCommand('sudo') || !findCommand('apt-get')) {
+    console.warn('sudo or apt-get was not found; the Linux package script will open release/ after packaging.');
+    return { KAUR_KHOR_LINUX_INSTALL_PRECHECK: 'unavailable' };
+  }
+
+  console.log('Requesting sudo now so the generated .deb can be installed after packaging...');
+  const result = spawnSync('sudo', ['-v'], {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+  });
+
+  if (result.error || result.status !== 0) {
+    console.warn('Could not verify sudo access; the Linux package script will open release/ after packaging.');
+    return { KAUR_KHOR_LINUX_INSTALL_PRECHECK: 'failed' };
+  }
+
+  return { KAUR_KHOR_LINUX_INSTALL_PRECHECK: 'ready' };
 }
 
 function isDirectExecution() {
@@ -214,7 +247,7 @@ function packagePlanForTarget(target) {
 
   return {
     args: ['package:win:native'],
-    display: 'ALLOW_UNSIGNED_PACKAGING=1 pnpm package:win:native',
+    display: '$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:native',
     env: { ALLOW_UNSIGNED_PACKAGING: '1' },
   };
 }
@@ -452,10 +485,25 @@ function ensurePnpm() {
   fail('Could not bootstrap pnpm because pnpm, Corepack, and npm are all missing from PATH.');
 }
 
-async function ensureCargo(target) {
+export async function ensureCargo(target) {
   const cargo = findCommand('cargo');
-  if (cargo) {
+  if (cargo && cargoMeetsMinimumVersion(cargo, MINIMUM_CARGO_VERSION)) {
     return cargo;
+  }
+
+  if (cargo) {
+    console.log(`Cargo ${readCargoVersion(cargo) ?? 'from PATH'} is older than ${MINIMUM_CARGO_VERSION}; updating Rust stable with rustup...`);
+    const rustup = findCommand('rustup');
+    if (rustup) {
+      run(rustup, ['toolchain', 'install', 'stable'], { allowFailure: true });
+      run(rustup, ['default', 'stable'], { allowFailure: true });
+      prependCargoHomeBinToPath();
+      const cargoAfterUpdate = findCommand('cargo', [join(homedir(), '.cargo', 'bin')]);
+      if (cargoAfterUpdate && cargoMeetsMinimumVersion(cargoAfterUpdate, MINIMUM_CARGO_VERSION)) {
+        return cargoAfterUpdate;
+      }
+      fail(`Rust stable update finished, but Cargo is still older than ${MINIMUM_CARGO_VERSION}.`);
+    }
   }
 
   await installRustup(target);
@@ -463,7 +511,40 @@ async function ensureCargo(target) {
   if (!cargoAfterInstall) {
     fail('Rust installation finished, but cargo was still not found.');
   }
+  if (!cargoMeetsMinimumVersion(cargoAfterInstall, MINIMUM_CARGO_VERSION)) {
+    fail(`Rust installation finished, but Cargo is still older than ${MINIMUM_CARGO_VERSION}.`);
+  }
   return cargoAfterInstall;
+}
+
+function readCargoVersion(cargo) {
+  const result = spawnSync(cargo, ['--version'], {
+    encoding: 'utf8',
+    shell: false,
+  });
+  if (result.error || result.status !== 0) {
+    return null;
+  }
+  const match = /\bcargo\s+(\d+\.\d+\.\d+)\b/i.exec(result.stdout);
+  return match?.[1] ?? null;
+}
+
+function cargoMeetsMinimumVersion(cargo, minimumVersion) {
+  const version = readCargoVersion(cargo);
+  return Boolean(version && compareVersions(version, minimumVersion) >= 0);
+}
+
+function compareVersions(left, right) {
+  const leftParts = left.split('.').map((part) => Number.parseInt(part, 10));
+  const rightParts = right.split('.').map((part) => Number.parseInt(part, 10));
+  for (let index = 0; index < Math.max(leftParts.length, rightParts.length); index += 1) {
+    const leftPart = leftParts[index] ?? 0;
+    const rightPart = rightParts[index] ?? 0;
+    if (leftPart !== rightPart) {
+      return leftPart > rightPart ? 1 : -1;
+    }
+  }
+  return 0;
 }
 
 function installRustup(target) {
@@ -490,8 +571,14 @@ function installRustup(target) {
       chmodSync(rustupPath, 0o755);
     }
     run(rustupPath, ['-y', '--profile', 'minimal', '--default-toolchain', 'stable']);
-    process.env.PATH = `${join(homedir(), '.cargo', 'bin')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH || ''}`;
+    prependCargoHomeBinToPath();
   });
+}
+
+function prependCargoHomeBinToPath() {
+  const cargoHomeBin = join(homedir(), '.cargo', 'bin');
+  const delimiter = process.platform === 'win32' ? ';' : ':';
+  process.env.PATH = `${cargoHomeBin}${delimiter}${process.env.PATH || ''}`;
 }
 
 export function verifySha256Buffer(buffer, expected, label) {

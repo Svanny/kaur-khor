@@ -13,6 +13,9 @@ describe('desktop runtime security contract', () => {
   it('creates the BrowserWindow with an isolated preload bridge', () => {
     expect(mainSource).toContain("contentBounds: Pick<Electron.Rectangle, 'height' | 'width'>,");
     expect(mainSource).toContain("const benchmarkWindowBackgroundMode = process.env.KAUR_KHOR_BENCHMARK_BACKGROUND === '1';");
+    expect(mainSource).toContain("if (process.platform === 'linux') {");
+    expect(mainSource).toContain('app.disableHardwareAcceleration();');
+    expect(mainSource.indexOf('app.disableHardwareAcceleration();')).toBeLessThan(mainSource.indexOf('app.whenReady()'));
     expect(mainSource).toContain("preload: join(__dirname, '../preload/index.mjs')");
     expect(mainSource).toContain('contextIsolation: true');
     expect(mainSource).toContain('nodeIntegration: false');

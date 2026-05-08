@@ -138,6 +138,10 @@ const projectRoot = join(__dirname, '../..');
 const iconAssets = macIconAssets(projectRoot);
 const configuredDesktopDataPath = process.env.KAUR_KHOR_BENCHMARK_DATA_DIR?.trim()
   || process.env.KAUR_KHOR_DESKTOP_DATA_DIR?.trim();
+
+if (process.platform === 'linux') {
+  app.disableHardwareAcceleration();
+}
 const benchmarkWindowBackgroundMode = process.env.KAUR_KHOR_BENCHMARK_BACKGROUND === '1';
 const shouldUseInactiveMacDevWindowLaunch = shouldPrepareInactiveMacDevWindowLaunch({
   benchmarkWindowBackgroundMode,

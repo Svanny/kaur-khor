@@ -45,6 +45,7 @@ function Install-LocalNode {
   }
 
   Expand-Archive -Path $ArchivePath -DestinationPath $TempDir -Force
+  Remove-Item -Force $ArchivePath
   $LocalNodeRoot = Join-Path $ToolsDir "node-v${NodeVersion}"
   $ExtractedNodeRoot = Join-Path $TempDir "node-v${NodeVersion}-${NodePlatform}"
   if (Test-Path $LocalNodeRoot) {

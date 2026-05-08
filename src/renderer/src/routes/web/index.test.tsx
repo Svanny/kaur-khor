@@ -1807,6 +1807,7 @@ describe('WebRoutes build from source section', () => {
     expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
     expect(section).toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
     expect(section).toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
+    expect(section).toHaveTextContent('rm kaur-khor-source.tar.gz');
     expect(section).toHaveTextContent('cd kaur-khor-main');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
@@ -1837,6 +1838,7 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
     expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"');
     expect(snippet).toHaveTextContent('Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."');
+    expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-source.zip"');
     expect(snippet).toHaveTextContent('Set-Location "kaur-khor-main"');
     expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1');
     expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');

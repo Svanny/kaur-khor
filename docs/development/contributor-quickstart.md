@@ -34,6 +34,8 @@ pnpm package:win:native
 ```
 
 On macOS, `pnpm package:mac` builds into `release/`, uses the nested `release/mac-*` runnable app folder, and installs `KAUR KHOR.app` into `/Applications` after packaging. Set `KAUR_KHOR_SKIP_APPLICATIONS_INSTALL=1` to leave the app only in `release/`.
+On Linux, `pnpm package:linux` builds the AppImage and `.deb`, installs the generated `.deb` with noninteractive `sudo apt-get install --reinstall` when available, and opens `release/` if automatic installation fails. The reinstall flag matters for repeated local builds that keep the same package version.
+On Windows PowerShell, use `$env:ALLOW_UNSIGNED_PACKAGING="1"; pnpm package:win:native` for a local-only unsigned package. The unsigned path uses a standalone app-icon stamping step, skips `.exe` signing, and avoids electron-builder's bundled signing-tool extraction path that requires symlink privileges on some Windows setups.
 
 ## Repo Shape
 

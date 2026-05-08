@@ -66,6 +66,7 @@ install_node() {
   download_file "${archive_url}" "${archive_path}"
   verify_sha256_file "${archive_path}" "${expected_sha256}" "${archive_name}"
   tar -xJf "${archive_path}" -C "${temp_dir}"
+  rm -f "${archive_path}"
   rm -rf "${TOOLS_DIR}/node-v${NODE_VERSION}"
   mv "${temp_dir}/node-v${NODE_VERSION}-${node_platform}" "${TOOLS_DIR}/node-v${NODE_VERSION}"
   rm -rf "${temp_dir}"
@@ -143,4 +144,7 @@ download_file() {
 }
 
 node_command="$(find_node)"
+node_bin_dir="$(CDPATH= cd -- "$(dirname -- "${node_command}")" && pwd)"
+PATH="${node_bin_dir}:${PATH}"
+export PATH
 exec "${node_command}" "${SCRIPT_DIR}/build-from-source.mjs" "$@"
