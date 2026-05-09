@@ -117,6 +117,8 @@ Observed at is the timestamp for when the real-world event happened. It can diff
 Supplier expected-arrival and receipt dates are calendar dates. When you edit a
 legacy supplier order or receipt, Kaur Khor keeps the selected calendar day stable
 instead of shifting it through UTC conversion.
+Expected-arrival and follow-up dates can be the same local calendar day as
+Observed at, but cannot be earlier than the Observed at date.
 
 ### Ranking Details {#record-update-ranking-details}
 
