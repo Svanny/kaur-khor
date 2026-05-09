@@ -35,7 +35,13 @@ export interface CustomerIdentityDraft {
   location: string;
 }
 
+export interface CustomerLinkDirectoryEntry {
+  name: string;
+  phone: string;
+}
+
 export interface CustomerLinkDirectory {
+  entries: CustomerLinkDirectoryEntry[];
   names: string[];
   nameToPhone: Map<string, string>;
   phoneToName: Map<string, string>;
@@ -94,21 +100,23 @@ export function buildTicketPartyMetadata(draft: CustomerIdentityDraft): SenaTick
   };
 }
 
-export function buildCustomerLinkDirectory(observations: SenaObservationRecord[]): CustomerLinkDirectory {
+export function buildCustomerLinkDirectoryFromParties(parties: Array<SenaTicketPartyMetadata | null | undefined>): CustomerLinkDirectory {
+  const entriesByKey = new Map<string, CustomerLinkDirectoryEntry>();
   const nameByKey = new Map<string, string>();
   const nameToPhone = new Map<string, string>();
   const phoneToName = new Map<string, string>();
 
-  for (const event of observations.flatMap((observation) => observation.input.ticketEvents ?? [])) {
-    if (event.ticketFamily !== 'customer' || event.party?.role !== 'customer') {
+  for (const party of parties) {
+    if (party?.role !== 'customer') {
       continue;
     }
-    const name = collapseSpaces(event.party.customerName ?? '');
-    const phone = formatPhoneForDisplay(event.party.phone ?? '');
-    const nameKey = event.party.customerNameKey ?? normalizeTicketLookupValue(name);
-    const phoneKey = normalizePhoneLookupKey(event.party.phone ?? event.party.phoneKey ?? '');
+    const name = collapseSpaces(party.customerName ?? '');
+    const phone = formatPhoneForDisplay(party.phone ?? '');
+    const nameKey = party.customerNameKey ?? normalizeTicketLookupValue(name);
+    const phoneKey = normalizePhoneLookupKey(party.phone ?? party.phoneKey ?? '');
     if (name && nameKey) {
       nameByKey.set(nameKey, name);
+      entriesByKey.set(`${nameKey}:${phoneKey}`, { name, phone });
     }
     if (name && phone && nameKey && !nameToPhone.has(nameKey)) {
       nameToPhone.set(nameKey, phone);
@@ -119,16 +127,31 @@ export function buildCustomerLinkDirectory(observations: SenaObservationRecord[]
   }
 
   return {
+    entries: [...entriesByKey.values()].sort((left, right) =>
+      left.name.localeCompare(right.name) || left.phone.localeCompare(right.phone),
+    ),
     names: [...nameByKey.values()].sort((left, right) => left.localeCompare(right)),
     nameToPhone,
     phoneToName,
   };
 }
 
+export function buildCustomerLinkDirectory(observations: SenaObservationRecord[]): CustomerLinkDirectory {
+  return buildCustomerLinkDirectoryFromParties(
+    observations
+      .flatMap((observation) => observation.input.ticketEvents ?? [])
+      .filter((event) => event.ticketFamily === 'customer')
+      .map((event) => event.party),
+  );
+}
+
 export function customerLinkWarning(draft: CustomerIdentityDraft, directory: CustomerLinkDirectory) {
   const nameKey = normalizeTicketLookupValue(draft.customerName);
   const phoneKey = normalizeTicketPhone(draft.phone);
   if (!nameKey || !phoneKey) {
+    return null;
+  }
+  if (directory.entries.some((entry) => normalizeTicketLookupValue(entry.name) === nameKey && normalizeTicketPhone(entry.phone) === phoneKey)) {
     return null;
   }
   const linkedPhone = directory.nameToPhone.get(nameKey);

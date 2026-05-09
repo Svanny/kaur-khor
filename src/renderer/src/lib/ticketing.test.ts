@@ -89,6 +89,23 @@ describe('ticketing phone normalization', () => {
         }],
       },
     }] as unknown as SenaObservationRecord[];
+    observations[0]!.input.ticketEvents!.push({
+      ticketId: 'ticket-2',
+      ticketFamily: 'customer',
+      lifecycle: 'open',
+      stage: 'pending',
+      revision: 1,
+      eventType: 'created',
+      occurredAt: '2026-04-23T00:00:00.000Z',
+      party: {
+        role: 'customer',
+        customerName: 'Sokha',
+        customerNameKey: 'sokha',
+        phone: '+855 98765432',
+        phoneKey: '+85598765432',
+      },
+      lines: [],
+    } as unknown as NonNullable<SenaObservationRecord['input']['ticketEvents']>[number]);
 
     const directory = buildCustomerLinkDirectory(observations);
 
@@ -106,6 +123,17 @@ describe('ticketing phone normalization', () => {
       phone: '012345678',
       location: '',
     }, directory)).toBe('This phone was previously linked to a different customer. Save if this is intentional.');
+    expect(customerLinkWarning({
+      channel: 'Telegram',
+      customChannel: '',
+      customerName: 'Sokha',
+      phone: '+85598765432',
+      location: '',
+    }, directory)).toBeNull();
+    expect(directory.entries).toEqual([
+      { name: 'Sokha', phone: '+855 12345678' },
+      { name: 'Sokha', phone: '+855 98765432' },
+    ]);
     expect(directory.nameToPhone.get('sokha')).toBe('+855 12345678');
   });
 
