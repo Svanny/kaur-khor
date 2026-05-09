@@ -78,6 +78,26 @@ export interface DesktopClearCurrentDataResult {
   safetySnapshot: DesktopBackupSnapshotResult;
 }
 
+export interface DesktopUpdateCheckResult {
+  currentVersion: string;
+  isPlatformSupported: boolean;
+  isUpdateAvailable: boolean;
+  latestVersion: string | null;
+  releaseTag: string | null;
+  releaseUrl: string;
+}
+
+export interface DesktopUpdateRunPayload {
+  backupDirectoryPath?: string | null;
+  dataDirectoryPath?: string | null;
+  skipBackup?: boolean;
+}
+
+export interface DesktopUpdateRunResult {
+  message: string;
+  started: boolean;
+}
+
 export type DesktopTaskBatchUpdatePreference = 'always_batch' | 'always_alone' | 'ask';
 
 export interface DesktopTaskBatchUpdatePreferences {
@@ -223,6 +243,10 @@ export interface DesktopSystemBridge {
   createBackupSnapshot: () => Promise<DesktopBackupSnapshotResult>;
   restoreBackupSnapshot: () => Promise<DesktopBackupRestoreResult | null>;
   clearCurrentData: () => Promise<DesktopClearCurrentDataResult>;
+  checkForUpdate: () => Promise<DesktopUpdateCheckResult>;
+  chooseUpdateBackupDirectory: () => Promise<string | null>;
+  chooseUpdateDataDirectory: () => Promise<string | null>;
+  runSourceBuildUpdate: (payload: DesktopUpdateRunPayload) => Promise<DesktopUpdateRunResult>;
   revealPath: (path: string) => Promise<void>;
   openExternalUrl: (url: string) => Promise<void>;
   pickAndStoreImage: () => Promise<string | null>;
@@ -359,6 +383,10 @@ export const IPC_CHANNELS = {
   systemCreateBackupSnapshot: 'kaur-khor:system:create-backup-snapshot',
   systemRestoreBackupSnapshot: 'kaur-khor:system:restore-backup-snapshot',
   systemClearCurrentData: 'kaur-khor:system:clear-current-data',
+  systemCheckForUpdate: 'kaur-khor:system:check-for-update',
+  systemChooseUpdateBackupDirectory: 'kaur-khor:system:choose-update-backup-directory',
+  systemChooseUpdateDataDirectory: 'kaur-khor:system:choose-update-data-directory',
+  systemRunSourceBuildUpdate: 'kaur-khor:system:run-source-build-update',
   systemRevealPath: 'kaur-khor:system:reveal-path',
   systemOpenExternalUrl: 'kaur-khor:system:open-external-url',
   systemPickAndStoreImage: 'kaur-khor:system:pick-and-store-image',

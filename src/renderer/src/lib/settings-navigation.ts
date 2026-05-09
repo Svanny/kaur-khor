@@ -1,4 +1,4 @@
-import { ActionExplosionIcon, ActionOpenFolderIcon } from '@icons/actions';
+import { ActionExplosionIcon, ActionOpenFolderIcon, ActionRefreshIcon } from '@icons/actions';
 import { EntityFavoriteIcon } from '@icons/entities';
 import {
   NavigationAutomationIcon,
@@ -22,6 +22,7 @@ export type SettingsSectionId =
   | 'benchmarks'
   | 'help'
   | 'credits'
+  | 'updates'
   | 'danger-zone';
 
 export type SettingsSectionConfig = {
@@ -101,6 +102,13 @@ export const SETTINGS_SECTIONS: SettingsSectionConfig[] = [
     titleKey: 'settingsCreditsTitle',
     descriptionKey: 'settingsCreditsDescription',
     icon: EntityFavoriteIcon,
+  },
+  {
+    id: 'updates',
+    path: '/settings/updates',
+    titleKey: 'settingsUpdatesTitle',
+    descriptionKey: 'settingsUpdatesDescription',
+    icon: ActionRefreshIcon,
   },
   {
     id: 'danger-zone',

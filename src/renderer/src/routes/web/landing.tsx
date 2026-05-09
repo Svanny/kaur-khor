@@ -56,18 +56,18 @@ const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
 const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const shellSourceBuildCommands = [
-  'curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz -o kaur-khor-source-build.tar.gz',
-  'tar -xzf kaur-khor-source-build.tar.gz',
-  'rm kaur-khor-source-build.tar.gz',
+  'curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz -o kaur-khor-latest-source-build.tar.gz',
+  'tar -xzf kaur-khor-latest-source-build.tar.gz',
+  'rm kaur-khor-latest-source-build.tar.gz',
   'cd kaur-khor-*-source-build',
-  './scripts/build-from-source.sh',
+  './scripts/build-from-source.sh --update',
 ] as const;
 const powershellSourceBuildCommands = [
-  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz" -OutFile "kaur-khor-source-build.tar.gz"',
-  'tar -xzf "kaur-khor-source-build.tar.gz"',
-  'Remove-Item -Path "kaur-khor-source-build.tar.gz"',
+  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"',
+  'tar -xzf "kaur-khor-latest-source-build.tar.gz"',
+  'Remove-Item -Path "kaur-khor-latest-source-build.tar.gz"',
   'Set-Location "kaur-khor-*-source-build"',
-  '.\\scripts\\build-from-source.ps1',
+  '.\\scripts\\build-from-source.ps1 --update',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const screenshotWidth = 3456;

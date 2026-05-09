@@ -18,12 +18,17 @@ import { homedir, tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
+import {
+  latestDownloadSnippetArchiveName,
+  prepareSourceBuildUpdate,
+  releaseVersionFromSourceRoot,
+} from './update-support.mjs';
 
 const PNPM_VERSION = '10.32.1';
 const RUSTUP_VERSION = '1.28.2';
 const MINIMUM_CARGO_VERSION = '1.85.0';
 const DEFAULT_REPO = 'https://github.com/Svanny/kaur-khor.git';
-const DEFAULT_REF = 'main';
+const DEFAULT_REF = 'latest';
 const SOURCE_BUILD_RELEASE_MARKER = '.kaur-khor-source-build-release';
 const SUPPORTED_TARGETS = new Set(['mac-arm64', 'mac-x64', 'linux-arm64', 'linux-x64', 'windows-x64']);
 const TARGET_ALIASES = {
@@ -74,6 +79,21 @@ async function main(options) {
 
   const sourceRoot = await resolveSourceRoot();
   process.chdir(sourceRoot);
+
+  if (options.update) {
+    await prepareSourceBuildUpdate({
+      backupDir: options.backupDir,
+      dataDir: options.dataDir,
+      nextVersion: releaseVersionFromSourceRoot(sourceRoot),
+      noUninstall: options.noUninstall,
+      skipBackup: options.skipBackup,
+      target,
+    });
+    process.env.KAUR_KHOR_UPDATE_MODE = '1';
+    if (options.noUninstall) {
+      process.env.KAUR_KHOR_NO_UNINSTALL = '1';
+    }
+  }
 
   const linuxInstallEnv = prepareLinuxInstallPrivilege(target);
   ensurePlatformTools(target);
@@ -133,9 +153,14 @@ function isDirectExecution() {
 
 function parseArgs(args) {
   const parsed = {
+    backupDir: null,
+    dataDir: null,
     help: false,
+    noUninstall: false,
     platform: null,
     resolveOnly: false,
+    skipBackup: false,
+    update: false,
   };
 
   for (const arg of args) {
@@ -146,6 +171,31 @@ function parseArgs(args) {
 
     if (arg === '--resolve-only') {
       parsed.resolveOnly = true;
+      continue;
+    }
+
+    if (arg === '--update') {
+      parsed.update = true;
+      continue;
+    }
+
+    if (arg === '--skip-backup') {
+      parsed.skipBackup = true;
+      continue;
+    }
+
+    if (arg === '--no-uninstall') {
+      parsed.noUninstall = true;
+      continue;
+    }
+
+    if (arg.startsWith('--backup-dir=')) {
+      parsed.backupDir = arg.slice('--backup-dir='.length);
+      continue;
+    }
+
+    if (arg.startsWith('--data-dir=')) {
+      parsed.dataDir = arg.slice('--data-dir='.length);
       continue;
     }
 
@@ -164,7 +214,7 @@ function printHelp() {
   console.log(`Kaur Khor source build
 
 Usage:
-  node scripts/build-from-source.mjs [--platform=<target>] [--resolve-only]
+  node scripts/build-from-source.mjs [--platform=<target>] [--resolve-only] [--update]
 
 Targets:
   mac-arm64
@@ -180,7 +230,15 @@ Environment:
   KAUR_KHOR_REF              Source ref. Defaults to ${DEFAULT_REF}.
   KAUR_KHOR_SOURCE_ARCHIVE_URL  Explicit source-build .tar.gz URL.
   KAUR_KHOR_BUILD_DIR        Directory used when the script must download source.
+  KAUR_KHOR_DESKTOP_DATA_DIR Data directory to back up before --update installs.
   KAUR_KHOR_SKIP_RUST_TESTS  Set to 1 to skip desktop-core cargo tests.
+
+Update flags:
+  --update                  Export a pre-update snapshot and replace the installed app.
+  --backup-dir=<path>       Write the pre-update snapshot export to this folder.
+  --data-dir=<path>         Back up this Kaur Khor data directory.
+  --skip-backup             Replace the app without exporting a pre-update snapshot.
+  --no-uninstall            Skip explicit uninstall steps where supported.
 `);
 }
 
@@ -326,12 +384,15 @@ function githubArchiveUrl(repo, ref) {
   }
 
   const [, owner, name] = match;
+  if (ref === 'latest') {
+    return `https://codeload.github.com/${owner}/${name}/tar.gz/main`;
+  }
   const encodedRef = ref.split('/').map((part) => encodeURIComponent(part)).join('/');
   return `https://codeload.github.com/${owner}/${name}/tar.gz/${encodedRef}`;
 }
 
 function githubReleaseSourceArchiveUrl(repo, ref) {
-  if (!/^v\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(ref)) {
+  if (ref !== 'latest' && !/^v\d+\.\d+\.\d+(?:[-+][\w.-]+)?$/.test(ref)) {
     return null;
   }
 
@@ -341,7 +402,7 @@ function githubReleaseSourceArchiveUrl(repo, ref) {
   }
 
   const [, owner, name] = match;
-  const assetName = `${name}-${ref}-source-build.tar.gz`;
+  const assetName = ref === 'latest' ? latestDownloadSnippetArchiveName() : `${name}-${ref}-source-build.tar.gz`;
   return `https://github.com/${owner}/${name}/releases/download/${encodeURIComponent(ref)}/${encodeURIComponent(assetName)}`;
 }
 

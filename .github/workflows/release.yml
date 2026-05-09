@@ -205,6 +205,8 @@ jobs:
           test -n "$(find dist -maxdepth 1 -name '*-linux-arm64.AppImage' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*-linux-x64.deb' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*-linux-arm64.deb' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -name 'kaur-khor-v*-source-build.tar.gz' -print -quit)"
+          test -n "$(find dist -maxdepth 1 -name 'kaur-khor-latest-source-build.tar.gz' -print -quit)"
 
       - name: Generate SHA256 checksums
         shell: bash
@@ -250,10 +252,10 @@ jobs:
           {
             echo "## Highlights"
             echo
-            echo "- Restored automatic zoom-in and zoom-out behavior for embedded phone landscape layouts in both demo and browser app routes."
-            echo "- Moved demo and browser onboarding banners into the page flow so they no longer float over the onboarding panel."
-            echo "- Simplified the demo embedded banner by removing the browser-app CTA while keeping backup, import, reset, and main-page actions available."
-            echo "- Improved the phone rotate warning with a solid centered card, zoomed-out artwork, and English/Khmer onboarding-style flip copy."
+            echo "- Added a desktop-only Settings / Updates page for checking the latest release and launching the source-build updater."
+            echo "- Added pre-update snapshot export prompts with custom data-folder support for users who store Kaur Khor data outside the default path."
+            echo "- Improved source-build updater scripts so they detect the installed version, back up data, and replace the installed app while keeping workspace data separate."
+            echo "- Harmonized source-build archive names with versioned and latest aliases."
             echo
             echo "## Downloads"
             echo
@@ -273,7 +275,7 @@ jobs:
             echo "## Included files"
             echo
             echo "- Release artifacts for all supported desktop platforms"
-            echo "- Production source-build archive for local desktop builds, plus a latest-release alias"
+            echo "- Production source-build archive for local desktop builds, plus versioned and latest-release aliases"
             echo "- Bundled kaur-khor-desktop-core runtime inside every desktop app package"
             echo "- SHA256SUMS for every attached asset"
             if [[ -n "${previous_tag}" ]]; then

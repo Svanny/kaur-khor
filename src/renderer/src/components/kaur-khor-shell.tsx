@@ -56,6 +56,7 @@ import { cn } from '@/lib/utils';
 import { useInventory } from '@/state/inventory';
 import { buildKaurKhorNavigationState, buildSidebarNavigationState, SIDEBAR_NAVIGATION_SOURCE, useNavigationHistory } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 import brandLogo from '@/assets/kaur-khor-logo.svg';
 import { ActionCreatePackageIcon, ActionRefreshIcon } from '@icons/actions';
 import { RECORD_UPDATE_LANES } from '@/lib/record-update-routes';
@@ -196,7 +197,7 @@ const settingsNavigationGroups = (sections: SettingsSectionConfig[]): SettingsSi
   },
   {
     labelKey: 'sidebarSectionOther',
-    sections: orderedSettingsSections(['local-data', 'planning', 'benchmarks', 'danger-zone'], sections),
+    sections: orderedSettingsSections(['local-data', 'planning', 'benchmarks', 'updates', 'danger-zone'], sections),
   },
 ];
 
@@ -460,12 +461,15 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
     t,
   } = usePreferences();
   const inventory = useInventory();
+  const { isBrowserRuntime } = useRuntimeMode();
   const { error, isLoading, isPreparingWorkspace, reload } = inventory;
   const { isMobile, setOpenMobile, state, toggleSidebar } = useSidebar();
   const showGlobalLoadingScreen =
     isPreparingWorkspace || (isLoading && !routeSupportsLocalLoadingState(location.pathname));
   const navigationAvailability = deriveNavigationAvailability(inventory);
-  const settingsSections = visibleSettingsSections();
+  const settingsSections = visibleSettingsSections().filter(
+    (section) => section.id !== 'updates' || !isBrowserRuntime,
+  );
   const settingsCreditsSection = settingsSections.find((section) => section.id === 'credits');
   const settingsHelpSection = settingsSections.find((section) => section.id === 'help');
   const visibleSettingsGroups = settingsNavigationGroups(settingsSections).map((group) => ({

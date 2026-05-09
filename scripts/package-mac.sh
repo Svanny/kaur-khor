@@ -58,7 +58,9 @@ install_app_from_release() {
   app_dir="$(dirname "${app_path}")"
 
   echo "Installing ${release_dir}/${app_dir#./}/${app_name} to /Applications/${app_name}..."
-  rm -rf "/Applications/${app_name}"
+  if [[ "${KAUR_KHOR_NO_UNINSTALL:-0}" != "1" ]]; then
+    rm -rf "/Applications/${app_name}"
+  fi
   ditto "${app_path}" "/Applications/${app_name}"
   popd >/dev/null
 }

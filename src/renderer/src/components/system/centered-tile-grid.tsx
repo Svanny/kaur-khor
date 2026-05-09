@@ -81,7 +81,7 @@ export function CenteredTileGrid({
     >
       <div
         data-slot="centered-tile-grid-inner"
-        className="grid max-w-full justify-center gap-[var(--centered-tile-gap)]"
+        className="grid max-w-full place-items-center justify-center gap-[var(--centered-tile-gap)]"
         style={
           {
             width: 'fit-content',

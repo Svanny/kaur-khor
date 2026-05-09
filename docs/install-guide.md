@@ -35,12 +35,14 @@ Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The release source-build archive is production-focused and excludes developer docs, benchmarks, tests, screenshots, and sample product photos. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. If it finds an older Cargo, it updates Rust stable with rustup before building. Copy the code below and paste it inside Terminal on macOS or Linux:
 
 ```sh
-curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz -o kaur-khor-source-build.tar.gz
-tar -xzf kaur-khor-source-build.tar.gz
-rm kaur-khor-source-build.tar.gz
+curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz -o kaur-khor-latest-source-build.tar.gz
+tar -xzf kaur-khor-latest-source-build.tar.gz
+rm kaur-khor-latest-source-build.tar.gz
 cd kaur-khor-*-source-build
-./scripts/build-from-source.sh
+./scripts/build-from-source.sh --update
 ```
+
+The update script asks where to export a pre-update snapshot before replacing the installed app. If your workspace data lives in a custom folder, pass `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the desktop app to choose the folder. After installing the new version, restore the exported snapshot from Settings / Local data if you need to rehydrate from that custom location.
 
 After a source build, the script opens the nested runnable-app folder under `release/` when the platform emits one, such as `release/mac-arm64` on Apple Silicon Macs.
 
@@ -62,11 +64,11 @@ This approves the downloaded app without changing SmartScreen system-wide.
 To build from source on Windows, use PowerShell-native commands. PowerShell aliases `curl` to `Invoke-WebRequest`, so `curl -L` will fail there. The bootstrap script installs a local pinned Node.js if `node` is not already available, updates old Rust stable toolchains through rustup, then installs the remaining build dependencies:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz" -OutFile "kaur-khor-source-build.tar.gz"
-tar -xzf "kaur-khor-source-build.tar.gz"
-Remove-Item -Path "kaur-khor-source-build.tar.gz"
+Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"
+tar -xzf "kaur-khor-latest-source-build.tar.gz"
+Remove-Item -Path "kaur-khor-latest-source-build.tar.gz"
 Set-Location "kaur-khor-*-source-build"
-.\scripts\build-from-source.ps1
+.\scripts\build-from-source.ps1 --update
 ```
 
 After a successful Windows source build, the script opens the generated setup installer from `release\`. Complete that installer to register the app with Windows instead of launching `release\win-unpacked` directly.

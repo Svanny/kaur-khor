@@ -62,10 +62,10 @@ test.describe('Grid card layout', () => {
         });
         expect(hasNoVerticalScroll, 'document should not have vertical scroll').toBe(true);
 
-        const outerGrid = page.locator('.grid.min-h-0.flex-1.place-items-center').first();
+        const outerGrid = page.locator('[data-slot="centered-tile-grid"]').first();
         await outerGrid.waitFor({ state: 'visible', timeout: 10000 });
 
-        const innerGrid = outerGrid.locator('> div').first();
+        const innerGrid = outerGrid.locator('[data-slot="centered-tile-grid-inner"]').first();
         await innerGrid.waitFor({ state: 'visible', timeout: 10000 });
 
         const outerBox = await outerGrid.boundingBox();

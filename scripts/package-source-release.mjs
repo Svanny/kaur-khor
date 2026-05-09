@@ -14,18 +14,23 @@ import {
 import { dirname, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { sourceBuildArchiveNames } from './update-support.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const outputDir = resolve(root, 'dist');
 const packageJson = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 const releaseVersion = resolveReleaseVersion();
 const releaseTag = releaseVersion.startsWith('v') ? releaseVersion : `v${releaseVersion}`;
-const archiveBaseName = `kaur-khor-${releaseTag}-source-build`;
+const archiveNames = sourceBuildArchiveNames(releaseVersion);
+const archiveBaseName = archiveNames.versionedBaseName;
 const archivePath = resolve(outputDir, `${archiveBaseName}.tar.gz`);
 const checksumPath = `${archivePath}.sha256`;
-const latestArchiveBaseName = 'kaur-khor-source-build';
+const latestArchiveBaseName = archiveNames.latestBaseName;
 const latestArchivePath = resolve(outputDir, `${latestArchiveBaseName}.tar.gz`);
 const latestChecksumPath = `${latestArchivePath}.sha256`;
+const legacyArchiveBaseName = archiveNames.legacyBaseName;
+const legacyArchivePath = resolve(outputDir, `${legacyArchiveBaseName}.tar.gz`);
+const legacyChecksumPath = `${legacyArchivePath}.sha256`;
 const sourceRootName = archiveBaseName;
 const tempRoot = mkdtempSync(resolve(tmpdir(), 'kaur-khor-source-release-'));
 const stageRoot = resolve(tempRoot, sourceRootName);
@@ -57,6 +62,7 @@ const includeFiles = new Set([
   'scripts/package-linux.sh',
   'scripts/package-mac.sh',
   'scripts/package-source-release.mjs',
+  'scripts/update-support.mjs',
   'scripts/package-win-native.mjs',
   'scripts/stage-desktop-core.mjs',
   'src/renderer/src/assets/help/user-guide.km.md',
@@ -91,16 +97,22 @@ try {
   rmSync(checksumPath, { force: true });
   rmSync(latestArchivePath, { force: true });
   rmSync(latestChecksumPath, { force: true });
+  rmSync(legacyArchivePath, { force: true });
+  rmSync(legacyChecksumPath, { force: true });
   run('tar', ['-czf', archivePath, '-C', tempRoot, sourceRootName]);
 
   const checksum = createHash('sha256').update(readFileSync(archivePath)).digest('hex');
   writeFileSync(checksumPath, `${checksum}  ${archiveBaseName}.tar.gz\n`);
   copyFileSync(archivePath, latestArchivePath);
   writeFileSync(latestChecksumPath, `${checksum}  ${latestArchiveBaseName}.tar.gz\n`);
+  copyFileSync(archivePath, legacyArchivePath);
+  writeFileSync(legacyChecksumPath, `${checksum}  ${legacyArchiveBaseName}.tar.gz\n`);
   console.log(`Wrote ${archivePath}`);
   console.log(`Wrote ${checksumPath}`);
   console.log(`Wrote ${latestArchivePath}`);
   console.log(`Wrote ${latestChecksumPath}`);
+  console.log(`Wrote ${legacyArchivePath}`);
+  console.log(`Wrote ${legacyChecksumPath}`);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }
@@ -135,7 +147,7 @@ function shouldInclude(filePath) {
 }
 
 function isExcluded(filePath) {
-  if (filePath.endsWith('.test.ts') || filePath.endsWith('.test.tsx')) {
+  if (/\.(?:test|spec)\.(?:[cm]?js|tsx?)$/i.test(filePath)) {
     return true;
   }
   if (/\.(png|jpe?g|webp|gif)$/i.test(filePath)) {

@@ -54,7 +54,7 @@ test.describe('CenteredTileGrid 1x1 centering', () => {
       await page.setViewportSize({ width: 450, height: 800 });
       await page.waitForTimeout(2000);
 
-      const outerGrid = page.locator('.grid.min-h-0.flex-1.place-items-center').first();
+      const outerGrid = page.locator('[data-slot="centered-tile-grid"]').first();
       await outerGrid.waitFor({ state: 'visible', timeout: 10000 });
 
       // Force the grid area to be smaller than the tile so we exercise overflow centering
@@ -65,7 +65,7 @@ test.describe('CenteredTileGrid 1x1 centering', () => {
       });
       await page.waitForTimeout(500);
 
-      const innerGrid = outerGrid.locator('> div').first();
+      const innerGrid = outerGrid.locator('[data-slot="centered-tile-grid-inner"]').first();
       await innerGrid.waitFor({ state: 'visible', timeout: 10000 });
 
       const tile = innerGrid.locator('.liquid-grid-card-frame').first();

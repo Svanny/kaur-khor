@@ -199,6 +199,10 @@ Current system actions:
 - `createBackupSnapshot()`
 - `restoreBackupSnapshot()`
 - `clearCurrentData()`
+- `checkForUpdate()`
+- `chooseUpdateBackupDirectory()`
+- `chooseUpdateDataDirectory()`
+- `runSourceBuildUpdate(payload)`
 - `revealPath(path)`
 - `openExternalUrl(url)`
 - `pickAndStoreImage()`
@@ -225,6 +229,17 @@ header before normalization, and are rejected if they exceed 20 MB, 12000 px on
 either side, or 40 megapixels. WebP inputs are normalized to PNG before the final
 asset is written so renderer, local storage, and downstream upload behavior stay
 aligned.
+
+## Desktop Update Flow
+
+Settings / Updates is desktop-only. It checks the latest GitHub release, asks the
+operator to choose a pre-update snapshot export folder, optionally lets them
+choose a custom Kaur Khor data folder, and launches the source-build updater in a
+detached terminal before quitting the app. The updater replaces the installed app
+binary only. It never deletes the active Electron `userData` folder or a custom
+data directory; custom-folder users should restore the exported snapshot from
+Settings / Local data after the new version opens if they need to rehydrate that
+workspace.
 
 Downstream Telegram photo sends may only read image files that resolve under the
 managed `assets/` directory for the current `userData` root. Absolute paths,

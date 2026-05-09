@@ -465,13 +465,16 @@ chmod +x "$node_dir/node"
     const packageJson = readFileSync(resolve('package.json'), 'utf8');
     const workflow = readFileSync(resolve('.github/workflows/release.yml'), 'utf8');
 
-    expect(script).toContain('kaur-khor-${releaseTag}-source-build');
+    expect(script).toContain('sourceBuildArchiveNames(releaseVersion)');
+    expect(script).toContain('archiveNames.versionedBaseName');
+    expect(script).toContain('archiveNames.latestBaseName');
+    expect(script).toContain('copyFileSync(archivePath, latestArchivePath)');
     expect(script).toContain('kaur-khor-source-build');
     expect(script).toContain('src/renderer/src/assets/kaur-khor');
     expect(script).toContain("filePath.startsWith('src/renderer/src/assets/kaur-khor')");
     expect(script).toContain("filePath.startsWith('src/renderer/src/assets/dev-catalog/')");
     expect(script).toContain("filePath.includes('/tests/')");
-    expect(script).toContain("'.test.ts'");
+    expect(script).toContain('/\\.(?:test|spec)\\.(?:[cm]?js|tsx?)$/i');
     expect(script).toContain('SOURCE-BUILD-README.md');
     expect(packageJson).toContain('"package:source": "node ./scripts/package-source-release.mjs"');
     expect(workflow).toContain('Build production source-build archive');

@@ -1,0 +1,296 @@
+import { spawnSync } from 'node:child_process';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
+import { homedir, platform, tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
+
+export const SOURCE_BUILD_VERSIONED_SUFFIX = 'source-build.tar.gz';
+export const SOURCE_BUILD_LATEST_BASE_NAME = 'kaur-khor-latest-source-build';
+export const SOURCE_BUILD_LEGACY_BASE_NAME = 'kaur-khor-source-build';
+
+const PRODUCT_NAME = 'KAUR KHOR';
+const MAC_APP_PATH = `/Applications/${PRODUCT_NAME}.app`;
+const APP_ID = 'com.svanny.kaur-khor';
+const PACKAGE_NAME = 'kaur-khor';
+
+export function sourceBuildArchiveNames(version) {
+  const normalizedVersion = String(version).replace(/^v/, '');
+  const tag = `v${normalizedVersion}`;
+  return {
+    tag,
+    versionedBaseName: `kaur-khor-${tag}-source-build`,
+    versionedArchiveName: `kaur-khor-${tag}-${SOURCE_BUILD_VERSIONED_SUFFIX}`,
+    latestBaseName: SOURCE_BUILD_LATEST_BASE_NAME,
+    latestArchiveName: `${SOURCE_BUILD_LATEST_BASE_NAME}.tar.gz`,
+    legacyBaseName: SOURCE_BUILD_LEGACY_BASE_NAME,
+    legacyArchiveName: `${SOURCE_BUILD_LEGACY_BASE_NAME}.tar.gz`,
+  };
+}
+
+export function defaultDataDirectoryForPlatform(targetOs = process.platform) {
+  if (targetOs === 'darwin' || targetOs === 'mac') {
+    return join(homedir(), 'Library', 'Application Support', PRODUCT_NAME);
+  }
+
+  if (targetOs === 'win32' || targetOs === 'windows') {
+    return join(process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'), PRODUCT_NAME);
+  }
+
+  return join(process.env.XDG_CONFIG_HOME || join(homedir(), '.config'), PRODUCT_NAME);
+}
+
+export function timestampToken(value = new Date()) {
+  return value.toISOString().replace(/[:.]/g, '-');
+}
+
+export function preUpdateBackupName({ currentVersion, nextVersion, now = new Date() }) {
+  const fromVersion = currentVersion ? `v${String(currentVersion).replace(/^v/, '')}` : 'unknown';
+  const toVersion = nextVersion ? `v${String(nextVersion).replace(/^v/, '')}` : 'latest';
+  return `kaur-khor-pre-update-${fromVersion}-to-${toVersion}-${timestampToken(now)}`;
+}
+
+export function resolveUpdateDataDirectory(explicitDataDir, targetOs = process.platform) {
+  const candidates = [
+    explicitDataDir,
+    process.env.KAUR_KHOR_DESKTOP_DATA_DIR,
+    defaultDataDirectoryForPlatform(targetOs),
+  ].filter((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);
+
+  return candidates.find((candidate) => existsSync(resolve(candidate))) ?? resolve(candidates[0] ?? defaultDataDirectoryForPlatform(targetOs));
+}
+
+export function createPreUpdateBackup({
+  backupDir,
+  currentVersion,
+  dataDir,
+  nextVersion,
+  now = new Date(),
+}) {
+  if (!backupDir) {
+    throw new Error('A backup directory is required.');
+  }
+
+  const resolvedDataDir = resolve(dataDir);
+  if (!existsSync(resolvedDataDir)) {
+    throw new Error(`Kaur Khor data directory was not found: ${resolvedDataDir}`);
+  }
+
+  const stats = statSync(resolvedDataDir);
+  if (!stats.isDirectory()) {
+    throw new Error(`Kaur Khor data path is not a directory: ${resolvedDataDir}`);
+  }
+
+  const backupRoot = resolve(backupDir);
+  mkdirSync(backupRoot, { recursive: true });
+  const backupPath = resolve(backupRoot, preUpdateBackupName({ currentVersion, nextVersion, now }));
+  mkdirSync(backupPath, { recursive: true });
+
+  for (const entry of readdirSync(resolvedDataDir, { withFileTypes: true })) {
+    if (entry.name.endsWith('.tmp') || entry.name.startsWith('.kaur-khor-update-')) {
+      continue;
+    }
+
+    cpSync(resolve(resolvedDataDir, entry.name), resolve(backupPath, entry.name), {
+      force: true,
+      recursive: true,
+    });
+  }
+
+  return backupPath;
+}
+
+export function detectInstalledApp(targetOs = process.platform) {
+  if (targetOs === 'darwin' || targetOs === 'mac') {
+    return detectInstalledMacApp();
+  }
+
+  if (targetOs === 'win32' || targetOs === 'windows') {
+    return detectInstalledWindowsApp();
+  }
+
+  return detectInstalledLinuxPackage();
+}
+
+function detectInstalledMacApp() {
+  if (!existsSync(MAC_APP_PATH)) {
+    return { installed: false, installPath: MAC_APP_PATH, version: null };
+  }
+
+  const plistPath = join(MAC_APP_PATH, 'Contents', 'Info.plist');
+  let version = null;
+  const plistBuddy = '/usr/libexec/PlistBuddy';
+  if (existsSync(plistBuddy) && existsSync(plistPath)) {
+    const result = spawnSync(plistBuddy, ['-c', 'Print :CFBundleShortVersionString', plistPath], {
+      encoding: 'utf8',
+    });
+    version = result.status === 0 ? result.stdout.trim() || null : null;
+  }
+
+  return {
+    installed: true,
+    installPath: MAC_APP_PATH,
+    version,
+  };
+}
+
+function detectInstalledLinuxPackage() {
+  const result = spawnSync('dpkg-query', ['-W', '-f=${Version}', PACKAGE_NAME], {
+    encoding: 'utf8',
+  });
+  if (result.status !== 0) {
+    return { installed: false, installPath: null, version: null };
+  }
+
+  return {
+    installed: true,
+    installPath: PACKAGE_NAME,
+    version: result.stdout.trim() || null,
+  };
+}
+
+function detectInstalledWindowsApp() {
+  const keys = [
+    String.raw`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`,
+    String.raw`HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall`,
+    String.raw`HKLM\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall`,
+  ];
+
+  for (const key of keys) {
+    const result = spawnSync('reg', ['query', key, '/s'], { encoding: 'utf8' });
+    if (result.status !== 0) {
+      continue;
+    }
+
+    const blocks = result.stdout.split(/\r?\n\r?\n/);
+    const match = blocks.find((block) =>
+      block.includes(PRODUCT_NAME) || block.toLowerCase().includes(APP_ID),
+    );
+    if (!match) {
+      continue;
+    }
+
+    return {
+      installed: true,
+      installPath: readRegistryValue(match, 'InstallLocation'),
+      uninstallString: readRegistryValue(match, 'UninstallString'),
+      version: readRegistryValue(match, 'DisplayVersion'),
+    };
+  }
+
+  return { installed: false, installPath: null, uninstallString: null, version: null };
+}
+
+function readRegistryValue(block, name) {
+  const line = block.split(/\r?\n/).find((entry) => entry.trim().startsWith(name));
+  if (!line) {
+    return null;
+  }
+  return line.replace(new RegExp(`^\\s*${name}\\s+REG_\\w+\\s+`), '').trim() || null;
+}
+
+export async function prepareSourceBuildUpdate({
+  backupDir,
+  dataDir,
+  nextVersion,
+  noUninstall = false,
+  prompt = true,
+  skipBackup = false,
+  target,
+}) {
+  const installed = detectInstalledApp(target?.os ?? platform());
+  const resolvedDataDir = resolveUpdateDataDirectory(dataDir, target?.os ?? platform());
+
+  console.log(`Installed Kaur Khor version: ${installed.version ?? (installed.installed ? 'unknown' : 'not installed')}`);
+  console.log(`Update target version: ${nextVersion ?? 'latest'}`);
+  console.log(`Detected data directory: ${resolvedDataDir}`);
+
+  let backupPath = null;
+  if (!skipBackup) {
+    const resolvedBackupDir = backupDir ?? (prompt ? await promptForBackupDirectory() : null);
+    if (!resolvedBackupDir) {
+      throw new Error('Update cancelled because no backup directory was selected.');
+    }
+    backupPath = createPreUpdateBackup({
+      backupDir: resolvedBackupDir,
+      currentVersion: installed.version,
+      dataDir: resolvedDataDir,
+      nextVersion,
+    });
+    console.log(`Wrote pre-update snapshot export to ${backupPath}`);
+  } else {
+    console.log('Skipping pre-update snapshot export because --skip-backup was supplied.');
+  }
+
+  if (noUninstall) {
+    console.log('Skipping explicit uninstall because --no-uninstall was supplied.');
+  }
+
+  return {
+    backupPath,
+    dataDir: resolvedDataDir,
+    installed,
+  };
+}
+
+async function promptForBackupDirectory() {
+  const readline = createInterface({ input, output });
+  try {
+    const answer = await readline.question(
+      'Choose a folder for the pre-update snapshot export, or type SKIP/CANCEL: ',
+    );
+    const trimmed = answer.trim();
+    if (/^cancel$/i.test(trimmed)) {
+      throw new Error('Update cancelled by user.');
+    }
+    if (/^skip$/i.test(trimmed)) {
+      return null;
+    }
+    if (!trimmed) {
+      throw new Error('Update cancelled because no backup folder was entered.');
+    }
+    return trimmed;
+  } finally {
+    readline.close();
+  }
+}
+
+export function releaseVersionFromSourceRoot(sourceRoot) {
+  const markerPath = resolve(sourceRoot, '.kaur-khor-source-build-release');
+  if (existsSync(markerPath)) {
+    return readFileSync(markerPath, 'utf8').trim().replace(/^v/, '');
+  }
+
+  const packageJsonPath = resolve(sourceRoot, 'package.json');
+  if (existsSync(packageJsonPath)) {
+    return JSON.parse(readFileSync(packageJsonPath, 'utf8')).version ?? null;
+  }
+
+  return null;
+}
+
+export function latestDownloadSnippetArchiveName() {
+  return `${SOURCE_BUILD_LATEST_BASE_NAME}.tar.gz`;
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const command = process.argv[2];
+  if (command === 'detect') {
+    console.log(JSON.stringify(detectInstalledApp(), null, 2));
+  } else {
+    console.log(JSON.stringify({
+      defaultDataDirectory: defaultDataDirectoryForPlatform(),
+      latestArchiveName: latestDownloadSnippetArchiveName(),
+      tempDirectory: tmpdir(),
+      currentDirectory: basename(process.cwd()),
+    }, null, 2));
+  }
+}

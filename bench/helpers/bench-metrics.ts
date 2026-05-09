@@ -13,7 +13,7 @@ export type BenchmarkScenarioSummary = KaurKhorBenchmarkScenarioSummary;
 
 const MEASUREMENT_START_MARKER = 'benchmark.phase.measurement_start';
 const MEASUREMENT_END_MARKER = 'benchmark.phase.measurement_end';
-const EVENT_STREAM_READ_RETRY_COUNT = 4;
+const EVENT_STREAM_READ_RETRY_COUNT = 8;
 const EVENT_STREAM_READ_RETRY_DELAY_MS = 25;
 
 function wait(ms: number) {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
 import { SettingsRoute } from './settings';
 import { PreferencesProvider } from '@/state/preferences';
+import { visibleSettingsSections } from '@/lib/settings-navigation';
 
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
@@ -131,6 +132,10 @@ describe('SettingsRoute', () => {
   const createBackupSnapshot = vi.fn();
   const restoreBackupSnapshot = vi.fn();
   const clearCurrentData = vi.fn();
+  const checkForUpdate = vi.fn();
+  const chooseUpdateBackupDirectory = vi.fn();
+  const chooseUpdateDataDirectory = vi.fn();
+  const runSourceBuildUpdate = vi.fn();
   const revealPath = vi.fn();
   const triggerRun = vi.fn();
   const benchmarkAvailability = vi.fn();
@@ -153,6 +158,10 @@ describe('SettingsRoute', () => {
     createBackupSnapshot.mockReset();
     restoreBackupSnapshot.mockReset();
     clearCurrentData.mockReset();
+    checkForUpdate.mockReset();
+    chooseUpdateBackupDirectory.mockReset();
+    chooseUpdateDataDirectory.mockReset();
+    runSourceBuildUpdate.mockReset();
     revealPath.mockReset();
     triggerRun.mockReset();
     benchmarkAvailability.mockReset();
@@ -287,6 +296,20 @@ describe('SettingsRoute', () => {
         trigger: 'manual',
       },
     });
+    checkForUpdate.mockResolvedValue({
+      currentVersion: '0.3.4',
+      isPlatformSupported: true,
+      isUpdateAvailable: true,
+      latestVersion: '0.3.5',
+      releaseTag: 'v0.3.5',
+      releaseUrl: 'https://github.com/Svanny/kaur-khor/releases/tag/v0.3.5',
+    });
+    chooseUpdateBackupDirectory.mockResolvedValue('/tmp/kaur-khor-update-backups');
+    chooseUpdateDataDirectory.mockResolvedValue('/tmp/custom-kaur-khor-data');
+    runSourceBuildUpdate.mockResolvedValue({
+      started: true,
+      message: 'Kaur Khor will close while the updater builds and installs the latest release.',
+    });
     benchmarkAvailability.mockResolvedValue({
       available: true,
       reason: null,
@@ -362,6 +385,10 @@ describe('SettingsRoute', () => {
         createBackupSnapshot,
         restoreBackupSnapshot,
         clearCurrentData,
+        checkForUpdate,
+        chooseUpdateBackupDirectory,
+        chooseUpdateDataDirectory,
+        runSourceBuildUpdate,
         revealPath,
       },
       benchmarkRunner: {
@@ -1674,6 +1701,42 @@ describe('SettingsRoute', () => {
       expect(restoreBackupSnapshot).toHaveBeenCalledTimes(1);
     });
     expect(reloadLocation).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs the desktop update flow after choosing a snapshot export folder', async () => {
+    renderSettingsRoute('/settings/updates');
+
+    fireEvent.click(await screen.findByRole('button', { name: /check latest release/i }));
+    await screen.findByText('Update available: v0.3.5.');
+
+    fireEvent.click(screen.getByRole('button', { name: /choose data folder/i }));
+    await screen.findByText('Data folder: /tmp/custom-kaur-khor-data');
+
+    fireEvent.click(screen.getByRole('button', { name: /choose snapshot export folder/i }));
+    await screen.findByText('Snapshot export folder: /tmp/kaur-khor-update-backups');
+
+    fireEvent.click(screen.getByRole('button', { name: /build and install latest release/i }));
+
+    await waitFor(() => {
+      expect(runSourceBuildUpdate).toHaveBeenCalledWith({
+        backupDirectoryPath: '/tmp/kaur-khor-update-backups',
+        dataDirectoryPath: '/tmp/custom-kaur-khor-data',
+        skipBackup: false,
+      });
+    });
+  });
+
+  it('places Updates before Danger in the settings navigation', async () => {
+    const ids = visibleSettingsSections().map((section) => section.id);
+    expect(ids.indexOf('updates')).toBe(ids.indexOf('danger-zone') - 1);
+  });
+
+  it('redirects browser runtime away from the desktop updates page', async () => {
+    getAppContext.mockResolvedValue({ appVersion: 'browser-test', platform: 'web' });
+    renderSettingsRoute('/settings/updates');
+
+    expect(await screen.findByText('Browser data lives in this browser profile.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /build and install latest release/i })).not.toBeInTheDocument();
   });
 
   it('renders credits as static text without a disclosure toggle', async () => {

@@ -43,6 +43,7 @@ describe('buildScenarioSummary', () => {
   });
 
   it('retries transient partial event writes before warning', async () => {
+    vi.useRealTimers();
     const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-bench-events-'));
     const path = join(directory, 'core-events-read-1.jsonl');
     const firstEvent = benchmarkEvent({ name: 'first-event', ts: 10 });

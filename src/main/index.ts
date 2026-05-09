@@ -21,6 +21,7 @@ import { normalizeAllowedExternalUrl } from './external-url';
 import { normalizeAllowedLocalDataPath } from './local-path-access';
 import { installMainWindowNavigationGuards } from './navigation-guards';
 import { storeDroppedImageHandler } from './store-dropped-image';
+import { checkForKaurKhorUpdate, launchKaurKhorSourceUpdate } from './desktop-update';
 import {
   finalizeAutomationPromotion,
   listAutomationConversations,
@@ -65,6 +66,7 @@ import {
   type DesktopLocalDataInfo,
   type DesktopPreferences,
   type DesktopStoreDroppedImagePayload,
+  type DesktopUpdateRunPayload,
   type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
@@ -1353,6 +1355,39 @@ ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, benchmarkIpcHandle(IPC_CHANN
   await invalidateSenaReadCache();
   return result;
 }));
+ipcMain.handle(IPC_CHANNELS.systemCheckForUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemCheckForUpdate, async () =>
+  checkForKaurKhorUpdate({
+    appVersion: app.getVersion(),
+    platform: process.platform,
+  }),
+));
+ipcMain.handle(IPC_CHANNELS.systemChooseUpdateBackupDirectory, benchmarkIpcHandle(IPC_CHANNELS.systemChooseUpdateBackupDirectory, async () => {
+  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    buttonLabel: 'Use this folder',
+    message: 'Choose where Kaur Khor should export a pre-update snapshot.',
+    properties: ['openDirectory', 'createDirectory'],
+    title: 'Choose update snapshot export folder',
+  });
+  return selection.canceled ? null : selection.filePaths[0] ?? null;
+}));
+ipcMain.handle(IPC_CHANNELS.systemChooseUpdateDataDirectory, benchmarkIpcHandle(IPC_CHANNELS.systemChooseUpdateDataDirectory, async () => {
+  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+    buttonLabel: 'Use this data folder',
+    defaultPath: desktopDataPath,
+    message: 'Choose the Kaur Khor data folder to export before updating.',
+    properties: ['openDirectory'],
+    title: 'Choose Kaur Khor data folder',
+  });
+  return selection.canceled ? null : selection.filePaths[0] ?? null;
+}));
+ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemRunSourceBuildUpdate, async (_event, payload: DesktopUpdateRunPayload) =>
+  launchKaurKhorSourceUpdate({
+    app,
+    appVersion: app.getVersion(),
+    dataDirectoryPath: desktopDataPath,
+    payload,
+  }),
+));
 ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
   const normalizedPath = normalizeAllowedLocalDataPath(targetPath, [desktopDataPath]);
   const targetStats = await stat(normalizedPath).catch(() => null);

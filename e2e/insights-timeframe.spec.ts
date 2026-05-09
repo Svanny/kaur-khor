@@ -65,10 +65,9 @@ test.describe('Insights timeframe dropdown', () => {
       await page.waitForTimeout(300);
       await page.screenshot({ path: join(ARTIFACTS_DIR, 'dropdown-custom-visible.png') });
 
-      // Find the "Custom" option's eye icon button
-      const eyeButton = page.locator('button[aria-label="Open custom date range dialog"]').first();
-      await eyeButton.waitFor({ state: 'visible', timeout: 5000 });
-      await eyeButton.click();
+      // Select Custom directly when no custom range has been saved yet.
+      const customOption = page.getByRole('option', { name: /Custom/i });
+      await customOption.click();
 
       // Wait for dialog to appear
       await page.waitForTimeout(500);
