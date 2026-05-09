@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
+import { useRuntimeMode } from '@/hooks/use-runtime-mode';
 
 const selectTriggerClassName =
   'h-14 w-full rounded-2xl border border-border bg-background px-4 text-base shadow-none data-[size=default]:h-14';
@@ -212,6 +213,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
   const [saveError, setSaveError] = useState(false);
   const seededPreferencesRef = useRef(false);
   const prefersReducedMotion = usePrefersReducedMotion();
+  const { isBrowserDemoRuntime } = useRuntimeMode();
   const copy = useMemo(() => ({
     welcome: onboardingCopy('Welcome'),
     preferencesTitle: onboardingCopy('Set up Kaur Khor'),
@@ -274,9 +276,12 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
     setSaveError(false);
     setIsSaving(true);
     try {
-      const selectedVisibility = getInterfaceVisibilityForPreset(
+      let selectedVisibility = getInterfaceVisibilityForPreset(
         isPresetViewMode(selectedViewMode) ? selectedViewMode : 'default',
       );
+      if (isBrowserDemoRuntime) {
+        selectedVisibility = { ...selectedVisibility, showAutomationsPage: true };
+      }
       await savePreferences({
         language: selectedLanguage,
         currency: selectedCurrency,
@@ -286,7 +291,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
         customShowFloatingTitleActions: selectedVisibility.showFloatingTitleActions,
         customShowRightRailCards: selectedVisibility.showRightRailCards,
         customShowOverviewTaskTabs: selectedVisibility.showOverviewTaskTabs,
-        customShowAutomationsPage: selectedVisibility.showAutomationsPage,
+        customShowAutomationsPage: isBrowserDemoRuntime ? true : selectedVisibility.showAutomationsPage,
         customShowAnalysisPage: selectedVisibility.showAnalysisPage,
         customShowPerformanceCompareToggle: selectedVisibility.showPerformanceCompareToggle,
         customShowPerformanceTimelineCard: selectedVisibility.showPerformanceTimelineCard,

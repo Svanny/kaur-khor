@@ -181,6 +181,28 @@ describe('OnboardingRoute', () => {
     });
   });
 
+  it('forces automations page on after onboarding in browser demo mode', async () => {
+    window.kaurKhorDesktop = {
+      ...window.kaurKhorDesktop,
+      system: {
+        ...window.kaurKhorDesktop?.system,
+        getAppContext: vi.fn().mockResolvedValue({ platform: 'web-demo' }),
+      },
+    };
+
+    renderRoute();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue' }));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledWith(expect.objectContaining({
+        showAutomationsPage: true,
+        customShowAutomationsPage: true,
+      }));
+    });
+  });
+
   it('keeps the interface step in the route so loading remounts do not restart onboarding', async () => {
     renderRouteWithLocation();
 
