@@ -67,7 +67,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
-import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
+import {
+  clampDateInputToObservedDate,
+  dateInputToIsoOnOrAfterObserved,
+  formatLocalDateTimeInputValue,
+  observedLocalDateInputValue,
+} from '@/lib/date-input-utils';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
 import { deriveAvailableObservationCount } from '@/lib/observation-count';
 import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
@@ -199,9 +204,13 @@ function CustomerQueueDrawer({
     setNotes('');
     setTicketAction('follow_up');
   }, [open, task]);
+  useEffect(() => {
+    setNextTouchAt((current) => clampDateInputToObservedDate(current, observedAt));
+  }, [observedAt]);
 
   const parsedQuantity = Number(quantity);
   const isTicketTask = isCustomerTicketTask(task);
+  const observedDateInput = observedLocalDateInputValue(observedAt);
   const canComplete = task?.action === 'mark_completed' && !isTicketTask;
   const submitDisabled = !task || !canComplete || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0 || isSaving;
   const ticketSubmitDisabled = !isTicketTask || isSaving;
@@ -318,9 +327,10 @@ function CustomerQueueDrawer({
                   <Input
                     aria-label={translateUiLiteral(language, 'Next touch date')}
                     className="h-12 rounded-full"
+                    min={observedDateInput}
                     type="date"
                     value={nextTouchAt}
-                    onChange={(event) => setNextTouchAt(event.target.value)}
+                    onChange={(event) => setNextTouchAt(clampDateInputToObservedDate(event.target.value, observedAt))}
                   />
                 </label>
               ) : null}
@@ -1425,12 +1435,8 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     setSelectedCustomerCompletionTaskId(task.id);
   }
 
-  function nextTouchDateInputToIso(value: string) {
-    if (!value) {
-      return null;
-    }
-    const date = new Date(`${value}T12:00:00`);
-    return Number.isNaN(date.valueOf()) ? null : date.toISOString();
+  function nextTouchDateInputToIso(value: string, observedAtValue: string) {
+    return dateInputToIsoOnOrAfterObserved(value, observedAtValue);
   }
 
   async function submitCustomerCompletion(input: { notes: string; observedAt: string; quantity: number }) {
@@ -1572,6 +1578,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     const ticket = selectedCustomerCompletionTask.ticket;
     const observedAtIso = new Date(input.observedAt).toISOString();
     const note = input.notes.trim() || null;
+    if (input.action === 'follow_up' && input.nextTouchAt && clampDateInputToObservedDate(input.nextTouchAt, input.observedAt) !== input.nextTouchAt) {
+      setCustomerCompletionError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
+      return false;
+    }
     const payload = createEmptyObservationInput({
       observedAt: observedAtIso,
       notes: note,
@@ -1587,7 +1597,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       revision: ticket.revision + 1,
       eventType,
       occurredAt: observedAtIso,
-      nextTouchAt: input.action === 'follow_up' ? nextTouchDateInputToIso(input.nextTouchAt) ?? ticket.nextTouchAt ?? null : null,
+      nextTouchAt: input.action === 'follow_up' ? nextTouchDateInputToIso(input.nextTouchAt, input.observedAt) ?? ticket.nextTouchAt ?? null : null,
       party: ticket.party ?? null,
       lines: ticket.lines,
       deliveryFee: ticket.deliveryFee ?? null,
