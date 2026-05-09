@@ -149,4 +149,37 @@ describe('AutomationIntakeDrawer', () => {
       },
     })));
   });
+
+  test('preserves selected action while the same intake refreshes', async () => {
+    const user = userEvent.setup();
+    const intake = makeIntake();
+    const { rerender } = render(
+      <AutomationIntakeDrawer
+        intake={intake}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    await user.click(await screen.findByRole('button', { name: 'Cancel intake', pressed: false }));
+    expect(screen.getByRole('button', { name: 'Cancel intake', pressed: true })).toBeInTheDocument();
+
+    rerender(
+      <AutomationIntakeDrawer
+        intake={{ ...intake, updatedAt: '2026-04-21T00:01:00.000Z' }}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Cancel intake', pressed: true })).toBeInTheDocument();
+  });
 });

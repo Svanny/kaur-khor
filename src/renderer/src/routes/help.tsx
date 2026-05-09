@@ -26,8 +26,8 @@ import { cn } from '@/lib/utils';
 import { usePreferences } from '@/state/preferences';
 import { parseHelpContent } from './help-content';
 import type { HelpBlock } from './help-content';
-import guideSourceEn from '../../../../docs/user-guide.md?raw';
-import guideSourceKm from '../../../../docs/user-guide.km.md?raw';
+import guideSourceEn from '@/assets/help/user-guide.md?raw';
+import guideSourceKm from '@/assets/help/user-guide.km.md?raw';
 
 const proseClassName = 'text-sm leading-7 text-muted-foreground sm:text-[0.96rem]';
 const sectionIconClassName = 'size-4.5 shrink-0 text-primary';

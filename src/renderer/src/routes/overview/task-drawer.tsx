@@ -41,7 +41,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { formatLocalDateInputValue, formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
+import {
+  calendarDaysBetweenObservedAndDateInput,
+  clampDateInputToObservedDate,
+  dateInputToIsoOnOrAfterObserved,
+  formatLocalDateInputValue,
+  formatLocalDateTimeInputValue,
+  observedLocalDateInputValue,
+} from '@/lib/date-input-utils';
 import { buildSupplierTicketCaptureHref } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
@@ -77,12 +84,7 @@ function initialExpectedArrivalDate(value: string | null) {
 }
 
 function daysBetween(start: string, endDate: string) {
-  const startTime = new Date(start).getTime();
-  const endTime = new Date(`${endDate}T12:00:00`).getTime();
-  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
-    return null;
-  }
-  return Math.max(0, Math.round((endTime - startTime) / 86_400_000));
+  return calendarDaysBetweenObservedAndDateInput(start, endDate);
 }
 
 function leadTimeHintFromTaskInputs({
@@ -162,7 +164,7 @@ function supplierTicketEventFromDrawer({
     revision,
     eventType,
     occurredAt: observedAt,
-    nextTouchAt: mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate),
+    nextTouchAt: mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate, observedAt),
     party: {
       role: 'supplier',
       supplierName,
@@ -208,14 +210,16 @@ function ticketLinesForDrawer({
   expectedArrivalDate,
   mode,
   note,
+  observedAt,
   task,
 }: {
   expectedArrivalDate: string;
   mode: OverviewTaskDrawerMode;
   note: string | null;
+  observedAt: string;
   task: OverviewSupplierTicketTask;
 }): SenaTicketEvent['lines'] {
-  const expectedArrivalAt = mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate);
+  const expectedArrivalAt = mode === 'goods_received' || mode === 'order_canceled' ? null : dateInputToIsoDate(expectedArrivalDate, observedAt);
 
   return task.ticket.lines.map((line) => {
     const orderedQuantity = line.orderedQuantity ?? null;
@@ -229,12 +233,8 @@ function ticketLinesForDrawer({
   });
 }
 
-function dateInputToIsoDate(value: string) {
-  if (!value) {
-    return null;
-  }
-  const time = new Date(`${value}T12:00:00`).getTime();
-  return Number.isNaN(time) ? null : new Date(time).toISOString();
+function dateInputToIsoDate(value: string, observedAt?: string | null) {
+  return dateInputToIsoOnOrAfterObserved(value, observedAt);
 }
 
 function useControllableDrawerMode(
@@ -493,9 +493,10 @@ export function OverviewTaskDrawer({
       setShowDetailBody(true);
     });
     setMode(task.defaultDrawerMode);
-    setObservedAt(initialObservedAt(null));
+    const nextObservedAt = initialObservedAt(null);
+    setObservedAt(nextObservedAt);
     setNotes('');
-    setExpectedArrivalDate(initialExpectedArrivalDate(task.expectedArrivalDate));
+    setExpectedArrivalDate(clampDateInputToObservedDate(initialExpectedArrivalDate(task.expectedArrivalDate), nextObservedAt));
     setUncertaintyDays(task.leadTimeStdDays != null ? String(Math.max(1, Math.round(task.leadTimeStdDays))) : '2');
     setVariabilityClass(task.variabilityClass ?? '');
     setLeadTimeDraftMode('std');
@@ -509,6 +510,10 @@ export function OverviewTaskDrawer({
   useEffect(() => {
     setDismissedAfterSave(false);
   }, [task?.id]);
+
+  useEffect(() => {
+    setExpectedArrivalDate((current) => clampDateInputToObservedDate(current, observedAt));
+  }, [observedAt]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -570,16 +575,17 @@ export function OverviewTaskDrawer({
 
   function drawerBaselineSnapshot(nextTask: OverviewSupplierTicketTask) {
     const nextMode = nextTask.defaultDrawerMode;
+    const nextObservedAt = initialObservedAt(null);
     const baseSnapshot = {
       mode: nextMode,
-      observedAt: initialObservedAt(null),
+      observedAt: nextObservedAt,
       notes: '',
     };
 
     if (nextMode === 'ordered_waiting' || nextMode === 'eta_changed') {
       return {
         ...baseSnapshot,
-        expectedArrivalDate: initialExpectedArrivalDate(nextTask.expectedArrivalDate),
+        expectedArrivalDate: clampDateInputToObservedDate(initialExpectedArrivalDate(nextTask.expectedArrivalDate), nextObservedAt),
         uncertaintyDays: nextTask.leadTimeStdDays != null ? String(Math.max(1, Math.round(nextTask.leadTimeStdDays))) : '2',
         variabilityClass: nextTask.variabilityClass ?? '',
         useLeadTimeEstimate: true,
@@ -621,12 +627,18 @@ export function OverviewTaskDrawer({
   }
 
   const activeTask = task;
+  const observedDateInput = observedLocalDateInputValue(observedAt);
 
   async function submit() {
     setError(null);
     if (
       ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate)
     ) {
+      return false;
+    }
+    if ((mode === 'ordered_waiting' || mode === 'eta_changed') && clampDateInputToObservedDate(expectedArrivalDate, observedAt) !== expectedArrivalDate) {
+      setError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
+      setSaveErrorFlashKey((current) => current + 1);
       return false;
     }
     const observedAtIso = new Date(observedAt).toISOString();
@@ -656,6 +668,7 @@ export function OverviewTaskDrawer({
             expectedArrivalDate,
             mode,
             note: notes.trim() || null,
+            observedAt,
             task: activeTask,
           }),
           mode,
@@ -693,6 +706,7 @@ export function OverviewTaskDrawer({
             expectedArrivalDate: '',
             mode,
             note: notes.trim() || null,
+            observedAt,
             task: activeTask,
           }),
           mode,
@@ -729,6 +743,7 @@ export function OverviewTaskDrawer({
             expectedArrivalDate: '',
             mode,
             note: notes.trim() || null,
+            observedAt,
             task: activeTask,
           }),
           mode,
@@ -980,11 +995,12 @@ export function OverviewTaskDrawer({
                       <Input
                         aria-label={t('overviewDrawerExpectedArrivalDateLabel')}
                         className={actionSheetInputClassName}
+                        min={observedDateInput}
                         type="date"
                         value={expectedArrivalDate}
                         onChange={(event) => {
                           markDraftEdited();
-                          setExpectedArrivalDate(event.target.value);
+                          setExpectedArrivalDate(clampDateInputToObservedDate(event.target.value, observedAt));
                         }}
                       />
                     </ActionSheetField>

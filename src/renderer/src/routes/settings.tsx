@@ -43,7 +43,6 @@ import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   createBackupSnapshotAction,
@@ -625,12 +624,12 @@ function WorkspacePreferencesPage({
                 <span>{t('settingsExchangeRateLabel')}</span>
                 <div className="flex h-14 items-center overflow-hidden rounded-xl border border-border bg-background text-base shadow-none focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50">
                   <span className="shrink-0 border-r border-border/70 px-3 text-muted-foreground">$1 =</span>
-                  <NumberStepperInput
+                  <Input
                     aria-label={t('settingsExchangeRateInputLabel')}
-                    className="h-full min-w-0 flex-1 bg-transparent px-3 outline-none"
-                    wrapperClassName="min-w-0 flex-1"
+                    className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0"
                     min="1"
                     step="10"
+                    type="number"
                     value={exchangeRateDraft}
                     onChange={(event) => setExchangeRateDraft(event.target.value)}
                   />

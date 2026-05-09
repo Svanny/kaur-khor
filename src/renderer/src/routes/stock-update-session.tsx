@@ -63,8 +63,8 @@ import {
 } from '@icons/entities';
 import { NavigationNextIcon, NavigationPreviousIcon } from '@icons/navigation';
 import {
-  StatusGaugeIcon,
-  StatusPromoIcon,
+  StatusDiscountAmountIcon,
+  StatusDiscountPercentIcon,
   StatusReadyIcon,
   StatusScheduleIcon,
   StatusTimingIcon,
@@ -154,6 +154,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Combobox } from '@/components/ui/combobox';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import { NumberStepperInput } from '@/components/ui/number-stepper-input';
@@ -164,7 +165,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { buildCommercialEntitySnapshots } from '@/lib/commercial-flow';
 import { displayMoneyFromUsd, formatCompactQuantityPill, formatCurrency, formatDurationAuto, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
+import {
+  calendarDaysBetweenObservedAndDateInput,
+  clampDateInputToObservedDate,
+  dateInputToIsoOnOrAfterObserved,
+  formatLocalDateTimeInputValue,
+  observedLocalDateInputValue,
+} from '@/lib/date-input-utils';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
   getRecordUpdateLane,
@@ -233,6 +240,12 @@ const POS_METADATA_POPUP_IDS: PosMetadataPopupId[] = ['timing', 'customer', 'not
 type PosWorkbenchFilterId = 'all' | 'services' | 'skus' | 'recent' | 'touched';
 type StockoutFlagValue = 'blocked' | 'stockout';
 type StockEventDropdownValue = 'none' | StockoutFlagValue;
+type StockEventOption = {
+  value: StockEventDropdownValue;
+  label: string;
+  description: string;
+  icon: ReactNode;
+};
 const posMetadataUntouchedGlowClassName =
   'pos-metadata-surface-gleam bg-primary text-primary-foreground hover:bg-primary/90';
 type StockUpdateStepId =
@@ -258,6 +271,32 @@ type CustomerPendingMode = 'new_pending' | 'modify_pending' | 'cancel_pending';
 type CustomerCompletedMode = 'from_pending' | 'immediate_sale' | 'refund_reversal';
 type SupplierPendingMode = 'new_supplier_order' | 'update_pending_supplier_order' | 'cancel_supplier_order';
 type SupplierReceiptMode = 'against_pending_supplier_order' | 'immediate_purchase' | 'return_receipt_reversal';
+
+function StockEventOptionContent({
+  description,
+  icon,
+  label,
+}: {
+  description: string;
+  icon: ReactNode;
+  label: string;
+}) {
+  return (
+    <span className="grid min-w-0 grid-cols-[auto_1fr] items-start gap-x-2">
+      <span className="flex h-6 shrink-0 items-center">{icon}</span>
+      <span className="grid min-w-0 gap-0.5 text-left">
+        <span className="truncate leading-6">{label}</span>
+        <span
+          aria-hidden="true"
+          className="whitespace-normal text-xs leading-5 text-muted-foreground"
+          data-slot="stock-event-option-description"
+        >
+          {description}
+        </span>
+      </span>
+    </span>
+  );
+}
 type RefundStockReturnChoice = 'later' | 'now';
 type TicketAuthoringMode = 'new' | 'edit';
 type SupplierTicketUpdateAction = 'revise_order' | 'revise_eta' | 'partial_received' | 'fully_received' | 'followup_logged' | 'canceled';
@@ -347,6 +386,13 @@ interface PosReceiptTextLine {
   quantity: number;
   unitPriceLabel: string;
   totalLabel: string;
+}
+
+interface PosReceiptMetadataRow {
+  key: string;
+  label: string;
+  value: string;
+  includeInCopy: boolean;
 }
 
 interface StockCountPosChangeField {
@@ -1262,31 +1308,25 @@ export function dateInputValue(value: string | null) {
   return `${year}-${month}-${day}`;
 }
 
-export function dateInputToIso(value: string) {
-  if (!value) {
-    return null;
-  }
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date.toISOString();
+export function dateInputToIso(value: string, observedAt?: string | null) {
+  return dateInputToIsoOnOrAfterObserved(value, observedAt);
 }
 
 function addDaysToDateInput(observedAtIso: string | null, days: number | null) {
   if (!observedAtIso || days == null || !Number.isFinite(days) || days < 0) {
     return '';
   }
-  const date = new Date(observedAtIso);
+  const dateInput = observedLocalDateInputValue(observedAtIso);
+  const date = new Date(`${dateInput}T00:00:00`);
   if (Number.isNaN(date.getTime())) {
     return '';
   }
-  date.setUTCDate(date.getUTCDate() + Math.round(days));
-  return date.toISOString().slice(0, 10);
+  date.setDate(date.getDate() + Math.round(days));
+  return observedLocalDateInputValue(date);
 }
 
 function leadTimeMeanDaysFromExpectedArrival(observedAtIso: string | null, expectedArrivalDate: string) {
-  return intervalDaysBetween(observedAtIso, dateInputToIso(expectedArrivalDate));
+  return calendarDaysBetweenObservedAndDateInput(observedAtIso, expectedArrivalDate);
 }
 
 function expectedArrivalDaysFromLeadTime(
@@ -1573,12 +1613,14 @@ function deriveTouchedPosMetadataPopupIdsFromDraft(draft: {
       : null,
     draft.deliveryFeeAmount.trim() ? 'delivery' : null,
     draft.discountAmount.trim() || draft.discountPercent.trim() ? 'discount' : null,
-    draft.notes.trim() ||
     draft.customerIdentity.channel.trim() ||
     draft.customerIdentity.customChannel.trim() ||
     draft.customerIdentity.customerName.trim() ||
     draft.customerIdentity.phone.trim() ||
     draft.customerIdentity.location.trim()
+      ? 'customer'
+      : null,
+    draft.notes.trim()
       ? 'notes'
       : null,
     draft.regimeHint ? 'context' : null,
@@ -2189,9 +2231,11 @@ function hasMeaningfulStockUpdateChanges({
   supplierTicketUpdateAction,
   customerIdentity,
   refundStockReturnDrafts,
+  touchedPosMetadataPopupIds,
 }: StockUpdateDraftState) {
   return (
     rows.some((row) => stockRowChanged(catalog, stockBySku, row)) ||
+    touchedPosMetadataPopupIds.length > 0 ||
     customerOrderExpectedArrivalDate.trim() !== '' ||
     customerOrderLeadTimeStdDays.trim() !== '' ||
     customerOrderLeadTimeVariability !== '' ||
@@ -3269,6 +3313,7 @@ function LastReceiptCell({
 
 function RecordOrderTimingFields({
   expectedArrivalValue,
+  expectedArrivalMin,
   expectedArrivalPlaceholder,
   leadTimeDraftMode,
   leadTimeMeanValue,
@@ -3283,6 +3328,7 @@ function RecordOrderTimingFields({
   variabilityValue,
 }: {
   expectedArrivalValue: string;
+  expectedArrivalMin: string;
   expectedArrivalPlaceholder: string;
   leadTimeDraftMode: LeadTimeVariabilityDraftMode;
   leadTimeMeanValue: string;
@@ -3360,6 +3406,7 @@ function RecordOrderTimingFields({
             aria-label={translateUiLiteral(language, 'Expected date of arrival')}
             className={`w-full ${recordUpdateInputClassName}`}
             id={expectedArrivalId}
+            min={expectedArrivalMin}
             placeholder={expectedArrivalPlaceholder}
             type="date"
             value={expectedArrivalValue}
@@ -3373,6 +3420,7 @@ function RecordOrderTimingFields({
 
 function PosOrderTimingFields({
   expectedArrivalValue,
+  expectedArrivalMin,
   expectedArrivalPlaceholder,
   leadTimeDraftMode,
   leadTimeMeanDays,
@@ -3385,6 +3433,7 @@ function PosOrderTimingFields({
   variabilityValue,
 }: {
   expectedArrivalValue: string;
+  expectedArrivalMin: string;
   expectedArrivalPlaceholder: string;
   leadTimeDraftMode: LeadTimeVariabilityDraftMode;
   leadTimeMeanDays: number | null;
@@ -3410,6 +3459,7 @@ function PosOrderTimingFields({
           aria-label={translateUiLiteral(language, 'Expected date of arrival')}
           className={`w-full ${recordUpdateInputClassName}`}
           id={expectedArrivalId}
+          min={expectedArrivalMin}
           placeholder={expectedArrivalPlaceholder}
           type="date"
           value={expectedArrivalValue}
@@ -3752,11 +3802,11 @@ function DiscountFields({
           }}
         >
           <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="amount">
-            <StatusPromoIcon aria-hidden="true" className="size-4" />
+            <StatusDiscountAmountIcon aria-hidden="true" className="size-4" />
             {translateUiLiteral(language, 'Amount')}
           </ToggleGroupItem>
           <ToggleGroupItem className="rounded-full border border-transparent px-4 text-sm" value="percent">
-            <StatusGaugeIcon aria-hidden="true" className="size-4" />
+            <StatusDiscountPercentIcon aria-hidden="true" className="size-4" />
             {translateUiLiteral(language, 'Percent')}
           </ToggleGroupItem>
         </ToggleGroup>
@@ -4369,24 +4419,23 @@ function StockFlagsStep(props: {
 }) {
   const { language, t } = usePreferences();
   const { catalog, choice, countedAtBySku, debugCellBoundaries, guidance, onReorderRows, skuSignalDrafts, stockBySku, updateSkuSignalDraft, visibleRows, onChooseNo, onChooseYes, supplierFilterControl } = props;
-  const stockEventOptions: Array<{
-    value: StockEventDropdownValue;
-    label: string;
-    icon: ReactNode;
-  }> = [
+  const stockEventOptions: StockEventOption[] = [
     {
       value: 'none',
       label: t('stockUpdateNoEventInterval'),
+      description: t('stockUpdateNoEventDescription'),
       icon: <StatusReadyIcon aria-hidden="true" className="size-4" />,
     },
     {
       value: 'blocked',
       label: t('stockUpdateBlockedEvent'),
+      description: t('stockUpdateBlockedEventDescription'),
       icon: <StatusWarningIcon aria-hidden="true" className="size-4" />,
     },
     {
       value: 'stockout',
       label: t('stockUpdateStockoutEvent'),
+      description: t('stockUpdateStockoutEventDescription'),
       icon: <EntityFlagIcon aria-hidden="true" className="size-4" />,
     },
   ];
@@ -4446,17 +4495,18 @@ function StockFlagsStep(props: {
                         >
                           <SelectTrigger
                             aria-label={t('stockUpdateEventFor', { name: sku?.name ?? translateUiLiteral(language, 'SKU') })}
-                            className={cn('min-w-0 w-full max-w-[18rem]', recordUpdateSelectTriggerClassName, 'justify-between')}
+                            className={cn('min-w-0 w-full max-w-[18rem]', recordUpdateSelectTriggerClassName, 'justify-between [&_[data-slot=stock-event-option-description]]:hidden')}
                           >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {stockEventOptions.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                <span className="flex items-center gap-2">
-                                  {option.icon}
-                                  <span>{option.label}</span>
-                                </span>
+                              <SelectItem key={option.value} className="py-2.5 pr-9" value={option.value}>
+                                <StockEventOptionContent
+                                  description={option.description}
+                                  icon={option.icon}
+                                  label={option.label}
+                                />
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -5208,6 +5258,7 @@ function RecordOrderStep({
         ) : (
           <>
             <RecordOrderTimingFields
+              expectedArrivalMin={observedLocalDateInputValue(observedAtIso)}
               expectedArrivalPlaceholder={expectedArrivalEstimate}
               expectedArrivalValue={recordOrderExpectedArrivalDate}
               leadTimeDraftMode={recordOrderLeadTimeDraftMode}
@@ -5460,6 +5511,29 @@ function CustomerMetadataFields({
   const { language } = usePreferences();
   const channelValue = identity.channel || 'none';
   const SelectedChannelIcon = customerChannelIconByValue[channelValue] ?? EntityOverflowMenuIcon;
+  const customerNameOptions = useMemo(
+    () => directory.entries.map((entry) => ({
+      ...entry,
+      value: entry.phone ? `${entry.name} · ${entry.phone}` : entry.name,
+    })),
+    [directory.entries],
+  );
+  const customerNameOptionByValue = useMemo(
+    () => new Map(customerNameOptions.map((option) => [option.value, option])),
+    [customerNameOptions],
+  );
+  const handleCustomerNameChange = (value: string) => {
+    const selectedOption = customerNameOptionByValue.get(value);
+    if (selectedOption) {
+      onChange({
+        ...identity,
+        customerName: selectedOption.name,
+        phone: selectedOption.phone || identity.phone,
+      });
+      return;
+    }
+    onChange({ ...identity, customerName: value });
+  };
   return (
     <div className={cn('grid gap-4', compact ? '' : 'rounded-2xl border border-border/70 bg-muted/20 p-4')}>
       {!compact ? (
@@ -5535,19 +5609,28 @@ function CustomerMetadataFields({
           <label className="text-sm font-medium text-foreground" htmlFor="ticket-customer-name">
             {translateUiLiteral(language, 'Customer name')}
           </label>
-          <Input
+          <Combobox
+            id="ticket-customer-name"
             aria-label={translateUiLiteral(language, 'Customer name')}
             className={recordUpdateInputClassName}
-            id="ticket-customer-name"
-            list="ticket-customer-name-hints"
             value={identity.customerName}
-            onChange={(event) => onChange({ ...identity, customerName: event.target.value })}
+            onChange={handleCustomerNameChange}
+            onSelectOption={(option) => {
+              const selected = customerNameOptionByValue.get(option.value);
+              if (selected) {
+                onChange({
+                  ...identity,
+                  customerName: selected.name,
+                  phone: selected.phone || identity.phone,
+                });
+              }
+            }}
+            options={customerNameOptions.map((option) => ({
+              value: option.value,
+              label: option.name,
+              secondary: option.phone,
+            }))}
           />
-          <datalist id="ticket-customer-name-hints">
-            {directory.names.map((name) => (
-              <option key={name} value={name} />
-            ))}
-          </datalist>
         </div>
         <div className="grid gap-2">
           <label className="text-sm font-medium text-foreground" htmlFor="ticket-phone">
@@ -5878,13 +5961,25 @@ function ServiceSignalsStep({
                                 >
                                   <SelectTrigger
                                     aria-label={t('stockUpdateBlockedStateAria', { name: service.name })}
-                                    className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between')}
+                                    className={cn(flagControlClassName, recordUpdateSelectTriggerClassName, 'justify-between [&_[data-slot=stock-event-option-description]]:hidden')}
                                   >
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="blocked">{t('stockUpdateBlocked')}</SelectItem>
-                                    <SelectItem value="stockout">{t('stockUpdateStockout')}</SelectItem>
+                                    <SelectItem className="py-2.5 pr-9" value="blocked">
+                                      <StockEventOptionContent
+                                        description={t('stockUpdateBlockedEventDescription')}
+                                        icon={<StatusWarningIcon aria-hidden="true" className="size-4" />}
+                                        label={t('stockUpdateBlocked')}
+                                      />
+                                    </SelectItem>
+                                    <SelectItem className="py-2.5 pr-9" value="stockout">
+                                      <StockEventOptionContent
+                                        description={t('stockUpdateStockoutEventDescription')}
+                                        icon={<EntityFlagIcon aria-hidden="true" className="size-4" />}
+                                        label={t('stockUpdateStockout')}
+                                      />
+                                    </SelectItem>
                                   </SelectContent>
                                 </Select>
                               </FlagSection>
@@ -6282,11 +6377,11 @@ export function StockUpdateSessionRoute() {
   const [supplierReceiptModeFilters, setSupplierReceiptModeFilters] = useState<SupplierReceiptMode[]>(() => [...SUPPLIER_RECEIPT_MODE_OPTIONS]);
   const [refundStockReturnDrafts, setRefundStockReturnDrafts] = useState<Record<string, RefundStockReturnChoice>>({});
   const [skuSignalDrafts, setSkuSignalDrafts] = useState<Record<string, SkuSignalDraft>>({});
-  const [customerOrderExpectedArrivalDate, setCustomerOrderExpectedArrivalDate] = useState('');
+  const [customerOrderExpectedArrivalDate, setCustomerOrderExpectedArrivalDateState] = useState('');
   const [customerOrderLeadTimeDraftMode, setCustomerOrderLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('class');
   const [customerOrderLeadTimeStdDays, setCustomerOrderLeadTimeStdDays] = useState('');
   const [customerOrderLeadTimeVariability, setCustomerOrderLeadTimeVariability] = useState<SenaLeadTimeVariabilityClass | ''>('');
-  const [recordOrderExpectedArrivalDate, setRecordOrderExpectedArrivalDate] = useState('');
+  const [recordOrderExpectedArrivalDate, setRecordOrderExpectedArrivalDateState] = useState('');
   const [recordOrderLeadTimeDraftMode, setRecordOrderLeadTimeDraftMode] = useState<LeadTimeVariabilityDraftMode>('class');
   const [recordOrderLeadTimeMeanDays, setRecordOrderLeadTimeMeanDays] = useState('');
   const [recordOrderLeadTimeStdDays, setRecordOrderLeadTimeStdDays] = useState('');
@@ -6671,6 +6766,17 @@ export function StockUpdateSessionRoute() {
   );
 
   const observedAtIso = dateTimeInputToIso(observedAt);
+  const observedDateInput = observedLocalDateInputValue(observedAtIso);
+  const setCustomerOrderExpectedArrivalDate = useCallback((value: string) => {
+    setCustomerOrderExpectedArrivalDateState(clampDateInputToObservedDate(value, observedAtIso));
+  }, [observedAtIso]);
+  const setRecordOrderExpectedArrivalDate = useCallback((value: string) => {
+    setRecordOrderExpectedArrivalDateState(clampDateInputToObservedDate(value, observedAtIso));
+  }, [observedAtIso]);
+  useEffect(() => {
+    setCustomerOrderExpectedArrivalDateState((current) => clampDateInputToObservedDate(current, observedAtIso));
+    setRecordOrderExpectedArrivalDateState((current) => clampDateInputToObservedDate(current, observedAtIso));
+  }, [observedAtIso]);
   const intervalDays = intervalDaysBetween(latestAt, observedAtIso);
   const isFirstObservation = observations.length === 0;
   const countedSkuCount = rows.filter((row) => stockRowChanged(workingCatalog, stockBySku, row)).length;
@@ -7025,7 +7131,10 @@ export function StockUpdateSessionRoute() {
       const currentNameKey = normalizeTicketLookupValue(current.customerName);
       const currentPhoneKey = normalizeTicketPhone(current.phone);
       if (nextNameKey && nextNameKey !== currentNameKey && !next.phone.trim()) {
-        next.phone = customerDirectory.nameToPhone.get(nextNameKey) ?? next.phone;
+        const matchingPhones = customerDirectory.entries
+          .filter((entry) => normalizeTicketLookupValue(entry.name) === nextNameKey && entry.phone)
+          .map((entry) => entry.phone);
+        next.phone = matchingPhones.length === 1 ? matchingPhones[0]! : next.phone;
       }
       if (nextPhoneKey && nextPhoneKey !== currentPhoneKey && !next.customerName.trim()) {
         next.customerName = customerDirectory.phoneToName.get(nextPhoneKey) ?? next.customerName;
@@ -7534,7 +7643,7 @@ export function StockUpdateSessionRoute() {
       ?? null;
     const firstExpectedArrivalDate = dateInputValue(firstExpectedArrivalAt);
     const firstLeadTimeMeanDays = firstExpectedArrivalDate
-      ? intervalDaysBetween(selectedSupplierTicket.occurredAt, dateInputToIso(firstExpectedArrivalDate))
+      ? calendarDaysBetweenObservedAndDateInput(selectedSupplierTicket.occurredAt, firstExpectedArrivalDate)
       : null;
 
     setSkuSignalDrafts((current) => {
@@ -7799,7 +7908,7 @@ export function StockUpdateSessionRoute() {
   function ticketLinesFromCommercialEvents(payload: SenaObservationInput, party: 'customer' | 'supplier') {
     const customerExpectedArrivalAt =
       party === 'customer' && isCustomerPendingLane
-        ? dateInputToIso(customerOrderExpectedArrivalDate)
+        ? dateInputToIso(customerOrderExpectedArrivalDate, observedAtIso)
         : null;
     return (payload.commercialEvents ?? [])
       .filter((event) => event.party === party)
@@ -7838,6 +7947,41 @@ export function StockUpdateSessionRoute() {
       return value.slice(0, 10) || null;
     }
     return new Date(time).toISOString().slice(0, 10);
+  }
+
+  function normalizedTicketMetadata(value: unknown) {
+    return JSON.stringify(value ?? null);
+  }
+
+  function normalizedCustomerIdentityDraft(identity: CustomerIdentityDraft) {
+    return {
+      channel: identity.channel.trim(),
+      customChannel: identity.customChannel.trim(),
+      customerName: identity.customerName.trim(),
+      phone: normalizeTicketPhone(identity.phone),
+      location: identity.location.trim(),
+    };
+  }
+
+  function customerTicketMetadataChanged(ticket: SenaTicketSummary) {
+    return (
+      ticketDateKey(ticket.nextTouchAt) !== ticketDateKey(dateInputToIso(customerOrderExpectedArrivalDate, observedAtIso)) ||
+      normalizedTicketMetadata(normalizedCustomerIdentityDraft(customerIdentityFromTicketParty(ticket.party))) !==
+        normalizedTicketMetadata(normalizedCustomerIdentityDraft(customerIdentity)) ||
+      normalizedTicketMetadata(ticket.deliveryFee ?? null) !== normalizedTicketMetadata(activeDeliveryFeeMetadata) ||
+      normalizedTicketMetadata(ticket.discount ?? null) !== normalizedTicketMetadata(activeDiscountMetadata) ||
+      (ticket.note ?? '').trim() !== notes.trim()
+    );
+  }
+
+  function supplierTicketMetadataChanged(ticket: SenaTicketSummary) {
+    return (
+      ticketDateKey(ticket.nextTouchAt) !== ticketDateKey(recordOrderExpectedArrivalDate ? dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso) : null) ||
+      normalizedTicketMetadata(ticket.deliveryFee ?? null) !== normalizedTicketMetadata(activeDeliveryFeeMetadata) ||
+      normalizedTicketMetadata(ticket.discount ?? null) !== normalizedTicketMetadata(activeDiscountMetadata) ||
+      (ticket.note ?? '').trim() !== notes.trim() ||
+      supplierTicketUpdateAction !== 'revise_order'
+    );
   }
 
   function supplierTicketMatchesSelection({
@@ -7914,7 +8058,13 @@ export function StockUpdateSessionRoute() {
       ticketId ? (recordUpdateContext?.latestTicketsById[ticketId]?.value.revision ?? 0) + 1 : 1;
 
     if (isCustomerPendingLane) {
-      const lines = ticketLinesFromCommercialEvents(payload, 'customer');
+      const commercialLines = ticketLinesFromCommercialEvents(payload, 'customer');
+      const metadataOnlyEdit =
+        commercialLines.length === 0 &&
+        customerTicketMode === 'edit' &&
+        selectedCustomerTicket != null &&
+        customerTicketMetadataChanged(selectedCustomerTicket);
+      const lines = commercialLines.length > 0 ? commercialLines : metadataOnlyEdit ? selectedCustomerTicket.lines : [];
       if (lines.length > 0) {
         const eventType: SenaTicketEventType =
           customerPendingMode === 'cancel_pending'
@@ -7932,7 +8082,7 @@ export function StockUpdateSessionRoute() {
           revision: nextTicketRevision(selectedCustomerTicketId),
           eventType,
           occurredAt: observedAtValue,
-          nextTouchAt: dateInputToIso(customerOrderExpectedArrivalDate),
+          nextTouchAt: dateInputToIso(customerOrderExpectedArrivalDate, observedAtIso),
           party: buildTicketPartyMetadata(customerIdentity),
           lines,
           deliveryFee: activeDeliveryFeeMetadata,
@@ -7966,7 +8116,13 @@ export function StockUpdateSessionRoute() {
     if (isSupplierPendingLane || isSupplierReceiptLane) {
       const commercialLines = ticketLinesFromCommercialEvents(payload, 'supplier');
       const signalLines = ticketLinesFromSupplierSignals(payload);
-      const lines = commercialLines.length > 0 ? commercialLines : signalLines;
+      const metadataOnlyEdit =
+        commercialLines.length === 0 &&
+        signalLines.length === 0 &&
+        supplierTicketMode === 'edit' &&
+        selectedSupplierTicket != null &&
+        supplierTicketMetadataChanged(selectedSupplierTicket);
+      const lines = commercialLines.length > 0 ? commercialLines : signalLines.length > 0 ? signalLines : metadataOnlyEdit ? selectedSupplierTicket.lines : [];
       if (lines.length > 0) {
         const hasReceipt = payload.orderSignals.some((signal) => signal.receiptArrived);
         const eventType: SenaTicketEventType =
@@ -8010,7 +8166,7 @@ export function StockUpdateSessionRoute() {
           revision: nextTicketRevision(supplierTicketId),
           eventType,
           occurredAt: observedAtValue,
-          nextTouchAt: recordOrderExpectedArrivalDate ? dateInputToIso(recordOrderExpectedArrivalDate) : null,
+          nextTouchAt: recordOrderExpectedArrivalDate ? dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso) : null,
           party: {
             role: 'supplier',
             supplierName: workingCatalog?.skus.find((sku) => sku.skuId === lines[0]?.entityId)?.supplierName ?? null,
@@ -8255,7 +8411,7 @@ export function StockUpdateSessionRoute() {
                     approximateOrderQuantity: Number(quantity),
                     approximateReceiptQuantity: null,
                     placementTimestamp: observedAtIso ?? new Date().toISOString(),
-                    receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
+                    receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
                     leadTimeDaysHint: tableMeanDays,
                   });
                 }
@@ -8699,7 +8855,7 @@ export function StockUpdateSessionRoute() {
             approximateOrderQuantity: Number(orderedQuantity),
             approximateReceiptQuantity: null,
             placementTimestamp: observedAtIso ?? new Date().toISOString(),
-            receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate),
+            receiptTimestamp: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
             leadTimeDaysHint: tableMeanDays,
           });
         }
@@ -9308,6 +9464,12 @@ export function StockUpdateSessionRoute() {
     if (!observedAtIso) {
       return t('stockUpdateSaveObservedAtError');
     }
+    if (customerOrderExpectedArrivalDate && clampDateInputToObservedDate(customerOrderExpectedArrivalDate, observedAtIso) !== customerOrderExpectedArrivalDate) {
+      return translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.');
+    }
+    if (recordOrderExpectedArrivalDate && clampDateInputToObservedDate(recordOrderExpectedArrivalDate, observedAtIso) !== recordOrderExpectedArrivalDate) {
+      return translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.');
+    }
     if (stockStepChoices['stock-flags'] === 'yes' && !skuFlagsValid) {
       return t('stockUpdateGuidanceFillSkuFlagsSave');
     }
@@ -9359,7 +9521,7 @@ export function StockUpdateSessionRoute() {
             : Number(recordOrderLeadTimeMeanDays);
         const sharedFields = {
           supplierNote: notes.trim() || null,
-          expectedArrivalAt: dateInputToIso(recordOrderExpectedArrivalDate),
+          expectedArrivalAt: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
           placementTimestamp: observedAtIso,
           leadTimeDaysHint: tableMeanDays,
           leadTimeVariability: recordOrderLeadTimeVariability || null,
@@ -9817,7 +9979,7 @@ export function StockUpdateSessionRoute() {
       : customerIdentity.channel.trim(),
     customerIdentity.customerName.trim(),
     formatPhoneForDisplay(customerIdentity.phone),
-    customerIdentity.location.trim(),
+    customerIdentity.location.trim() ? translateUiLiteral(language, 'Location added') : '',
   ].filter(Boolean);
   const partyAndNotesSummary = customerSummaryParts.length > 0
     ? customerSummaryParts.join(' · ')
@@ -10682,23 +10844,6 @@ export function StockUpdateSessionRoute() {
       ? `${translateUiLiteral(language, 'Discount')} (${percentLabel}%)`
       : translateUiLiteral(language, 'Discount');
   }, [discountMode, discountPercentValue, language]);
-  const posReceiptPlainText = useMemo(() => {
-    const lines = [
-      translateUiLiteral(language, 'Receipt'),
-      '',
-      ...posReceiptTextLines.map((line) => `${line.title} (${line.quantity})`),
-      '',
-      ...(deliveryFeeEnabled
-        ? [
-            `${translateUiLiteral(language, 'Subtotal')}: ${deliverySubtotalLabel}`,
-            ...(discountReceiptRowVisible ? [`${discountReceiptTitle}: ${discountDisplayLabel}`] : []),
-            `${translateUiLiteral(language, 'Delivery')}: ${deliveryDisplayLabel}`,
-          ]
-        : []),
-      `${translateUiLiteral(language, 'Total')}: ${posReceiptTotalLabel}`,
-    ];
-    return lines.join('\n');
-  }, [deliveryDisplayLabel, deliveryFeeEnabled, deliverySubtotalLabel, discountDisplayLabel, discountReceiptRowVisible, discountReceiptTitle, language, posReceiptTextLines, posReceiptTotalLabel]);
   const posDownstreamEffects = isCustomerPendingLane
     ? [
         translateUiLiteral(language, 'Pending customer queue will refresh.'),
@@ -11234,6 +11379,90 @@ export function StockUpdateSessionRoute() {
       setShowPosTimingRequiredWarning(false);
     }
   }, [posOrderTimingComplete, showPosTimingRequiredWarning]);
+  const posReceiptMetadataRows = useMemo<PosReceiptMetadataRow[]>(() => {
+    if (stockCountPosMode) {
+      return [];
+    }
+
+    const rows: PosReceiptMetadataRow[] = [];
+    const addRow = (key: string, label: string, value: string | null | undefined, includeInCopy = true) => {
+      const trimmed = value?.trim();
+      if (!trimmed) {
+        return;
+      }
+      rows.push({ key, label, value: trimmed, includeInCopy });
+    };
+    const formatDateInputForReceipt = (value: string) => {
+      const isoValue = dateInputToIso(value);
+      return isoValue ? formatSenaLongDate(isoValue, language) : value;
+    };
+    addRow('observed-at', translateUiLiteral(language, 'Date and time'), formatSenaDateTime(observedAtIso, language));
+
+    if (isSupplierPendingLane) {
+      addRow(
+        'expected-arrival',
+        translateUiLiteral(language, 'Expected date of arrival'),
+        recordOrderExpectedArrivalDate ? formatDateInputForReceipt(recordOrderExpectedArrivalDate) : '',
+      );
+    } else if (isCustomerPendingLane) {
+      addRow(
+        'expected-arrival',
+        translateUiLiteral(language, 'Expected date of arrival'),
+        customerOrderExpectedArrivalDate ? formatDateInputForReceipt(customerOrderExpectedArrivalDate) : '',
+      );
+    }
+
+    if (isCustomerTicketLane) {
+      const channel = customerIdentity.channel === 'custom'
+        ? customerIdentity.customChannel.trim()
+        : customerIdentity.channel.trim();
+      addRow(
+        'communication-channel',
+        translateUiLiteral(language, 'Communication channel'),
+        channel ? translateUiLiteral(language, channel) : '',
+        false,
+      );
+      addRow('customer-name', translateUiLiteral(language, 'Customer name'), customerIdentity.customerName);
+      addRow('phone', translateUiLiteral(language, 'Phone number'), formatPhoneForDisplay(customerIdentity.phone));
+      addRow('location', translateUiLiteral(language, 'Location'), customerIdentity.location);
+    }
+
+    addRow('notes', translateUiLiteral(language, 'Notes'), notes);
+
+    return rows;
+  }, [
+    customerIdentity,
+    customerOrderExpectedArrivalDate,
+    isCustomerPendingLane,
+    isCustomerTicketLane,
+    isSupplierPendingLane,
+    language,
+    notes,
+    observedAtIso,
+    recordOrderExpectedArrivalDate,
+    stockCountPosMode,
+  ]);
+  const posReceiptPlainText = useMemo(() => {
+    const metadataLines = posReceiptMetadataRows
+      .filter((row) => row.includeInCopy)
+      .map((row) => `${row.label}: ${row.value}`);
+    const lines = [
+      translateUiLiteral(language, 'Receipt'),
+      '',
+      ...(metadataLines.length > 0 ? [...metadataLines, ''] : []),
+      ...posReceiptTextLines.map((line) => `${line.title} (${line.quantity})`),
+      '',
+      ...(deliveryFeeEnabled
+        ? [
+            `${translateUiLiteral(language, 'Subtotal')}: ${deliverySubtotalLabel}`,
+            ...(discountReceiptRowVisible ? [`${discountReceiptTitle}: ${discountDisplayLabel}`] : []),
+            `${translateUiLiteral(language, 'Delivery')}: ${deliveryDisplayLabel}`,
+          ]
+        : []),
+      `${translateUiLiteral(language, 'Total')}: ${posReceiptTotalLabel}`,
+    ];
+    return lines.join('\n');
+  }, [deliveryDisplayLabel, deliveryFeeEnabled, deliverySubtotalLabel, discountDisplayLabel, discountReceiptRowVisible, discountReceiptTitle, language, posReceiptMetadataRows, posReceiptTextLines, posReceiptTotalLabel]);
   const posTimingMetadataContent = (
     <div className="grid gap-4">
       {showPosTimingRequiredWarning && !posOrderTimingComplete ? (
@@ -11291,6 +11520,7 @@ export function StockUpdateSessionRoute() {
             </div>
           ) : null}
           <PosOrderTimingFields
+            expectedArrivalMin={observedDateInput}
             expectedArrivalPlaceholder={supplierPosExpectedArrivalEstimate}
             expectedArrivalValue={recordOrderExpectedArrivalDate}
             leadTimeDraftMode={recordOrderLeadTimeDraftMode}
@@ -11306,6 +11536,7 @@ export function StockUpdateSessionRoute() {
         </>
       ) : isCustomerPendingLane ? (
         <PosOrderTimingFields
+          expectedArrivalMin={observedDateInput}
           expectedArrivalPlaceholder={customerPosExpectedArrivalEstimate}
           expectedArrivalValue={customerOrderExpectedArrivalDate}
           leadTimeDraftMode={customerOrderLeadTimeDraftMode}
@@ -12402,28 +12633,31 @@ export function StockUpdateSessionRoute() {
                   >
                     <SelectTrigger
                       aria-label={translateUiLiteral(language, 'Flags')}
-                      className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between !h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg')}
+                      className={cn(recordUpdateSelectTriggerClassName, 'w-full justify-between !h-13 rounded-[1.15rem] px-5 !text-lg md:!text-lg [&_[data-slot=stock-event-option-description]]:hidden')}
                     >
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="z-[110] text-base">
                       <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="none">
-                        <span className="flex items-center gap-2">
-                          <StatusReadyIcon aria-hidden="true" className="size-4" />
-                          <span>{translateUiLiteral(language, 'No event')}</span>
-                        </span>
+                        <StockEventOptionContent
+                          description={translateUiLiteral(language, 'Leave this interval unchanged.')}
+                          icon={<StatusReadyIcon aria-hidden="true" className="size-4" />}
+                          label={translateUiLiteral(language, 'No event')}
+                        />
                       </SelectItem>
                       <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="blocked">
-                        <span className="flex items-center gap-2">
-                          <StatusWarningIcon aria-hidden="true" className="size-4" />
-                          <span>{translateUiLiteral(language, 'Blocked')}</span>
-                        </span>
+                        <StockEventOptionContent
+                          description={translateUiLiteral(language, 'Availability was constrained, but not necessarily out.')}
+                          icon={<StatusWarningIcon aria-hidden="true" className="size-4" />}
+                          label={translateUiLiteral(language, 'Blocked')}
+                        />
                       </SelectItem>
                       <SelectItem className="py-2.5 pl-3 pr-9 !text-base" value="stockout">
-                        <span className="flex items-center gap-2">
-                          <EntityFlagIcon aria-hidden="true" className="size-4" />
-                          <span>{translateUiLiteral(language, 'Stockout')}</span>
-                        </span>
+                        <StockEventOptionContent
+                          description={translateUiLiteral(language, 'SKU ran out during this interval.')}
+                          icon={<EntityFlagIcon aria-hidden="true" className="size-4" />}
+                          label={translateUiLiteral(language, 'Stockout')}
+                        />
                       </SelectItem>
                     </SelectContent>
                   </Select>
@@ -12602,7 +12836,19 @@ export function StockUpdateSessionRoute() {
                 language={language}
               />
             ) : (
-              <div style={posReceiptConfirmTableLayout.style}>
+              <div className="grid gap-4" style={posReceiptConfirmTableLayout.style}>
+                {posReceiptMetadataRows.length > 0 ? (
+                  <div className="grid gap-3 rounded-[1.35rem] border border-border/70 bg-background/70 px-4 py-4 sm:grid-cols-2">
+                    {posReceiptMetadataRows.map((row) => (
+                      <div key={row.key} className={cn('min-w-0', row.key === 'notes' ? 'sm:col-span-2' : null)}>
+                        <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          {row.label}
+                        </p>
+                        <p className="mt-1 break-words text-sm font-medium leading-5 text-foreground">{row.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <HeaderedTable
                   className={posReceiptConfirmTableLayout.containerClassName}
                   variant="overview"

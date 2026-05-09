@@ -1386,6 +1386,40 @@ describe('DashboardRoute', () => {
     expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
   });
 
+  test('clamps customer follow-up next touch date to the update date', async () => {
+    const user = userEvent.setup();
+    const ticket = customerTicketFixture();
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    const ticketButton = await screen.findByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' });
+    const ticketRow = ticketButton.closest('[data-customer-task-id]') as HTMLElement;
+    await user.click(within(ticketRow).getByRole('button', { name: 'Review' }));
+
+    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    const observedInput = await within(dialog).findByLabelText('Update date and time');
+    fireEvent.change(observedInput, { target: { value: '2026-04-10T09:15' } });
+    const nextTouchInput = within(dialog).getByLabelText('Next touch date');
+
+    expect(nextTouchInput).toHaveAttribute('min', '2026-04-10');
+
+    fireEvent.change(nextTouchInput, { target: { value: '2026-04-01' } });
+
+    expect(nextTouchInput).toHaveValue('2026-04-10');
+  });
+
   test('deep-links into customer workflow and highlights a Telegram intake task', async () => {
     automationHook.mockReturnValue({
       intakes: [

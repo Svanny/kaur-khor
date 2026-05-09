@@ -46,6 +46,10 @@ export function webLandingMountForPath(pathname: string, basePath = ''): WebLand
     return '/main';
   }
 
+  if (normalizedPath === '/kaur-khor') {
+    return '/kaur-khor';
+  }
+
   if (normalizedBase && normalizedBase !== '/' && normalizedPath === normalizedBase) {
     return normalizedBase;
   }

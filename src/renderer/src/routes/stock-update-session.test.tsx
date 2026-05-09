@@ -486,6 +486,9 @@ function closePosMetadataPopup() {
 
 async function fillPendingPosTiming(expectedArrivalDate = '2026-04-18') {
   openPosMetadataPopup(/^Timing/i);
+  fireEvent.change(within(posMetadataDialog()).getByLabelText('Observed at'), {
+    target: { value: '2026-04-12T09:00' },
+  });
   fireEvent.change(within(posMetadataDialog()).getByLabelText('Expected date of arrival'), {
     target: { value: expectedArrivalDate },
   });
@@ -1238,6 +1241,40 @@ describe('StockUpdateSessionRoute', () => {
     expect(within(posMetadataDialog()).queryByRole('combobox', { name: 'ETA variation' })).not.toBeInTheDocument();
   });
 
+  it('clamps supplier POS expected arrival to the observed local date', () => {
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    const dialog = posMetadataDialog();
+    fireEvent.change(within(dialog).getByLabelText('Observed at'), {
+      target: { value: '2026-05-09T08:59' },
+    });
+    const expectedArrivalInput = within(dialog).getByLabelText('Expected date of arrival');
+
+    expect(expectedArrivalInput).toHaveAttribute('min', '2026-05-09');
+
+    fireEvent.change(expectedArrivalInput, { target: { value: '2026-05-01' } });
+
+    expect(expectedArrivalInput).toHaveValue('2026-05-09');
+  });
+
+  it('clamps customer POS expected arrival to the observed local date', () => {
+    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    openPosMetadataPopup(/^Timing/i);
+    const dialog = posMetadataDialog();
+    fireEvent.change(within(dialog).getByLabelText('Observed at'), {
+      target: { value: '2026-05-09T08:59' },
+    });
+    const expectedArrivalInput = within(dialog).getByLabelText('Expected date of arrival');
+
+    expect(expectedArrivalInput).toHaveAttribute('min', '2026-05-09');
+
+    fireEvent.change(expectedArrivalInput, { target: { value: '2026-05-01' } });
+
+    expect(expectedArrivalInput).toHaveValue('2026-05-09');
+  });
+
   it('shows expected arrivals for every selected supplier order item in POS Timing', async () => {
     renderRoute(
       observations,
@@ -1262,8 +1299,30 @@ describe('StockUpdateSessionRoute', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply suggested expected arrival for Towel' }));
 
-    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-12');
+    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-13');
     expect(within(dialog).getByRole('combobox', { name: 'ETA variation' })).toHaveTextContent('Custom');
+  });
+
+  it('does not apply suggested supplier POS arrivals before the observed local date', async () => {
+    renderRoute(
+      observations,
+      `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new&skus=sku-1%2Csku-2&flashTargets=supplier-order%3Asku-1%2Csupplier-order%3Asku-2`,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Edit Razor refill receipt line' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Edit Towel receipt line' })).toBeInTheDocument();
+    });
+
+    openPosMetadataPopup(/^Timing/i);
+    const dialog = posMetadataDialog();
+    fireEvent.change(within(dialog).getByLabelText('Observed at'), {
+      target: { value: '2026-05-30T08:59' },
+    });
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply suggested expected arrival for Towel' }));
+
+    expect(within(dialog).getByLabelText('Expected date of arrival')).toHaveValue('2026-06-03');
   });
 
   it('routes supplier and customer POS orders to Timing until EDA and ETA variation are filled', async () => {
@@ -1309,7 +1368,49 @@ describe('StockUpdateSessionRoute', () => {
   });
 
   it('uses dark metadata card headers and lighter summaries in POS capture headers', () => {
-    renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+    const observationsWithCustomers = [{
+      ...observations[0]!,
+      input: {
+        ...observations[0]!.input,
+        ticketEvents: [
+          {
+            ticketId: 'customer-ticket-dara-1',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-05T09:00:00.000Z',
+            party: {
+              role: 'customer',
+              customerName: 'Dara Sok',
+              customerNameKey: 'dara sok',
+              phone: '+855 11111111',
+              phoneKey: '+85511111111',
+            },
+            lines: [],
+          },
+          {
+            ticketId: 'customer-ticket-dara-2',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-06T09:00:00.000Z',
+            party: {
+              role: 'customer',
+              customerName: 'Dara Sok',
+              customerNameKey: 'dara sok',
+              phone: '+855 22222222',
+              phoneKey: '+85522222222',
+            },
+            lines: [],
+          },
+        ],
+      },
+    }] as typeof observations;
+    renderRoute(observationsWithCustomers, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     const metadataCards = screen.getAllByRole('button', { name: /^(Timing|Customer|Notes|Context|Delivery|Discount)/i });
     expect(metadataCards.slice(-4).map((card) => card.textContent)).toEqual([
@@ -1335,15 +1436,27 @@ describe('StockUpdateSessionRoute', () => {
     const customerDialog = posMetadataDialog();
     fireEvent.click(within(customerDialog).getByLabelText('Communication channel'));
     fireEvent.click(screen.getByRole('option', { name: 'Facebook' }));
-    fireEvent.change(within(customerDialog).getByLabelText('Customer name'), { target: { value: 'Vanny' } });
-    fireEvent.change(within(customerDialog).getByLabelText('Phone number'), { target: { value: '+85516709448' } });
+    const customerNameInput = within(customerDialog).getByLabelText('Customer name');
+    fireEvent.focus(customerNameInput);
+    const option1 = screen.getByRole('option', { name: 'Dara Sok+855 11111111' });
+    const option2 = screen.getByRole('option', { name: 'Dara Sok+855 22222222' });
+    expect(option1).toBeInTheDocument();
+    expect(option2).toBeInTheDocument();
+    fireEvent.change(customerNameInput, { target: { value: 'Dara Sok' } });
+    expect(within(customerDialog).getByLabelText('Phone number')).toHaveValue('');
+    fireEvent.click(option2);
+    expect(customerNameInput).toHaveValue('Dara Sok');
+    expect(within(customerDialog).getByLabelText('Phone number')).toHaveValue('+855 22222222');
+    fireEvent.change(within(customerDialog).getByLabelText('Location'), { target: { value: 'maps.google.com/free-money-town' } });
     const updatedCustomerCard = customerCard;
     expect(updatedCustomerCard.querySelector('[data-slot="capture-metadata-card-summary"]')).toHaveClass('flex-wrap');
     expect(Array.from(updatedCustomerCard.querySelectorAll('[data-slot="capture-metadata-card-summary-part"]')).map((part) => part.textContent)).toEqual([
       'Facebook ·',
-      'Vanny ·',
-      '+855 16709448',
+      'Dara Sok ·',
+      '+855 22222222 ·',
+      'Location added',
     ]);
+    expect(updatedCustomerCard.textContent).not.toContain('maps.google.com/free-money-town');
     fireEvent.click(within(customerDialog).getByRole('button', { name: 'Close' }));
     const notesCard = screen.getByRole('button', { name: /^Notes/i });
     expect(notesCard).toHaveClass('bg-primary');
@@ -1457,6 +1570,44 @@ describe('StockUpdateSessionRoute', () => {
     );
   });
 
+  it('saves POS metadata fields into a draft when leaving a capture session', async () => {
+    renderRoutedSession(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
+
+    await fillPendingPosTiming('2026-05-20');
+    openPosMetadataPopup(/^Customer/i);
+    fireEvent.click(within(posMetadataDialog()).getByLabelText('Communication channel'));
+    fireEvent.click(screen.getByRole('option', { name: 'Telegram' }));
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Customer name'), { target: { value: 'Dara' } });
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Phone number'), { target: { value: '+85512000000' } });
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Location'), { target: { value: '123 Riverside Lane' } });
+    closePosMetadataPopup();
+    openPosMetadataPopup(/^Notes/i);
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Report notes'), { target: { value: 'Customer asked for evening pickup.' } });
+    closePosMetadataPopup();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Products' }));
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Leave record update?'));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Products destination')).toBeInTheDocument();
+    });
+    expect(JSON.parse(window.localStorage.getItem(CUSTOMER_PENDING_DRAFT_STORAGE_KEY) ?? '{}')).toEqual(
+      expect.objectContaining({
+        customerOrderExpectedArrivalDate: '2026-05-20',
+        customerIdentity: {
+          channel: 'Telegram',
+          customChannel: '',
+          customerName: 'Dara',
+          phone: '+85512000000',
+          location: '123 Riverside Lane',
+        },
+        notes: 'Customer asked for evening pickup.',
+        touchedPosMetadataPopupIds: expect.arrayContaining(['timing', 'customer', 'notes']),
+      }),
+    );
+  });
+
   it('autofills the latest matching delivery fee config for immediate sales', () => {
     const observationsWithDelivery = [{
       ...observations[0]!,
@@ -1545,7 +1696,17 @@ describe('StockUpdateSessionRoute', () => {
 
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
-    await fillPendingPosTiming();
+    await fillPendingPosTiming('2026-05-20');
+    openPosMetadataPopup(/^Customer/i);
+    fireEvent.click(within(posMetadataDialog()).getByLabelText('Communication channel'));
+    fireEvent.click(screen.getByRole('option', { name: 'Telegram' }));
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Customer name'), { target: { value: 'Dara' } });
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Phone number'), { target: { value: '+85512000000' } });
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Location'), { target: { value: '123 Riverside Lane' } });
+    closePosMetadataPopup();
+    openPosMetadataPopup(/^Notes/i);
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Report notes'), { target: { value: 'Customer asked for evening pickup.' } });
+    closePosMetadataPopup();
     fireEvent.click(getPosWorkbenchTile('Razor refill'));
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
 
@@ -1555,15 +1716,81 @@ describe('StockUpdateSessionRoute', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
     expect(within(dialog).queryByText('Plain text receipt')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('Final confirmation: save this receipt as the current record update.')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Date and time')).toBeInTheDocument();
+    expect(within(dialog).getByText('Expected date of arrival')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Expected time of arrival')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('ETA variation')).not.toBeInTheDocument();
+    expect(within(dialog).getByText('Communication channel')).toBeInTheDocument();
+    expect(within(dialog).getByText('Telegram')).toBeInTheDocument();
+    expect(within(dialog).getByText('Dara')).toBeInTheDocument();
+    expect(within(dialog).getByText('+855 12000000')).toBeInTheDocument();
+    expect(within(dialog).getByText('123 Riverside Lane')).toBeInTheDocument();
+    const notesSummaryValue = within(dialog).getByText('Customer asked for evening pickup.');
+    expect(within(dialog).getByText('Notes')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Report notes')).not.toBeInTheDocument();
+    expect(notesSummaryValue).toBeInTheDocument();
+    expect(notesSummaryValue.parentElement?.className).toContain('sm:col-span-2');
+    expect(within(dialog).queryByText('Context')).not.toBeInTheDocument();
     expect(within(dialog).getByText('Razor refill')).toBeInTheDocument();
     expect(within(dialog).getAllByText('$9.00').length).toBeGreaterThan(0);
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy receipt' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Receipt\n\nRazor refill (1)\n\nSubtotal: $9.00\nDelivery: $0.00\nTotal: $9.00'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Expected date of arrival: May 20, 2026')));
+    const copiedReceipt = writeText.mock.calls[0]?.[0] ?? '';
+    expect(copiedReceipt).toContain('Customer name: Dara');
+    expect(copiedReceipt).toContain('Phone number: +855 12000000');
+    expect(copiedReceipt).toContain('Location: 123 Riverside Lane');
+    expect(copiedReceipt).toContain('Notes: Customer asked for evening pickup.');
+    expect(copiedReceipt).toContain('Razor refill (1)\n\nSubtotal: $9.00\nDelivery: $0.00\nTotal: $9.00');
+    expect(copiedReceipt).not.toContain('Communication channel');
+    expect(copiedReceipt).not.toContain('Expected time of arrival');
+    expect(copiedReceipt).not.toContain('ETA variation');
+    expect(copiedReceipt).not.toContain('Context');
     expect(within(dialog).getByText('Copied receipt to clipboard.')).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+      ticketEvents: expect.arrayContaining([
+        expect.objectContaining({
+          party: expect.objectContaining({
+            customerName: 'Dara',
+            phone: '+855 12000000',
+          }),
+        }),
+      ]),
+    }));
+  }, 10_000);
+
+  it('adds supplier timing metadata to POS receipt review and omits ETA metadata from copied receipt', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    await fillPendingPosTiming('2026-05-20');
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
+    expect(within(dialog).getByText('Expected date of arrival')).toBeInTheDocument();
+    expect(within(dialog).getByText('May 20, 2026')).toBeInTheDocument();
+    expect(within(dialog).queryByText('Expected time of arrival')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('ETA variation')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Context')).not.toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Copy receipt' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Expected date of arrival: May 20, 2026')));
+    const copiedReceipt = writeText.mock.calls[0]?.[0] ?? '';
+    expect(copiedReceipt).toContain('Razor refill');
+    expect(copiedReceipt).not.toContain('Expected time of arrival');
+    expect(copiedReceipt).not.toContain('ETA variation');
+    expect(copiedReceipt).not.toContain('Communication channel');
+    expect(copiedReceipt).not.toContain('Context');
   }, 10_000);
 
   it('applies a percentage discount before delivery and saves discount metadata', async () => {
@@ -1592,12 +1819,13 @@ describe('StockUpdateSessionRoute', () => {
     fireEvent.click(captureDoneButton());
 
     const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
-    expect(within(dialog).getByText('Discount (5.5%)')).toBeInTheDocument();
-    expect(within(dialog).getByText('-$0.50')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Discount (5.5%)')).toHaveLength(1);
+    expect(within(dialog).getAllByText('-$0.50').length).toBeGreaterThan(0);
     expect(within(dialog).getByText('$10.51')).toBeInTheDocument();
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy receipt' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('Receipt\n\nRazor refill (1)\n\nSubtotal: $9.00\nDiscount (5.5%): -$0.50\nDelivery: $2.00\nTotal: $10.51'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining('Discount (5.5%): -$0.50')));
+    expect(writeText.mock.calls[0]?.[0]).toContain('Razor refill (1)\n\nSubtotal: $9.00\nDiscount (5.5%): -$0.50\nDelivery: $2.00\nTotal: $10.51');
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
@@ -1651,7 +1879,7 @@ describe('StockUpdateSessionRoute', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
     expect(within(dialog).getByText('Subtotal')).toBeInTheDocument();
-    expect(within(dialog).getByText('Delivery')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Delivery')).toHaveLength(1);
     expect(within(dialog).getByRole('button', { name: 'Delivery fee help' })).toBeInTheDocument();
     await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus());
     expect(screen.queryByText(/If the customer pays, delivery is added/)).not.toBeInTheDocument();
@@ -1678,6 +1906,9 @@ describe('StockUpdateSessionRoute', () => {
     renderRoute(observations, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     openPosMetadataPopup(/^Timing/i);
+    fireEvent.change(within(posMetadataDialog()).getByLabelText('Observed at'), {
+      target: { value: '2026-04-12T09:00' },
+    });
     fireEvent.change(within(posMetadataDialog()).getByLabelText('Expected date of arrival'), {
       target: { value: '2026-04-18' },
     });
@@ -1879,7 +2110,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getAllByText('$38.00').length).toBeGreaterThan(0);
 
     openPosMetadataPopup(/^Timing/i);
-    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-04-10');
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-09');
   });
 
   it('injects an existing customer ticket into the POS order state when editing by ticket id', async () => {
@@ -1956,7 +2187,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.getAllByText('$33.00').length).toBeGreaterThan(0);
 
     openPosMetadataPopup(/^Timing/i);
-    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-04-09');
+    expect(within(posMetadataDialog()).getByLabelText('Expected date of arrival')).toHaveValue('2026-05-09');
     closePosMetadataPopup();
 
     openPosMetadataPopup(/^Customer/i);

@@ -126,6 +126,20 @@ const context: SenaRecordUpdateContext = {
         ...ticketObservation.input.ticketEvents![0]!,
       },
     },
+    'ticket-customer-2': {
+      observationId: 'obs-2',
+      observedAt: '2026-04-22T10:05:00.000Z',
+      value: {
+        ...ticketObservation.input.ticketEvents![0]!,
+        ticketId: 'ticket-customer-2',
+        occurredAt: '2026-04-22T10:05:00.000Z',
+        party: {
+          ...ticketObservation.input.ticketEvents![0]!.party!,
+          phone: '+855 98765432',
+          phoneKey: '+85598765432',
+        },
+      },
+    },
   },
   latestDeliveryFeeByBucket: {
     customer_order: {
@@ -240,8 +254,13 @@ describe('record activity helpers', () => {
   test('builds customer directory from compact ticket summaries', () => {
     const directory = buildCustomerLinkDirectoryFromContext(context);
     expect(directory.names).toEqual(['Dara']);
+    expect(directory.entries).toEqual([
+      { name: 'Dara', phone: '+855 12345678' },
+      { name: 'Dara', phone: '+855 98765432' },
+    ]);
     expect(directory.nameToPhone.get('dara')).toBe('+855 12345678');
     expect(directory.phoneToName.get('+85512345678')).toBe('Dara');
+    expect(directory.phoneToName.get('+85598765432')).toBe('Dara');
   });
 
   test('reads latest delivery fees from context before fallback observations', () => {

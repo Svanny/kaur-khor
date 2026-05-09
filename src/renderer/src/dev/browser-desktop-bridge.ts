@@ -61,7 +61,7 @@ const demoCatalogImages = import.meta.glob<string>('../assets/dev-catalog/*.png'
 
 function demoCatalogImagePath(fileName: string) {
   const entry = Object.entries(demoCatalogImages).find(([path]) => path.endsWith(`/${fileName}`));
-  return entry?.[1] ?? fileName;
+  return entry?.[1];
 }
 
 function clone<T>(value: T): T {
@@ -1135,8 +1135,8 @@ export function createEmptyBrowserMockState(createdAt = nowIso()): BrowserMockSt
   state.preferences = {
     ...state.preferences,
     onboardingCompletedAt: null,
-    showAutomationsPage: false,
-    customShowAutomationsPage: false,
+    showAutomationsPage: true,
+    customShowAutomationsPage: true,
   };
   state.automation = createMockAutomationWorkspace();
   state.automation.connection = {

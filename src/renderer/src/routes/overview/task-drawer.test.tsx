@@ -303,6 +303,23 @@ describe('OverviewTaskDrawer', () => {
     expect(screen.getByLabelText('Expected arrival date')).toHaveValue('2026-04-16');
   });
 
+  test('clamps supplier ETA updates to the observed local date', async () => {
+    freezeDate(new realDate(2026, 3, 9, 16, 44).toISOString());
+
+    renderDrawer(ticketTask, 'eta_changed');
+
+    const observedInput = await screen.findByLabelText('Observed at');
+    fireEvent.change(observedInput, { target: { value: '2026-04-20T09:15' } });
+    const expectedArrivalInput = screen.getByLabelText('Expected arrival date');
+
+    expect(expectedArrivalInput).toHaveAttribute('min', '2026-04-20');
+    expect(expectedArrivalInput).toHaveValue('2026-04-20');
+
+    fireEvent.change(expectedArrivalInput, { target: { value: '2026-04-10' } });
+
+    expect(expectedArrivalInput).toHaveValue('2026-04-20');
+  });
+
   test('renders an existing ticket quick-update drawer without detailed quantity or cost editors', async () => {
     renderDrawer(ticketTask);
 

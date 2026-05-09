@@ -873,18 +873,25 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         const explicitPresetVisibility = isPresetViewMode(overrides?.displayViewMode)
           ? getInterfaceVisibilityForPreset(overrides.displayViewMode)
           : null;
-        const resolvedVisibility = explicitPresetVisibility ?? {
-          showExplanatoryTooltips: resolvedShowExplanatoryTooltips,
-          showFloatingTitleActions: resolvedShowFloatingTitleActions,
-          showRightRailCards: resolvedShowRightRailCards,
-          showOverviewTaskTabs: resolvedShowOverviewTaskTabs,
-          showAutomationsPage: resolvedShowAutomationsPage,
-          showAnalysisPage: resolvedShowAnalysisPage,
-          showPerformanceCompareToggle: resolvedShowPerformanceCompareToggle,
-          showPerformanceTimelineCard: resolvedShowPerformanceTimelineCard,
-          showLogsViewToggle: resolvedShowLogsViewToggle,
-          showHeartbeatRibbons: resolvedShowHeartbeatRibbons,
-        };
+        const resolvedVisibility = explicitPresetVisibility
+          ? {
+              ...explicitPresetVisibility,
+              ...(overrides?.showAutomationsPage != null && {
+                showAutomationsPage: overrides.showAutomationsPage,
+              }),
+            }
+          : {
+              showExplanatoryTooltips: resolvedShowExplanatoryTooltips,
+              showFloatingTitleActions: resolvedShowFloatingTitleActions,
+              showRightRailCards: resolvedShowRightRailCards,
+              showOverviewTaskTabs: resolvedShowOverviewTaskTabs,
+              showAutomationsPage: resolvedShowAutomationsPage,
+              showAnalysisPage: resolvedShowAnalysisPage,
+              showPerformanceCompareToggle: resolvedShowPerformanceCompareToggle,
+              showPerformanceTimelineCard: resolvedShowPerformanceTimelineCard,
+              showLogsViewToggle: resolvedShowLogsViewToggle,
+              showHeartbeatRibbons: resolvedShowHeartbeatRibbons,
+            };
         const resolvedDisplayViewMode =
           overrides?.displayViewMode ??
           (updatesVisibilityPreferences

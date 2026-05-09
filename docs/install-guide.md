@@ -10,7 +10,7 @@ The browser app at <https://svanny.github.io/kaur-khor/app> is useful when OPFS 
 - Do not disable SmartScreen globally on Windows.
 - Do not strip quarantine attributes from downloaded macOS apps to force a launch.
 - Prefer official release artifacts and verify checksums before running downloaded files.
-- Treat this repository as source-visible, not open source licensed, while `package.json` declares `UNLICENSED`.
+- Treat this repository as open source licensed under `GPL-2.0-only`.
 
 ## macOS
 
@@ -32,13 +32,13 @@ Approved flow:
 
 Do not disable Gatekeeper globally. Do not run copies from mirrors or reposts.
 
-To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. If it finds an older Cargo, it updates Rust stable with rustup before building. Copy the code below and paste it inside Terminal on macOS or Linux:
+To build from source, inspect the source on the [official GitHub page](https://github.com/Svanny/kaur-khor), then open the Terminal app. The release source-build archive is production-focused and excludes developer docs, benchmarks, tests, screenshots, and sample product photos. The build script detects your platform, bootstraps Node and project build dependencies, and builds a native package. If it must download Node or rustup, it verifies the downloaded toolchain artifact against a pinned SHA-256 digest before extracting or executing it. If it finds an older Cargo, it updates Rust stable with rustup before building. Copy the code below and paste it inside Terminal on macOS or Linux:
 
 ```sh
-curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz
-tar -xzf kaur-khor-source.tar.gz
-rm kaur-khor-source.tar.gz
-cd kaur-khor-main
+curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz -o kaur-khor-source-build.tar.gz
+tar -xzf kaur-khor-source-build.tar.gz
+rm kaur-khor-source-build.tar.gz
+cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh
 ```
 
@@ -62,10 +62,10 @@ This approves the downloaded app without changing SmartScreen system-wide.
 To build from source on Windows, use PowerShell-native commands. PowerShell aliases `curl` to `Invoke-WebRequest`, so `curl -L` will fail there. The bootstrap script installs a local pinned Node.js if `node` is not already available, updates old Rust stable toolchains through rustup, then installs the remaining build dependencies:
 
 ```powershell
-Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"
-Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."
-Remove-Item -Path "kaur-khor-source.zip"
-Set-Location "kaur-khor-main"
+Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz" -OutFile "kaur-khor-source-build.tar.gz"
+tar -xzf "kaur-khor-source-build.tar.gz"
+Remove-Item -Path "kaur-khor-source-build.tar.gz"
+Set-Location "kaur-khor-*-source-build"
 .\scripts\build-from-source.ps1
 ```
 

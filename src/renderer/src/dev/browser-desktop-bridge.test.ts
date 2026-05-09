@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createMockAutomationWorkspace,
+  createEmptyBrowserMockState,
   createMockState,
   installBrowserDesktopBridge,
   resetBrowserDesktopBridgeMock,
@@ -83,6 +84,13 @@ describe('installBrowserDesktopBridge', () => {
     expect(state.automationMessages['conv-demo']).toHaveLength(1);
     expect(state.automation.intakes[0]?.intakeId).toBe('intake-demo');
     expect(state.orderBatches.some((batch) => batch.status === 'awaiting_receipt')).toBe(true);
+  });
+
+  it('keeps automation and intake visible in empty browser workspaces', () => {
+    const state = createEmptyBrowserMockState();
+
+    expect(state.preferences.showAutomationsPage).toBe(true);
+    expect(state.preferences.customShowAutomationsPage).toBe(true);
   });
 
   it('builds automation workspace fixtures with exposed sellables', () => {

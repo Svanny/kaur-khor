@@ -9,11 +9,11 @@ import type {
   SenaTicketLine,
   SenaTicketSummary,
 } from '@shared/sena';
-import { formatPhoneForDisplay, normalizePhoneLookupKey } from '@shared/phone';
+import { formatPhoneForDisplay } from '@shared/phone';
 import { formatWholeNumber } from '@/lib/format';
 import { translateUiLiteral } from '@/lib/translations';
 import type { AppLanguage } from '@shared/inventory';
-import type { CustomerLinkDirectory } from './ticketing';
+import { buildCustomerLinkDirectoryFromParties, type CustomerLinkDirectory } from './ticketing';
 
 export interface RecordTicketOption {
   description: string;
@@ -24,14 +24,6 @@ export interface RecordTicketOption {
 }
 
 type TicketDisplayCatalog = Pick<SenaCatalog, 'services' | 'skus'> | null | undefined;
-
-function collapseSpaces(value: string) {
-  return value.trim().replace(/\s+/g, ' ');
-}
-
-function normalizeTicketLookupValue(value: string) {
-  return collapseSpaces(value).toLowerCase();
-}
 
 function ticketLineFallbackLabel(line: Pick<SenaTicketLine, 'entityType'>) {
   return line.entityType === 'service' ? 'Service' : 'SKU';
@@ -164,37 +156,15 @@ export function buildCustomerLinkDirectoryFromContext(
   context: SenaRecordUpdateContext | null,
   fallbackObservations: SenaObservationRecord[] = [],
 ): CustomerLinkDirectory {
-  const nameByKey = new Map<string, string>();
-  const nameToPhone = new Map<string, string>();
-  const phoneToName = new Map<string, string>();
   const ticketSources = context
     ? Object.values(context.latestTicketsById).map((anchor) => anchor.value)
     : fallbackObservations.flatMap((observation) => observation.input.ticketEvents ?? []);
 
-  for (const ticket of ticketSources) {
-    if (ticket.ticketFamily !== 'customer' || ticket.party?.role !== 'customer') {
-      continue;
-    }
-    const name = collapseSpaces(ticket.party.customerName ?? '');
-    const phone = formatPhoneForDisplay(ticket.party.phone ?? '');
-    const nameKey = ticket.party.customerNameKey ?? normalizeTicketLookupValue(name);
-    const phoneKey = normalizePhoneLookupKey(ticket.party.phone ?? ticket.party.phoneKey ?? '');
-    if (name && nameKey) {
-      nameByKey.set(nameKey, name);
-    }
-    if (name && phone && nameKey && !nameToPhone.has(nameKey)) {
-      nameToPhone.set(nameKey, phone);
-    }
-    if (name && phone && phoneKey && !phoneToName.has(phoneKey)) {
-      phoneToName.set(phoneKey, name);
-    }
-  }
-
-  return {
-    names: [...nameByKey.values()].sort((left, right) => left.localeCompare(right)),
-    nameToPhone,
-    phoneToName,
-  };
+  return buildCustomerLinkDirectoryFromParties(
+    ticketSources
+      .filter((ticket) => ticket.ticketFamily === 'customer')
+      .map((ticket) => ticket.party),
+  );
 }
 
 export function latestDeliveryFeeMetadataFromContext(
