@@ -188,6 +188,12 @@ jobs:
           pattern: release-*
           merge-multiple: true
 
+      - name: Build production source-build archive
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node scripts/package-source-release.mjs
+
       - name: Verify artifact set
         shell: bash
         run: |
@@ -267,6 +273,7 @@ jobs:
             echo "## Included files"
             echo
             echo "- Release artifacts for all supported desktop platforms"
+            echo "- Production source-build archive for local desktop builds, plus a latest-release alias"
             echo "- Bundled kaur-khor-desktop-core runtime inside every desktop app package"
             echo "- SHA256SUMS for every attached asset"
             if [[ -n "${previous_tag}" ]]; then
