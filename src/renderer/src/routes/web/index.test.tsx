@@ -18,7 +18,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE } from '@shared/responsive-zoom';
-import { setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
+import { getBrowserDesktopBridgeMockState, setBrowserDesktopBridgeMockState } from '@/dev/browser-desktop-bridge';
 import {
   KAUR_KHOR_BROWSER_APP_DATABASE,
   KAUR_KHOR_BROWSER_DEMO_DATABASE,
@@ -454,8 +454,8 @@ describe('WebRoutes landing rail', () => {
     expect(buildSection).not.toHaveTextContent('platform flag');
     expect(buildSection).not.toHaveTextContent('software');
 
-    expect(screen.getByAltText('រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់')).toBeInTheDocument();
-    expect(screen.queryByAltText('Kaur Khor mission control overview showing the main work queue')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'រូបភាពផ្ទាំងបញ្ជា កខ បង្ហាញជួរការងារសំខាន់' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Kaur Khor mission control overview showing the main work queue' })).not.toBeInTheDocument();
   });
 
   test('renders every operator-facing feature once in the accessible rail', () => {
@@ -494,7 +494,7 @@ describe('WebRoutes landing rail', () => {
 
     renderWebHome();
 
-    expect(screen.getByAltText('Kaur Khor mission control overview showing the main work queue')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Kaur Khor mission control overview showing the main work queue' })).toBeInTheDocument();
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 
@@ -1457,9 +1457,9 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
     expect(screen.queryByText(/phone view/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
-    const warningImage = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('img');
-    expect(warningImage).not.toBeNull();
-    expect(warningImage).toHaveClass('size-[4.75rem]', 'p-3', 'object-contain');
+    const warningIcon = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('[data-slot="embedded-phone-view-warning-icon"]');
+    expect(warningIcon).not.toBeNull();
+    expect(warningIcon).toHaveClass('size-[4.75rem]', 'p-3');
     const warningCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy"]');
     expect(warningCopy).not.toBeNull();
     expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-title"]')).toHaveClass('overflow-hidden');
@@ -1776,9 +1776,31 @@ describe('WebRoutes embedded app fallback state', () => {
     const browserState = fallbackStateForMode('app');
 
     expect(demoState.preferences.onboardingCompletedAt).toBeNull();
+    expect(demoState.preferences.showAutomationsPage).toBe(true);
+    expect(demoState.preferences.customShowAutomationsPage).toBe(true);
     expect(browserState.preferences.onboardingCompletedAt).toBeNull();
     expect(demoState.workspaceSummary.skuCount).toBeGreaterThan(0);
     expect(browserState.workspaceSummary.skuCount).toBe(0);
+  });
+
+  test('enables automation intake when restoring older demo browser state', async () => {
+    const olderDemoState = fallbackStateForMode('demo');
+    olderDemoState.preferences.showAutomationsPage = false;
+    olderDemoState.preferences.customShowAutomationsPage = false;
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+        json: olderDemoState,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    await screen.findByRole('button', { name: 'Export backup' });
+    expect(getBrowserDesktopBridgeMockState().preferences.showAutomationsPage).toBe(true);
+    expect(getBrowserDesktopBridgeMockState().preferences.customShowAutomationsPage).toBe(true);
   });
 
   test('uses a friendly message for browser storage access-handle contention', () => {
@@ -1805,10 +1827,10 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Copy the code below and paste it inside Terminal.');
     expect(section).toHaveTextContent('Shell');
     expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
-    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
-    expect(section).toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
-    expect(section).toHaveTextContent('rm kaur-khor-source.tar.gz');
-    expect(section).toHaveTextContent('cd kaur-khor-main');
+    expect(section).toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz -o kaur-khor-source-build.tar.gz');
+    expect(section).toHaveTextContent('tar -xzf kaur-khor-source-build.tar.gz');
+    expect(section).toHaveTextContent('rm kaur-khor-source-build.tar.gz');
+    expect(section).toHaveTextContent('cd kaur-khor-*-source-build');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
     expect(section).not.toHaveTextContent('git clone');
@@ -1836,10 +1858,10 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Copy the code below and paste it inside PowerShell.');
     expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.ps1 for your platform.');
     expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
-    expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"');
-    expect(snippet).toHaveTextContent('Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."');
-    expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-source.zip"');
-    expect(snippet).toHaveTextContent('Set-Location "kaur-khor-main"');
+    expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz" -OutFile "kaur-khor-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('tar -xzf "kaur-khor-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('Set-Location "kaur-khor-*-source-build"');
     expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1');
     expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');

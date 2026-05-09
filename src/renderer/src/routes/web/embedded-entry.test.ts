@@ -29,6 +29,11 @@ describe('webLandingMountForPath', () => {
     expect(webLandingMountForPath('/kaur-khor/', '/kaur-khor')).toBe('/kaur-khor');
   });
 
+  test('routes the electron renderer dev /kaur-khor base path to the public web landing page', () => {
+    expect(webLandingMountForPath('/kaur-khor', '/')).toBe('/kaur-khor');
+    expect(webLandingMountForPath('/kaur-khor/', '/')).toBe('/kaur-khor');
+  });
+
   test('leaves embedded and desktop renderer routes alone', () => {
     expect(webLandingMountForPath('/kaur-khor/demo', '/kaur-khor')).toBeNull();
     expect(webLandingMountForPath('/', '/')).toBeNull();

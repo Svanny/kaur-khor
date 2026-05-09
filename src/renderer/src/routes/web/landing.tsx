@@ -50,32 +50,23 @@ import {
 } from '@icons/navigation';
 import { cn } from '@/lib/utils';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import analysisImageUrl from '../../../../../docs/readme/web-current-analysis.png';
-import catalogImageUrl from '../../../../../docs/readme/web-current-catalog.png';
-import customerOrderImageUrl from '../../../../../docs/readme/web-current-customer-order.png';
-import overviewImageUrl from '../../../../../docs/readme/web-current-overview.png';
-import performanceImageUrl from '../../../../../docs/readme/web-current-performance.png';
-import queueCustomerImageUrl from '../../../../../docs/readme/web-current-queue-customer.png';
-import queueSupplierImageUrl from '../../../../../docs/readme/web-current-queue-supplier.png';
-import recordUpdateImageUrl from '../../../../../docs/readme/web-current-record-update.png';
-import stockCountImageUrl from '../../../../../docs/readme/web-current-stock-count.png';
 import type { AppLanguage } from '@shared/inventory';
 
 const releasesUrl = 'https://github.com/Svanny/kaur-khor/releases/latest';
 const sourceUrl = 'https://github.com/Svanny/kaur-khor';
 const latestReleaseApiUrl = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const shellSourceBuildCommands = [
-  'curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz',
-  'tar -xzf kaur-khor-source.tar.gz',
-  'rm kaur-khor-source.tar.gz',
-  'cd kaur-khor-main',
+  'curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz -o kaur-khor-source-build.tar.gz',
+  'tar -xzf kaur-khor-source-build.tar.gz',
+  'rm kaur-khor-source-build.tar.gz',
+  'cd kaur-khor-*-source-build',
   './scripts/build-from-source.sh',
 ] as const;
 const powershellSourceBuildCommands = [
-  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/archive/refs/heads/main.zip" -OutFile "kaur-khor-source.zip"',
-  'Expand-Archive -Path "kaur-khor-source.zip" -DestinationPath "."',
-  'Remove-Item -Path "kaur-khor-source.zip"',
-  'Set-Location "kaur-khor-main"',
+  'Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-source-build.tar.gz" -OutFile "kaur-khor-source-build.tar.gz"',
+  'tar -xzf "kaur-khor-source-build.tar.gz"',
+  'Remove-Item -Path "kaur-khor-source-build.tar.gz"',
+  'Set-Location "kaur-khor-*-source-build"',
   '.\\scripts\\build-from-source.ps1',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -84,63 +75,63 @@ const screenshotHeight = 1984;
 const screenshotSlides = [
   {
     alt: 'Kaur Khor mission control overview showing the main work queue',
-    image: overviewImageUrl,
+    image: publicPath('/screenshots/web-current-overview.png'),
     label: 'Mission Control',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor supplier queue showing supplier follow-up work',
-    image: queueSupplierImageUrl,
+    image: publicPath('/screenshots/web-current-queue-supplier.png'),
     label: 'Supplier queue',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor customer queue showing customer order follow-up work',
-    image: queueCustomerImageUrl,
+    image: publicPath('/screenshots/web-current-queue-customer.png'),
     label: 'Customer queue',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor products view showing searchable SKUs and services',
-    image: catalogImageUrl,
+    image: publicPath('/screenshots/web-current-catalog.png'),
     label: 'Products',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor record update workflow for stock and order changes',
-    image: recordUpdateImageUrl,
+    image: publicPath('/screenshots/web-current-record-update.png'),
     label: 'Point-of-Sale and updates',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor stock count capture session for physical inventory counts',
-    image: stockCountImageUrl,
+    image: publicPath('/screenshots/web-current-stock-count.png'),
     label: 'Stock count',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor customer order capture session for pending customer demand',
-    image: customerOrderImageUrl,
+    image: publicPath('/screenshots/web-current-customer-order.png'),
     label: 'Customer order',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor business health dashboard showing pressure and diagnostics',
-    image: performanceImageUrl,
+    image: publicPath('/screenshots/web-current-performance.png'),
     label: 'Business health',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor analysis workspace showing inventory insight tools',
-    image: analysisImageUrl,
+    image: publicPath('/screenshots/web-current-analysis.png'),
     label: 'Insights',
     width: screenshotWidth,
     height: screenshotHeight,
@@ -802,26 +793,6 @@ function scheduleHashSectionScroll(sectionId: string) {
   };
 }
 
-function scheduleIdle(callback: () => void) {
-  const idleWindow = window as Window & {
-    cancelIdleCallback?: (handle: number) => void;
-    requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
-  };
-  if (idleWindow.requestIdleCallback && idleWindow.cancelIdleCallback) {
-    const idleId = idleWindow.requestIdleCallback(callback, { timeout: 1500 });
-    return () => idleWindow.cancelIdleCallback?.(idleId);
-  }
-
-  const timeoutId = window.setTimeout(callback, 450);
-  return () => window.clearTimeout(timeoutId);
-}
-
-function preloadLandingScreenshot(src: string) {
-  const image = new window.Image();
-  image.decoding = 'async';
-  image.src = src;
-}
-
 function useDocumentVisible() {
   const [isVisible, setIsVisible] = useState(() => document.visibilityState !== 'hidden');
 
@@ -1090,31 +1061,16 @@ function WorkshopIllustration({ language }: { language: AppLanguage }) {
     return () => window.clearInterval(intervalId);
   }, [shouldAdvanceSlides]);
 
-  useEffect(() => {
-    if (!shouldAdvanceSlides) {
-      return undefined;
-    }
-    const nextSlide = screenshotSlides[(activeSlide + 1) % screenshotSlides.length];
-    if (!nextSlide) {
-      return undefined;
-    }
-    return scheduleIdle(() => preloadLandingScreenshot(nextSlide.image));
-  }, [activeSlide, shouldAdvanceSlides]);
-
   return (
     <div ref={frameRef} className="relative overflow-hidden rounded-[1.45rem] border border-border/70 bg-card p-4 shadow-panel">
       <div className="absolute inset-0 paper-grid opacity-45" aria-hidden="true" />
       <div className="relative grid gap-3">
         <div className="relative aspect-[3456/1984] overflow-hidden rounded-[1.05rem] shadow-float ring-1 ring-border/50">
           <img
-            key={activeSlideItem.label}
+            key={activeSlideItem.image}
             alt={landingText(language, activeSlideItem.alt)}
             className="absolute inset-0 h-full w-full object-cover"
-            decoding="async"
-            height={activeSlideItem.height}
-            loading={activeSlide === 0 ? 'eager' : 'lazy'}
             src={activeSlideItem.image}
-            width={activeSlideItem.width}
           />
         </div>
         <div className="mx-auto flex w-fit gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label={landingText(language, 'Screenshot carousel')}>

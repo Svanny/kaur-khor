@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { HashRouter, useLocation } from 'react-router-dom';
 import App from '@/App';
-import rotatePhoneWarningImage from '@/assets/rotate-phone-warning.png';
 import {
   createEmptyBrowserMockState,
   createMockState,
@@ -110,6 +109,21 @@ export function fallbackStateForMode(mode: EmbeddedMode): BrowserMockState {
     assetDirectoryPath: 'Browser image storage unavailable in this release',
   };
   return state;
+}
+
+function normalizeBrowserStateForMode(mode: EmbeddedMode, state: BrowserMockState): BrowserMockState {
+  if (mode !== 'demo') {
+    return state;
+  }
+
+  return {
+    ...state,
+    preferences: {
+      ...state.preferences,
+      showAutomationsPage: true,
+      customShowAutomationsPage: true,
+    },
+  };
 }
 
 function stateRecord(
@@ -380,12 +394,17 @@ export function PhoneViewWarningOverlay() {
           }
         `}</style>
         <div className="flex items-start gap-3">
-          <img
-            alt=""
+          <div
             aria-hidden="true"
-            className="size-[4.75rem] shrink-0 rounded-xl bg-white object-contain p-3"
-            src={rotatePhoneWarningImage}
-          />
+            className="grid size-[4.75rem] shrink-0 place-items-center rounded-xl bg-white p-3 text-[#111827]"
+            data-slot="embedded-phone-view-warning-icon"
+          >
+            <div className="relative h-12 w-8 rounded-[0.55rem] border-2 border-current">
+              <div className="absolute inset-x-2 top-1 h-0.5 rounded-full bg-current" />
+              <div className="absolute inset-x-2 bottom-1 h-0.5 rounded-full bg-current" />
+              <div className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-sm border-r-2 border-t-2 border-current" />
+            </div>
+          </div>
           <div className="min-w-0">
             <h2 id="embedded-phone-view-warning-title" className="sr-only">
               {translateUiLiteral(language, title)}
@@ -753,7 +772,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 
         const stateRecords = await handle.listDocuments('browser_state');
         const restoredState = readStateRecord(stateRecords, databaseName);
-        const nextState = restoredState ?? fallbackState;
+        const nextState = normalizeBrowserStateForMode(mode, restoredState ?? fallbackState);
         setBrowserDesktopBridgeMockState(nextState);
         await persistCurrentState(handle, databaseName);
         installPersistenceHooks(handle, databaseName, mode);
@@ -859,7 +878,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
         return;
       }
       await storage.handle.importBackup(validation.backup);
-      setBrowserDesktopBridgeMockState(restoredState);
+      setBrowserDesktopBridgeMockState(normalizeBrowserStateForMode(mode, restoredState));
       window.location.reload();
     })();
   }
