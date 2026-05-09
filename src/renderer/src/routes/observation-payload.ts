@@ -25,6 +25,8 @@ export interface ObservationSignalCounts {
   recipeUsageHints: number;
   regime: number;
   notes: number;
+  deliveryFee: number;
+  discount: number;
 }
 
 export function createEmptyObservationInput({
@@ -86,6 +88,8 @@ export function observationSignalCounts(input: SenaObservationInput): Observatio
     recipeUsageHints: input.recipeUsageHints?.length ?? 0,
     regime: input.regimeHint ? 1 : 0,
     notes: input.notes?.trim() ? 1 : 0,
+    deliveryFee: input.deliveryFee ? 1 : 0,
+    discount: input.discount ? 1 : 0,
   };
 }
 
@@ -107,7 +111,10 @@ export function hasStructuredObservationSignal(input: SenaObservationInput) {
     counts.commercialEvents > 0 ||
     counts.ticketEvents > 0 ||
     counts.recipeUsageHints > 0 ||
-    counts.regime > 0
+    counts.regime > 0 ||
+    counts.notes > 0 ||
+    counts.deliveryFee > 0 ||
+    counts.discount > 0
   );
 }
 
