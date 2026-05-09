@@ -277,7 +277,7 @@ function CardControlRow({ children }: { children: React.ReactNode }) {
 
 function AutomationExperimentalWarning({ language }: { language: Parameters<typeof translateUiLiteral>[0] }) {
   return (
-    <div className="mb-6 mt-2 rounded-[1rem] border border-amber-300/70 bg-amber-50/85 px-4 py-4 text-sm leading-6 text-amber-950">
+    <div className="rounded-[1rem] border border-amber-300/70 bg-amber-50/85 px-4 py-4 text-sm leading-6 text-amber-950">
       <div className="flex items-center gap-3">
         <StatusWarningIcon className="size-5 shrink-0" />
         <div className="min-w-0">
@@ -577,6 +577,7 @@ export function AutomationsRoute({
     !forcedSection &&
     !allowConfigurationWithoutEligibility &&
     (!showAutomationsPage || !navigationAvailability.hasWorkIntake);
+  const automationTitleCardClassName = 'gap-4 py-5';
 
   useEffect(() => {
     setBotDisplayName(connection?.botDisplayName ?? '');
@@ -1049,6 +1050,7 @@ export function AutomationsRoute({
     <WorkspacePage fitViewport={forcedSection === 'intake'} className="gap-5">
       <WorkspaceTitleCard
         actions={hasSavedTelegramConfiguration ? titleActions : undefined}
+        className={automationTitleCardClassName}
         eyebrow={forcedSection === 'settings' ? getTranslation(language, 'settingsTitle') : undefined}
         helperExemptReason="Automation title card descriptor supplies route-level guidance."
         title={
@@ -1059,29 +1061,31 @@ export function AutomationsRoute({
         }
         descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
       >
-        {forcedSection === 'intake' ? <AutomationExperimentalWarning language={language} /> : null}
-        {isBrowserRuntime ? (
-          <div className="mt-4 rounded-[1rem] border border-amber-300/60 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-950">
-            <p className="font-semibold">
-              {translateUiLiteral(language, 'Browser automation runs only while this tab is open.')}
-            </p>
-            <p>
-              {translateUiLiteral(language, 'SENA is single-threaded in browser mode, and live Telegram polling pauses when the tab is closed, hidden, asleep, or blocked by the browser. Use desktop for persistent automation.')}
-            </p>
-          </div>
-        ) : null}
-        {hasSavedTelegramConfiguration && model ? (
-          <MetricRibbon
-            columns={5}
-            items={model.ribbon.map((metric) => ({
-              key: metric.key,
-              label: metric.label,
-              value: metric.value,
-              detail: metric.detail,
-              className: tintedSurfaceClassName(metric.tone),
-            }))}
-          />
-        ) : null}
+        <div className="grid gap-3">
+          {forcedSection === 'intake' ? <AutomationExperimentalWarning language={language} /> : null}
+          {isBrowserRuntime ? (
+            <div className="rounded-[1rem] border border-amber-300/60 bg-amber-50/85 px-4 py-3 text-sm leading-6 text-amber-950">
+              <p className="font-semibold">
+                {translateUiLiteral(language, 'Browser automation runs only while this tab is open.')}
+              </p>
+              <p>
+                {translateUiLiteral(language, 'SENA is single-threaded in browser mode, and live Telegram polling pauses when the tab is closed, hidden, asleep, or blocked by the browser. Use desktop for persistent automation.')}
+              </p>
+            </div>
+          ) : null}
+          {hasSavedTelegramConfiguration && model ? (
+            <MetricRibbon
+              columns={5}
+              items={model.ribbon.map((metric) => ({
+                key: metric.key,
+                label: metric.label,
+                value: metric.value,
+                detail: metric.detail,
+                className: tintedSurfaceClassName(metric.tone),
+              }))}
+            />
+          ) : null}
+        </div>
       </WorkspaceTitleCard>
 
       <ConfirmActionDialog

@@ -1118,6 +1118,27 @@ describe('KaurKhorShell', () => {
     });
   });
 
+  test('keeps the embedded sidebar banner slot above settings help links', () => {
+    setViewport({ width: 1440, isMobile: false });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/interface']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Settings screen</div>} path="/settings/interface" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    const bannerSlot = document.querySelector('[data-slot="embedded-sidebar-banner-slot"]');
+    expect(bannerSlot).not.toBeNull();
+    expect(bannerSlot).toHaveClass('mb-2');
+    expect(bannerSlot).not.toHaveClass('min-h-[13.5rem]');
+    const helpLink = screen.getByRole('link', { name: 'Help' });
+    expect(bannerSlot!.compareDocumentPosition(helpLink) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   test('shows the global workspace-preparing screen during a post-save preparation run', () => {
     inventoryHook.mockReturnValue({
       error: null,

@@ -710,12 +710,13 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
 
           <SidebarGroup className="mt-auto group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
             <SidebarGroupContent className="flex flex-col gap-1">
-              {!isSettingsRoute ? (
-                <div
-                  className="mb-3 min-h-[13.5rem] px-1 group-data-[collapsible=icon]:px-0"
-                  data-slot="embedded-sidebar-banner-slot"
-                />
-              ) : null}
+              <div
+                className={cn(
+                  'px-1 group-data-[collapsible=icon]:px-0',
+                  isSettingsRoute ? 'mb-2' : 'mb-3 min-h-[13.5rem]',
+                )}
+                data-slot="embedded-sidebar-banner-slot"
+              />
               {!isSettingsRoute ? (
                 <div className="px-1 group-data-[collapsible=icon]:px-0">
                   <SidebarCommandPaletteHint language={language} showSidebarText={showSidebarText} />
