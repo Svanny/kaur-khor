@@ -180,6 +180,8 @@ export function AutomationIntakeDrawer({
   const errorRef = useRef<HTMLParagraphElement | null>(null);
   const errorScrollTokenRef = useRef(0);
 
+  const intakeId = intake?.intakeId ?? null;
+
   useEffect(() => {
     if (!open || !intake) {
       setShowDetailBody(false);
@@ -199,7 +201,7 @@ export function AutomationIntakeDrawer({
     setError(null);
     setSaveErrorFlashKey(0);
     return () => window.cancelAnimationFrame(frameId);
-  }, [intake, open]);
+  }, [intakeId, open]);
 
   const promotionAllowed = canPromote(intake);
   const actionOptions = useMemo(() => drawerActionOptions(language), [language]);
