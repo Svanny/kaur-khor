@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { deriveResponsiveViewportPolicy, isPhonePortraitViewport } from '@shared/responsive-zoom';
 import { cn } from '@/lib/utils';
 
 export const EMBEDDED_VIEWPORT_CHANGE_EVENT = 'kaur-khor:embedded-viewport-change';
+
+const EmbeddedPhonePortraitViewportContext = createContext<boolean | null>(null);
 
 type ScrollAreaSize = {
   minHeight: number;
@@ -31,9 +33,33 @@ function supportsCssZoom() {
   return typeof CSS !== 'undefined' && CSS.supports?.('zoom', '1') === true;
 }
 
+export function useEmbeddedPhonePortraitViewport() {
+  const contextValue = useContext(EmbeddedPhonePortraitViewportContext);
+  const [isPhonePortrait, setIsPhonePortrait] = useState(() => {
+    if (typeof document === 'undefined') {
+      return false;
+    }
+    return document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait === 'true';
+  });
+
+  useEffect(() => {
+    const readPhonePortraitState = () => {
+      setIsPhonePortrait(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait === 'true');
+    };
+
+    readPhonePortraitState();
+    document.documentElement.addEventListener(EMBEDDED_VIEWPORT_CHANGE_EVENT, readPhonePortraitState);
+    return () => {
+      document.documentElement.removeEventListener(EMBEDDED_VIEWPORT_CHANGE_EVENT, readPhonePortraitState);
+    };
+  }, []);
+
+  return contextValue ?? isPhonePortrait;
+}
+
 export function EmbeddedAutoZoomViewport({
   children,
-  enablePhoneLandscapeWorkaround = true,
+  enablePhoneLandscapeWorkaround = false,
   phoneLandscapeOverlay,
 }: {
   children: ReactNode;
@@ -49,16 +75,39 @@ export function EmbeddedAutoZoomViewport({
   const cssZoomSupported = supportsCssZoom();
   const phonePortrait = isPhonePortraitViewport(viewportSize.width, viewportSize.height);
   const phoneLandscape = enablePhoneLandscapeWorkaround && phonePortrait;
+  const phonePortraitNative = phonePortrait && !enablePhoneLandscapeWorkaround;
   const policyViewportSize = phonePortrait && !enablePhoneLandscapeWorkaround
-    ? { height: viewportSize.width, width: viewportSize.height }
+    ? viewportSize
     : viewportSize;
   const policy = useMemo(
-    () => deriveResponsiveViewportPolicy({
-      height: policyViewportSize.height,
-      previousLevel,
-      width: policyViewportSize.width,
-    }),
-    [policyViewportSize.height, policyViewportSize.width, previousLevel],
+    () => {
+      if (phonePortraitNative) {
+        return {
+          constraintLevels: {
+            areaLevel: 0,
+            heightLevel: 0,
+            widthLevel: 0,
+          },
+          effectiveHeight: policyViewportSize.height,
+          effectiveWidth: policyViewportSize.width,
+          measuredArea: policyViewportSize.width * policyViewportSize.height,
+          measuredHeight: policyViewportSize.height,
+          measuredWidth: policyViewportSize.width,
+          phoneLandscape: false,
+          phoneLandscapeSidePadding: 0,
+          phoneViewport: true,
+          scale: 1,
+          zoomLevel: 0,
+        } as const;
+      }
+
+      return deriveResponsiveViewportPolicy({
+        height: policyViewportSize.height,
+        previousLevel,
+        width: policyViewportSize.width,
+      });
+    },
+    [phonePortraitNative, policyViewportSize.height, policyViewportSize.width, previousLevel],
   );
 
   useEffect(() => {
@@ -92,7 +141,8 @@ export function EmbeddedAutoZoomViewport({
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.kaurKhorEmbeddedViewport = 'true';
-    root.dataset.kaurKhorEmbeddedPhoneLandscape = policy.phoneViewport ? 'true' : 'false';
+    root.dataset.kaurKhorEmbeddedPhoneLandscape = policy.phoneViewport && !phonePortraitNative ? 'true' : 'false';
+    root.dataset.kaurKhorEmbeddedPhonePortrait = phonePortraitNative ? 'true' : 'false';
     root.dataset.kaurKhorEffectiveViewportWidth = String(Math.round(policy.effectiveWidth));
     root.dataset.kaurKhorEffectiveViewportHeight = String(Math.round(policy.effectiveHeight));
     root.style.setProperty('--kaur-khor-embedded-scale', String(policy.scale));
@@ -104,6 +154,7 @@ export function EmbeddedAutoZoomViewport({
     return () => {
       delete root.dataset.kaurKhorEmbeddedViewport;
       delete root.dataset.kaurKhorEmbeddedPhoneLandscape;
+      delete root.dataset.kaurKhorEmbeddedPhonePortrait;
       delete root.dataset.kaurKhorEffectiveViewportWidth;
       delete root.dataset.kaurKhorEffectiveViewportHeight;
       root.style.removeProperty('--kaur-khor-embedded-scale');
@@ -120,6 +171,7 @@ export function EmbeddedAutoZoomViewport({
     policy.measuredWidth,
     policy.phoneViewport,
     policy.scale,
+    phonePortraitNative,
   ]);
 
   useEffect(() => {
@@ -227,18 +279,27 @@ export function EmbeddedAutoZoomViewport({
     minHeight: `${landscapeScrollArea?.minHeight ?? policy.measuredWidth}px`,
     width: `${landscapeScrollArea?.width ?? policy.measuredHeight}px`,
   } as CSSProperties;
+  const content = (
+    <EmbeddedPhonePortraitViewportContext.Provider value={phonePortraitNative}>
+      {children}
+    </EmbeddedPhonePortraitViewportContext.Provider>
+  );
+
   return (
     <div
       ref={scrollRootRef}
       className={cn(
         'bg-background',
-        policy.phoneViewport
+        phonePortraitNative
+          ? 'relative min-h-svh w-screen overflow-auto'
+          : policy.phoneViewport
           ? policy.phoneLandscape
             ? 'relative h-svh w-screen overflow-hidden'
             : 'relative h-svh overflow-hidden'
           : 'h-svh overflow-auto',
       )}
-      data-phone-landscape={policy.phoneViewport ? 'true' : 'false'}
+      data-phone-landscape={policy.phoneViewport && !phonePortraitNative ? 'true' : 'false'}
+      data-phone-portrait={phonePortraitNative ? 'true' : 'false'}
       data-slot="embedded-auto-zoom-viewport"
       data-effective-height={Math.round(policy.effectiveHeight)}
       data-effective-width={Math.round(policy.effectiveWidth)}
@@ -267,7 +328,7 @@ export function EmbeddedAutoZoomViewport({
             }}
           >
             <div ref={landscapeSurfaceRef} data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
-              {children}
+              {content}
             </div>
           </div>
         </div>
@@ -276,19 +337,19 @@ export function EmbeddedAutoZoomViewport({
           <div data-slot="embedded-phone-landscape-frame" style={nativePhoneFrameStyle}>
             <div data-slot="embedded-auto-zoom-layout-spacer" style={nativePhoneWindowStyle}>
               <div data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
-                {children}
+                {content}
               </div>
             </div>
           </div>
         ) : (
           <div data-slot="embedded-auto-zoom-layout-spacer" style={measuredViewportStyle}>
             <div data-slot="embedded-auto-zoom-surface" style={surfaceStyle}>
-              {children}
+              {content}
             </div>
           </div>
         )
       )}
-      {phonePortrait && phoneLandscapeOverlay ? (
+      {policy.phoneLandscape && phoneLandscapeOverlay ? (
         <div data-slot="embedded-phone-landscape-overlay" className="pointer-events-none fixed inset-0 z-[70]">
           {phoneLandscapeOverlay}
         </div>

@@ -12,7 +12,6 @@ import {
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
 import {
-  ActionConfirmIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
   ActionResetIcon,
@@ -35,7 +34,8 @@ import {
 } from '@/runtime/web';
 import type { AppLanguage } from '@shared/inventory';
 import type { DesktopBridge } from '@shared/ipc';
-import { EmbeddedAutoZoomViewport } from './embedded-viewport';
+import { EmbeddedAutoZoomViewport, useEmbeddedPhonePortraitViewport } from './embedded-viewport';
+import { EmbeddedPhoneApp } from './phone-shell';
 
 type EmbeddedMode = 'app' | 'demo';
 type PersistenceStatus = 'loading' | 'ready' | 'unsupported' | 'error';
@@ -54,9 +54,6 @@ type StorageUiState = {
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
-const phoneWarningCopyEnglishAnimationName = 'kaur-khor-onboarding-copy-english';
-const phoneWarningCopyKhmerAnimationName = 'kaur-khor-onboarding-copy-khmer';
-const phoneWarningCopyCycleMs = 9000;
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -344,179 +341,6 @@ function useBrowserWorkspaceLanguage() {
   }, []);
 
   return language;
-}
-
-export function PhoneViewWarningOverlay() {
-  const language = useBrowserWorkspaceLanguage();
-  const title = 'Rotate screen';
-  const description = 'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.';
-  const secondaryDescription = 'For regular work, use a larger browser window or the desktop app.';
-
-  return (
-    <div className="pointer-events-auto flex min-h-svh items-center justify-center bg-background px-4 py-5 text-foreground">
-      <div
-        data-slot="embedded-phone-view-warning-card"
-        role="dialog"
-        aria-labelledby="embedded-phone-view-warning-title"
-        aria-describedby="embedded-phone-view-warning-description"
-        className="w-full max-w-sm rounded-xl border border-amber-300/70 bg-popover p-4 text-left text-popover-foreground shadow-[0_18px_48px_rgba(48,31,20,0.16)]"
-      >
-        <style>{`
-          @keyframes ${phoneWarningCopyEnglishAnimationName} {
-            0%, 44% {
-              transform: translateY(0%);
-              animation-timing-function: ease-in;
-            }
-            46.5%, 96.5% {
-              transform: translateY(-125%);
-              animation-timing-function: step-end;
-            }
-            96.51% {
-              transform: translateY(125%);
-              animation-timing-function: ease-out;
-            }
-            100% {
-              transform: translateY(0%);
-            }
-          }
-          @keyframes ${phoneWarningCopyKhmerAnimationName} {
-            0%, 46.5% {
-              transform: translateY(125%);
-              animation-timing-function: ease-out;
-            }
-            49.5%, 94% {
-              transform: translateY(0%);
-              animation-timing-function: ease-in;
-            }
-            96.5%, 100% {
-              transform: translateY(-125%);
-            }
-          }
-        `}</style>
-        <div className="flex items-start gap-3">
-          <div
-            aria-hidden="true"
-            className="grid size-[4.75rem] shrink-0 place-items-center rounded-xl bg-white p-3 text-[#111827]"
-            data-slot="embedded-phone-view-warning-icon"
-          >
-            <div className="relative h-12 w-8 rounded-[0.55rem] border-2 border-current">
-              <div className="absolute inset-x-2 top-1 h-0.5 rounded-full bg-current" />
-              <div className="absolute inset-x-2 bottom-1 h-0.5 rounded-full bg-current" />
-              <div className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-sm border-r-2 border-t-2 border-current" />
-            </div>
-          </div>
-          <div className="min-w-0">
-            <h2 id="embedded-phone-view-warning-title" className="sr-only">
-              {translateUiLiteral(language, title)}
-            </h2>
-            <p id="embedded-phone-view-warning-description" className="sr-only">
-              {translateUiLiteral(language, description)}
-            </p>
-            <div
-              aria-hidden="true"
-              className="min-w-0"
-              data-slot="embedded-phone-view-warning-copy"
-            >
-              <div className="relative grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-title">
-                {(['en', 'km'] as const).map((copyLanguage) => (
-                  <h2 key={copyLanguage} className="invisible col-start-1 row-start-1 text-base font-semibold leading-6">
-                    {translateUiLiteral(copyLanguage, title)}
-                  </h2>
-                ))}
-                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
-                  {(['en', 'km'] as const).map((copyLanguage) => (
-                    <h2
-                      key={copyLanguage}
-                      className="absolute inset-0 text-base font-semibold leading-6 will-change-transform"
-                      style={{
-                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
-                      }}
-                    >
-                      {translateUiLiteral(copyLanguage, title)}
-                    </h2>
-                  ))}
-                </div>
-              </div>
-              <div className="relative mt-1 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-description">
-                {(['en', 'km'] as const).map((copyLanguage) => (
-                  <p key={copyLanguage} className="invisible col-start-1 row-start-1 text-sm leading-6 text-muted-foreground">
-                    {translateUiLiteral(copyLanguage, description)}
-                  </p>
-                ))}
-                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
-                  {(['en', 'km'] as const).map((copyLanguage) => (
-                    <p
-                      key={copyLanguage}
-                      className="absolute inset-0 text-sm leading-6 text-muted-foreground will-change-transform"
-                      style={{
-                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
-                      }}
-                    >
-                      {translateUiLiteral(copyLanguage, description)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-              <div className="relative mt-2 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-secondary-description">
-                {(['en', 'km'] as const).map((copyLanguage) => (
-                  <p key={copyLanguage} className="invisible col-start-1 row-start-1 text-sm leading-6 text-muted-foreground">
-                    {translateUiLiteral(copyLanguage, secondaryDescription)}
-                  </p>
-                ))}
-                <div className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
-                  {(['en', 'km'] as const).map((copyLanguage) => (
-                    <p
-                      key={copyLanguage}
-                      className="absolute inset-0 text-sm leading-6 text-muted-foreground will-change-transform"
-                      style={{
-                        animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
-                      }}
-                    >
-                      {translateUiLiteral(copyLanguage, secondaryDescription)}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <Button
-          aria-label={translateUiLiteral(language, 'Done')}
-          className="mt-4 w-full justify-center"
-          disabled
-          size="sm"
-          type="button"
-          variant="default"
-        >
-          <ActionConfirmIcon data-icon="inline-start" />
-          <span
-            aria-hidden="true"
-            className="relative grid overflow-hidden"
-            data-slot="embedded-phone-view-warning-copy-done"
-          >
-            {(['en', 'km'] as const).map((copyLanguage) => (
-              <span key={copyLanguage} className="invisible col-start-1 row-start-1">
-                {translateUiLiteral(copyLanguage, 'Done')}
-              </span>
-            ))}
-            <span className="relative col-start-1 row-start-1 block min-h-full overflow-hidden">
-              {(['en', 'km'] as const).map((copyLanguage) => (
-                <span
-                  key={copyLanguage}
-                  className="absolute inset-0 will-change-transform"
-                  style={{
-                    animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
-                  }}
-                >
-                  {translateUiLiteral(copyLanguage, 'Done')}
-                </span>
-              ))}
-            </span>
-          </span>
-        </Button>
-      </div>
-    </div>
-  );
 }
 
 function useEmbeddedSidebarBannerTarget(enabled: boolean) {
@@ -934,17 +758,57 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <EmbeddedAutoZoomViewport phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
+    <EmbeddedAutoZoomViewport>
       <HashRouter>
-        <EmbeddedAppBanner
+        <EmbeddedAppContent
           mode={mode}
           storage={storage}
           onExport={handleExport}
           onImport={handleImport}
           onReset={handleReset}
         />
-        <App />
       </HashRouter>
     </EmbeddedAutoZoomViewport>
+  );
+}
+
+function EmbeddedAppContent({
+  mode,
+  storage,
+  onExport,
+  onImport,
+  onReset,
+}: {
+  mode: EmbeddedMode;
+  storage: StorageUiState;
+  onExport: () => void;
+  onImport: (file: File) => void;
+  onReset: () => void;
+}) {
+  const isPhonePortrait = useEmbeddedPhonePortraitViewport();
+
+  if (isPhonePortrait) {
+    return (
+      <EmbeddedPhoneApp
+        mode={mode}
+        storage={storage}
+        onExport={onExport}
+        onImport={onImport}
+        onReset={onReset}
+      />
+    );
+  }
+
+  return (
+    <>
+      <EmbeddedAppBanner
+        mode={mode}
+        storage={storage}
+        onExport={onExport}
+        onImport={onImport}
+        onReset={onReset}
+      />
+      <App />
+    </>
   );
 }

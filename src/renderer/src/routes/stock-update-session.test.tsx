@@ -553,6 +553,8 @@ function installMemoryLocalStorage() {
 
 describe('StockUpdateSessionRoute', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-05-09T08:59:00+07:00'));
     preferenceState.currency = 'USD';
     preferenceState.language = 'en';
     preferenceState.itemImageMode = 'small';
@@ -580,6 +582,7 @@ describe('StockUpdateSessionRoute', () => {
   afterEach(() => {
     cleanup();
     window.localStorage.clear();
+    vi.useRealTimers();
 	    vi.clearAllMocks();
 	  });
 

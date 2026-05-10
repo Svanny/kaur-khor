@@ -5,7 +5,6 @@ export {
   browserWorkspaceCloseWarningMessage,
   EmbeddedAppBanner,
   EmbeddedAppRoute,
-  PhoneViewWarningOverlay,
   fallbackStateForMode,
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,

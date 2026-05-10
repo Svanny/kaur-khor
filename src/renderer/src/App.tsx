@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import type { DesktopAppContext } from '@shared/ipc';
 import { KaurKhorShell } from '@/components/kaur-khor-shell';
@@ -273,16 +273,24 @@ function AppFrame() {
   );
 }
 
-export function LoadedApp() {
+export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <PreferencesProvider>
       <InventoryProvider>
         <AutomationProvider>
           <BenchmarkRouteObserver />
-          <AppFrame />
+          {children}
         </AutomationProvider>
       </InventoryProvider>
     </PreferencesProvider>
+  );
+}
+
+export function LoadedApp() {
+  return (
+    <AppProviders>
+      <AppFrame />
+    </AppProviders>
   );
 }
 
