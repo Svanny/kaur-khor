@@ -9,5 +9,6 @@ export {
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
   isBrowserTelegramLiveListening,
+  PhoneViewWarningOverlay,
 } from './embedded-app';
 export { EmbeddedAutoZoomViewport } from './embedded-viewport';

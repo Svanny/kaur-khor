@@ -12,6 +12,7 @@ import {
 } from '@/dev/browser-desktop-bridge';
 import { Button } from '@/components/ui/button';
 import {
+  ActionConfirmIcon,
   ActionDatabaseUploadIcon,
   ActionExportIcon,
   ActionResetIcon,
@@ -54,6 +55,11 @@ type StorageUiState = {
 export const BROWSER_WORKSPACE_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Browser cleanup, site-data removal, or private browsing cleanup can remove it. Export a backup before closing if you need this workspace.';
 export const BROWSER_WORKSPACE_TELEGRAM_CLOSE_WARNING = 'Your Kaur Khor workspace is saved in this browser profile. Export a backup before closing. Closing this tab also stops live Telegram listening and automation intake until you open /app again.';
 const BROWSER_APP_READY_MESSAGE = 'Your workspace is saved in this browser on this device.';
+const HIDDEN_PHONE_OPERATOR_HASH_PREFIX = '#/__phone/7f4b0e2d-9a61-4f83-a61e-21d63bfb8e7c';
+const HIDDEN_PHONE_OPERATOR_BASENAME = '/__phone/7f4b0e2d-9a61-4f83-a61e-21d63bfb8e7c';
+const phoneWarningCopyEnglishAnimationName = 'kaur-khor-onboarding-copy-english';
+const phoneWarningCopyKhmerAnimationName = 'kaur-khor-onboarding-copy-khmer';
+const phoneWarningCopyCycleMs = 9000;
 
 export function isBrowserTelegramLiveListening() {
   const connection = getBrowserDesktopBridgeMockState().automation.connection;
@@ -343,6 +349,170 @@ function useBrowserWorkspaceLanguage() {
   return language;
 }
 
+function isHiddenPhoneOperatorHash(hash: string) {
+  return hash === HIDDEN_PHONE_OPERATOR_HASH_PREFIX || hash.startsWith(`${HIDDEN_PHONE_OPERATOR_HASH_PREFIX}/`);
+}
+
+function useHiddenPhoneOperatorState() {
+  const [hiddenPhoneOperator, setHiddenPhoneOperator] = useState(() =>
+    typeof window !== 'undefined' && isHiddenPhoneOperatorHash(window.location.hash),
+  );
+
+  useEffect(() => {
+    const readHiddenState = () => {
+      setHiddenPhoneOperator(isHiddenPhoneOperatorHash(window.location.hash));
+    };
+
+    readHiddenState();
+    window.addEventListener('hashchange', readHiddenState);
+    return () => {
+      window.removeEventListener('hashchange', readHiddenState);
+    };
+  }, []);
+
+  return hiddenPhoneOperator;
+}
+
+function PhoneWarningAnimatedCopy({
+  as: Element,
+  className,
+  copy,
+  wrapperClassName,
+}: {
+  as: 'h2' | 'p' | 'span';
+  className: string;
+  copy: string;
+  wrapperClassName?: string;
+}) {
+  return (
+    <>
+      {(['en', 'km'] as const).map((copyLanguage) => (
+        <Element key={copyLanguage} className={cn('invisible col-start-1 row-start-1', className)}>
+          {translateUiLiteral(copyLanguage, copy)}
+        </Element>
+      ))}
+      <span className={cn('relative col-start-1 row-start-1 block min-h-full overflow-hidden', wrapperClassName)}>
+        {(['en', 'km'] as const).map((copyLanguage) => (
+          <Element
+            key={copyLanguage}
+            className={cn('absolute inset-0 will-change-transform', className)}
+            style={{
+              animation: `${copyLanguage === 'km' ? phoneWarningCopyKhmerAnimationName : phoneWarningCopyEnglishAnimationName} ${phoneWarningCopyCycleMs}ms linear infinite`,
+            }}
+          >
+            {translateUiLiteral(copyLanguage, copy)}
+          </Element>
+        ))}
+      </span>
+    </>
+  );
+}
+
+export function PhoneViewWarningOverlay() {
+  const language = useBrowserWorkspaceLanguage();
+  const title = 'Rotate screen';
+  const description = 'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.';
+  const secondaryDescription = 'For regular work, use a larger browser window or the desktop app.';
+
+  return (
+    <div className="pointer-events-auto flex min-h-svh items-center justify-center bg-background px-4 py-5 text-foreground">
+      <div
+        data-slot="embedded-phone-view-warning-card"
+        role="dialog"
+        aria-labelledby="embedded-phone-view-warning-title"
+        aria-describedby="embedded-phone-view-warning-description"
+        className="w-full max-w-sm rounded-xl border border-amber-300/70 bg-popover p-4 text-left text-popover-foreground shadow-[0_18px_48px_rgba(48,31,20,0.16)]"
+      >
+        <style>{`
+          @keyframes ${phoneWarningCopyEnglishAnimationName} {
+            0%, 44% {
+              transform: translateY(0%);
+              animation-timing-function: ease-in;
+            }
+            46.5%, 96.5% {
+              transform: translateY(-125%);
+              animation-timing-function: step-end;
+            }
+            96.51% {
+              transform: translateY(125%);
+              animation-timing-function: ease-out;
+            }
+            100% {
+              transform: translateY(0%);
+            }
+          }
+          @keyframes ${phoneWarningCopyKhmerAnimationName} {
+            0%, 46.5% {
+              transform: translateY(125%);
+              animation-timing-function: ease-out;
+            }
+            49.5%, 94% {
+              transform: translateY(0%);
+              animation-timing-function: ease-in;
+            }
+            96.5%, 100% {
+              transform: translateY(-125%);
+            }
+          }
+        `}</style>
+        <div className="flex items-start gap-3">
+          <div
+            aria-hidden="true"
+            className="grid size-[4.75rem] shrink-0 place-items-center rounded-xl bg-white p-3 text-[#111827]"
+            data-slot="embedded-phone-view-warning-icon"
+          >
+            <div className="relative h-12 w-8 rounded-[0.55rem] border-2 border-current">
+              <div className="absolute left-1/2 top-1 h-1 w-3 -translate-x-1/2 rounded-full bg-current" />
+              <div className="absolute inset-x-1 bottom-1 top-3 rounded-[0.35rem] border border-current/35 bg-amber-100" />
+              <div className="absolute -right-4 top-1/2 h-1.5 w-8 -translate-y-1/2 rounded-full bg-current" />
+            </div>
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 id="embedded-phone-view-warning-title" className="sr-only">
+              {translateUiLiteral(language, title)}
+            </h2>
+            <p id="embedded-phone-view-warning-description" className="sr-only">
+              {translateUiLiteral(language, description)}
+            </p>
+            <div
+              aria-hidden="true"
+              className="min-w-0"
+              data-slot="embedded-phone-view-warning-copy"
+            >
+              <div className="relative grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-title">
+                <PhoneWarningAnimatedCopy as="h2" className="text-base font-semibold leading-6" copy={title} />
+              </div>
+              <div className="relative mt-1 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-description">
+                <PhoneWarningAnimatedCopy as="p" className="text-sm leading-6 text-muted-foreground" copy={description} />
+              </div>
+              <div className="relative mt-2 grid overflow-hidden" data-slot="embedded-phone-view-warning-copy-secondary-description">
+                <PhoneWarningAnimatedCopy as="p" className="text-sm leading-6 text-muted-foreground" copy={secondaryDescription} />
+              </div>
+            </div>
+          </div>
+        </div>
+        <Button
+          aria-label={translateUiLiteral(language, 'Done')}
+          className="mt-4 w-full justify-center"
+          disabled
+          size="sm"
+          type="button"
+          variant="default"
+        >
+          <ActionConfirmIcon data-icon="inline-start" />
+          <span
+            aria-hidden="true"
+            className="relative grid overflow-hidden"
+            data-slot="embedded-phone-view-warning-copy-done"
+          >
+            <PhoneWarningAnimatedCopy as="span" className="" copy="Done" />
+          </span>
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function useEmbeddedSidebarBannerTarget(enabled: boolean) {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
@@ -555,6 +725,7 @@ export function EmbeddedAppBanner({
 
 export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   const databaseName = databaseForMode(mode);
+  const hiddenPhoneOperator = useHiddenPhoneOperatorState();
   const [storage, setStorage] = useState<StorageUiState>({
     status: 'loading',
     message: 'Opening SQLite WASM storage.',
@@ -758,9 +929,13 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
   }
 
   return (
-    <EmbeddedAutoZoomViewport>
-      <HashRouter>
+    <EmbeddedAutoZoomViewport
+      enablePhoneLandscapeWorkaround={!hiddenPhoneOperator}
+      phoneLandscapeOverlay={hiddenPhoneOperator ? undefined : <PhoneViewWarningOverlay />}
+    >
+      <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
         <EmbeddedAppContent
+          hiddenPhoneOperator={hiddenPhoneOperator}
           mode={mode}
           storage={storage}
           onExport={handleExport}
@@ -773,12 +948,14 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 }
 
 function EmbeddedAppContent({
+  hiddenPhoneOperator,
   mode,
   storage,
   onExport,
   onImport,
   onReset,
 }: {
+  hiddenPhoneOperator: boolean;
   mode: EmbeddedMode;
   storage: StorageUiState;
   onExport: () => void;
@@ -787,7 +964,7 @@ function EmbeddedAppContent({
 }) {
   const isPhonePortrait = useEmbeddedPhonePortraitViewport();
 
-  if (isPhonePortrait) {
+  if (hiddenPhoneOperator && isPhonePortrait) {
     return (
       <EmbeddedPhoneApp
         mode={mode}

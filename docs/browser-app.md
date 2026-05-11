@@ -22,7 +22,7 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
 - The app banner is the browser backup/import/reset surface.
 - In the main browser and demo app views, the banner sits on the left rail and keeps the same vertical button coordinates when the navigation rail expands or collapses. Embedded browser mode keeps the desktop sidebar layout even at narrow browser widths so the rail and banner stay inspectable. On onboarding routes, the banner stays in the page flow above the onboarding panel instead of floating over the canvas.
 - Demo onboarding exposes backup/import/reset and main-page actions only. The browser-app route keeps its download action, but the demo route no longer links to `/app` from the embedded banner.
-- Phone portrait views switch to a dedicated operator companion instead of rotating the desktop shell. The phone shell keeps the app upright, prioritizes Today, Queue, Capture, Products, and More, and moves browser backup/import/reset controls into More. Deep analysis routes show a phone-safe summary that points operators back to a wider view.
+- Phone portrait views show a rotate prompt instead of exposing the desktop shell in a cramped upright frame. Rotate the phone sideways, use a wider browser window, or open the desktop app for regular work.
 - Settings / Local data shows OPFS and browser-profile storage labels instead of filesystem reveal links, desktop snapshots, or log export.
 - Production browser and demo builds hide Settings / Benchmarks. Development builds keep it available for GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics.
 - Product image attachment is desktop-only until browser image assets are persisted durably.
@@ -41,7 +41,7 @@ The browser app can save Telegram bot settings and poll Telegram directly from t
 
 ## Storage warnings
 
-Browser storage is tied to the current browser profile. Clearing site data, switching profiles, or using private browsing can remove local browser data. Export backups regularly from the browser banner on wide views or from More on phone portrait views.
+Browser storage is tied to the current browser profile. Clearing site data, switching profiles, or using private browsing can remove local browser data. Export backups regularly from the browser banner in a wide or sideways view.
 
 The real browser app route (`/app`) keeps the explicit warning in the app banner instead of installing the browser's native leave-site warning, so reload remains available. Export a backup before closing, and remember that browser cleanup, site-data removal, or private browsing cleanup can remove the workspace. When a Telegram bot is connected, the banner also states that closing the tab stops live Telegram listening and automation intake until `/app` is opened again.
 

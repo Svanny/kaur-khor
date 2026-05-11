@@ -2764,6 +2764,11 @@ const exactValueTranslations: Record<string, string> = {
   variability: 'ការប្រែប្រួល',
   'Needs review': 'ត្រូវពិនិត្យ',
   Reorder: 'បញ្ជាទិញបន្ថែម',
+  'Rotate screen': 'បង្វិលអេក្រង់',
+  'Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.':
+    'កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។',
+  'For regular work, use a larger browser window or the desktop app.':
+    'សម្រាប់ការងារធម្មតា សូមប្រើបង្អួចប្រោសឺរធំជាងនេះ ឬកម្មវិធីដេស្កថប។',
   'Waiting for delivery': 'កំពុងរង់ចាំការដឹកមកដល់',
   Healthy: 'ល្អប្រសើរ',
   'No interval selected': 'មិនទាន់បានជ្រើសចន្លោះពេល',

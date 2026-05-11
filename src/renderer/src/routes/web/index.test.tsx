@@ -41,6 +41,7 @@ import {
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
   isBrowserTelegramLiveListening,
+  PhoneViewWarningOverlay,
   WebRoutes,
 } from './index';
 
@@ -135,6 +136,7 @@ const embeddedStorage = {
   status: 'ready',
   vfs: 'opfs-sahpool',
 } as const;
+const hiddenPhoneOperatorHash = '#/__phone/7f4b0e2d-9a61-4f83-a61e-21d63bfb8e7c/';
 
 const releaseAssets = [
   {
@@ -1449,8 +1451,63 @@ describe('WebRoutes embedded app fallback state', () => {
     });
   });
 
-  test.each(['demo', 'app'] as const)('renders the portrait phone shell instead of a rotate overlay in %s mode', async (mode) => {
+  test.each(['demo', 'app'] as const)('shows a blocking rotate overlay for embedded portrait phones without exposing phone shell in %s mode', async (mode) => {
     window.location.hash = '#/';
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle(mode));
+
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
+
+    expect(await screen.findByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
+    expect(screen.getAllByText('Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('For regular work, use a larger browser window or the desktop app.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('បង្វិលអេក្រង់').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Phone operator mode')).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
+    const warningIcon = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('[data-slot="embedded-phone-view-warning-icon"]');
+    expect(warningIcon).not.toBeNull();
+    expect(warningIcon).toHaveClass('size-[4.75rem]', 'p-3');
+    const warningCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy"]');
+    expect(warningCopy).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-title"]')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-description"]')).toHaveClass('overflow-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-secondary-description"]')).toHaveClass('overflow-hidden');
+    const animatedCopyLayers = Array.from(warningCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
+    expect(animatedCopyLayers).toHaveLength(6);
+    expect(animatedCopyLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
+    expect(animatedCopyLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
+    expect(animatedCopyLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
+    const doneCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy-done"]');
+    expect(doneCopy).toHaveClass('overflow-hidden');
+    const animatedDoneLayers = Array.from(doneCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
+    expect(animatedDoneLayers).toHaveLength(2);
+    expect(animatedDoneLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
+    expect(animatedDoneLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
+    expect(animatedDoneLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
+
+    const overlay = container.querySelector('[data-slot="embedded-phone-landscape-overlay"]');
+    const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
+    expect(overlay).not.toBeNull();
+    expect(frame).not.toBeNull();
+    expect(overlay).toContainElement(screen.getByRole('dialog', { name: 'Rotate screen' }));
+    expect(overlay).toHaveClass('fixed', 'inset-0', 'z-[70]');
+    expect(overlay?.firstElementChild).toHaveClass('items-center', 'bg-background');
+    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).toHaveClass('bg-popover');
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'true');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-portrait', 'false');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '-2');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+    });
+  });
+
+  test.each(['demo', 'app'] as const)('renders the hidden portrait phone shell from the secret hash in %s mode', async (mode) => {
+    window.location.hash = hiddenPhoneOperatorHash;
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle(mode));
 
@@ -1459,12 +1516,14 @@ describe('WebRoutes embedded app fallback state', () => {
     const phoneNav = await screen.findByRole('navigation', { name: 'Phone navigation' });
     expect(container.querySelector('[data-slot="embedded-phone-shell"]')).not.toBeNull();
     expect(screen.queryByRole('dialog', { name: 'Rotate screen' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Demo data - not your real workspace.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Export a backup before closing.')).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
     expect(screen.getByText('Phone operator mode')).toBeInTheDocument();
     expect(within(phoneNav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
-    expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', '#/work/queue');
-    expect(within(phoneNav).getByRole('link', { name: 'Capture' })).toHaveAttribute('href', '#/work/capture');
-    expect(within(phoneNav).getByRole('link', { name: 'Products' })).toHaveAttribute('href', '#/catalog');
+    expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
+    expect(within(phoneNav).getByRole('link', { name: 'Capture' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture`);
+    expect(within(phoneNav).getByRole('link', { name: 'Products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
     fireEvent.click(within(phoneNav).getByRole('link', { name: 'More' }));
     expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
@@ -1480,7 +1539,7 @@ describe('WebRoutes embedded app fallback state', () => {
     });
   });
 
-  test.each(['demo', 'app'] as const)('refreshes embedded route auto zoom from phone portrait to wide browser and back in %s mode', async (mode) => {
+  test.each(['demo', 'app'] as const)('refreshes public embedded route auto zoom from phone flip prompt to wide browser and back in %s mode', async (mode) => {
     window.location.hash = '#/';
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle(mode));
@@ -1490,11 +1549,11 @@ describe('WebRoutes embedded app fallback state', () => {
     const viewport = await waitFor(() => {
       const current = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
       expect(current).not.toBeNull();
-      expect(current).toHaveAttribute('data-phone-landscape', 'false');
-      expect(current).toHaveAttribute('data-phone-portrait', 'true');
-      expect(current).toHaveAttribute('data-zoom-level', '0');
-      expect(current).toHaveAttribute('data-effective-width', '390');
-      expect(current).toHaveAttribute('data-effective-height', '844');
+      expect(current).toHaveAttribute('data-phone-landscape', 'true');
+      expect(current).toHaveAttribute('data-phone-portrait', 'false');
+      expect(current).toHaveAttribute('data-zoom-level', '-2');
+      expect(current).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(current).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
       return current;
     });
 
@@ -1515,13 +1574,13 @@ describe('WebRoutes embedded app fallback state', () => {
     fireEvent.resize(window);
 
     await waitFor(() => {
-      expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
-      expect(viewport).toHaveAttribute('data-phone-portrait', 'true');
-      expect(viewport).toHaveAttribute('data-zoom-level', '0');
-      expect(viewport).toHaveAttribute('data-effective-width', '390');
-      expect(viewport).toHaveAttribute('data-effective-height', '844');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('true');
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
+      expect(viewport).toHaveAttribute('data-phone-portrait', 'false');
+      expect(viewport).toHaveAttribute('data-zoom-level', '-2');
+      expect(viewport).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('false');
     });
   });
 
@@ -1538,8 +1597,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(document.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
   });
 
-  test('renders Khmer phone shell copy from the browser workspace language', async () => {
-    window.location.hash = '#/';
+  test('renders Khmer hidden phone shell copy from the browser workspace language', async () => {
+    window.location.hash = hiddenPhoneOperatorHash;
     mockViewport(390, 844);
     const state = fallbackStateForMode('demo');
     state.preferences.language = 'km';
@@ -1558,6 +1617,23 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('navigation', { name: 'ការរុករកលើទូរស័ព្ទ' })).toBeInTheDocument();
     expect(screen.getByText('របៀបប្រតិបត្តិករទូរស័ព្ទ')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'បង្វិលអេក្រង់' })).not.toBeInTheDocument();
+  });
+
+  test('renders Khmer rotate warning copy from the browser workspace language', () => {
+    mockViewport(390, 844);
+    const state = fallbackStateForMode('demo');
+    state.preferences.language = 'km';
+    setBrowserDesktopBridgeMockState(state);
+
+    render(
+      <EmbeddedAutoZoomViewport enablePhoneLandscapeWorkaround phoneLandscapeOverlay={<PhoneViewWarningOverlay />}>
+        <div>Embedded product</div>
+      </EmbeddedAutoZoomViewport>,
+    );
+
+    expect(screen.getByRole('dialog', { name: 'បង្វិលអេក្រង់' })).toBeInTheDocument();
+    expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'រួចរាល់' })).toBeDisabled();
   });
 
   test('does not show the rotate warning on non-phone landscape viewports', () => {
