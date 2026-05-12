@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, mkdir, realpath, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, realpath, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -18,6 +18,7 @@ import {
   recordAutomationWizardMessage,
 } from './automation-store';
 import {
+  flushPendingTelegramOutboundJobs,
   notifyTelegramCustomerOfPromotion,
   notifyTelegramCustomerOfTicketUpdate,
   resolveTelegramPhotoPath,
@@ -40,6 +41,36 @@ async function waitForAssertion(assertion: () => void | Promise<void>) {
   }
   await assertion();
   throw lastError;
+}
+
+async function writeTelegramAutomationStore(userDataPath: string, overrides: Record<string, unknown>) {
+  await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+    version: 1,
+    telegramUpdateCursor: 43,
+    connection: {
+      channel: 'telegram',
+      status: 'connected',
+      hasBotToken: true,
+      botToken: 'secret-token',
+      commandsConfiguredAt: '2026-04-21T00:00:00.000Z',
+      botDisplayName: 'Kaur Khor bot',
+      botUsername: 'kaur_khor_bot',
+      externalLink: 'https://t.me/kaur_khor_bot',
+      connectedAt: '2026-04-21T00:00:00.000Z',
+      pausedAt: null,
+      lastWebhookAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+    },
+    exposureRules: [],
+    conversations: [],
+    messages: [],
+    intakes: [],
+    customerPreferences: [],
+    wizardSessions: [],
+    pendingOutboundJobs: [],
+    ...overrides,
+  }));
 }
 
 const context = {
@@ -500,6 +531,103 @@ describe('telegram automation connection setup', () => {
     const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId!);
     expect(session?.lastWizardMessageId).toBe(8);
     expect(session?.generatedWizardMessageIds).toContain(8);
+  });
+
+  it('drops stale callback acknowledgements without blocking durable sends', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-callback-'));
+    await writeTelegramAutomationStore(userDataPath, {
+      pendingOutboundJobs: [
+        {
+          jobId: 'telegram_job_callback',
+          createdAt: '2026-04-21T00:00:00.000Z',
+          job: {
+            kind: 'answer_callback',
+            callbackQueryId: 'expired-callback',
+            text: 'Expired',
+          },
+        },
+        {
+          jobId: 'telegram_job_send',
+          createdAt: '2026-04-21T00:00:01.000Z',
+          job: {
+            kind: 'send',
+            chatId: '555_113',
+            conversationId: 'conv_555_113',
+            text: 'Durable reply',
+            parseMode: 'HTML',
+          },
+        },
+      ],
+    });
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: false,
+        description: 'Bad Request: query is too old',
+      }), { status: 400 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 18,
+          date: 1_778_172_701,
+          text: 'Durable reply',
+          chat: { id: 555_113, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await flushPendingTelegramOutboundJobs(userDataPath, 'secret-token');
+    warnSpy.mockRestore();
+
+    const stored = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
+      .resolves.toHaveLength(0);
+    expect(fetchMock).toHaveBeenCalledWith('https://api.telegram.org/botsecret-token/answerCallbackQuery', expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith('https://api.telegram.org/botsecret-token/sendMessage', expect.anything());
+    expect(stored.messages).toMatchObject([{
+      conversationId: 'conv_555_113',
+      externalMessageKey: '18',
+      rawText: 'Durable reply',
+    }]);
+  });
+
+  it('finishes locally recorded pending sends after restart without resending', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-sent-marker-'));
+    await writeTelegramAutomationStore(userDataPath, {
+      pendingOutboundJobs: [
+        {
+          jobId: 'telegram_job_sent',
+          createdAt: '2026-04-21T00:00:00.000Z',
+          sentMessage: {
+            messageId: 19,
+            sentAt: '2026-04-21T00:00:01.000Z',
+            text: 'Already sent',
+          },
+          job: {
+            kind: 'send',
+            chatId: '555_114',
+            conversationId: 'conv_555_114',
+            text: 'Already sent',
+            parseMode: 'HTML',
+          },
+        },
+      ],
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: [] })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await flushPendingTelegramOutboundJobs(userDataPath, 'secret-token');
+
+    const stored = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
+      .resolves.toHaveLength(0);
+    expect(fetchMock.mock.calls.some((call) => call[0] === 'https://api.telegram.org/botsecret-token/sendMessage')).toBe(false);
+    expect(stored.messages).toMatchObject([{
+      conversationId: 'conv_555_114',
+      externalMessageKey: '19',
+      rawText: 'Already sent',
+    }]);
   });
 
   it('continues sending the next wizard prompt when generated message cleanup is already stale', async () => {

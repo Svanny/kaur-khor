@@ -16,10 +16,12 @@ import {
   recordAutomationWizardMessage,
   readAutomationWizardSessionForConversation,
   readAutomationWorkspace,
+  ticketEventsRequiringTelegramNotification,
 } from './automation-store';
 import type { SenaTicketEvent } from '@shared/sena';
 
 const AUTOMATION_STORE_SOURCE_PATH = new URL('./automation-store.ts', import.meta.url);
+const MAIN_INDEX_SOURCE_PATH = new URL('./index.ts', import.meta.url);
 
 const context = {
   catalog: {
@@ -1921,6 +1923,16 @@ describe('automation telegram ingestion', () => {
     ]);
   });
 
+  it('keeps automation promotion recovery on a critical SENA observation read', async () => {
+    const source = await readFile(MAIN_INDEX_SOURCE_PATH, 'utf8');
+    const promoteHandlerStart = source.indexOf('IPC_CHANNELS.automationPromoteIntake');
+    const promoteHandlerEnd = source.indexOf('IPC_CHANNELS.automationTestTelegramConnection', promoteHandlerStart);
+    const promoteHandlerSource = source.slice(promoteHandlerStart, promoteHandlerEnd);
+
+    expect(promoteHandlerSource).toContain('listFreshSenaObservations()');
+    expect(source).toContain("readPriority: 'critical'");
+  });
+
   it('submits a cart checkout after optional phone capture and keeps free-text fallback working', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
@@ -2715,5 +2727,44 @@ describe('automation telegram ingestion', () => {
     expect(recovered.shouldIngestObservation).toBe(false);
     expect(recovered.ticketEvent.revision).toBe(prepared.ticketEvent.revision);
     expect(recovered.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
+  });
+
+  it('filters unchanged and historical ticket events from Telegram notifications', () => {
+    const previousEvent = makeTicketEvent({
+      ticketId: 'ticket:customer:existing',
+      revision: 2,
+      eventType: 'revised',
+      occurredAt: '2026-04-21T01:00:00.000Z',
+      note: 'Previous note',
+    });
+    const rewrittenHistoricalEvent = {
+      ...previousEvent,
+      note: 'Operator corrected an old note',
+    };
+    const newCustomerEvent = makeTicketEvent({
+      ticketId: 'ticket:customer:new',
+      revision: 1,
+      occurredAt: '2026-04-21T02:00:00.000Z',
+    });
+    const supplierEvent = makeTicketEvent({
+      ticketId: 'ticket:supplier:new',
+      ticketFamily: 'supplier',
+      party: {
+        role: 'supplier',
+        channelKey: null,
+        channelLabel: null,
+        customerName: null,
+        customerNameKey: null,
+        phone: null,
+        phoneKey: null,
+        supplierName: 'Mekong Looms',
+      },
+    });
+
+    expect(ticketEventsRequiringTelegramNotification([
+      rewrittenHistoricalEvent,
+      newCustomerEvent,
+      supplierEvent,
+    ], [previousEvent])).toEqual([newCustomerEvent]);
   });
 });

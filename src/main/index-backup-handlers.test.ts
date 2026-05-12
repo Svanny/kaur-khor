@@ -21,7 +21,7 @@ describe('backup IPC handlers', () => {
   it('suspends Telegram automation and core maintenance through the shared replacement queue', async () => {
     const source = await readFile(join(process.cwd(), 'src/main/index.ts'), 'utf8');
     const automationSource = await readFile(join(process.cwd(), 'src/main/automation-telegram.ts'), 'utf8');
-    const suspensionStart = source.indexOf('async function suspendDesktopRuntimeForDataReplacement');
+    const suspensionStart = source.indexOf('function stopDesktopRuntimeForShutdown');
     const suspensionEnd = source.indexOf('function requestDesktopQuit', suspensionStart);
     const suspensionSource = source.slice(suspensionStart, suspensionEnd);
     const restoreHandlerStart = source.indexOf('IPC_CHANNELS.systemRestoreBackupSnapshot');
@@ -38,12 +38,22 @@ describe('backup IPC handlers', () => {
     expect(suspensionSource).toContain('clearTimeout(senaReadCachePersistTimer);');
     expect(suspensionSource).toContain('senaInflightReads.clear();');
     expect(suspensionSource).toContain('await managedCore.stop();');
+    expect(suspensionSource).toContain('desktopShutdownStarted = true;');
+    expect(suspensionSource).toContain('await desktopDataReplacementQueue.catch(() => undefined);');
+    expect(suspensionSource).toContain('desktopShutdownCompleted = true;');
     expect(suspensionSource).toContain('pendingDesktopDataReplacements += 1;');
     expect(suspensionSource).toContain('desktopDataReplacementSuspension = suspendDesktopRuntimeForDataReplacement();');
     expect(suspensionSource).toContain('await desktopDataReplacementSuspension;');
     expect(suspensionSource).toContain('pendingDesktopDataReplacements = Math.max(0, pendingDesktopDataReplacements - 1);');
     expect(suspensionSource).toContain('if (pendingDesktopDataReplacements === 0) {');
+    expect(suspensionSource).toContain('if (!desktopShutdownStarted) {');
     expect(suspensionSource).toContain('startDesktopTelegramAutomationLoop();');
+    expect(suspensionSource.indexOf('await desktopDataReplacementQueue.catch(() => undefined);')).toBeLessThan(
+      suspensionSource.indexOf('await managedCore.stop();'),
+    );
+    expect(suspensionSource.indexOf('if (!desktopShutdownStarted) {')).toBeLessThan(
+      suspensionSource.indexOf('startDesktopTelegramAutomationLoop();'),
+    );
     expect(restoreHandlerSource).toContain('return runDesktopDataReplacement(async () => {');
     expect(clearHandlerSource).toContain('return runDesktopDataReplacement(async () => {');
     expect(restoreHandlerSource.indexOf('return runDesktopDataReplacement(async () => {')).toBeLessThan(
@@ -74,9 +84,49 @@ describe('backup IPC handlers', () => {
     expect(runHandlerSource).toContain('const shouldQuit = await confirmDesktopQuitForLiveAutomation();');
     expect(runHandlerSource).toContain('started: false');
     expect(runHandlerSource).toContain('desktopQuitConfirmed = true;');
+    expect(runHandlerSource).toContain('await stopDesktopRuntimeForShutdown();');
     expect(runHandlerSource).toContain('backupDirectoryPath,');
     expect(runHandlerSource.indexOf('const shouldQuit = await confirmDesktopQuitForLiveAutomation();')).toBeLessThan(
+      runHandlerSource.indexOf('await stopDesktopRuntimeForShutdown();'),
+    );
+    expect(runHandlerSource.indexOf('await stopDesktopRuntimeForShutdown();')).toBeLessThan(
       runHandlerSource.indexOf('launchKaurKhorSourceUpdate({'),
+    );
+  });
+
+  it('keeps quit blocked until shutdown has drained queued replacements', async () => {
+    const source = await readFile(join(process.cwd(), 'src/main/index.ts'), 'utf8');
+    const beforeQuitStart = source.indexOf('app.on(\'before-quit\'');
+    const beforeQuitSource = source.slice(beforeQuitStart);
+    const requestQuitStart = source.indexOf('function requestDesktopQuit');
+    const requestQuitEnd = source.indexOf('function isSameResolvedPath', requestQuitStart);
+    const requestQuitSource = source.slice(requestQuitStart, requestQuitEnd);
+    const windowAllClosedStart = source.indexOf('app.on(\'window-all-closed\'');
+    const windowAllClosedEnd = source.indexOf('app.on(\'before-quit\'', windowAllClosedStart);
+    const windowAllClosedSource = source.slice(windowAllClosedStart, windowAllClosedEnd);
+
+    expect(beforeQuitSource).toContain('if (desktopShutdownCompleted) {');
+    expect(beforeQuitSource).toContain('event.preventDefault();');
+    expect(beforeQuitSource).toContain('void stopDesktopRuntimeForShutdown().finally(() => {');
+    expect(beforeQuitSource).toContain('app.quit();');
+    expect(beforeQuitSource.indexOf('if (desktopShutdownCompleted) {')).toBeLessThan(
+      beforeQuitSource.indexOf('event.preventDefault();'),
+    );
+    expect(beforeQuitSource.indexOf('event.preventDefault();')).toBeLessThan(
+      beforeQuitSource.indexOf('void stopDesktopRuntimeForShutdown().finally(() => {'),
+    );
+    expect(requestQuitSource).toContain('desktopQuitConfirmed = true;');
+    expect(requestQuitSource).toContain('void stopDesktopRuntimeForShutdown().finally(() => {');
+    expect(requestQuitSource.indexOf('desktopQuitConfirmed = true;')).toBeLessThan(
+      requestQuitSource.indexOf('void stopDesktopRuntimeForShutdown().finally(() => {'),
+    );
+    expect(windowAllClosedSource).toContain('await stopDesktopRuntimeForShutdown();');
+    expect(windowAllClosedSource).toContain('desktopQuitConfirmed = true;');
+    expect(windowAllClosedSource.indexOf('await stopDesktopRuntimeForShutdown();')).toBeLessThan(
+      windowAllClosedSource.indexOf('desktopQuitConfirmed = true;'),
+    );
+    expect(windowAllClosedSource.indexOf('desktopQuitConfirmed = true;')).toBeLessThan(
+      windowAllClosedSource.indexOf('app.quit();'),
     );
   });
 });

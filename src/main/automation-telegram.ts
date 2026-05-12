@@ -10,6 +10,7 @@ import {
   ingestAutomationTelegramUpdates,
   listAutomationPendingTelegramOutboundJobs,
   markAutomationTelegramCommandsConfigured,
+  markAutomationPendingTelegramOutboundJobSent,
   recordAutomationWizardItemImageMessage,
   readAutomationConnection,
   readAutomationConversation,
@@ -21,7 +22,7 @@ import {
   removeAutomationOutboundTelegramMessage,
   saveAutomationConnection,
 } from './automation-store';
-import type { AutomationPendingTelegramOutboundJob, TelegramOutboundJob } from './automation-store';
+import type { AutomationPendingTelegramOutboundJob } from './automation-store';
 import type { AutomationOrderIntake } from '@shared/automation';
 import type { SenaTicketEvent } from '@shared/sena';
 import { loadDesktopPreferences } from './preferences';
@@ -382,7 +383,7 @@ async function syncTelegramAutomationOnce(
   return { disabled: false };
 }
 
-async function flushPendingTelegramOutboundJobs(userDataPath: string, token: string) {
+export async function flushPendingTelegramOutboundJobs(userDataPath: string, token: string) {
   const pendingJobs = await listAutomationPendingTelegramOutboundJobs(userDataPath);
   for (const pendingJob of pendingJobs) {
     await sendPendingTelegramOutboundJob(userDataPath, token, pendingJob);
@@ -395,20 +396,25 @@ async function sendPendingTelegramOutboundJob(
   token: string,
   pendingJob: AutomationPendingTelegramOutboundJob,
 ) {
-  await sendTelegramOutboundJob(userDataPath, token, pendingJob.job);
+  await sendTelegramOutboundJob(userDataPath, token, pendingJob);
 }
 
 async function sendTelegramOutboundJob(
   userDataPath: string,
   token: string,
-  job: TelegramOutboundJob,
+  pendingJob: AutomationPendingTelegramOutboundJob,
 ) {
+  const { job } = pendingJob;
   if (job.kind === 'answer_callback') {
-    await telegramAnswerCallbackQuery(token, {
-      callbackQueryId: job.callbackQueryId,
-      text: job.text,
-      showAlert: job.showAlert,
-    });
+    try {
+      await telegramAnswerCallbackQuery(token, {
+        callbackQueryId: job.callbackQueryId,
+        text: job.text,
+        showAlert: job.showAlert,
+      });
+    } catch (error) {
+      console.warn('[automation] dropping stale Telegram callback acknowledgement', error);
+    }
     return;
   }
 
@@ -483,12 +489,25 @@ async function sendTelegramOutboundJob(
     return;
   }
 
-  const sent = await telegramSendMessage(token, {
-    chatId: job.chatId,
-    text: job.text,
-    parseMode: job.parseMode,
-    replyMarkup: job.replyMarkup,
-  });
+  const sent = pendingJob.sentMessage
+    ? {
+      message_id: pendingJob.sentMessage.messageId,
+      date: Math.floor(new Date(pendingJob.sentMessage.sentAt).getTime() / 1000),
+      text: pendingJob.sentMessage.text,
+    }
+    : await telegramSendMessage(token, {
+      chatId: job.chatId,
+      text: job.text,
+      parseMode: job.parseMode,
+      replyMarkup: job.replyMarkup,
+    });
+  if (!pendingJob.sentMessage) {
+    await markAutomationPendingTelegramOutboundJobSent(userDataPath, pendingJob.jobId, {
+      messageId: sent.message_id,
+      sentAt: new Date(sent.date * 1000).toISOString(),
+      text: sent.text ?? job.text,
+    });
+  }
   const isGeneratedWizardMessage = job.messageRole === 'wizard_generated' || job.storesWizardMessage;
   if (!isGeneratedWizardMessage) {
     await appendAutomationOutboundTelegramMessage(userDataPath, {

@@ -37,6 +37,7 @@ import {
   testAutomationTelegramConnection,
   readAutomationWorkspace,
   resolveAutomationIntake,
+  ticketEventsRequiringTelegramNotification,
 } from './automation-store';
 import {
   notifyTelegramCustomerOfPromotion,
@@ -221,6 +222,8 @@ let telegramAutomationLoop: ReturnType<typeof startTelegramAutomationLoop> | nul
 let desktopQuitConfirmed = false;
 let desktopQuitConfirmationInFlight: Promise<boolean> | null = null;
 let desktopShutdownPromise: Promise<void> | null = null;
+let desktopShutdownStarted = false;
+let desktopShutdownCompleted = false;
 let desktopDataReplacementQueue: Promise<void> = Promise.resolve();
 let pendingDesktopDataReplacements = 0;
 let desktopDataReplacementSuspension: Promise<void> | null = null;
@@ -360,10 +363,14 @@ async function confirmDesktopQuitForLiveAutomation() {
 }
 
 function stopDesktopRuntimeForShutdown() {
+  desktopShutdownStarted = true;
   desktopShutdownPromise ??= (async () => {
     await telegramAutomationLoop?.stopAndDrain();
+    await desktopDataReplacementQueue.catch(() => undefined);
     await managedCore.stop();
-  })();
+  })().finally(() => {
+    desktopShutdownCompleted = true;
+  });
   return desktopShutdownPromise;
 }
 
@@ -395,7 +402,9 @@ async function runDesktopDataReplacement<T>(task: () => Promise<T>): Promise<T> 
       pendingDesktopDataReplacements = Math.max(0, pendingDesktopDataReplacements - 1);
       if (pendingDesktopDataReplacements === 0) {
         desktopDataReplacementSuspension = null;
-        startDesktopTelegramAutomationLoop();
+        if (!desktopShutdownStarted) {
+          startDesktopTelegramAutomationLoop();
+        }
       }
     });
 
@@ -427,10 +436,7 @@ function startDesktopTelegramAutomationLoop() {
 }
 
 async function notifyTelegramCustomersForTicketEvents(ticketEvents: SenaTicketEvent[] | undefined) {
-  for (const ticketEvent of ticketEvents ?? []) {
-    if (ticketEvent.ticketFamily !== 'customer') {
-      continue;
-    }
+  for (const ticketEvent of ticketEventsRequiringTelegramNotification(ticketEvents)) {
     try {
       await notifyTelegramCustomerOfTicketUpdate(desktopDataPath, { ticketEvent });
     } catch (error) {
@@ -439,13 +445,22 @@ async function notifyTelegramCustomersForTicketEvents(ticketEvents: SenaTicketEv
   }
 }
 
+async function listFreshSenaObservations() {
+  return managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
+    timeoutMs: SENA_READ_TIMEOUT_MS,
+    readPriority: 'critical',
+  });
+}
+
 function requestDesktopQuit() {
   void confirmDesktopQuitForLiveAutomation().then((shouldQuit) => {
     if (!shouldQuit) {
       return;
     }
     desktopQuitConfirmed = true;
-    app.quit();
+    void stopDesktopRuntimeForShutdown().finally(() => {
+      app.quit();
+    });
   });
 }
 
@@ -1487,6 +1502,7 @@ ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_C
     };
   }
   desktopQuitConfirmed = true;
+  await stopDesktopRuntimeForShutdown();
   return launchKaurKhorSourceUpdate({
     app,
     appVersion: app.getVersion(),
@@ -1669,10 +1685,7 @@ ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHAN
 }));
 ipcMain.handle(IPC_CHANNELS.automationPromoteIntake, benchmarkIpcHandle(IPC_CHANNELS.automationPromoteIntake, async (_event, payload: PromoteAutomationIntakePayload) => {
   await ensureAutomationEnabled();
-  const observations = await managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
-    timeoutMs: SENA_READ_TIMEOUT_MS,
-    readPriority: 'background',
-  });
+  const observations = await listFreshSenaObservations();
   const prepared = await prepareAutomationPromotion(desktopDataPath, payload, { observations });
   if (prepared.shouldIngestObservation) {
     await snapshotBeforeWorkspaceMutation('automation-promote-intake');
@@ -1800,12 +1813,16 @@ ipcMain.handle(IPC_CHANNELS.senaIngestObservation, benchmarkIpcHandle(IPC_CHANNE
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
+  const observationsBeforeUpdate = await listFreshSenaObservations();
+  const previousObservation = observationsBeforeUpdate.find((entry) => entry.observationId === payload.observationId) ?? null;
   await snapshotBeforeWorkspaceMutation('sena-update-observation');
   const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
-  await notifyTelegramCustomersForTicketEvents(payload.input.ticketEvents);
+  await notifyTelegramCustomersForTicketEvents(
+    ticketEventsRequiringTelegramNotification(payload.input.ticketEvents, previousObservation?.input.ticketEvents),
+  );
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, benchmarkIpcHandle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
@@ -1968,13 +1985,20 @@ app.on('activate', async () => {
 app.on('window-all-closed', async () => {
   if (process.platform !== 'darwin') {
     await stopDesktopRuntimeForShutdown();
+    desktopQuitConfirmed = true;
     app.quit();
   }
 });
 
 app.on('before-quit', (event) => {
   if (desktopQuitConfirmed || shouldBypassDesktopCloseAutomationWarning()) {
-    void stopDesktopRuntimeForShutdown();
+    if (desktopShutdownCompleted) {
+      return;
+    }
+    event.preventDefault();
+    void stopDesktopRuntimeForShutdown().finally(() => {
+      app.quit();
+    });
     return;
   }
   event.preventDefault();

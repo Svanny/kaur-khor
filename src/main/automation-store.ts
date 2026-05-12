@@ -203,6 +203,11 @@ export type AutomationPendingTelegramOutboundJob = {
   jobId: string;
   createdAt: string;
   job: TelegramOutboundJob;
+  sentMessage?: {
+    messageId: number;
+    sentAt: string;
+    text: string;
+  };
 };
 
 type ExposureBuildContext = {
@@ -344,7 +349,14 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
     pendingOutboundJobs: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.pendingOutboundJobs)
       ? (value as Partial<AutomationStoreState>).pendingOutboundJobs!.filter((entry): entry is AutomationPendingTelegramOutboundJob =>
         typeof entry?.jobId === 'string' && typeof entry?.createdAt === 'string' && typeof entry?.job === 'object' && entry.job !== null,
-      )
+      ).map((entry) => ({
+        ...entry,
+        sentMessage: typeof entry.sentMessage?.messageId === 'number'
+          && typeof entry.sentMessage.sentAt === 'string'
+          && typeof entry.sentMessage.text === 'string'
+          ? entry.sentMessage
+          : undefined,
+      }))
       : [],
   };
 }
@@ -2599,6 +2611,41 @@ export async function removeAutomationPendingTelegramOutboundJob(
   return updateAutomationState(userDataPath, (state) => {
     state.pendingOutboundJobs = state.pendingOutboundJobs.filter((entry) => entry.jobId !== jobId);
   });
+}
+
+export async function markAutomationPendingTelegramOutboundJobSent(
+  userDataPath: string,
+  jobId: string,
+  sentMessage: AutomationPendingTelegramOutboundJob['sentMessage'],
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    const pendingJob = state.pendingOutboundJobs.find((entry) => entry.jobId === jobId);
+    if (!pendingJob || pendingJob.job.kind !== 'send' || !sentMessage) {
+      return null;
+    }
+    pendingJob.sentMessage = sentMessage;
+    return pendingJob;
+  });
+}
+
+function ticketEventIdentity(event: SenaTicketEvent) {
+  return [
+    event.ticketFamily,
+    event.ticketId,
+    event.revision,
+    event.eventType,
+    event.occurredAt,
+  ].join('|');
+}
+
+export function ticketEventsRequiringTelegramNotification(
+  nextTicketEvents: SenaTicketEvent[] | undefined,
+  previousTicketEvents?: SenaTicketEvent[] | undefined,
+) {
+  const previousEventIdentities = new Set((previousTicketEvents ?? []).map(ticketEventIdentity));
+  return (nextTicketEvents ?? []).filter((ticketEvent) =>
+    ticketEvent.ticketFamily === 'customer' && !previousEventIdentities.has(ticketEventIdentity(ticketEvent)),
+  );
 }
 
 export async function readAutomationWizardSessionForConversation(
