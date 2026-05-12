@@ -762,6 +762,21 @@ describe('InventoryProvider', () => {
             variability: 0.2,
           },
         ],
+        ticketEvents: [
+          {
+            ticketId: 'customer-ticket-1',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'sku', entityId: 'sku-1', quantityDelta: -2 },
+              { entityType: 'service', entityId: 'service-1', quantityDelta: -1 },
+            ],
+          },
+        ],
       },
     };
     const renamedObservation: SenaObservationRecord = {
@@ -792,6 +807,21 @@ describe('InventoryProvider', () => {
             usageProbability: 0.5,
             typicalUnitsPerInstance: 1,
             variability: 0.2,
+          },
+        ],
+        ticketEvents: [
+          {
+            ticketId: 'customer-ticket-1',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'sku', entityId: 'sku-renamed', quantityDelta: -2 },
+              { entityType: 'service', entityId: 'service-1', quantityDelta: -1 },
+            ],
           },
         ],
       },
@@ -877,6 +907,7 @@ describe('InventoryProvider', () => {
             leadTimeHints: renamedObservation.input.leadTimeHints,
             adjustmentSignals: renamedObservation.input.adjustmentSignals,
             recipeUsageHints: renamedObservation.input.recipeUsageHints,
+            ticketEvents: renamedObservation.input.ticketEvents,
             retailSalesSnapshot: renamedObservation.input.retailSalesSnapshot,
           }),
         }),
@@ -894,6 +925,97 @@ describe('InventoryProvider', () => {
       expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');
       expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
       expect(screen.getByTestId('latest-run-id').textContent).toBe('run-2');
+    });
+  });
+
+  it('renames a service and rewrites matching ticket event lines', async () => {
+    const serviceObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 3 }],
+        ticketEvents: [
+          {
+            ticketId: 'supplier-ticket-1',
+            ticketFamily: 'supplier',
+            lifecycle: 'open',
+            stage: 'ordered_waiting',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'service', entityId: 'service-1', orderedQuantity: 2 },
+              { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 5 },
+            ],
+          },
+        ],
+      },
+    };
+    const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
+
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [serviceObservation]);
+    window.kaurKhorDesktop.sena.updateObservation = updateObservation;
+
+    function RenameServiceHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="service-id">{inventory.catalog?.services[0]?.serviceId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'service',
+                previousId: 'service-1',
+                nextService: {
+                  ...sampleCatalog.services[0],
+                  serviceId: 'service-renamed',
+                },
+                skuIds: ['sku-1'],
+              })
+            }
+          >
+            rename service
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenameServiceHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('service-id').textContent).toBe('service-1');
+    });
+
+    fireEvent.click(screen.getByText('rename service'));
+
+    await waitFor(() => {
+      expect(updateObservation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          observationId: 'obs-1',
+          input: expect.objectContaining({
+            ticketEvents: [
+              {
+                ticketId: 'supplier-ticket-1',
+                ticketFamily: 'supplier',
+                lifecycle: 'open',
+                stage: 'ordered_waiting',
+                revision: 1,
+                eventType: 'created',
+                occurredAt: '2026-04-02T00:00:00Z',
+                lines: [
+                  { entityType: 'service', entityId: 'service-renamed', orderedQuantity: 2 },
+                  { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 5 },
+                ],
+              },
+            ],
+          }),
+        }),
+      );
     });
   });
 });

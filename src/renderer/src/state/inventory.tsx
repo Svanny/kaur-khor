@@ -237,6 +237,7 @@ function rewriteObservationInputForRenamedEntity(
     const leadTimeHints = input.leadTimeHints ?? [];
     const adjustmentSignals = input.adjustmentSignals ?? [];
     const commercialEvents = input.commercialEvents ?? [];
+    const ticketEvents = input.ticketEvents ?? [];
     const recipeUsageHints = input.recipeUsageHints ?? [];
     const hasChange =
       input.stockSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
@@ -248,6 +249,9 @@ function rewriteObservationInputForRenamedEntity(
       leadTimeHints.some((hint) => hint.skuId === payload.previousId) ||
       adjustmentSignals.some((signal) => signal.skuId === payload.previousId) ||
       commercialEvents.some((event) => event.entityType === 'sku' && event.entityId === payload.previousId) ||
+      ticketEvents.some((event) =>
+        event.lines.some((line) => line.entityType === 'sku' && line.entityId === payload.previousId),
+      ) ||
       recipeUsageHints.some((hint) => hint.skuId === payload.previousId);
     if (!hasChange) {
       return input;
@@ -279,6 +283,12 @@ function rewriteObservationInputForRenamedEntity(
           ? { ...event, entityId: nextId }
           : event,
       ),
+      ticketEvents: ticketEvents.map((event) => ({
+        ...event,
+        lines: event.lines.map((line) =>
+          line.entityType === 'sku' && line.entityId === payload.previousId ? { ...line, entityId: nextId } : line,
+        ),
+      })),
       recipeUsageHints: recipeUsageHints.map((hint) =>
         hint.skuId === payload.previousId ? { ...hint, skuId: nextId } : hint,
       ),
@@ -291,6 +301,7 @@ function rewriteObservationInputForRenamedEntity(
   const serviceStockouts = input.serviceStockouts ?? [];
   const servicePrices = input.servicePrices ?? [];
   const commercialEvents = input.commercialEvents ?? [];
+  const ticketEvents = input.ticketEvents ?? [];
   const recipeUsageHints = input.recipeUsageHints ?? [];
   const hasChange =
     serviceSalesSnapshot.some((snapshot) => snapshot.serviceId === payload.previousId) ||
@@ -298,6 +309,9 @@ function rewriteObservationInputForRenamedEntity(
     serviceStockouts.includes(payload.previousId) ||
     servicePrices.some((price) => price.serviceId === payload.previousId) ||
     commercialEvents.some((event) => event.entityType === 'service' && event.entityId === payload.previousId) ||
+    ticketEvents.some((event) =>
+      event.lines.some((line) => line.entityType === 'service' && line.entityId === payload.previousId),
+    ) ||
     recipeUsageHints.some((hint) => hint.serviceId === payload.previousId);
   if (!hasChange) {
     return input;
@@ -317,6 +331,12 @@ function rewriteObservationInputForRenamedEntity(
         ? { ...event, entityId: nextId }
         : event,
     ),
+    ticketEvents: ticketEvents.map((event) => ({
+      ...event,
+      lines: event.lines.map((line) =>
+        line.entityType === 'service' && line.entityId === payload.previousId ? { ...line, entityId: nextId } : line,
+      ),
+    })),
     recipeUsageHints: recipeUsageHints.map((hint) =>
       hint.serviceId === payload.previousId ? { ...hint, serviceId: nextId } : hint,
     ),
