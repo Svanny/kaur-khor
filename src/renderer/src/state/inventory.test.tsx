@@ -929,6 +929,86 @@ describe('InventoryProvider', () => {
     });
   });
 
+  it('keeps renamed catalog state visible when post-commit run refresh and detail cache clearing fail', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const richObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const renamedObservation: SenaObservationRecord = {
+      ...richObservation,
+      input: {
+        ...richObservation.input,
+        stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const listObservations = vi
+      .fn()
+      .mockResolvedValueOnce([richObservation])
+      .mockResolvedValueOnce([renamedObservation]);
+
+    window.kaurKhorDesktop.sena.listObservations = listObservations;
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => {
+      throw new Error('run refresh failed');
+    });
+    window.kaurKhorDesktop.sena.clearDetailCache = vi.fn(async () => {
+      throw new Error('detail clear failed');
+    });
+
+    function RenamePostCommitFailureHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-id">{inventory.catalog?.skus[0]?.skuId ?? 'none'}</div>
+          <div data-testid="observation-sku">{inventory.observations[0]?.input.stockSnapshot[0]?.skuId ?? 'none'}</div>
+          <div data-testid="latest-run-id">{inventory.latestRun?.runId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'sku',
+                previousId: 'sku-1',
+                nextSku: {
+                  ...sampleCatalog.skus[0],
+                  skuId: 'sku-renamed',
+                },
+              })
+            }
+          >
+            rename sku
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenamePostCommitFailureHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-1');
+    });
+
+    fireEvent.click(screen.getByText('rename sku'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('latest-run-id').textContent).toBe('run-1');
+    });
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
+      entityId: 'sku-renamed',
+      entityType: 'sku',
+    });
+    warnSpy.mockRestore();
+  });
+
   it('rolls back historical observation rewrites if catalog rename order-child rewrites fail', async () => {
     const richObservation: SenaObservationRecord = {
       ...sampleObservation,

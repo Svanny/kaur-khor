@@ -6284,6 +6284,7 @@ export function StockUpdateSessionRoute() {
   const draftHydrationCheckedRef = useRef(false);
   const latestDraftStateRef = useRef<StockUpdateDraftState | null>(null);
   const skipNextDraftPersistRef = useRef(false);
+  const savedObservationRetryIdRef = useRef<string | null>(null);
   const previousMoneyPreferencesRef = useRef({ currency, usdToKhrExchangeRate });
   const posDeliveryFeeInputRef = useRef<HTMLInputElement | null>(null);
   const posDiscountAmountInputRef = useRef<HTMLInputElement | null>(null);
@@ -9378,6 +9379,7 @@ export function StockUpdateSessionRoute() {
         : '';
     const resetDiscountPercent = resetDiscountSource?.percent != null ? String(resetDiscountSource.percent) : '';
     initialObservedAtRef.current = nextObservedAt;
+    savedObservationRetryIdRef.current = null;
     setEditSession(null);
     setPendingEditSession(null);
     setReplaceDraftDialogOpen(false);
@@ -9633,8 +9635,14 @@ export function StockUpdateSessionRoute() {
           observationId: editSession.observationId,
           input: payload,
         });
+      } else if (savedObservationRetryIdRef.current) {
+        await updateSenaObservation({
+          observationId: savedObservationRetryIdRef.current,
+          input: payload,
+        });
       } else {
-        await ingestSenaObservation(payload);
+        const observation = await ingestSenaObservation(payload);
+        savedObservationRetryIdRef.current = observation.observationId;
       }
       await persistLegacySupplierOrderUpdates();
     } catch (nextError) {

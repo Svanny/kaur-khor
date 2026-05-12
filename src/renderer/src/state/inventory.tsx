@@ -804,26 +804,51 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             throw error;
           }
 
-          const [observations, orderBatches] = await Promise.all([
-            window.kaurKhorDesktop.sena.listObservations(),
-            window.kaurKhorDesktop.sena.listOrderBatches(),
-          ]);
-          const run =
-            payload.previousId !== nextId
-              ? await window.kaurKhorDesktop.sena.triggerRun({
-                  algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
-                })
-              : null;
-          const [workspaceSummary, diagnostics] = await Promise.all([
-            window.kaurKhorDesktop.sena.getWorkspaceSummary(),
-            window.kaurKhorDesktop.sena.getDiagnostics(),
-          ]);
-
           invalidateSenaReads();
+          const fallbackObservations = existingObservations.map((observation) => {
+            const update = observationUpdates.find((entry) => entry.observationId === observation.observationId);
+            return update ? { ...observation, input: update.nextInput } : observation;
+          });
+          const fallbackOrderBatches = existingOrderBatches.map((batch) =>
+            rewriteOrderBatchForRenamedEntity(batch, payload),
+          );
+          let observations = fallbackObservations;
+          let orderBatches = fallbackOrderBatches;
+          let run: SenaAnalysisRunRecord | null = null;
+          let workspaceSummary = stateRef.current.workspaceSummary;
+          let diagnostics = stateRef.current.diagnostics;
+
+          try {
+            [observations, orderBatches] = await Promise.all([
+              window.kaurKhorDesktop.sena.listObservations(),
+              window.kaurKhorDesktop.sena.listOrderBatches(),
+            ]);
+          } catch (error) {
+            console.warn('[inventory] failed to refresh renamed catalog references after commit', error);
+          }
+          if (payload.previousId !== nextId) {
+            try {
+              run = await window.kaurKhorDesktop.sena.triggerRun({
+                algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+              });
+            } catch (error) {
+              console.warn('[inventory] failed to refresh SENA run after catalog rename', error);
+            }
+          }
+          try {
+            [workspaceSummary, diagnostics] = await Promise.all([
+              window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+              window.kaurKhorDesktop.sena.getDiagnostics(),
+            ]);
+          } catch (error) {
+            console.warn('[inventory] failed to refresh workspace summary after catalog rename', error);
+          }
           await Promise.all([
             clearSenaDetailCache(payload.entityType, payload.previousId),
             ...(payload.previousId === nextId ? [] : [clearSenaDetailCache(payload.entityType, nextId)]),
-          ]);
+          ]).catch((error) => {
+            console.warn('[inventory] failed to clear detail cache after catalog rename', error);
+          });
           readCacheRef.current.set('sena:catalog', catalog);
           readCacheRef.current.set('sena:observations', observations);
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
