@@ -9503,6 +9503,120 @@ export function StockUpdateSessionRoute() {
     return null;
   }
 
+  async function persistLegacySupplierOrderUpdates() {
+    if (lane.id === 'supplier-order-pending' && supplierPendingMode !== 'cancel_supplier_order') {
+      const tableMeanDays =
+        recordOrderLeadTimeMeanDays.trim() === ''
+          ? null
+          : Number(recordOrderLeadTimeMeanDays);
+      const sharedFields = {
+        supplierNote: notes.trim() || null,
+        expectedArrivalAt: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
+        placementTimestamp: observedAtIso,
+        leadTimeDaysHint: tableMeanDays,
+        leadTimeVariability: recordOrderLeadTimeVariability || null,
+        deliveryFee: activeDeliveryFeeMetadata,
+        discount: activeDiscountMetadata,
+      };
+      if (selectedOrderBatch && selectedLegacySupplierOrderTarget.batchOrderId) {
+        if (selectedLegacySupplierOrderTarget.childOrderId) {
+          const selectedChild = selectedOrderChildren[0] ?? null;
+          const draft = selectedChild ? visibleSkuSignalDrafts[selectedChild.skuId] : null;
+          await updateSenaOrderBatch({
+            batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
+            supplierName: selectedOrderBatch.supplierName,
+            shared: sharedFields,
+          });
+          await updateSenaOrderChild({
+            childOrderId: selectedLegacySupplierOrderTarget.childOrderId,
+            overrides: {
+              orderedQuantity: draft?.orderedQuantity ? Number(draft.orderedQuantity) : null,
+            },
+          });
+        } else {
+          await updateSenaOrderBatch({
+            batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
+            supplierName: selectedOrderBatch.supplierName,
+            shared: sharedFields,
+          });
+          for (const child of selectedOrderChildren) {
+            const draft = visibleSkuSignalDrafts[child.skuId];
+            if (!draft) {
+              continue;
+            }
+            await updateSenaOrderChild({
+              childOrderId: child.childOrderId,
+              overrides: {
+                orderedQuantity: draft.orderedQuantity ? Number(draft.orderedQuantity) : null,
+              },
+            });
+          }
+        }
+      } else {
+        const orderedEntries = Object.entries(visibleSkuSignalDrafts)
+          .filter(([, draft]) => draft.orderedQuantity.trim() !== '' && Number(draft.orderedQuantity) > 0)
+          .map(([skuId, draft]) => ({ skuId, draft }));
+        const entriesBySupplier = orderedEntries.reduce<Map<string, typeof orderedEntries>>((map, entry) => {
+          const supplierName = workingCatalog?.skus.find((sku) => sku.skuId === entry.skuId)?.supplierName?.trim() || '';
+          const existing = map.get(supplierName) ?? [];
+          existing.push(entry);
+          map.set(supplierName, existing);
+          return map;
+        }, new Map());
+        for (const [supplierName, entries] of entriesBySupplier) {
+          await createSenaOrderBatch({
+            supplierName: supplierName || null,
+            shared: {
+              ...sharedFields,
+              supplierName: supplierName || null,
+            },
+            children: entries.map(({ skuId, draft }) => {
+              const row = rows.find((entry) => entry.skuId === skuId);
+              return {
+                skuId,
+                overrides: {
+                  orderedQuantity: Number(draft.orderedQuantity),
+                  costPerUnit: row?.costPerUnit ?? null,
+                },
+              };
+            }),
+          });
+        }
+      }
+    }
+    if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && selectedLegacySupplierOrderTarget.batchOrderId) {
+      const targetChildren = selectedOrderChildren.length > 0 ? selectedOrderChildren : [];
+      await updateSenaOrderBatch({
+        batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
+        supplierName: selectedOrderBatch?.supplierName ?? null,
+        shared: {
+          deliveryFee: activeDeliveryFeeMetadata,
+          discount: activeDiscountMetadata,
+        },
+      });
+      for (const child of targetChildren) {
+        const draft = visibleSkuSignalDrafts[child.skuId];
+        const quantity = draft?.receiptQuantity?.trim() ? Number(draft.receiptQuantity) : null;
+        await updateSenaOrderChild({
+          childOrderId: child.childOrderId,
+          overrides: {
+            receivedQuantity: quantity,
+            receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
+          },
+          status: 'received',
+        });
+      }
+    }
+    if (lane.id === 'stock-count' && selectedLegacySupplierOrderTarget.batchOrderId) {
+      for (const child of selectedOrderChildren) {
+        await updateSenaOrderChild({
+          childOrderId: child.childOrderId,
+          status: 'reviewed',
+        });
+      }
+    }
+  }
+
   async function saveCurrentSession() {
     setError(null);
     const payload = buildPayload();
@@ -9514,117 +9628,6 @@ export function StockUpdateSessionRoute() {
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     try {
-      if (lane.id === 'supplier-order-pending' && supplierPendingMode !== 'cancel_supplier_order') {
-        const tableMeanDays =
-          recordOrderLeadTimeMeanDays.trim() === ''
-            ? null
-            : Number(recordOrderLeadTimeMeanDays);
-        const sharedFields = {
-          supplierNote: notes.trim() || null,
-          expectedArrivalAt: dateInputToIso(recordOrderExpectedArrivalDate, observedAtIso),
-          placementTimestamp: observedAtIso,
-          leadTimeDaysHint: tableMeanDays,
-          leadTimeVariability: recordOrderLeadTimeVariability || null,
-          deliveryFee: activeDeliveryFeeMetadata,
-          discount: activeDiscountMetadata,
-        };
-        if (selectedOrderBatch && selectedLegacySupplierOrderTarget.batchOrderId) {
-          if (selectedLegacySupplierOrderTarget.childOrderId) {
-            const selectedChild = selectedOrderChildren[0] ?? null;
-            const draft = selectedChild ? visibleSkuSignalDrafts[selectedChild.skuId] : null;
-            await updateSenaOrderBatch({
-              batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
-              supplierName: selectedOrderBatch.supplierName,
-              shared: sharedFields,
-            });
-            await updateSenaOrderChild({
-              childOrderId: selectedLegacySupplierOrderTarget.childOrderId,
-              overrides: {
-                orderedQuantity: draft?.orderedQuantity ? Number(draft.orderedQuantity) : null,
-              },
-            });
-          } else {
-            await updateSenaOrderBatch({
-              batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
-              supplierName: selectedOrderBatch.supplierName,
-              shared: sharedFields,
-            });
-            for (const child of selectedOrderChildren) {
-              const draft = visibleSkuSignalDrafts[child.skuId];
-              if (!draft) {
-                continue;
-              }
-              await updateSenaOrderChild({
-                childOrderId: child.childOrderId,
-                overrides: {
-                  orderedQuantity: draft.orderedQuantity ? Number(draft.orderedQuantity) : null,
-                },
-              });
-            }
-          }
-        } else {
-          const orderedEntries = Object.entries(visibleSkuSignalDrafts)
-            .filter(([, draft]) => draft.orderedQuantity.trim() !== '' && Number(draft.orderedQuantity) > 0)
-            .map(([skuId, draft]) => ({ skuId, draft }));
-          const entriesBySupplier = orderedEntries.reduce<Map<string, typeof orderedEntries>>((map, entry) => {
-            const supplierName = workingCatalog?.skus.find((sku) => sku.skuId === entry.skuId)?.supplierName?.trim() || '';
-            const existing = map.get(supplierName) ?? [];
-            existing.push(entry);
-            map.set(supplierName, existing);
-            return map;
-          }, new Map());
-          for (const [supplierName, entries] of entriesBySupplier) {
-            await createSenaOrderBatch({
-              supplierName: supplierName || null,
-              shared: {
-                ...sharedFields,
-                supplierName: supplierName || null,
-              },
-              children: entries.map(({ skuId, draft }) => {
-                const row = rows.find((entry) => entry.skuId === skuId);
-                return {
-                  skuId,
-                  overrides: {
-                    orderedQuantity: Number(draft.orderedQuantity),
-                    costPerUnit: row?.costPerUnit ?? null,
-                  },
-                };
-              }),
-            });
-          }
-        }
-      }
-      if (lane.id === 'supplier-receipt' && supplierReceiptMode !== 'return_receipt_reversal' && selectedLegacySupplierOrderTarget.batchOrderId) {
-        const targetChildren = selectedOrderChildren.length > 0 ? selectedOrderChildren : [];
-        await updateSenaOrderBatch({
-          batchOrderId: selectedLegacySupplierOrderTarget.batchOrderId,
-          supplierName: selectedOrderBatch?.supplierName ?? null,
-          shared: {
-            deliveryFee: activeDeliveryFeeMetadata,
-            discount: activeDiscountMetadata,
-          },
-        });
-        for (const child of targetChildren) {
-          const draft = visibleSkuSignalDrafts[child.skuId];
-          const quantity = draft?.receiptQuantity?.trim() ? Number(draft.receiptQuantity) : null;
-          await updateSenaOrderChild({
-            childOrderId: child.childOrderId,
-            overrides: {
-              receivedQuantity: quantity,
-              receiptTimestamp: dateInputToIso(recordReceiptReceivedDate) ?? observedAtIso,
-            },
-            status: 'received',
-          });
-        }
-      }
-      if (lane.id === 'stock-count' && selectedLegacySupplierOrderTarget.batchOrderId) {
-        for (const child of selectedOrderChildren) {
-          await updateSenaOrderChild({
-            childOrderId: child.childOrderId,
-            status: 'reviewed',
-          });
-        }
-      }
       if (editSession) {
         await updateSenaObservation({
           observationId: editSession.observationId,
@@ -9633,6 +9636,7 @@ export function StockUpdateSessionRoute() {
       } else {
         await ingestSenaObservation(payload);
       }
+      await persistLegacySupplierOrderUpdates();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
       setSaveErrorFlashKey((current) => current + 1);
@@ -11176,13 +11180,14 @@ export function StockUpdateSessionRoute() {
       />
     </WorkspacePanel>
   );
-  const customerMetadataPanel = isCustomerTicketLane ? (
-    <WorkspacePanel
-      className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral(language, 'Channel, customer name, phone, and location live in notes, but are stored as structured ticket fields.')}
-      style={recordUpdateWhiteCardStyle}
-      title={translateUiLiteral(language, 'Customer metadata')}
-    >
+	  const customerMetadataPanel = isCustomerTicketLane ? (
+	    <WorkspacePanel
+	      className={recordUpdateWhiteCardClassName}
+	      descriptor={translateUiLiteral(language, 'Channel, customer name, phone, and location live in notes, but are stored as structured ticket fields.')}
+	      helperExemptReason="Record update metadata panels use inline descriptors and field labels instead of separate helper tooltips."
+	      style={recordUpdateWhiteCardStyle}
+	      title={translateUiLiteral(language, 'Customer metadata')}
+	    >
       <CustomerMetadataFields
         directory={customerDirectory}
         identity={customerIdentity}
@@ -11191,13 +11196,14 @@ export function StockUpdateSessionRoute() {
       />
     </WorkspacePanel>
   ) : null;
-  const deliveryMetadataPanel = deliveryFeeEnabled ? (
-    <WorkspacePanel
-      className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral(language, 'Store the default delivery charge and who covers it for this order.')}
-      style={recordUpdateWhiteCardStyle}
-      title={translateUiLiteral(language, 'Delivery')}
-    >
+	  const deliveryMetadataPanel = deliveryFeeEnabled ? (
+	    <WorkspacePanel
+	      className={recordUpdateWhiteCardClassName}
+	      descriptor={translateUiLiteral(language, 'Store the default delivery charge and who covers it for this order.')}
+	      helperExemptReason="Record update metadata panels use inline descriptors and field labels instead of separate helper tooltips."
+	      style={recordUpdateWhiteCardStyle}
+	      title={translateUiLiteral(language, 'Delivery')}
+	    >
       <DeliveryFeeFields
         amountId="record-delivery-fee"
         amountLabel={translateUiLiteral(language, 'Fee amount')}
@@ -11209,13 +11215,14 @@ export function StockUpdateSessionRoute() {
       />
     </WorkspacePanel>
   ) : null;
-  const discountMetadataPanel = discountEnabled ? (
-    <WorkspacePanel
-      className={recordUpdateWhiteCardClassName}
-      descriptor={translateUiLiteral(language, 'Subtract a flat amount or percentage from the receipt subtotal before delivery is added.')}
-      style={recordUpdateWhiteCardStyle}
-      title={translateUiLiteral(language, 'Discount')}
-    >
+	  const discountMetadataPanel = discountEnabled ? (
+	    <WorkspacePanel
+	      className={recordUpdateWhiteCardClassName}
+	      descriptor={translateUiLiteral(language, 'Subtract a flat amount or percentage from the receipt subtotal before delivery is added.')}
+	      helperExemptReason="Record update metadata panels use inline descriptors and field labels instead of separate helper tooltips."
+	      style={recordUpdateWhiteCardStyle}
+	      title={translateUiLiteral(language, 'Discount')}
+	    >
       <DiscountFields
         amountId="record-discount-amount"
         amountLabel={translateUiLiteral(language, 'Discount amount')}
@@ -12053,10 +12060,11 @@ export function StockUpdateSessionRoute() {
           finishWorkbenchReorderMode(true);
         }}
       />
-      <WorkspaceTitleCard
-        actions={titleActions}
-        floatingActions={floatingTitleActions}
-        descriptor={
+	      <WorkspaceTitleCard
+	        actions={titleActions}
+	        floatingActions={floatingTitleActions}
+	        helperExemptReason="Record update title card is covered by route-level step copy and action labels."
+	        descriptor={
           latestAt
             ? t('stockUpdateDescriptorWithHistory', {
                 date: formatSenaDateTime(latestAt, language),
@@ -12340,12 +12348,13 @@ export function StockUpdateSessionRoute() {
               </section>
 
               <div className="min-w-0 grid gap-4">
-                <WorkspacePanel
-                  className={recordUpdateWhiteCardClassName}
-                  descriptor={posSummaryDescriptor}
-                  style={recordUpdateWhiteCardStyle}
-                  title={posSummaryTitle}
-                >
+	                <WorkspacePanel
+	                  className={recordUpdateWhiteCardClassName}
+	                  descriptor={posSummaryDescriptor}
+	                  helperExemptReason="Record update summary panel uses the descriptor and receipt field labels as its helper surface."
+	                  style={recordUpdateWhiteCardStyle}
+	                  title={posSummaryTitle}
+	                >
                   <div className="grid gap-4">
                     <div className="grid gap-2">
                       {stockCountPosMode ? (
@@ -12854,9 +12863,9 @@ export function StockUpdateSessionRoute() {
                   variant="overview"
                 >
                   <HeaderedTableHeader className={posReceiptConfirmTableLayout.headerClassName}>
-                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Qty')}</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Pricing')}</HeaderedTableHeaderCell>
+	                    <HeaderedTableHeaderCell helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
+	                    <HeaderedTableHeaderCell align="center" helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Qty')}</HeaderedTableHeaderCell>
+	                    <HeaderedTableHeaderCell helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Pricing')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
                   <HeaderedTableBody className={posReceiptConfirmTableLayout.bodyClassName}>
                     {posReceiptTextLines.map((line) => (

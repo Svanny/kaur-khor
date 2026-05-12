@@ -10,6 +10,7 @@ import type {
   SenaCatalog,
   SenaDiagnostics,
   SenaObservationFingerprint,
+  SenaOrderBatchRecord,
   SenaRecordUpdateContext,
   SenaObservationRecord,
   SenaSkuDetailPage,
@@ -926,6 +927,127 @@ describe('InventoryProvider', () => {
       expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
       expect(screen.getByTestId('latest-run-id').textContent).toBe('run-2');
     });
+  });
+
+  it('rolls back historical observation rewrites if catalog rename order-child rewrites fail', async () => {
+    const richObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const renamedInput = {
+      ...richObservation.input,
+      stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+    };
+    const orderBatch: SenaOrderBatchRecord = {
+      batchOrderId: 'orders/2026/04/15/000000/test/0001',
+      ownerSub: 'desktop-owner',
+      supplierName: 'Test supplier',
+      status: 'open',
+      createdAt: '2026-04-15T00:00:00Z',
+      updatedAt: '2026-04-15T00:00:00Z',
+      shared: {
+        supplierName: 'Test supplier',
+        supplierNote: null,
+        orderedQuantity: null,
+        receivedQuantity: null,
+        costPerUnit: null,
+        expectedArrivalAt: null,
+        placementTimestamp: null,
+        receiptTimestamp: null,
+        leadTimeDaysHint: null,
+        leadTimeVariability: null,
+      },
+      children: [{
+        childOrderId: 'orders/2026/04/15/000000/test/0001/items/sku-1/0001',
+        skuId: 'sku-1',
+        status: 'open',
+        createdAt: '2026-04-15T00:00:00Z',
+        updatedAt: '2026-04-15T00:00:00Z',
+        inheritedFromBatch: true,
+        effective: {
+          supplierName: 'Test supplier',
+          supplierNote: null,
+          orderedQuantity: 4,
+          receivedQuantity: 0,
+          costPerUnit: 4,
+          expectedArrivalAt: null,
+          placementTimestamp: null,
+          receiptTimestamp: null,
+          leadTimeDaysHint: null,
+          leadTimeVariability: null,
+        },
+        overrides: {},
+      }],
+    };
+    const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
+    const updateOrderChild = vi.fn(async () => {
+      throw new Error('order child rewrite failed');
+    });
+
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [richObservation]);
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => [orderBatch]);
+    window.kaurKhorDesktop.sena.updateObservation = updateObservation;
+    window.kaurKhorDesktop.sena.updateOrderChild = updateOrderChild;
+    window.kaurKhorDesktop.sena.upsertCatalog = vi.fn(async (payload: SenaCatalog) => payload);
+
+    function RenameFailureHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-id">{inventory.catalog?.skus[0]?.skuId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'sku',
+                previousId: 'sku-1',
+                nextSku: {
+                  ...sampleCatalog.skus[0],
+                  skuId: 'sku-renamed',
+                },
+              }).catch(() => undefined)
+            }
+          >
+            rename sku
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenameFailureHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-1');
+    });
+
+    fireEvent.click(screen.getByText('rename sku'));
+
+    await waitFor(() => {
+      expect(updateOrderChild).toHaveBeenCalledWith({
+        childOrderId: 'orders/2026/04/15/000000/test/0001/items/sku-1/0001',
+        skuId: 'sku-renamed',
+      });
+    });
+    expect(window.kaurKhorDesktop.sena.upsertCatalog).not.toHaveBeenCalled();
+    expect(updateObservation).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      observationId: 'obs-1',
+      input: expect.objectContaining({
+        stockSnapshot: renamedInput.stockSnapshot,
+      }),
+    }));
+    expect(updateObservation).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      observationId: 'obs-1',
+      input: expect.objectContaining({
+        stockSnapshot: richObservation.input.stockSnapshot,
+      }),
+    }));
   });
 
   it('renames a service and rewrites matching ticket event lines', async () => {

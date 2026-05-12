@@ -1412,7 +1412,7 @@ describe('StockUpdateSessionRoute', () => {
           },
         ],
       },
-    }] as typeof observations;
+    }] as unknown as typeof observations;
     renderRoute(observationsWithCustomers, `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`);
 
     const metadataCards = screen.getAllByRole('button', { name: /^(Timing|Customer|Notes|Context|Delivery|Discount)/i });
@@ -1794,6 +1794,24 @@ describe('StockUpdateSessionRoute', () => {
     expect(copiedReceipt).not.toContain('ETA variation');
     expect(copiedReceipt).not.toContain('Communication channel');
     expect(copiedReceipt).not.toContain('Context');
+  }, 10_000);
+
+  it('does not create legacy supplier order batches when observation persistence fails', async () => {
+    ingestSenaObservation.mockRejectedValueOnce(new Error('ticket event validation failed'));
+    renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
+
+    await fillPendingPosTiming('2026-05-20');
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByRole('button', { name: 'Add line' }));
+    fireEvent.click(captureDoneButton());
+
+    const dialog = await screen.findByRole('dialog', { name: 'Confirm receipt' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    expect(createSenaOrderBatch).not.toHaveBeenCalled();
+    expect(updateSenaOrderBatch).not.toHaveBeenCalled();
+    expect(updateSenaOrderChild).not.toHaveBeenCalled();
   }, 10_000);
 
   it('applies a percentage discount before delivery and saves discount metadata', async () => {
