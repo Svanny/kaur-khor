@@ -21,6 +21,13 @@ Ticket lifecycle is `open`, `resolved`, or `canceled`. Family-specific stages ar
 stored on each event, and every modification appends an event with an incremented
 revision instead of overwriting prior operational history.
 
+Backend validation enforces the family contract, not only the TypeScript shape:
+customer tickets may use customer stages and customer event types, supplier
+tickets may use supplier stages and supplier event types, and adjustment tickets
+may use adjustment stages and adjustment event types. Canceled events must carry
+the canceled lifecycle. Each ticket event must include at least one line item so
+ticket-only observations cannot become empty operational facts.
+
 ## Observation Shape
 
 Ticket events are carried in `SenaObservationInput.ticketEvents`.

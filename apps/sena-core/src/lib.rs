@@ -23,7 +23,7 @@ pub use inference::{
 pub use lead_time::*;
 pub use service::{
     execute_analysis_run, execute_analysis_run_with_parameters, now_rfc3339, trigger_analysis_run,
-    SenaRepository,
+    trigger_analysis_run_with_parameters, SenaRepository,
 };
 #[cfg(feature = "desktop")]
 pub use sqlite::SqliteSenaRepository;

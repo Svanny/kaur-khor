@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
@@ -13,6 +13,7 @@ import type {
 const RELEASE_API_URL = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const SOURCE_ARCHIVE_URL =
   'https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz';
+const SOURCE_ARCHIVE_CHECKSUM_URL = `${SOURCE_ARCHIVE_URL}.sha256`;
 
 interface GitHubReleaseResponse {
   html_url?: string;
@@ -65,8 +66,8 @@ export async function launchKaurKhorSourceUpdate({
     skipBackup: payload.skipBackup === true,
   });
 
-  launchScriptInTerminal(scriptPath);
-  setTimeout(() => app.quit(), 250);
+  await launchScriptInTerminal(scriptPath);
+  app.quit();
   return {
     started: true,
     message: 'Kaur Khor will close while the updater builds and installs the latest release.',
@@ -161,6 +162,15 @@ set -euo pipefail
 cd "$(dirname "$0")"
 echo "Updating Kaur Khor from v${appVersion} to the latest release..."
 curl -fL ${shellQuote(SOURCE_ARCHIVE_URL)} -o kaur-khor-latest-source-build.tar.gz
+curl -fL ${shellQuote(SOURCE_ARCHIVE_CHECKSUM_URL)} -o kaur-khor-latest-source-build.tar.gz.sha256
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c kaur-khor-latest-source-build.tar.gz.sha256
+elif command -v shasum >/dev/null 2>&1; then
+  shasum -a 256 -c kaur-khor-latest-source-build.tar.gz.sha256
+else
+  echo "Need shasum or sha256sum to verify the Kaur Khor source-build archive." >&2
+  exit 1
+fi
 tar -xzf kaur-khor-latest-source-build.tar.gz
 cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update --data-dir=${shellQuote(dataDirectoryPath)}${backupArg}${skipArg}
@@ -183,6 +193,14 @@ function windowsUpdateScript({
 Set-Location $PSScriptRoot
 Write-Host "Updating Kaur Khor to the latest release..."
 Invoke-WebRequest -Uri "${SOURCE_ARCHIVE_URL}" -OutFile "kaur-khor-latest-source-build.tar.gz"
+$expectedHash = (Invoke-WebRequest -Uri "${SOURCE_ARCHIVE_CHECKSUM_URL}").Content.Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
+if ($expectedHash -notmatch "^[a-f0-9]{64}$") {
+  throw "Invalid SHA-256 checksum for Kaur Khor source-build archive."
+}
+$actualHash = (Get-FileHash -Algorithm SHA256 -Path "kaur-khor-latest-source-build.tar.gz").Hash.ToLowerInvariant()
+if ($actualHash -ne $expectedHash) {
+  throw "SHA-256 mismatch for Kaur Khor source-build archive. Expected $expectedHash, got $actualHash."
+}
 tar -xzf "kaur-khor-latest-source-build.tar.gz"
 Set-Location "kaur-khor-*-source-build"
 .\\scripts\\build-from-source.ps1 --update --data-dir="${dataDirectoryPath.replaceAll('"', '`"')}"${backupArg}${skipArg}
@@ -190,31 +208,57 @@ Write-Host "Update finished. Reopen Kaur Khor and restore the exported snapshot 
 `;
 }
 
-function launchScriptInTerminal(scriptPath: string) {
+async function launchScriptInTerminal(scriptPath: string) {
+  let child: ChildProcess;
   if (process.platform === 'darwin') {
-    spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(scriptPath)}`], {
+    child = spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(scriptPath)}`], {
       detached: true,
       stdio: 'ignore',
-    }).unref();
+    });
+    await waitForTerminalSpawn(child);
+    child.unref();
     return;
   }
 
   if (process.platform === 'win32') {
-    spawn('powershell.exe', ['-NoExit', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], {
+    child = spawn('powershell.exe', ['-NoExit', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,
-    }).unref();
+    });
+    await waitForTerminalSpawn(child);
+    child.unref();
     return;
   }
 
   const terminal = process.env.TERM_PROGRAM || 'x-terminal-emulator';
-  spawn(terminal, ['-e', scriptPath], {
+  child = spawn(terminal, ['-e', scriptPath], {
     detached: true,
     stdio: 'ignore',
-  }).unref();
+  });
+  await waitForTerminalSpawn(child);
+  child.unref();
 }
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function waitForTerminalSpawn(child: ChildProcess) {
+  return new Promise<void>((resolveSpawn, rejectSpawn) => {
+    const cleanup = () => {
+      child.off('spawn', handleSpawn);
+      child.off('error', handleError);
+    };
+    const handleSpawn = () => {
+      cleanup();
+      resolveSpawn();
+    };
+    const handleError = (error: Error) => {
+      cleanup();
+      rejectSpawn(error);
+    };
+    child.once('spawn', handleSpawn);
+    child.once('error', handleError);
+  });
 }

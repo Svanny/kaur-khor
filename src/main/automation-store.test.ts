@@ -16,10 +16,12 @@ import {
   recordAutomationWizardMessage,
   readAutomationWizardSessionForConversation,
   readAutomationWorkspace,
+  ticketEventsRequiringTelegramNotification,
 } from './automation-store';
 import type { SenaTicketEvent } from '@shared/sena';
 
 const AUTOMATION_STORE_SOURCE_PATH = new URL('./automation-store.ts', import.meta.url);
+const MAIN_INDEX_SOURCE_PATH = new URL('./index.ts', import.meta.url);
 
 const context = {
   catalog: {
@@ -1921,6 +1923,16 @@ describe('automation telegram ingestion', () => {
     ]);
   });
 
+  it('keeps automation promotion recovery on a critical SENA observation read', async () => {
+    const source = await readFile(MAIN_INDEX_SOURCE_PATH, 'utf8');
+    const promoteHandlerStart = source.indexOf('IPC_CHANNELS.automationPromoteIntake');
+    const promoteHandlerEnd = source.indexOf('IPC_CHANNELS.automationTestTelegramConnection', promoteHandlerStart);
+    const promoteHandlerSource = source.slice(promoteHandlerStart, promoteHandlerEnd);
+
+    expect(promoteHandlerSource).toContain('listFreshSenaObservations()');
+    expect(source).toContain("readPriority: 'critical'");
+  });
+
   it('submits a cart checkout after optional phone capture and keeps free-text fallback working', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
@@ -2580,6 +2592,37 @@ describe('automation telegram ingestion', () => {
     });
   });
 
+  it('recovers create-ticket promotion when SENA already contains the ticket event', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_781);
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+
+    const recovered = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: [{
+        observationId: 'obs-existing-promotion',
+        input: {
+          ticketEvents: [prepared.ticketEvent],
+        },
+      }] as never,
+    });
+
+    expect(recovered.shouldIngestObservation).toBe(false);
+    expect(recovered.ticketEvent.ticketId).toBe(prepared.ticketEvent.ticketId);
+    expect(recovered.updatedIntake).toMatchObject({
+      intakeId: intake.intakeId,
+      status: 'ticketed',
+      promotedTicketId: prepared.ticketEvent.ticketId,
+    });
+  });
+
   it('rejects appending Telegram intake to a supplier ticket', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const intake = await createQuotedAutomationIntake(userDataPath, 555_779);
@@ -2638,6 +2681,90 @@ describe('automation telegram ingestion', () => {
     expect(prepared.ticketEvent.ticketFamily).toBe('customer');
     expect(prepared.ticketEvent.eventType).toBe('revised');
     expect(prepared.ticketEvent.revision).toBe(4);
+    expect(prepared.ticketEvent.lines).toHaveLength(2);
+    expect(prepared.ticketEvent.lines[0]).toMatchObject(customerTicket.lines[0]!);
+    expect(prepared.ticketEvent.lines[1]).toMatchObject({
+      entityType: 'sku',
+      entityId: 'sku-1',
+      quantityDelta: 2,
+    });
     expect(prepared.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
+  });
+
+  it('recovers append-ticket promotion when SENA already contains the revised event', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_782);
+    const customerTicket = makeTicketEvent({
+      ticketId: 'ticket:customer:known-open',
+      revision: 3,
+    });
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: customerTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-customer-ticket',
+        input: {
+          ticketEvents: [customerTicket],
+        },
+      }] as never,
+    });
+
+    const recovered = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: customerTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-existing-append',
+        input: {
+          ticketEvents: [customerTicket, prepared.ticketEvent],
+        },
+      }] as never,
+    });
+
+    expect(recovered.shouldIngestObservation).toBe(false);
+    expect(recovered.ticketEvent.revision).toBe(prepared.ticketEvent.revision);
+    expect(recovered.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
+  });
+
+  it('filters unchanged and historical ticket events from Telegram notifications', () => {
+    const previousEvent = makeTicketEvent({
+      ticketId: 'ticket:customer:existing',
+      revision: 2,
+      eventType: 'revised',
+      occurredAt: '2026-04-21T01:00:00.000Z',
+      note: 'Previous note',
+    });
+    const rewrittenHistoricalEvent = {
+      ...previousEvent,
+      note: 'Operator corrected an old note',
+    };
+    const newCustomerEvent = makeTicketEvent({
+      ticketId: 'ticket:customer:new',
+      revision: 1,
+      occurredAt: '2026-04-21T02:00:00.000Z',
+    });
+    const supplierEvent = makeTicketEvent({
+      ticketId: 'ticket:supplier:new',
+      ticketFamily: 'supplier',
+      party: {
+        role: 'supplier',
+        channelKey: null,
+        channelLabel: null,
+        customerName: null,
+        customerNameKey: null,
+        phone: null,
+        phoneKey: null,
+        supplierName: 'Mekong Looms',
+      },
+    });
+
+    expect(ticketEventsRequiringTelegramNotification([
+      rewrittenHistoricalEvent,
+      newCustomerEvent,
+      supplierEvent,
+    ], [previousEvent])).toEqual([newCustomerEvent]);
   });
 });

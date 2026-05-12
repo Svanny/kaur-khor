@@ -1,8 +1,8 @@
+use futures::executor::block_on;
 use kaur_khor_desktop_core::store;
 use kaur_khor_sena_core::{
     fingerprint_catalog, SenaCatalog, SenaObservationInput, SenaRepository, SqliteSenaRepository,
 };
-use futures::executor::block_on;
 use serde_json::json;
 use std::{
     env,
@@ -211,8 +211,7 @@ fn desktop_core_records_service_detail_benchmark_events() {
         &observation("2026-04-10T00:00:00Z", 9.0, 7.0),
     )
     .expect("second observation should save");
-    store::trigger_run(store::default_owner(), "sena-analysis-v3")
-        .expect("run should complete");
+    store::trigger_run(store::default_owner(), "sena-analysis-v3").expect("run should complete");
 
     let detail = store::get_service_detail(store::default_owner(), "service-001", None, 20)
         .expect("service detail should load")
@@ -376,7 +375,10 @@ fn desktop_core_updates_and_deletes_observations() {
     let observations =
         store::list_observations(store::default_owner()).expect("observations load should succeed");
     assert_eq!(observations.len(), 1);
-    assert_eq!(observations[0].input.notes.as_deref(), Some("Edited observation"));
+    assert_eq!(
+        observations[0].input.notes.as_deref(),
+        Some("Edited observation")
+    );
     assert_eq!(observations[0].observation_id, inserted.observation_id);
 
     store::delete_observation(store::default_owner(), &inserted.observation_id)

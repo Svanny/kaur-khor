@@ -22,7 +22,11 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
 - The app banner is the browser backup/import/reset surface.
 - In the main browser and demo app views, the banner sits on the left rail and keeps the same vertical button coordinates when the navigation rail expands or collapses. Embedded browser mode keeps the desktop sidebar layout even at narrow browser widths so the rail and banner stay inspectable. On onboarding routes, the banner stays in the page flow above the onboarding panel instead of floating over the canvas.
 - Demo onboarding exposes backup/import/reset and main-page actions only. The browser-app route keeps its download action, but the demo route no longer links to `/app` from the embedded banner.
-- Phone portrait views show a rotate prompt instead of exposing the desktop shell in a cramped upright frame. Rotate the phone sideways, use a wider browser window, or open the desktop app for regular work.
+- Phone portrait views use the embedded operator shell instead of exposing the
+  full desktop workspace in a cramped upright frame. The shell keeps the
+  practical daily flow in Today, Queue, Capture, Products, and More tabs, while
+  the full desktop/browser workspace remains the supported surface for regular
+  analysis and settings work.
 - Settings / Local data shows OPFS and browser-profile storage labels instead of filesystem reveal links, desktop snapshots, or log export.
 - Production browser and demo builds hide Settings / Benchmarks. Development builds keep it available for GUI benchmark runs, Playwright traces, flame graphs, and native diagnostics.
 - Product image attachment is desktop-only until browser image assets are persisted durably.

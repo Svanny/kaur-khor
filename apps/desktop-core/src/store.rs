@@ -1,23 +1,24 @@
 use crate::benchmark;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
+use futures::executor::block_on;
 use kaur_khor_sena_core::{
     classify_relative_width, derive_relative_width, execute_analysis_run,
-    execute_analysis_run_with_parameters, trigger_analysis_run, SenaAdjustmentSignal,
-    SenaAnalysisRunRecord, SenaBundle, SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics,
-    SenaEngineParameters, SenaLeadTimeHint, SenaObservationFingerprint, SenaObservationInput,
-    SenaObservationPage, SenaObservationPageRequest, SenaObservationRecord,
-    SenaObservationRegimeHint, SenaOrderBatchRecord, SenaOrderLookupPayload, SenaOrderSignal,
-    SenaRecipeUsageHint, SenaRecordUpdateContext, SenaRepository, SenaRetailPriceObservation,
-    SenaService, SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
+    execute_analysis_run_with_parameters, trigger_analysis_run,
+    trigger_analysis_run_with_parameters, SenaAdjustmentSignal, SenaAnalysisRunRecord, SenaBundle,
+    SenaCatalog, SenaCreateOrderBatchPayload, SenaDiagnostics, SenaEngineParameters,
+    SenaLeadTimeHint, SenaObservationFingerprint, SenaObservationInput, SenaObservationPage,
+    SenaObservationPageRequest, SenaObservationRecord, SenaObservationRegimeHint,
+    SenaOrderBatchRecord, SenaOrderLookupPayload, SenaOrderSignal, SenaRecipeUsageHint,
+    SenaRecordUpdateContext, SenaRepository, SenaRetailPriceObservation, SenaService,
+    SenaServiceDetail, SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku,
     SenaSkuDetail, SenaSplitOrderChildPayload, SenaStockSnapshot, SenaUpdateOrderBatchPayload,
     SenaUpdateOrderChildPayload, SenaWorkspaceSummary, SqliteSenaRepository,
 };
-use futures::executor::block_on;
 use rand::{rngs::StdRng, Rng, SeedableRng};
 use serde::Serialize;
 use serde_json::json;
-use std::{env, fs, path::PathBuf};
 use std::time::Instant;
+use std::{env, fs, path::PathBuf};
 use time::{Date, Duration, Month, PrimitiveDateTime, Time};
 
 const DEFAULT_OWNER_SUB: &str = "desktop-owner";
@@ -1469,13 +1470,24 @@ pub fn trigger_run_with_parameters(
     parameters: Option<&SenaEngineParameters>,
 ) -> Result<SenaAnalysisRunRecord> {
     let repo = repository()?;
-    let run = block_on(trigger_analysis_run(&repo, owner_sub, algorithm_version))?;
+    let run = block_on(trigger_analysis_run_with_parameters(
+        &repo,
+        owner_sub,
+        algorithm_version,
+        parameters,
+    ))?;
     execute_run_and_mark_failure(&repo, &run.run_id, algorithm_version, parameters)
 }
 
-pub fn retry_run(run_id: &str, algorithm_version: &str) -> Result<SenaAnalysisRunRecord> {
+pub fn retry_run(run_id: &str) -> Result<SenaAnalysisRunRecord> {
     let repo = repository()?;
-    execute_run_and_mark_failure(&repo, run_id, algorithm_version, None)
+    let run = block_on(repo.get_run(run_id))?.ok_or_else(|| anyhow!("run not found"))?;
+    execute_run_and_mark_failure(
+        &repo,
+        run_id,
+        &run.algorithm_version,
+        run.engine_parameters.as_ref(),
+    )
 }
 
 pub fn get_workspace_summary(owner_sub: &str) -> Result<Option<SenaWorkspaceSummary>> {
@@ -1644,11 +1656,19 @@ mod tests {
         let catalog = sample_catalog();
 
         assert_eq!(
-            catalog.skus.iter().filter(|sku| sku.image_path.is_some()).count(),
+            catalog
+                .skus
+                .iter()
+                .filter(|sku| sku.image_path.is_some())
+                .count(),
             9
         );
         assert_eq!(
-            catalog.services.iter().filter(|service| service.image_path.is_some()).count(),
+            catalog
+                .services
+                .iter()
+                .filter(|service| service.image_path.is_some())
+                .count(),
             9
         );
         assert_eq!(

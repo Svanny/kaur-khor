@@ -553,6 +553,8 @@ pub struct SenaObservationFingerprint {
     pub count: usize,
     pub latest_observed_at: Option<String>,
     pub latest_observation_id: Option<String>,
+    #[serde(default)]
+    pub content_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -688,6 +690,8 @@ pub struct SenaAnalysisRunRecord {
     pub run_id: String,
     pub owner_sub: String,
     pub algorithm_version: String,
+    #[serde(default)]
+    pub engine_parameters: Option<crate::inference::SenaEngineParameters>,
     pub status: SenaRunStatus,
     pub observation_count: usize,
     pub created_at: String,
@@ -1126,6 +1130,9 @@ impl SenaObservationInput {
                 validate_non_empty("commercialEvents[].reason", reason)?;
             }
         }
+        for event in &self.ticket_events {
+            validate_ticket_event(event)?;
+        }
         for hint in &self.recipe_usage_hints {
             validate_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
             validate_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
@@ -1153,6 +1160,232 @@ impl SenaObservationInput {
         }
         Ok(())
     }
+}
+
+fn validate_ticket_event(event: &SenaTicketEvent) -> Result<()> {
+    validate_identifier("ticketEvents[].ticketId", &event.ticket_id)?;
+    if event.revision < 0 {
+        return Err(anyhow!("ticketEvents[].revision must be >= 0"));
+    }
+    validate_ticket_family_stage_event(event)?;
+    validate_rfc3339("ticketEvents[].occurredAt", &event.occurred_at)?;
+    if let Some(timestamp) = &event.next_touch_at {
+        validate_rfc3339("ticketEvents[].nextTouchAt", timestamp)?;
+    }
+    if let Some(party) = &event.party {
+        validate_ticket_party_metadata(party)?;
+    }
+    if event.lines.is_empty() {
+        return Err(anyhow!("ticketEvents[].lines must not be empty"));
+    }
+    for line in &event.lines {
+        validate_ticket_line(line)?;
+    }
+    if let Some(delivery_fee) = &event.delivery_fee {
+        validate_delivery_fee_metadata(delivery_fee)?;
+    }
+    if let Some(discount) = &event.discount {
+        validate_discount_metadata(discount)?;
+    }
+    Ok(())
+}
+
+fn validate_ticket_family_stage_event(event: &SenaTicketEvent) -> Result<()> {
+    let valid = match event.ticket_family {
+        SenaTicketFamily::Customer => match event.stage {
+            SenaTicketStage::Pending => matches!(
+                event.event_type,
+                SenaTicketEventType::Created
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::EtaUpdated
+                    | SenaTicketEventType::FollowupLogged
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::Ready => matches!(
+                event.event_type,
+                SenaTicketEventType::ReadyMarked
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::EtaUpdated
+                    | SenaTicketEventType::FollowupLogged
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::FulfilledImmediate => {
+                event.event_type == SenaTicketEventType::FulfilledImmediate
+            }
+            _ => false,
+        },
+        SenaTicketFamily::Supplier => match event.stage {
+            SenaTicketStage::ToOrder => matches!(
+                event.event_type,
+                SenaTicketEventType::Created
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::OrderedWaiting => matches!(
+                event.event_type,
+                SenaTicketEventType::Created
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::EtaUpdated
+                    | SenaTicketEventType::FollowupLogged
+                    | SenaTicketEventType::PartialReceived
+                    | SenaTicketEventType::FullyReceived
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::PartialReceived => matches!(
+                event.event_type,
+                SenaTicketEventType::PartialReceived
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::EtaUpdated
+                    | SenaTicketEventType::FollowupLogged
+                    | SenaTicketEventType::FullyReceived
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::Received => matches!(
+                event.event_type,
+                SenaTicketEventType::FullyReceived
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+            ),
+            _ => false,
+        },
+        SenaTicketFamily::Adjustment => match event.stage {
+            SenaTicketStage::Draft => matches!(
+                event.event_type,
+                SenaTicketEventType::Created
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+                    | SenaTicketEventType::Canceled
+            ),
+            SenaTicketStage::Applied => matches!(
+                event.event_type,
+                SenaTicketEventType::Applied
+                    | SenaTicketEventType::Revised
+                    | SenaTicketEventType::NoteAdded
+            ),
+            _ => false,
+        },
+    };
+    if !valid {
+        return Err(anyhow!(
+            "ticketEvents[] family, stage, and eventType are incompatible"
+        ));
+    }
+    if event.ticket_family == SenaTicketFamily::Supplier
+        && event.lifecycle == SenaTicketLifecycle::Open
+        && event.stage == SenaTicketStage::Received
+    {
+        return Err(anyhow!(
+            "ticketEvents[] open supplier lifecycle cannot use received stage"
+        ));
+    }
+    if event.ticket_family == SenaTicketFamily::Supplier
+        && event.lifecycle == SenaTicketLifecycle::Open
+        && event.event_type == SenaTicketEventType::FullyReceived
+    {
+        return Err(anyhow!(
+            "ticketEvents[] open supplier lifecycle cannot use fully received eventType"
+        ));
+    }
+    if event.lifecycle == SenaTicketLifecycle::Canceled
+        && event.event_type != SenaTicketEventType::Canceled
+    {
+        return Err(anyhow!(
+            "ticketEvents[] canceled lifecycle requires canceled eventType"
+        ));
+    }
+    if event.event_type == SenaTicketEventType::Canceled
+        && event.lifecycle != SenaTicketLifecycle::Canceled
+    {
+        return Err(anyhow!(
+            "ticketEvents[] canceled eventType requires canceled lifecycle"
+        ));
+    }
+    Ok(())
+}
+
+fn validate_ticket_party_metadata(metadata: &SenaTicketPartyMetadata) -> Result<()> {
+    validate_non_empty("ticketEvents[].party.role", &metadata.role)?;
+    for (label, value) in [
+        (
+            "ticketEvents[].party.channelKey",
+            metadata.channel_key.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.channelLabel",
+            metadata.channel_label.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.customerName",
+            metadata.customer_name.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.customerNameKey",
+            metadata.customer_name_key.as_deref(),
+        ),
+        ("ticketEvents[].party.phone", metadata.phone.as_deref()),
+        (
+            "ticketEvents[].party.phoneKey",
+            metadata.phone_key.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.supplierName",
+            metadata.supplier_name.as_deref(),
+        ),
+    ] {
+        if let Some(value) = value {
+            validate_non_empty(label, value)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_ticket_line(line: &SenaTicketLine) -> Result<()> {
+    validate_identifier("ticketEvents[].lines[].entityId", &line.entity_id)?;
+    if let Some(quantity) = line.quantity_delta {
+        if !quantity.is_finite() {
+            return Err(anyhow!(
+                "ticketEvents[].lines[].quantityDelta must be finite"
+            ));
+        }
+    }
+    for (label, value) in [
+        (
+            "ticketEvents[].lines[].orderedQuantity",
+            line.ordered_quantity,
+        ),
+        (
+            "ticketEvents[].lines[].receivedQuantity",
+            line.received_quantity,
+        ),
+        ("ticketEvents[].lines[].unitCost", line.unit_cost),
+    ] {
+        if let Some(value) = value {
+            if !value.is_finite() || value < 0.0 {
+                return Err(anyhow!("{label} must be >= 0"));
+            }
+        }
+    }
+    if let Some(timestamp) = &line.promised_at {
+        validate_rfc3339("ticketEvents[].lines[].promisedAt", timestamp)?;
+    }
+    if let Some(timestamp) = &line.expected_arrival_at {
+        validate_rfc3339("ticketEvents[].lines[].expectedArrivalAt", timestamp)?;
+    }
+    if let Some(note) = &line.note {
+        validate_non_empty("ticketEvents[].lines[].note", note)?;
+    }
+    Ok(())
+}
+
+fn validate_rfc3339(label: &str, value: &str) -> Result<()> {
+    OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|err| anyhow!("{label} must be RFC3339: {err}"))?;
+    Ok(())
 }
 
 fn validate_delivery_fee_metadata(metadata: &SenaDeliveryFeeMetadata) -> Result<()> {
@@ -1235,9 +1468,11 @@ pub fn validate_non_empty(label: &str, value: &str) -> Result<()> {
 mod tests {
     use super::{
         SenaCatalog, SenaLeadTimeHint, SenaObservationInput, SenaService, SenaSku,
-        SenaStockSnapshot, SENA_SCHEMA_VERSION,
+        SenaStockSnapshot, SenaTicketEventType, SenaTicketFamily, SenaTicketLifecycle,
+        SenaTicketStage, SENA_SCHEMA_VERSION,
     };
     use crate::lead_time::SenaLeadTimeVariabilityClass;
+    use serde_json::{json, Value};
 
     #[test]
     fn catalog_validation_rejects_cross_type_id_overlap() {
@@ -1428,7 +1663,23 @@ mod tests {
                   "entityId": "sku-1",
                   "quantityDelta": 2
                 }],
-                "deliveryFee": null,
+                "deliveryFee": {
+                  "feeUsd": 2.5,
+                  "payer": "customer",
+                  "bucket": "customer_order",
+                  "subtotalUsd": 25,
+                  "displayDeliveryUsd": 2.5,
+                  "displayTotalUsd": 27.5,
+                  "netSettlementUsd": 27.5
+                },
+                "discount": {
+                  "mode": "amount",
+                  "amountUsd": 1.5,
+                  "percent": null,
+                  "subtotalUsd": 25,
+                  "displayDiscountUsd": 1.5,
+                  "discountedSubtotalUsd": 23.5
+                },
                 "note": null
               }],
               "notes": null
@@ -1437,6 +1688,225 @@ mod tests {
         .expect("observation should parse");
 
         observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_malformed_ticket_events() {
+        for (label, update, expected_error) in [
+            (
+                "blank ticket id",
+                json!({"ticketId": "   "}),
+                "ticketEvents[].ticketId must not be empty",
+            ),
+            (
+                "negative revision",
+                json!({"revision": -1}),
+                "ticketEvents[].revision must be >= 0",
+            ),
+            (
+                "bad occurred at",
+                json!({"occurredAt": "not-a-date"}),
+                "ticketEvents[].occurredAt must be RFC3339",
+            ),
+            (
+                "bad next touch at",
+                json!({"nextTouchAt": "not-a-date"}),
+                "ticketEvents[].nextTouchAt must be RFC3339",
+            ),
+            (
+                "blank party key",
+                json!({"party": {"customerNameKey": " "}}),
+                "ticketEvents[].party.customerNameKey must not be empty",
+            ),
+            (
+                "empty ticket lines",
+                json!({"lines": []}),
+                "ticketEvents[].lines must not be empty",
+            ),
+            (
+                "blank line entity",
+                json!({"lines": [{"entityType": "sku", "entityId": ""}]}),
+                "ticketEvents[].lines[].entityId must not be empty",
+            ),
+            (
+                "negative line quantity",
+                json!({"lines": [{"entityType": "sku", "entityId": "sku-1", "orderedQuantity": -1}]}),
+                "ticketEvents[].lines[].orderedQuantity must be >= 0",
+            ),
+            (
+                "bad line timestamp",
+                json!({"lines": [{"entityType": "sku", "entityId": "sku-1", "expectedArrivalAt": "tomorrow"}]}),
+                "ticketEvents[].lines[].expectedArrivalAt must be RFC3339",
+            ),
+            (
+                "negative nested delivery fee",
+                json!({"deliveryFee": {"feeUsd": -1}}),
+                "deliveryFee.feeUsd must be >= 0",
+            ),
+            (
+                "invalid nested discount",
+                json!({"discount": {"percent": 101}}),
+                "discount.percent must be between 0 and 100",
+            ),
+        ] {
+            let mut observation = valid_ticket_observation_value();
+            merge_json(&mut observation["ticketEvents"][0], update);
+            let observation = serde_json::from_value::<SenaObservationInput>(observation)
+                .unwrap_or_else(|err| panic!("{label} should deserialize: {err}"));
+
+            let error = observation
+                .validate()
+                .expect_err(&format!("{label} should fail validation"));
+            assert!(
+                error.to_string().contains(expected_error),
+                "{label} returned unexpected error: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn observation_validation_rejects_incompatible_ticket_state() {
+        for (label, family, lifecycle, stage, event_type, expected_error) in [
+            (
+                "customer cannot enter supplier stage",
+                SenaTicketFamily::Customer,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::OrderedWaiting,
+                SenaTicketEventType::Created,
+                "ticketEvents[] family, stage, and eventType are incompatible",
+            ),
+            (
+                "supplier cannot use customer fulfillment event",
+                SenaTicketFamily::Supplier,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::OrderedWaiting,
+                SenaTicketEventType::FulfilledImmediate,
+                "ticketEvents[] family, stage, and eventType are incompatible",
+            ),
+            (
+                "open supplier cannot use received stage",
+                SenaTicketFamily::Supplier,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::Received,
+                SenaTicketEventType::FullyReceived,
+                "ticketEvents[] open supplier lifecycle cannot use received stage",
+            ),
+            (
+                "open supplier cannot use fully received event",
+                SenaTicketFamily::Supplier,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::OrderedWaiting,
+                SenaTicketEventType::FullyReceived,
+                "ticketEvents[] open supplier lifecycle cannot use fully received eventType",
+            ),
+            (
+                "canceled lifecycle requires canceled event",
+                SenaTicketFamily::Customer,
+                SenaTicketLifecycle::Canceled,
+                SenaTicketStage::Pending,
+                SenaTicketEventType::Revised,
+                "ticketEvents[] canceled lifecycle requires canceled eventType",
+            ),
+            (
+                "canceled event requires canceled lifecycle",
+                SenaTicketFamily::Customer,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::Pending,
+                SenaTicketEventType::Canceled,
+                "ticketEvents[] canceled eventType requires canceled lifecycle",
+            ),
+        ] {
+            let mut observation = valid_ticket_observation_value();
+            observation["ticketEvents"][0]["ticketFamily"] = json!(family);
+            observation["ticketEvents"][0]["lifecycle"] = json!(lifecycle);
+            observation["ticketEvents"][0]["stage"] = json!(stage);
+            observation["ticketEvents"][0]["eventType"] = json!(event_type);
+            let observation = serde_json::from_value::<SenaObservationInput>(observation)
+                .unwrap_or_else(|err| panic!("{label} should deserialize: {err}"));
+
+            let error = observation
+                .validate()
+                .expect_err(&format!("{label} should fail validation"));
+            assert!(
+                error.to_string().contains(expected_error),
+                "{label} returned unexpected error: {error}"
+            );
+        }
+    }
+
+    fn valid_ticket_observation_value() -> Value {
+        json!({
+            "observedAt": "2026-04-03T00:00:00Z",
+            "stockSnapshot": [],
+            "ticketEvents": [{
+                "ticketId": "ticket:customer:1",
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": "pending",
+                "revision": 1,
+                "eventType": "created",
+                "occurredAt": "2026-04-03T00:00:00Z",
+                "nextTouchAt": "2026-04-04T00:00:00Z",
+                "party": {
+                    "role": "customer",
+                    "channelKey": "walk-in",
+                    "channelLabel": "Walk-in",
+                    "customerName": "Dara",
+                    "customerNameKey": "dara",
+                    "phone": "012345678",
+                    "phoneKey": "012345678",
+                    "supplierName": null
+                },
+                "lines": [{
+                    "entityType": "sku",
+                    "entityId": "sku-1",
+                    "quantityDelta": 2,
+                    "orderedQuantity": 2,
+                    "receivedQuantity": 0,
+                    "promisedAt": "2026-04-05T00:00:00Z",
+                    "expectedArrivalAt": "2026-04-06T00:00:00Z",
+                    "unitCost": 3.5,
+                    "note": "line note"
+                }],
+                "deliveryFee": {
+                    "feeUsd": 2.5,
+                    "payer": "customer",
+                    "bucket": "customer_order",
+                    "subtotalUsd": 25,
+                    "displayDeliveryUsd": 2.5,
+                    "displayTotalUsd": 27.5,
+                    "netSettlementUsd": 27.5
+                },
+                "discount": {
+                    "mode": "amount",
+                    "amountUsd": 1.5,
+                    "percent": null,
+                    "subtotalUsd": 25,
+                    "displayDiscountUsd": 1.5,
+                    "discountedSubtotalUsd": 23.5
+                },
+                "note": null
+            }],
+            "notes": null
+        })
+    }
+
+    fn merge_json(target: &mut Value, update: Value) {
+        match (target, update) {
+            (Value::Object(target), Value::Object(update)) => {
+                for (key, value) in update {
+                    match target.get_mut(&key) {
+                        Some(target_value) => merge_json(target_value, value),
+                        None => {
+                            target.insert(key, value);
+                        }
+                    }
+                }
+            }
+            (target, update) => {
+                *target = update;
+            }
+        }
     }
 
     #[test]

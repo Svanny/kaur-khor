@@ -13,7 +13,7 @@ use crate::{
         SenaTicketLifecycle, SenaTicketSummary, SenaUpdateOrderBatchPayload,
         SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
     },
-    PreprocessedWorkspace, SenaAnalysisCheckpoint,
+    PreprocessedWorkspace, SenaAnalysisCheckpoint, SenaEngineParameters,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -103,6 +103,7 @@ impl SqliteSenaRepository {
               summary_json TEXT,
               diagnostics_json TEXT,
               primary_artifact_key TEXT,
+              engine_parameters_json TEXT,
               error TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_sena_run_owner_created_at
@@ -232,6 +233,12 @@ impl SqliteSenaRepository {
             "sena_analysis_checkpoint",
             "payload_bytes",
             "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_bytes INTEGER",
+        )?;
+        ensure_column(
+            &connection,
+            "sena_run",
+            "engine_parameters_json",
+            "ALTER TABLE sena_run ADD COLUMN engine_parameters_json TEXT",
         )?;
         if previous_user_version < 3 {
             backfill_record_update_anchors_locked(&connection)?;
@@ -1014,11 +1021,60 @@ fn observation_fingerprint_locked(
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         )
         .optional()?;
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT observation_id, observed_at, payload
+        FROM sena_observation
+        WHERE owner_sub = ?1
+        ORDER BY observed_at ASC, observation_id ASC
+        "#,
+    )?;
+    let rows = stmt.query_map(params![owner_sub], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut fingerprint_rows = Vec::new();
+    for row in rows {
+        fingerprint_rows.push(row?);
+    }
     Ok(SenaObservationFingerprint {
         count,
         latest_observed_at: latest.as_ref().map(|row| row.0.clone()),
         latest_observation_id: latest.map(|row| row.1),
+        content_fingerprint: Some(crate::inference::fingerprint_value(&fingerprint_rows)?),
     })
+}
+
+fn assert_earliest_observation_has_stock_locked(
+    connection: &Connection,
+    owner_sub: &str,
+) -> Result<()> {
+    let payload = connection
+        .query_row(
+            r#"
+            SELECT payload
+            FROM sena_observation
+            WHERE owner_sub = ?1
+            ORDER BY observed_at ASC, observation_id ASC
+            LIMIT 1
+            "#,
+            params![owner_sub],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    let Some(payload) = payload else {
+        return Ok(());
+    };
+    let input: SenaObservationInput = serde_json::from_str(&payload)?;
+    if input.stock_snapshot.is_empty() {
+        return Err(anyhow!(
+            "earliest SENA observation must include at least one stock snapshot"
+        ));
+    }
+    Ok(())
 }
 
 fn merge_order_fields(
@@ -1057,10 +1113,7 @@ fn merge_order_fields(
             .delivery_fee
             .clone()
             .or_else(|| base.delivery_fee.clone()),
-        discount: overrides
-            .discount
-            .clone()
-            .or_else(|| base.discount.clone()),
+        discount: overrides.discount.clone().or_else(|| base.discount.clone()),
     }
 }
 
@@ -1556,11 +1609,12 @@ impl SenaRepository for SqliteSenaRepository {
             owner_sub: owner_sub.to_string(),
             input: observation.clone(),
         };
-        let connection = self
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        connection.execute(
+        let transaction = connection.transaction()?;
+        transaction.execute(
             "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
             params![
                 record.observation_id,
@@ -1570,12 +1624,14 @@ impl SenaRepository for SqliteSenaRepository {
             ],
         )?;
         upsert_record_update_anchors_for_observation_locked(
-            &connection,
+            &transaction,
             owner_sub,
             &record.observation_id,
             &record.input,
             &now_rfc3339(),
         )?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
+        transaction.commit()?;
         Ok(record)
     }
 
@@ -1608,6 +1664,7 @@ impl SenaRepository for SqliteSenaRepository {
             return Err(anyhow!("observation not found"));
         }
         rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
         transaction.commit()?;
         Ok(SenaObservationRecord {
             observation_id: observation_id.to_string(),
@@ -1630,6 +1687,7 @@ impl SenaRepository for SqliteSenaRepository {
             return Err(anyhow!("observation not found"));
         }
         rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
         transaction.commit()?;
         Ok(())
     }
@@ -2226,12 +2284,16 @@ impl SenaRepository for SqliteSenaRepository {
         &self,
         owner_sub: &str,
         algorithm_version: &str,
+        parameters: Option<&SenaEngineParameters>,
     ) -> Result<SenaAnalysisRunRecord> {
         let observations = self.list_observations(owner_sub).await?;
+        let engine_parameters =
+            parameters.map(|value| value.normalized_for_algorithm(algorithm_version));
         let record = SenaAnalysisRunRecord {
             run_id: Uuid::new_v4().to_string(),
             owner_sub: owner_sub.to_string(),
             algorithm_version: algorithm_version.to_string(),
+            engine_parameters,
             status: SenaRunStatus::Queued,
             observation_count: observations.len(),
             created_at: now_rfc3339(),
@@ -2248,8 +2310,9 @@ impl SenaRepository for SqliteSenaRepository {
         connection.execute(
             r#"
             INSERT INTO sena_run (
-              run_id, owner_sub, algorithm_version, status, observation_count, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+              run_id, owner_sub, algorithm_version, status, observation_count, created_at,
+              engine_parameters_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             "#,
             params![
                 record.run_id,
@@ -2258,6 +2321,11 @@ impl SenaRepository for SqliteSenaRepository {
                 "queued",
                 record.observation_count as i64,
                 record.created_at,
+                record
+                    .engine_parameters
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
             ],
         )?;
         Ok(record)
@@ -2272,7 +2340,8 @@ impl SenaRepository for SqliteSenaRepository {
             .query_row(
                 r#"
                 SELECT owner_sub, algorithm_version, status, observation_count, created_at, completed_at,
-                       summary_json, diagnostics_json, primary_artifact_key, error
+                       summary_json, diagnostics_json, primary_artifact_key, error,
+                       engine_parameters_json
                 FROM sena_run
                 WHERE run_id = ?1
                 "#,
@@ -2289,6 +2358,7 @@ impl SenaRepository for SqliteSenaRepository {
                         row.get::<_, Option<String>>(7)?,
                         row.get::<_, Option<String>>(8)?,
                         row.get::<_, Option<String>>(9)?,
+                        row.get::<_, Option<String>>(10)?,
                     ))
                 }
             )
@@ -2304,10 +2374,15 @@ impl SenaRepository for SqliteSenaRepository {
             .7
             .map(|value| serde_json::from_str(&value))
             .transpose()?;
+        let engine_parameters = row
+            .10
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?;
         Ok(Some(SenaAnalysisRunRecord {
             run_id: run_id.to_string(),
             owner_sub: row.0,
             algorithm_version: row.1,
+            engine_parameters,
             status: parse_run_status(&row.2),
             observation_count: row.3,
             created_at: row.4,
@@ -2852,10 +2927,10 @@ mod tests {
     use crate::{
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
         service::SenaRepository, PreprocessedWorkspace, SenaCatalog, SenaCreateOrderBatchPayload,
-        SenaLeadTimeHint, SenaObservationInput, SenaObservationPageRequest, SenaObservationRecord,
-        SenaOrderFieldValues, SenaOrderSignal, SenaService, SenaServicePriceObservation,
-        SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload, SenaStockSnapshot,
-        SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+        SenaEngineParameters, SenaLeadTimeHint, SenaObservationInput, SenaObservationPageRequest,
+        SenaObservationRecord, SenaOrderFieldValues, SenaOrderSignal, SenaService,
+        SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload,
+        SenaStockSnapshot, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
     };
     use futures::executor::block_on;
     use rusqlite::{params, OptionalExtension};
@@ -2961,6 +3036,12 @@ mod tests {
                 notes: None,
             },
         }
+    }
+
+    fn stockless_observation(observed_at: &str) -> SenaObservationInput {
+        let mut input = observation(observed_at, 0.0).input;
+        input.stock_snapshot.clear();
+        input
     }
 
     fn supplier_ticket_event(
@@ -3200,6 +3281,55 @@ mod tests {
             raw_observation_payload(&repo, &inserted.observation_id).as_deref(),
             Some(original_payload.as_str()),
             "failed invalid update should preserve the previous valid row",
+        );
+    }
+
+    #[test]
+    fn repository_rejects_stockless_earliest_observation() {
+        let path = temp_store_path("earliest-stock-invariant");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let error = block_on(
+            repo.insert_observation("owner", &stockless_observation("2026-04-01T00:00:00Z")),
+        )
+        .expect_err("stockless first observation should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert_eq!(stored_observation_count(&repo), 0);
+
+        let first = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("stock first observation should insert");
+        block_on(repo.insert_observation("owner", &stockless_observation("2026-04-02T00:00:00Z")))
+            .expect("later stockless observation should insert");
+        let original_payload = raw_observation_payload(&repo, &first.observation_id)
+            .expect("first payload should exist");
+
+        let error = block_on(repo.update_observation(
+            "owner",
+            &first.observation_id,
+            &stockless_observation("2026-04-01T00:00:00Z"),
+        ))
+        .expect_err("making earliest observation stockless should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert_eq!(
+            raw_observation_payload(&repo, &first.observation_id).as_deref(),
+            Some(original_payload.as_str()),
+            "rejected earliest-stock update should roll back",
+        );
+
+        let error = block_on(repo.delete_observation("owner", &first.observation_id))
+            .expect_err("deleting only stock-bearing earliest observation should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert!(
+            raw_observation_payload(&repo, &first.observation_id).is_some(),
+            "rejected earliest-stock delete should roll back",
         );
     }
 
@@ -3566,6 +3696,34 @@ mod tests {
             Some("2026-04-03T00:00:00Z")
         );
         assert_eq!(fingerprint.latest_observation_id.as_deref(), Some("obs-z"));
+    }
+
+    #[test]
+    fn observation_fingerprint_changes_when_older_payload_changes() {
+        let path = temp_store_path("observation-fingerprint-payload");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let older = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("older observation should insert");
+        block_on(
+            repo.insert_observation("owner", &observation("2026-04-02T00:00:00Z", 12.0).input),
+        )
+        .expect("latest observation should insert");
+        let before = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("fingerprint should load before update");
+
+        let mut updated = older.input.clone();
+        updated.notes = Some("older payload changed".to_string());
+        block_on(repo.update_observation("owner", &older.observation_id, &updated))
+            .expect("older observation should update");
+        let after = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("fingerprint should load after update");
+
+        assert_eq!(before.count, after.count);
+        assert_eq!(before.latest_observed_at, after.latest_observed_at);
+        assert_eq!(before.latest_observation_id, after.latest_observation_id);
+        assert_ne!(before.content_fingerprint, after.content_fingerprint);
     }
 
     #[test]
@@ -4007,7 +4165,7 @@ mod tests {
         current_service.activity_mean = 7.0;
         first.service_details = vec![stale_service, current_service.clone()];
 
-        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("first run should create");
         block_on(repo.persist_completed_run(&first_run.run_id, &first, None))
             .expect("first run should persist");
@@ -4025,7 +4183,7 @@ mod tests {
         let mut refreshed_service = current_service;
         refreshed_service.activity_mean = 11.0;
         second.service_details = vec![refreshed_service];
-        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("second run should create");
         block_on(repo.persist_completed_run(&second_run.run_id, &second, None))
             .expect("second run should persist");
@@ -4067,6 +4225,33 @@ mod tests {
             )
             .expect("stale service row count should load");
         assert_eq!(stale_service_rows, 0);
+    }
+
+    #[test]
+    fn run_parameters_round_trip_through_sqlite() {
+        let path = temp_store_path("run-parameters");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let parameters = SenaEngineParameters {
+            particle_count: 64,
+            target_service_level: 0.8,
+            recommendation_quantile: 0.7,
+            interval_low_quantile: 0.2,
+            interval_high_quantile: 0.8,
+            need_probability_gate: 0.4,
+            review_delay_days: 3.0,
+            smoothing_enabled: true,
+        };
+
+        let run = block_on(repo.create_run("owner", "sena-analysis-v3", Some(&parameters)))
+            .expect("run should create");
+        let loaded = block_on(repo.get_run(&run.run_id))
+            .expect("run should load")
+            .expect("run should exist");
+
+        assert_eq!(
+            loaded.engine_parameters,
+            Some(parameters.normalized_for_algorithm("sena-analysis-v3"))
+        );
     }
 
     #[test]

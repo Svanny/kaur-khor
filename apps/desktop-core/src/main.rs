@@ -289,7 +289,6 @@ fn handle_command_inner(command: &str, payload: Value) -> Result<Option<Value>> 
                 serde_json::from_value(payload).context("invalid sena.retryRun payload")?;
             Ok(Some(serde_json::to_value(store::retry_run(
                 &request.run_id,
-                "sena-analysis-v3",
             )?)?))
         }
         "sena.getWorkspaceSummary" => Ok(Some(serde_json::to_value(
@@ -468,6 +467,172 @@ mod tests {
     }
 
     #[test]
+    fn retry_run_uses_original_run_algorithm() {
+        with_temp_store("retry-run-original-algorithm", || {
+            handle_command_inner(
+                "sena.upsertCatalog",
+                serde_json::json!({
+                    "schemaVersion": 1,
+                    "skus": [{
+                        "skuId": "sku-1",
+                        "name": "Razor refill",
+                        "description": "Refill pack",
+                        "supplierName": null,
+                        "costPerUnit": 4.0,
+                        "soldAsProduct": true,
+                        "productPrice": 9.0,
+                        "leadTimeMeanDaysHint": 5.0,
+                        "leadTimeStdDaysHint": 1.0
+                    }],
+                    "services": [],
+                    "bundles": [],
+                    "sharingMask": []
+                }),
+            )
+            .expect("catalog should upsert");
+            for (observed_at, units_in_stock) in [
+                ("2026-04-02T00:00:00Z", 12.0),
+                ("2026-04-03T00:00:00Z", 10.0),
+            ] {
+                handle_command_inner(
+                    "sena.ingestObservation",
+                    serde_json::json!({
+                        "observedAt": observed_at,
+                        "stockSnapshot": [{
+                            "skuId": "sku-1",
+                            "unitsInStock": units_in_stock,
+                            "costPerUnit": 4.0,
+                            "productPrice": 9.0
+                        }],
+                        "retailSalesSnapshot": [],
+                        "serviceSalesSnapshot": [],
+                        "serviceRankings": [],
+                        "retailRankings": [],
+                        "serviceStockouts": [],
+                        "retailStockouts": [],
+                        "orderSignals": [],
+                        "servicePrices": [],
+                        "retailPrices": [],
+                        "leadTimeHints": [],
+                        "notes": null
+                    }),
+                )
+                .expect("observation should insert");
+            }
+
+            let completed = handle_command_inner(
+                "sena.triggerRun",
+                serde_json::json!({"algorithmVersion": "sena-analysis-v2"}),
+            )
+            .expect("v2 run should succeed")
+            .expect("v2 run should return a payload");
+            let run_id = completed["runId"]
+                .as_str()
+                .expect("completed run should have an id")
+                .to_string();
+            assert_eq!(completed["algorithmVersion"], "sena-analysis-v2");
+
+            let retried =
+                handle_command_inner("sena.retryRun", serde_json::json!({ "runId": run_id }))
+                    .expect("retry should succeed")
+                    .expect("retry should return a payload");
+            assert_eq!(retried["algorithmVersion"], "sena-analysis-v2");
+            assert_eq!(
+                retried["primaryArtifactKey"],
+                "sena-analysis/desktop-owner/sena-analysis-v2/posterior-draws"
+            );
+        });
+    }
+
+    #[test]
+    fn retry_run_uses_original_run_parameters() {
+        with_temp_store("retry-run-original-parameters", || {
+            handle_command_inner(
+                "sena.upsertCatalog",
+                serde_json::json!({
+                    "schemaVersion": 1,
+                    "skus": [{
+                        "skuId": "sku-1",
+                        "name": "Razor refill",
+                        "description": "Refill pack",
+                        "supplierName": null,
+                        "costPerUnit": 4.0,
+                        "soldAsProduct": true,
+                        "productPrice": 9.0,
+                        "leadTimeMeanDaysHint": 5.0,
+                        "leadTimeStdDaysHint": 1.0
+                    }],
+                    "services": [],
+                    "bundles": [],
+                    "sharingMask": []
+                }),
+            )
+            .expect("catalog should upsert");
+            for (observed_at, units_in_stock) in [
+                ("2026-04-02T00:00:00Z", 12.0),
+                ("2026-04-03T00:00:00Z", 10.0),
+            ] {
+                handle_command_inner(
+                    "sena.ingestObservation",
+                    serde_json::json!({
+                        "observedAt": observed_at,
+                        "stockSnapshot": [{
+                            "skuId": "sku-1",
+                            "unitsInStock": units_in_stock,
+                            "costPerUnit": 4.0,
+                            "productPrice": 9.0
+                        }],
+                        "retailSalesSnapshot": [],
+                        "serviceSalesSnapshot": [],
+                        "serviceRankings": [],
+                        "retailRankings": [],
+                        "serviceStockouts": [],
+                        "retailStockouts": [],
+                        "orderSignals": [],
+                        "servicePrices": [],
+                        "retailPrices": [],
+                        "leadTimeHints": [],
+                        "notes": null
+                    }),
+                )
+                .expect("observation should insert");
+            }
+
+            let completed = handle_command_inner(
+                "sena.triggerRun",
+                serde_json::json!({
+                    "algorithmVersion": "sena-analysis-v3",
+                    "parameters": {
+                        "particleCount": 64,
+                        "targetServiceLevel": 0.8,
+                        "recommendationQuantile": 0.7,
+                        "intervalLowQuantile": 0.2,
+                        "intervalHighQuantile": 0.8,
+                        "needProbabilityGate": 0.4,
+                        "reviewDelayDays": 3.0,
+                        "smoothingEnabled": true
+                    }
+                }),
+            )
+            .expect("parameterized run should succeed")
+            .expect("parameterized run should return a payload");
+            let run_id = completed["runId"]
+                .as_str()
+                .expect("completed run should have an id")
+                .to_string();
+            assert_eq!(completed["engineParameters"]["smoothingEnabled"], true);
+
+            let retried =
+                handle_command_inner("sena.retryRun", serde_json::json!({ "runId": run_id }))
+                    .expect("retry should succeed")
+                    .expect("retry should return a payload");
+            assert_eq!(retried["engineParameters"]["smoothingEnabled"], true);
+            assert_eq!(retried["engineParameters"]["particleCount"], 64);
+            assert_eq!(retried["diagnostics"]["smoothingEnabled"], true);
+        });
+    }
+
+    #[test]
     fn observation_page_and_record_update_context_commands_return_compact_reads() {
         with_temp_store("observation-page-context", || {
             handle_command_inner(
@@ -505,7 +670,10 @@ mod tests {
             .expect("page command should succeed")
             .expect("page should return a payload");
             assert_eq!(page["totalCount"], 1);
-            assert_eq!(page["observations"][0]["input"]["stockSnapshot"][0]["skuId"], "sku-1");
+            assert_eq!(
+                page["observations"][0]["input"]["stockSnapshot"][0]["skuId"],
+                "sku-1"
+            );
 
             let context = handle_command_inner("sena.getRecordUpdateContext", Value::Null)
                 .expect("context command should succeed")

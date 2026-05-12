@@ -237,6 +237,7 @@ function rewriteObservationInputForRenamedEntity(
     const leadTimeHints = input.leadTimeHints ?? [];
     const adjustmentSignals = input.adjustmentSignals ?? [];
     const commercialEvents = input.commercialEvents ?? [];
+    const ticketEvents = input.ticketEvents ?? [];
     const recipeUsageHints = input.recipeUsageHints ?? [];
     const hasChange =
       input.stockSnapshot.some((snapshot) => snapshot.skuId === payload.previousId) ||
@@ -248,6 +249,9 @@ function rewriteObservationInputForRenamedEntity(
       leadTimeHints.some((hint) => hint.skuId === payload.previousId) ||
       adjustmentSignals.some((signal) => signal.skuId === payload.previousId) ||
       commercialEvents.some((event) => event.entityType === 'sku' && event.entityId === payload.previousId) ||
+      ticketEvents.some((event) =>
+        event.lines.some((line) => line.entityType === 'sku' && line.entityId === payload.previousId),
+      ) ||
       recipeUsageHints.some((hint) => hint.skuId === payload.previousId);
     if (!hasChange) {
       return input;
@@ -279,6 +283,12 @@ function rewriteObservationInputForRenamedEntity(
           ? { ...event, entityId: nextId }
           : event,
       ),
+      ticketEvents: ticketEvents.map((event) => ({
+        ...event,
+        lines: event.lines.map((line) =>
+          line.entityType === 'sku' && line.entityId === payload.previousId ? { ...line, entityId: nextId } : line,
+        ),
+      })),
       recipeUsageHints: recipeUsageHints.map((hint) =>
         hint.skuId === payload.previousId ? { ...hint, skuId: nextId } : hint,
       ),
@@ -291,6 +301,7 @@ function rewriteObservationInputForRenamedEntity(
   const serviceStockouts = input.serviceStockouts ?? [];
   const servicePrices = input.servicePrices ?? [];
   const commercialEvents = input.commercialEvents ?? [];
+  const ticketEvents = input.ticketEvents ?? [];
   const recipeUsageHints = input.recipeUsageHints ?? [];
   const hasChange =
     serviceSalesSnapshot.some((snapshot) => snapshot.serviceId === payload.previousId) ||
@@ -298,6 +309,9 @@ function rewriteObservationInputForRenamedEntity(
     serviceStockouts.includes(payload.previousId) ||
     servicePrices.some((price) => price.serviceId === payload.previousId) ||
     commercialEvents.some((event) => event.entityType === 'service' && event.entityId === payload.previousId) ||
+    ticketEvents.some((event) =>
+      event.lines.some((line) => line.entityType === 'service' && line.entityId === payload.previousId),
+    ) ||
     recipeUsageHints.some((hint) => hint.serviceId === payload.previousId);
   if (!hasChange) {
     return input;
@@ -317,6 +331,12 @@ function rewriteObservationInputForRenamedEntity(
         ? { ...event, entityId: nextId }
         : event,
     ),
+    ticketEvents: ticketEvents.map((event) => ({
+      ...event,
+      lines: event.lines.map((line) =>
+        line.entityType === 'service' && line.entityId === payload.previousId ? { ...line, entityId: nextId } : line,
+      ),
+    })),
     recipeUsageHints: recipeUsageHints.map((hint) =>
       hint.serviceId === payload.previousId ? { ...hint, serviceId: nextId } : hint,
     ),
@@ -417,6 +437,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     },
     [clearLocalSenaDetailCache],
   );
+
+  const requireLoadedCatalog = (catalog: SenaCatalog | null, message: string) => {
+    if (!catalog) {
+      throw new Error(message);
+    }
+    return catalog;
+  };
 
   const syncPersistentSenaDetailCache = useCallback((workspaceSummary: SenaWorkspaceSummary | null) => {
     if (typeof window === 'undefined') {
@@ -656,7 +683,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       updateSenaMeta,
       upsertSenaCatalog: async (payload) =>
         withSaving(async () => {
-          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(payload));
+          const catalog = requireLoadedCatalog(
+            normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(payload)),
+            'Catalog save failed because the updated catalog could not be loaded.',
+          );
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
@@ -678,56 +708,147 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             payload.entityType === 'sku'
               ? upsertSenaSku(currentCatalog, payload.nextSku, payload.previousId)
               : upsertSenaService(currentCatalog, payload.nextService, payload.skuIds, payload.previousId);
-          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
 
           const [existingObservations, existingOrderBatches] = await Promise.all([
             window.kaurKhorDesktop.sena.listObservations(),
             window.kaurKhorDesktop.sena.listOrderBatches(),
           ]);
-          for (const observation of existingObservations) {
+          const observationUpdates = existingObservations.flatMap((observation) => {
             const nextInput = rewriteObservationInputForRenamedEntity(observation.input, payload);
-            if (nextInput !== observation.input) {
-              await window.kaurKhorDesktop.sena.updateObservation({
-                observationId: observation.observationId,
-                input: nextInput,
-              });
-            }
-          }
-          for (const batch of existingOrderBatches) {
+            return nextInput === observation.input
+              ? []
+              : [{
+                  observationId: observation.observationId,
+                  previousInput: observation.input,
+                  nextInput,
+                }];
+          });
+          const orderChildUpdates = existingOrderBatches.flatMap((batch) => {
             const nextBatch = rewriteOrderBatchForRenamedEntity(batch, payload);
-            if (nextBatch !== batch) {
-              for (const child of nextBatch.children) {
-                const original = batch.children.find((entry) => entry.childOrderId === child.childOrderId);
-                if (original && original.skuId !== child.skuId) {
-                  await window.kaurKhorDesktop.sena.updateOrderChild({
+            if (nextBatch === batch) {
+              return [];
+            }
+            return nextBatch.children.flatMap((child) => {
+              const original = batch.children.find((entry) => entry.childOrderId === child.childOrderId);
+              return original && original.skuId !== child.skuId
+                ? [{
                     childOrderId: child.childOrderId,
-                    skuId: child.skuId,
-                  });
-                }
+                    previousSkuId: original.skuId,
+                    nextSkuId: child.skuId,
+                  }]
+                : [];
+            });
+          });
+
+          const appliedObservationUpdates: typeof observationUpdates = [];
+          const appliedOrderChildUpdates: typeof orderChildUpdates = [];
+          let catalogCommitted = false;
+          let catalog: SenaCatalog;
+          try {
+            for (const update of observationUpdates) {
+              await window.kaurKhorDesktop.sena.updateObservation({
+                observationId: update.observationId,
+                input: update.nextInput,
+              });
+              appliedObservationUpdates.push(update);
+            }
+            for (const update of orderChildUpdates) {
+              await window.kaurKhorDesktop.sena.updateOrderChild({
+                childOrderId: update.childOrderId,
+                skuId: update.nextSkuId,
+              });
+              appliedOrderChildUpdates.push(update);
+            }
+            const normalizedCatalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
+            if (!normalizedCatalog) {
+              throw new Error('Catalog rename failed because the updated catalog could not be loaded.');
+            }
+            catalog = normalizedCatalog;
+            catalogCommitted = true;
+          } catch (error) {
+            const rollbackErrors: unknown[] = [];
+            if (catalogCommitted) {
+              try {
+                await window.kaurKhorDesktop.sena.upsertCatalog(currentCatalog);
+              } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
               }
             }
+            for (const update of [...appliedOrderChildUpdates].reverse()) {
+              try {
+                await window.kaurKhorDesktop.sena.updateOrderChild({
+                  childOrderId: update.childOrderId,
+                  skuId: update.previousSkuId,
+                });
+              } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
+              }
+            }
+            for (const update of [...appliedObservationUpdates].reverse()) {
+              try {
+                await window.kaurKhorDesktop.sena.updateObservation({
+                  observationId: update.observationId,
+                  input: update.previousInput,
+                });
+              } catch (rollbackError) {
+                rollbackErrors.push(rollbackError);
+              }
+            }
+            if (rollbackErrors.length > 0) {
+              throw new Error(
+                `Catalog rename failed and rollback was incomplete: ${
+                  error instanceof Error ? error.message : String(error)
+                }`,
+              );
+            }
+            throw error;
           }
 
-          const [observations, orderBatches] = await Promise.all([
-            window.kaurKhorDesktop.sena.listObservations(),
-            window.kaurKhorDesktop.sena.listOrderBatches(),
-          ]);
-          const run =
-            payload.previousId !== nextId
-              ? await window.kaurKhorDesktop.sena.triggerRun({
-                  algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
-                })
-              : null;
-          const [workspaceSummary, diagnostics] = await Promise.all([
-            window.kaurKhorDesktop.sena.getWorkspaceSummary(),
-            window.kaurKhorDesktop.sena.getDiagnostics(),
-          ]);
-
           invalidateSenaReads();
+          const fallbackObservations = existingObservations.map((observation) => {
+            const update = observationUpdates.find((entry) => entry.observationId === observation.observationId);
+            return update ? { ...observation, input: update.nextInput } : observation;
+          });
+          const fallbackOrderBatches = existingOrderBatches.map((batch) =>
+            rewriteOrderBatchForRenamedEntity(batch, payload),
+          );
+          let observations = fallbackObservations;
+          let orderBatches = fallbackOrderBatches;
+          let run: SenaAnalysisRunRecord | null = null;
+          let workspaceSummary = stateRef.current.workspaceSummary;
+          let diagnostics = stateRef.current.diagnostics;
+
+          try {
+            [observations, orderBatches] = await Promise.all([
+              window.kaurKhorDesktop.sena.listObservations(),
+              window.kaurKhorDesktop.sena.listOrderBatches(),
+            ]);
+          } catch (error) {
+            console.warn('[inventory] failed to refresh renamed catalog references after commit', error);
+          }
+          if (payload.previousId !== nextId) {
+            try {
+              run = await window.kaurKhorDesktop.sena.triggerRun({
+                algorithmVersion: stateRef.current.latestRun?.algorithmVersion ?? 'sena-analysis-v3',
+              });
+            } catch (error) {
+              console.warn('[inventory] failed to refresh SENA run after catalog rename', error);
+            }
+          }
+          try {
+            [workspaceSummary, diagnostics] = await Promise.all([
+              window.kaurKhorDesktop.sena.getWorkspaceSummary(),
+              window.kaurKhorDesktop.sena.getDiagnostics(),
+            ]);
+          } catch (error) {
+            console.warn('[inventory] failed to refresh workspace summary after catalog rename', error);
+          }
           await Promise.all([
             clearSenaDetailCache(payload.entityType, payload.previousId),
             ...(payload.previousId === nextId ? [] : [clearSenaDetailCache(payload.entityType, nextId)]),
-          ]);
+          ]).catch((error) => {
+            console.warn('[inventory] failed to clear detail cache after catalog rename', error);
+          });
           readCacheRef.current.set('sena:catalog', catalog);
           readCacheRef.current.set('sena:observations', observations);
           readCacheRef.current.set('sena:order-batches:{}', orderBatches);
@@ -763,7 +884,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             entityType === 'sku'
               ? archiveSenaSku(currentCatalog, entityId)
               : archiveSenaService(currentCatalog, entityId);
-          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = requireLoadedCatalog(
+            normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog)),
+            'Catalog archive failed because the updated catalog could not be loaded.',
+          );
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({
@@ -783,7 +907,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             entityType === 'sku'
               ? removeSenaSku(currentCatalog, entityId)
               : removeSenaService(currentCatalog, entityId);
-          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = requireLoadedCatalog(
+            normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog)),
+            'Catalog delete failed because the updated catalog could not be loaded.',
+          );
           invalidateSenaReads();
           await clearSenaDetailCache(entityType, entityId);
           readCacheRef.current.set('sena:catalog', catalog);
@@ -804,7 +931,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             entityType === 'sku'
               ? unarchiveSenaSku(currentCatalog, entityId)
               : unarchiveSenaService(currentCatalog, entityId);
-          const catalog = normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog));
+          const catalog = requireLoadedCatalog(
+            normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(nextCatalog)),
+            'Catalog restore failed because the updated catalog could not be loaded.',
+          );
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({

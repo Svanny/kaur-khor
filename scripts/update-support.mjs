@@ -59,8 +59,15 @@ export function preUpdateBackupName({ currentVersion, nextVersion, now = new Dat
 }
 
 export function resolveUpdateDataDirectory(explicitDataDir, targetOs = process.platform) {
+  if (typeof explicitDataDir === 'string' && explicitDataDir.trim().length > 0) {
+    const explicitPath = resolve(explicitDataDir);
+    if (!existsSync(explicitPath)) {
+      throw new Error(`Kaur Khor data directory was not found: ${explicitPath}`);
+    }
+    return explicitPath;
+  }
+
   const candidates = [
-    explicitDataDir,
     process.env.KAUR_KHOR_DESKTOP_DATA_DIR,
     defaultDataDirectoryForPlatform(targetOs),
   ].filter((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);
@@ -203,6 +210,7 @@ export async function prepareSourceBuildUpdate({
   nextVersion,
   noUninstall = false,
   prompt = true,
+  promptForBackupDirectory = promptForBackupDirectoryFromStdin,
   skipBackup = false,
   target,
 }) {
@@ -215,19 +223,31 @@ export async function prepareSourceBuildUpdate({
 
   let backupPath = null;
   if (!skipBackup) {
-    const resolvedBackupDir = backupDir ?? (prompt ? await promptForBackupDirectory() : null);
-    if (!resolvedBackupDir) {
+    let resolvedBackupDir = backupDir ?? null;
+    if (!resolvedBackupDir && prompt) {
+      const promptResult = await promptForBackupDirectory();
+      if (promptResult.action === 'skip') {
+        skipBackup = true;
+      } else {
+        resolvedBackupDir = promptResult.path;
+      }
+    }
+    if (!skipBackup && !resolvedBackupDir) {
       throw new Error('Update cancelled because no backup directory was selected.');
     }
-    backupPath = createPreUpdateBackup({
-      backupDir: resolvedBackupDir,
-      currentVersion: installed.version,
-      dataDir: resolvedDataDir,
-      nextVersion,
-    });
-    console.log(`Wrote pre-update snapshot export to ${backupPath}`);
-  } else {
-    console.log('Skipping pre-update snapshot export because --skip-backup was supplied.');
+    if (!skipBackup) {
+      backupPath = createPreUpdateBackup({
+        backupDir: resolvedBackupDir,
+        currentVersion: installed.version,
+        dataDir: resolvedDataDir,
+        nextVersion,
+      });
+      console.log(`Wrote pre-update snapshot export to ${backupPath}`);
+    }
+  }
+
+  if (skipBackup) {
+    console.log('Skipping pre-update snapshot export because backup was skipped.');
   }
 
   if (noUninstall) {
@@ -241,23 +261,27 @@ export async function prepareSourceBuildUpdate({
   };
 }
 
-async function promptForBackupDirectory() {
+export function parseBackupDirectoryPromptAnswer(answer) {
+  const trimmed = answer.trim();
+  if (/^cancel$/i.test(trimmed)) {
+    throw new Error('Update cancelled by user.');
+  }
+  if (/^skip$/i.test(trimmed)) {
+    return { action: 'skip' };
+  }
+  if (!trimmed) {
+    throw new Error('Update cancelled because no backup folder was entered.');
+  }
+  return { action: 'backup', path: trimmed };
+}
+
+async function promptForBackupDirectoryFromStdin() {
   const readline = createInterface({ input, output });
   try {
     const answer = await readline.question(
       'Choose a folder for the pre-update snapshot export, or type SKIP/CANCEL: ',
     );
-    const trimmed = answer.trim();
-    if (/^cancel$/i.test(trimmed)) {
-      throw new Error('Update cancelled by user.');
-    }
-    if (/^skip$/i.test(trimmed)) {
-      return null;
-    }
-    if (!trimmed) {
-      throw new Error('Update cancelled because no backup folder was entered.');
-    }
-    return trimmed;
+    return parseBackupDirectoryPromptAnswer(answer);
   } finally {
     readline.close();
   }

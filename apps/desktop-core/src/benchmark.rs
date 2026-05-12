@@ -123,7 +123,11 @@ where
     result
 }
 
-pub fn time_command<F>(command: &str, payload_summary: String, operation: F) -> Result<Option<Value>>
+pub fn time_command<F>(
+    command: &str,
+    payload_summary: String,
+    operation: F,
+) -> Result<Option<Value>>
 where
     F: FnOnce() -> Result<Option<Value>>,
 {

@@ -10,6 +10,7 @@ import type {
   SenaCatalog,
   SenaDiagnostics,
   SenaObservationFingerprint,
+  SenaOrderBatchRecord,
   SenaRecordUpdateContext,
   SenaObservationRecord,
   SenaSkuDetailPage,
@@ -762,6 +763,21 @@ describe('InventoryProvider', () => {
             variability: 0.2,
           },
         ],
+        ticketEvents: [
+          {
+            ticketId: 'customer-ticket-1',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'sku', entityId: 'sku-1', quantityDelta: -2 },
+              { entityType: 'service', entityId: 'service-1', quantityDelta: -1 },
+            ],
+          },
+        ],
       },
     };
     const renamedObservation: SenaObservationRecord = {
@@ -792,6 +808,21 @@ describe('InventoryProvider', () => {
             usageProbability: 0.5,
             typicalUnitsPerInstance: 1,
             variability: 0.2,
+          },
+        ],
+        ticketEvents: [
+          {
+            ticketId: 'customer-ticket-1',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'sku', entityId: 'sku-renamed', quantityDelta: -2 },
+              { entityType: 'service', entityId: 'service-1', quantityDelta: -1 },
+            ],
           },
         ],
       },
@@ -877,6 +908,7 @@ describe('InventoryProvider', () => {
             leadTimeHints: renamedObservation.input.leadTimeHints,
             adjustmentSignals: renamedObservation.input.adjustmentSignals,
             recipeUsageHints: renamedObservation.input.recipeUsageHints,
+            ticketEvents: renamedObservation.input.ticketEvents,
             retailSalesSnapshot: renamedObservation.input.retailSalesSnapshot,
           }),
         }),
@@ -894,6 +926,298 @@ describe('InventoryProvider', () => {
       expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');
       expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
       expect(screen.getByTestId('latest-run-id').textContent).toBe('run-2');
+    });
+  });
+
+  it('keeps renamed catalog state visible when post-commit run refresh and detail cache clearing fail', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const richObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const renamedObservation: SenaObservationRecord = {
+      ...richObservation,
+      input: {
+        ...richObservation.input,
+        stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const listObservations = vi
+      .fn()
+      .mockResolvedValueOnce([richObservation])
+      .mockResolvedValueOnce([renamedObservation]);
+
+    window.kaurKhorDesktop.sena.listObservations = listObservations;
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => {
+      throw new Error('run refresh failed');
+    });
+    window.kaurKhorDesktop.sena.clearDetailCache = vi.fn(async () => {
+      throw new Error('detail clear failed');
+    });
+
+    function RenamePostCommitFailureHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-id">{inventory.catalog?.skus[0]?.skuId ?? 'none'}</div>
+          <div data-testid="observation-sku">{inventory.observations[0]?.input.stockSnapshot[0]?.skuId ?? 'none'}</div>
+          <div data-testid="latest-run-id">{inventory.latestRun?.runId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'sku',
+                previousId: 'sku-1',
+                nextSku: {
+                  ...sampleCatalog.skus[0],
+                  skuId: 'sku-renamed',
+                },
+              })
+            }
+          >
+            rename sku
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenamePostCommitFailureHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-1');
+    });
+
+    fireEvent.click(screen.getByText('rename sku'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('observation-sku').textContent).toBe('sku-renamed');
+      expect(screen.getByTestId('latest-run-id').textContent).toBe('run-1');
+    });
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({ entityId: 'sku-1', entityType: 'sku' });
+    expect(window.kaurKhorDesktop.sena.clearDetailCache).toHaveBeenCalledWith({
+      entityId: 'sku-renamed',
+      entityType: 'sku',
+    });
+    warnSpy.mockRestore();
+  });
+
+  it('rolls back historical observation rewrites if catalog rename order-child rewrites fail', async () => {
+    const richObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        stockSnapshot: [{ skuId: 'sku-1', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+      },
+    };
+    const renamedInput = {
+      ...richObservation.input,
+      stockSnapshot: [{ skuId: 'sku-renamed', unitsInStock: 10, costPerUnit: 4, productPrice: 9 }],
+    };
+    const orderBatch: SenaOrderBatchRecord = {
+      batchOrderId: 'orders/2026/04/15/000000/test/0001',
+      ownerSub: 'desktop-owner',
+      supplierName: 'Test supplier',
+      status: 'open',
+      createdAt: '2026-04-15T00:00:00Z',
+      updatedAt: '2026-04-15T00:00:00Z',
+      shared: {
+        supplierName: 'Test supplier',
+        supplierNote: null,
+        orderedQuantity: null,
+        receivedQuantity: null,
+        costPerUnit: null,
+        expectedArrivalAt: null,
+        placementTimestamp: null,
+        receiptTimestamp: null,
+        leadTimeDaysHint: null,
+        leadTimeVariability: null,
+      },
+      children: [{
+        childOrderId: 'orders/2026/04/15/000000/test/0001/items/sku-1/0001',
+        skuId: 'sku-1',
+        status: 'open',
+        createdAt: '2026-04-15T00:00:00Z',
+        updatedAt: '2026-04-15T00:00:00Z',
+        inheritedFromBatch: true,
+        effective: {
+          supplierName: 'Test supplier',
+          supplierNote: null,
+          orderedQuantity: 4,
+          receivedQuantity: 0,
+          costPerUnit: 4,
+          expectedArrivalAt: null,
+          placementTimestamp: null,
+          receiptTimestamp: null,
+          leadTimeDaysHint: null,
+          leadTimeVariability: null,
+        },
+        overrides: {},
+      }],
+    };
+    const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
+    const updateOrderChild = vi.fn(async () => {
+      throw new Error('order child rewrite failed');
+    });
+
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [richObservation]);
+    window.kaurKhorDesktop.sena.listOrderBatches = vi.fn(async () => [orderBatch]);
+    window.kaurKhorDesktop.sena.updateObservation = updateObservation;
+    window.kaurKhorDesktop.sena.updateOrderChild = updateOrderChild;
+    window.kaurKhorDesktop.sena.upsertCatalog = vi.fn(async (payload: SenaCatalog) => payload);
+
+    function RenameFailureHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="sku-id">{inventory.catalog?.skus[0]?.skuId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'sku',
+                previousId: 'sku-1',
+                nextSku: {
+                  ...sampleCatalog.skus[0],
+                  skuId: 'sku-renamed',
+                },
+              }).catch(() => undefined)
+            }
+          >
+            rename sku
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenameFailureHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sku-id').textContent).toBe('sku-1');
+    });
+
+    fireEvent.click(screen.getByText('rename sku'));
+
+    await waitFor(() => {
+      expect(updateOrderChild).toHaveBeenCalledWith({
+        childOrderId: 'orders/2026/04/15/000000/test/0001/items/sku-1/0001',
+        skuId: 'sku-renamed',
+      });
+    });
+    expect(window.kaurKhorDesktop.sena.upsertCatalog).not.toHaveBeenCalled();
+    expect(updateObservation).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      observationId: 'obs-1',
+      input: expect.objectContaining({
+        stockSnapshot: renamedInput.stockSnapshot,
+      }),
+    }));
+    expect(updateObservation).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      observationId: 'obs-1',
+      input: expect.objectContaining({
+        stockSnapshot: richObservation.input.stockSnapshot,
+      }),
+    }));
+  });
+
+  it('renames a service and rewrites matching ticket event lines', async () => {
+    const serviceObservation: SenaObservationRecord = {
+      ...sampleObservation,
+      input: {
+        ...sampleObservation.input,
+        serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 3 }],
+        ticketEvents: [
+          {
+            ticketId: 'supplier-ticket-1',
+            ticketFamily: 'supplier',
+            lifecycle: 'open',
+            stage: 'ordered_waiting',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-02T00:00:00Z',
+            lines: [
+              { entityType: 'service', entityId: 'service-1', orderedQuantity: 2 },
+              { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 5 },
+            ],
+          },
+        ],
+      },
+    };
+    const updateObservation = vi.fn(async ({ input }) => ({ ...sampleObservation, input }));
+
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [serviceObservation]);
+    window.kaurKhorDesktop.sena.updateObservation = updateObservation;
+
+    function RenameServiceHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="service-id">{inventory.catalog?.services[0]?.serviceId ?? 'none'}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.renameCatalogEntity({
+                entityType: 'service',
+                previousId: 'service-1',
+                nextService: {
+                  ...sampleCatalog.services[0],
+                  serviceId: 'service-renamed',
+                },
+                skuIds: ['sku-1'],
+              })
+            }
+          >
+            rename service
+          </button>
+        </div>
+      );
+    }
+
+    render(
+      <InventoryProvider>
+        <RenameServiceHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('service-id').textContent).toBe('service-1');
+    });
+
+    fireEvent.click(screen.getByText('rename service'));
+
+    await waitFor(() => {
+      expect(updateObservation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          observationId: 'obs-1',
+          input: expect.objectContaining({
+            ticketEvents: [
+              {
+                ticketId: 'supplier-ticket-1',
+                ticketFamily: 'supplier',
+                lifecycle: 'open',
+                stage: 'ordered_waiting',
+                revision: 1,
+                eventType: 'created',
+                occurredAt: '2026-04-02T00:00:00Z',
+                lines: [
+                  { entityType: 'service', entityId: 'service-renamed', orderedQuantity: 2 },
+                  { entityType: 'sku', entityId: 'sku-1', orderedQuantity: 5 },
+                ],
+              },
+            ],
+          }),
+        }),
+      );
     });
   });
 });

@@ -73,6 +73,7 @@ pub trait SenaRepository {
         &self,
         owner_sub: &str,
         algorithm_version: &str,
+        parameters: Option<&SenaEngineParameters>,
     ) -> Result<SenaAnalysisRunRecord>;
     async fn get_run(&self, run_id: &str) -> Result<Option<SenaAnalysisRunRecord>>;
     async fn get_latest_run(&self, owner_sub: &str) -> Result<Option<SenaAnalysisRunRecord>>;
@@ -130,7 +131,17 @@ pub async fn trigger_analysis_run<R: SenaRepository>(
     owner_sub: &str,
     algorithm_version: &str,
 ) -> Result<SenaAnalysisRunRecord> {
-    repo.create_run(owner_sub, algorithm_version).await
+    repo.create_run(owner_sub, algorithm_version, None).await
+}
+
+pub async fn trigger_analysis_run_with_parameters<R: SenaRepository>(
+    repo: &R,
+    owner_sub: &str,
+    algorithm_version: &str,
+    parameters: Option<&SenaEngineParameters>,
+) -> Result<SenaAnalysisRunRecord> {
+    repo.create_run(owner_sub, algorithm_version, parameters)
+        .await
 }
 
 pub async fn execute_analysis_run<R: SenaRepository>(
@@ -185,6 +196,7 @@ pub async fn execute_analysis_run_with_parameters<R: SenaRepository>(
     };
     let normalized_parameters = parameters
         .cloned()
+        .or_else(|| run.engine_parameters.clone())
         .unwrap_or_else(|| SenaEngineParameters::for_algorithm(algorithm_version))
         .normalized_for_algorithm(algorithm_version);
     let should_reuse_checkpoints =
