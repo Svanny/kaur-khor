@@ -115,6 +115,263 @@ function phoneTabs(language: ReturnType<typeof usePreferences>['language']): Pho
   ];
 }
 
+const PHONE_CONTENT_BOTTOM_PADDING = 'calc(var(--embedded-phone-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem)';
+const phoneFocusClassName = 'focus:outline-none focus:ring-2 focus:ring-ring/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70';
+const phoneSurfaceClassName = 'rounded-[1rem] border border-border/70 bg-card/88 shadow-panel';
+const phoneActionClassName = cn(phoneFocusClassName, 'min-h-12 w-full justify-start rounded-[0.8rem] border-border/70 bg-card text-left text-sm shadow-xs');
+
+function PhonePage({
+  children,
+  slot,
+}: {
+  children: ReactNode;
+  slot: string;
+}) {
+  return (
+    <div className="grid min-w-0 gap-4" data-slot={slot}>
+      {children}
+    </div>
+  );
+}
+
+function PhonePageHeader({
+  eyebrow,
+  title,
+}: {
+  eyebrow: string;
+  title: string;
+}) {
+  return (
+    <header className="grid min-w-0 gap-1.5" data-slot="phone-page-header">
+      <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
+      <h1 className="khmer-safe-display text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground">{title}</h1>
+    </header>
+  );
+}
+
+function PhoneSurface({
+  children,
+  className,
+  slot = 'phone-surface',
+}: {
+  children: ReactNode;
+  className?: string;
+  slot?: string;
+}) {
+  return (
+    <section className={cn(phoneSurfaceClassName, 'min-w-0 overflow-hidden p-4', className)} data-slot={slot}>
+      {children}
+    </section>
+  );
+}
+
+function PhoneSection({
+  action,
+  children,
+  title,
+}: {
+  action?: ReactNode;
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="grid min-w-0 gap-2.5" data-slot="phone-section">
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <h2 className="khmer-safe-label min-w-0 text-base font-semibold text-foreground">{title}</h2>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function PhoneActionRow({
+  children,
+  className,
+  disabled,
+  icon,
+  onClick,
+  to,
+  variant = 'outline',
+}: {
+  children: ReactNode;
+  className?: string;
+  disabled?: boolean;
+  icon?: ReactNode;
+  onClick?: () => void;
+  to?: string;
+  variant?: Parameters<typeof Button>[0]['variant'];
+}) {
+  const content = (
+    <>
+      {icon}
+      <span className="min-w-0 whitespace-normal leading-5">{children}</span>
+    </>
+  );
+
+  if (to) {
+    return (
+      <Button asChild className={cn(phoneActionClassName, className)} variant={variant}>
+        <Link data-slot="phone-action-row" to={to}>
+          {content}
+        </Link>
+      </Button>
+    );
+  }
+
+  return (
+    <Button
+      className={cn(phoneActionClassName, className)}
+      data-slot="phone-action-row"
+      disabled={disabled}
+      type="button"
+      variant={variant}
+      onClick={onClick}
+    >
+      {content}
+    </Button>
+  );
+}
+
+function PhoneEmptyState({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn(phoneSurfaceClassName, 'px-4 py-6 text-center text-sm leading-6 text-muted-foreground')} data-slot="phone-empty-state">
+      {children}
+    </div>
+  );
+}
+
+function PhoneMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 rounded-[0.8rem] border border-border/70 bg-card/80 px-3 py-2.5" data-slot="phone-metric">
+      <p className="khmer-safe-eyebrow truncate text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function PhoneListItem({
+  actionLabel,
+  detail,
+  href,
+  icon,
+  label,
+  meta,
+  tone,
+}: {
+  actionLabel?: string;
+  detail?: string | null;
+  href: string;
+  icon?: ReactNode;
+  label: string;
+  meta: string;
+  tone?: Parameters<typeof statusPillClassName>[0];
+}) {
+  return (
+    <Link
+      className={cn(
+        phoneSurfaceClassName,
+        phoneFocusClassName,
+        'grid min-h-[4.75rem] min-w-0 gap-2 px-3.5 py-3 text-left transition-colors hover:bg-accent/20',
+      )}
+      data-slot="phone-list-item"
+      to={href}
+    >
+      <span className="flex min-w-0 items-start gap-3">
+        {icon ? (
+          <span className="grid size-10 shrink-0 place-items-center rounded-[0.8rem] bg-secondary text-secondary-foreground" data-slot="phone-list-item-icon">
+            {icon}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1">
+          <span className="block overflow-hidden text-ellipsis text-base font-semibold leading-5 text-foreground">{label}</span>
+          <span className="mt-1 block overflow-hidden text-ellipsis text-sm leading-5 text-muted-foreground">{meta}</span>
+        </span>
+        {actionLabel ? (
+          <span className={cn('max-w-[8.5rem] shrink-0 rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold leading-4', tone ? statusPillClassName(tone) : 'border-border bg-secondary text-secondary-foreground')}>
+            <span className="line-clamp-2">{actionLabel}</span>
+          </span>
+        ) : null}
+      </span>
+      {detail ? <span className="line-clamp-2 text-sm leading-5 text-muted-foreground">{detail}</span> : null}
+    </Link>
+  );
+}
+
+function PhoneSegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Array<{
+    icon: ReactNode;
+    label: string;
+    value: T;
+  }>;
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-2 rounded-[1rem] border border-border/70 bg-card/90 p-1" data-slot="phone-segmented-control">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          aria-pressed={value === option.value}
+          className={cn(
+            phoneFocusClassName,
+            'flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-[0.8rem] px-3 text-sm font-semibold transition-colors',
+            value === option.value ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:bg-accent/40',
+          )}
+          data-slot="phone-segmented-control-option"
+          type="button"
+          onClick={() => onChange(option.value)}
+        >
+          {option.icon}
+          <span className="min-w-0 truncate">{option.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PhoneBottomNavItem({
+  active,
+  tab,
+}: {
+  active: boolean;
+  tab: PhoneTab;
+}) {
+  const Icon = tab.icon;
+
+  return (
+    <Link
+      key={tab.id}
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        phoneFocusClassName,
+        'flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-[0.8rem] px-1 text-[0.68rem] font-semibold transition-colors',
+        active ? 'bg-primary text-primary-foreground shadow-xs' : 'text-muted-foreground hover:bg-accent/40',
+      )}
+      data-phone-tab={tab.id}
+      data-slot="phone-bottom-nav-item"
+      to={tab.href}
+    >
+      <Icon aria-hidden="true" className="size-4" />
+      <span className="khmer-safe-label max-w-full truncate">{tab.label}</span>
+    </Link>
+  );
+}
+
 function usePhoneModels() {
   const inventory = useInventory();
   const automation = useAutomation();
@@ -168,41 +425,6 @@ function phoneSupplierTaskHref(task: OverviewTask) {
   return RECORD_UPDATE_HUB_PATH;
 }
 
-function PhoneMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: ReactNode;
-}) {
-  return (
-    <div className="rounded-[8px] border border-[#d8e1db] bg-white px-3 py-2.5">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold leading-tight text-foreground">{value}</p>
-    </div>
-  );
-}
-
-function PhoneSection({
-  action,
-  children,
-  title,
-}: {
-  action?: ReactNode;
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <section className="grid gap-3" data-slot="phone-section">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
 function PhoneTaskCard({
   actionLabel,
   detail,
@@ -219,21 +441,14 @@ function PhoneTaskCard({
   tone: Parameters<typeof statusPillClassName>[0];
 }) {
   return (
-    <Link
-      className="grid min-h-28 gap-3 rounded-[8px] border border-[#d8e1db] bg-white px-4 py-3 text-left shadow-[0_8px_24px_rgba(21,47,43,0.06)] transition-colors hover:bg-[#eef6f3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#145b57]/70"
-      to={href}
-    >
-      <span className="flex min-w-0 items-start justify-between gap-3">
-        <span className="min-w-0">
-          <span className="block truncate text-base font-semibold text-foreground">{label}</span>
-          <span className="mt-1 block text-sm leading-5 text-muted-foreground">{meta}</span>
-        </span>
-        <span className={cn('shrink-0 rounded-full border px-2.5 py-1 text-[0.68rem] font-semibold', statusPillClassName(tone))}>
-          {actionLabel}
-        </span>
-      </span>
-      {detail ? <span className="text-sm leading-5 text-muted-foreground">{detail}</span> : null}
-    </Link>
+    <PhoneListItem
+      actionLabel={actionLabel}
+      detail={detail}
+      href={href}
+      label={label}
+      meta={meta}
+      tone={tone}
+    />
   );
 }
 
@@ -263,22 +478,26 @@ function PhoneTodayRoute() {
   const nextAction = topSupplierTask?.actionLabel ?? topCustomerTask?.actionLabel ?? translateUiLiteral(language, 'Start update');
 
   return (
-    <div className="grid gap-5">
-      <section className="relative overflow-hidden rounded-[8px] border border-[#145b57]/20 bg-[#123c3a] px-5 py-5 text-white">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8ee0d2]">{translateUiLiteral(language, 'Next move')}</p>
-        <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-normal text-white">{nextLabel}</h1>
-        <p className="mt-3 text-sm leading-6 text-[#d8ebe8]">
+    <PhonePage slot="phone-today-page">
+      <PhoneSurface className="grid gap-4 bg-foreground text-background" slot="phone-next-move">
+        <div className="min-w-0">
+          <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary">{translateUiLiteral(language, 'Next move')}</p>
+          <h1 className="khmer-safe-display mt-2 line-clamp-3 text-[1.85rem] font-semibold leading-[1.08] tracking-normal text-background" data-slot="phone-primary-title">
+            {nextLabel}
+          </h1>
+        </div>
+        <p className="line-clamp-3 text-sm leading-6 text-background/80">
           {topSupplierTask?.whyNow ?? topCustomerTask?.whyNow ?? translateUiLiteral(language, 'Use phone mode for the next floor decision, then move back to desktop for deep analysis.')}
         </p>
-        <Button asChild className="mt-5 min-h-11 w-full justify-center rounded-[8px] border-0 bg-[#e4b363] text-[#21170d] hover:bg-[#dca24b]">
+        <Button asChild className={cn(phoneFocusClassName, 'min-h-12 w-full justify-center rounded-[0.8rem] bg-primary text-primary-foreground hover:bg-primary/90')} data-slot="phone-primary-action">
           <Link to={nextHref}>
             <ActionOpenExternalIcon data-icon="inline-start" />
-            {nextAction}
+            <span className="min-w-0 whitespace-normal leading-5">{nextAction}</span>
           </Link>
         </Button>
-      </section>
+      </PhoneSurface>
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid min-w-0 grid-cols-3 gap-2" data-slot="phone-metric-strip">
         <PhoneMetric label={translateUiLiteral(language, 'Queue')} value={supplier.tasks.length + customer.tasks.length} />
         <PhoneMetric label={translateUiLiteral(language, 'Products')} value={productCount} />
         <PhoneMetric label={translateUiLiteral(language, 'Updates')} value={updateCount} />
@@ -286,21 +505,22 @@ function PhoneTodayRoute() {
 
       <PhoneSection
         title={translateUiLiteral(language, 'Fast paths')}
-        action={<Link className="text-sm font-medium text-primary" to={buildRememberedInboxHref()}>{translateUiLiteral(language, 'Queue')}</Link>}
+        action={
+          <Link
+            className={cn(phoneFocusClassName, 'inline-flex min-h-11 items-center rounded-[0.8rem] px-3 text-sm font-medium text-primary hover:bg-accent/30')}
+            to={buildRememberedInboxHref()}
+          >
+            {translateUiLiteral(language, 'Queue')}
+          </Link>
+        }
       >
         <div className="grid gap-2">
-          <Button asChild className="min-h-12 justify-start rounded-[8px] border-[#d8e1db] bg-white" variant="outline">
-            <Link to={RECORD_UPDATE_HUB_PATH}>
-              <ActionCreatePackageIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'Capture update')}
-            </Link>
-          </Button>
-          <Button asChild className="min-h-12 justify-start rounded-[8px] border-[#d8e1db] bg-white" variant="outline">
-            <Link to={buildRememberedCatalogHref()}>
-              <NavigationCatalogIcon data-icon="inline-start" />
-              {translateUiLiteral(language, 'Open products')}
-            </Link>
-          </Button>
+          <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={RECORD_UPDATE_HUB_PATH}>
+            {translateUiLiteral(language, 'Capture update')}
+          </PhoneActionRow>
+          <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={buildRememberedCatalogHref()}>
+            {translateUiLiteral(language, 'Open products')}
+          </PhoneActionRow>
         </div>
       </PhoneSection>
 
@@ -332,13 +552,13 @@ function PhoneTodayRoute() {
               ))}
             </>
           ) : (
-            <p className="rounded-[8px] border border-[#d8e1db] bg-white px-4 py-5 text-sm leading-6 text-muted-foreground">
+            <PhoneEmptyState>
               {translateUiLiteral(language, 'No urgent queue items. Capture a fresh update when the floor changes.')}
-            </p>
+            </PhoneEmptyState>
           )}
         </div>
       </PhoneSection>
-    </div>
+    </PhonePage>
   );
 }
 
@@ -349,32 +569,27 @@ function PhoneQueueRoute() {
   const tasks = scope === 'supplier' ? supplier.tasks : customer.tasks;
 
   return (
-    <div className="grid gap-4">
-      <header className="grid gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{translateUiLiteral(language, 'Queue')}</p>
-        <h1 className="text-3xl font-semibold leading-tight tracking-normal">{translateUiLiteral(language, 'Work that needs a decision')}</h1>
-      </header>
-      <div className="grid grid-cols-2 gap-2 rounded-[8px] border border-[#d8e1db] bg-white p-1">
-        {(['supplier', 'customer'] as const).map((nextScope) => (
-          (() => {
-            const ScopeIcon = nextScope === 'supplier' ? EntityTransitIcon : EntityCustomerIcon;
-            return (
-              <button
-                key={nextScope}
-                className={cn(
-                  'flex min-h-11 items-center justify-center gap-2 rounded-[8px] px-3 text-sm font-semibold transition-colors',
-                  scope === nextScope ? 'bg-[#123c3a] text-white' : 'text-muted-foreground',
-                )}
-                type="button"
-                onClick={() => setScope(nextScope)}
-              >
-                <ScopeIcon aria-hidden="true" className="size-4" data-icon="inline-start" />
-                {translateUiLiteral(language, nextScope === 'supplier' ? 'Supplier' : 'Customer')}
-              </button>
-            );
-          })()
-        ))}
-      </div>
+    <PhonePage slot="phone-queue-page">
+      <PhonePageHeader
+        eyebrow={translateUiLiteral(language, 'Queue')}
+        title={translateUiLiteral(language, 'Work that needs a decision')}
+      />
+      <PhoneSegmentedControl
+        value={scope}
+        options={[
+          {
+            icon: <EntityTransitIcon aria-hidden="true" className="size-4" data-icon="inline-start" />,
+            label: translateUiLiteral(language, 'Supplier'),
+            value: 'supplier',
+          },
+          {
+            icon: <EntityCustomerIcon aria-hidden="true" className="size-4" data-icon="inline-start" />,
+            label: translateUiLiteral(language, 'Customer'),
+            value: 'customer',
+          },
+        ]}
+        onChange={setScope}
+      />
       <div className="grid gap-3">
         {tasks.length > 0 ? tasks.slice(0, 12).map((task) => (
           scope === 'supplier' ? (
@@ -405,12 +620,12 @@ function PhoneQueueRoute() {
             />
           )
         )) : (
-          <p className="rounded-[8px] border border-[#d8e1db] bg-white px-4 py-8 text-center text-sm leading-6 text-muted-foreground">
+          <PhoneEmptyState>
             {translateUiLiteral(language, 'No queue items match this phone view.')}
-          </p>
+          </PhoneEmptyState>
         )}
       </div>
-    </div>
+    </PhonePage>
   );
 }
 
@@ -418,15 +633,17 @@ function PhoneCaptureRoute() {
   const { language } = usePreferences();
 
   return (
-    <div className="grid gap-4">
-      <header className="grid gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{translateUiLiteral(language, 'Capture')}</p>
-        <h1 className="text-3xl font-semibold leading-tight tracking-normal">{translateUiLiteral(language, 'Record what changed')}</h1>
-      </header>
-      <Suspense fallback={null}>
-        <RecordUpdateHubRoute embedded />
-      </Suspense>
-    </div>
+    <PhonePage slot="phone-capture-page">
+      <PhonePageHeader
+        eyebrow={translateUiLiteral(language, 'Capture')}
+        title={translateUiLiteral(language, 'Record what changed')}
+      />
+      <div className="min-w-0 overflow-x-auto overscroll-contain rounded-[1rem]" data-slot="phone-capture-surface">
+        <Suspense fallback={null}>
+          <RecordUpdateHubRoute embedded />
+        </Suspense>
+      </div>
+    </PhonePage>
   );
 }
 
@@ -457,16 +674,17 @@ function PhoneProductsRoute() {
   );
 
   return (
-    <div className="grid gap-4">
-      <header className="grid gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{translateUiLiteral(language, 'Products')}</p>
-        <h1 className="text-3xl font-semibold leading-tight tracking-normal">{translateUiLiteral(language, 'Look up a sellable')}</h1>
-      </header>
+    <PhonePage slot="phone-products-page">
+      <PhonePageHeader
+        eyebrow={translateUiLiteral(language, 'Products')}
+        title={translateUiLiteral(language, 'Look up a sellable')}
+      />
       <label className="relative block">
         <ActionSearchIcon aria-hidden="true" className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           aria-label={translateUiLiteral(language, 'Search products')}
-          className="h-12 rounded-[8px] border-[#d8e1db] bg-white pl-9 focus-visible:ring-[#145b57]/70"
+          className="h-12 rounded-[0.8rem] border-border/70 bg-card pl-9 shadow-xs focus-visible:ring-ring/70"
+          data-slot="phone-products-search"
           placeholder={translateUiLiteral(language, 'Search products')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -476,28 +694,21 @@ function PhoneProductsRoute() {
         {products.length > 0 ? products.slice(0, 24).map((item) => {
           const Icon = item.type === 'sku' ? EntitySkuIcon : EntityServiceIcon;
           return (
-            <Link
+            <PhoneListItem
               key={item.id}
-              className="flex min-h-16 items-center gap-3 rounded-[8px] border border-[#d8e1db] bg-white px-4 py-3 shadow-[0_8px_24px_rgba(21,47,43,0.05)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#145b57]/70"
-              to={item.href}
-            >
-              <span className="grid size-10 shrink-0 place-items-center rounded-[8px] bg-[#dff4ee] text-[#145b57]">
-                <Icon aria-hidden="true" className="size-5" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-base font-semibold text-foreground">{item.name}</span>
-                <span className="block truncate text-sm text-muted-foreground">{item.meta}</span>
-              </span>
-              <ActionOpenExternalIcon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-            </Link>
+              href={item.href}
+              icon={<Icon aria-hidden="true" className="size-5" />}
+              label={item.name}
+              meta={item.meta}
+            />
           );
         }) : (
-          <p className="rounded-[8px] border border-[#d8e1db] bg-white px-4 py-8 text-center text-sm leading-6 text-muted-foreground">
+          <PhoneEmptyState>
             {translateUiLiteral(language, 'No products match this search.')}
-          </p>
+          </PhoneEmptyState>
         )}
       </div>
-    </div>
+    </PhonePage>
   );
 }
 
@@ -513,14 +724,14 @@ function PhoneMoreRoute({
   const ready = storage.status === 'ready';
 
   return (
-    <div className="grid gap-5">
-      <header className="grid gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{translateUiLiteral(language, 'More')}</p>
-        <h1 className="text-3xl font-semibold leading-tight tracking-normal">{translateUiLiteral(language, 'Workspace safety')}</h1>
-      </header>
-      <section className="grid gap-3 rounded-[8px] border border-[#d8e1db] bg-white px-4 py-4">
+    <PhonePage slot="phone-more-page">
+      <PhonePageHeader
+        eyebrow={translateUiLiteral(language, 'More')}
+        title={translateUiLiteral(language, 'Workspace safety')}
+      />
+      <PhoneSurface className="grid gap-3" slot="phone-workspace-safety">
         <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-[8px] bg-amber-100 text-amber-950">
+          <span className="grid size-10 shrink-0 place-items-center rounded-[0.8rem] bg-secondary text-secondary-foreground">
             <StatusWarningIcon aria-hidden="true" className="size-5" />
           </span>
           <div className="min-w-0">
@@ -538,18 +749,15 @@ function PhoneMoreRoute({
           </div>
         </div>
         <div className="grid gap-2">
-          <Button className="min-h-11 justify-start rounded-[8px]" disabled={!ready} type="button" variant="outline" onClick={onExport}>
-            <ActionExportIcon data-icon="inline-start" />
+          <PhoneActionRow disabled={!ready} icon={<ActionExportIcon data-icon="inline-start" />} onClick={onExport}>
             {translateUiLiteral(language, 'Export backup')}
-          </Button>
-          <Button className="min-h-11 justify-start rounded-[8px]" disabled={!ready} type="button" variant="outline" onClick={() => importInputRef.current?.click()}>
-            <ActionDatabaseUploadIcon data-icon="inline-start" />
+          </PhoneActionRow>
+          <PhoneActionRow disabled={!ready} icon={<ActionDatabaseUploadIcon data-icon="inline-start" />} onClick={() => importInputRef.current?.click()}>
             {translateUiLiteral(language, 'Import backup')}
-          </Button>
-          <Button className="min-h-11 justify-start rounded-[8px]" type="button" variant="outline" onClick={onReset}>
-            <ActionResetIcon data-icon="inline-start" />
+          </PhoneActionRow>
+          <PhoneActionRow className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" icon={<ActionResetIcon data-icon="inline-start" />} onClick={onReset}>
             {translateUiLiteral(language, mode === 'demo' ? 'Reset demo' : 'Reset workspace')}
-          </Button>
+          </PhoneActionRow>
           <input
             ref={importInputRef}
             accept=".json,application/json"
@@ -564,22 +772,16 @@ function PhoneMoreRoute({
             }}
           />
         </div>
-      </section>
+      </PhoneSurface>
       <section className="grid gap-2">
-        <Button asChild className="min-h-11 justify-start rounded-[8px]" variant="outline">
-          <Link to="/settings">
-            <NavigationListIcon data-icon="inline-start" />
-            {translateUiLiteral(language, 'Settings and help')}
-          </Link>
-        </Button>
-        <Button asChild className="min-h-11 justify-start rounded-[8px]" variant="outline">
-          <Link to="/insights">
-            <StatusInsightIcon data-icon="inline-start" />
-            {translateUiLiteral(language, 'Lightweight insights')}
-          </Link>
-        </Button>
+        <PhoneActionRow icon={<NavigationListIcon data-icon="inline-start" />} to="/settings">
+          {translateUiLiteral(language, 'Settings and help')}
+        </PhoneActionRow>
+        <PhoneActionRow icon={<StatusInsightIcon data-icon="inline-start" />} to="/insights">
+          {translateUiLiteral(language, 'Lightweight insights')}
+        </PhoneActionRow>
       </section>
-    </div>
+    </PhonePage>
   );
 }
 
@@ -587,9 +789,9 @@ function PhoneWideOnlyRoute() {
   const { language } = usePreferences();
 
   return (
-    <div className="grid min-h-[60svh] place-items-center px-2">
-      <section className="grid gap-4 rounded-[8px] border border-[#d8e1db] bg-white px-5 py-6 text-center">
-        <StatusInsightIcon aria-hidden="true" className="mx-auto size-10 text-[#145b57]" />
+    <div className="grid min-h-[60dvh] place-items-center px-1" data-slot="phone-wide-only-page">
+      <PhoneSurface className="grid gap-4 px-5 py-6 text-center">
+        <StatusInsightIcon aria-hidden="true" className="mx-auto size-10 text-primary" />
         <div>
           <h1 className="text-2xl font-semibold tracking-normal text-foreground">
             {translateUiLiteral(language, 'Use a wider view for deep analysis')}
@@ -598,13 +800,13 @@ function PhoneWideOnlyRoute() {
             {translateUiLiteral(language, 'Phone mode keeps floor decisions fast. Open the desktop app or a wider browser window for full charts, settings, and analysis workspaces.')}
           </p>
         </div>
-        <Button asChild className="min-h-11 rounded-[8px] bg-[#123c3a] text-white hover:bg-[#145b57]">
+        <Button asChild className="min-h-12 rounded-[0.8rem]">
           <Link to={buildRememberedInboxHref()}>
             <NavigationTaskListIcon data-icon="inline-start" />
             {translateUiLiteral(language, 'Back to queue')}
           </Link>
         </Button>
-      </section>
+      </PhoneSurface>
     </div>
   );
 }
@@ -616,7 +818,7 @@ function PhoneChrome({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="min-h-svh bg-[#f6f8f5] text-foreground"
+      className="min-h-dvh overscroll-contain bg-background text-foreground [--embedded-phone-bottom-nav-height:5.5rem]"
       data-language={language}
       data-slot="embedded-phone-shell"
       lang={language === 'km' ? 'km' : 'en'}
@@ -627,13 +829,13 @@ function PhoneChrome({ children }: { children: ReactNode }) {
       >
         {translateUiLiteral(language, 'Skip to content')}
       </a>
-      <header className="sticky top-0 z-30 border-b border-[#d8e1db] bg-[#f6f8f5]/95 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur">
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#8a5635]">KAUR KHOR</p>
+            <p className="khmer-safe-eyebrow text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-primary">KAUR KHOR</p>
             <p className="truncate text-sm font-medium text-muted-foreground">{translateUiLiteral(language, 'Phone operator mode')}</p>
           </div>
-          <Button asChild className="size-10 rounded-[8px] border-[#d8e1db] bg-white" size="icon" variant="outline">
+          <Button asChild className="size-11 rounded-[0.8rem] border-border/70 bg-card" size="icon" variant="outline">
             <Link aria-label={translateUiLiteral(language, 'Capture')} to={RECORD_UPDATE_HUB_PATH}>
               <ActionCreatePackageIcon aria-hidden="true" className="size-4" />
             </Link>
@@ -642,34 +844,21 @@ function PhoneChrome({ children }: { children: ReactNode }) {
       </header>
       <main
         id="main-content"
-        className="px-4 pt-4 pb-[calc(5.75rem+env(safe-area-inset-bottom))]"
+        className="min-w-0 overflow-x-hidden px-4 pt-4"
         data-slot="embedded-phone-main"
+        style={{ paddingBottom: PHONE_CONTENT_BOTTOM_PADDING }}
       >
         {children}
       </main>
       <nav
         aria-label={translateUiLiteral(language, 'Phone navigation')}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-[#d8e1db] bg-[#f6f8f5]/96 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-12px_30px_rgba(21,47,43,0.10)] backdrop-blur"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-12px_30px_rgba(27,15,7,0.10)] backdrop-blur"
         data-slot="embedded-phone-bottom-nav"
       >
         <div className="grid grid-cols-5 gap-1">
           {tabs.map((tab) => {
             const active = tab.matches(location.pathname);
-            const Icon = tab.icon;
-            return (
-              <Link
-                key={tab.id}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'flex min-h-14 flex-col items-center justify-center gap-1 rounded-[8px] px-1 text-[0.68rem] font-semibold transition-colors',
-                  active ? 'bg-[#123c3a] text-white' : 'text-muted-foreground hover:bg-[#eef6f3]',
-                )}
-                to={tab.href}
-              >
-                <Icon aria-hidden="true" className="size-4" />
-                <span className="max-w-full truncate">{tab.label}</span>
-              </Link>
-            );
+            return <PhoneBottomNavItem key={tab.id} active={active} tab={tab} />;
           })}
         </div>
       </nav>
