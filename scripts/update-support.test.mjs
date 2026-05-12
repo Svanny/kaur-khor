@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPreUpdateBackup,
   defaultDataDirectoryForPlatform,
+  parseBackupDirectoryPromptAnswer,
   preUpdateBackupName,
+  prepareSourceBuildUpdate,
   sourceBuildArchiveNames,
 } from './update-support.mjs';
 
@@ -66,6 +68,21 @@ describe('source-build update support', () => {
     expect(readFileSync(join(backupPath, 'desktop-preferences.json'), 'utf8')).toBe('{}');
     expect(readFileSync(join(backupPath, 'sena-checkpoints', 'checkpoint.json'), 'utf8')).toBe('checkpoint');
     expect(() => readFileSync(join(backupPath, 'skip.tmp'), 'utf8')).toThrow();
+  });
+
+  it('treats interactive SKIP as an explicit backup skip', async () => {
+    const dataDir = await tempRoot('kaur-khor-data-');
+    writeFileSync(join(dataDir, 'desktop-sena-store.sqlite3'), 'sqlite');
+
+    const result = await prepareSourceBuildUpdate({
+      dataDir,
+      nextVersion: '0.3.5',
+      promptForBackupDirectory: async () => parseBackupDirectoryPromptAnswer('SKIP'),
+      target: { os: 'linux' },
+    });
+
+    expect(result.backupPath).toBe(null);
+    expect(result.dataDir).toBe(dataDir);
   });
 
   it('keeps platform-specific default data paths separate from app installs', () => {

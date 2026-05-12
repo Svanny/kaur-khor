@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { request as httpsRequest } from 'node:https';
 import { tmpdir } from 'node:os';
@@ -66,7 +66,7 @@ export async function launchKaurKhorSourceUpdate({
     skipBackup: payload.skipBackup === true,
   });
 
-  launchScriptInTerminal(scriptPath);
+  await launchScriptInTerminal(scriptPath);
   app.quit();
   return {
     started: true,
@@ -208,31 +208,57 @@ Write-Host "Update finished. Reopen Kaur Khor and restore the exported snapshot 
 `;
 }
 
-function launchScriptInTerminal(scriptPath: string) {
+async function launchScriptInTerminal(scriptPath: string) {
+  let child: ChildProcess;
   if (process.platform === 'darwin') {
-    spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(scriptPath)}`], {
+    child = spawn('osascript', ['-e', `tell application "Terminal" to do script ${JSON.stringify(scriptPath)}`], {
       detached: true,
       stdio: 'ignore',
-    }).unref();
+    });
+    await waitForTerminalSpawn(child);
+    child.unref();
     return;
   }
 
   if (process.platform === 'win32') {
-    spawn('powershell.exe', ['-NoExit', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], {
+    child = spawn('powershell.exe', ['-NoExit', '-ExecutionPolicy', 'Bypass', '-File', scriptPath], {
       detached: true,
       stdio: 'ignore',
       windowsHide: false,
-    }).unref();
+    });
+    await waitForTerminalSpawn(child);
+    child.unref();
     return;
   }
 
   const terminal = process.env.TERM_PROGRAM || 'x-terminal-emulator';
-  spawn(terminal, ['-e', scriptPath], {
+  child = spawn(terminal, ['-e', scriptPath], {
     detached: true,
     stdio: 'ignore',
-  }).unref();
+  });
+  await waitForTerminalSpawn(child);
+  child.unref();
 }
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function waitForTerminalSpawn(child: ChildProcess) {
+  return new Promise<void>((resolveSpawn, rejectSpawn) => {
+    const cleanup = () => {
+      child.off('spawn', handleSpawn);
+      child.off('error', handleError);
+    };
+    const handleSpawn = () => {
+      cleanup();
+      resolveSpawn();
+    };
+    const handleError = (error: Error) => {
+      cleanup();
+      rejectSpawn(error);
+    };
+    child.once('spawn', handleSpawn);
+    child.once('error', handleError);
+  });
 }

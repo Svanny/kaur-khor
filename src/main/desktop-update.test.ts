@@ -1,8 +1,15 @@
 // @vitest-environment node
 
+import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+afterEach(() => {
+  vi.doUnmock('node:child_process');
+  vi.resetModules();
+  vi.restoreAllMocks();
+});
 
 describe('desktop source-build updater', () => {
   it('verifies the downloaded source-build checksum before extracting on shell platforms', async () => {
@@ -30,5 +37,29 @@ describe('desktop source-build updater', () => {
     expect(windowsScriptSource.indexOf('Get-FileHash -Algorithm SHA256')).toBeLessThan(
       windowsScriptSource.indexOf('tar -xzf "kaur-khor-latest-source-build.tar.gz"'),
     );
+  });
+
+  it('does not quit or report started when terminal handoff fails', async () => {
+    const child = new EventEmitter() as EventEmitter & { unref: ReturnType<typeof vi.fn> };
+    child.unref = vi.fn();
+    const spawn = vi.fn(() => {
+      process.nextTick(() => {
+        child.emit('error', Object.assign(new Error('spawn x-terminal-emulator ENOENT'), { code: 'ENOENT' }));
+      });
+      return child;
+    });
+    vi.doMock('node:child_process', () => ({ spawn }));
+    const { launchKaurKhorSourceUpdate } = await import('./desktop-update');
+    const app = { quit: vi.fn() };
+    const result = launchKaurKhorSourceUpdate({
+      app: app as never,
+      appVersion: '0.4.1',
+      dataDirectoryPath: '/tmp/kaur-khor-data',
+      payload: { skipBackup: true },
+    });
+
+    await expect(result).rejects.toThrow('spawn x-terminal-emulator ENOENT');
+    expect(app.quit).not.toHaveBeenCalled();
+    expect(child.unref).not.toHaveBeenCalled();
   });
 });
