@@ -1014,11 +1014,60 @@ fn observation_fingerprint_locked(
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         )
         .optional()?;
+    let mut stmt = connection.prepare(
+        r#"
+        SELECT observation_id, observed_at, payload
+        FROM sena_observation
+        WHERE owner_sub = ?1
+        ORDER BY observed_at ASC, observation_id ASC
+        "#,
+    )?;
+    let rows = stmt.query_map(params![owner_sub], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut fingerprint_rows = Vec::new();
+    for row in rows {
+        fingerprint_rows.push(row?);
+    }
     Ok(SenaObservationFingerprint {
         count,
         latest_observed_at: latest.as_ref().map(|row| row.0.clone()),
         latest_observation_id: latest.map(|row| row.1),
+        content_fingerprint: Some(crate::inference::fingerprint_value(&fingerprint_rows)?),
     })
+}
+
+fn assert_earliest_observation_has_stock_locked(
+    connection: &Connection,
+    owner_sub: &str,
+) -> Result<()> {
+    let payload = connection
+        .query_row(
+            r#"
+            SELECT payload
+            FROM sena_observation
+            WHERE owner_sub = ?1
+            ORDER BY observed_at ASC, observation_id ASC
+            LIMIT 1
+            "#,
+            params![owner_sub],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    let Some(payload) = payload else {
+        return Ok(());
+    };
+    let input: SenaObservationInput = serde_json::from_str(&payload)?;
+    if input.stock_snapshot.is_empty() {
+        return Err(anyhow!(
+            "earliest SENA observation must include at least one stock snapshot"
+        ));
+    }
+    Ok(())
 }
 
 fn merge_order_fields(
@@ -1057,10 +1106,7 @@ fn merge_order_fields(
             .delivery_fee
             .clone()
             .or_else(|| base.delivery_fee.clone()),
-        discount: overrides
-            .discount
-            .clone()
-            .or_else(|| base.discount.clone()),
+        discount: overrides.discount.clone().or_else(|| base.discount.clone()),
     }
 }
 
@@ -1556,11 +1602,12 @@ impl SenaRepository for SqliteSenaRepository {
             owner_sub: owner_sub.to_string(),
             input: observation.clone(),
         };
-        let connection = self
+        let mut connection = self
             .connection
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
-        connection.execute(
+        let transaction = connection.transaction()?;
+        transaction.execute(
             "INSERT INTO sena_observation (observation_id, owner_sub, observed_at, payload) VALUES (?1, ?2, ?3, ?4)",
             params![
                 record.observation_id,
@@ -1570,12 +1617,14 @@ impl SenaRepository for SqliteSenaRepository {
             ],
         )?;
         upsert_record_update_anchors_for_observation_locked(
-            &connection,
+            &transaction,
             owner_sub,
             &record.observation_id,
             &record.input,
             &now_rfc3339(),
         )?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
+        transaction.commit()?;
         Ok(record)
     }
 
@@ -1608,6 +1657,7 @@ impl SenaRepository for SqliteSenaRepository {
             return Err(anyhow!("observation not found"));
         }
         rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
         transaction.commit()?;
         Ok(SenaObservationRecord {
             observation_id: observation_id.to_string(),
@@ -1630,6 +1680,7 @@ impl SenaRepository for SqliteSenaRepository {
             return Err(anyhow!("observation not found"));
         }
         rebuild_record_update_anchors_locked(&transaction, owner_sub)?;
+        assert_earliest_observation_has_stock_locked(&transaction, owner_sub)?;
         transaction.commit()?;
         Ok(())
     }
@@ -2963,6 +3014,12 @@ mod tests {
         }
     }
 
+    fn stockless_observation(observed_at: &str) -> SenaObservationInput {
+        let mut input = observation(observed_at, 0.0).input;
+        input.stock_snapshot.clear();
+        input
+    }
+
     fn supplier_ticket_event(
         ticket_id: &str,
         observed_at: &str,
@@ -3200,6 +3257,55 @@ mod tests {
             raw_observation_payload(&repo, &inserted.observation_id).as_deref(),
             Some(original_payload.as_str()),
             "failed invalid update should preserve the previous valid row",
+        );
+    }
+
+    #[test]
+    fn repository_rejects_stockless_earliest_observation() {
+        let path = temp_store_path("earliest-stock-invariant");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let error = block_on(
+            repo.insert_observation("owner", &stockless_observation("2026-04-01T00:00:00Z")),
+        )
+        .expect_err("stockless first observation should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert_eq!(stored_observation_count(&repo), 0);
+
+        let first = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("stock first observation should insert");
+        block_on(repo.insert_observation("owner", &stockless_observation("2026-04-02T00:00:00Z")))
+            .expect("later stockless observation should insert");
+        let original_payload = raw_observation_payload(&repo, &first.observation_id)
+            .expect("first payload should exist");
+
+        let error = block_on(repo.update_observation(
+            "owner",
+            &first.observation_id,
+            &stockless_observation("2026-04-01T00:00:00Z"),
+        ))
+        .expect_err("making earliest observation stockless should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert_eq!(
+            raw_observation_payload(&repo, &first.observation_id).as_deref(),
+            Some(original_payload.as_str()),
+            "rejected earliest-stock update should roll back",
+        );
+
+        let error = block_on(repo.delete_observation("owner", &first.observation_id))
+            .expect_err("deleting only stock-bearing earliest observation should be rejected");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
+        assert!(
+            raw_observation_payload(&repo, &first.observation_id).is_some(),
+            "rejected earliest-stock delete should roll back",
         );
     }
 
@@ -3566,6 +3672,34 @@ mod tests {
             Some("2026-04-03T00:00:00Z")
         );
         assert_eq!(fingerprint.latest_observation_id.as_deref(), Some("obs-z"));
+    }
+
+    #[test]
+    fn observation_fingerprint_changes_when_older_payload_changes() {
+        let path = temp_store_path("observation-fingerprint-payload");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let older = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("older observation should insert");
+        block_on(
+            repo.insert_observation("owner", &observation("2026-04-02T00:00:00Z", 12.0).input),
+        )
+        .expect("latest observation should insert");
+        let before = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("fingerprint should load before update");
+
+        let mut updated = older.input.clone();
+        updated.notes = Some("older payload changed".to_string());
+        block_on(repo.update_observation("owner", &older.observation_id, &updated))
+            .expect("older observation should update");
+        let after = block_on(repo.get_observation_fingerprint("owner"))
+            .expect("fingerprint should load after update");
+
+        assert_eq!(before.count, after.count);
+        assert_eq!(before.latest_observed_at, after.latest_observed_at);
+        assert_eq!(before.latest_observation_id, after.latest_observation_id);
+        assert_ne!(before.content_fingerprint, after.content_fingerprint);
     }
 
     #[test]
