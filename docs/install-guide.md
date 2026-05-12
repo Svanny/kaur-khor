@@ -42,7 +42,15 @@ cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update
 ```
 
-The update script asks where to export a pre-update snapshot before replacing the installed app. If your workspace data lives in a custom folder, pass `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the desktop app to choose the folder. After installing the new version, restore the exported snapshot from Settings / Local data if you need to rehydrate from that custom location.
+The update script asks where to export a pre-update snapshot before replacing
+the installed app. Settings / Updates also verifies the downloaded
+source-build archive against the release `.sha256` file before extracting it and
+starts the updater only after Kaur Khor accepts the quit handoff. If your
+workspace data lives in a custom folder, pass
+`--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the
+desktop app to choose the folder. After installing the new version, restore the
+exported snapshot from Settings / Local data if you need to rehydrate from that
+custom location.
 
 After a source build, the script opens the nested runnable-app folder under `release/` when the platform emits one, such as `release/mac-arm64` on Apple Silicon Macs.
 

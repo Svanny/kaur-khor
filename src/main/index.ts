@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { basename, dirname, extname, join } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
@@ -39,7 +39,6 @@ import {
   resolveAutomationIntake,
 } from './automation-store';
 import {
-  notifyTelegramCustomerOfTicketUpdate,
   notifyTelegramCustomerOfPromotion,
   runTelegramConnectionTest,
   sendTelegramCustomerMessageForIntake,
@@ -67,6 +66,7 @@ import {
   type DesktopPreferences,
   type DesktopStoreDroppedImagePayload,
   type DesktopUpdateRunPayload,
+  type DesktopUpdateRunResult,
   type PromoteAutomationIntakePayload,
   type SenaDetailCacheClearPayload,
   type SenaRunLookupPayload,
@@ -217,6 +217,7 @@ let telegramAutomationLoop: ReturnType<typeof startTelegramAutomationLoop> | nul
 let desktopQuitConfirmed = false;
 let desktopQuitConfirmationInFlight: Promise<boolean> | null = null;
 let desktopShutdownPromise: Promise<void> | null = null;
+let selectedUpdateDataDirectoryPath: string | null = null;
 
 recordBenchmarkEvent({
   layer: 'main',
@@ -358,6 +359,38 @@ function stopDesktopRuntimeForShutdown() {
   return desktopShutdownPromise;
 }
 
+async function suspendDesktopRuntimeForDataReplacement() {
+  telegramAutomationLoop?.stop();
+  telegramAutomationLoop = null;
+  if (senaReadCachePersistTimer) {
+    clearTimeout(senaReadCachePersistTimer);
+    senaReadCachePersistTimer = null;
+  }
+  senaInflightReads.clear();
+  senaFreshnessCheck = null;
+  await managedCore.stop();
+}
+
+function startDesktopTelegramAutomationLoop() {
+  telegramAutomationLoop?.stop();
+  telegramAutomationLoop = startTelegramAutomationLoop(desktopDataPath, {
+    loadContext: () => loadAutomationWorkspaceContext({
+      loadCachedSenaRead,
+      invoke: managedCore.invoke.bind(managedCore),
+      timeoutMs: SENA_READ_TIMEOUT_MS,
+    }),
+    loadPreferences: async () => {
+      const preferences = await loadDesktopPreferences(desktopDataPath);
+      return {
+        currency: preferences.currency,
+        language: preferences.language,
+        showAutomationsPage: preferences.showAutomationsPage,
+        usdToKhrExchangeRate: preferences.usdToKhrExchangeRate,
+      };
+    },
+  });
+}
+
 function requestDesktopQuit() {
   void confirmDesktopQuitForLiveAutomation().then((shouldQuit) => {
     if (!shouldQuit) {
@@ -366,6 +399,21 @@ function requestDesktopQuit() {
     desktopQuitConfirmed = true;
     app.quit();
   });
+}
+
+function isSameResolvedPath(left: string, right: string) {
+  return resolve(left) === resolve(right);
+}
+
+function resolveUpdateDataDirectoryPath(candidatePath: string | null | undefined) {
+  const trimmedPath = candidatePath?.trim();
+  if (!trimmedPath || isSameResolvedPath(trimmedPath, desktopDataPath)) {
+    return desktopDataPath;
+  }
+  if (selectedUpdateDataDirectoryPath && isSameResolvedPath(trimmedPath, selectedUpdateDataDirectoryPath)) {
+    return selectedUpdateDataDirectoryPath;
+  }
+  throw new Error('Choose the update data folder from Kaur Khor before starting the updater.');
 }
 
 async function seedAutomationBenchmarkWorkspace(
@@ -1237,22 +1285,7 @@ async function boot() {
   } else {
     await prewarmManagedCore();
   }
-  telegramAutomationLoop = startTelegramAutomationLoop(desktopDataPath, {
-    loadContext: () => loadAutomationWorkspaceContext({
-      loadCachedSenaRead,
-      invoke: managedCore.invoke.bind(managedCore),
-      timeoutMs: SENA_READ_TIMEOUT_MS,
-    }),
-    loadPreferences: async () => {
-      const preferences = await loadDesktopPreferences(desktopDataPath);
-      return {
-        currency: preferences.currency,
-        language: preferences.language,
-        showAutomationsPage: preferences.showAutomationsPage,
-        usdToKhrExchangeRate: preferences.usdToKhrExchangeRate,
-      };
-    },
-  });
+  startDesktopTelegramAutomationLoop();
   await createMainWindow();
   try {
     await cleanupCloseSafetyDesktopBackupSnapshots(desktopDataPath);
@@ -1341,19 +1374,27 @@ ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, benchmarkIpcHandle(IPC_
     return null;
   }
 
-  await managedCore.stop();
-  const result: DesktopBackupRestoreResult = await restoreDesktopBackupSnapshot({
-    selectedPath: selection.filePaths[0]!,
-    userDataPath: desktopDataPath,
-  });
-  await invalidateSenaReadCache();
-  return result;
+  await suspendDesktopRuntimeForDataReplacement();
+  try {
+    const result: DesktopBackupRestoreResult = await restoreDesktopBackupSnapshot({
+      selectedPath: selection.filePaths[0]!,
+      userDataPath: desktopDataPath,
+    });
+    await invalidateSenaReadCache();
+    return result;
+  } finally {
+    startDesktopTelegramAutomationLoop();
+  }
 }));
 ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, benchmarkIpcHandle(IPC_CHANNELS.systemClearCurrentData, async () => {
-  await managedCore.stop();
-  const result: DesktopClearCurrentDataResult = await clearCurrentDesktopData(desktopDataPath);
-  await invalidateSenaReadCache();
-  return result;
+  await suspendDesktopRuntimeForDataReplacement();
+  try {
+    const result: DesktopClearCurrentDataResult = await clearCurrentDesktopData(desktopDataPath);
+    await invalidateSenaReadCache();
+    return result;
+  } finally {
+    startDesktopTelegramAutomationLoop();
+  }
 }));
 ipcMain.handle(IPC_CHANNELS.systemCheckForUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemCheckForUpdate, async () =>
   checkForKaurKhorUpdate({
@@ -1378,16 +1419,29 @@ ipcMain.handle(IPC_CHANNELS.systemChooseUpdateDataDirectory, benchmarkIpcHandle(
     properties: ['openDirectory'],
     title: 'Choose Kaur Khor data folder',
   });
-  return selection.canceled ? null : selection.filePaths[0] ?? null;
+  selectedUpdateDataDirectoryPath = selection.canceled ? null : selection.filePaths[0] ?? null;
+  return selectedUpdateDataDirectoryPath;
 }));
-ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemRunSourceBuildUpdate, async (_event, payload: DesktopUpdateRunPayload) =>
-  launchKaurKhorSourceUpdate({
+ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemRunSourceBuildUpdate, async (_event, payload: DesktopUpdateRunPayload): Promise<DesktopUpdateRunResult> => {
+  const dataDirectoryPath = resolveUpdateDataDirectoryPath(payload.dataDirectoryPath);
+  const shouldQuit = await confirmDesktopQuitForLiveAutomation();
+  if (!shouldQuit) {
+    return {
+      started: false,
+      message: 'Update canceled because Kaur Khor stayed open.',
+    };
+  }
+  desktopQuitConfirmed = true;
+  return launchKaurKhorSourceUpdate({
     app,
     appVersion: app.getVersion(),
-    dataDirectoryPath: desktopDataPath,
-    payload,
-  }),
-));
+    dataDirectoryPath,
+    payload: {
+      ...payload,
+      dataDirectoryPath,
+    },
+  });
+}));
 ipcMain.handle(IPC_CHANNELS.systemRevealPath, benchmarkIpcHandle(IPC_CHANNELS.systemRevealPath, async (_event, targetPath: string) => {
   const normalizedPath = normalizeAllowedLocalDataPath(targetPath, [desktopDataPath]);
   const targetStats = await stat(normalizedPath).catch(() => null);
@@ -1739,16 +1793,6 @@ ipcMain.handle(IPC_CHANNELS.senaTriggerRun, benchmarkIpcHandle(IPC_CHANNELS.sena
   const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
-  const telegramCustomerTicketEvents = (payload?.ticketEvents ?? []).filter((event) =>
-    event.ticketFamily === 'customer' && event.party?.channelKey === 'telegram',
-  );
-  for (const ticketEvent of telegramCustomerTicketEvents) {
-    try {
-      await notifyTelegramCustomerOfTicketUpdate(desktopDataPath, { ticketEvent });
-    } catch (error) {
-      console.warn('[automation] failed to notify Telegram customer after ticket update', error);
-    }
-  }
   await invalidateSenaReadCache();
   return result;
 }));

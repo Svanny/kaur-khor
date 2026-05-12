@@ -173,7 +173,8 @@ Restore flow:
 
 1. The main process opens a file/directory chooser rooted at the backup directory.
 2. The selected snapshot must contain `snapshot-manifest.json`.
-3. The app stops the managed core before restoring files.
+3. The app enters a maintenance window, stopping Telegram automation and the
+   managed core before restoring files.
 4. Restore file reads and copies start only after the managed core has stopped,
    so SQLite files are not replaced while the runtime still has them open.
 5. A safety snapshot with the reason `before-restore` is created from the current workspace state.
@@ -183,10 +184,15 @@ Restore flow:
 
 Clear-data flow:
 
-1. The app stops the managed core.
+1. The app enters a maintenance window, stopping Telegram automation and the
+   managed core before deleting files.
 2. A safety snapshot with the reason `before-clear` is created.
 3. Current top-level workspace files/directories are removed.
 4. The result reports the number of cleared files and the safety snapshot metadata.
+
+After either maintenance action, the main process restarts the managed core and
+resumes automation only after the file operation has completed or failed. This
+keeps automation writes from racing against restored or cleared SQLite state.
 
 ## Renderer Access Points
 
@@ -234,12 +240,18 @@ aligned.
 
 Settings / Updates is desktop-only. It checks the latest GitHub release, asks the
 operator to choose a pre-update snapshot export folder, optionally lets them
-choose a custom Kaur Khor data folder, and launches the source-build updater in a
-detached terminal before quitting the app. The updater replaces the installed app
+choose a custom Kaur Khor data folder, verifies the source-build archive digest
+against the release `.sha256` file, and launches the source-build updater only
+after the app accepts the quit handoff. The updater replaces the installed app
 binary only. It never deletes the active Electron `userData` folder or a custom
 data directory; custom-folder users should restore the exported snapshot from
 Settings / Local data after the new version opens if they need to rehydrate that
 workspace.
+
+The renderer never supplies the effective update data directory directly. Main
+process IPC resolves the chosen option to either the active Electron `userData`
+path or a user-approved custom directory, then passes that trusted path to the
+source-build updater.
 
 Downstream Telegram photo sends may only read image files that resolve under the
 managed `assets/` directory for the current `userData` root. Absolute paths,
