@@ -8,6 +8,7 @@ import {
   escapeTelegramHtml,
   findAutomationConversationForTelegramTicket,
   ingestAutomationTelegramUpdates,
+  listAutomationPendingTelegramOutboundJobs,
   markAutomationTelegramCommandsConfigured,
   recordAutomationWizardItemImageMessage,
   readAutomationConnection,
@@ -16,9 +17,11 @@ import {
   readAutomationTransportState,
   recordAutomationWizardMessage,
   recordAutomationTelegramError,
+  removeAutomationPendingTelegramOutboundJob,
   removeAutomationOutboundTelegramMessage,
   saveAutomationConnection,
 } from './automation-store';
+import type { AutomationPendingTelegramOutboundJob, TelegramOutboundJob } from './automation-store';
 import type { AutomationOrderIntake } from '@shared/automation';
 import type { SenaTicketEvent } from '@shared/sena';
 import { loadDesktopPreferences } from './preferences';
@@ -361,123 +364,147 @@ async function syncTelegramAutomationOnce(
     timeout: 1,
   });
   if (updates.length === 0) {
+    await flushPendingTelegramOutboundJobs(userDataPath, token);
     return { disabled: false };
   }
 
   const context = await loadContext();
-  const result = await ingestAutomationTelegramUpdates(userDataPath, {
+  await ingestAutomationTelegramUpdates(userDataPath, {
     context,
     currency: preferences.currency,
     language: preferences.language,
+    persistOutboundJobs: true,
     usdToKhrExchangeRate: preferences.usdToKhrExchangeRate,
     updates,
   });
 
-  for (const job of result.outboundJobs) {
-    if (job.kind === 'answer_callback') {
-      await telegramAnswerCallbackQuery(token, {
-        callbackQueryId: job.callbackQueryId,
-        text: job.text,
-        showAlert: job.showAlert,
-      });
-      continue;
-    }
+  await flushPendingTelegramOutboundJobs(userDataPath, token);
+  return { disabled: false };
+}
 
-    if (job.kind === 'edit') {
-      await telegramEditMessageText(token, {
-        chatId: job.chatId,
-        messageId: job.messageId,
-        text: job.text,
-        parseMode: job.parseMode,
-        replyMarkup: job.replyMarkup,
-      });
-      continue;
-    }
+async function flushPendingTelegramOutboundJobs(userDataPath: string, token: string) {
+  const pendingJobs = await listAutomationPendingTelegramOutboundJobs(userDataPath);
+  for (const pendingJob of pendingJobs) {
+    await sendPendingTelegramOutboundJob(userDataPath, token, pendingJob);
+    await removeAutomationPendingTelegramOutboundJob(userDataPath, pendingJob.jobId);
+  }
+}
 
-    if (job.kind === 'edit_reply_markup') {
-      await telegramEditMessageReplyMarkup(token, {
-        chatId: job.chatId,
-        messageId: job.messageId,
-        replyMarkup: job.replyMarkup,
-      });
-      continue;
-    }
+async function sendPendingTelegramOutboundJob(
+  userDataPath: string,
+  token: string,
+  pendingJob: AutomationPendingTelegramOutboundJob,
+) {
+  await sendTelegramOutboundJob(userDataPath, token, pendingJob.job);
+}
 
-    if (job.kind === 'delete_message') {
-      try {
-        await telegramDeleteMessage(token, {
-          chatId: job.chatId,
-          messageId: job.messageId,
-        });
-      } catch (error) {
-        if (!job.nonFatal) {
-          throw error;
-        }
-      }
-      if (job.nonFatal) {
-        await removeAutomationOutboundTelegramMessage(userDataPath, {
-          conversationId: job.conversationId,
-          externalMessageKey: String(job.messageId),
-        });
-      }
-      continue;
-    }
+async function sendTelegramOutboundJob(
+  userDataPath: string,
+  token: string,
+  job: TelegramOutboundJob,
+) {
+  if (job.kind === 'answer_callback') {
+    await telegramAnswerCallbackQuery(token, {
+      callbackQueryId: job.callbackQueryId,
+      text: job.text,
+      showAlert: job.showAlert,
+    });
+    return;
+  }
 
-    if (job.kind === 'send_photo') {
-      let sent;
-      try {
-        const resolvedPhotoPath = await resolveTelegramPhotoPath(userDataPath, job.photoPath);
-        sent = await telegramSendPhoto(token, {
-          chatId: job.chatId,
-          photoPath: resolvedPhotoPath,
-          caption: job.caption,
-          parseMode: job.parseMode,
-        });
-      } catch (error) {
-        if (
-          error instanceof Error
-          && ('code' in error)
-          && (error as NodeJS.ErrnoException).code === 'ENOENT'
-        ) {
-          continue;
-        }
-        throw error;
-      }
-      if (job.storesItemImage) {
-        await recordAutomationWizardItemImageMessage(userDataPath, {
-          conversationId: job.conversationId,
-          messageId: sent.message_id,
-          entityType: job.storesItemImage.entityType,
-          entityId: job.storesItemImage.entityId,
-        });
-      }
-      continue;
-    }
-
-    const sent = await telegramSendMessage(token, {
+  if (job.kind === 'edit') {
+    await telegramEditMessageText(token, {
       chatId: job.chatId,
+      messageId: job.messageId,
       text: job.text,
       parseMode: job.parseMode,
       replyMarkup: job.replyMarkup,
     });
-    const isGeneratedWizardMessage = job.messageRole === 'wizard_generated' || job.storesWizardMessage;
-    if (!isGeneratedWizardMessage) {
-      await appendAutomationOutboundTelegramMessage(userDataPath, {
+    return;
+  }
+
+  if (job.kind === 'edit_reply_markup') {
+    await telegramEditMessageReplyMarkup(token, {
+      chatId: job.chatId,
+      messageId: job.messageId,
+      replyMarkup: job.replyMarkup,
+    });
+    return;
+  }
+
+  if (job.kind === 'delete_message') {
+    try {
+      await telegramDeleteMessage(token, {
+        chatId: job.chatId,
+        messageId: job.messageId,
+      });
+    } catch (error) {
+      if (!job.nonFatal) {
+        throw error;
+      }
+    }
+    if (job.nonFatal) {
+      await removeAutomationOutboundTelegramMessage(userDataPath, {
         conversationId: job.conversationId,
-        externalMessageKey: String(sent.message_id),
-        intakeId: job.intakeId ?? null,
-        sentAt: new Date(sent.date * 1000).toISOString(),
-        text: sent.text ?? job.text,
+        externalMessageKey: String(job.messageId),
       });
     }
-    if (isGeneratedWizardMessage) {
-      await recordAutomationWizardMessage(userDataPath, {
+    return;
+  }
+
+  if (job.kind === 'send_photo') {
+    let sent;
+    try {
+      const resolvedPhotoPath = await resolveTelegramPhotoPath(userDataPath, job.photoPath);
+      sent = await telegramSendPhoto(token, {
+        chatId: job.chatId,
+        photoPath: resolvedPhotoPath,
+        caption: job.caption,
+        parseMode: job.parseMode,
+      });
+    } catch (error) {
+      if (
+        error instanceof Error
+        && ('code' in error)
+        && (error as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        return;
+      }
+      throw error;
+    }
+    if (job.storesItemImage) {
+      await recordAutomationWizardItemImageMessage(userDataPath, {
         conversationId: job.conversationId,
         messageId: sent.message_id,
+        entityType: job.storesItemImage.entityType,
+        entityId: job.storesItemImage.entityId,
       });
     }
+    return;
   }
-  return { disabled: false };
+
+  const sent = await telegramSendMessage(token, {
+    chatId: job.chatId,
+    text: job.text,
+    parseMode: job.parseMode,
+    replyMarkup: job.replyMarkup,
+  });
+  const isGeneratedWizardMessage = job.messageRole === 'wizard_generated' || job.storesWizardMessage;
+  if (!isGeneratedWizardMessage) {
+    await appendAutomationOutboundTelegramMessage(userDataPath, {
+      conversationId: job.conversationId,
+      externalMessageKey: String(sent.message_id),
+      intakeId: job.intakeId ?? null,
+      sentAt: new Date(sent.date * 1000).toISOString(),
+      text: sent.text ?? job.text,
+    });
+  }
+  if (isGeneratedWizardMessage) {
+    await recordAutomationWizardMessage(userDataPath, {
+      conversationId: job.conversationId,
+      messageId: sent.message_id,
+    });
+  }
 }
 
 export function startTelegramAutomationLoop(
@@ -496,6 +523,7 @@ export function startTelegramAutomationLoop(
   let enabled = true;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
+  let runningTick: Promise<void> | null = null;
 
   const schedule = (delayMs: number) => {
     if (stopped || !enabled) {
@@ -514,38 +542,49 @@ export function startTelegramAutomationLoop(
       return;
     }
     running = true;
-    let disabledByPreference = false;
-    try {
-      const result = await syncTelegramAutomationOnce(userDataPath, deps);
-      disabledByPreference = result.disabled;
-    } catch (error) {
-      await recordAutomationTelegramError(
-        userDataPath,
-        error instanceof Error ? error.message : 'Telegram automation sync failed.',
-      );
-    } finally {
-      running = false;
-      if (disabledByPreference) {
-        enabled = false;
-        if (timer) {
-          clearTimeout(timer);
-          timer = null;
+    runningTick = (async () => {
+      let disabledByPreference = false;
+      try {
+        const result = await syncTelegramAutomationOnce(userDataPath, deps);
+        disabledByPreference = result.disabled;
+      } catch (error) {
+        await recordAutomationTelegramError(
+          userDataPath,
+          error instanceof Error ? error.message : 'Telegram automation sync failed.',
+        );
+      } finally {
+        running = false;
+        if (disabledByPreference) {
+          enabled = false;
+          if (timer) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        } else {
+          schedule(2_000);
         }
-      } else {
-        schedule(2_000);
       }
-    }
+    })().finally(() => {
+      runningTick = null;
+    });
+    return runningTick;
   };
 
   schedule(0);
 
+  const stop = () => {
+    stopped = true;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
   return {
-    stop() {
-      stopped = true;
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
+    stop,
+    async stopAndDrain() {
+      stop();
+      await runningTick;
     },
     setEnabled(nextEnabled: boolean) {
       enabled = nextEnabled;

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   finalizeAutomationPromotion,
   ingestAutomationTelegramUpdates,
+  listAutomationPendingTelegramOutboundJobs,
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
@@ -393,6 +394,112 @@ describe('telegram automation connection setup', () => {
     expect(conversationId).toBeTruthy();
     const conversation = await readAutomationConversation(userDataPath, conversationId!);
     expect(conversation.messages.map((message) => message.rawText)).toContain('Hi?');
+  });
+
+  it('keeps Telegram replies pending when sending fails and flushes them after restart', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-loop-pending-'));
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: true })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [
+          {
+            update_id: 42,
+            message: {
+              message_id: 7,
+              date: 1_778_172_699,
+              text: 'Hi?',
+              chat: { id: 555_112, type: 'private' },
+              from: { id: 555_112, first_name: 'Ly' },
+            },
+          },
+        ],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: false,
+        description: 'send failed',
+      }), { status: 500 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          id: 1,
+          is_bot: true,
+          first_name: 'Kaur Khor bot',
+          username: 'kaur_khor_bot',
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: [] })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 8,
+          date: 1_778_172_700,
+          text: 'Choose your language',
+          chat: { id: 555_112, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botToken: 'secret-token',
+      status: 'connected',
+    });
+
+    const deps = {
+      loadContext: async () => context as never,
+      loadPreferences: async () => ({
+        currency: 'USD' as const,
+        language: 'en' as const,
+        showAutomationsPage: true,
+        usdToKhrExchangeRate: 4000,
+      }),
+    };
+    const firstLoop = startTelegramAutomationLoop(userDataPath, deps);
+
+    await waitForAssertion(async () => {
+      expect(fetchMock).toHaveBeenCalledTimes(6);
+      await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
+        .resolves.toHaveLength(1);
+    });
+    firstLoop.stop();
+
+    const transportAfterFailure = await readAutomationTransportState(userDataPath);
+    expect(transportAfterFailure.telegramUpdateCursor).toBe(43);
+
+    const secondLoop = startTelegramAutomationLoop(userDataPath, deps);
+    await waitForAssertion(async () => {
+      expect(fetchMock).toHaveBeenCalledTimes(9);
+      await expect(listAutomationPendingTelegramOutboundJobs(userDataPath))
+        .resolves.toHaveLength(0);
+    });
+    secondLoop.stop();
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    const conversationId = workspace.conversations[0]?.conversationId;
+    expect(conversationId).toBeTruthy();
+    const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId!);
+    expect(session?.lastWizardMessageId).toBe(8);
+    expect(session?.generatedWizardMessageIds).toContain(8);
   });
 
   it('continues sending the next wizard prompt when generated message cleanup is already stale', async () => {

@@ -127,6 +127,7 @@ the connection-card UI and IPC contract aligned.
 
 - connection state and last known bot identity
 - Telegram update cursor
+- pending outbound Telegram jobs that still need to be sent or acknowledged
 - exposure rules
 - conversation summaries
 - message records
@@ -158,6 +159,9 @@ or finalize calls must reject stale repeats rather than rewriting the intake.
 Append mode is customer-ticket-only: it must target an existing open customer
 ticket and increment from that ticket's latest revision. Missing, supplier, or
 closed ticket targets should fail before any automation-store mutation.
+Append events carry the existing latest ticket lines plus the appended intake
+lines because SENA latest-ticket context treats the newest event as the full
+ticket summary.
 
 Matched exposed items whose stock availability is unknown should stay distinct
 from true parser misses. Store those rows with `availability_unknown` so the
@@ -166,6 +170,11 @@ found" label.
 
 Customer-facing Telegram notifications must escape user-provided note text
 before sending HTML-formatted messages.
+
+Telegram polling persists outbound work before advancing past an ingested update
+and drains pending jobs on later poll cycles. This makes prompts, receipts,
+wizard cleanup, and ticket-update messages recoverable after a transient send
+failure or restart, with at-least-once delivery semantics.
 
 Telegram conversation history is stored at the transport conversation level,
 but Work / Intake reads order chat through `intakeId`. Inbound order messages,

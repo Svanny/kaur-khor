@@ -83,6 +83,7 @@ type AutomationStoreState = {
   intakes: AutomationOrderIntake[];
   customerPreferences: AutomationCustomerPreferencesRecord[];
   wizardSessions: AutomationWizardSession[];
+  pendingOutboundJobs: AutomationPendingTelegramOutboundJob[];
 };
 
 type AutomationWizardStep =
@@ -143,7 +144,7 @@ type TelegramCustomerPreferences = {
 
 type TelegramMessageMarkup = TelegramInlineKeyboardMarkup | TelegramReplyKeyboardMarkup | TelegramReplyKeyboardRemove | undefined;
 
-type TelegramOutboundJob =
+export type TelegramOutboundJob =
   | {
     kind: 'send';
     chatId: string;
@@ -198,6 +199,12 @@ type TelegramOutboundJob =
     nonFatal?: boolean;
   };
 
+export type AutomationPendingTelegramOutboundJob = {
+  jobId: string;
+  createdAt: string;
+  job: TelegramOutboundJob;
+};
+
 type ExposureBuildContext = {
   catalog: SenaCatalog | null;
   recordUpdateContext: SenaRecordUpdateContext;
@@ -206,6 +213,7 @@ type ExposureBuildContext = {
 type PromotionPreparation = {
   commercialEvents: SenaCommercialEvent[];
   observationInput: SenaObservationInput;
+  shouldIngestObservation: boolean;
   ticketEvent: SenaTicketEvent;
   updatedIntake: AutomationOrderIntake;
 };
@@ -236,6 +244,7 @@ const DEFAULT_STATE: AutomationStoreState = {
   intakes: [],
   customerPreferences: [],
   wizardSessions: [],
+  pendingOutboundJobs: [],
 };
 
 let automationWriteQueue: Promise<void> = Promise.resolve();
@@ -331,6 +340,11 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
           : null,
         updatedAt: session.updatedAt ?? nowIso(),
       }))
+      : [],
+    pendingOutboundJobs: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.pendingOutboundJobs)
+      ? (value as Partial<AutomationStoreState>).pendingOutboundJobs!.filter((entry): entry is AutomationPendingTelegramOutboundJob =>
+        typeof entry?.jobId === 'string' && typeof entry?.createdAt === 'string' && typeof entry?.job === 'object' && entry.job !== null,
+      )
       : [],
   };
 }
@@ -739,6 +753,22 @@ function validateAppendTicketTarget(observations: SenaObservationRecord[], ticke
     throw new Error('Appending Telegram intake requires an open customer ticket.');
   }
   return ticket;
+}
+
+function automationCreatedTicketId(intakeId: string) {
+  return `ticket:customer:automation:${intakeId}`;
+}
+
+function promotionEventForIntake(
+  observations: SenaObservationRecord[],
+  intake: AutomationOrderIntake,
+  ticketId: string,
+) {
+  const intakeMarker = `Telegram intake ${intake.intakeId}`;
+  return observations
+    .flatMap((observation) => observation.input.ticketEvents ?? [])
+    .filter((event) => event.ticketId === ticketId && event.ticketFamily === 'customer')
+    .find((event) => event.note?.includes(intakeMarker)) ?? null;
 }
 
 function buildPromotionNote(intake: AutomationOrderIntake, operatorNote: string | null | undefined) {
@@ -2555,6 +2585,22 @@ export async function recordAutomationWizardItemImageMessage(
   });
 }
 
+export async function listAutomationPendingTelegramOutboundJobs(
+  userDataPath: string,
+): Promise<AutomationPendingTelegramOutboundJob[]> {
+  const state = await loadAutomationState(userDataPath);
+  return [...state.pendingOutboundJobs].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+export async function removeAutomationPendingTelegramOutboundJob(
+  userDataPath: string,
+  jobId: string,
+) {
+  return updateAutomationState(userDataPath, (state) => {
+    state.pendingOutboundJobs = state.pendingOutboundJobs.filter((entry) => entry.jobId !== jobId);
+  });
+}
+
 export async function readAutomationWizardSessionForConversation(
   userDataPath: string,
   conversationId: string,
@@ -2838,12 +2884,14 @@ export async function ingestAutomationTelegramUpdates(
   {
     currency,
     language = 'en',
+    persistOutboundJobs = false,
     usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
     updates,
     context,
   }: {
     currency: AppCurrency;
     language?: AppLanguage;
+    persistOutboundJobs?: boolean;
     usdToKhrExchangeRate?: number;
     updates: TelegramUpdate[];
     context: ExposureBuildContext;
@@ -3071,6 +3119,16 @@ export async function ingestAutomationTelegramUpdates(
       state.connection.lastErrorAt = null;
       state.connection.lastErrorMessage = null;
     }
+    if (persistOutboundJobs) {
+      const pendingCreatedAt = nowIso();
+      for (const job of outboundJobs) {
+        state.pendingOutboundJobs.push({
+          jobId: `telegram_job_${randomUUID()}`,
+          createdAt: pendingCreatedAt,
+          job,
+        });
+      }
+    }
     return {
       connection: state.connection,
       outboundJobs,
@@ -3119,15 +3177,51 @@ export async function prepareAutomationPromotion(
   const observedAt = nowIso();
   const ticketId = payload.mode === 'append_ticket'
     ? payload.ticketId!
-    : `ticket:customer:${Date.now()}:created:automation-${intake.intakeId}`;
+    : automationCreatedTicketId(intake.intakeId);
+  const existingPromotionEvent = promotionEventForIntake(observations, intake, ticketId);
+  if (existingPromotionEvent) {
+    const recoveredIntake: AutomationOrderIntake = {
+      ...intake,
+      status: 'ticketed',
+      promotedTicketId: ticketId,
+      updatedAt: existingPromotionEvent.occurredAt,
+      notes: existingPromotionEvent.note ?? intake.notes,
+    };
+    return {
+      ticketEvent: existingPromotionEvent,
+      commercialEvents: [],
+      updatedIntake: recoveredIntake,
+      shouldIngestObservation: false,
+      observationInput: {
+        observedAt: existingPromotionEvent.occurredAt,
+        stockSnapshot: [],
+        retailSalesSnapshot: [],
+        serviceSalesSnapshot: [],
+        serviceRankings: [],
+        retailRankings: [],
+        serviceStockouts: [],
+        retailStockouts: [],
+        orderSignals: [],
+        servicePrices: [],
+        retailPrices: [],
+        leadTimeHints: [],
+        adjustmentSignals: [],
+        commercialEvents: [],
+        ticketEvents: [],
+        recipeUsageHints: [],
+        notes: existingPromotionEvent.note ?? null,
+      },
+    };
+  }
   const revision = appendTargetTicket ? appendTargetTicket.revision + 1 : 1;
   const note = buildPromotionNote(intake, payload.note);
-  const lines = intake.lines.map((line) => ({
+  const promotedLines = intake.lines.map((line) => ({
     entityType: line.entityType,
     entityId: line.entityId!,
     quantityDelta: line.quantity,
     note: line.requestedLabel !== line.resolvedLabel ? `Requested as ${line.requestedLabel}` : line.requestedLabel,
   }));
+  const lines = appendTargetTicket ? [...appendTargetTicket.lines, ...promotedLines] : promotedLines;
   const phone = normalizeNullablePhone(payload.customerIdentityOverride?.phone || intake.phone);
   const ticketEvent: SenaTicketEvent = {
     ticketId,
@@ -3175,6 +3269,7 @@ export async function prepareAutomationPromotion(
     ticketEvent,
     commercialEvents,
     updatedIntake,
+    shouldIngestObservation: true,
     observationInput: {
       observedAt,
       stockSnapshot: [],

@@ -2580,6 +2580,37 @@ describe('automation telegram ingestion', () => {
     });
   });
 
+  it('recovers create-ticket promotion when SENA already contains the ticket event', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_781);
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    });
+
+    const recovered = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'create_ticket',
+    }, {
+      observations: [{
+        observationId: 'obs-existing-promotion',
+        input: {
+          ticketEvents: [prepared.ticketEvent],
+        },
+      }] as never,
+    });
+
+    expect(recovered.shouldIngestObservation).toBe(false);
+    expect(recovered.ticketEvent.ticketId).toBe(prepared.ticketEvent.ticketId);
+    expect(recovered.updatedIntake).toMatchObject({
+      intakeId: intake.intakeId,
+      status: 'ticketed',
+      promotedTicketId: prepared.ticketEvent.ticketId,
+    });
+  });
+
   it('rejects appending Telegram intake to a supplier ticket', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const intake = await createQuotedAutomationIntake(userDataPath, 555_779);
@@ -2638,6 +2669,51 @@ describe('automation telegram ingestion', () => {
     expect(prepared.ticketEvent.ticketFamily).toBe('customer');
     expect(prepared.ticketEvent.eventType).toBe('revised');
     expect(prepared.ticketEvent.revision).toBe(4);
+    expect(prepared.ticketEvent.lines).toHaveLength(2);
+    expect(prepared.ticketEvent.lines[0]).toMatchObject(customerTicket.lines[0]!);
+    expect(prepared.ticketEvent.lines[1]).toMatchObject({
+      entityType: 'sku',
+      entityId: 'sku-1',
+      quantityDelta: 2,
+    });
     expect(prepared.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
+  });
+
+  it('recovers append-ticket promotion when SENA already contains the revised event', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_782);
+    const customerTicket = makeTicketEvent({
+      ticketId: 'ticket:customer:known-open',
+      revision: 3,
+    });
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: customerTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-customer-ticket',
+        input: {
+          ticketEvents: [customerTicket],
+        },
+      }] as never,
+    });
+
+    const recovered = await prepareAutomationPromotion(userDataPath, {
+      intakeId: intake.intakeId,
+      mode: 'append_ticket',
+      ticketId: customerTicket.ticketId,
+    }, {
+      observations: [{
+        observationId: 'obs-existing-append',
+        input: {
+          ticketEvents: [customerTicket, prepared.ticketEvent],
+        },
+      }] as never,
+    });
+
+    expect(recovered.shouldIngestObservation).toBe(false);
+    expect(recovered.ticketEvent.revision).toBe(prepared.ticketEvent.revision);
+    expect(recovered.updatedIntake.promotedTicketId).toBe(customerTicket.ticketId);
   });
 });

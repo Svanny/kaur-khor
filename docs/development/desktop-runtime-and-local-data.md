@@ -191,8 +191,10 @@ Clear-data flow:
 4. The result reports the number of cleared files and the safety snapshot metadata.
 
 After either maintenance action, the main process restarts the managed core and
-resumes automation only after the file operation has completed or failed. This
-keeps automation writes from racing against restored or cleared SQLite state.
+resumes automation only after all queued restore/clear operations have completed
+or failed. The Telegram automation loop is drained before the maintenance window
+opens, so an already-running poll cannot keep writing into workspace files while
+SQLite state is being restored or removed.
 
 ## Renderer Access Points
 
@@ -242,16 +244,18 @@ Settings / Updates is desktop-only. It checks the latest GitHub release, asks th
 operator to choose a pre-update snapshot export folder, optionally lets them
 choose a custom Kaur Khor data folder, verifies the source-build archive digest
 against the release `.sha256` file, and launches the source-build updater only
-after the app accepts the quit handoff. The updater replaces the installed app
-binary only. It never deletes the active Electron `userData` folder or a custom
-data directory; custom-folder users should restore the exported snapshot from
-Settings / Local data after the new version opens if they need to rehydrate that
-workspace.
+after the app accepts the quit handoff and the terminal process has been
+spawned. The updater replaces the installed app binary only. It never deletes
+the active Electron `userData` folder or a custom data directory; custom-folder
+users should restore the exported snapshot from Settings / Local data after the
+new version opens if they need to rehydrate that workspace.
 
 The renderer never supplies the effective update data directory directly. Main
 process IPC resolves the chosen option to either the active Electron `userData`
 path or a user-approved custom directory, then passes that trusted path to the
-source-build updater.
+source-build updater. The pre-update backup directory follows the same trust
+boundary: unless backup is explicitly skipped, the path must match a folder that
+the main process received from its directory chooser.
 
 Downstream Telegram photo sends may only read image files that resolve under the
 managed `assets/` directory for the current `userData` root. Absolute paths,
