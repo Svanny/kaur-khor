@@ -1,7 +1,7 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createPreUpdateBackup,
@@ -83,6 +83,45 @@ describe('source-build update support', () => {
 
     expect(result.backupPath).toBe(null);
     expect(result.dataDir).toBe(dataDir);
+  });
+
+  it('fails when an explicit update data directory is missing', async () => {
+    const root = await tempRoot('kaur-khor-update-default-');
+    const defaultDataDir = join(root, 'KAUR KHOR');
+    const missingDataDir = join(root, 'missing-custom-data');
+    mkdirSync(defaultDataDir);
+    expect(existsSync(missingDataDir)).toBe(false);
+    vi.stubEnv('XDG_CONFIG_HOME', root);
+
+    await expect(prepareSourceBuildUpdate({
+      backupDir: await tempRoot('kaur-khor-backups-'),
+      dataDir: missingDataDir,
+      nextVersion: '0.3.5',
+      target: { os: 'linux' },
+    })).rejects.toThrow(`Kaur Khor data directory was not found: ${resolve(missingDataDir)}`);
+  });
+
+  it('documents source-build checksum verification before extraction', () => {
+    const installGuide = readFileSync('docs/install-guide.md', 'utf8');
+    const shellSnippet = installGuide.slice(
+      installGuide.indexOf('```sh'),
+      installGuide.indexOf('```', installGuide.indexOf('```sh') + 1),
+    );
+    const powershellSnippet = installGuide.slice(
+      installGuide.indexOf('```powershell'),
+      installGuide.indexOf('```', installGuide.indexOf('```powershell') + 1),
+    );
+
+    expect(shellSnippet).toContain('kaur-khor-latest-source-build.tar.gz.sha256');
+    expect(shellSnippet).toMatch(/shasum -a 256 -c|sha256sum -c/);
+    expect(shellSnippet.indexOf('kaur-khor-latest-source-build.tar.gz.sha256')).toBeLessThan(
+      shellSnippet.indexOf('tar -xzf kaur-khor-latest-source-build.tar.gz'),
+    );
+    expect(powershellSnippet).toContain('kaur-khor-latest-source-build.tar.gz.sha256');
+    expect(powershellSnippet).toContain('Get-FileHash -Algorithm SHA256');
+    expect(powershellSnippet.indexOf('Get-FileHash -Algorithm SHA256')).toBeLessThan(
+      powershellSnippet.indexOf('tar -xzf "kaur-khor-latest-source-build.tar.gz"'),
+    );
   });
 
   it('keeps platform-specific default data paths separate from app installs', () => {

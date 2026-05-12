@@ -59,8 +59,15 @@ export function preUpdateBackupName({ currentVersion, nextVersion, now = new Dat
 }
 
 export function resolveUpdateDataDirectory(explicitDataDir, targetOs = process.platform) {
+  if (typeof explicitDataDir === 'string' && explicitDataDir.trim().length > 0) {
+    const explicitPath = resolve(explicitDataDir);
+    if (!existsSync(explicitPath)) {
+      throw new Error(`Kaur Khor data directory was not found: ${explicitPath}`);
+    }
+    return explicitPath;
+  }
+
   const candidates = [
-    explicitDataDir,
     process.env.KAUR_KHOR_DESKTOP_DATA_DIR,
     defaultDataDirectoryForPlatform(targetOs),
   ].filter((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);

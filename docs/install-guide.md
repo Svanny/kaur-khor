@@ -36,8 +36,14 @@ To build from source, inspect the source on the [official GitHub page](https://g
 
 ```sh
 curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz -o kaur-khor-latest-source-build.tar.gz
+curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz.sha256 -o kaur-khor-latest-source-build.tar.gz.sha256
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c kaur-khor-latest-source-build.tar.gz.sha256
+else
+  shasum -a 256 -c kaur-khor-latest-source-build.tar.gz.sha256
+fi
 tar -xzf kaur-khor-latest-source-build.tar.gz
-rm kaur-khor-latest-source-build.tar.gz
+rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256
 cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update
 ```
@@ -73,8 +79,12 @@ To build from source on Windows, use PowerShell-native commands. PowerShell alia
 
 ```powershell
 Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"
+Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz.sha256" -OutFile "kaur-khor-latest-source-build.tar.gz.sha256"
+$expectedHash = (Get-Content "kaur-khor-latest-source-build.tar.gz.sha256").Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
+$actualHash = (Get-FileHash -Algorithm SHA256 -Path "kaur-khor-latest-source-build.tar.gz").Hash.ToLowerInvariant()
+if ($actualHash -ne $expectedHash) { throw "SHA-256 mismatch for Kaur Khor source-build archive." }
 tar -xzf "kaur-khor-latest-source-build.tar.gz"
-Remove-Item -Path "kaur-khor-latest-source-build.tar.gz"
+Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"
 Set-Location "kaur-khor-*-source-build"
 .\scripts\build-from-source.ps1 --update
 ```
