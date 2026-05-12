@@ -1126,6 +1126,9 @@ impl SenaObservationInput {
                 validate_non_empty("commercialEvents[].reason", reason)?;
             }
         }
+        for event in &self.ticket_events {
+            validate_ticket_event(event)?;
+        }
         for hint in &self.recipe_usage_hints {
             validate_identifier("recipeUsageHints[].serviceId", &hint.service_id)?;
             validate_identifier("recipeUsageHints[].skuId", &hint.sku_id)?;
@@ -1153,6 +1156,110 @@ impl SenaObservationInput {
         }
         Ok(())
     }
+}
+
+fn validate_ticket_event(event: &SenaTicketEvent) -> Result<()> {
+    validate_identifier("ticketEvents[].ticketId", &event.ticket_id)?;
+    if event.revision < 0 {
+        return Err(anyhow!("ticketEvents[].revision must be >= 0"));
+    }
+    validate_rfc3339("ticketEvents[].occurredAt", &event.occurred_at)?;
+    if let Some(timestamp) = &event.next_touch_at {
+        validate_rfc3339("ticketEvents[].nextTouchAt", timestamp)?;
+    }
+    if let Some(party) = &event.party {
+        validate_ticket_party_metadata(party)?;
+    }
+    for line in &event.lines {
+        validate_ticket_line(line)?;
+    }
+    if let Some(delivery_fee) = &event.delivery_fee {
+        validate_delivery_fee_metadata(delivery_fee)?;
+    }
+    if let Some(discount) = &event.discount {
+        validate_discount_metadata(discount)?;
+    }
+    Ok(())
+}
+
+fn validate_ticket_party_metadata(metadata: &SenaTicketPartyMetadata) -> Result<()> {
+    validate_non_empty("ticketEvents[].party.role", &metadata.role)?;
+    for (label, value) in [
+        (
+            "ticketEvents[].party.channelKey",
+            metadata.channel_key.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.channelLabel",
+            metadata.channel_label.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.customerName",
+            metadata.customer_name.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.customerNameKey",
+            metadata.customer_name_key.as_deref(),
+        ),
+        ("ticketEvents[].party.phone", metadata.phone.as_deref()),
+        (
+            "ticketEvents[].party.phoneKey",
+            metadata.phone_key.as_deref(),
+        ),
+        (
+            "ticketEvents[].party.supplierName",
+            metadata.supplier_name.as_deref(),
+        ),
+    ] {
+        if let Some(value) = value {
+            validate_non_empty(label, value)?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_ticket_line(line: &SenaTicketLine) -> Result<()> {
+    validate_identifier("ticketEvents[].lines[].entityId", &line.entity_id)?;
+    if let Some(quantity) = line.quantity_delta {
+        if !quantity.is_finite() {
+            return Err(anyhow!(
+                "ticketEvents[].lines[].quantityDelta must be finite"
+            ));
+        }
+    }
+    for (label, value) in [
+        (
+            "ticketEvents[].lines[].orderedQuantity",
+            line.ordered_quantity,
+        ),
+        (
+            "ticketEvents[].lines[].receivedQuantity",
+            line.received_quantity,
+        ),
+        ("ticketEvents[].lines[].unitCost", line.unit_cost),
+    ] {
+        if let Some(value) = value {
+            if !value.is_finite() || value < 0.0 {
+                return Err(anyhow!("{label} must be >= 0"));
+            }
+        }
+    }
+    if let Some(timestamp) = &line.promised_at {
+        validate_rfc3339("ticketEvents[].lines[].promisedAt", timestamp)?;
+    }
+    if let Some(timestamp) = &line.expected_arrival_at {
+        validate_rfc3339("ticketEvents[].lines[].expectedArrivalAt", timestamp)?;
+    }
+    if let Some(note) = &line.note {
+        validate_non_empty("ticketEvents[].lines[].note", note)?;
+    }
+    Ok(())
+}
+
+fn validate_rfc3339(label: &str, value: &str) -> Result<()> {
+    OffsetDateTime::parse(value, &time::format_description::well_known::Rfc3339)
+        .map_err(|err| anyhow!("{label} must be RFC3339: {err}"))?;
+    Ok(())
 }
 
 fn validate_delivery_fee_metadata(metadata: &SenaDeliveryFeeMetadata) -> Result<()> {
@@ -1238,6 +1345,7 @@ mod tests {
         SenaStockSnapshot, SENA_SCHEMA_VERSION,
     };
     use crate::lead_time::SenaLeadTimeVariabilityClass;
+    use serde_json::{json, Value};
 
     #[test]
     fn catalog_validation_rejects_cross_type_id_overlap() {
@@ -1428,7 +1536,23 @@ mod tests {
                   "entityId": "sku-1",
                   "quantityDelta": 2
                 }],
-                "deliveryFee": null,
+                "deliveryFee": {
+                  "feeUsd": 2.5,
+                  "payer": "customer",
+                  "bucket": "customer_order",
+                  "subtotalUsd": 25,
+                  "displayDeliveryUsd": 2.5,
+                  "displayTotalUsd": 27.5,
+                  "netSettlementUsd": 27.5
+                },
+                "discount": {
+                  "mode": "amount",
+                  "amountUsd": 1.5,
+                  "percent": null,
+                  "subtotalUsd": 25,
+                  "displayDiscountUsd": 1.5,
+                  "discountedSubtotalUsd": 23.5
+                },
                 "note": null
               }],
               "notes": null
@@ -1437,6 +1561,150 @@ mod tests {
         .expect("observation should parse");
 
         observation.validate().expect("observation should validate");
+    }
+
+    #[test]
+    fn observation_validation_rejects_malformed_ticket_events() {
+        for (label, update, expected_error) in [
+            (
+                "blank ticket id",
+                json!({"ticketId": "   "}),
+                "ticketEvents[].ticketId must not be empty",
+            ),
+            (
+                "negative revision",
+                json!({"revision": -1}),
+                "ticketEvents[].revision must be >= 0",
+            ),
+            (
+                "bad occurred at",
+                json!({"occurredAt": "not-a-date"}),
+                "ticketEvents[].occurredAt must be RFC3339",
+            ),
+            (
+                "bad next touch at",
+                json!({"nextTouchAt": "not-a-date"}),
+                "ticketEvents[].nextTouchAt must be RFC3339",
+            ),
+            (
+                "blank party key",
+                json!({"party": {"customerNameKey": " "}}),
+                "ticketEvents[].party.customerNameKey must not be empty",
+            ),
+            (
+                "blank line entity",
+                json!({"lines": [{"entityType": "sku", "entityId": ""}]}),
+                "ticketEvents[].lines[].entityId must not be empty",
+            ),
+            (
+                "negative line quantity",
+                json!({"lines": [{"entityType": "sku", "entityId": "sku-1", "orderedQuantity": -1}]}),
+                "ticketEvents[].lines[].orderedQuantity must be >= 0",
+            ),
+            (
+                "bad line timestamp",
+                json!({"lines": [{"entityType": "sku", "entityId": "sku-1", "expectedArrivalAt": "tomorrow"}]}),
+                "ticketEvents[].lines[].expectedArrivalAt must be RFC3339",
+            ),
+            (
+                "negative nested delivery fee",
+                json!({"deliveryFee": {"feeUsd": -1}}),
+                "deliveryFee.feeUsd must be >= 0",
+            ),
+            (
+                "invalid nested discount",
+                json!({"discount": {"percent": 101}}),
+                "discount.percent must be between 0 and 100",
+            ),
+        ] {
+            let mut observation = valid_ticket_observation_value();
+            merge_json(&mut observation["ticketEvents"][0], update);
+            let observation = serde_json::from_value::<SenaObservationInput>(observation)
+                .unwrap_or_else(|err| panic!("{label} should deserialize: {err}"));
+
+            let error = observation
+                .validate()
+                .expect_err(&format!("{label} should fail validation"));
+            assert!(
+                error.to_string().contains(expected_error),
+                "{label} returned unexpected error: {error}"
+            );
+        }
+    }
+
+    fn valid_ticket_observation_value() -> Value {
+        json!({
+            "observedAt": "2026-04-03T00:00:00Z",
+            "stockSnapshot": [],
+            "ticketEvents": [{
+                "ticketId": "ticket:customer:1",
+                "ticketFamily": "customer",
+                "lifecycle": "open",
+                "stage": "pending",
+                "revision": 1,
+                "eventType": "created",
+                "occurredAt": "2026-04-03T00:00:00Z",
+                "nextTouchAt": "2026-04-04T00:00:00Z",
+                "party": {
+                    "role": "customer",
+                    "channelKey": "walk-in",
+                    "channelLabel": "Walk-in",
+                    "customerName": "Dara",
+                    "customerNameKey": "dara",
+                    "phone": "012345678",
+                    "phoneKey": "012345678",
+                    "supplierName": null
+                },
+                "lines": [{
+                    "entityType": "sku",
+                    "entityId": "sku-1",
+                    "quantityDelta": 2,
+                    "orderedQuantity": 2,
+                    "receivedQuantity": 0,
+                    "promisedAt": "2026-04-05T00:00:00Z",
+                    "expectedArrivalAt": "2026-04-06T00:00:00Z",
+                    "unitCost": 3.5,
+                    "note": "line note"
+                }],
+                "deliveryFee": {
+                    "feeUsd": 2.5,
+                    "payer": "customer",
+                    "bucket": "customer_order",
+                    "subtotalUsd": 25,
+                    "displayDeliveryUsd": 2.5,
+                    "displayTotalUsd": 27.5,
+                    "netSettlementUsd": 27.5
+                },
+                "discount": {
+                    "mode": "amount",
+                    "amountUsd": 1.5,
+                    "percent": null,
+                    "subtotalUsd": 25,
+                    "displayDiscountUsd": 1.5,
+                    "discountedSubtotalUsd": 23.5
+                },
+                "note": null
+            }],
+            "notes": null
+        })
+    }
+
+    fn merge_json(target: &mut Value, update: Value) {
+        match (target, update) {
+            (Value::Object(target), Value::Object(update)) => {
+                for (key, value) in update {
+                    match target.get_mut(&key) {
+                        Some(target_value) => merge_json(target_value, value),
+                        None => {
+                            target.insert(key, value);
+                        }
+                    }
+                }
+            }
+            (target, update) => {
+                *target = update;
+            }
+        }
     }
 
     #[test]

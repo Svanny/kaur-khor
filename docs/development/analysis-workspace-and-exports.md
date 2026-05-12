@@ -63,7 +63,10 @@ Ticket-backed operational updates are stored on observations as structured
 `ticketEvents`. These events are evidence for SKU, service, performance,
 analysis, and financial projections. They should remain distinct from legacy
 order-signal and order-batch compatibility reads so new operational facts keep a
-stable ticket identity and event revision trail.
+stable ticket identity and event revision trail. SENA validation rejects ticket
+events that do not include a non-empty ticket id, kind, status, and at least one
+SKU or service line, so malformed ticket payloads cannot enter the analysis
+ledger as empty evidence.
 
 Catalog editor saves update current catalog defaults. When an existing SKU or
 service variable changes, the renderer also appends a narrow observation so
@@ -72,7 +75,9 @@ the latest known units, SKU retail price writes a retail price signal, SKU
 ETA days or uncertainty writes an ETA hint, and service price writes
 a service price signal. Name, description, image, supplier, linked-SKU, archive,
 and create-new-item saves remain catalog-only unless one of those variable
-fields also changes.
+fields also changes. SKU and service identity changes also rewrite matching
+entity references inside ticket-event lines so renamed catalog items continue to
+resolve in ticket-backed history and compact activity.
 
 Compact record activity is append-style over bounded recent observation payloads
 and ticket events. Latest anchors remain backed by normalized hot rows, but
