@@ -13,7 +13,7 @@ use crate::{
         SenaTicketLifecycle, SenaTicketSummary, SenaUpdateOrderBatchPayload,
         SenaUpdateOrderChildPayload, SenaWorkspaceSummary,
     },
-    PreprocessedWorkspace, SenaAnalysisCheckpoint,
+    PreprocessedWorkspace, SenaAnalysisCheckpoint, SenaEngineParameters,
 };
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
@@ -103,6 +103,7 @@ impl SqliteSenaRepository {
               summary_json TEXT,
               diagnostics_json TEXT,
               primary_artifact_key TEXT,
+              engine_parameters_json TEXT,
               error TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_sena_run_owner_created_at
@@ -232,6 +233,12 @@ impl SqliteSenaRepository {
             "sena_analysis_checkpoint",
             "payload_bytes",
             "ALTER TABLE sena_analysis_checkpoint ADD COLUMN payload_bytes INTEGER",
+        )?;
+        ensure_column(
+            &connection,
+            "sena_run",
+            "engine_parameters_json",
+            "ALTER TABLE sena_run ADD COLUMN engine_parameters_json TEXT",
         )?;
         if previous_user_version < 3 {
             backfill_record_update_anchors_locked(&connection)?;
@@ -2277,12 +2284,16 @@ impl SenaRepository for SqliteSenaRepository {
         &self,
         owner_sub: &str,
         algorithm_version: &str,
+        parameters: Option<&SenaEngineParameters>,
     ) -> Result<SenaAnalysisRunRecord> {
         let observations = self.list_observations(owner_sub).await?;
+        let engine_parameters =
+            parameters.map(|value| value.normalized_for_algorithm(algorithm_version));
         let record = SenaAnalysisRunRecord {
             run_id: Uuid::new_v4().to_string(),
             owner_sub: owner_sub.to_string(),
             algorithm_version: algorithm_version.to_string(),
+            engine_parameters,
             status: SenaRunStatus::Queued,
             observation_count: observations.len(),
             created_at: now_rfc3339(),
@@ -2299,8 +2310,9 @@ impl SenaRepository for SqliteSenaRepository {
         connection.execute(
             r#"
             INSERT INTO sena_run (
-              run_id, owner_sub, algorithm_version, status, observation_count, created_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+              run_id, owner_sub, algorithm_version, status, observation_count, created_at,
+              engine_parameters_json
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
             "#,
             params![
                 record.run_id,
@@ -2309,6 +2321,11 @@ impl SenaRepository for SqliteSenaRepository {
                 "queued",
                 record.observation_count as i64,
                 record.created_at,
+                record
+                    .engine_parameters
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
             ],
         )?;
         Ok(record)
@@ -2323,7 +2340,8 @@ impl SenaRepository for SqliteSenaRepository {
             .query_row(
                 r#"
                 SELECT owner_sub, algorithm_version, status, observation_count, created_at, completed_at,
-                       summary_json, diagnostics_json, primary_artifact_key, error
+                       summary_json, diagnostics_json, primary_artifact_key, error,
+                       engine_parameters_json
                 FROM sena_run
                 WHERE run_id = ?1
                 "#,
@@ -2340,6 +2358,7 @@ impl SenaRepository for SqliteSenaRepository {
                         row.get::<_, Option<String>>(7)?,
                         row.get::<_, Option<String>>(8)?,
                         row.get::<_, Option<String>>(9)?,
+                        row.get::<_, Option<String>>(10)?,
                     ))
                 }
             )
@@ -2355,10 +2374,15 @@ impl SenaRepository for SqliteSenaRepository {
             .7
             .map(|value| serde_json::from_str(&value))
             .transpose()?;
+        let engine_parameters = row
+            .10
+            .map(|value| serde_json::from_str(&value))
+            .transpose()?;
         Ok(Some(SenaAnalysisRunRecord {
             run_id: run_id.to_string(),
             owner_sub: row.0,
             algorithm_version: row.1,
+            engine_parameters,
             status: parse_run_status(&row.2),
             observation_count: row.3,
             created_at: row.4,
@@ -2903,10 +2927,10 @@ mod tests {
     use crate::{
         build_checkpoint_metadata, fingerprint_catalog, preprocess_workspace,
         service::SenaRepository, PreprocessedWorkspace, SenaCatalog, SenaCreateOrderBatchPayload,
-        SenaLeadTimeHint, SenaObservationInput, SenaObservationPageRequest, SenaObservationRecord,
-        SenaOrderFieldValues, SenaOrderSignal, SenaService, SenaServicePriceObservation,
-        SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload, SenaStockSnapshot,
-        SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
+        SenaEngineParameters, SenaLeadTimeHint, SenaObservationInput, SenaObservationPageRequest,
+        SenaObservationRecord, SenaOrderFieldValues, SenaOrderSignal, SenaService,
+        SenaServicePriceObservation, SenaServiceSkuMaskEntry, SenaSku, SenaSplitOrderChildPayload,
+        SenaStockSnapshot, SenaUpdateOrderBatchPayload, SenaUpdateOrderChildPayload,
     };
     use futures::executor::block_on;
     use rusqlite::{params, OptionalExtension};
@@ -4141,7 +4165,7 @@ mod tests {
         current_service.activity_mean = 7.0;
         first.service_details = vec![stale_service, current_service.clone()];
 
-        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+        let first_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("first run should create");
         block_on(repo.persist_completed_run(&first_run.run_id, &first, None))
             .expect("first run should persist");
@@ -4159,7 +4183,7 @@ mod tests {
         let mut refreshed_service = current_service;
         refreshed_service.activity_mean = 11.0;
         second.service_details = vec![refreshed_service];
-        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3"))
+        let second_run = block_on(repo.create_run("owner", "sena-analysis-v3", None))
             .expect("second run should create");
         block_on(repo.persist_completed_run(&second_run.run_id, &second, None))
             .expect("second run should persist");
@@ -4201,6 +4225,33 @@ mod tests {
             )
             .expect("stale service row count should load");
         assert_eq!(stale_service_rows, 0);
+    }
+
+    #[test]
+    fn run_parameters_round_trip_through_sqlite() {
+        let path = temp_store_path("run-parameters");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let parameters = SenaEngineParameters {
+            particle_count: 64,
+            target_service_level: 0.8,
+            recommendation_quantile: 0.7,
+            interval_low_quantile: 0.2,
+            interval_high_quantile: 0.8,
+            need_probability_gate: 0.4,
+            review_delay_days: 3.0,
+            smoothing_enabled: true,
+        };
+
+        let run = block_on(repo.create_run("owner", "sena-analysis-v3", Some(&parameters)))
+            .expect("run should create");
+        let loaded = block_on(repo.get_run(&run.run_id))
+            .expect("run should load")
+            .expect("run should exist");
+
+        assert_eq!(
+            loaded.engine_parameters,
+            Some(parameters.normalized_for_algorithm("sena-analysis-v3"))
+        );
     }
 
     #[test]

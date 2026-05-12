@@ -690,6 +690,8 @@ pub struct SenaAnalysisRunRecord {
     pub run_id: String,
     pub owner_sub: String,
     pub algorithm_version: String,
+    #[serde(default)]
+    pub engine_parameters: Option<crate::inference::SenaEngineParameters>,
     pub status: SenaRunStatus,
     pub observation_count: usize,
     pub created_at: String,
@@ -1273,6 +1275,22 @@ fn validate_ticket_family_stage_event(event: &SenaTicketEvent) -> Result<()> {
             "ticketEvents[] family, stage, and eventType are incompatible"
         ));
     }
+    if event.ticket_family == SenaTicketFamily::Supplier
+        && event.lifecycle == SenaTicketLifecycle::Open
+        && event.stage == SenaTicketStage::Received
+    {
+        return Err(anyhow!(
+            "ticketEvents[] open supplier lifecycle cannot use received stage"
+        ));
+    }
+    if event.ticket_family == SenaTicketFamily::Supplier
+        && event.lifecycle == SenaTicketLifecycle::Open
+        && event.event_type == SenaTicketEventType::FullyReceived
+    {
+        return Err(anyhow!(
+            "ticketEvents[] open supplier lifecycle cannot use fully received eventType"
+        ));
+    }
     if event.lifecycle == SenaTicketLifecycle::Canceled
         && event.event_type != SenaTicketEventType::Canceled
     {
@@ -1764,6 +1782,22 @@ mod tests {
                 SenaTicketStage::OrderedWaiting,
                 SenaTicketEventType::FulfilledImmediate,
                 "ticketEvents[] family, stage, and eventType are incompatible",
+            ),
+            (
+                "open supplier cannot use received stage",
+                SenaTicketFamily::Supplier,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::Received,
+                SenaTicketEventType::FullyReceived,
+                "ticketEvents[] open supplier lifecycle cannot use received stage",
+            ),
+            (
+                "open supplier cannot use fully received event",
+                SenaTicketFamily::Supplier,
+                SenaTicketLifecycle::Open,
+                SenaTicketStage::OrderedWaiting,
+                SenaTicketEventType::FullyReceived,
+                "ticketEvents[] open supplier lifecycle cannot use fully received eventType",
             ),
             (
                 "canceled lifecycle requires canceled event",
