@@ -356,7 +356,11 @@ function compareToneFromDelta(delta: number, neutralThreshold = 0.08): StatusPil
   return 'neutral';
 }
 
-function compareTrendText(currentScore: number, previousScore: number, language: AppLanguage) {
+function compareTrendText(
+  currentScore: number,
+  previousScore: number,
+  language: AppLanguage,
+): { delta: number; direction: TrendTone; text: string; tone: StatusPillTone } {
   if (currentScore <= 0 && previousScore <= 0) {
     return { direction: 'flat', text: literal(language, 'Limited comparison'), tone: 'neutral' as const, delta: 0 };
   }
@@ -1013,12 +1017,12 @@ function actionForRow(
   language: AppLanguage,
 ): { label: PerformanceMoveRow['ctaLabel']; href: string } {
   if (row.type === 'service') {
-    return { label: translateUiLiteral(language, 'Open service'), href: row.href };
+    return { label: 'Open service', href: row.href };
   }
   if (row.status === 'unblock') {
-    return { label: translateUiLiteral(language, 'Open queue'), href: '/' };
+    return { label: 'Open queue', href: '/' };
   }
-  return { label: translateUiLiteral(language, 'Open SKU'), href: row.href };
+  return { label: 'Open SKU', href: row.href };
 }
 
 function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: AppLanguage) {
@@ -1133,7 +1137,7 @@ function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: App
   };
 }
 
-function sortBusinessRows(rows: Array<SkuBusinessRow | ServiceBusinessRow>) {
+function sortBusinessRows<T extends SkuBusinessRow | ServiceBusinessRow>(rows: T[]): T[] {
   const statusWeight: Record<BusinessStatus, number> = {
     unblock: 0,
     push: 1,
@@ -1452,6 +1456,7 @@ export function derivePerformanceViewModel({
       move: description.move,
       moveEntityName: description.moveEntityName,
       moveEntityType: description.moveEntityType,
+      imagePath: description.imagePath,
       moveVerb: description.moveVerb,
       whyNow: description.whyNow,
       expectedEffect: description.expectedEffect,
