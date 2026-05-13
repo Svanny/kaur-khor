@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SenaSkuDetailViewModel } from './sku-detail/view-model';
 import {
   buildLeadTimeHintFromInputs,
   formatDatetimeLocalValue,
@@ -26,7 +27,7 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 describe('catalog item action sheets', () => {
-  const skuActionContext = {
+  const skuActionContext: SenaSkuDetailViewModel['actionContext'] = {
     currentStock: 12,
     costPerUnit: 4,
     leadTimeVariability: null,
@@ -35,16 +36,23 @@ describe('catalog item action sheets', () => {
     recommendedOrderQuantity: 6,
     reorderRecommendation: {
       compactLabel: 'Order 6',
+      hasBackendRecommendation: true,
       likelyRangeLabel: 'Likely range 5-7',
+      likelyRangeValueLabel: '5-7',
       needProbabilityLabel: '91% need probability',
+      needProbabilityValueLabel: '91%',
       optionalOrderLabel: null,
+      policyBasisLabel: 'Policy basis forecast',
+      protectionHorizonLabel: 'Protection horizon 30 days',
       quietLabel: 'Quiet',
       recommendationIssued: true,
       recommendedOrderLabel: 'Order 6',
       recommendedUnits: 6,
+      recommendedUnitsLabel: '6 units',
     },
     soldAsProduct: true,
-  } as const;
+    supplierName: null,
+  };
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -184,25 +192,7 @@ describe('catalog item action sheets', () => {
     render(
       <MemoryRouter>
         <SkuMutationActions
-          actionContext={{
-            currentStock: 12,
-            costPerUnit: 4,
-            leadTimeVariability: null,
-            latestObservationAt: '2026-04-02T00:00:00Z',
-            productPrice: 9,
-            recommendedOrderQuantity: 6,
-            reorderRecommendation: {
-              compactLabel: 'Order 6',
-              likelyRangeLabel: 'Likely range 5-7',
-              needProbabilityLabel: '91% need probability',
-              optionalOrderLabel: null,
-              quietLabel: 'Quiet',
-              recommendationIssued: true,
-              recommendedOrderLabel: 'Order 6',
-              recommendedUnits: 6,
-            },
-            soldAsProduct: true,
-          }}
+          actionContext={skuActionContext}
           mode="stock"
           onComplete={vi.fn(async () => {})}
           onModeChange={handleModeChange}
@@ -422,25 +412,7 @@ describe('catalog item action sheets', () => {
             element={
               <>
                 <SkuMutationActions
-                  actionContext={{
-                    currentStock: 12,
-                    costPerUnit: 4,
-                    leadTimeVariability: null,
-                    latestObservationAt: '2026-04-02T00:00:00Z',
-                    productPrice: 9,
-                    recommendedOrderQuantity: 6,
-                    reorderRecommendation: {
-                      compactLabel: 'Order 6',
-                      likelyRangeLabel: 'Likely range 5-7',
-                      needProbabilityLabel: '91% need probability',
-                      optionalOrderLabel: null,
-                      quietLabel: 'Quiet',
-                      recommendationIssued: true,
-                      recommendedOrderLabel: 'Order 6',
-                      recommendedUnits: 6,
-                    },
-                    soldAsProduct: true,
-                  }}
+                  actionContext={skuActionContext}
                   onComplete={vi.fn(async () => {})}
                   skuId="sku-1"
                 />
@@ -497,25 +469,7 @@ describe('catalog item action sheets', () => {
             element={
               <>
                 <SkuMutationActions
-                  actionContext={{
-                    currentStock: 12,
-                    costPerUnit: 4,
-                    leadTimeVariability: null,
-                    latestObservationAt: '2026-04-02T00:00:00Z',
-                    productPrice: 9,
-                    recommendedOrderQuantity: 6,
-                    reorderRecommendation: {
-                      compactLabel: 'Order 6',
-                      likelyRangeLabel: 'Likely range 5-7',
-                      needProbabilityLabel: '91% need probability',
-                      optionalOrderLabel: null,
-                      quietLabel: 'Quiet',
-                      recommendationIssued: true,
-                      recommendedOrderLabel: 'Order 6',
-                      recommendedUnits: 6,
-                    },
-                    soldAsProduct: true,
-                  }}
+                  actionContext={skuActionContext}
                   onComplete={vi.fn(async () => {})}
                   skuId="sku-1"
                 />
