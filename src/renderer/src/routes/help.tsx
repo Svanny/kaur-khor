@@ -165,12 +165,12 @@ export function HelpRoute() {
       };
     }
 
-    const delayId = window.setTimeout(() => {
+    const delayId = globalThis.setTimeout(() => {
       setHighlightedSubsectionId(targetId);
     }, helpSubsectionScrollHighlightDelayMs);
 
     return () => {
-      window.clearTimeout(delayId);
+      globalThis.clearTimeout(delayId);
     };
   }, [location.hash]);
 
@@ -335,7 +335,8 @@ export function HelpRoute() {
                       );
                     }
 
-                    return (
+                    if (block.type === 'ordered-list') {
+                      return (
                       <ol key={`${section.id}-ordered-${groupIndex}-${index}`} className="grid gap-2 pl-5 text-sm leading-7 text-muted-foreground sm:text-[0.96rem]">
                         {block.items.map((item) => (
                           <li key={item} className="list-decimal">
@@ -343,7 +344,10 @@ export function HelpRoute() {
                           </li>
                         ))}
                       </ol>
-                    );
+                      );
+                    }
+
+                    return null;
                         })}
                       </AttentionFlash>
                     );
