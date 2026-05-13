@@ -4,7 +4,14 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import type { SenaObservationRecord, SenaRecordUpdateContext, SenaSkuDetail, SenaTicketSummary } from '@shared/sena';
+import type { DesktopTaskBatchUpdatePreferences } from '@shared/ipc';
+import type {
+  SenaObservationRecord,
+  SenaRecordUpdateContext,
+  SenaSkuDetail,
+  SenaTicketSummary,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
 import { DescriptionTextVisibilityProvider } from '@/components/system/description-text';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { DashboardRoute } from './dashboard';
@@ -141,8 +148,8 @@ function freezeDate(isoString: string) {
   const fixedDate = new realDate(isoString);
 
   class MockDate extends realDate {
-    constructor(...args: any[]) {
-      super(...(args.length === 0 ? [fixedDate.toISOString()] : args));
+    constructor(...args: [] | [string | number | Date]) {
+      super(args.length === 0 ? fixedDate.toISOString() : args[0]);
     }
 
     static now() {
@@ -183,7 +190,7 @@ const preferenceState = {
     followUp: 'ask',
     receive: 'ask',
     review: 'ask',
-  } as const,
+  } as DesktopTaskBatchUpdatePreferences,
   overviewStaleUpdateReminderSnoozeUntil: null as string | null,
 };
 
@@ -305,7 +312,7 @@ const sampleCatalog = {
   ],
 };
 
-const sampleWorkspaceSummary = {
+const sampleWorkspaceSummary: SenaWorkspaceSummary = {
   ownerSub: 'desktop-owner',
   runId: 'run-1',
   latestObservedAt: '2026-04-03T08:00:00.000Z',
@@ -1174,7 +1181,7 @@ describe('DashboardRoute', () => {
     await user.click(screen.getByRole('button', { name: 'Mark completed' }));
 
     expect(await screen.findByRole('heading', { name: 'Haircut' })).toBeInTheDocument();
-    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
     expect(within(dialog).getByLabelText('Completed date and time')).toHaveValue('2026-04-09T16:44');
     expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
     expect(screen.getByTestId('route-location')).toHaveTextContent('/?customerTask=customer%3Aservice%3Aservice-1');
@@ -1271,7 +1278,7 @@ describe('DashboardRoute', () => {
 
     await user.click(screen.getByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' }));
 
-    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
     expect(await within(dialog).findByRole('heading', { name: 'Customer Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
     expect(within(dialog).getByText('Prefers evening pickup')).toBeInTheDocument();
     expect(within(dialog).queryByLabelText('Quantity completed')).toBeNull();
@@ -1371,7 +1378,7 @@ describe('DashboardRoute', () => {
     expect(reviewButton.querySelector('path[d="M11 7v4"]')).not.toBeNull();
     await user.click(reviewButton);
 
-    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
     expect(await within(dialog).findByRole('heading', { name: 'Customer Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
     expect(within(dialog).getByText('1 x Haircut, 1 x Coloring +1 more')).toBeInTheDocument();
     expect(within(dialog).getByText('ETA')).toBeInTheDocument();
@@ -1380,8 +1387,8 @@ describe('DashboardRoute', () => {
     expect(within(dialog).getByRole('button', { name: 'Cancel ticket' }).querySelector('.lucide-x')).not.toBeNull();
     expect(within(dialog).getByRole('button', { name: 'Mark fulfilled' }).querySelector('.lucide-check')).not.toBeNull();
     expect(dialog).toHaveClass('overflow-hidden');
-    expect(dialog.querySelector('[data-slot="customer-queue-drawer-scroll"]')).toHaveClass('overflow-y-auto');
-    expect(dialog.querySelector('[data-slot="customer-queue-drawer-footer"]')).toHaveClass('shrink-0');
+    expect(dialog.querySelector<HTMLElement>('[data-slot="customer-queue-drawer-scroll"]')).toHaveClass('overflow-y-auto');
+    expect(dialog.querySelector<HTMLElement>('[data-slot="customer-queue-drawer-footer"]')).toHaveClass('shrink-0');
     expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=customer');
     expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
   });
@@ -1408,7 +1415,7 @@ describe('DashboardRoute', () => {
     const ticketRow = ticketButton.closest('[data-customer-task-id]') as HTMLElement;
     await user.click(within(ticketRow).getByRole('button', { name: 'Review' }));
 
-    const dialog = document.querySelector('[data-slot="sheet-content"]')!;
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
     const observedInput = await within(dialog).findByLabelText('Update date and time');
     fireEvent.change(observedInput, { target: { value: '2026-04-10T09:15' } });
     const nextTouchInput = within(dialog).getByLabelText('Next touch date');
