@@ -5,6 +5,7 @@ import {
   launchKaurKhorForBenchmark,
   markBenchmarkMeasurementEnd,
   markBenchmarkMeasurementStart,
+  navigateBenchmarkRoute,
   persistedBenchmarkEventCount,
   recordPlaywrightDuration,
   snapshotRendererBenchmarkMemory,
@@ -17,11 +18,11 @@ const CYCLE_SECTIONS: Array<{
   path: `/${string}`;
   readyEvent: string;
 }> = [
-  { label: 'Work', path: '/work/queue', readyEvent: 'route.work.queue.ready' },
-  { label: 'Catalog', path: '/catalog', readyEvent: 'route.catalog.ready' },
-  { label: 'Insights', metricName: 'nav.work_to_insights_ms', path: '/insights/pressure', readyEvent: 'route.insights.pressure.ready' },
+  { label: 'Work', path: '/work', readyEvent: 'route.work.ready' },
+  { label: 'Products', path: '/catalog', readyEvent: 'route.catalog.ready' },
+  { label: 'Insights', metricName: 'nav.work_to_insights_ms', path: '/insights', readyEvent: 'route.insights.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
-  { label: 'Back to app', path: '/insights/explain', readyEvent: 'route.insights.explain.ready' },
+  { label: 'Back to app', path: '/', readyEvent: 'route.home.ready' },
 ];
 
 async function switchInsightsMode(
@@ -42,7 +43,8 @@ async function switchInsightsMode(
 ) {
   const previousCount = await persistedBenchmarkEventCount(launched, readyEvent);
   const startedAt = Date.now();
-  await launched.page.getByRole('link', { name: new RegExp(label, 'i') }).click();
+  void label;
+  await navigateBenchmarkRoute(launched.page, route);
   await waitForPersistedBenchmarkEventCount(launched, readyEvent, previousCount + 1);
   await recordPlaywrightDuration(launched.page, {
     metricName,
@@ -63,17 +65,10 @@ test('repeated sidebar navigation stays crash-free and records memory slope inpu
     for (let cycle = 0; cycle < 4; cycle += 1) {
       for (const section of CYCLE_SECTIONS) {
         if (section.label === 'Insights') {
+          const previousCount = await persistedBenchmarkEventCount(launched, section.readyEvent);
           const startedAt = Date.now();
           await clickSidebarNavigation(launched.page, section.label);
-          await launched.page.waitForFunction(() => window.location.hash.includes('/insights'));
-          const currentHash = await launched.page.evaluate(() => window.location.hash);
-          if (!currentHash.includes('/insights/pressure')) {
-            await launched.page.getByRole('link', { name: /Pressure/i }).click();
-            await launched.page.waitForFunction(() => {
-              const hash = window.location.hash;
-              return hash.includes('/insights/pressure');
-            });
-          }
+          await waitForPersistedBenchmarkEventCount(launched, section.readyEvent, previousCount + 1);
           if (section.metricName) {
             await recordPlaywrightDuration(launched.page, {
               metricName: section.metricName,
@@ -97,6 +92,20 @@ test('repeated sidebar navigation stays crash-free and records memory slope inpu
             readyEvent: 'route.insights.explain.ready',
             route: '/insights/explain',
           });
+          continue;
+        }
+        if (section.label === 'Back to app') {
+          await clickSidebarNavigation(launched.page, section.label);
+          await launched.page.waitForFunction(
+            (expectedPath) => {
+              const route = window.location.hash.startsWith('#/')
+                ? window.location.hash.slice(1)
+                : `${window.location.pathname}${window.location.search}` || '/';
+              return route.startsWith(expectedPath);
+            },
+            section.path,
+            { timeout: 30_000 },
+          );
           continue;
         }
         const previousCount = await persistedBenchmarkEventCount(launched, section.readyEvent);

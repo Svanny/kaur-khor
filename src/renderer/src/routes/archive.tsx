@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
@@ -54,6 +54,7 @@ function updateArchiveSearchParams(
 
 export function ArchiveRoute() {
   const inventory = useInventory();
+  const navigate = useNavigate();
   const { language, t } = usePreferences();
   const [pendingUnarchive, setPendingUnarchive] = useState<{
     entityId: string;
@@ -137,7 +138,7 @@ export function ArchiveRoute() {
       <WorkspaceTitleCard
         title={
           <span className="flex min-w-0 items-center gap-3">
-            <RouteBackButton className="shrink-0" />
+            <RouteBackButton className="shrink-0" onClick={() => navigate('/catalog', { replace: true })} />
             <span className="truncate">{translateUiLiteral(language, 'Archive')}</span>
           </span>
         }
