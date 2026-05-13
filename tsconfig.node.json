@@ -8,7 +8,8 @@
     "strict": true,
     "types": [
       "node",
-      "electron-vite/node"
+      "electron-vite/node",
+      "vitest/globals"
     ],
     "lib": [
       "ES2022"
