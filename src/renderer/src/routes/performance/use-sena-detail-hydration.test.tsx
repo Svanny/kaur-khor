@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SenaServiceDetailPage, SenaSkuDetailPage } from '@shared/sena';
 import { deriveSenaDetailCacheFreshnessFingerprint, writePersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { useSenaDetailHydration } from './use-sena-detail-hydration';
 
@@ -52,7 +53,7 @@ function makeSkuPage(
   count: number,
   nextBeforeIntervalIndex: number | null,
   latestPosteriorUnits = 9,
-) {
+): SenaSkuDetailPage {
   return {
     detail: {
       demandPosterior: makeDemandPosterior(start, count),
@@ -112,10 +113,12 @@ function makeRegimeTimeline(start: number, count: number, activityMean: number) 
       activityMean,
       bottleneckProbability: 0.2,
       demandMean: activityMean,
+      dominantRegime: 'normal',
       endAt: `2026-03-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
       intervalIndex,
       priceMean: 10,
       regime: 'normal',
+      regimeProbabilities: { normal: 1 },
       sellableCapacityMean: 20,
       startAt: `2026-02-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
     };
@@ -127,7 +130,7 @@ function makeServicePage(
   count: number,
   nextBeforeIntervalIndex: number | null,
   activityMean = 3,
-) {
+): SenaServiceDetailPage {
   return {
     detail: {
       activityIntervalHigh: activityMean + 1,
