@@ -158,18 +158,20 @@ export function ServiceDetailRoute() {
     () => deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
     [workspaceSummary?.latestObservedAt, workspaceSummary?.runId],
   );
-  const cachedRecentDetailPage = useMemo(
+  const cachedRecentDetailPage = useMemo<SenaServiceDetailPage | null>(
     () => {
       const storage = serviceDetailStorage();
       return storage
-        ? readPersistedSenaDetailPage({
-          beforeIntervalIndex: null,
-          entityId: serviceId,
-          entityType: 'service',
-          freshnessFingerprint: detailCacheFreshnessFingerprint,
-          limit: INTERVAL_PAGE_SIZE,
-          storage,
-        })
+        ? normalizeServiceDetailPage(
+            readPersistedSenaDetailPage<SenaServiceDetailPage>({
+              beforeIntervalIndex: null,
+              entityId: serviceId,
+              entityType: 'service',
+              freshnessFingerprint: detailCacheFreshnessFingerprint,
+              limit: INTERVAL_PAGE_SIZE,
+              storage,
+            }),
+          )
         : null;
     },
     [detailCacheFreshnessFingerprint, serviceId],
