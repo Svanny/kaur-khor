@@ -150,7 +150,7 @@ export function buildSkuDetailBootstrapPreview({
     linkedServiceDetails: [],
     uiState: observations.length < 2 ? 'needs_observations' : 'bootstrapping',
     error: null,
-    catalogHash: hashSenaCatalog(catalog),
+    catalogHash: hashSenaCatalog(visibleCatalog),
   };
 }
 

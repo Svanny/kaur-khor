@@ -101,7 +101,7 @@ export interface SenaSkuDetailViewModel {
       rationale: [string, string, string];
     };
     openPipeline: {
-      summary: [string, string, string, string];
+      summary: string[];
       events: Array<{ key: string; observedAt: string; timestamp: string; state: string; quantity: string }>;
     };
     customerDemand: {
@@ -110,6 +110,7 @@ export interface SenaSkuDetailViewModel {
     exposure: Array<{
       serviceId: string;
       serviceName: string;
+      imagePath: string | null;
       usageProbability: string;
       bottleneckProbability: string;
       severity: 'limiting_now' | 'at_risk' | 'linked';
@@ -739,12 +740,12 @@ export function deriveSenaSkuDetailViewModel({
       const detailEntry = linkedServiceDetails.find((entry) => entry.serviceId === service.serviceId);
       const usageProbability = null;
       const bottleneck = detailEntry?.bottleneckProbability ?? 0;
-      const severity =
+      const severity: 'limiting_now' | 'at_risk' | 'linked' =
         bottleneck >= 0.6 ? 'limiting_now' : bottleneck >= 0.3 ? 'at_risk' : 'linked';
       return {
         serviceId: service.serviceId,
         name: service.name,
-        imagePath: service.imagePath?.trim() || null,
+        imagePath: 'imagePath' in service && typeof service.imagePath === 'string' ? service.imagePath.trim() || null : null,
         severity,
         usageProbability: usageProbability == null ? '—' : formatSenaPercent(usageProbability, language),
         bottleneckProbability: formatSenaPercent(bottleneck, language),
@@ -977,7 +978,7 @@ export function deriveSenaSkuDetailViewModel({
       leadTimeVariability: latestVariabilityClass,
       productPrice: sku.productPrice,
       latestObservationAt,
-      supplierName: sku.supplierName?.trim() || null,
+      supplierName,
       soldAsProduct: sku.soldAsProduct,
       recommendedOrderQuantity: reorderRecommendation.recommendedUnits,
       reorderRecommendation,
