@@ -14,7 +14,7 @@ const createBackupSnapshot = vi.fn(async () => ({
   createdAt: '2026-04-10T10:00:00.000Z',
   fileCount: 2,
   snapshotPath: '/tmp/kaur-khor/backup-snapshots/manual-snapshot',
-  trigger: 'manual',
+  trigger: 'manual' as const,
 }));
 const restoreBackupSnapshot = vi.fn(async () => null);
 const listObservations = vi.fn(async () => []);
