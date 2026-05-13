@@ -4,17 +4,24 @@ import {
   closeDesktopUiMatrix,
   desktopWorkspaceCounts,
   launchDesktopUiMatrix,
+  resizeDesktopWindow,
   saveAllVisibilityPreferences,
 } from '../helpers/desktop';
 import {
   assertDesktopBridgeConsistent,
+  correctLatestObservationNotesThroughUi,
   createServiceThroughUi,
   createSkuThroughUi,
   editSkuCostAndPriceThroughUi,
+  fulfillCustomerTicketThroughUi,
+  latestTicketIdForEntity,
   saveCustomerOrderThroughUi,
+  saveCustomerTicketRevisionThroughUi,
   saveImmediateSaleThroughUi,
   saveStockCountThroughUi,
   saveSupplierOrderThroughUi,
+  saveSupplierReceiptThroughUi,
+  saveSupplierTicketRevisionThroughUi,
 } from '../helpers/forms';
 import {
   assertUiStable,
@@ -93,6 +100,13 @@ test.describe('UI matrix: desktop dependent state', () => {
       });
       await captureUi(launched.page, testInfo, 'dependent-stock-count-saved');
 
+      const correctionNote = 'UI matrix correction: stock count verified after recount.';
+      await correctLatestObservationNotesThroughUi(launched.page, correctionNote);
+      await navigateHashRoute(launched.page, '/settings/history?view=all');
+      await expect(launched.page.getByText(correctionNote)).toBeVisible();
+      await assertUiStable(launched.page, 'dependent corrected previous stock count');
+      await captureUi(launched.page, testInfo, 'dependent-stock-count-corrected');
+
       const afterSaveCounts = await desktopWorkspaceCounts(launched.page);
       expect(afterSaveCounts.skuCount).toBeGreaterThanOrEqual(1);
       expect(afterSaveCounts.serviceCount).toBeGreaterThanOrEqual(1);
@@ -105,6 +119,11 @@ test.describe('UI matrix: desktop dependent state', () => {
         targetName: service.name,
         targetType: 'service',
       });
+      const customerTicketId = await latestTicketIdForEntity(launched.page, {
+        entityId: service.serviceId,
+        family: 'customer',
+      });
+      expect(customerTicketId, 'customer ticket id should exist after pending customer order').toBeTruthy();
       await assertUiStable(launched.page, 'dependent after customer order save');
       await assertDesktopBridgeConsistent(launched.page, {
         expectedTicket: {
@@ -120,6 +139,48 @@ test.describe('UI matrix: desktop dependent state', () => {
         skuId: sku.skuId,
       });
       await captureUi(launched.page, testInfo, 'dependent-customer-order-saved');
+
+      await saveCustomerTicketRevisionThroughUi(launched.page, {
+        expectedArrivalDate: '2026-05-27',
+        quantity: '3',
+        targetId: service.serviceId,
+        targetName: service.name,
+        targetType: 'service',
+        ticketId: customerTicketId!,
+      });
+      await assertUiStable(launched.page, 'dependent after customer ticket revision');
+      await assertDesktopBridgeConsistent(launched.page, {
+        expectedTicket: {
+          entityId: service.serviceId,
+          eventType: 'revised',
+          family: 'customer',
+          stage: 'pending',
+        },
+        minObservationCount: initialCounts.observationCount + 3,
+        requireDetailRead: true,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await captureUi(launched.page, testInfo, 'dependent-customer-ticket-revised');
+
+      await fulfillCustomerTicketThroughUi(launched.page, {
+        note: 'UI matrix fulfilled customer ticket from the Work queue.',
+        ticketId: customerTicketId!,
+      });
+      await assertUiStable(launched.page, 'dependent after customer ticket fulfillment');
+      await assertDesktopBridgeConsistent(launched.page, {
+        expectedTicket: {
+          entityId: service.serviceId,
+          eventType: 'fulfilled_immediate',
+          family: 'customer',
+          stage: 'fulfilled_immediate',
+        },
+        minObservationCount: initialCounts.observationCount + 4,
+        requireDetailRead: true,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await captureUi(launched.page, testInfo, 'dependent-customer-ticket-fulfilled');
 
       await saveImmediateSaleThroughUi(launched.page, {
         quantity: '1',
@@ -149,6 +210,11 @@ test.describe('UI matrix: desktop dependent state', () => {
         skuId: sku.skuId,
         skuName: sku.name,
       });
+      const supplierTicketId = await latestTicketIdForEntity(launched.page, {
+        entityId: sku.skuId,
+        family: 'supplier',
+      });
+      expect(supplierTicketId, 'supplier ticket id should exist after supplier order').toBeTruthy();
       await assertUiStable(launched.page, 'dependent after supplier order save');
       await assertDesktopBridgeConsistent(launched.page, {
         expectedTicket: {
@@ -165,6 +231,53 @@ test.describe('UI matrix: desktop dependent state', () => {
         skuId: sku.skuId,
       });
       await captureUi(launched.page, testInfo, 'dependent-supplier-order-saved');
+
+      await saveSupplierTicketRevisionThroughUi(launched.page, {
+        expectedArrivalDate: '2026-05-30',
+        quantity: '7',
+        skuId: sku.skuId,
+        skuName: sku.name,
+        ticketId: supplierTicketId!,
+      });
+      await assertUiStable(launched.page, 'dependent after supplier ticket revision');
+      await assertDesktopBridgeConsistent(launched.page, {
+        expectedTicket: {
+          entityId: sku.skuId,
+          eventType: 'revised',
+          family: 'supplier',
+          minQuantityDelta: 7,
+          stage: 'ordered_waiting',
+        },
+        minObservationCount: initialCounts.observationCount + 6,
+        minOrderBatchCount: afterSaveCounts.orderBatchCount,
+        requireDetailRead: true,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await captureUi(launched.page, testInfo, 'dependent-supplier-ticket-revised');
+
+      await saveSupplierReceiptThroughUi(launched.page, {
+        quantity: '2',
+        skuId: sku.skuId,
+        skuName: sku.name,
+        ticketId: supplierTicketId!,
+      });
+      await assertUiStable(launched.page, 'dependent after supplier receipt');
+      await assertDesktopBridgeConsistent(launched.page, {
+        expectedTicket: {
+          entityId: sku.skuId,
+          eventType: 'partial_received',
+          family: 'supplier',
+          minQuantityDelta: 2,
+          stage: 'partial_received',
+        },
+        minObservationCount: initialCounts.observationCount + 7,
+        minOrderBatchCount: afterSaveCounts.orderBatchCount,
+        requireDetailRead: true,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await captureUi(launched.page, testInfo, 'dependent-supplier-receipt-saved');
 
       const bridgeState = await launched.page.evaluate(async ({ serviceId, skuId }) => {
         const [catalog, observations, skuDetail, serviceDetail] = await Promise.all([
@@ -192,16 +305,21 @@ test.describe('UI matrix: desktop dependent state', () => {
         serviceDetailName: service.name,
         skuDetailName: sku.name,
       });
-      expect(bridgeState.observationCount).toBeGreaterThanOrEqual(initialCounts.observationCount + 4);
+      expect(bridgeState.observationCount).toBeGreaterThanOrEqual(initialCounts.observationCount + 7);
       expect(bridgeState.orderSignalCount).toBeGreaterThan(0);
-      expect(bridgeState.ticketEventCount).toBeGreaterThanOrEqual(3);
+      expect(bridgeState.ticketEventCount).toBeGreaterThanOrEqual(6);
 
       const consistencyRoutes: Array<{ route: `/${string}`; text: string }> = [
         { route: '/catalog', text: sku.name },
         { route: `/catalog/skus/${sku.skuId}`, text: sku.name },
         { route: `/catalog/services/${service.serviceId}`, text: service.name },
+        { route: '/', text: 'Command home' },
+        { route: '/work/queue', text: 'Queue' },
         { route: '/settings/history', text: 'Saved updates' },
         { route: '/insights/inventory', text: 'Inventory health grid' },
+        { route: '/insights/money', text: 'Money' },
+        { route: '/insights/explain', text: 'Explain' },
+        { route: '/settings/automation', text: 'Automations' },
       ];
 
       for (const routeCase of consistencyRoutes) {
@@ -211,12 +329,48 @@ test.describe('UI matrix: desktop dependent state', () => {
         await assertUiStable(launched.page, `dependent consistency ${routeCase.route}`);
       }
 
+      await resizeDesktopWindow(launched, { width: 1280, height: 800 });
+      await assertUiStable(launched.page, 'dependent desktop resized 1280x800');
+      await captureUi(launched.page, testInfo, 'dependent-desktop-resized-1280');
+      await resizeDesktopWindow(launched, { width: 1600, height: 1000 });
+      await assertUiStable(launched.page, 'dependent desktop resized 1600x1000');
+
       await launched.page.reload({ waitUntil: 'domcontentloaded' });
       await navigateHashRoute(launched.page, '/catalog');
       await expect(launched.page.getByText(sku.name, { exact: false }).first()).toBeVisible();
       await expect(launched.page.getByText(service.name, { exact: false }).first()).toBeVisible();
       await assertUiStable(launched.page, 'dependent catalog after reload');
       await captureUi(launched.page, testInfo, 'dependent-catalog-after-reload');
+
+      const relaunchDataDirectory = launched.dataDirectory;
+      const relaunchOutputDirectory = launched.outputDirectory;
+      await closeDesktopUiMatrix(launched);
+      const relaunched = await launchDesktopUiMatrix({
+        dataDirectory: relaunchDataDirectory,
+        fresh: true,
+        name: 'desktop-dependent-relaunch',
+        outputDirectory: relaunchOutputDirectory,
+        testInfo,
+      });
+      Object.assign(launched, relaunched);
+      await navigateHashRoute(launched.page, '/catalog');
+      await expect(launched.page.getByText(sku.name, { exact: false }).first()).toBeVisible();
+      await expect(launched.page.getByText(service.name, { exact: false }).first()).toBeVisible();
+      await navigateHashRoute(launched.page, '/settings/history');
+      await expect(launched.page.getByText('Saved updates', { exact: false }).first()).toBeVisible();
+      await assertDesktopBridgeConsistent(launched.page, {
+        expectedTicket: {
+          entityId: sku.skuId,
+          family: 'supplier',
+          minQuantityDelta: 5,
+        },
+        minObservationCount: initialCounts.observationCount + 7,
+        requireDetailRead: true,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await assertUiStable(launched.page, 'dependent after desktop relaunch');
+      await captureUi(launched.page, testInfo, 'dependent-history-after-desktop-relaunch');
       launched.issues.assertNoIssues('dependent desktop matrix');
     } finally {
       await closeDesktopUiMatrix(launched);

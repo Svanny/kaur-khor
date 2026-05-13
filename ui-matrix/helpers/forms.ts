@@ -9,6 +9,8 @@ type TicketExpectation = {
   stage?: string;
 };
 
+type TicketFamily = 'customer' | 'supplier';
+
 export async function createSkuThroughUi(page: Page, options?: {
   cost?: string;
   description?: string;
@@ -75,6 +77,10 @@ export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, op
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   await page.getByRole('button', { name: 'Details', exact: true }).click();
+  const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
+  if (await discardDialog.isVisible().catch(() => false)) {
+    await discardDialog.getByRole('button', { name: 'Save changes' }).click();
+  }
   await page.waitForFunction(
     (id) => window.location.hash === `#/catalog/skus/${id}`,
     skuId,
@@ -97,6 +103,38 @@ export async function saveStockCountThroughUi(page: Page, skuId: string, units =
   await reviewDialog.getByRole('button', { name: 'Confirm save' }).click();
   await reviewDialog.waitFor({ state: 'hidden', timeout: 30_000 });
   await page.waitForFunction(() => window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length > 0));
+}
+
+export async function correctLatestObservationNotesThroughUi(page: Page, note: string) {
+  const beforeState = await page.evaluate(async () => {
+    const observations = await window.kaurKhorDesktop.sena.listObservations();
+    return {
+      count: observations.length,
+      latestObservationId: observations[0]?.observationId ?? null,
+    };
+  });
+  expect(beforeState.latestObservationId, 'latest observation should be available for correction').toBeTruthy();
+
+  await page.evaluate(() => window.localStorage.setItem('kaur-khor:record-update:view:v1', 'form'));
+  await navigateHashRoute(page, '/settings/history?view=all');
+  await page.getByRole('button', { name: 'Edit report' }).first().click();
+  await page.waitForFunction(() => window.location.hash.startsWith('#/work/capture/stock-count'));
+  await page.getByRole('button', { name: /Report notes/i }).click();
+  await page.getByRole('textbox', { name: 'Report notes' }).fill(note);
+  await page.getByRole('button', { name: /Review update/i }).click();
+  await page.getByRole('button', { name: 'Save update', exact: true }).click();
+  await page.waitForFunction(
+    ({ count, latestObservationId, note: expectedNote }) =>
+      window.kaurKhorDesktop.sena.listObservations().then((observations) =>
+        observations.length === count &&
+        observations.some((observation) =>
+          observation.observationId === latestObservationId &&
+          observation.input.notes === expectedNote
+        )
+      ),
+    { ...beforeState, note },
+    { timeout: 60_000 },
+  );
 }
 
 export async function saveCustomerOrderThroughUi(page: Page, options: {
@@ -147,6 +185,114 @@ export async function saveSupplierOrderThroughUi(page: Page, options: {
   await navigateHashRoute(page, `/catalog/skus/${options.skuId}`);
 }
 
+export async function latestTicketIdForEntity(page: Page, options: {
+  entityId: string;
+  family: TicketFamily;
+}) {
+  return page.evaluate(async ({ entityId, family }) => {
+    const observations = await window.kaurKhorDesktop.sena.listObservations();
+    const ticketEvents = observations.flatMap((observation) => observation.input.ticketEvents ?? []);
+    return ticketEvents
+      .slice()
+      .reverse()
+      .find((event) =>
+        event.ticketFamily === family &&
+        event.lines.some((line) => line.entityId === entityId)
+      )?.ticketId ?? null;
+  }, options);
+}
+
+export async function saveCustomerTicketRevisionThroughUi(page: Page, options: {
+  expectedArrivalDate?: string;
+  quantity?: string;
+  targetId: string;
+  targetName: string;
+  targetType: 'service' | 'sku';
+  ticketId: string;
+}) {
+  await navigateHashRoute(
+    page,
+    `/work/capture/customer-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}&targetAction=customer-order&targetType=${options.targetType}&targetId=${encodeURIComponent(options.targetId)}`,
+  );
+  await addPosLineThroughUi(page, options.targetName, options.quantity ?? '3');
+  await fillPosExpectedArrivalDate(page, options.expectedArrivalDate ?? defaultFutureDateInput(14));
+  await confirmPosMutationThroughUi(page);
+  await navigateHashRoute(page, options.targetType === 'service' ? `/catalog/services/${options.targetId}` : `/catalog/skus/${options.targetId}`);
+}
+
+export async function fulfillCustomerTicketThroughUi(page: Page, options: {
+  note?: string;
+  ticketId: string;
+}) {
+  const previousObservationCount = await page.evaluate(() =>
+    window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length)
+  );
+  await navigateHashRoute(
+    page,
+    `/work/queue?workflow=customer&customerTask=${encodeURIComponent(`customer:ticket:${options.ticketId}`)}`,
+  );
+  await page.getByRole('button', { name: 'Review' }).first().click();
+  const drawer = page.locator('[data-slot="sheet-content"]').filter({ has: page.getByRole('heading', { name: /Customer Ticket ID/i }) });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole('button', { name: 'Mark fulfilled' }).click();
+  if (options.note) {
+    await drawer.getByLabel('Update notes').fill(options.note);
+  }
+  await drawer.getByRole('button', { name: 'Save quick update' }).click();
+  await page.waitForFunction(
+    (count) => window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length > count),
+    previousObservationCount,
+    { timeout: 60_000 },
+  );
+  await expect(drawer).toBeHidden({ timeout: 60_000 });
+}
+
+export async function saveSupplierTicketRevisionThroughUi(page: Page, options: {
+  expectedArrivalDate?: string;
+  quantity?: string;
+  skuId: string;
+  skuName: string;
+  ticketId: string;
+}) {
+  await navigateHashRoute(
+    page,
+    `/work/capture/supplier-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}&targetAction=supplier-order&targetType=sku&targetId=${encodeURIComponent(options.skuId)}`,
+  );
+  await addPosLineThroughUi(page, options.skuName, options.quantity ?? '7');
+  await fillPosExpectedArrivalDate(page, options.expectedArrivalDate ?? defaultFutureDateInput(21));
+  await confirmPosMutationThroughUi(page);
+  await navigateHashRoute(page, `/catalog/skus/${options.skuId}`);
+}
+
+export async function saveSupplierReceiptThroughUi(page: Page, options: {
+  quantity?: string;
+  skuId: string;
+  skuName: string;
+  ticketId: string;
+}) {
+  const previousObservationCount = await page.evaluate(() =>
+    window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length)
+  );
+  await page.evaluate(() => window.localStorage.setItem('kaur-khor:record-update:view:v1', 'form'));
+  await navigateHashRoute(
+    page,
+    `/work/capture/supplier-order?ticketMode=edit&ticketId=${encodeURIComponent(options.ticketId)}`,
+  );
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('textbox', { name: `Current receipt for ${options.skuName}` }).fill(options.quantity ?? '2');
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'No', exact: true }).click();
+  await page.getByRole('button', { name: 'Next' }).click();
+  await page.getByRole('button', { name: 'Save update', exact: true }).click();
+  await page.waitForFunction(
+    (count) => window.kaurKhorDesktop.sena.listObservations().then((observations) => observations.length > count),
+    previousObservationCount,
+    { timeout: 60_000 },
+  );
+}
+
 export async function assertDesktopBridgeConsistent(page: Page, options: {
   expectedTicket?: TicketExpectation;
   minObservationCount: number;
@@ -188,6 +334,14 @@ export async function assertDesktopBridgeConsistent(page: Page, options: {
       orderBatchCount: orderBatches.length,
       summaryIntervalCount: summary?.intervalCount ?? 0,
       ticketEventCount: ticketEvents.length,
+      ticketEventSummaries: ticketEvents
+        .filter((event) => !expectedTicket?.entityId || event.lines.some((line) => line.entityId === expectedTicket.entityId))
+        .map((event) => ({
+          eventType: event.eventType,
+          lineQuantities: event.lines.map((line) => line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? null),
+          stage: event.stage,
+          ticketFamily: event.ticketFamily,
+        })),
     };
   }, options);
 
@@ -200,11 +354,17 @@ export async function assertDesktopBridgeConsistent(page: Page, options: {
   expect(bridgeState.observationCount, 'observation bridge count should include saved mutation').toBeGreaterThanOrEqual(options.minObservationCount);
   expect(bridgeState.summaryIntervalCount, 'workspace summary should not lag saved observations').toBeGreaterThanOrEqual(options.minObservationCount);
   expect(bridgeState.orderBatchCount, 'order batch bridge count should not regress').toBeGreaterThanOrEqual(options.minOrderBatchCount ?? 0);
-  expect(bridgeState.hasExpectedTicket, 'ticket event bridge state should include the saved UI mutation').toBe(true);
+  expect(
+    bridgeState.hasExpectedTicket,
+    `ticket event bridge state should include the saved UI mutation: ${JSON.stringify(bridgeState.ticketEventSummaries)}`,
+  ).toBe(true);
 }
 
 async function addPosLineThroughUi(page: Page, targetName: string, quantity: string) {
   const dialog = page.getByRole('dialog', { name: targetName });
+  if (!(await dialog.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: new RegExp(targetName, 'i') }).first().click();
+  }
   await dialog.waitFor({ state: 'visible', timeout: 30_000 });
   await dialog.getByLabel(`Quantity for ${targetName}`).fill(quantity);
   await dialog.getByRole('button', { name: /Add line|Update line/ }).click();
@@ -235,7 +395,8 @@ async function confirmPosMutationThroughUi(page: Page) {
     { timeout: 60_000 },
   );
   if (await reviewDialog.isVisible().catch(() => false)) {
-    await reviewDialog.getByRole('button', { name: 'Cancel' }).click();
+    const cancelButton = reviewDialog.getByRole('button', { name: 'Cancel' });
+    await cancelButton.click({ timeout: 3_000 }).catch(() => undefined);
   }
   await reviewDialog.waitFor({ state: 'hidden', timeout: 30_000 }).catch(() => undefined);
   await leaveRecordUpdateSessionIfNeeded(page);
