@@ -1052,10 +1052,10 @@ fn assert_earliest_observation_has_stock_locked(
     connection: &Connection,
     owner_sub: &str,
 ) -> Result<()> {
-    let payload = connection
+    let earliest_observed_at = connection
         .query_row(
             r#"
-            SELECT payload
+            SELECT observed_at
             FROM sena_observation
             WHERE owner_sub = ?1
             ORDER BY observed_at ASC, observation_id ASC
@@ -1065,16 +1065,31 @@ fn assert_earliest_observation_has_stock_locked(
             |row| row.get::<_, String>(0),
         )
         .optional()?;
-    let Some(payload) = payload else {
+    let Some(earliest_observed_at) = earliest_observed_at else {
         return Ok(());
     };
-    let input: SenaObservationInput = serde_json::from_str(&payload)?;
-    if input.stock_snapshot.is_empty() {
-        return Err(anyhow!(
-            "earliest SENA observation must include at least one stock snapshot"
-        ));
+
+    let mut statement = connection.prepare(
+        r#"
+        SELECT payload
+        FROM sena_observation
+        WHERE owner_sub = ?1 AND observed_at = ?2
+        ORDER BY observation_id ASC
+        "#,
+    )?;
+    let rows = statement.query_map(params![owner_sub, earliest_observed_at], |row| {
+        row.get::<_, String>(0)
+    })?;
+    for row in rows {
+        let input: SenaObservationInput = serde_json::from_str(&row?)?;
+        if !input.stock_snapshot.is_empty() {
+            return Ok(());
+        }
     }
-    Ok(())
+
+    Err(anyhow!(
+        "earliest SENA observation must include at least one stock snapshot"
+    ))
 }
 
 fn merge_order_fields(
@@ -3331,6 +3346,30 @@ mod tests {
             raw_observation_payload(&repo, &first.observation_id).is_some(),
             "rejected earliest-stock delete should roll back",
         );
+    }
+
+    #[test]
+    fn repository_allows_same_timestamp_earliest_stock_baseline_group() {
+        let path = temp_store_path("earliest-stock-tie");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+
+        let first = block_on(
+            repo.insert_observation("owner", &observation("2026-04-01T00:00:00Z", 14.0).input),
+        )
+        .expect("stock-bearing baseline should insert");
+        block_on(repo.insert_observation("owner", &stockless_observation("2026-04-01T00:00:00Z")))
+            .expect("same-timestamp stockless follow-up should share the baseline group");
+        assert_eq!(stored_observation_count(&repo), 2);
+
+        let error = block_on(repo.update_observation(
+            "owner",
+            &first.observation_id,
+            &stockless_observation("2026-04-01T00:00:00Z"),
+        ))
+        .expect_err("baseline group should still require at least one stock snapshot");
+        assert!(error
+            .to_string()
+            .contains("earliest SENA observation must include at least one stock snapshot"));
     }
 
     #[test]

@@ -185,7 +185,7 @@ export function makeTicketId({
     .join('-')
     .replace(/[^a-zA-Z0-9_-]/g, '-')
     .slice(0, 80);
-  return `ticket:${family}:${timestamp}:${eventType}:${lineKey || 'unscoped'}`;
+  return `ticket:${family}:${timestamp}:${eventType}:${lineKey || 'unscoped'}`.slice(0, 80);
 }
 
 function sanitizeTicketIdSegment(value: string) {
@@ -211,7 +211,8 @@ export function makeNewTicketId({
   ...ticket
 }: Parameters<typeof makeTicketId>[0] & { nonce?: string }) {
   const nonceKey = sanitizeTicketIdSegment(nonce) || sanitizeTicketIdSegment(makeTicketNonce()) || 'new';
-  return `${makeTicketId(ticket)}:${nonceKey}`;
+  const suffix = `:${nonceKey.slice(0, 24)}`;
+  return `${makeTicketId(ticket).slice(0, Math.max(1, 80 - suffix.length))}${suffix}`;
 }
 
 export function latestTicketEvents(observations: SenaObservationRecord[]) {

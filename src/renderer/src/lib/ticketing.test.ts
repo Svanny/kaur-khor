@@ -49,6 +49,21 @@ describe('ticketing phone normalization', () => {
     expect(secondTicketId).toBe(`${deterministicTicketId}:second-order`);
   });
 
+  test('keeps generated ticket ids within the desktop core storage limit', () => {
+    const ticket: Parameters<typeof makeTicketId>[0] = {
+      eventType: 'fulfilled_immediate',
+      family: 'customer',
+      observedAt: '2026-04-22T12:34:00.000Z',
+      lines: [{
+        entityType: 'service',
+        entityId: 'service-very-long-generated-identifier-that-would-otherwise-overflow-ticket-storage-validation',
+      }],
+    };
+
+    expect(makeTicketId(ticket).length).toBeLessThanOrEqual(80);
+    expect(makeNewTicketId({ ...ticket, nonce: 'very-long-ui-matrix-nonce-for-new-ticket' }).length).toBeLessThanOrEqual(80);
+  });
+
   test('stores customer ticket phone metadata in canonical spaced format', () => {
     expect(buildTicketPartyMetadata({
       channel: 'Telegram',
