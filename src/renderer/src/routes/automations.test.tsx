@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AutomationOrderIntake } from '@shared/automation';
+import type {
+  AutomationConversationSummary,
+  AutomationMessageRecord,
+  AutomationOrderIntake,
+} from '@shared/automation';
 import type { AutomationContextValue } from '@/state/automation';
 import { AutomationsRoute, buildTelegramOpenUrl } from './automations';
 
@@ -9,6 +13,12 @@ const automationHook = vi.fn<() => AutomationContextValue>();
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
 const deriveAutomationViewModel = vi.fn();
+
+interface AutomationThreadFixture {
+  conversation: AutomationConversationSummary;
+  intake: AutomationOrderIntake;
+  messages: AutomationMessageRecord[];
+}
 
 vi.mock('@/state/automation', () => ({
   useAutomation: () => automationHook(),
@@ -173,6 +183,41 @@ function makeIntake(overrides: Partial<AutomationOrderIntake> = {}): AutomationO
         lineTotal: 12,
         availabilityStatus: 'available',
         ambiguityReason: null,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function makeThreadFixture(
+  intake: AutomationOrderIntake,
+  overrides: Partial<AutomationThreadFixture> = {},
+): AutomationThreadFixture {
+  return {
+    conversation: {
+      conversationId: 'conv-1',
+      channel: 'telegram',
+      externalConversationKey: 'telegram-chat-1',
+      customerDisplayName: 'Ada',
+      customerHandle: '@ada',
+      phone: '+85512345678',
+      lastMessageAt: '2026-04-21T00:00:00.000Z',
+      messageCount: 1,
+      latestIntakeStatus: intake.status,
+      latestTicketId: null,
+    },
+    intake,
+    messages: [
+      {
+        messageId: 'msg-in',
+        conversationId: 'conv-1',
+        intakeId: 'intake-1',
+        externalMessageKey: '1',
+        direction: 'inbound',
+        sentAt: '2026-04-21T00:00:00.000Z',
+        rawText: '1 scarf',
+        normalizedText: '1 scarf',
+        parseConfidence: 'high',
       },
     ],
     ...overrides,
@@ -393,32 +438,13 @@ describe('AutomationsRoute', () => {
 
   it('renders the Work intake chat tab for one selected intake thread', async () => {
     const intake = makeIntake();
-    const readIntakeThread = vi.fn(async () => ({
+    const readIntakeThread = vi.fn(async () => makeThreadFixture(intake, {
       conversation: {
-        conversationId: 'conv-1',
-        channel: 'telegram',
-        externalConversationKey: 'telegram-chat-1',
-        customerDisplayName: 'Ada',
-        customerHandle: '@ada',
-        phone: '+85512345678',
-        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        ...makeThreadFixture(intake).conversation,
         messageCount: 2,
-        latestIntakeStatus: 'new',
-        latestTicketId: null,
       },
-      intake,
       messages: [
-        {
-          messageId: 'msg-in',
-          conversationId: 'conv-1',
-          intakeId: 'intake-1',
-          externalMessageKey: '1',
-          direction: 'inbound',
-          sentAt: '2026-04-21T00:00:00.000Z',
-          rawText: '1 scarf',
-          normalizedText: '1 scarf',
-          parseConfidence: 'high',
-        },
+        makeThreadFixture(intake).messages[0],
         {
           messageId: 'msg-out',
           conversationId: 'conv-1',
@@ -456,60 +482,15 @@ describe('AutomationsRoute', () => {
     });
     const readIntakeThread = vi
       .fn()
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(makeThreadFixture(intake))
+      .mockResolvedValueOnce(makeThreadFixture(updatedIntake, {
         conversation: {
-          conversationId: 'conv-1',
-          channel: 'telegram',
-          externalConversationKey: 'telegram-chat-1',
-          customerDisplayName: 'Ada',
-          customerHandle: '@ada',
-          phone: '+85512345678',
-          lastMessageAt: '2026-04-21T00:00:00.000Z',
-          messageCount: 1,
-          latestIntakeStatus: 'new',
-          latestTicketId: null,
-        },
-        intake,
-        messages: [
-          {
-            messageId: 'msg-in',
-            conversationId: 'conv-1',
-            intakeId: 'intake-1',
-            externalMessageKey: '1',
-            direction: 'inbound',
-            sentAt: '2026-04-21T00:00:00.000Z',
-            rawText: '1 scarf',
-            normalizedText: '1 scarf',
-            parseConfidence: 'high',
-          },
-        ],
-      })
-      .mockResolvedValueOnce({
-        conversation: {
-          conversationId: 'conv-1',
-          channel: 'telegram',
-          externalConversationKey: 'telegram-chat-1',
-          customerDisplayName: 'Ada',
-          customerHandle: '@ada',
-          phone: '+85512345678',
+          ...makeThreadFixture(updatedIntake).conversation,
           lastMessageAt: '2026-04-21T00:02:00.000Z',
           messageCount: 2,
-          latestIntakeStatus: 'needs_review',
-          latestTicketId: null,
         },
-        intake: updatedIntake,
         messages: [
-          {
-            messageId: 'msg-in',
-            conversationId: 'conv-1',
-            intakeId: 'intake-1',
-            externalMessageKey: '1',
-            direction: 'inbound',
-            sentAt: '2026-04-21T00:00:00.000Z',
-            rawText: '1 scarf',
-            normalizedText: '1 scarf',
-            parseConfidence: 'high',
-          },
+          makeThreadFixture(updatedIntake).messages[0],
           {
             messageId: 'msg-follow-up',
             conversationId: 'conv-1',
@@ -522,7 +503,7 @@ describe('AutomationsRoute', () => {
             parseConfidence: 'low',
           },
         ],
-      });
+      }));
     automationHook.mockReturnValue(makeAutomationState(true, {
       intakes: [intake],
       readIntakeThread,
@@ -549,60 +530,15 @@ describe('AutomationsRoute', () => {
 
   it('sends a customer message from the Work intake chat thread and renders the refreshed history', async () => {
     const intake = makeIntake();
-    const readIntakeThread = vi.fn(async () => ({
+    const readIntakeThread = vi.fn(async () => makeThreadFixture(intake));
+    const sendIntakeThreadMessage = vi.fn(async () => makeThreadFixture(intake, {
       conversation: {
-        conversationId: 'conv-1',
-        channel: 'telegram',
-        externalConversationKey: 'telegram-chat-1',
-        customerDisplayName: 'Ada',
-        customerHandle: '@ada',
-        phone: '+85512345678',
-        lastMessageAt: '2026-04-21T00:00:00.000Z',
-        messageCount: 1,
-        latestIntakeStatus: 'new',
-        latestTicketId: null,
-      },
-      intake,
-      messages: [
-        {
-          messageId: 'msg-in',
-          conversationId: 'conv-1',
-          intakeId: 'intake-1',
-          externalMessageKey: '1',
-          direction: 'inbound',
-          sentAt: '2026-04-21T00:00:00.000Z',
-          rawText: '1 scarf',
-          normalizedText: '1 scarf',
-          parseConfidence: 'high',
-        },
-      ],
-    }));
-    const sendIntakeThreadMessage = vi.fn(async () => ({
-      conversation: {
-        conversationId: 'conv-1',
-        channel: 'telegram',
-        externalConversationKey: 'telegram-chat-1',
-        customerDisplayName: 'Ada',
-        customerHandle: '@ada',
-        phone: '+85512345678',
+        ...makeThreadFixture(intake).conversation,
         lastMessageAt: '2026-04-21T00:01:00.000Z',
         messageCount: 2,
-        latestIntakeStatus: 'new',
-        latestTicketId: null,
       },
-      intake,
       messages: [
-        {
-          messageId: 'msg-in',
-          conversationId: 'conv-1',
-          intakeId: 'intake-1',
-          externalMessageKey: '1',
-          direction: 'inbound',
-          sentAt: '2026-04-21T00:00:00.000Z',
-          rawText: '1 scarf',
-          normalizedText: '1 scarf',
-          parseConfidence: 'high',
-        },
+        makeThreadFixture(intake).messages[0],
         {
           messageId: 'msg-out',
           conversationId: 'conv-1',
@@ -638,34 +574,7 @@ describe('AutomationsRoute', () => {
 
   it('selects a Work intake chat list item without opening the intake drawer', async () => {
     const intake = makeIntake();
-    const readIntakeThread = vi.fn(async () => ({
-      conversation: {
-        conversationId: 'conv-1',
-        channel: 'telegram',
-        externalConversationKey: 'telegram-chat-1',
-        customerDisplayName: 'Ada',
-        customerHandle: '@ada',
-        phone: '+85512345678',
-        lastMessageAt: '2026-04-21T00:00:00.000Z',
-        messageCount: 1,
-        latestIntakeStatus: 'new',
-        latestTicketId: null,
-      },
-      intake,
-      messages: [
-        {
-          messageId: 'msg-in',
-          conversationId: 'conv-1',
-          intakeId: 'intake-1',
-          externalMessageKey: '1',
-          direction: 'inbound',
-          sentAt: '2026-04-21T00:00:00.000Z',
-          rawText: '1 scarf',
-          normalizedText: '1 scarf',
-          parseConfidence: 'high',
-        },
-      ],
-    }));
+    const readIntakeThread = vi.fn(async () => makeThreadFixture(intake));
     automationHook.mockReturnValue(makeAutomationState(true, {
       intakes: [intake],
       readIntakeThread,
@@ -681,34 +590,7 @@ describe('AutomationsRoute', () => {
 
   it('leaves Work intake chat for live intake without opening the selected chat intake drawer', async () => {
     const intake = makeIntake();
-    const readIntakeThread = vi.fn(async () => ({
-      conversation: {
-        conversationId: 'conv-1',
-        channel: 'telegram',
-        externalConversationKey: 'telegram-chat-1',
-        customerDisplayName: 'Ada',
-        customerHandle: '@ada',
-        phone: '+85512345678',
-        lastMessageAt: '2026-04-21T00:00:00.000Z',
-        messageCount: 1,
-        latestIntakeStatus: 'new',
-        latestTicketId: null,
-      },
-      intake,
-      messages: [
-        {
-          messageId: 'msg-in',
-          conversationId: 'conv-1',
-          intakeId: 'intake-1',
-          externalMessageKey: '1',
-          direction: 'inbound',
-          sentAt: '2026-04-21T00:00:00.000Z',
-          rawText: '1 scarf',
-          normalizedText: '1 scarf',
-          parseConfidence: 'high',
-        },
-      ],
-    }));
+    const readIntakeThread = vi.fn(async () => makeThreadFixture(intake));
     automationHook.mockReturnValue(makeAutomationState(true, {
       intakes: [intake],
       readIntakeThread,
