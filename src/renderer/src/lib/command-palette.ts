@@ -1471,10 +1471,11 @@ export function groupCommandDescriptors(
     .filter((command) => command.kind !== 'page' && command.kind !== 'tab')
     .sort((left, right) => left.title.localeCompare(right.title) || left.priority - right.priority);
 
-  return [
+  const sections: CommandPaletteSection[] = [
     { id: 'best-matches', items: bestMatches, title: 'Best Matches' },
     { id: 'pages', items: pages, title: 'Pages' },
     { id: 'tabs', items: tabs, title: 'Tabs' },
     { id: 'actions', items: actions, title: 'Actions' },
-  ].filter((section) => section.items.length > 0) satisfies CommandPaletteSection[];
+  ];
+  return sections.filter((section) => section.items.length > 0);
 }
