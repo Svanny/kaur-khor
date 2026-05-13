@@ -1,4 +1,7 @@
-import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
+import {
+  DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
+  DEFAULT_SENA_ENGINE_PARAMETERS,
+} from '@shared/ipc';
 import { SENA_SCHEMA_VERSION } from '@shared/sena';
 import {
   browserSenaObservationFingerprint,
@@ -860,6 +863,7 @@ export function createMockState(): BrowserMockState {
         insights: true,
         work: true,
       },
+      workbenchTileOrderByLane: DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
     },
     serviceDetails,
     skuDetails: clone(mockSkuDetails),

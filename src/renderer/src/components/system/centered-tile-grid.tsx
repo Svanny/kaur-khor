@@ -36,10 +36,11 @@ export function CenteredTileGrid({
     if (!grid || typeof ResizeObserver === 'undefined') {
       return undefined;
     }
+    const targetGrid = grid;
 
     function updateTileSize() {
       const remPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      const bounds = grid.getBoundingClientRect();
+      const bounds = targetGrid.getBoundingClientRect();
       if (bounds.width <= 0 || bounds.height <= 0) {
         return;
       }
@@ -54,7 +55,7 @@ export function CenteredTileGrid({
 
     updateTileSize();
     const resizeObserver = new ResizeObserver(updateTileSize);
-    resizeObserver.observe(grid);
+    resizeObserver.observe(targetGrid);
     return () => {
       resizeObserver.disconnect();
     };

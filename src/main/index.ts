@@ -230,6 +230,24 @@ let desktopDataReplacementSuspension: Promise<void> | null = null;
 let selectedUpdateBackupDirectoryPath: string | null = null;
 let selectedUpdateDataDirectoryPath: string | null = null;
 
+function dialogParentWindow() {
+  return mainWindow ?? BrowserWindow.getFocusedWindow() ?? null;
+}
+
+async function showKaurKhorMessageBox(options: Electron.MessageBoxOptions) {
+  const parentWindow = dialogParentWindow();
+  return parentWindow
+    ? dialog.showMessageBox(parentWindow, options)
+    : dialog.showMessageBox(options);
+}
+
+async function showKaurKhorOpenDialog(options: Electron.OpenDialogOptions) {
+  const parentWindow = dialogParentWindow();
+  return parentWindow
+    ? dialog.showOpenDialog(parentWindow, options)
+    : dialog.showOpenDialog(options);
+}
+
 recordBenchmarkEvent({
   layer: 'main',
   category: 'startup',
@@ -338,7 +356,7 @@ async function confirmDesktopQuitForLiveAutomation() {
       return true;
     }
     await createCloseSafetySnapshotBeforeQuit();
-    const result = await dialog.showMessageBox(mainWindow ?? undefined, {
+    const result = await showKaurKhorMessageBox({
       type: 'warning',
       title: DESKTOP_CLOSE_AUTOMATION_WARNING_TITLE,
       message: DESKTOP_CLOSE_AUTOMATION_WARNING_MESSAGE,
@@ -1043,7 +1061,7 @@ function createMainWindowWebPreferences(
 }
 
 function installMacDockIcon() {
-  if (process.platform === 'darwin' && hasMacDockIconPair(projectRoot)) {
+  if (process.platform === 'darwin' && app.dock && hasMacDockIconPair(projectRoot)) {
     app.dock.setIcon(nativeImage.createFromPath(iconAssets.dockIconPath));
   }
 }
@@ -1084,38 +1102,61 @@ function navigateMainWindowToHashRoute(route: `/${string}`) {
 }
 
 function installApplicationMenu() {
+  const appMenu: Electron.MenuItemConstructorOptions[] = process.platform === 'darwin'
+    ? [
+        {
+          label: app.name,
+          submenu: [
+            { role: 'about' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            {
+              label: 'Quit Kaur Khor',
+              accelerator: 'CmdOrCtrl+Q',
+              click: requestDesktopQuit,
+            },
+          ],
+        },
+      ]
+    : [];
+  const fileSubmenu: Electron.MenuItemConstructorOptions[] = process.platform === 'darwin'
+    ? [{ role: 'close' }]
+    : [{
+        label: 'Quit Kaur Khor',
+        accelerator: 'CmdOrCtrl+Q',
+        click: requestDesktopQuit,
+      }];
+  const editPlatformSubmenu: Electron.MenuItemConstructorOptions[] = process.platform === 'darwin'
+    ? [
+        { role: 'pasteAndMatchStyle' },
+        { role: 'delete' },
+        { role: 'selectAll' },
+      ]
+    : [
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' },
+      ];
+  const windowSubmenu: Electron.MenuItemConstructorOptions[] = process.platform === 'darwin'
+    ? [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        { role: 'front' },
+        { type: 'separator' },
+        { role: 'window' },
+      ]
+    : [{ role: 'minimize' }, { role: 'close' }];
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(process.platform === 'darwin'
-      ? [
-          {
-            label: app.name,
-            submenu: [
-              { role: 'about' },
-              { type: 'separator' },
-              { role: 'services' },
-              { type: 'separator' },
-              { role: 'hide' },
-              { role: 'hideOthers' },
-              { role: 'unhide' },
-              { type: 'separator' },
-              {
-                label: 'Quit Kaur Khor',
-                accelerator: 'CmdOrCtrl+Q',
-                click: requestDesktopQuit,
-              },
-            ],
-          },
-        ]
-      : []),
+    ...appMenu,
     {
       label: 'File',
-      submenu: process.platform === 'darwin'
-        ? [{ role: 'close' }]
-        : [{
-            label: 'Quit Kaur Khor',
-            accelerator: 'CmdOrCtrl+Q',
-            click: requestDesktopQuit,
-          }],
+      submenu: fileSubmenu,
     },
     {
       label: 'Edit',
@@ -1126,17 +1167,7 @@ function installApplicationMenu() {
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        ...(process.platform === 'darwin'
-          ? [
-              { role: 'pasteAndMatchStyle' },
-              { role: 'delete' },
-              { role: 'selectAll' },
-            ]
-          : [
-              { role: 'delete' },
-              { type: 'separator' },
-              { role: 'selectAll' },
-            ]),
+        ...editPlatformSubmenu,
       ],
     },
     {
@@ -1173,16 +1204,7 @@ function installApplicationMenu() {
     },
     {
       label: 'Window',
-      submenu: process.platform === 'darwin'
-        ? [
-            { role: 'minimize' },
-            { role: 'zoom' },
-            { type: 'separator' },
-            { role: 'front' },
-            { type: 'separator' },
-            { role: 'window' },
-          ]
-        : [{ role: 'minimize' }, { role: 'close' }],
+      submenu: windowSubmenu,
     },
     {
       label: 'Help',
@@ -1437,7 +1459,7 @@ ipcMain.handle(IPC_CHANNELS.systemCreateBackupSnapshot, benchmarkIpcHandle(IPC_C
   return snapshot;
 }));
 ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, benchmarkIpcHandle(IPC_CHANNELS.systemRestoreBackupSnapshot, async () => {
-  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+  const selection = await showKaurKhorOpenDialog({
     buttonLabel: 'Restore snapshot',
     defaultPath: desktopBackupDirectoryPath(desktopDataPath),
     message: 'Choose a snapshot folder. You can also select a file inside a snapshot.',
@@ -1471,7 +1493,7 @@ ipcMain.handle(IPC_CHANNELS.systemCheckForUpdate, benchmarkIpcHandle(IPC_CHANNEL
   }),
 ));
 ipcMain.handle(IPC_CHANNELS.systemChooseUpdateBackupDirectory, benchmarkIpcHandle(IPC_CHANNELS.systemChooseUpdateBackupDirectory, async () => {
-  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+  const selection = await showKaurKhorOpenDialog({
     buttonLabel: 'Use this folder',
     message: 'Choose where Kaur Khor should export a pre-update snapshot.',
     properties: ['openDirectory', 'createDirectory'],
@@ -1481,7 +1503,7 @@ ipcMain.handle(IPC_CHANNELS.systemChooseUpdateBackupDirectory, benchmarkIpcHandl
   return selectedUpdateBackupDirectoryPath;
 }));
 ipcMain.handle(IPC_CHANNELS.systemChooseUpdateDataDirectory, benchmarkIpcHandle(IPC_CHANNELS.systemChooseUpdateDataDirectory, async () => {
-  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+  const selection = await showKaurKhorOpenDialog({
     buttonLabel: 'Use this data folder',
     defaultPath: desktopDataPath,
     message: 'Choose the Kaur Khor data folder to export before updating.',
@@ -1531,7 +1553,7 @@ ipcMain.handle(IPC_CHANNELS.systemOpenExternalUrl, benchmarkIpcHandle(IPC_CHANNE
   await shell.openExternal(normalizeAllowedExternalUrl(targetUrl));
 }));
 ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHANNELS.systemPickAndStoreImage, async () => {
-  const selection = await dialog.showOpenDialog(mainWindow ?? undefined, {
+  const selection = await showKaurKhorOpenDialog({
     buttonLabel: 'Use image',
     filters: [
       {
