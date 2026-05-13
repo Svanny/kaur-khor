@@ -289,7 +289,7 @@ describe('InventoryRoute', () => {
       </MemoryRouter>,
     );
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     expect(loadSenaSkuDetail).not.toHaveBeenCalled();
 
@@ -317,8 +317,8 @@ describe('InventoryRoute', () => {
     await waitFor(() => {
       expect(state.listSenaObservationPage).toHaveBeenCalled();
     });
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     expect(serviceRow).not.toBeNull();
 
@@ -337,7 +337,7 @@ describe('InventoryRoute', () => {
       </MemoryRouter>,
     );
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'Duplicate' }));
 
@@ -355,7 +355,7 @@ describe('InventoryRoute', () => {
       soldAsProduct: true,
       supplierName: 'Mekong Looms',
     });
-    expect(nextCatalog.sharingMask.filter((entry) => entry.skuId === nextCatalog.skus.at(-1)?.skuId)).toHaveLength(0);
+    expect(nextCatalog.sharingMask.filter((entry: { skuId: string }) => entry.skuId === nextCatalog.skus.at(-1)?.skuId)).toHaveLength(0);
   });
 
   test('duplicates a service with linked SKU metadata only', async () => {
@@ -369,7 +369,7 @@ describe('InventoryRoute', () => {
       </MemoryRouter>,
     );
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
     fireEvent.click(within(serviceRow!).getByRole('button', { name: 'Duplicate' }));
 
@@ -403,14 +403,14 @@ describe('InventoryRoute', () => {
       </MemoryRouter>,
     );
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
     const deleteButton = within(serviceRow!).getByRole('button', { name: 'Delete' });
     await waitFor(() => {
       expect(deleteButton).not.toHaveAttribute('aria-disabled');
     });
     fireEvent.click(deleteButton);
-    const dialog = screen.getByText('Delete Service 1?').closest('[role="dialog"]');
+    const dialog = screen.getByText('Delete Service 1?').closest<HTMLElement>('[role="dialog"]');
     expect(dialog).not.toBeNull();
     fireEvent.click(within(dialog!).getByRole('button', { name: 'Delete' }));
 
@@ -433,7 +433,7 @@ describe('InventoryRoute', () => {
       </MemoryRouter>,
     );
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     const deleteButton = within(skuRow!).getByRole('button', { name: 'Delete' });
     await waitFor(() => {
