@@ -18,6 +18,7 @@ import {
 import { StatusLoadingIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
+import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import {
   Sidebar,
   SidebarContent,
@@ -848,6 +849,7 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </SidebarInset>
+      <LoadingMoreIntervalsIsland label="Saving..." visible={inventory.isSaving} />
     </>
   );
 }

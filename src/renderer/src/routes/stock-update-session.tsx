@@ -965,6 +965,7 @@ interface ServiceSignalDraft {
 interface StockUpdateSessionDraft {
   version: 1;
   savedAt: string;
+  savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds?: PosMetadataPopupId[];
   currentStepId: StockUpdateStepId;
@@ -1013,6 +1014,7 @@ interface StockUpdateSessionDraft {
 
 interface StockUpdateDraftState {
   catalog: SenaCatalog | null;
+  savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds: PosMetadataPopupId[];
   currentStepId: StockUpdateStepId;
@@ -2132,6 +2134,7 @@ function hydrateStockUpdateDraft({
   return {
     version: 1,
     savedAt: typeof draft.savedAt === 'string' ? draft.savedAt : new Date().toISOString(),
+    savedObservationRetryId: typeof draft.savedObservationRetryId === 'string' ? draft.savedObservationRetryId : null,
     customSelectedLaneIds: sanitizeCustomSelectedLaneIds(draft.customSelectedLaneIds),
     touchedPosMetadataPopupIds: sanitizeTouchedPosMetadataPopupIds(draft.touchedPosMetadataPopupIds),
     currentStepId: normalizeStepIdForOrder(
@@ -2274,6 +2277,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
   return {
     version: 1,
     savedAt: new Date().toISOString(),
+    savedObservationRetryId: state.savedObservationRetryId ?? null,
     customSelectedLaneIds: state.customSelectedLaneIds,
     touchedPosMetadataPopupIds: state.touchedPosMetadataPopupIds,
     currentStepId: state.currentStepId,
@@ -6201,6 +6205,7 @@ export function StockUpdateSessionRoute() {
     observations,
     orderBatches,
     recordUpdateContext,
+    runSavingTask,
     triggerSenaRun,
     updateSenaObservation,
     updateSenaOrderBatch,
@@ -7146,6 +7151,7 @@ export function StockUpdateSessionRoute() {
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
       catalog: workingCatalog,
+      savedObservationRetryId: savedObservationRetryIdRef.current,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds: [...touchedPosMetadataPopupIds],
       currentStepId,
@@ -7449,6 +7455,7 @@ export function StockUpdateSessionRoute() {
         const touchedMetadataIds = hydratedDraft.touchedPosMetadataPopupIds.length > 0
           ? hydratedDraft.touchedPosMetadataPopupIds
           : deriveTouchedPosMetadataPopupIdsFromDraft(hydratedDraft);
+        savedObservationRetryIdRef.current = hydratedDraft.savedObservationRetryId ?? null;
         setCustomSelectedLaneIds(
           lane.id === 'custom' && hydratedDraft.customSelectedLaneIds && hydratedDraft.customSelectedLaneIds.length > 0
             ? hydratedDraft.customSelectedLaneIds
@@ -9619,7 +9626,49 @@ export function StockUpdateSessionRoute() {
     }
   }
 
-  async function saveCurrentSession() {
+  async function persistCurrentSessionInBackground({
+    draftSnapshot,
+    payload,
+    shouldSchedulePostSaveRerun,
+  }: {
+    draftSnapshot: StockUpdateDraftState | null;
+    payload: SenaObservationInput;
+    shouldSchedulePostSaveRerun: boolean;
+  }) {
+    if (editSession) {
+      await updateSenaObservation({
+        observationId: editSession.observationId,
+        input: payload,
+      });
+    } else if (savedObservationRetryIdRef.current) {
+      await updateSenaObservation({
+        observationId: savedObservationRetryIdRef.current,
+        input: payload,
+      });
+    } else {
+      const observation = await ingestSenaObservation(payload);
+      savedObservationRetryIdRef.current = observation.observationId;
+      if (draftSnapshot) {
+        writeStockUpdateDraft({
+          ...draftSnapshot,
+          savedObservationRetryId: observation.observationId,
+        }, draftStorageKey);
+      }
+    }
+    await persistLegacySupplierOrderUpdates();
+
+    if (shouldSchedulePostSaveRerun) {
+      try {
+        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      } catch (nextError) {
+        console.error('[record-update] failed to rerun SENA after save', nextError);
+      }
+    }
+
+    removeStockUpdateDraft(draftStorageKey);
+  }
+
+  function saveCurrentSession(afterSaveStarts?: () => void) {
     setError(null);
     const payload = buildPayload();
     const validationError = submitValidationError(payload);
@@ -9629,41 +9678,19 @@ export function StockUpdateSessionRoute() {
       return false;
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
-    try {
-      if (editSession) {
-        await updateSenaObservation({
-          observationId: editSession.observationId,
-          input: payload,
-        });
-      } else if (savedObservationRetryIdRef.current) {
-        await updateSenaObservation({
-          observationId: savedObservationRetryIdRef.current,
-          input: payload,
-        });
-      } else {
-        const observation = await ingestSenaObservation(payload);
-        savedObservationRetryIdRef.current = observation.observationId;
-      }
-      await persistLegacySupplierOrderUpdates();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
-      setSaveErrorFlashKey((current) => current + 1);
-      return false;
+    const draftSnapshot = latestDraftStateRef.current;
+    void runSavingTask(async () => persistCurrentSessionInBackground({
+      draftSnapshot,
+      payload,
+      shouldSchedulePostSaveRerun,
+    })).catch((nextError) => {
+      console.error('[record-update] failed to save capture session in background', nextError);
+    });
+    if (afterSaveStarts) {
+      afterSaveStarts();
+    } else {
+      navigate(previousLocation ?? '/', { replace: true, state: null });
     }
-
-    if (shouldSchedulePostSaveRerun) {
-      try {
-        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      } catch (nextError) {
-        console.error('[record-update] failed to rerun SENA after save', nextError);
-      }
-    }
-    skipNextDraftPersistRef.current = true;
-    removeStockUpdateDraft(draftStorageKey);
-    setHasSavedDraft(false);
-    setDraftWasRestored(false);
-    resetRecordUpdateState();
-    navigate(previousLocation ?? '/', { replace: true, state: null });
     return true;
   }
 
@@ -9693,7 +9720,7 @@ export function StockUpdateSessionRoute() {
       setPosReceiptConfirmOpen(true);
       return;
     }
-    await saveCurrentSession();
+    saveCurrentSession();
   }
 
   async function copyPosReceiptPlainText() {
@@ -9713,10 +9740,7 @@ export function StockUpdateSessionRoute() {
     confirmLabel: translateUiLiteral(language, 'Discard changes and leave'),
     onDiscard: handleDiscardChanges,
     onSave: async (continueAfterSave) => {
-      const saved = await saveCurrentSession();
-      if (saved) {
-        continueAfterSave();
-      }
+      const saved = saveCurrentSession(continueAfterSave);
       return saved;
     },
     saveLabel: translateUiLiteral(language, 'Save changes'),

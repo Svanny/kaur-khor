@@ -1285,7 +1285,32 @@ describe('KaurKhorShell', () => {
     );
 
     expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(screen.getByText('Saving...')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+  });
+
+  test('hides the global saving island when no save is active', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: null,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/capture']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Record update screen</div>} path="/capture" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(screen.queryByText('Saving...')).not.toBeInTheDocument();
   });
 });
 
