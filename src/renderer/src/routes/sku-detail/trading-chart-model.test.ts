@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { SenaSkuDetailViewModel } from './view-model';
+import type { TradingChartModel } from './trading-chart-model';
 import {
   compatiblePlotStyles,
   defaultAnalysisTradingChartIndicators,
@@ -13,6 +14,32 @@ import {
   normalizeTradingChartIndicatorSettings,
   TRADING_CHART_MAIN_PANE_ID,
 } from './trading-chart-model';
+
+function buildAvailability(overrides: Partial<TradingChartModel['availability']> = {}): TradingChartModel['availability'] {
+  return {
+    inventory: false,
+    uncertainty: false,
+    reorderPoint: false,
+    safetyStock: false,
+    demand: false,
+    serviceDemand: false,
+    retailDemand: false,
+    availableCapacity: false,
+    demandMinusAvailableCapacity: false,
+    receipts: false,
+    ordersInTransit: false,
+    ordersLate: false,
+    ordersReadyToReceive: false,
+    ordersReceived: false,
+    newOrderFlags: false,
+    newReceiptFlags: false,
+    price: false,
+    leadTime: false,
+    leadTimeRange: false,
+    regime: false,
+    ...overrides,
+  };
+}
 
 function buildModel(overrides: Partial<SenaSkuDetailViewModel> = {}): SenaSkuDetailViewModel {
   return {
@@ -111,6 +138,11 @@ function buildModel(overrides: Partial<SenaSkuDetailViewModel> = {}): SenaSkuDet
             orderQuantityMean: 7,
             receiptQuantityMean: 0,
             ageDaysMean: 2,
+            ordersLateMean: 0,
+            ordersReadyToReceiveMean: 0,
+            ordersReceivedMean: 0,
+            newOrderFlag: 1,
+            newReceiptFlag: 0,
           },
         ],
       },
@@ -128,6 +160,7 @@ function buildModel(overrides: Partial<SenaSkuDetailViewModel> = {}): SenaSkuDet
       },
       actNow: { headline: '', quantityBand: '', rationale: ['', '', ''] },
       openPipeline: { summary: ['', '', '', ''], events: [] },
+      customerDemand: { summary: ['', '', '', ''] },
       exposure: [],
       nextTouch: { dateLabel: '', reason: '' },
     },
@@ -142,10 +175,19 @@ function buildModel(overrides: Partial<SenaSkuDetailViewModel> = {}): SenaSkuDet
       soldAsProduct: true,
       recommendedOrderQuantity: 0,
       reorderRecommendation: {
+        hasBackendRecommendation: true,
         recommendedUnits: 0,
+        recommendedUnitsLabel: '',
         recommendedOrderLabel: '',
+        optionalOrderLabel: '',
+        compactLabel: '',
         likelyRangeLabel: '',
+        likelyRangeValueLabel: '',
         needProbabilityLabel: '',
+        needProbabilityValueLabel: '',
+        quietLabel: '',
+        protectionHorizonLabel: '',
+        policyBasisLabel: '',
         recommendationIssued: false,
       },
     },
@@ -299,9 +341,20 @@ describe('deriveTradingChartModel', () => {
       reorderPoint: true,
       safetyStock: true,
       demand: true,
+      serviceDemand: true,
+      retailDemand: true,
+      availableCapacity: false,
+      demandMinusAvailableCapacity: false,
       receipts: true,
-      pipeline: false,
+      ordersInTransit: false,
+      ordersLate: false,
+      ordersReadyToReceive: false,
+      ordersReceived: false,
+      newOrderFlags: false,
+      newReceiptFlags: false,
       price: false,
+      leadTime: false,
+      leadTimeRange: false,
       regime: true,
     })).toEqual([
       { id: 'main', indicatorIds: ['inventory', 'uncertainty', 'reorderPoint', 'safetyStock', 'regime'] },
@@ -414,17 +467,7 @@ describe('deriveTradingChartModel', () => {
     defaults.regime.paneId = 'pane-1';
     defaults.regime.enabled = true;
 
-    const availability: TradingChartModel['availability'] = {
-      inventory: false,
-      uncertainty: false,
-      reorderPoint: false,
-      safetyStock: false,
-      demand: false,
-      receipts: false,
-      pipeline: false,
-      price: false,
-      regime: true, // regime has data
-    };
+    const availability = buildAvailability({ regime: true });
 
     const layout = deriveTradingChartPaneLayout(defaults, availability);
     
@@ -440,17 +483,7 @@ describe('deriveTradingChartModel', () => {
     defaults.regime.enabled = true;
     defaults.regime.paneId = 'main';
 
-    const availability: TradingChartModel['availability'] = {
-      inventory: true,
-      uncertainty: false,
-      reorderPoint: false,
-      safetyStock: false,
-      demand: false,
-      receipts: false,
-      pipeline: false,
-      price: false,
-      regime: true,
-    };
+    const availability = buildAvailability({ inventory: true, regime: true });
 
     const layout = deriveTradingChartPaneLayout(defaults, availability);
     
