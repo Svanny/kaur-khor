@@ -130,8 +130,8 @@ function freezeDate(isoString: string) {
   const fixedDate = new realDate(isoString);
 
   class MockDate extends realDate {
-    constructor(...args: any[]) {
-      super(...(args.length === 0 ? [fixedDate.toISOString()] : args));
+    constructor(...args: [] | [string | number | Date]) {
+      super(args.length === 0 ? fixedDate.toISOString() : args[0]);
     }
 
     static now() {
@@ -217,18 +217,20 @@ const childTask: OverviewSkuTask = {
   stockoutRisk: 0.05,
   reorderTriggerProbability: 0,
   reorderRecommendation: {
+    hasBackendRecommendation: true,
     recommendationIssued: true,
     recommendedUnits: 8,
     recommendedUnitsLabel: '8 units',
     recommendedOrderLabel: 'Recommended range 6-10 units',
     quietLabel: 'Keep watching',
-    likelyRangeLow: 6,
-    likelyRangeHigh: 10,
     likelyRangeLabel: 'Recommended range 6-10 units',
-    needProbability: 0.75,
     needProbabilityValueLabel: '75%',
     needProbabilityLabel: 'order likelihood 75%',
-    optionalOrderLabel: false,
+    optionalOrderLabel: null,
+    compactLabel: '8 units',
+    likelyRangeValueLabel: '6-10 units',
+    protectionHorizonLabel: 'Covers the next supplier window',
+    policyBasisLabel: 'Based on reorder policy',
   },
   daysOfCover: 2,
 };
@@ -242,6 +244,7 @@ const ticketTask: OverviewSupplierTicketTask = {
   displayTicketLabel: 'Supplier Ticket ID: 2026-04-09-#1',
   ticket: supplierTicket,
   childTasks: [childTask],
+  defaultDrawerMode: 'eta_changed',
   skuCount: 1,
   skuSummaryLabel: '1 SKU: Coke',
   skuNames: ['Coke'],

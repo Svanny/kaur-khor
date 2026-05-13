@@ -1,6 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SenaCatalog, SenaObservationRecord, SenaRecordUpdateContext, SenaTicketSummary, SenaWorkspaceSummary } from '@shared/sena';
-import { buildOverviewModel, isOverviewSupplierTicketTask, nextCheckLabel, relativeReceiptLabel } from './view-model';
+import {
+  buildOverviewModel as buildOverviewModelBase,
+  isOverviewSupplierTicketTask,
+  nextCheckLabel,
+  relativeReceiptLabel,
+} from './view-model';
+
+type BuildOverviewModelInput = Parameters<typeof buildOverviewModelBase>[0];
+
+function buildOverviewModel(input: Omit<BuildOverviewModelInput, 'orderBatches'> & Partial<Pick<BuildOverviewModelInput, 'orderBatches'>>) {
+  return buildOverviewModelBase({
+    orderBatches: [],
+    recordUpdateContext: null,
+    ...input,
+  });
+}
 
 const taskCatalog: SenaCatalog = {
   schemaVersion: 1,
@@ -276,22 +291,22 @@ describe('buildOverviewModel stale update reminder', () => {
           pipelinePosterior: [
             {
               intervalIndex: 0,
-              startAt: '2026-04-01T00:00:00.000Z',
-              endAt: '2026-04-02T00:00:00.000Z',
-              pipelineMean: 0,
               inTransitMean: 6,
-              low: 0,
-              high: 8,
+              orderProbability: 0,
+              orderQuantityMean: 0,
+              receiptQuantityMean: 0,
+              ageDaysMean: 0,
             },
           ],
           leadTimePosterior: [
             {
               intervalIndex: 0,
-              startAt: '2026-04-01T00:00:00.000Z',
-              endAt: '2026-04-02T00:00:00.000Z',
+              logMeanDays: 0,
+              logStdDays: 0,
               meanDays: 4,
               stdDays: 1,
               observedVariabilityClass: 'normal',
+              observedRelativeWidth: null,
             },
           ],
         },
