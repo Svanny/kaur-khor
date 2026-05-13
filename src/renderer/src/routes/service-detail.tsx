@@ -37,6 +37,17 @@ function chartSearchValue(searchParams: URLSearchParams) {
   return searchParams.get('chart');
 }
 
+function serviceDetailStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function buildServiceDetailSearchParams(
   searchParams: URLSearchParams,
   options: {
@@ -147,18 +158,22 @@ export function ServiceDetailRoute() {
     () => deriveSenaDetailCacheFreshnessFingerprint(workspaceSummary),
     [workspaceSummary?.latestObservedAt, workspaceSummary?.runId],
   );
-  const cachedRecentDetailPage = useMemo(
-    () =>
-      typeof window === 'undefined'
-        ? null
-        : readPersistedSenaDetailPage({
-          beforeIntervalIndex: null,
-          entityId: serviceId,
-          entityType: 'service',
-          freshnessFingerprint: detailCacheFreshnessFingerprint,
-          limit: INTERVAL_PAGE_SIZE,
-          storage: window.localStorage,
-        }),
+  const cachedRecentDetailPage = useMemo<SenaServiceDetailPage | null>(
+    () => {
+      const storage = serviceDetailStorage();
+      return storage
+        ? normalizeServiceDetailPage(
+            readPersistedSenaDetailPage<SenaServiceDetailPage>({
+              beforeIntervalIndex: null,
+              entityId: serviceId,
+              entityType: 'service',
+              freshnessFingerprint: detailCacheFreshnessFingerprint,
+              limit: INTERVAL_PAGE_SIZE,
+              storage,
+            }),
+          )
+        : null;
+    },
     [detailCacheFreshnessFingerprint, serviceId],
   );
 

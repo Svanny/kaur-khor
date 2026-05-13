@@ -4,6 +4,7 @@ import {
   buildAutomationHref,
   buildCaptureHref,
   buildFinancialsHref,
+  buildInventoryHref,
   buildWorkHref,
   buildPerformanceHref,
   buildSkuDetailHref,
@@ -12,6 +13,7 @@ import {
   readAutomationRouteState,
   readFinancialsRouteState,
   readInsightsRouteState,
+  readInventoryRouteState,
   readWorkRouteState,
   readPerformanceRouteState,
   readServiceAction,
@@ -103,7 +105,15 @@ describe('navigation-state', () => {
     );
   });
 
-  test('reads performance compare mode safely and omits default compare state', () => {
+  test('reads inventory route state safely and maps performance helpers to inventory', () => {
+    expect(readInventoryRouteState(new URLSearchParams('range=7d&scope=skus&projection=30d&rows=all&preset=flow'))).toMatchObject({
+      range: '7d',
+      scope: 'skus',
+      projectionHorizon: '30d',
+      rowSet: 'all',
+      viewPreset: 'flow',
+    });
+
     expect(readPerformanceRouteState(new URLSearchParams('compare=0&range=7d&scope=skus'))).toEqual({
       compare: false,
       range: '7d',
@@ -113,11 +123,11 @@ describe('navigation-state', () => {
       customRangeEnd: null,
     });
 
-    expect(buildPerformanceHref({ compare: false, range: '30d', scope: 'all' })).toBe('/insights/pressure');
-    expect(buildPerformanceHref({ compare: true, range: '7d' })).toBe('/insights/pressure?compare=1&range=7d');
+    expect(buildInventoryHref({ range: '30d', scope: 'skus' })).toBe('/insights/inventory');
+    expect(buildPerformanceHref({ compare: true, range: '7d' })).toBe('/insights/inventory?range=7d');
   });
 
-  test('round-trips performance custom range params safely', () => {
+  test('round-trips inventory custom range params safely', () => {
     expect(readPerformanceRouteState(new URLSearchParams('range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z'))).toEqual({
       compare: false,
       range: 'custom',
@@ -127,11 +137,11 @@ describe('navigation-state', () => {
       customRangeEnd: '2026-01-15T23:59:59.999Z',
     });
 
-    expect(buildPerformanceHref({
+    expect(buildInventoryHref({
       range: 'custom',
       customRangeStart: '2026-01-01T00:00:00.000Z',
       customRangeEnd: '2026-01-15T23:59:59.999Z',
-    })).toBe('/insights/pressure?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
+    })).toBe('/insights/inventory?range=custom&customStart=2026-01-01T00%3A00%3A00.000Z&customEnd=2026-01-15T23%3A59%3A59.999Z');
   });
 
   test('reads financials route state safely and omits default financials params', () => {

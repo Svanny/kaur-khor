@@ -122,13 +122,22 @@ export function mergedProductAttributePresets(customPresets: ProductAttributePre
   return Array.from(presets.values());
 }
 
-export function readCustomProductAttributePresets(storage: Storage | null | undefined = globalThis.localStorage) {
-  if (!storage) {
+function productAttributePresetStorage() {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function readCustomProductAttributePresets(storage?: Storage | null) {
+  const resolvedStorage = storage === undefined ? productAttributePresetStorage() : storage;
+  if (!resolvedStorage) {
     return [];
   }
 
   try {
-    return sanitizeProductAttributePresets(JSON.parse(storage.getItem(PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY) ?? '[]'));
+    return sanitizeProductAttributePresets(JSON.parse(resolvedStorage.getItem(PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY) ?? '[]'));
   } catch {
     return [];
   }
@@ -136,14 +145,15 @@ export function readCustomProductAttributePresets(storage: Storage | null | unde
 
 export function writeCustomProductAttributePresets(
   presets: ProductAttributePreset[],
-  storage: Storage | null | undefined = globalThis.localStorage,
+  storage?: Storage | null,
 ) {
-  if (!storage) {
+  const resolvedStorage = storage === undefined ? productAttributePresetStorage() : storage;
+  if (!resolvedStorage) {
     return;
   }
 
   try {
-    storage.setItem(PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY, JSON.stringify(sanitizeProductAttributePresets(presets)));
+    resolvedStorage.setItem(PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY, JSON.stringify(sanitizeProductAttributePresets(presets)));
   } catch {
     // Local storage is optional for this creation helper.
   }

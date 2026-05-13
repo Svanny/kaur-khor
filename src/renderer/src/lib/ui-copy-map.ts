@@ -9,7 +9,7 @@ export const enUiCopyV1 = {
   navHistory: 'History',
   navOverview: 'Work',
   navRecordUpdate: 'Capture',
-  navPerformance: 'Pressure',
+  navPerformance: 'Inventory',
   navFinancials: 'Money',
   navAutomations: 'Automation',
   navAnalysis: 'Explain',
@@ -2343,7 +2343,13 @@ export const enUiCopyV1 = {
 } as const;
 
 export type EnglishUiCopyVersion = 'v1' | 'v2';
-export type EnglishUiCopy = typeof enUiCopyV1;
+export type EnglishUiCopy = {
+  [Key in keyof typeof enUiCopyV1]: string;
+};
+
+function copyOverrideGroup(overrides: Partial<EnglishUiCopy>): Partial<EnglishUiCopy> {
+  return overrides;
+}
 
 export const EN_UI_COPY_VERSION: EnglishUiCopyVersion = 'v2';
 
@@ -3078,7 +3084,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     'Example: moved the display near the entrance after the count.',
   stockUpdateNotesPlaceholderNothingSpecial:
     'Example: routine count, nothing unusual to add.',
-  ...{
+  ...copyOverrideGroup({
     backendReady: 'Local planning workspace ready',
     backendError: 'Local planning workspace unavailable',
     workspaceLoadingTitle: 'Loading local planning workspace…',
@@ -3177,7 +3183,7 @@ export const enUiCopyV2: EnglishUiCopy = {
     analysisWorkbenchReorderTrigger: 'Reorder signal',
     analysisWorkbenchReorderPolicyTooltip:
       'Shows the current order suggestion after stock, incoming stock, demand, and delivery timing are considered.',
-    ...{
+    ...copyOverrideGroup({
       settingsAnalysisProfileLabel: 'Planning method',
       settingsAnalysisProfileTooltip:
         'This chooses which local planning method Kaur Khor uses. Leave it unchanged unless you are comparing results.',
@@ -3284,8 +3290,8 @@ export const enUiCopyV2: EnglishUiCopy = {
       stockUpdateRemovePriceFlagFor: 'Remove price flag for {name}',
       stockUpdatePriceChangedAria: 'Price if changed for {name}',
       stockUpdateEyebrow: 'Capture',
-    },
-  },
+    }),
+  }),
 } as const;
 
 export const enUiCopyVersions = {

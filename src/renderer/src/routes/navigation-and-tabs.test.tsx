@@ -392,7 +392,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('link', { name: 'SKU 1' })).toBeInTheDocument();
     });
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     await act(async () => {
       fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
@@ -417,7 +417,7 @@ describe('SENA routes', () => {
   test('opens the SKU action flow in catalog without showing the inline detail rail', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
@@ -437,7 +437,7 @@ describe('SENA routes', () => {
     window.localStorage.setItem('kaur-khor:record-update:draft:supplier-order-pending:v1', '{"version":1}');
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest('div.group');
+    const skuRow = screen.getByRole('link', { name: 'SKU 1' }).closest<HTMLElement>('div.group');
     expect(skuRow).not.toBeNull();
     fireEvent.click(within(skuRow!).getByRole('button', { name: 'More actions for SKU 1' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
@@ -460,7 +460,7 @@ describe('SENA routes', () => {
   test('opens the service action flow in catalog without showing the inline detail rail', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
 
     await waitFor(() => {
@@ -484,7 +484,7 @@ describe('SENA routes', () => {
   test('routes service customer actions into capture', async () => {
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
 
     await waitFor(() => {
@@ -570,7 +570,7 @@ describe('SENA routes', () => {
       expect(screen.getByRole('link', { name: 'SKU 2' })).toBeInTheDocument();
     });
 
-    const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest('div.group');
+    const unsellableRow = screen.getByRole('link', { name: 'SKU 2' }).closest<HTMLElement>('div.group');
     expect(unsellableRow).not.toBeNull();
     await act(async () => {
       fireEvent.click(within(unsellableRow!).getByRole('button', { name: 'More actions for SKU 2' }));
@@ -623,12 +623,12 @@ describe('SENA routes', () => {
 
     renderWithProviders('/catalog', <InventoryRoute />, '/catalog');
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
     fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
 
     await waitFor(() => {
-      const serviceCustomerOrderButton = screen.getByText('Customer Order').closest('button,[role="button"]');
+      const serviceCustomerOrderButton = screen.getByText('Customer Order').closest<HTMLElement>('button,[role="button"]');
       expect(serviceCustomerOrderButton).not.toHaveAttribute('aria-disabled', 'true');
       expect(screen.queryByText('Stock Count')).not.toBeInTheDocument();
     });
@@ -647,7 +647,7 @@ describe('SENA routes', () => {
     });
     expect(inventoryHook().loadSenaServiceDetail).not.toHaveBeenCalled();
 
-    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest('div.group');
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
     expect(serviceRow).not.toBeNull();
     fireEvent.click(within(serviceRow!).getByRole('button', { name: 'More actions for Service 1' }));
 

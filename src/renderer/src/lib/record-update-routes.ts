@@ -3,6 +3,7 @@ export const RECORD_UPDATE_STOCK_COUNT_PATH = '/work/capture/stock-count';
 export const RECORD_UPDATE_CUSTOMER_PENDING_PATH = '/work/capture/customer-order';
 export const RECORD_UPDATE_CUSTOMER_COMPLETED_PATH = '/work/capture/immediate-sale';
 export const RECORD_UPDATE_SUPPLIER_PENDING_PATH = '/work/capture/supplier-order';
+export const RECORD_UPDATE_SUPPLIER_RECEIPT_PATH = '/work/capture/supplier-receipt';
 export const RECORD_UPDATE_CUSTOM_PATH = '/work/capture/custom';
 
 export type CaptureSessionAction =
@@ -68,7 +69,8 @@ export type BaseRecordUpdateLaneId =
   | 'stock-count'
   | 'customer-order-pending'
   | 'customer-order-completed'
-  | 'supplier-order-pending';
+  | 'supplier-order-pending'
+  | 'supplier-receipt';
 
 export type RecordUpdateLaneId = BaseRecordUpdateLaneId | 'custom';
 
@@ -103,6 +105,12 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
     path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
     title: 'Supplier Order',
     draftStorageKey: 'kaur-khor:record-update:draft:supplier-order-pending:v1',
+  },
+  {
+    id: 'supplier-receipt',
+    path: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
+    title: 'Supplier Receipt',
+    draftStorageKey: 'kaur-khor:record-update:draft:supplier-receipt:v1',
   },
   {
     id: 'custom',

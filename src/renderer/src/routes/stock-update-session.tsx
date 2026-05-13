@@ -965,6 +965,7 @@ interface ServiceSignalDraft {
 interface StockUpdateSessionDraft {
   version: 1;
   savedAt: string;
+  savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds?: PosMetadataPopupId[];
   currentStepId: StockUpdateStepId;
@@ -1013,6 +1014,7 @@ interface StockUpdateSessionDraft {
 
 interface StockUpdateDraftState {
   catalog: SenaCatalog | null;
+  savedObservationRetryId?: string | null;
   customSelectedLaneIds: BaseRecordUpdateLaneId[];
   touchedPosMetadataPopupIds: PosMetadataPopupId[];
   currentStepId: StockUpdateStepId;
@@ -1087,16 +1089,9 @@ const EMPTY_SIST_OVERVIEW: SistOverview = {
   },
   settings: {
     targetServiceLevel: 0.95,
-    reviewPeriodDays: 7,
-    maxLeadTimeDays: 30,
-    changePointThreshold: 0.5,
-    lowStockoutRiskThreshold: 0.1,
-    highStockoutRiskThreshold: 0.5,
-    lowCoverageDaysThreshold: 3,
-    highCoverageDaysThreshold: 14,
-    staleAfterHours: 48,
     forecastHorizonDays: 30,
-    reportSmoothWindow: 8,
+    particleCount: 800,
+    smoothingWindowReports: 8,
   },
   asOf: null,
   topRegime: null,
@@ -1124,6 +1119,7 @@ const BASE_RECORD_UPDATE_LANE_ORDER: BaseRecordUpdateLaneId[] = [
   'customer-order-pending',
   'customer-order-completed',
   'supplier-order-pending',
+  'supplier-receipt',
 ];
 const OPTIONAL_STOCK_STEP_IDS: OptionalStockStepId[] = ['stock-cost', 'stock-price', 'stock-flags'];
 export type ReportNotePlaceholderLaneId = BaseRecordUpdateLaneId | 'supplier-receipt';
@@ -1221,27 +1217,7 @@ export function randomReportNotePlaceholderKeyForLane(
   return randomFromTranslationKeys(REPORT_NOTE_PLACEHOLDER_KEYS_BY_LANE.neutral);
 }
 
-const STOCK_UPDATE_STEP_COPY: Record<
-  StockUpdateStepId,
-  {
-    descriptionKey:
-      | 'stockUpdateStepObservedAtDescription'
-      | 'stockUpdateStepReportNotesDescription'
-      | 'stockUpdateStepContextDescription'
-      | 'stockUpdateStepStockDescription'
-      | 'stockUpdateStepServiceDescription'
-      | 'stockUpdateStepRankingsDescription'
-      | 'stockUpdateStepReviewDescription';
-    titleKey:
-      | 'stockUpdateStepObservedAtTitle'
-      | 'stockUpdateStepReportNotesTitle'
-      | 'stockUpdateStepContextTitle'
-      | 'stockUpdateStepStockTitle'
-      | 'stockUpdateStepServiceTitle'
-      | 'stockUpdateStepRankingsTitle'
-      | 'stockUpdateStepReviewTitle';
-  }
-> = {
+const STOCK_UPDATE_STEP_COPY = {
   'observed-at': {
     titleKey: 'stockUpdateStepObservedAtTitle',
     descriptionKey: 'stockUpdateStepObservedAtDescription',
@@ -1257,6 +1233,26 @@ const STOCK_UPDATE_STEP_COPY: Record<
   stock: {
     titleKey: 'stockUpdateStepStockTitle',
     descriptionKey: 'stockUpdateStepStockDescription',
+  },
+  'stock-cost': {
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateCostStepDescription',
+  },
+  'stock-price': {
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateRetailPriceStepDescription',
+  },
+  'stock-flags': {
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateFlagsStepDescription',
+  },
+  'retail-sales': {
+    titleKey: 'stockUpdateStepStockTitle',
+    descriptionKey: 'stockUpdateStepStockDescription',
+  },
+  'service-sales': {
+    titleKey: 'stockUpdateStepServiceTitle',
+    descriptionKey: 'stockUpdateStepServiceDescription',
   },
   reorder: {
     titleKey: 'stockUpdateStepStockTitle',
@@ -1278,7 +1274,7 @@ const STOCK_UPDATE_STEP_COPY: Record<
     titleKey: 'stockUpdateStepReviewTitle',
     descriptionKey: 'stockUpdateStepReviewDescription',
   },
-};
+} satisfies Record<StockUpdateStepId, { descriptionKey: TranslationKey; titleKey: TranslationKey }>;
 
 function localDateTimeInputValue(value: string | null) {
   return formatLocalDateTimeInputValue(value);
@@ -1640,7 +1636,7 @@ function isCustomerPendingMode(value: unknown): value is CustomerPendingMode {
 }
 
 function isCustomerCompletedMode(value: unknown): value is CustomerCompletedMode {
-  return CUSTOMER_COMPLETED_MODE_OPTIONS.includes(value as CustomerCompletedMode);
+  return value === 'from_pending' || CUSTOMER_COMPLETED_MODE_OPTIONS.includes(value as (typeof CUSTOMER_COMPLETED_MODE_OPTIONS)[number]);
 }
 
 function isSupplierPendingMode(value: unknown): value is SupplierPendingMode {
@@ -2132,6 +2128,7 @@ function hydrateStockUpdateDraft({
   return {
     version: 1,
     savedAt: typeof draft.savedAt === 'string' ? draft.savedAt : new Date().toISOString(),
+    savedObservationRetryId: typeof draft.savedObservationRetryId === 'string' ? draft.savedObservationRetryId : null,
     customSelectedLaneIds: sanitizeCustomSelectedLaneIds(draft.customSelectedLaneIds),
     touchedPosMetadataPopupIds: sanitizeTouchedPosMetadataPopupIds(draft.touchedPosMetadataPopupIds),
     currentStepId: normalizeStepIdForOrder(
@@ -2274,6 +2271,7 @@ function buildStockUpdateDraft(state: StockUpdateDraftState): StockUpdateSession
   return {
     version: 1,
     savedAt: new Date().toISOString(),
+    savedObservationRetryId: state.savedObservationRetryId ?? null,
     customSelectedLaneIds: state.customSelectedLaneIds,
     touchedPosMetadataPopupIds: state.touchedPosMetadataPopupIds,
     currentStepId: state.currentStepId,
@@ -4266,11 +4264,11 @@ function StockCostStep(props: {
                     latestCost == null ? '' : String(displayMoneyFromUsd(latestCost, currency, usdToKhrExchangeRate));
 
                   return {
-                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? translateUiLiteral(language, 'SKU') }),
+                    dragLabel: t('stockUpdateReorderSkuRow', { name: sku?.name ?? t('stockUpdateSkuLatestObservation') }),
                     highlight: costChanged,
                     inputCellIndexes: [2],
                     cells: [
-                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? translateUiLiteral(language, 'SKU')} />,
+                      <StockSkuSummaryCell sku={sku} skuName={sku?.name ?? t('stockUpdateSkuLatestObservation')} />,
                       <StockLatestMoneyCell countedAtBySku={countedAtBySku} latestValue={latestCost} skuId={row.skuId} />,
                       <>
                         <RecordUpdateMobileLabel>{t('stockUpdateCurrentCost')}</RecordUpdateMobileLabel>
@@ -4635,6 +4633,7 @@ function CustomerPendingRetailStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record open retail commitments without changing physical stock on hand.')}
+      helperExemptReason="Pending retail order panel is covered by the descriptor and mode-specific field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Open retail / sellable SKU orders')}
     >
@@ -4747,6 +4746,7 @@ function CustomerPendingServiceStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record open service commitments without marking them fulfilled yet.')}
+      helperExemptReason="Pending service order panel is covered by the descriptor and mode-specific field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Open service orders')}
     >
@@ -4891,6 +4891,7 @@ function SalesRetailStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={resolvedDescriptor}
+      helperExemptReason="Retail sales panel is covered by the descriptor, question, and helper copy."
       style={recordUpdateWhiteCardStyle}
       title={resolvedTitle}
     >
@@ -5055,6 +5056,7 @@ function SalesServiceStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={resolvedDescriptor}
+      helperExemptReason="Service sales panel is covered by the descriptor, question, and helper copy."
       style={recordUpdateWhiteCardStyle}
       title={resolvedTitle}
     >
@@ -5248,6 +5250,7 @@ function RecordOrderStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Log new orders, confirm expected arrival timing, and optionally adjust ETA assumptions before saving.')}
+      helperExemptReason="Supplier reorder panel is covered by the descriptor and table field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Reorder table')}
     >
@@ -5387,6 +5390,7 @@ function RecordReceiptStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record the stock that physically arrived and confirm the received date before saving.')}
+      helperExemptReason="Supplier receipt panel is covered by the descriptor and receipt field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Record receipt')}
     >
@@ -6201,6 +6205,7 @@ export function StockUpdateSessionRoute() {
     observations,
     orderBatches,
     recordUpdateContext,
+    runSavingTask,
     triggerSenaRun,
     updateSenaObservation,
     updateSenaOrderBatch,
@@ -6262,7 +6267,7 @@ export function StockUpdateSessionRoute() {
   const retailSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:retail-sales`), [lane.id]);
   const serviceSalesRowOrderStorageKey = useMemo(() => buildStockRowOrderStorageKey(`${lane.id}:service-sales`), [lane.id]);
   const [customSelectedLaneIds, setCustomSelectedLaneIds] = useState<BaseRecordUpdateLaneId[]>(() => routeCustomSelectedLaneIds);
-  const activeStepOrder = useMemo(() => {
+  const activeStepOrder = useMemo<StockUpdateStepId[]>(() => {
     const order = stepOrderForLane(lane.id, customSelectedLaneIds);
     if (routeCaptureTarget?.action !== 'service-price' || order.includes('service')) {
       return order;
@@ -7146,6 +7151,7 @@ export function StockUpdateSessionRoute() {
   const draftState = useMemo<StockUpdateDraftState>(
     () => ({
       catalog: workingCatalog,
+      savedObservationRetryId: savedObservationRetryIdRef.current,
       customSelectedLaneIds,
       touchedPosMetadataPopupIds: [...touchedPosMetadataPopupIds],
       currentStepId,
@@ -7446,9 +7452,11 @@ export function StockUpdateSessionRoute() {
       });
 
       if (hydratedDraft) {
-        const touchedMetadataIds = hydratedDraft.touchedPosMetadataPopupIds.length > 0
-          ? hydratedDraft.touchedPosMetadataPopupIds
+        const hydratedTouchedMetadataIds = hydratedDraft.touchedPosMetadataPopupIds ?? [];
+        const touchedMetadataIds = hydratedTouchedMetadataIds.length > 0
+          ? hydratedTouchedMetadataIds
           : deriveTouchedPosMetadataPopupIdsFromDraft(hydratedDraft);
+        savedObservationRetryIdRef.current = hydratedDraft.savedObservationRetryId ?? null;
         setCustomSelectedLaneIds(
           lane.id === 'custom' && hydratedDraft.customSelectedLaneIds && hydratedDraft.customSelectedLaneIds.length > 0
             ? hydratedDraft.customSelectedLaneIds
@@ -7872,11 +7880,29 @@ export function StockUpdateSessionRoute() {
   }
 
   function resetCostStepRows() {
-    setRows((current) => current.map((row) => ({ ...row, costPerUnit: baselineStockRow(workingCatalog, stockBySku, row.skuId).costPerUnit })));
+    if (!workingCatalog) {
+      return;
+    }
+    const activeCatalog = workingCatalog;
+    setRows((current) =>
+      current.map((row) => {
+        const baseline = baselineStockRow(activeCatalog, stockBySku, row.skuId);
+        return baseline ? { ...row, costPerUnit: baseline.costPerUnit } : row;
+      }),
+    );
   }
 
   function resetRetailPriceStepRows() {
-    setRows((current) => current.map((row) => ({ ...row, productPrice: baselineStockRow(workingCatalog, stockBySku, row.skuId).productPrice })));
+    if (!workingCatalog) {
+      return;
+    }
+    const activeCatalog = workingCatalog;
+    setRows((current) =>
+      current.map((row) => {
+        const baseline = baselineStockRow(activeCatalog, stockBySku, row.skuId);
+        return baseline ? { ...row, productPrice: baseline.productPrice } : row;
+      }),
+    );
   }
 
   function resetSkuFlagRows() {
@@ -9619,7 +9645,49 @@ export function StockUpdateSessionRoute() {
     }
   }
 
-  async function saveCurrentSession() {
+  async function persistCurrentSessionInBackground({
+    draftSnapshot,
+    payload,
+    shouldSchedulePostSaveRerun,
+  }: {
+    draftSnapshot: StockUpdateDraftState | null;
+    payload: SenaObservationInput;
+    shouldSchedulePostSaveRerun: boolean;
+  }) {
+    if (editSession) {
+      await updateSenaObservation({
+        observationId: editSession.observationId,
+        input: payload,
+      });
+    } else if (savedObservationRetryIdRef.current) {
+      await updateSenaObservation({
+        observationId: savedObservationRetryIdRef.current,
+        input: payload,
+      });
+    } else {
+      const observation = await ingestSenaObservation(payload);
+      savedObservationRetryIdRef.current = observation.observationId;
+      if (draftSnapshot) {
+        writeStockUpdateDraft({
+          ...draftSnapshot,
+          savedObservationRetryId: observation.observationId,
+        }, draftStorageKey);
+      }
+    }
+    await persistLegacySupplierOrderUpdates();
+
+    if (shouldSchedulePostSaveRerun) {
+      try {
+        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
+      } catch (nextError) {
+        console.error('[record-update] failed to rerun SENA after save', nextError);
+      }
+    }
+
+    removeStockUpdateDraft(draftStorageKey);
+  }
+
+  function saveCurrentSession(afterSaveStarts?: () => void) {
     setError(null);
     const payload = buildPayload();
     const validationError = submitValidationError(payload);
@@ -9629,41 +9697,19 @@ export function StockUpdateSessionRoute() {
       return false;
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
-    try {
-      if (editSession) {
-        await updateSenaObservation({
-          observationId: editSession.observationId,
-          input: payload,
-        });
-      } else if (savedObservationRetryIdRef.current) {
-        await updateSenaObservation({
-          observationId: savedObservationRetryIdRef.current,
-          input: payload,
-        });
-      } else {
-        const observation = await ingestSenaObservation(payload);
-        savedObservationRetryIdRef.current = observation.observationId;
-      }
-      await persistLegacySupplierOrderUpdates();
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : t('stockUpdateSaveFailed'));
-      setSaveErrorFlashKey((current) => current + 1);
-      return false;
+    const draftSnapshot = latestDraftStateRef.current;
+    void runSavingTask(async () => persistCurrentSessionInBackground({
+      draftSnapshot,
+      payload,
+      shouldSchedulePostSaveRerun,
+    })).catch((nextError) => {
+      console.error('[record-update] failed to save capture session in background', nextError);
+    });
+    if (afterSaveStarts) {
+      afterSaveStarts();
+    } else {
+      navigate(previousLocation ?? '/', { replace: true, state: null });
     }
-
-    if (shouldSchedulePostSaveRerun) {
-      try {
-        await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      } catch (nextError) {
-        console.error('[record-update] failed to rerun SENA after save', nextError);
-      }
-    }
-    skipNextDraftPersistRef.current = true;
-    removeStockUpdateDraft(draftStorageKey);
-    setHasSavedDraft(false);
-    setDraftWasRestored(false);
-    resetRecordUpdateState();
-    navigate(previousLocation ?? '/', { replace: true, state: null });
     return true;
   }
 
@@ -9693,7 +9739,7 @@ export function StockUpdateSessionRoute() {
       setPosReceiptConfirmOpen(true);
       return;
     }
-    await saveCurrentSession();
+    saveCurrentSession();
   }
 
   async function copyPosReceiptPlainText() {
@@ -9713,10 +9759,7 @@ export function StockUpdateSessionRoute() {
     confirmLabel: translateUiLiteral(language, 'Discard changes and leave'),
     onDiscard: handleDiscardChanges,
     onSave: async (continueAfterSave) => {
-      const saved = await saveCurrentSession();
-      if (saved) {
-        continueAfterSave();
-      }
+      const saved = saveCurrentSession(continueAfterSave);
       return saved;
     },
     saveLabel: translateUiLiteral(language, 'Save changes'),
@@ -12230,7 +12273,7 @@ export function StockUpdateSessionRoute() {
                     <FilterControlRow
                       search={
                         <SearchInput
-                          aria-label={translateUiLiteral(language, 'Search workbench items')}
+                          ariaLabel={translateUiLiteral(language, 'Search workbench items')}
                           className="h-11 min-w-0 max-w-xl rounded-full border border-border/70 bg-white shadow-none"
                           inputClassName="bg-transparent"
                           placeholder={translateUiLiteral(language, 'Search items, services, or SKUs')}

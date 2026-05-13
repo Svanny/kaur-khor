@@ -15,6 +15,8 @@ import {
   buildInboxSearchParams,
   buildInsightsHref,
   buildInsightsSearchParams,
+  buildInventoryHref,
+  buildInventorySearchParams,
   buildOverviewHref,
   buildOverviewSearchParams,
   buildPerformanceHref,
@@ -27,6 +29,7 @@ import {
   readHistoryRouteState,
   readInboxRouteState,
   readInsightsRouteState,
+  readInventoryRouteState,
   readOverviewRouteState,
   readPerformanceRouteState,
   type AnalysisRouteState,
@@ -37,6 +40,7 @@ import {
   type InboxRouteState,
   type InsightsRouteState,
   type FinancialsRouteState,
+  type InventoryRouteState,
   type OverviewRouteState,
   type PerformanceRouteState,
 } from '@/lib/navigation-state';
@@ -54,6 +58,7 @@ export type PageStateMemoryId =
   | 'history'
   | 'inbox'
   | 'insights'
+  | 'inventory'
   | 'overview'
   | 'performance'
   | 'settings';
@@ -264,7 +269,11 @@ function sanitizeAnalysisSearch(searchParams: URLSearchParams) {
 }
 
 function sanitizePerformanceSearch(searchParams: URLSearchParams) {
-  return canonicalSearch(buildPerformanceSearchParams(null, readPerformanceRouteState(searchParams)));
+  return sanitizeInventorySearch(searchParams);
+}
+
+function sanitizeInventorySearch(searchParams: URLSearchParams) {
+  return canonicalSearch(buildInventorySearchParams(null, readInventoryRouteState(searchParams)));
 }
 
 function sanitizeFinancialsSearch(searchParams: URLSearchParams) {
@@ -335,8 +344,8 @@ function pageMemoryForLocation(pathname: string): PageStateMemoryId | null {
   if (pathname === '/insights') {
     return 'insights';
   }
-  if (pathname === '/insights/pressure') {
-    return 'performance';
+  if (pathname === '/insights/inventory' || pathname === '/insights/pressure') {
+    return 'inventory';
   }
   if (pathname === '/insights/money') {
     return 'financials';
@@ -368,6 +377,8 @@ function sanitizedSearchForPage(pageId: PageStateMemoryId, searchParams: URLSear
       return sanitizeOverviewSearch(searchParams);
     case 'insights':
       return sanitizeInsightsSearch(searchParams);
+    case 'inventory':
+      return sanitizeInventorySearch(searchParams);
     case 'overview':
       return sanitizeOverviewSearch(searchParams);
     case 'performance':
@@ -469,7 +480,11 @@ export function buildRememberedAnalysisHref(nextState?: Partial<AnalysisRouteSta
 }
 
 export function buildRememberedPerformanceHref(nextState?: Partial<PerformanceRouteState>) {
-  return buildPerformanceHref(nextState, new URLSearchParams(rememberedSanitizedSearch('performance')));
+  return buildRememberedInventoryHref(nextState);
+}
+
+export function buildRememberedInventoryHref(nextState?: Partial<InventoryRouteState | PerformanceRouteState>) {
+  return buildInventoryHref(nextState, new URLSearchParams(rememberedSanitizedSearchFrom(['inventory', 'performance'])));
 }
 
 export function buildRememberedFinancialsHref(nextState?: Partial<FinancialsRouteState>) {
@@ -501,6 +516,10 @@ export function buildRememberedInsightsHref(nextState?: Partial<InsightsRouteSta
   if (rememberedInsights) {
     return buildInsightsHref(nextState, new URLSearchParams(rememberedInsights));
   }
+  const rememberedInventory = rememberedSanitizedSearch('inventory');
+  if (rememberedInventory) {
+    return buildInsightsHref({ mode: 'inventory', ...nextState }, new URLSearchParams(rememberedInventory));
+  }
   const rememberedFinancials = rememberedSanitizedSearch('financials');
   if (rememberedFinancials) {
     return buildInsightsHref({ mode: 'financials', ...nextState }, new URLSearchParams(rememberedFinancials));
@@ -509,7 +528,7 @@ export function buildRememberedInsightsHref(nextState?: Partial<InsightsRouteSta
   if (rememberedAnalysis) {
     return buildInsightsHref({ mode: 'analysis', ...nextState }, new URLSearchParams(rememberedAnalysis));
   }
-  return buildInsightsHref(nextState, new URLSearchParams(rememberedSanitizedSearch('performance')));
+  return buildInsightsHref(nextState, new URLSearchParams(rememberedSanitizedSearchFrom(['inventory', 'performance'])));
 }
 
 export function buildRememberedCatalogHref(nextState?: Partial<{

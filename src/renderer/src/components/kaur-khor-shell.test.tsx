@@ -260,7 +260,7 @@ describe('KaurKhorShell', () => {
     expect(screen.getByRole('button', { name: 'Expand Work' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Expand Insights' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Queue' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Pressure' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Inventory' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand Work' }));
     expect(screen.getByRole('link', { name: 'Queue' })).toHaveAttribute('href', '/work/queue');
@@ -279,7 +279,7 @@ describe('KaurKhorShell', () => {
     expect(screen.queryByRole('link', { name: 'Custom' })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand Insights' }));
-    expect(screen.getByRole('link', { name: 'Pressure' })).toHaveAttribute('href', '/insights/pressure');
+    expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('href', '/insights/inventory');
     expect(screen.getByRole('link', { name: 'Money' })).toHaveAttribute('href', '/insights/money');
     expect(screen.getByRole('link', { name: 'Explain' })).toHaveAttribute('href', '/insights/explain');
 
@@ -323,14 +323,14 @@ describe('KaurKhorShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Expand Capture' }));
     fireEvent.click(screen.getByRole('button', { name: 'Expand Insights' }));
     expect(screen.getByRole('link', { name: 'Queue' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Pressure' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Inventory' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
 
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: 'Queue' })).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Capture' })).not.toBeInTheDocument();
-      expect(screen.queryByRole('link', { name: 'Pressure' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Inventory' })).not.toBeInTheDocument();
       const topLevelLinks = Array.from(document.querySelectorAll('[data-sidebar-tree-depth="0"]'))
         .map((link) => link.getAttribute('aria-label'));
       expect(topLevelLinks).toEqual(['Home', 'Work', 'Products', 'Insights', 'Settings']);
@@ -1285,7 +1285,32 @@ describe('KaurKhorShell', () => {
     );
 
     expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(screen.getByText('Saving...')).toBeInTheDocument();
     expect(screen.queryByTestId('workspace-computing-screen')).not.toBeInTheDocument();
+  });
+
+  test('hides the global saving island when no save is active', () => {
+    inventoryHook.mockReturnValue({
+      error: null,
+      isLoading: false,
+      isPreparingWorkspace: false,
+      isSaving: false,
+      latestRun: null,
+      reload: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/capture']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Record update screen</div>} path="/capture" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Record update screen')).toBeInTheDocument();
+    expect(screen.queryByText('Saving...')).not.toBeInTheDocument();
   });
 });
 

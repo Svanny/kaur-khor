@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   DesktopBridge,
@@ -14,6 +14,7 @@ import type {
   SenaRecordUpdateContext,
   SenaObservationRecord,
   SenaSkuDetailPage,
+  SenaServiceDetailPage,
   SenaServiceDetail,
   SenaSkuDetail,
   SenaWorkspaceSummary,
@@ -207,6 +208,30 @@ const sampleServiceDetail: SenaServiceDetail = {
   regimeTimeline: [],
 };
 
+function makeOrderBatch(batchOrderId = 'orders/2026/04/15/000000/test/0001'): SenaOrderBatchRecord {
+  return {
+    batchOrderId,
+    ownerSub: 'desktop-owner',
+    supplierName: 'Test supplier',
+    status: 'open',
+    createdAt: '2026-04-15T00:00:00Z',
+    updatedAt: '2026-04-15T00:00:00Z',
+    shared: {
+      supplierName: 'Test supplier',
+      supplierNote: null,
+      orderedQuantity: null,
+      receivedQuantity: null,
+      costPerUnit: null,
+      expectedArrivalAt: null,
+      placementTimestamp: null,
+      receiptTimestamp: null,
+      leadTimeDaysHint: null,
+      leadTimeVariability: null,
+    },
+    children: [],
+  };
+}
+
 function makeSkuDetailPage(latestIntervalIndex: number): SenaSkuDetailPage {
   return {
     detail: {
@@ -233,6 +258,16 @@ function makeSkuDetailPage(latestIntervalIndex: number): SenaSkuDetailPage {
   };
 }
 
+function makeServiceDetailPage(latestIntervalIndex: number | null): SenaServiceDetailPage {
+  return {
+    detail: sampleServiceDetail,
+    hasOlder: false,
+    latestIntervalIndex,
+    nextBeforeIntervalIndex: null,
+    pageLimit: 20,
+  };
+}
+
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>((nextResolve) => {
@@ -251,6 +286,8 @@ function TestHarness() {
       <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
       <div data-testid="latest-run">{inventory.latestRun?.runId ?? 'none'}</div>
       <div data-testid="diagnostics-loaded">{String(inventory.diagnostics != null)}</div>
+      <div data-testid="saving">{String(inventory.isSaving)}</div>
+      <div data-testid="error">{inventory.error ?? 'none'}</div>
       <div data-testid="observation-count">{inventory.observations.length}</div>
       <div data-testid="order-batch-count">{inventory.orderBatches.length}</div>
       <button type="button" onClick={() => void inventory.loadSenaSkuDetail('sku-1')}>
@@ -258,6 +295,15 @@ function TestHarness() {
       </button>
       <button type="button" onClick={() => void inventory.triggerSenaRun()}>
         trigger run
+      </button>
+      <button type="button" onClick={() => void inventory.runSavingTask(() => inventory.triggerSenaRun())}>
+        nested saving task
+      </button>
+      <button type="button" onClick={() => void inventory.runSavingTask(async () => {
+        throw new Error('background failed');
+      }).catch(() => undefined)}
+      >
+        failed saving task
       </button>
       <button type="button" onClick={() => void inventory.loadWorkSupportData({ includeObservations: true })}>
         load work support
@@ -278,9 +324,19 @@ describe('InventoryProvider', () => {
     });
     const bridge: DesktopBridge = {
       system: {
+        checkForUpdate: vi.fn(),
+        chooseUpdateBackupDirectory: vi.fn(),
+        chooseUpdateDataDirectory: vi.fn(),
+        clearCurrentData: vi.fn(),
+        createBackupSnapshot: vi.fn(),
         getAppContext: vi.fn(),
         getLocalDataInfo: vi.fn(),
+        openExternalUrl: vi.fn(),
+        pickAndStoreImage: vi.fn(),
         revealPath: vi.fn(),
+        restoreBackupSnapshot: vi.fn(),
+        runSourceBuildUpdate: vi.fn(),
+        storeDroppedImage: vi.fn(),
       },
       preferences: {
         get: vi.fn<() => Promise<DesktopPreferences>>(),
@@ -309,96 +365,16 @@ describe('InventoryProvider', () => {
         ingestObservation: vi.fn(async () => sampleObservation),
         updateObservation: vi.fn(async ({ input }) => ({ ...sampleObservation, input })),
         deleteObservation: vi.fn(async () => undefined),
-        createOrderBatch: vi.fn(async () => ({
-          batchOrderId: 'orders/2026/04/15/000000/test/0001',
-          ownerSub: 'desktop-owner',
-          supplierName: 'Test supplier',
-          status: 'open',
-          createdAt: '2026-04-15T00:00:00Z',
-          updatedAt: '2026-04-15T00:00:00Z',
-          shared: {
-            supplierName: 'Test supplier',
-            supplierNote: null,
-            orderedQuantity: null,
-            receivedQuantity: null,
-            costPerUnit: null,
-            expectedArrivalAt: null,
-            placementTimestamp: null,
-            receiptTimestamp: null,
-            leadTimeDaysHint: null,
-            leadTimeVariability: null,
-          },
-          children: [],
-        })),
-        updateOrderBatch: vi.fn(async () => ({
-          batchOrderId: 'orders/2026/04/15/000000/test/0001',
-          ownerSub: 'desktop-owner',
-          supplierName: 'Test supplier',
-          status: 'open',
-          createdAt: '2026-04-15T00:00:00Z',
-          updatedAt: '2026-04-15T00:00:00Z',
-          shared: {
-            supplierName: 'Test supplier',
-            supplierNote: null,
-            orderedQuantity: null,
-            receivedQuantity: null,
-            costPerUnit: null,
-            expectedArrivalAt: null,
-            placementTimestamp: null,
-            receiptTimestamp: null,
-            leadTimeDaysHint: null,
-            leadTimeVariability: null,
-          },
-          children: [],
-        })),
-        updateOrderChild: vi.fn(async () => ({
-          batchOrderId: 'orders/2026/04/15/000000/test/0001',
-          ownerSub: 'desktop-owner',
-          supplierName: 'Test supplier',
-          status: 'open',
-          createdAt: '2026-04-15T00:00:00Z',
-          updatedAt: '2026-04-15T00:00:00Z',
-          shared: {
-            supplierName: 'Test supplier',
-            supplierNote: null,
-            orderedQuantity: null,
-            receivedQuantity: null,
-            costPerUnit: null,
-            expectedArrivalAt: null,
-            placementTimestamp: null,
-            receiptTimestamp: null,
-            leadTimeDaysHint: null,
-            leadTimeVariability: null,
-          },
-          children: [],
-        })),
-        splitOrderChild: vi.fn(async () => ({
-          batchOrderId: 'orders/2026/04/15/000000/test/0002',
-          ownerSub: 'desktop-owner',
-          supplierName: 'Test supplier',
-          status: 'open',
-          createdAt: '2026-04-15T00:00:00Z',
-          updatedAt: '2026-04-15T00:00:00Z',
-          shared: {
-            supplierName: 'Test supplier',
-            supplierNote: null,
-            orderedQuantity: null,
-            receivedQuantity: null,
-            costPerUnit: null,
-            expectedArrivalAt: null,
-            placementTimestamp: null,
-            receiptTimestamp: null,
-            leadTimeDaysHint: null,
-            leadTimeVariability: null,
-          },
-          children: [],
-        })),
+        createOrderBatch: vi.fn(async () => makeOrderBatch()),
+        updateOrderBatch: vi.fn(async () => makeOrderBatch()),
+        updateOrderChild: vi.fn(async () => makeOrderBatch()),
+        splitOrderChild: vi.fn(async () => makeOrderBatch('orders/2026/04/15/000000/test/0002')),
         triggerRun: vi.fn(async () => sampleRun),
         retryRun: vi.fn(async () => sampleRun),
         getWorkspaceSummary: vi.fn(async () => sampleWorkspace),
-        getSkuDetail: vi.fn(async () => sampleSkuDetail),
+        getSkuDetail: vi.fn(async () => makeSkuDetailPage(1)),
         getDiagnostics: vi.fn(async () => sampleDiagnostics),
-        getServiceDetail: vi.fn(async () => sampleServiceDetail),
+        getServiceDetail: vi.fn(async () => makeServiceDetailPage(1)),
         clearDetailCache: vi.fn(async () => undefined),
         getRunStatus: vi.fn(async () => sampleRun),
       },
@@ -524,6 +500,44 @@ describe('InventoryProvider', () => {
     expect(window.kaurKhorDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps saving visible for nested background saving tasks', async () => {
+    const run = deferred<SenaAnalysisRunRecord>();
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => run.promise);
+
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    fireEvent.click(screen.getByText('nested saving task'));
+
+    await waitFor(() => expect(screen.getByTestId('saving').textContent).toBe('true'));
+    run.resolve(sampleRun);
+    await waitFor(() => expect(screen.getByTestId('saving').textContent).toBe('false'));
+  });
+
+  it('sets a global error and clears saving when a background saving task fails', async () => {
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    fireEvent.click(screen.getByText('failed saving task'));
+
+    await waitFor(() => expect(screen.getByTestId('error').textContent).toBe('background failed'));
+    expect(screen.getByTestId('saving').textContent).toBe('false');
+  });
+
   it('returns a persisted detail page immediately and refreshes local storage in the background', async () => {
     function CacheHarness() {
       const inventory = useInventory();
@@ -592,6 +606,71 @@ describe('InventoryProvider', () => {
       limit: 20,
       storage: window.localStorage,
     })?.latestIntervalIndex).toBe(40);
+  });
+
+  it('loads detail pages when persisted detail storage is blocked', async () => {
+    function BlockedStorageHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState<string>('none');
+      const [loadError, setLoadError] = useState<string>('none');
+      const [loadStarted, setLoadStarted] = useState(false);
+
+      useEffect(() => {
+        if (loadStarted || inventory.workspaceSummary?.runId !== 'run-1') {
+          return;
+        }
+        setLoadStarted(true);
+        void inventory.loadSenaSkuDetail('sku-1')
+          .then((page) => {
+            setLatestIntervalIndex(page ? 'loaded' : 'none');
+          })
+          .catch((error: unknown) => {
+            setLoadError(error instanceof Error ? error.message : String(error));
+          });
+      }, [inventory, loadStarted]);
+
+      return (
+        <div>
+          <div data-testid="blocked-storage-workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="blocked-storage-latest-interval-index">{latestIntervalIndex}</div>
+          <div data-testid="blocked-storage-load-error">{loadError}</div>
+        </div>
+      );
+    }
+
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      render(
+        <InventoryProvider>
+          <BlockedStorageHarness />
+        </InventoryProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('blocked-storage-workspace-run').textContent).toBe('run-1');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('blocked-storage-latest-interval-index').textContent).toBe('loaded');
+      });
+      expect(screen.getByTestId('blocked-storage-load-error').textContent).toBe('none');
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledWith({
+        beforeIntervalIndex: null,
+        limit: 20,
+        skuId: 'sku-1',
+      });
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
   });
 
   it('updates and deletes observations through the bridge and refreshes cached observations', async () => {

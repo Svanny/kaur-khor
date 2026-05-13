@@ -55,11 +55,27 @@ export type CatalogSectionValue = typeof catalogSectionValues[number];
 export const performanceScopeValues = ['all', 'services', 'skus'] as const;
 export type PerformanceScopeValue = typeof performanceScopeValues[number];
 
-export const insightsModeValues = ['performance', 'financials', 'analysis'] as const;
+export const inventoryScopeValues = ['all', 'skus', 'services'] as const;
+export type InventoryScopeValue = typeof inventoryScopeValues[number];
+
+export const inventoryRangeValues = ['7d', '30d', '90d', 'custom'] as const;
+export type InventoryRangeValue = typeof inventoryRangeValues[number];
+
+export const inventoryProjectionHorizonValues = ['7d', '14d', '30d', '60d'] as const;
+export type InventoryProjectionHorizonValue = typeof inventoryProjectionHorizonValues[number];
+
+export const inventoryRowSetValues = ['focus', 'all'] as const;
+export type InventoryRowSetValue = typeof inventoryRowSetValues[number];
+
+export const inventoryViewPresetValues = ['health', 'flow', 'forecast', 'pipeline', 'custom'] as const;
+export type InventoryViewPresetValue = typeof inventoryViewPresetValues[number];
+
+export const insightsModeValues = ['inventory', 'financials', 'analysis', 'performance'] as const;
 export type InsightsModeValue = typeof insightsModeValues[number];
 export const insightsModePathByValue: Record<InsightsModeValue, string> = {
   analysis: 'explain',
   financials: 'money',
+  inventory: 'inventory',
   performance: 'pressure',
 };
 
@@ -161,6 +177,18 @@ export type PerformanceRouteState = {
   customRangeEnd: string | null;
 };
 
+export type InventoryRouteState = {
+  customColumns: string[];
+  customRangeEnd: string | null;
+  customRangeStart: string | null;
+  projectionHorizon: InventoryProjectionHorizonValue;
+  range: InventoryRangeValue;
+  rowSet: InventoryRowSetValue;
+  scope: InventoryScopeValue;
+  supplier: string | null;
+  viewPreset: InventoryViewPresetValue;
+};
+
 export type FinancialsRouteState = {
   compare: boolean;
   range: FinancialsRangeValue;
@@ -208,6 +236,7 @@ export type InsightsRouteState = {
   mode: InsightsModeValue;
   analysis: AnalysisRouteState;
   financials: FinancialsRouteState;
+  inventory: InventoryRouteState;
   performance: PerformanceRouteState;
 };
 
@@ -419,7 +448,66 @@ export function buildPerformanceHref(
   nextState?: Partial<PerformanceRouteState>,
   currentSearchParams?: URLSearchParams | null,
 ) {
-  return buildInsightsHref({ mode: 'performance', performance: nextState }, currentSearchParams);
+  return buildInventoryHref(nextState, currentSearchParams);
+}
+
+export function readInventoryRouteState(searchParams: URLSearchParams): InventoryRouteState {
+  const customColumns = searchParams.get('columns')?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean) ?? [];
+  return {
+    customColumns,
+    customRangeStart: searchParams.get('customStart')?.trim() || null,
+    customRangeEnd: searchParams.get('customEnd')?.trim() || null,
+    projectionHorizon: readEnumValue(searchParams, 'projection', inventoryProjectionHorizonValues, '14d'),
+    range: readEnumValue(searchParams, 'range', inventoryRangeValues, '30d'),
+    rowSet: readEnumValue(searchParams, 'rows', inventoryRowSetValues, 'focus'),
+    scope: readEnumValue(searchParams, 'scope', inventoryScopeValues, 'skus'),
+    supplier: searchParams.get('supplier')?.trim() ? searchParams.get('supplier')!.trim() : null,
+    viewPreset: readEnumValue(searchParams, 'preset', inventoryViewPresetValues, 'health'),
+  };
+}
+
+export function buildInventorySearchParams(
+  currentSearchParams?: URLSearchParams | null,
+  nextState?: Partial<InventoryRouteState | PerformanceRouteState>,
+) {
+  const currentState = readInventoryRouteState(cloneSearchParams(currentSearchParams));
+  const normalizedPerformanceState =
+    nextState && 'compare' in nextState
+      ? {
+          customRangeEnd: nextState.customRangeEnd,
+          customRangeStart: nextState.customRangeStart,
+          range: nextState.range as InventoryRangeValue,
+          scope: nextState.scope as InventoryScopeValue,
+          supplier: nextState.supplier,
+        }
+      : nextState;
+  const searchParams = cloneSearchParams(currentSearchParams);
+  const resolvedState = { ...currentState, ...normalizedPerformanceState } as InventoryRouteState;
+
+  writeEnumValue(searchParams, 'range', resolvedState.range, '30d');
+  writeEnumValue(searchParams, 'scope', resolvedState.scope, 'skus');
+  writeOptionalValue(searchParams, 'supplier', resolvedState.supplier?.trim() ? resolvedState.supplier.trim() : null);
+  writeOptionalValue(searchParams, 'customStart', resolvedState.customRangeStart?.trim() ? resolvedState.customRangeStart.trim() : null);
+  writeOptionalValue(searchParams, 'customEnd', resolvedState.customRangeEnd?.trim() ? resolvedState.customRangeEnd.trim() : null);
+  writeEnumValue(searchParams, 'projection', resolvedState.projectionHorizon, '14d');
+  writeEnumValue(searchParams, 'rows', resolvedState.rowSet, 'focus');
+  writeEnumValue(searchParams, 'preset', resolvedState.viewPreset, 'health');
+  if (resolvedState.viewPreset === 'custom' && resolvedState.customColumns.length > 0) {
+    searchParams.set('columns', resolvedState.customColumns.join(','));
+  } else {
+    searchParams.delete('columns');
+  }
+  searchParams.delete('compare');
+  return searchParams;
+}
+
+export function buildInventoryHref(
+  nextState?: Partial<InventoryRouteState | PerformanceRouteState>,
+  currentSearchParams?: URLSearchParams | null,
+) {
+  return buildInsightsHref({ inventory: nextState as Partial<InventoryRouteState>, mode: 'inventory' }, currentSearchParams);
 }
 
 export function readFinancialsRouteState(searchParams: URLSearchParams): FinancialsRouteState {
@@ -643,9 +731,10 @@ export function buildCatalogHref(
 
 export function readInsightsRouteState(searchParams: URLSearchParams): InsightsRouteState {
   return {
-    mode: readEnumValue(searchParams, 'mode', insightsModeValues, 'performance'),
+    mode: readEnumValue(searchParams, 'mode', insightsModeValues, 'inventory'),
     analysis: readAnalysisRouteState(searchParams),
     financials: readFinancialsRouteState(searchParams),
+    inventory: readInventoryRouteState(searchParams),
     performance: readPerformanceRouteState(searchParams),
   };
 }
@@ -655,6 +744,7 @@ export function buildInsightsSearchParams(
   nextState?: Partial<{
     analysis: Partial<AnalysisRouteState>;
     financials: Partial<FinancialsRouteState>;
+    inventory: Partial<InventoryRouteState>;
     mode: InsightsModeValue;
     performance: Partial<PerformanceRouteState>;
   }>,
@@ -662,7 +752,7 @@ export function buildInsightsSearchParams(
   const currentState = readInsightsRouteState(cloneSearchParams(currentSearchParams));
   const mode = nextState?.mode ?? currentState.mode;
   const baseSearchParams = new URLSearchParams();
-  writeEnumValue(baseSearchParams, 'mode', mode, 'performance');
+  writeEnumValue(baseSearchParams, 'mode', mode, 'inventory');
 
   if (mode === 'analysis') {
     return buildAnalysisSearchParams(baseSearchParams, {
@@ -676,6 +766,12 @@ export function buildInsightsSearchParams(
       ...nextState?.financials,
     });
   }
+  if (mode === 'inventory') {
+    return buildInventorySearchParams(baseSearchParams, {
+      ...currentState.inventory,
+      ...nextState?.inventory,
+    });
+  }
   return buildPerformanceSearchParams(baseSearchParams, {
     ...currentState.performance,
     ...nextState?.performance,
@@ -686,6 +782,7 @@ export function buildInsightsHref(
   nextState?: Partial<{
     analysis: Partial<AnalysisRouteState>;
     financials: Partial<FinancialsRouteState>;
+    inventory: Partial<InventoryRouteState>;
     mode: InsightsModeValue;
     performance: Partial<PerformanceRouteState>;
   }>,
@@ -701,9 +798,11 @@ export function buildInsightsHref(
       ? 'analysis'
       : nextState?.financials
         ? 'financials'
-        : nextState?.performance
-          ? 'performance'
-          : readInsightsRouteState(cloneSearchParams(currentSearchParams)).mode);
+        : nextState?.inventory
+          ? 'inventory'
+          : nextState?.performance
+            ? 'inventory'
+            : readInsightsRouteState(cloneSearchParams(currentSearchParams)).mode);
   const searchParams = buildInsightsSearchParams(currentSearchParams, {
     ...nextState,
     mode,

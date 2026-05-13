@@ -7,9 +7,9 @@ import {
 } from '@icons/entities';
 import {
   NavigationCatalogIcon,
-  NavigationPerformanceIcon,
   NavigationWorkIcon,
 } from '@icons/navigation';
+import { StatusSquareActivityIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
 import { LiquidGridCard } from '@/components/system/liquid-grid-card';
@@ -17,7 +17,7 @@ import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace
 import {
   buildRememberedCatalogHref,
   buildRememberedInboxHref,
-  buildRememberedInsightsHref,
+  buildRememberedInventoryHref,
   usePageStateMemoryVersion,
 } from '@/lib/page-state-memory';
 import { deriveNavigationAvailability } from '@/lib/navigation-availability';
@@ -107,15 +107,15 @@ export function CommandHomeRoute() {
       isVisible: navigationAvailability.hasCatalogTab,
       label: translateUiLiteral(language, 'Open Products'),
       to: buildRememberedCatalogHref(),
-      tone: 'open-catalog',
+      tone: 'open-insights',
     },
     {
-      description: translateUiLiteral(language, 'Open pressure, money, or explanation workspaces.'),
-      icon: NavigationPerformanceIcon,
+      description: translateUiLiteral(language, 'Stock on hand, in/out flow, cover, inbound pipeline, and projections.'),
+      icon: StatusSquareActivityIcon,
       isVisible: showAnalysisPage && navigationAvailability.hasInsights,
-      label: translateUiLiteral(language, 'Open Insights'),
-      to: buildRememberedInsightsHref(),
-      tone: 'open-insights',
+      label: translateUiLiteral(language, 'Open Inventory'),
+      to: buildRememberedInventoryHref(),
+      tone: 'open-catalog',
     },
   ] satisfies Array<{
     description: string;

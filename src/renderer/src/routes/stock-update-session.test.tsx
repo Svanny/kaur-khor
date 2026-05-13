@@ -14,6 +14,7 @@ import {
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
+import type { SenaObservationRecord } from '@shared/sena';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { buildDeliveryFeeMetadata } from '@/lib/ticketing';
 import { getTranslation } from '@/lib/translations';
@@ -24,6 +25,7 @@ const inventoryHook = vi.fn();
 const createSenaOrderBatch = vi.fn();
 const ingestSenaObservation = vi.fn();
 const runWorkspacePreparation = vi.fn();
+const runSavingTask = vi.fn();
 const updateSenaOrderBatch = vi.fn();
 const updateSenaOrderChild = vi.fn();
 const updateSenaObservation = vi.fn();
@@ -127,7 +129,7 @@ const catalog = {
   ],
 };
 
-const observations = [
+const observations: SenaObservationRecord[] = [
   {
     observationId: 'obs-1',
     ownerSub: 'desktop-owner',
@@ -163,6 +165,7 @@ function inventoryState(overrides: Record<string, unknown> = {}) {
     loadWorkSupportData: vi.fn(async () => null),
     observations,
     orderBatches: [],
+    runSavingTask,
     runWorkspacePreparation,
     triggerSenaRun,
     updateSenaObservation,
@@ -576,7 +579,8 @@ describe('StockUpdateSessionRoute', () => {
     updateSenaOrderBatch.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     updateSenaOrderChild.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     triggerSenaRun.mockResolvedValue({ runId: 'run-1' });
-	    runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
+    runSavingTask.mockImplementation(async (task: () => Promise<unknown>) => task());
+    runWorkspacePreparation.mockImplementation(async (task: () => Promise<unknown>) => task());
 	  });
 
   afterEach(() => {
@@ -1624,11 +1628,11 @@ describe('StockUpdateSessionRoute', () => {
         }),
         ticketEvents: [{
           ticketId: 'ticket-immediate',
-          ticketFamily: 'customer',
-          lifecycle: 'resolved',
-          stage: 'fulfilled_immediate',
+          ticketFamily: 'customer' as const,
+          lifecycle: 'resolved' as const,
+          stage: 'fulfilled_immediate' as const,
           revision: 1,
-          eventType: 'fulfilled_immediate',
+          eventType: 'fulfilled_immediate' as const,
           occurredAt: '2026-04-22T00:00:00.000Z',
           lines: [],
           deliveryFee: buildDeliveryFeeMetadata({
@@ -1814,7 +1818,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(updateSenaOrderChild).not.toHaveBeenCalled();
   }, 10_000);
 
-  it('updates the persisted observation instead of duplicating it when retrying after a legacy order failure', async () => {
+  it('persists the saved observation id for retry when a background legacy order write fails', async () => {
     createSenaOrderBatch.mockRejectedValueOnce(new Error('legacy order write failed'));
     renderRoute(observations, `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`);
 
@@ -1829,14 +1833,10 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(createSenaOrderBatch).toHaveBeenCalledTimes(1));
     expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
     expect(updateSenaObservation).not.toHaveBeenCalled();
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Confirm save' }));
-
-    await waitFor(() => expect(createSenaOrderBatch).toHaveBeenCalledTimes(2));
-    expect(ingestSenaObservation).toHaveBeenCalledTimes(1);
-    expect(updateSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
-      observationId: 'obs-new',
-    }));
+    await waitFor(() => {
+      const savedDraft = JSON.parse(window.localStorage.getItem(SUPPLIER_PENDING_DRAFT_STORAGE_KEY) ?? '{}');
+      expect(savedDraft.savedObservationRetryId).toBe('obs-new');
+    });
   }, 10_000);
 
   it('applies a percentage discount before delivery and saves discount metadata', async () => {
@@ -2904,7 +2904,7 @@ describe('StockUpdateSessionRoute', () => {
     setTimeoutSpy.mockRestore();
   });
 
-  it('reruns SENA before leaving the capture route after saving', async () => {
+  it('leaves the capture route while the post-save SENA rerun continues in the background', async () => {
     setStoredSessionViewMode('form');
     const rerun = deferredPromise<void>();
     triggerSenaRun.mockReturnValueOnce(rerun.promise);
@@ -2921,12 +2921,36 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
     expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
-    expect(screen.queryByText('Overview destination')).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
 
     rerun.resolve(undefined);
 
-    await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+    await waitFor(() => expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull());
+  });
+
+  it('closes capture immediately after validation while observation persistence is still running', async () => {
+    setStoredSessionViewMode('form');
+    const observationSave = deferredPromise<{ observationId: string }>();
+    ingestSenaObservation.mockReturnValueOnce(observationSave.promise);
+
+    renderRoutedSessionFromCapture([], RECORD_UPDATE_STOCK_COUNT_PATH);
+
+    goToStockStep();
+    fireEvent.change(screen.getAllByLabelText('Current Units')[0]!, { target: { value: '7' } });
+    goNext();
+    chooseOptionalStepNo(3);
+    goNext();
+    fireEvent.click(screen.getByRole('button', { name: 'Save update' }));
+
+    await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByText('Capture destination')).toBeInTheDocument());
+    expect(triggerSenaRun).not.toHaveBeenCalled();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
+
+    observationSave.resolve({ observationId: 'obs-background' });
+
+    await waitFor(() => expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull());
   });
 
   it('returns to the capture hub after saving a session launched from capture', async () => {

@@ -347,7 +347,7 @@ describe('getTranslation', () => {
       'Expose approved sellables to Telegram, turn messages into tickets, and keep Kaur Khor as source.',
       '@bot_username',
       'https://t.me/your_bot',
-      'Demand, support, timing, price, and recovery pressure.',
+      'Stock on hand, in/out flow, cover, inbound pipeline, and projections.',
       'Money in, money tied up, and value leakage.',
       'Detailed explanation, observations, fragility, and chart settings.',
     ];

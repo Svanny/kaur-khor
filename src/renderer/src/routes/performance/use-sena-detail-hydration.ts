@@ -30,6 +30,17 @@ interface SenaDetailHydrationOptions {
 const DETAIL_HYDRATION_CONCURRENCY = 2;
 const EMPTY_IDS: string[] = [];
 
+function detailHydrationStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function runTaskBatches(tasks: Array<() => Promise<void>>, concurrency: number, onBatchComplete?: () => void) {
   if (tasks.length === 0) {
     return;
@@ -258,34 +269,35 @@ export function useSenaDetailHydration(
     targetCacheKey: string;
     targetTimeframe: AnalysisTimeframe;
   }) => {
+    const storage = detailHydrationStorage();
     const cachedSkuPages = Object.fromEntries(
       targetSkuIds.map((skuId) => [
         skuId,
-        typeof window === 'undefined'
-          ? null
-          : readPersistedSenaDetailPage({
+        storage
+          ? readPersistedSenaDetailPage({
               beforeIntervalIndex: null,
               entityId: skuId,
               entityType: 'sku',
               freshnessFingerprint,
               limit: INTERVAL_PAGE_SIZE,
-              storage: window.localStorage,
-            }),
+              storage,
+            })
+          : null,
       ]),
     ) as Record<string, SenaSkuDetailPage | null>;
     const cachedServicePages = Object.fromEntries(
       targetServiceIds.map((serviceId) => [
         serviceId,
-        typeof window === 'undefined'
-          ? null
-          : readPersistedSenaDetailPage({
+        storage
+          ? readPersistedSenaDetailPage({
               beforeIntervalIndex: null,
               entityId: serviceId,
               entityType: 'service',
               freshnessFingerprint,
               limit: INTERVAL_PAGE_SIZE,
-              storage: window.localStorage,
-            }),
+              storage,
+            })
+          : null,
       ]),
     ) as Record<string, SenaServiceDetailPage | null>;
     let skuPages = { ...cachedSkuPages };

@@ -35,6 +35,13 @@ function formatCompactDays(value: number, language: AppLanguage) {
   });
 }
 
+function optionalImagePath(record: object) {
+  if (!('imagePath' in record) || typeof record.imagePath !== 'string') {
+    return null;
+  }
+  return record.imagePath.trim() || null;
+}
+
 function restockGuidanceLabel(language: AppLanguage, name: string, units: number, mode: 'recommended' | 'optional') {
   return mode === 'recommended'
     ? translateUiLiteral(language, '{name} · order {count}', {
@@ -60,6 +67,7 @@ export interface ServiceIntervalViewModel {
   caption: string;
   regimeKey: string;
   dominantRegime: string;
+  startAt: string | null;
   endAt: string | null;
   priceLabel: string;
   priceValue: number;
@@ -537,7 +545,7 @@ export function deriveServiceDetailViewModel({
   const rankedContributors = rankedServiceContributors(service, snapshot);
   const contributorBySkuId = new Map(rankedContributors.map((entry) => [entry.sku.skuId, entry]));
   const sellableNow = computeServiceSellableUnits(service, snapshot);
-  const commercialKey = `service:${service.serviceId}`;
+  const commercialKey = `service:${service.serviceId}` as const;
   const openCustomerOrders = Math.max(0, customerCommercial.pendingQuantityByEntity.get(commercialKey) ?? 0);
   const completedCustomerOrders = Math.max(0, customerCommercial.realizedWindowQuantityByEntity.get(commercialKey) ?? 0);
   const refundedCustomerOrders = Math.max(0, customerCommercial.reversalWindowQuantityByEntity.get(commercialKey) ?? 0);
@@ -602,7 +610,7 @@ export function deriveServiceDetailViewModel({
     return {
       skuId: entry.sku.skuId,
       name: entry.sku.name,
-      imagePath: entry.sku.imagePath?.trim() || null,
+      imagePath: optionalImagePath(entry.sku),
       baseRank: index + 1,
       limitingProbability,
       usageProbability,
@@ -646,6 +654,7 @@ export function deriveServiceDetailViewModel({
       return {
         skuId: entry.skuId,
         name: entry.name,
+        imagePath: entry.imagePath,
         statusLabel: roleLabel,
         roleKey,
         roleLabel,
@@ -710,6 +719,7 @@ export function deriveServiceDetailViewModel({
       caption: translateRegimeLabel(language, interval.dominantRegime),
       regimeKey: interval.dominantRegime,
       dominantRegime: translateRegimeLabel(language, interval.dominantRegime),
+      startAt: interval.startAt,
       endAt: interval.endAt,
       priceLabel: formatCurrency(price, currency, language, usdToKhrExchangeRate),
       priceValue: displayMoneyFromUsd(price, currency, usdToKhrExchangeRate),

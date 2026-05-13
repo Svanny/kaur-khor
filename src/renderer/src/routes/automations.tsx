@@ -1162,7 +1162,6 @@ export function AutomationsRoute({
             <div className="grid gap-4">
               {unavailableExposedCount > 0 ? (
                 <WorkspaceBanner
-                  tone="warning"
                   title={translateUiLiteral(language, 'Unavailable sellables are still exposed')}
                   description={
                     unavailableExposedCount === 1

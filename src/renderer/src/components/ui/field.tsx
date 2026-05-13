@@ -123,11 +123,15 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
+type FieldDescriptionProps = React.ComponentProps<'p'> & {
+  'data-optional'?: string;
+};
+
 function FieldDescription({
   className,
   'data-optional': dataOptional,
   ...props
-}: React.ComponentProps<'p'>) {
+}: FieldDescriptionProps) {
   const optional = dataOptional !== 'false';
   const descriptionVisible = useDescriptionTextVisible();
 

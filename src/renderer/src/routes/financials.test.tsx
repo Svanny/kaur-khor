@@ -3,13 +3,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { compactTimeframeControlClassName } from '@/components/system/compact-controls';
 import { getTranslation } from '@/lib/translations';
+import type { AppLanguage } from '@shared/inventory';
 import { FinancialsRoute } from './financials';
 
 const inventoryHook = vi.fn();
 const optionalAutomationHook = vi.fn();
 const preferenceState = {
   currency: 'USD',
-  language: 'en',
+  language: 'en' as AppLanguage,
   showAnalysisPage: true,
   showHeartbeatRibbons: true,
   showPerformanceCompareToggle: true,

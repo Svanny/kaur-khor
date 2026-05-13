@@ -45,6 +45,8 @@ import type {
   PromoteAutomationIntakeResult,
 } from './automation';
 
+export type { PromoteAutomationIntakePayload } from './automation';
+
 export interface DesktopAppContext {
   appVersion: string;
   platform: string;

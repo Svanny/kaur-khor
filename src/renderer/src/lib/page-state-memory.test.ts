@@ -5,6 +5,7 @@ import {
   buildRememberedHistoryHref,
   buildRememberedInsightsHref,
   buildRememberedInboxHref,
+  buildRememberedInventoryHref,
   buildRememberedOverviewHref,
   buildRememberedPerformanceHref,
   buildRememberedPageHref,
@@ -14,6 +15,7 @@ import {
   rememberPageState,
   writeRememberedPageValue,
 } from './page-state-memory';
+import { readInsightsRouteState } from './navigation-state';
 
 describe('page-state-memory', () => {
   beforeEach(() => {
@@ -28,11 +30,13 @@ describe('page-state-memory', () => {
     rememberPageState('/insights', '?range=7d&scope=skus&compare=0&extra=drop');
 
     expect(buildRememberedInsightsHref()).toBe('/insights');
-    expect(buildRememberedInsightsHref({ performance: { range: '90d' } })).toBe('/insights/pressure?range=90d&scope=skus');
+    const inventoryNinetyDayState = readInsightsRouteState(new URLSearchParams('mode=inventory&range=90d'));
+    expect(buildRememberedInsightsHref({ inventory: inventoryNinetyDayState.inventory })).toBe('/insights/inventory?range=90d');
 
     rememberPageState('/insights/pressure', '?range=7d&scope=skus&compare=0&extra=drop');
 
-    expect(buildRememberedPerformanceHref()).toBe('/insights/pressure?range=7d&scope=skus');
+    expect(buildRememberedInventoryHref()).toBe('/insights/inventory?range=7d');
+    expect(buildRememberedPerformanceHref()).toBe('/insights/inventory?range=7d');
   });
 
   test('ignores malformed storage and invalid route params', () => {
@@ -45,12 +49,12 @@ describe('page-state-memory', () => {
       settings: '/not-settings',
     }));
 
-    expect(buildRememberedPerformanceHref()).toBe('/insights/pressure');
+    expect(buildRememberedPerformanceHref()).toBe('/insights/inventory');
     expect(buildRememberedSettingsHref()).toBe('/settings');
 
     rememberPageState('/insights', '?range=bad&scope=nope&compare=maybe');
 
-    expect(buildRememberedPerformanceHref()).toBe('/insights/pressure');
+    expect(buildRememberedPerformanceHref()).toBe('/insights/inventory');
     expect(JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}')).not.toHaveProperty('insights');
   });
 

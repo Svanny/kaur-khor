@@ -4,9 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, test, vi } from 'vitest';
 import type { InventorySnapshot, StockReport } from '@shared/inventory';
-import type { SenaDiagnostics, SenaObservationRecord, SenaOrderBatchRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
+import type { SenaAnalysisRunRecord, SenaDiagnostics, SenaObservationRecord, SenaOrderBatchRecord, SenaSkuDetail, SenaWorkspaceSummary } from '@shared/sena';
 import { RECENT_TIMEFRAME_MIN_REPORTS } from '@/components/system/chart-timeframe';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
+import { defaultChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { getTranslation } from '@/lib/translations';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { SkuDetailLedgerRoute, SkuDetailRoute } from './sku-detail';
@@ -307,6 +308,37 @@ const workspace: SenaWorkspaceSummary = {
   skuSummaries: [detail.summary],
 };
 
+const successfulRun: SenaAnalysisRunRecord = {
+  algorithmVersion: 'sena-analysis-v3',
+  completedAt: '2026-03-29T09:01:00Z',
+  createdAt: '2026-03-29T09:00:00Z',
+  diagnostics,
+  error: null,
+  observationCount: observations.length,
+  ownerSub: 'desktop-owner',
+  primaryArtifactKey: null,
+  runId: 'run-1',
+  status: 'succeeded',
+  summary: workspace,
+};
+
+const reorderRecommendation = {
+  compactLabel: '0u',
+  hasBackendRecommendation: true,
+  likelyRangeLabel: '0-0 units',
+  likelyRangeValueLabel: '0-0 units',
+  needProbabilityLabel: '0%',
+  needProbabilityValueLabel: '0%',
+  optionalOrderLabel: null,
+  policyBasisLabel: 'policy',
+  protectionHorizonLabel: '0d',
+  quietLabel: 'No order needed',
+  recommendationIssued: false,
+  recommendedOrderLabel: 'No order',
+  recommendedUnits: 0,
+  recommendedUnitsLabel: '0 units',
+};
+
 function sampleCatalogForBootstrap() {
   return seedSenaCatalogFromSnapshot(snapshot);
 }
@@ -343,6 +375,7 @@ function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
       skuId: 'sku-ledger',
       name: 'Ledger Test SKU',
       description: 'Test',
+      supplierName: null,
       soldAsProduct: true,
       statusLabel: 'Healthy',
       statusTone: 'success',
@@ -369,7 +402,9 @@ function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
         intervals: intervals.map((interval, index) => ({
           ...interval,
           dominantRegime: index % 4 === 0 ? 'promo' : 'normal',
-          regimeProbabilities: index % 4 === 0 ? { promo: 0.7, normal: 0.3 } : { normal: 0.8, lull: 0.2 },
+          regimeProbabilities: index % 4 === 0
+            ? ({ promo: 0.7, normal: 0.3 } as Record<string, number>)
+            : ({ normal: 0.8, lull: 0.2 } as Record<string, number>),
         })),
         priceMarkers: intervals.map((interval, index) => ({
           observedAt: interval.startAt,
@@ -414,17 +449,24 @@ function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
           orderQuantityMean: index % 4 === 0 ? 4 : 0,
           receiptQuantityMean: index % 5 === 0 ? 2 : 0,
           ageDaysMean: 1 + (index % 3),
+          ordersLateMean: 0,
+          ordersReadyToReceiveMean: 0,
+          ordersReceivedMean: 0,
+          newOrderFlag: index % 4 === 0 ? 1 : 0,
+          newReceiptFlag: index % 5 === 0 ? 1 : 0,
         })),
       },
     },
     rail: {
       selectedIntervalSummary: {
+        headline: 'Mar 12 summary',
         label: 'Mar 12',
         dominantRegime: 'normal',
         serviceDemand: '2',
         retailDemand: '1',
         receipts: '0',
         adjustments: '0',
+        notes: [],
       },
       actNow: {
         headline: 'Hold',
@@ -434,6 +476,9 @@ function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
       openPipeline: {
         summary: ['0 open orders', '0 in transit', 'No delays', 'Stable'],
         events: [],
+      },
+      customerDemand: {
+        summary: ['0 pending', '0 completed', 'No queue', 'Stable'],
       },
       exposure: [],
       nextTouch: {
@@ -449,6 +494,9 @@ function buildLedgerModel(intervalCount: number): SenaSkuDetailViewModel {
       leadTimeVariability: 'normal',
       productPrice: 19,
       latestObservationAt: intervals.at(-1)?.endAt ?? null,
+      recommendedOrderQuantity: 0,
+      reorderRecommendation,
+      supplierName: null,
       soldAsProduct: true,
     },
     uiState: 'ready',
@@ -490,18 +538,30 @@ describe('SKU detail SENA helpers', () => {
       loadSenaDiagnostics: vi.fn(async () => diagnostics),
       loadSenaRunStatus: vi.fn(async () => null),
       loadSenaServiceDetail: vi.fn(async () => ({
-        serviceId: 'service-1',
-        activityMean: 3,
-        activityIntervalLow: 2,
-        activityIntervalHigh: 4,
-        bottleneckProbability: 0.2,
-        contributors: [],
-        regimeTimeline: [],
+        detail: {
+          serviceId: 'service-1',
+          activityMean: 3,
+          activityIntervalLow: 2,
+          activityIntervalHigh: 4,
+          bottleneckProbability: 0.2,
+          contributors: [],
+          regimeTimeline: [],
+        },
+        hasOlder: false,
+        latestIntervalIndex: null,
+        nextBeforeIntervalIndex: null,
+        pageLimit: INTERVAL_PAGE_SIZE,
       })),
-      loadSenaSkuDetail: vi.fn(async () => detail),
+      loadSenaSkuDetail: vi.fn(async () => ({
+        detail,
+        hasOlder: false,
+        latestIntervalIndex: null,
+        nextBeforeIntervalIndex: null,
+        pageLimit: RECENT_TIMEFRAME_MIN_REPORTS,
+      })),
       loadSenaWorkspaceSummary: vi.fn(async () => workspace),
       senaMeta: { catalogHash: hashSenaCatalog(sampleCatalogForBootstrap()), lastBootstrapSkuId: null, lastCompletedRunId: null },
-      triggerSenaRun: vi.fn(async () => ({ runId: 'run-1' })),
+      triggerSenaRun: vi.fn(async () => successfulRun),
       updateSenaMeta: vi.fn(),
       upsertSenaCatalog: vi.fn(async (catalog) => catalog),
     };
@@ -943,7 +1003,8 @@ describe('SKU detail SENA helpers', () => {
     const rows = Array.from({ length: 5 }, (_, index) => ({
       serviceId: `service-${index}`,
       name: `Service ${index + 1}`,
-      severity: 'linked',
+      imagePath: null,
+      severity: 'linked' as const,
       usageProbability: '0.4',
       bottleneckProbability: '12%',
     }));
@@ -1148,9 +1209,16 @@ describe('SKU detail SENA helpers', () => {
       const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
       return (
         <SkuDetailLedger
+          chartLayoutPreferences={defaultChartLayoutPreferences()}
+          hasOlderIntervals={false}
+          isHydratingDetails={false}
+          isLoadingOlderIntervals={false}
+          loadOlderIntervals={vi.fn(async () => null)}
           model={buildLedgerModel(12)}
+          onResetCharts={vi.fn()}
           selectedIntervalIndex={selectedIntervalIndex}
           setSelectedIntervalIndex={setSelectedIntervalIndex}
+          timeframe="Recent"
           onTimeframeChange={handleTimeframeChange}
         />
       );
@@ -1185,7 +1253,21 @@ describe('SKU detail SENA helpers', () => {
 
     const LedgerHarness = () => {
       const [selectedIntervalIndex, setSelectedIntervalIndex] = React.useState<number | null>(0);
-      return <SkuDetailLedger model={buildLedgerModel(12)} selectedIntervalIndex={selectedIntervalIndex} setSelectedIntervalIndex={setSelectedIntervalIndex} />;
+      return (
+        <SkuDetailLedger
+          chartLayoutPreferences={defaultChartLayoutPreferences()}
+          hasOlderIntervals={false}
+          isHydratingDetails={false}
+          isLoadingOlderIntervals={false}
+          loadOlderIntervals={vi.fn(async () => null)}
+          model={buildLedgerModel(12)}
+          onResetCharts={vi.fn()}
+          selectedIntervalIndex={selectedIntervalIndex}
+          setSelectedIntervalIndex={setSelectedIntervalIndex}
+          timeframe="Recent"
+          onTimeframeChange={vi.fn()}
+        />
+      );
     };
 
     try {
@@ -1428,7 +1510,7 @@ describe('SKU detail route', () => {
   });
 
   test('shows the loading state instead of not-found while a sku detail bootstrap is in flight', async () => {
-    let resolveSnapshot: ((value: InventorySnapshot) => void) | null = null;
+    let resolveSnapshot: (value: InventorySnapshot) => void = () => {};
 
     inventoryHook.mockReturnValue({
       snapshot: null,

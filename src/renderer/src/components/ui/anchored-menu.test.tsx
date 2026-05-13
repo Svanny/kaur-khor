@@ -30,7 +30,7 @@ describe('AnchoredMenu', () => {
   test('keeps the menu inside the viewport near the bottom-right edge', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 });
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 620 });
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect() {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect(this: HTMLElement) {
       if (this instanceof HTMLButtonElement && this.getAttribute('aria-haspopup') === 'menu') {
         return rect({ left: 700, right: 760, top: 560, bottom: 600, width: 60, height: 40 });
       }

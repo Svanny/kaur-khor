@@ -88,6 +88,7 @@ import { SectionLabel } from '@/routes/sku-detail/section-heading';
 import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import { usePreferences } from '@/state/preferences';
 import { LaneExpandButton, useChartWorkspace, useChartWorkspaceControls } from '@/components/system/chart-workspace';
+import type { ChartCustomResolution, ChartResolutionOption } from '@/components/system/chart-resolution';
 import type { ChartCustomTimeframeRange } from '@/components/system/chart-timeframe';
 import type { ChartLayoutPreferenceMergeOptions, PersistedChartLayoutPreferences } from '@/lib/chart-layout-preferences';
 import { PagedPanelNavigation } from '@/routes/detail-panels';
@@ -2272,6 +2273,8 @@ function InspectorRail({
 function WorkbenchSurface({
   chartZoomResetToken = 0,
   chartLayoutPreferences,
+  chartResolution,
+  customChartResolution,
   customTimeframeRange = null,
   expanded = false,
   hasOlderIntervals,
@@ -2281,6 +2284,7 @@ function WorkbenchSurface({
   loadOlderIntervals,
   model,
   onChartLayoutPreferencesChange,
+  onChartResolutionChange,
   onCustomTimeframeChange,
   onOlderLoadProgressChange,
   onResetCharts,
@@ -2292,6 +2296,8 @@ function WorkbenchSurface({
 }: {
   chartZoomResetToken?: number;
   chartLayoutPreferences?: PersistedChartLayoutPreferences;
+  chartResolution?: ChartResolutionOption;
+  customChartResolution?: ChartCustomResolution | null;
   customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
   hasOlderIntervals: boolean;
@@ -2301,6 +2307,7 @@ function WorkbenchSurface({
   loadOlderIntervals: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   onChartLayoutPreferencesChange?: (next: Partial<PersistedChartLayoutPreferences>, options?: ChartLayoutPreferenceMergeOptions) => void;
+  onChartResolutionChange?: (value: ChartResolutionOption, custom: ChartCustomResolution | null) => void;
   onCustomTimeframeChange?: (value: ChartCustomTimeframeRange | null) => void;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
@@ -2315,7 +2322,9 @@ function WorkbenchSurface({
       <AnalysisTradingChartLedger
         chartZoomResetToken={chartZoomResetToken}
         chartLayoutPreferences={chartLayoutPreferences}
+        chartResolution={chartResolution}
         className={ANALYSIS_PANEL_SURFACE_CLASS_NAME}
+        customChartResolution={customChartResolution}
         customTimeframeRange={customTimeframeRange}
         expanded={expanded}
         hasOlderIntervals={hasOlderIntervals}
@@ -2325,6 +2334,7 @@ function WorkbenchSurface({
         loadOlderIntervals={loadOlderIntervals}
         model={model}
         onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
+        onChartResolutionChange={onChartResolutionChange}
         onCustomTimeframeChange={onCustomTimeframeChange}
         onOlderLoadProgressChange={onOlderLoadProgressChange}
         onResetCharts={onResetCharts}
@@ -2458,6 +2468,8 @@ function SettingsSurface({
 export function AnalysisWorkbench({
   chartZoomResetToken = 0,
   chartLayoutPreferences,
+  chartResolution,
+  customChartResolution,
   customTimeframeRange = null,
   expanded = false,
   hasOlderIntervals = false,
@@ -2467,6 +2479,7 @@ export function AnalysisWorkbench({
   loadOlderIntervals = async () => 0,
   model,
   onChartLayoutPreferencesChange,
+  onChartResolutionChange,
   onCustomTimeframeChange,
   onOlderLoadProgressChange,
   onResetCharts,
@@ -2479,6 +2492,8 @@ export function AnalysisWorkbench({
 }: {
   chartZoomResetToken?: number;
   chartLayoutPreferences?: PersistedChartLayoutPreferences;
+  chartResolution?: ChartResolutionOption;
+  customChartResolution?: ChartCustomResolution | null;
   customTimeframeRange?: ChartCustomTimeframeRange | null;
   expanded?: boolean;
   hasOlderIntervals?: boolean;
@@ -2488,6 +2503,7 @@ export function AnalysisWorkbench({
   loadOlderIntervals?: (limit?: number) => Promise<number>;
   model: AnalysisWorkbenchViewModel;
   onChartLayoutPreferencesChange?: (next: Partial<PersistedChartLayoutPreferences>, options?: ChartLayoutPreferenceMergeOptions) => void;
+  onChartResolutionChange?: (value: ChartResolutionOption, custom: ChartCustomResolution | null) => void;
   onCustomTimeframeChange?: (value: ChartCustomTimeframeRange | null) => void;
   onOlderLoadProgressChange?: (progress: { current: number; total: number } | null) => void;
   onResetCharts?: () => Promise<void> | void;
@@ -2613,6 +2629,8 @@ export function AnalysisWorkbench({
             <WorkbenchSurface
               chartZoomResetToken={chartZoomResetToken}
               chartLayoutPreferences={chartLayoutPreferences}
+              chartResolution={chartResolution}
+              customChartResolution={customChartResolution}
               customTimeframeRange={customTimeframeRange}
               expanded={expanded}
               hasOlderIntervals={hasOlderIntervals}
@@ -2622,6 +2640,7 @@ export function AnalysisWorkbench({
               loadOlderIntervals={loadOlderIntervals}
               model={model}
               onChartLayoutPreferencesChange={onChartLayoutPreferencesChange}
+              onChartResolutionChange={onChartResolutionChange}
               onCustomTimeframeChange={onCustomTimeframeChange}
               onOlderLoadProgressChange={onOlderLoadProgressChange}
               onResetCharts={onResetCharts}
@@ -2632,7 +2651,7 @@ export function AnalysisWorkbench({
               timeframe={timeframe}
             />
     );
-  }, [activeSection, chartLayoutPreferences, chartZoomResetToken, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
+  }, [activeSection, chartLayoutPreferences, chartResolution, chartZoomResetToken, customChartResolution, customTimeframeRange, expanded, handleSelection, isHydratingDetails, isSectionPending, isVisuallyBusy, model, onChartLayoutPreferencesChange, onChartResolutionChange, onCustomTimeframeChange, onOlderLoadProgressChange, onResetCharts, onToggleExpand, railEnabled, selectedEntityId, selectedIntervalIndex, setTimeframe, timeframe, hasOlderIntervals, isLoadingOlderIntervals, loadOlderIntervals]);
 
   const workbenchSectionActive = activeSection === 'workbench';
   const workbenchFitsViewport = workbenchSectionActive && railEnabled;

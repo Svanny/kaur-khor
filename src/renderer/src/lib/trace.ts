@@ -9,7 +9,12 @@ function storageTraceEnabled() {
   if (typeof window === 'undefined') {
     return false;
   }
-  const storage = window.localStorage;
+  let storage: Storage | null = null;
+  try {
+    storage = window.localStorage ?? null;
+  } catch {
+    return false;
+  }
   if (!storage || typeof storage.getItem !== 'function') {
     return false;
   }

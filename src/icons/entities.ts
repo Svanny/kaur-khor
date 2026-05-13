@@ -14,6 +14,8 @@ export {
   Heart as EntityFavoriteIcon,
   Instagram as EntityInstagramChannelIcon,
   Layers3 as EntityLayersIcon,
+  PackageMinus as EntityPackageMinusIcon,
+  PackageOpen as EntityPackageOpenIcon,
   Map as EntityMapIcon,
   MessageCircle as EntityWhatsAppChannelIcon,
   MessagesSquare as EntityFacebookChannelIcon,
@@ -30,5 +32,7 @@ export {
   SquarePen as EntityCustomChannelIcon,
   Tags as EntityTagsIcon,
   Truck as EntityTransitIcon,
+  Warehouse as EntityWarehouseIcon,
   Waypoints as EntityWaypointsIcon,
+  Waves as EntityWavesIcon,
 } from 'lucide-react';

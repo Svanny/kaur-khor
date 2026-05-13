@@ -179,6 +179,13 @@ type PendingChartSettingsLeave = {
 };
 type ChartPaneHeightChangeSource = 'manual';
 type ChartLayoutChangeSource = 'passive' | ChartPaneHeightChangeSource;
+type ChartOptionsWithPaneResize = NonNullable<Parameters<typeof createChart>[1]> & {
+  panes?: {
+    enableResize?: boolean;
+    separatorColor?: string;
+    separatorHoverColor?: string;
+  };
+};
 type HistogramIndicatorId =
   | 'demand'
   | 'serviceDemand'
@@ -760,7 +767,7 @@ function observeChartLayout(
     });
   };
 
-  const resizeObserver = new ResizeObserver(schedule);
+  const resizeObserver = new ResizeObserver(() => schedule());
   const observed = new Set<HTMLElement>();
   const syncObservedElements = () => {
     const next = new Set<HTMLElement>([container, ...(getObservedElements?.() ?? [])]);
@@ -1929,7 +1936,7 @@ function histogramData(points: TradingChartPoint[], selector: (point: TradingCha
       const value = selector(point);
       return value == null ? null : { time: point.time, value, color };
     })
-    .filter((point): point is HistogramData<Time> => point != null);
+    .filter((point): point is { time: Time; value: number; color: string } => point != null);
 }
 
 function setSeriesData(
@@ -2462,7 +2469,7 @@ function buildLegendRows({
       } else if (id === 'demandMinusAvailableCapacity') {
         value = formatValue(point.demandMinusAvailableCapacity, 'u', setting.precision, language);
       } else if (isHistogramIndicatorId(id)) {
-        value = histogramIndicatorLegendValue(point, id, setting.precision, setting.inputSource, language);
+        value = histogramIndicatorLegendValue(point, id, setting.precision ?? 'default', setting.inputSource, language);
       } else if (id === 'newOrderFlags') {
         value = point.newOrderFlag
           ? translateUiLiteral(language, 'Supplier order recorded')
@@ -3816,10 +3823,11 @@ export function SkuTradingChart({
         shouldTrackPointerDrag: shouldTrackChartPaneResize,
       },
     );
-    chart.timeScale().subscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
+    const handleVisibleLogicalRangeChange = () => updatePaneLegendPositions();
+    chart.timeScale().subscribeVisibleLogicalRangeChange(handleVisibleLogicalRangeChange);
     return () => {
       stopObservingLayout();
-      chart.timeScale().unsubscribeVisibleLogicalRangeChange(updatePaneLegendPositions);
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(handleVisibleLogicalRangeChange);
     };
   }, [activeAdditionalPaneCount, chartBootstrapVersion, paneLayout, seriesStructureSignature]);
 
@@ -3840,7 +3848,7 @@ export function SkuTradingChart({
       return;
     }
 
-    const chart = createChart(container, {
+    const chartOptions: ChartOptionsWithPaneResize = {
       autoSize: true,
       layout: {
         attributionLogo: false,
@@ -3880,7 +3888,8 @@ export function SkuTradingChart({
       },
       handleScroll: true,
       handleScale: true,
-    });
+    };
+    const chart = createChart(container, chartOptions);
     chartRef.current = chart;
     setChartBootstrapVersion((current) => current + 1);
 

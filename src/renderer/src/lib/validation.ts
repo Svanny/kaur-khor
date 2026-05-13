@@ -29,7 +29,7 @@ export function validateRequiredText(value: string, maxLength: number): string |
   return null;
 }
 
-export function validateEntryId(value: string): string | null {
+export function validateEntryId(value: string): 'required' | 'invalid' | null {
   const normalized = value.trim();
   if (!normalized) {
     return 'required';

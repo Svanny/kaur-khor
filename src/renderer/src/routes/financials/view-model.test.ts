@@ -1,13 +1,22 @@
 import { describe, expect, test } from 'vitest';
+import type {
+  SenaCatalog,
+  SenaObservationRecord,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
 import { deriveFinancialsViewModel } from './view-model';
 
-const catalog = {
+const catalog: SenaCatalog = {
   bundles: [],
   schemaVersion: 1,
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'Color service',
+      imagePath: null,
       name: 'Hair Coloring',
       price: 42,
       serviceId: 'service-color',
@@ -18,19 +27,22 @@ const catalog = {
   ],
   skus: [
     {
+      archived: false,
       costPerUnit: 5,
       description: 'Retail and service support shampoo',
+      imagePath: null,
       leadTimeMeanDaysHint: 4,
       leadTimeStdDaysHint: 1,
       name: 'Shampoo Classic',
       productPrice: 20,
       skuId: 'sku-shampoo',
       soldAsProduct: true,
+      supplierName: null,
     },
   ],
-} as const;
+};
 
-const workspaceSummary = {
+const workspaceSummary: SenaWorkspaceSummary = {
   highRiskSkuIds: [],
   intervalCount: 2,
   latestObservedAt: '2026-01-10T08:00:00.000Z',
@@ -58,9 +70,9 @@ const workspaceSummary = {
     },
   ],
   topRegime: 'normal',
-} as const;
+};
 
-const serviceDetailsById = {
+const serviceDetailsById: Record<string, SenaServiceDetail | null> = {
   'service-color': {
     activityIntervalHigh: 6,
     activityIntervalLow: 4,
@@ -70,9 +82,9 @@ const serviceDetailsById = {
     regimeTimeline: [],
     serviceId: 'service-color',
   },
-} as const;
+};
 
-const skuDetailsById = {
+const skuDetailsById: Record<string, SenaSkuDetail | null> = {
   'sku-shampoo': {
     demandPosterior: [],
     inventoryPosterior: [],
@@ -80,9 +92,14 @@ const skuDetailsById = {
     pipelinePosterior: [],
     summary: workspaceSummary.skuSummaries[0],
   },
-} as const;
+};
 
-function observation(observationId: string, observedAt: string, unitsSold: number, unitsInStock = 16) {
+function observation(
+  observationId: string,
+  observedAt: string,
+  unitsSold: number,
+  unitsInStock = 16,
+): SenaObservationRecord {
   return {
     input: {
       adjustmentSignals: [],
@@ -156,6 +173,8 @@ describe('deriveFinancialsViewModel', () => {
       serviceDetailsById: { ...serviceDetailsById },
       skuDetailsById: { ...skuDetailsById },
       workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-02T08:00:00.000Z' },
+      customRange: null,
+      previousCustomRange: null,
     });
 
     expect(model.coverage.freshnessLabel).toContain('Apr 10');

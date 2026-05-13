@@ -9,6 +9,7 @@ This directory is the contributor-facing entrypoint for Kaur Khor as a local Ele
 - [Browser app](browser-app.md)
 - [Install guide](install-guide.md)
 - [Web runtime and OPFS](development/web-runtime-and-opfs.md)
+- [UI interaction matrix](development/ui-interaction-matrix.md)
 - [GitHub Pages](development/github-pages.md)
 - [Automation workspace](development/automation-workspace.md)
 - [Ticketing architecture](development/ticketing-architecture.md)

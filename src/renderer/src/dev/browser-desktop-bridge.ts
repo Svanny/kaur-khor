@@ -1,4 +1,7 @@
-import { DEFAULT_SENA_ENGINE_PARAMETERS } from '@shared/ipc';
+import {
+  DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
+  DEFAULT_SENA_ENGINE_PARAMETERS,
+} from '@shared/ipc';
 import { SENA_SCHEMA_VERSION } from '@shared/sena';
 import {
   browserSenaObservationFingerprint,
@@ -37,18 +40,18 @@ import type {
   SenaTriggerRunPayload,
 } from '@shared/ipc';
 import type {
-  type SenaAnalysisRunRecord,
-  type SenaCatalog,
-  type SenaDiagnostics,
-  type SenaObservationInput,
-  type SenaOrderBatchRecord,
-  type SenaOrderChildRecord,
-  type SenaOrderFieldValues,
-  type SenaObservationPageRequest,
-  type SenaObservationRecord,
-  type SenaServiceDetail,
-  type SenaSkuDetail,
-  type SenaWorkspaceSummary,
+  SenaAnalysisRunRecord,
+  SenaCatalog,
+  SenaDiagnostics,
+  SenaObservationInput,
+  SenaOrderBatchRecord,
+  SenaOrderChildRecord,
+  SenaOrderFieldValues,
+  SenaObservationPageRequest,
+  SenaObservationRecord,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
 } from '@shared/sena';
 
 const MOCK_OWNER_SUB = 'browser-owner';
@@ -857,11 +860,10 @@ export function createMockState(): BrowserMockState {
       onboardingCompletedAt: null,
       seenUnlockedNavItems: {
         catalog: true,
-        operations: true,
-        performance: true,
-        financials: true,
-        automations: true,
+        insights: true,
+        work: true,
       },
+      workbenchTileOrderByLane: DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
     },
     serviceDetails,
     skuDetails: clone(mockSkuDetails),

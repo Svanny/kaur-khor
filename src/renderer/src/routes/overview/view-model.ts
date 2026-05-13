@@ -1075,7 +1075,7 @@ function buildTask({
   recordUpdateContext?: SenaRecordUpdateContext | null;
   summary: SenaSkuSummary;
   workspaceLatestObservedAt: string | null;
-}) {
+}): OverviewSkuTask | null {
   const sku = catalog.skus.find((entry) => entry.skuId === summary.skuId);
   if (!sku) {
     return null;

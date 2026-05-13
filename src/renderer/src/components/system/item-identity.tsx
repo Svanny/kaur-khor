@@ -8,6 +8,17 @@ type ItemIdentitySize = 'compact' | 'default' | 'hero';
 type ItemIdentityAlign = 'start' | 'center';
 const assetImageExtensions = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
+function isEmbeddedBrowserRoute() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const normalizedPath = window.location.pathname.replace(/\/+$/, '');
+  return normalizedPath === '/app'
+    || normalizedPath === '/demo'
+    || normalizedPath === '/kaur-khor/app'
+    || normalizedPath === '/kaur-khor/demo';
+}
+
 function imageModeClassName(
   mode: ReturnType<typeof usePreferences>['itemImageMode'],
   size: ItemIdentitySize,
@@ -43,7 +54,11 @@ function filePathToUrl(imagePath: string) {
     return null;
   }
 
-  if (/^(kaur-khor-asset|https?|data|blob):/i.test(trimmed)) {
+  if (/^kaur-khor-asset:/i.test(trimmed)) {
+    return isEmbeddedBrowserRoute() ? null : trimmed;
+  }
+
+  if (/^(https?|data|blob):/i.test(trimmed)) {
     return trimmed;
   }
 
@@ -59,6 +74,10 @@ function filePathToUrl(imagePath: string) {
   }
   const extension = assetName.includes('.') ? `.${assetName.split('.').pop()?.toLowerCase()}` : '';
   if (!assetImageExtensions.has(extension)) {
+    return null;
+  }
+
+  if (isEmbeddedBrowserRoute()) {
     return null;
   }
 

@@ -639,6 +639,7 @@ export function SkuFormRoute() {
           >
             <NumberStepperInput
               className={editorInputClassName}
+              data-testid="sku-lead-time-mean-days-input"
               min="0"
               step="0.01"
               value={form.leadTimeMeanDaysHint ?? ''}

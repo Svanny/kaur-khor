@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, generatePath, useParams, useSearchParams } from 'react-router-dom';
+import type { SenaSkuDetailPage } from '@shared/sena';
 import { NavigationBackIcon } from '@icons/navigation';
 import { INTERVAL_PAGE_SIZE } from '@/components/system/interval-strip';
 import { useTimeframedIntervalHistory } from '@/components/system/timeframed-interval-history';
@@ -40,6 +41,17 @@ function mergeSkuDetailPages(older: NonNullable<BootstrapSkuDetailResult['detail
 
 function emptyBootstrap(): BootstrapSkuDetailResult | null {
   return null;
+}
+
+function skuDetailStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function chartSearchValue(searchParams: URLSearchParams) {
@@ -164,17 +176,20 @@ function SkuDetailScreen() {
     if (!skuId) {
       return;
     }
+    const storage = skuDetailStorage();
     const cachedDetailPage =
-      typeof window === 'undefined'
-        ? null
-        : readPersistedSenaDetailPage({
-          beforeIntervalIndex: null,
-          entityId: skuId,
-          entityType: 'sku',
-          freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(inventory.workspaceSummary),
-          limit: INTERVAL_PAGE_SIZE,
-          storage: window.localStorage,
-        });
+      storage
+        ? normalizeSkuDetailPage(
+            readPersistedSenaDetailPage<SenaSkuDetailPage>({
+              beforeIntervalIndex: null,
+              entityId: skuId,
+              entityType: 'sku',
+              freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(inventory.workspaceSummary),
+              limit: INTERVAL_PAGE_SIZE,
+              storage,
+            }),
+          )
+        : null;
     setBootstrap(emptyBootstrap());
     setBootstrap(buildSkuDetailBootstrapPreview({
       catalog: inventory.catalog,

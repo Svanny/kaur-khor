@@ -38,7 +38,7 @@ const snapshot: InventorySnapshot = {
   services: [service],
   ranking: [],
   sist: {
-    status: 'ready',
+    status: { state: 'ready', updatedAt: null, reportCount: 0, confidence: 'medium', reason: null },
     settings: {
       targetServiceLevel: 0.95,
       forecastHorizonDays: 30,

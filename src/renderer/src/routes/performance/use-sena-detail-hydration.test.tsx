@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SenaServiceDetailPage, SenaSkuDetailPage } from '@shared/sena';
 import { deriveSenaDetailCacheFreshnessFingerprint, writePersistedSenaDetailPage } from '@/lib/sena-detail-page-cache';
 import { useSenaDetailHydration } from './use-sena-detail-hydration';
 
@@ -52,7 +53,7 @@ function makeSkuPage(
   count: number,
   nextBeforeIntervalIndex: number | null,
   latestPosteriorUnits = 9,
-) {
+): SenaSkuDetailPage {
   return {
     detail: {
       demandPosterior: makeDemandPosterior(start, count),
@@ -112,10 +113,12 @@ function makeRegimeTimeline(start: number, count: number, activityMean: number) 
       activityMean,
       bottleneckProbability: 0.2,
       demandMean: activityMean,
+      dominantRegime: 'normal',
       endAt: `2026-03-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
       intervalIndex,
       priceMean: 10,
       regime: 'normal',
+      regimeProbabilities: { normal: 1 },
       sellableCapacityMean: 20,
       startAt: `2026-02-${String((intervalIndex % 28) + 1).padStart(2, '0')}T08:00:00.000Z`,
     };
@@ -127,7 +130,7 @@ function makeServicePage(
   count: number,
   nextBeforeIntervalIndex: number | null,
   activityMean = 3,
-) {
+): SenaServiceDetailPage {
   return {
     detail: {
       activityIntervalHigh: activityMean + 1,
@@ -353,6 +356,63 @@ describe('useSenaDetailHydration', () => {
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(1, 'sku-1', { limit: 20 });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(2, 'sku-1', { beforeIntervalIndex: 20, limit: 10, strategy: 'network-only' });
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10, strategy: 'network-only' });
+  });
+
+  test('hydrates first pages when persisted detail storage is blocked', async () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+    const loadSenaSkuDetail = vi.fn(async () => makeSkuPage(20, 20, null));
+
+    try {
+      inventoryHook.mockReturnValue({
+        catalog: {
+          bundles: [],
+          schemaVersion: 1,
+          services: [],
+          sharingMask: [],
+          skus: [
+            {
+              costPerUnit: 1,
+              description: 'sku',
+              leadTimeMeanDaysHint: 1,
+              leadTimeStdDaysHint: 1,
+              name: 'sku',
+              productPrice: 1,
+              skuId: 'sku-1',
+              soldAsProduct: true,
+            },
+          ],
+        },
+        loadSenaServiceDetail: vi.fn(),
+        loadSenaSkuDetail,
+        workspaceSummary: {
+          highRiskSkuIds: [],
+          intervalCount: 20,
+          latestObservedAt: '2026-03-21T08:00:00.000Z',
+          ownerSub: 'desktop-owner',
+          pendingReorderCount: 0,
+          runId: 'run-1',
+          serviceCount: 0,
+          skuCount: 1,
+          skuSummaries: [],
+          topRegime: 'normal',
+        },
+      });
+
+      render(<TestHarness />);
+
+      await waitFor(() => expect(screen.getByTestId('length')).toHaveTextContent('20'));
+      expect(loadSenaSkuDetail).toHaveBeenCalledTimes(1);
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
   });
 
   test('loads estimated MAX timeframe hydration in one expanded older request', async () => {

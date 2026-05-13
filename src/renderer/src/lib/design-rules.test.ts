@@ -380,6 +380,13 @@ function isButtonElement(node: ts.JsxElement | ts.JsxSelfClosingElement): boolea
   return tagName === 'button' || tagName === 'Button';
 }
 
+function isDesignIconExemptButton(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
+  const attributes = ts.isJsxElement(node)
+    ? node.openingElement.attributes.properties
+    : node.attributes.properties;
+  return attributes.some((attribute) => jsxAttributeName(attribute) === 'data-design-icon-exempt');
+}
+
 function isTogglePillElement(node: ts.JsxElement | ts.JsxSelfClosingElement): boolean {
   const tagName = ts.isJsxElement(node)
     ? jsxTagName(node.openingElement.tagName)
@@ -438,13 +445,7 @@ function collectIntentText(node: ts.JsxElement | ts.JsxSelfClosingElement): stri
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      add(attribute.initializer.text);
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      add(attribute.initializer.expression.getText());
-    }
+    add(attributeExpressionText(attribute));
   }
 
   return parts.join(' ');
@@ -464,13 +465,7 @@ function buttonVariantExpression(node: ts.JsxElement | ts.JsxSelfClosingElement)
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      return attribute.initializer.text;
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      return attribute.initializer.expression.getText();
-    }
+    return attributeExpressionText(attribute);
   }
 
   return null;
@@ -484,13 +479,7 @@ function buttonClassExpression(node: ts.JsxElement | ts.JsxSelfClosingElement): 
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      return attribute.initializer.text;
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      return attribute.initializer.expression.getText();
-    }
+    return attributeExpressionText(attribute);
   }
 
   return '';
@@ -989,6 +978,7 @@ describe('global design rules', () => {
           hasVisibleButtonLabel(node) &&
           !isChartTimeframeButton(node) &&
           !isPaginationEndpointButton(node) &&
+          !isDesignIconExemptButton(node) &&
           !hasIconDescendant(node)
         ) {
           const { line } = ast.getLineAndCharacterOfPosition(node.getStart(ast));

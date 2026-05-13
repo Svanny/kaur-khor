@@ -499,8 +499,8 @@ function scheduleBackgroundTask(task: () => void) {
     const id = window.requestIdleCallback(task, { timeout: 1_000 });
     return () => window.cancelIdleCallback(id);
   }
-  const id = window.setTimeout(task, 0);
-  return () => window.clearTimeout(id);
+  const id = globalThis.setTimeout(task, 0);
+  return () => globalThis.clearTimeout(id);
 }
 
 function scheduleDeferredBackgroundTask(task: () => void, delayMs = DASHBOARD_DETAIL_HYDRATION_DELAY_MS) {
@@ -2448,6 +2448,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       <AutomationIntakeDrawer
         intake={selectedAutomationIntake}
         isSaving={automation.isSaving}
+        language={language}
         open={selectedAutomationIntake != null}
         onClose={() => setSelectedAutomationIntakeId(null)}
         onPromote={automation.promoteIntake}

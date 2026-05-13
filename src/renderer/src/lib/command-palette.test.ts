@@ -1,7 +1,11 @@
 import { describe, expect, test } from 'vitest';
 import type { InventoryContextValue } from '@/state/inventory';
 import { PAGE_STATE_MEMORY_STORAGE_KEY } from './page-state-memory';
-import { buildCommandDescriptors, groupCommandDescriptors, searchCommandDescriptors } from './command-palette';
+import { buildCommandDescriptors, groupCommandDescriptors, searchCommandDescriptors, type CommandAction } from './command-palette';
+
+function actionHref(action: CommandAction) {
+  return 'href' in action ? action.href : null;
+}
 
 function createInventory(overrides?: Partial<InventoryContextValue>): InventoryContextValue {
   return {
@@ -9,9 +13,13 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
     diagnostics: null,
     error: null,
     isLoading: false,
+    isPreparingWorkspace: false,
     isSaving: false,
     latestRun: null,
+    observationFingerprint: null,
     observations: [],
+    orderBatches: [],
+    recordUpdateContext: null,
     reload: async () => {},
     reports: [],
     senaMeta: { catalogHash: null, lastBootstrapSkuId: null, lastCompletedRunId: null },
@@ -23,6 +31,12 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
     listStockReports: async () => [],
     upsertSenaCatalog: async (payload) => payload,
     archiveCatalogEntity: async (payload) => {
+      throw new Error(`not implemented: ${payload.entityType}:${payload.entityId}`);
+    },
+    renameCatalogEntity: async (payload) => {
+      throw new Error(`not implemented: ${payload.entityType}:${payload.previousId}`);
+    },
+    deleteCatalogEntity: async (payload) => {
       throw new Error(`not implemented: ${payload.entityType}:${payload.entityId}`);
     },
     unarchiveCatalogEntity: async (payload) => {
@@ -38,14 +52,39 @@ function createInventory(overrides?: Partial<InventoryContextValue>): InventoryC
     deleteSenaObservation: async () => {
       throw new Error('not implemented');
     },
+    listSenaObservationPage: async () => {
+      throw new Error('not implemented');
+    },
     listSenaObservations: async () => [],
     loadSenaObservations: async () => [],
+    loadWorkSupportData: async () => {
+      throw new Error('not implemented');
+    },
+    loadSenaRecordUpdateContext: async () => {
+      throw new Error('not implemented');
+    },
+    listSenaOrderBatches: async () => [],
+    loadSenaOrderBatches: async () => [],
+    createSenaOrderBatch: async () => {
+      throw new Error('not implemented');
+    },
+    updateSenaOrderBatch: async () => {
+      throw new Error('not implemented');
+    },
+    updateSenaOrderChild: async () => {
+      throw new Error('not implemented');
+    },
+    splitSenaOrderChild: async () => {
+      throw new Error('not implemented');
+    },
     triggerSenaRun: async () => {
       throw new Error('not implemented');
     },
     retrySenaRun: async () => {
       throw new Error('not implemented');
     },
+    runSavingTask: async (task) => task(),
+    runWorkspacePreparation: async (task) => task(),
     loadSenaWorkspaceSummary: async () => null,
     loadSenaSkuDetail: async () => null,
     loadSenaServiceDetail: async () => null,
@@ -144,7 +183,7 @@ describe('command palette descriptors', () => {
       title: 'Show automations and intake',
     });
     expect(disabledCommands.some((command) => command.id === 'page:automations')).toBe(false);
-    expect(disabledCommands.some((command) => command.action.href === '/work/intake')).toBe(false);
+    expect(disabledCommands.some((command) => actionHref(command.action) === '/work/intake')).toBe(false);
   });
 
   test('builds the settings command for optional help visibility', () => {
@@ -324,9 +363,9 @@ describe('command palette descriptors', () => {
     expect(commands.some((command) => command.id === 'settings:workspace:export-planning-data')).toBe(true);
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.subtitle).toBe('SKU · Supplier: Mekong Looms');
     expect(commands.find((command) => command.id === 'sku:capture:supplier-order:sku-1')?.subtitle).toBe('SKU action · Supplier: Mekong Looms');
-    expect(commands.find((command) => command.id === 'sku:capture:supplier-order:sku-1')?.action.href).toBe('/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new');
-    expect(commands.find((command) => command.id === 'service:capture:service-price:service-1')?.action.href).toBe('/work/capture/custom?targetAction=service-price&targetType=service&targetId=service-1&lanes=stock-count');
-    expect(commands.find((command) => command.id === 'work:task:sku-1:log_order')?.action.href).toBe('/work/queue?filter=to_order');
+    expect(actionHref(commands.find((command) => command.id === 'sku:capture:supplier-order:sku-1')!.action)).toBe('/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new');
+    expect(actionHref(commands.find((command) => command.id === 'service:capture:service-price:service-1')!.action)).toBe('/work/capture/custom?targetAction=service-price&targetType=service&targetId=service-1&lanes=stock-count');
+    expect(actionHref(commands.find((command) => command.id === 'work:task:sku-1:log_order')!.action)).toBe('/work/queue?filter=to_order');
     expect(commands.find((command) => command.id === 'sku:open:sku-1')?.keywords).toContain('Mekong Looms');
   });
 
@@ -439,10 +478,10 @@ describe('command palette descriptors', () => {
         }[key] ?? key),
     });
 
-    expect(commands.find((command) => command.id === 'page:catalog')?.action.href).toBe('/catalog?q=scarf&view=skus');
-    expect(commands.find((command) => command.id === 'page:insights')?.action.href).toBe('/insights');
-    expect(commands.find((command) => command.id === 'performance:range:90d')?.action.href).toBe(
-      '/insights/pressure?range=90d&scope=skus&supplier=Mekong+Looms',
+    expect(actionHref(commands.find((command) => command.id === 'page:catalog')!.action)).toBe('/catalog?q=scarf&view=skus');
+    expect(actionHref(commands.find((command) => command.id === 'page:insights')!.action)).toBe('/insights');
+    expect(actionHref(commands.find((command) => command.id === 'performance:range:90d')!.action)).toBe(
+      '/insights/inventory?range=90d&supplier=Mekong+Looms',
     );
   });
 

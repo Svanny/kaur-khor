@@ -387,7 +387,8 @@ describe('desktop preferences store', () => {
     await Promise.resolve();
     expect(mockedWriteFile).toHaveBeenCalledTimes(1);
 
-    releaseFirstWrite?.();
+    expect(releaseFirstWrite).not.toBeNull();
+    releaseFirstWrite!();
 
     await expect(firstSave).resolves.toEqual({
       language: 'km',

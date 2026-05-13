@@ -721,6 +721,8 @@ describe('buildCustomerOverviewModel', () => {
           promotedTicketId: null,
           lines: [
             {
+              ambiguityReason: null,
+              availabilityStatus: 'available',
               lineId: 'line-1',
               entityType: 'sku',
               entityId: 'sku-1',
@@ -731,6 +733,8 @@ describe('buildCustomerOverviewModel', () => {
               lineTotal: 10,
             },
             {
+              ambiguityReason: null,
+              availabilityStatus: 'unknown',
               lineId: 'line-2',
               entityType: 'sku',
               entityId: 'sku-2',
@@ -741,6 +745,8 @@ describe('buildCustomerOverviewModel', () => {
               lineTotal: null,
             },
             {
+              ambiguityReason: null,
+              availabilityStatus: 'available',
               lineId: 'line-3',
               entityType: 'service',
               entityId: 'service-1',

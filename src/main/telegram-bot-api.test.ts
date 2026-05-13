@@ -171,7 +171,7 @@ describe('telegram bot api wrapper', () => {
     const tempPhotoPath = join(tmpdir(), `kaur-khor-telegram-photo-${Date.now()}.png`);
     await writeFile(tempPhotoPath, new Uint8Array([137, 80, 78, 71]));
     vi.mocked(prepareDesktopImageUpload).mockResolvedValue({
-      bytes: new Uint8Array([137, 80, 78, 71]),
+      bytes: Buffer.from([137, 80, 78, 71]),
       filename: 'kaur-khor-telegram-photo.png',
     });
 

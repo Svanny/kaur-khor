@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { CustomTimeframeDialog } from '@/components/system/custom-timeframe-dialog';
 import { dateInputValueFromIsoString, isoStringFromDateInput, daysBetween, shiftDateByDays } from '@/lib/date-input-utils';
-import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams, type Location as RouterLocation } from 'react-router-dom';
 import { ActionEyeIcon, ActionOpenExternalIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
 import {
@@ -222,7 +222,7 @@ function StatementBlock({ block }: { block: FinancialStatementBlock }) {
   );
 }
 
-function EconomicContributorsTable({ rows }: { rows: EconomicContributorRow[] }) {
+function EconomicContributorsTable({ location, rows }: { location: RouterLocation; rows: EconomicContributorRow[] }) {
   const { language } = usePreferences();
 
   if (!hasRenderableRows(rows)) {
@@ -338,9 +338,11 @@ function MoneyBandColumn({
   tone,
   title,
   tooltip,
+  location,
 }: {
   helpHref: string;
   icon: ReactNode;
+  location: RouterLocation;
   rows: FinancialBandEntry[];
   tone: StatusPillTone;
   title: string;
@@ -381,7 +383,7 @@ function MoneyBandColumn({
   );
 }
 
-function RailRows({ emptyLabel, rows }: { emptyLabel: string; rows: FinancialRailRow[] }) {
+function RailRows({ emptyLabel, location, rows }: { emptyLabel: string; location: RouterLocation; rows: FinancialRailRow[] }) {
   if (rows.length === 0) {
     return <p className="text-sm leading-6 text-muted-foreground">{emptyLabel}</p>;
   }
@@ -703,6 +705,7 @@ export function FinancialsRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
+        helperExemptReason="Financials title card uses the descriptor and section blocks as its route-level helper copy."
         title={
           <span className="flex min-w-0 items-center gap-3">
             <RouteBackButton className="shrink-0" />
@@ -875,7 +878,7 @@ export function FinancialsRoute() {
               descriptor={translateUiLiteral(language, 'Ranked by gross profit contribution, then sales contribution.')}
               contentClassName="px-0 py-0"
             >
-              <EconomicContributorsTable rows={model.contributors} />
+              <EconomicContributorsTable location={location} rows={model.contributors} />
             </PerformanceSectionShell>
           ) : null}
 
@@ -890,6 +893,7 @@ export function FinancialsRoute() {
                 <MoneyBandColumn
                   helpHref="/settings/help#money-band-earners"
                   icon={<StatusAchievementIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  location={location}
                   rows={model.earners}
                   tone="success"
                   title={translateUiLiteral(language, 'Earners')}
@@ -898,6 +902,7 @@ export function FinancialsRoute() {
                 <MoneyBandColumn
                   helpHref="/settings/help#money-band-capital-traps"
                   icon={<StatusSavingsIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  location={location}
                   rows={model.capitalTraps}
                   tone="warning"
                   title={translateUiLiteral(language, 'Capital traps')}
@@ -906,6 +911,7 @@ export function FinancialsRoute() {
                 <MoneyBandColumn
                   helpHref="/settings/help#money-band-margin-leaks"
                   icon={<StatusWarningIcon className="size-4.5 text-muted-foreground" aria-hidden="true" />}
+                  location={location}
                   rows={model.marginLeaks}
                   tone="danger"
                   title={translateUiLiteral(language, 'Margin leaks')}
@@ -927,6 +933,7 @@ export function FinancialsRoute() {
               {hasRenderableRows(model.commitmentsDue) ? (
                 <RailRows
                   emptyLabel={translateUiLiteral(language, 'No open supplier commitments are visible right now.')}
+                  location={location}
                   rows={model.commitmentsDue}
                 />
               ) : null}
@@ -941,6 +948,7 @@ export function FinancialsRoute() {
               {hasRenderableRows(model.largestCapitalPositions) ? (
                 <RailRows
                   emptyLabel={translateUiLiteral(language, 'No material stock-value concentration is visible yet.')}
+                  location={location}
                   rows={model.largestCapitalPositions}
                 />
               ) : null}
@@ -955,6 +963,7 @@ export function FinancialsRoute() {
               {hasRenderableRows(model.recentMarginShifts) ? (
                 <RailRows
                   emptyLabel={translateUiLiteral(language, 'No recent price or cost shifts are visible in this window.')}
+                  location={location}
                   rows={model.recentMarginShifts}
                 />
               ) : null}

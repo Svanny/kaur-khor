@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { translateUiLiteral } from '@/lib/translations';
 import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/date-input-utils';
-import type { AppLanguage } from '@/lib/translations';
+import type { AppLanguage } from '@shared/inventory';
 
 export interface CustomTimeframeDialogProps {
   language: AppLanguage;

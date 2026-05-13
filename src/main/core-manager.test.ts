@@ -4,13 +4,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { createManagedCoreController } from './core-manager';
 import type { ManagedCoreProcess } from './backend';
 
+function createInvokeMock() {
+  return vi.fn() as unknown as ManagedCoreProcess['invoke'] & ReturnType<typeof vi.fn>;
+}
+
 function createCoreStub(options?: {
   invoke?: ManagedCoreProcess['invoke'];
   isStopped?: () => boolean;
   stop?: () => Promise<void>;
 }): ManagedCoreProcess {
   return {
-    invoke: options?.invoke ?? vi.fn(),
+    invoke: options?.invoke ?? (async <T>() => undefined as T),
     isStopped: options?.isStopped ?? (() => false),
     stop: options?.stop ?? vi.fn(async () => undefined),
   };
@@ -18,8 +22,7 @@ function createCoreStub(options?: {
 
 describe('managed core controller', () => {
   it('reuses the same core after a command-level error', async () => {
-    const invoke = vi
-      .fn<ManagedCoreProcess['invoke']>()
+    const invoke = createInvokeMock()
       .mockRejectedValueOnce(new Error('validation failed'))
       .mockResolvedValueOnce({ ok: true });
     const core = createCoreStub({ invoke, isStopped: () => false });
@@ -41,11 +44,11 @@ describe('managed core controller', () => {
 
   it('starts a replacement core after the previous process stops', async () => {
     const firstCore = createCoreStub({
-      invoke: vi.fn<ManagedCoreProcess['invoke']>().mockRejectedValue(new Error('core exited')),
+      invoke: createInvokeMock().mockRejectedValue(new Error('core exited')),
       isStopped: () => true,
     });
     const secondCore = createCoreStub({
-      invoke: vi.fn<ManagedCoreProcess['invoke']>().mockResolvedValue({ ok: true }),
+      invoke: createInvokeMock().mockResolvedValue({ ok: true }),
       isStopped: () => false,
     });
     const start = vi
@@ -69,7 +72,7 @@ describe('managed core controller', () => {
   it('serializes concurrent startup so only one core process launches', async () => {
     let resolveStart: ((core: ManagedCoreProcess) => void) | null = null;
     const core = createCoreStub({
-      invoke: vi.fn<ManagedCoreProcess['invoke']>().mockResolvedValue({ ok: true }),
+      invoke: createInvokeMock().mockResolvedValue({ ok: true }),
       isStopped: () => false,
     });
     const start = vi.fn(
@@ -91,7 +94,8 @@ describe('managed core controller', () => {
 
     expect(start).toHaveBeenCalledTimes(1);
 
-    resolveStart?.(core);
+    expect(resolveStart).not.toBeNull();
+    resolveStart!(core);
 
     await expect(firstInvoke).resolves.toEqual({ ok: true });
     await expect(secondInvoke).resolves.toEqual({ ok: true });

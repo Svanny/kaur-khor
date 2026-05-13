@@ -144,12 +144,14 @@ function coerceDurationUnit(
 
   while (
     Math.abs(nextValue) > 0 &&
-    Math.abs(nextValue) < 1 &&
-    durationStepDown[nextUnit].nextUnit &&
-    durationStepDown[nextUnit].factorToNext
+    Math.abs(nextValue) < 1
   ) {
-    nextValue *= durationStepDown[nextUnit].factorToNext;
-    nextUnit = durationStepDown[nextUnit].nextUnit;
+    const stepDown = durationStepDown[nextUnit];
+    if (!stepDown.nextUnit || !stepDown.factorToNext) {
+      break;
+    }
+    nextValue *= stepDown.factorToNext;
+    nextUnit = stepDown.nextUnit;
   }
 
   return { value: nextValue, unit: nextUnit };

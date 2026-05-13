@@ -2,7 +2,7 @@ import { forwardRef, type CSSProperties, type HTMLAttributes, type KeyboardEvent
 import { cn } from '@/lib/utils';
 
 type HeaderedTableVariant = 'overview' | 'framed';
-type HeaderedTableLayoutBreakpoint = 'lg' | 'xl';
+type HeaderedTableLayoutBreakpoint = 'lg' | 'xl' | '2xl';
 type HeaderedTableLayoutGap = 4 | 5;
 type HeaderedTableOverflow = 'hidden' | 'auto';
 
@@ -40,12 +40,20 @@ export function createHeaderedTableLayout({
           row: 'lg:grid-cols-subgrid lg:col-span-full',
           mobileLabel: 'lg:hidden',
         }
-      : {
+      : breakpoint === 'xl'
+        ? {
           container: 'min-h-full flex-1 bg-white xl:grid xl:auto-rows-max xl:content-start xl:[grid-template-columns:var(--headered-table-columns)]',
           header: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           body: 'xl:grid xl:grid-cols-subgrid xl:col-span-full',
           row: 'xl:grid-cols-subgrid xl:col-span-full',
           mobileLabel: 'xl:hidden',
+        }
+        : {
+          container: 'min-h-full flex-1 bg-white 2xl:grid 2xl:auto-rows-max 2xl:content-start 2xl:[grid-template-columns:var(--headered-table-columns)]',
+          header: '2xl:grid 2xl:grid-cols-subgrid 2xl:col-span-full',
+          body: '2xl:grid 2xl:grid-cols-subgrid 2xl:col-span-full',
+          row: '2xl:grid-cols-subgrid 2xl:col-span-full',
+          mobileLabel: '2xl:hidden',
         };
 
   const gapClasses =
@@ -61,16 +69,28 @@ export function createHeaderedTableLayout({
             body: '',
             row: 'lg:gap-0 lg:[&>*]:px-3.5',
           }
-      : gap === 4
-        ? {
+      : breakpoint === 'xl'
+        ? gap === 4
+          ? {
             header: 'xl:gap-0 xl:[&>*]:px-3',
             body: '',
             row: 'xl:gap-0 xl:[&>*]:px-3',
           }
-        : {
+          : {
             header: 'xl:gap-0 xl:[&>*]:px-3.5',
             body: '',
             row: 'xl:gap-0 xl:[&>*]:px-3.5',
+          }
+        : gap === 4
+          ? {
+            header: '2xl:gap-0 2xl:[&>*]:px-3',
+            body: '',
+            row: '2xl:gap-0 2xl:[&>*]:px-3',
+          }
+          : {
+            header: '2xl:gap-0 2xl:[&>*]:px-3.5',
+            body: '',
+            row: '2xl:gap-0 2xl:[&>*]:px-3.5',
           };
 
   return {
@@ -84,21 +104,21 @@ export function createHeaderedTableLayout({
   };
 }
 
-export function HeaderedTable({
-  children,
-  className,
-  empty = false,
-  hideWhenEmpty = false,
-  overflowX = 'hidden',
-  variant = 'overview',
-}: {
+export const HeaderedTable = forwardRef<HTMLDivElement, {
   children: ReactNode;
   className?: string;
   empty?: boolean;
   hideWhenEmpty?: boolean;
   overflowX?: HeaderedTableOverflow;
   variant?: HeaderedTableVariant;
-}) {
+}>(function HeaderedTable({
+  children,
+  className,
+  empty = false,
+  hideWhenEmpty = false,
+  overflowX = 'hidden',
+  variant = 'overview',
+}, ref) {
   if (hideWhenEmpty && empty) {
     return null;
   }
@@ -109,17 +129,18 @@ export function HeaderedTable({
         variant === 'overview' && 'flex min-h-full flex-1 flex-col rounded-none border-0 bg-white',
         variant === 'framed' && 'flex min-h-full flex-1 flex-col rounded-[1.4rem] border border-border/60 bg-white',
         overflowX === 'hidden' && 'overflow-hidden',
-        overflowX === 'auto' && 'overflow-x-auto overscroll-contain',
+        overflowX === 'auto' && 'overflow-x-auto overscroll-x-contain',
         className,
       )}
       data-slot="headered-table"
       data-overflow-x={overflowX}
       data-variant={variant}
+      ref={ref}
     >
       {children}
     </div>
   );
-}
+});
 
 export function HeaderedTableHeader({
   children,
@@ -145,10 +166,12 @@ export function HeaderedTableHeaderCell({
   align = 'left',
   children,
   className,
+  helperExemptReason,
 }: {
   align?: 'left' | 'center' | 'right';
   children: ReactNode;
   className?: string;
+  helperExemptReason?: string;
 }) {
   return (
     <p
@@ -158,6 +181,7 @@ export function HeaderedTableHeaderCell({
         align === 'right' && 'text-right',
         className,
       )}
+      data-helper-exempt={helperExemptReason ?? undefined}
       data-slot="headered-table-header-cell"
     >
       {children}

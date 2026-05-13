@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import { ItemAvatar } from './item-identity';
 
 vi.mock('@/state/preferences', () => ({
@@ -9,6 +9,10 @@ vi.mock('@/state/preferences', () => ({
 }));
 
 describe('ItemAvatar', () => {
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+  });
+
   test('renders stored asset paths through the asset protocol', () => {
     const { container } = render(
       <ItemAvatar imagePath="/tmp/kaur-khor/assets/razor-refill.png" name="Razor refill" type="sku" />,
@@ -31,5 +35,16 @@ describe('ItemAvatar', () => {
     );
 
     expect(container.querySelector('img')).toHaveAttribute('src', '/assets/kaur-khor-dev-sku-001.png');
+  });
+
+  test('falls back for desktop-only asset paths in embedded browser routes', () => {
+    window.history.replaceState({}, '', '/kaur-khor/demo');
+
+    const { container } = render(
+      <ItemAvatar imagePath="kaur-khor-asset://local/razor-refill.png" name="Razor refill" type="sku" />,
+    );
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
   });
 });

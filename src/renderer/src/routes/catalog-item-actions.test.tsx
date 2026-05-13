@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SenaSkuDetailViewModel } from './sku-detail/view-model';
 import {
   buildLeadTimeHintFromInputs,
   formatDatetimeLocalValue,
@@ -26,7 +27,7 @@ if (!Element.prototype.scrollIntoView) {
 }
 
 describe('catalog item action sheets', () => {
-  const skuActionContext = {
+  const skuActionContext: SenaSkuDetailViewModel['actionContext'] = {
     currentStock: 12,
     costPerUnit: 4,
     leadTimeVariability: null,
@@ -35,16 +36,23 @@ describe('catalog item action sheets', () => {
     recommendedOrderQuantity: 6,
     reorderRecommendation: {
       compactLabel: 'Order 6',
+      hasBackendRecommendation: true,
       likelyRangeLabel: 'Likely range 5-7',
+      likelyRangeValueLabel: '5-7',
       needProbabilityLabel: '91% need probability',
+      needProbabilityValueLabel: '91%',
       optionalOrderLabel: null,
+      policyBasisLabel: 'Policy basis forecast',
+      protectionHorizonLabel: 'Protection horizon 30 days',
       quietLabel: 'Quiet',
       recommendationIssued: true,
       recommendedOrderLabel: 'Order 6',
       recommendedUnits: 6,
+      recommendedUnitsLabel: '6 units',
     },
     soldAsProduct: true,
-  } as const;
+    supplierName: null,
+  };
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -184,25 +192,7 @@ describe('catalog item action sheets', () => {
     render(
       <MemoryRouter>
         <SkuMutationActions
-          actionContext={{
-            currentStock: 12,
-            costPerUnit: 4,
-            leadTimeVariability: null,
-            latestObservationAt: '2026-04-02T00:00:00Z',
-            productPrice: 9,
-            recommendedOrderQuantity: 6,
-            reorderRecommendation: {
-              compactLabel: 'Order 6',
-              likelyRangeLabel: 'Likely range 5-7',
-              needProbabilityLabel: '91% need probability',
-              optionalOrderLabel: null,
-              quietLabel: 'Quiet',
-              recommendationIssued: true,
-              recommendedOrderLabel: 'Order 6',
-              recommendedUnits: 6,
-            },
-            soldAsProduct: true,
-          }}
+          actionContext={skuActionContext}
           mode="stock"
           onComplete={vi.fn(async () => {})}
           onModeChange={handleModeChange}
@@ -422,25 +412,7 @@ describe('catalog item action sheets', () => {
             element={
               <>
                 <SkuMutationActions
-                  actionContext={{
-                    currentStock: 12,
-                    costPerUnit: 4,
-                    leadTimeVariability: null,
-                    latestObservationAt: '2026-04-02T00:00:00Z',
-                    productPrice: 9,
-                    recommendedOrderQuantity: 6,
-                    reorderRecommendation: {
-                      compactLabel: 'Order 6',
-                      likelyRangeLabel: 'Likely range 5-7',
-                      needProbabilityLabel: '91% need probability',
-                      optionalOrderLabel: null,
-                      quietLabel: 'Quiet',
-                      recommendationIssued: true,
-                      recommendedOrderLabel: 'Order 6',
-                      recommendedUnits: 6,
-                    },
-                    soldAsProduct: true,
-                  }}
+                  actionContext={skuActionContext}
                   onComplete={vi.fn(async () => {})}
                   skuId="sku-1"
                 />
@@ -497,25 +469,7 @@ describe('catalog item action sheets', () => {
             element={
               <>
                 <SkuMutationActions
-                  actionContext={{
-                    currentStock: 12,
-                    costPerUnit: 4,
-                    leadTimeVariability: null,
-                    latestObservationAt: '2026-04-02T00:00:00Z',
-                    productPrice: 9,
-                    recommendedOrderQuantity: 6,
-                    reorderRecommendation: {
-                      compactLabel: 'Order 6',
-                      likelyRangeLabel: 'Likely range 5-7',
-                      needProbabilityLabel: '91% need probability',
-                      optionalOrderLabel: null,
-                      quietLabel: 'Quiet',
-                      recommendationIssued: true,
-                      recommendedOrderLabel: 'Order 6',
-                      recommendedUnits: 6,
-                    },
-                    soldAsProduct: true,
-                  }}
+                  actionContext={skuActionContext}
                   onComplete={vi.fn(async () => {})}
                   skuId="sku-1"
                 />
@@ -547,5 +501,47 @@ describe('catalog item action sheets', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Resume draft' }));
     expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
     expect(screen.getByTestId('location')).toHaveTextContent('/work/capture/supplier-order');
+  });
+
+  test('falls back to the leave-page prompt when draft storage is blocked', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <SkuMutationActions
+                    actionContext={skuActionContext}
+                    onComplete={vi.fn(async () => {})}
+                    skuId="sku-1"
+                  />
+                  <LocationProbe />
+                </>
+              }
+              path="*"
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('Leave detail page?');
+      expect(within(dialog).queryByRole('button', { name: 'Delete draft and start new' })).not.toBeInTheDocument();
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
   });
 });

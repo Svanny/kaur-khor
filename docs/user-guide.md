@@ -14,7 +14,7 @@ Kaur Khor is a local-first desktop inventory workspace. It helps an operator kee
 - [Intake](#intake)
 - [Products](#catalog)
 - [Insights](#insights)
-- [Pressure](#pressure)
+- [Inventory](#inventory)
 - [Money](#money)
 - [Explain](#explain)
 - [Automations](#automations)
@@ -46,7 +46,7 @@ Most operators should use Kaur Khor in this order:
 2. Open **Work** to review queue, capture, and intake work.
 3. Use **Work / Capture** when something real changed.
 4. Open **Products** when item definitions, archive state, or automation exposure need attention.
-5. Open **Insights** when you need pressure, money, or explanation views.
+5. Open **Insights** when you need inventory, money, or explanation views.
 6. Use **History** from the command palette or Settings when you need saved reports, edits, or deletions.
 7. Use **Settings** for preferences, local data, planning, automation connection, help, benchmarks, and destructive maintenance.
 
@@ -57,7 +57,7 @@ The persistent sidebar is intentionally small:
 - **Home**: command home and daily entry point
 - **Work**: queue, capture, and intake
 - **Products**: active items, archived items, details, edits, and automation exposure
-- **Insights**: Pressure, Money, and Explain modes
+- **Insights**: Inventory, Money, and Explain modes
 - **Settings**: system, support, local data, automation connection, and maintenance
 
 Moved destinations remain reachable:
@@ -94,9 +94,11 @@ Queue is the decision surface for supplier and customer work. It is where operat
 
 ## Capture
 
-Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Products detail, Pressure, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
+Capture is the update-authoring workflow inside Work. It turns real-world events into saved local evidence that queues, Products detail, Inventory, Money, Explain, and History can read later. Use Capture when stock, orders, receipts, prices, flags, rankings, notes, or delivery details changed.
 
 For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
+
+After validation and any required receipt confirmation, saving a capture closes the session immediately and returns you to the previous Work surface. The bottom-left **Saving...** indicator stays visible while Kaur Khor finishes writing the observation, ticket/order updates, and any follow-up analysis in the background. If that background save fails, the draft remains recoverable and the normal workspace error surface reports the failure.
 
 ### Delivery Fee {#record-update-delivery-fee}
 
@@ -345,13 +347,137 @@ Dense overlay evidence such as supplier orders, receipts, or repeated regime mar
 
 ## Insights
 
-Insights is the entry point for operating signals. Its subpages are Pressure, Money, and Explain. Use this section to choose which lens fits the question: operational urgency, financial quality, or evidence-level explanation.
+Insights is the entry point for operating signals. Its subpages are Inventory, Money, and Explain. Use this section to choose which lens fits the question: inventory health, financial quality, or evidence-level explanation.
 
-When a custom time range is active in Pressure, Money, or Explain-adjacent views, the range menu shows the custom range edit button. The edit button stays hidden while a preset range is active so opening the menu does not imply a custom range already exists.
+When a custom time range is active in Inventory, Money, or Explain-adjacent views, the range menu shows the custom range edit button. The edit button stays hidden while a preset range is active so opening the menu does not imply a custom range already exists.
 
 When compare mode is on, a custom range can also carry a manually selected
 previous period. Pressure and Money use that previous period for comparison
 instead of always auto-shifting by the current range length.
+
+## Inventory
+
+Inventory is the stock-health subpage. It shows on-hand estimates, in/out flow, cover, inbound pipeline, future projections, count freshness, and service sellability without turning those facts into procurement commands.
+
+### Health Grid {#inventory-health-grid}
+
+The inventory health grid is the main table for SKU and service inventory facts. SKU rows represent physical stock. Service rows represent sellable capacity from linked SKUs. Use the scope, supplier, range, projection, row-set, and preset controls to change the grid without leaving the page.
+
+### Item {#inventory-column-item}
+
+Item identifies the SKU or service row being inspected. SKU rows show physical inventory context; service rows show sellable capacity context.
+
+### On Hand {#inventory-column-on-hand}
+
+On hand shows the current modeled stock or sellable capacity. When confidence intervals are visible, the secondary line shows the credible low-high range.
+
+### Flow {#inventory-column-flow}
+
+Flow splits selected-range movement into units in, units out, and adjustments. Use it to separate receipts, consumption, sales, and corrections.
+
+### Cover {#inventory-column-cover}
+
+Cover shows how long current stock is expected to last at modeled demand, along with the reorder point used as the restock threshold.
+
+### Projection {#inventory-column-projection}
+
+Projection shows modeled stock at the selected future horizon. Confidence intervals show the credible low-high range for that horizon.
+
+### Pipeline {#inventory-column-pipeline}
+
+Pipeline shows inbound stock already in motion and the next expected receipt window when one is available.
+
+### Service Exposure {#inventory-column-service-exposure}
+
+Service exposure shows linked services that may depend on the SKU, or bottleneck context for service rows.
+
+### Freshness {#inventory-column-freshness}
+
+Freshness shows how recent the latest count or inventory evidence is. Older evidence means the estimate depends more on modeled flow.
+
+### Stockout Risk {#inventory-column-stockout-risk}
+
+Stockout risk is the modeled probability that the item reaches or stays at zero available stock over the active horizon.
+
+### Demand {#inventory-column-demand}
+
+Demand/day estimates recent daily use or sales from observations, service consumption, and retail activity.
+
+### In Transit {#inventory-column-in-transit}
+
+In transit shows units already in supplier orders or receipts that are expected to arrive but are not counted on hand yet.
+
+### Order Probability {#inventory-column-order-probability}
+
+Order probability estimates whether an order or reorder need is active based on stock, demand, and lead-time evidence.
+
+### Units In {#inventory-column-units-in}
+
+Units in shows inventory added during the selected range, primarily supplier receipts and positive adjustments.
+
+### Units Out {#inventory-column-units-out}
+
+Units out shows inventory consumed, sold, or otherwise removed during the selected range.
+
+### Adjustments {#inventory-column-adjustments}
+
+Adjustments show manual corrections or non-sale inventory changes recorded during the selected range.
+
+### Receipts {#inventory-column-receipts}
+
+Receipts show units received into inventory during the selected range.
+
+### Lost Demand {#inventory-column-lost-demand}
+
+Lost demand estimates customer demand that could not be fulfilled because stock or service capacity was constrained.
+
+### Stock Position {#inventory-column-inventory-position}
+
+Inventory position combines on-hand stock and inbound stock, net of modeled demand, to approximate stock position after known pipeline movement.
+
+### Next Receipt {#inventory-column-next-receipt}
+
+Next receipt shows the nearest expected receipt window for inbound stock when one is known.
+
+### Lead Time {#inventory-column-lead-time}
+
+Lead time shows the modeled average time between supplier order and usable receipt.
+
+### Lead Time Uncertainty {#inventory-column-lead-time-uncertainty}
+
+Lead time uncertainty shows how variable the modeled supplier timing is.
+
+### Details {#inventory-column-details}
+
+Details opens the row panel with posterior stock, flow decomposition, inbound pipeline, and linked service capacity.
+
+### Cover Distribution {#inventory-cover-distribution}
+
+Cover distribution groups SKUs by days of cover. It helps show whether the catalog is concentrated around immediate stockout, short cover, medium cover, or longer cover.
+
+### Inbound Schedule {#inventory-inbound-schedule}
+
+Inbound schedule groups pipeline inventory by receipt timing. Use it to see what is overdue, due now, due this week, or arriving later.
+
+### Freshness {#inventory-freshness}
+
+Freshness summarizes how recent stock counts are across SKUs. Stale or missing counts mean the on-hand estimate depends more heavily on modeled flow.
+
+### Column View {#inventory-column-view}
+
+Column view describes the active grid preset. Health, Flow, Forecast, Pipeline, and Custom expose different factual slices of the same inventory rows.
+
+### Selected Service {#inventory-selected-service}
+
+Selected service shows sellable units, bottleneck probability, bottleneck SKU, contributor stack, and recovery pipeline for the service selected in the grid.
+
+### Selected SKU {#inventory-selected-sku}
+
+Selected SKU shows posterior stock, credible band, stockout risk, cover, latest count, flow totals, pipeline state, lead time, and linked services for the SKU selected in the grid.
+
+### Projection Matrix {#inventory-projection-matrix}
+
+Projection matrix compares today, 7-day, 14-day, and 30-day projected stock ranges across visible inventory rows.
 
 ## Pressure
 

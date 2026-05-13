@@ -174,6 +174,32 @@ class ResizeObserverMock {
 
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
 
+function buildAvailability(overrides: Partial<TradingChartModel['availability']> = {}): TradingChartModel['availability'] {
+  return {
+    inventory: false,
+    uncertainty: false,
+    reorderPoint: false,
+    safetyStock: false,
+    demand: false,
+    serviceDemand: false,
+    retailDemand: false,
+    availableCapacity: false,
+    demandMinusAvailableCapacity: false,
+    receipts: false,
+    ordersInTransit: false,
+    ordersLate: false,
+    ordersReadyToReceive: false,
+    ordersReceived: false,
+    newOrderFlags: false,
+    newReceiptFlags: false,
+    price: false,
+    leadTime: false,
+    leadTimeRange: false,
+    regime: false,
+    ...overrides,
+  };
+}
+
 const chartModel: TradingChartModel = {
   points: [
     {
@@ -189,6 +215,8 @@ const chartModel: TradingChartModel = {
       safetyStock: 4,
       serviceDemandMean: null,
       retailDemandMean: null,
+      availableCapacity: null,
+      demandMinusAvailableCapacity: null,
       receiptsMean: null,
       adjustmentsMean: null,
       ordersInTransitMean: null,
@@ -198,27 +226,20 @@ const chartModel: TradingChartModel = {
       newOrderFlag: null,
       newReceiptFlag: null,
       price: null,
+      leadTimeMean: null,
+      leadTimeLow: null,
+      leadTimeHigh: null,
       dominantRegime: null,
     },
   ],
   pointByIntervalIndex: new Map(),
   pointByTimeKey: new Map(),
-  availability: {
+  availability: buildAvailability({
     inventory: true,
     uncertainty: true,
     reorderPoint: true,
     safetyStock: true,
-    demand: false,
-    receipts: false,
-    ordersInTransit: false,
-    ordersLate: false,
-    ordersReadyToReceive: false,
-    ordersReceived: false,
-    newOrderFlags: false,
-    newReceiptFlags: false,
-    price: false,
-    regime: false,
-  },
+  }),
 };
 
 chartModel.pointByIntervalIndex.set(0, chartModel.points[0]!);
@@ -2544,22 +2565,7 @@ describe('SkuTradingChart settings', () => {
         ...chartModel.points[0]!,
         dominantRegime: 'normal',
       }],
-      availability: {
-        inventory: false,
-        uncertainty: false,
-        reorderPoint: false,
-        safetyStock: false,
-        demand: false,
-        receipts: false,
-        ordersInTransit: false,
-        ordersLate: false,
-        ordersReadyToReceive: false,
-        ordersReceived: false,
-        newOrderFlags: false,
-        newReceiptFlags: false,
-        price: false,
-        regime: true, // regime has data
-      },
+      availability: buildAvailability({ regime: true }),
     };
 
     renderChart({
@@ -2597,22 +2603,7 @@ describe('SkuTradingChart settings', () => {
         ...chartModel.points[0]!,
         dominantRegime: 'normal',
       }],
-      availability: {
-        inventory: false,
-        uncertainty: false,
-        reorderPoint: false,
-        safetyStock: false,
-        demand: false,
-        receipts: false,
-        ordersInTransit: false,
-        ordersLate: false,
-        ordersReadyToReceive: false,
-        ordersReceived: false,
-        newOrderFlags: false,
-        newReceiptFlags: false,
-        price: false,
-        regime: true,
-      },
+      availability: buildAvailability({ regime: true }),
     };
 
     renderChart({
@@ -2645,22 +2636,7 @@ describe('SkuTradingChart settings', () => {
         ...chartModel.points[0]!,
         dominantRegime: 'normal',
       }],
-      availability: {
-        inventory: false,
-        uncertainty: false,
-        reorderPoint: false,
-        safetyStock: false,
-        demand: false,
-        receipts: false,
-        ordersInTransit: false,
-        ordersLate: false,
-        ordersReadyToReceive: false,
-        ordersReceived: false,
-        newOrderFlags: false,
-        newReceiptFlags: false,
-        price: false,
-        regime: true,
-      },
+      availability: buildAvailability({ regime: true }),
     };
 
     renderChart({
