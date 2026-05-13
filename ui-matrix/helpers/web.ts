@@ -2,6 +2,7 @@ import { expect, type Download, type Page } from '@playwright/test';
 import {
   assertNoBrokenNumericText,
   assertNoDocumentOverflow,
+  assertInteractiveControlsStable,
   assertRenderedContent,
   assertViewportSizeStable,
   attachPageIssueCollector,
@@ -29,6 +30,7 @@ export async function assertEmbeddedUiStable(page: Page, context: string) {
   await assertRenderedContent(page, context);
   await assertNoDocumentOverflow(page, context);
   await assertNoBrokenNumericText(page, context);
+  await assertInteractiveControlsStable(page, context);
   await assertViewportSizeStable(page, context);
 }
 

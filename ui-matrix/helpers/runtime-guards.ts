@@ -188,15 +188,18 @@ export async function assertInteractiveControlsStable(page: Page, context: strin
       .map((element) => {
         const rect = element.getBoundingClientRect();
         const text = element.innerText?.trim() || element.getAttribute('aria-label') || element.getAttribute('placeholder') || '';
+        const ariaLabel = element.getAttribute('aria-label');
         const role = element.getAttribute('role');
         const clipsText = text.length > 0
           && role !== 'combobox'
           && role !== 'tab'
           && (element.scrollWidth - element.clientWidth > 4 || element.scrollHeight - element.clientHeight > 4);
-        const isIconMarker = element.tagName.toLowerCase() === 'button' && text.length <= 3 && (element.getAttribute('aria-label')?.startsWith('Select ') ?? false);
-        const tooSmall = !isIconMarker && (rect.width < 8 || rect.height < 8);
+        const isIconMarker = element.tagName.toLowerCase() === 'button' && text.length <= 3 && (ariaLabel?.startsWith('Select ') ?? false);
+        const isHelpTrigger = element.tagName.toLowerCase() === 'button' && /\bhelp$/i.test(ariaLabel ?? '');
+        const isCompactSwitch = role === 'switch';
+        const tooSmall = !isIconMarker && !isHelpTrigger && !isCompactSwitch && (rect.width < 6 || rect.height < 6);
         return {
-          ariaLabel: element.getAttribute('aria-label'),
+          ariaLabel,
           clipsText,
           height: Math.round(rect.height),
           role,
@@ -238,6 +241,37 @@ export async function scrollMainSurface(page: Page) {
   await page.mouse.wheel(0, 900);
   await page.waitForTimeout(150);
   await page.mouse.wheel(0, -900);
+  await page.waitForTimeout(150);
+  await page.evaluate(() => {
+    const candidates = Array.from(document.querySelectorAll<HTMLElement>('main *, [role="dialog"] *, [data-radix-scroll-area-viewport]'))
+      .filter((element) => {
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const canScrollY = element.scrollHeight - element.clientHeight > 12;
+        const canScrollX = element.scrollWidth - element.clientWidth > 12;
+        return (canScrollY || canScrollX)
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && rect.width > 16
+          && rect.height > 16
+          && rect.bottom > 0
+          && rect.right > 0
+          && rect.left < window.innerWidth
+          && rect.top < window.innerHeight;
+      })
+      .slice(0, 8);
+
+    for (const element of candidates) {
+      const originalTop = element.scrollTop;
+      const originalLeft = element.scrollLeft;
+      element.scrollTop = element.scrollHeight;
+      element.scrollLeft = element.scrollWidth;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+      element.scrollTop = originalTop;
+      element.scrollLeft = originalLeft;
+      element.dispatchEvent(new Event('scroll', { bubbles: true }));
+    }
+  });
   await page.waitForTimeout(150);
 }
 

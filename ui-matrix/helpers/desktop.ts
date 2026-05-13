@@ -1,4 +1,5 @@
 import type { Page, TestInfo } from '@playwright/test';
+import { expect } from '@playwright/test';
 import { copyFile, mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
@@ -16,22 +17,26 @@ export type LaunchedUiMatrixDesktop = LaunchedKaurKhorBenchmarkApp & {
 };
 
 interface LaunchDesktopOptions {
+  dataDirectory?: string;
   fixtureSize?: BenchmarkWorkspaceSize;
   fresh?: boolean;
   name: string;
+  outputDirectory?: string;
   testInfo: TestInfo;
 }
 
 export async function launchDesktopUiMatrix({
   fixtureSize = 'medium',
   fresh = false,
+  dataDirectory: existingDataDirectory,
   name,
+  outputDirectory: existingOutputDirectory,
   testInfo,
 }: LaunchDesktopOptions): Promise<LaunchedUiMatrixDesktop> {
   const runId = benchmarkRunId(`ui-matrix-${name}-${testInfo.retry}`);
-  const dataDirectory = await benchmarkDataDirectory(runId);
-  const outputDirectory = await benchmarkOutputDirectory(runId);
-  if (!fresh) {
+  const dataDirectory = existingDataDirectory ?? await benchmarkDataDirectory(runId);
+  const outputDirectory = existingOutputDirectory ?? await benchmarkOutputDirectory(runId);
+  if (!fresh && !existingDataDirectory) {
     await prepareBenchmarkWorkspace({ dataDirectory, size: fixtureSize });
     await copyBundledCatalogAssets(dataDirectory);
   }
@@ -168,4 +173,24 @@ export async function firstActiveCatalogTargets(page: Page) {
       skuId: catalog?.skus.find((sku) => !sku.archived)?.skuId ?? null,
     };
   });
+}
+
+export async function resizeDesktopWindow(
+  launched: LaunchedUiMatrixDesktop,
+  size: { height: number; width: number },
+) {
+  const window = await launched.app.browserWindow(launched.page);
+  await window.evaluate((browserWindow, nextSize) => {
+    browserWindow.setSize(nextSize.width, nextSize.height);
+  }, size);
+  await launched.page.waitForFunction(
+    (nextSize) => window.innerWidth <= nextSize.width && window.innerHeight <= nextSize.height,
+    size,
+  );
+  const viewport = await launched.page.evaluate(() => ({
+    height: window.innerHeight,
+    width: window.innerWidth,
+  }));
+  expect(viewport.width, 'desktop viewport should reflect resized Electron window width').toBeGreaterThan(0);
+  expect(viewport.height, 'desktop viewport should reflect resized Electron window height').toBeGreaterThan(0);
 }
