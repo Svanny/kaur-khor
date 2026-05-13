@@ -29,7 +29,13 @@ const snapshot: InventorySnapshot = {
   services: [service],
   ranking: [],
   sist: {
-    status: 'ready',
+    status: {
+      confidence: 'high',
+      reason: null,
+      reportCount: 1,
+      state: 'ready',
+      updatedAt: '2026-04-03T08:00:00.000Z',
+    },
     settings: {} as never,
     asOf: '2026-04-03T08:00:00.000Z',
     topRegime: 'normal',

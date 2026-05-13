@@ -144,6 +144,7 @@ describe('SettingsRoute', () => {
   const benchmarkStartRun = vi.fn();
   const benchmarkCancelRun = vi.fn();
   const benchmarkCompareRuns = vi.fn();
+  const benchmarkGenerateFlamegraph = vi.fn();
   const benchmarkRevealRun = vi.fn();
   const benchmarkOnRunEvent = vi.fn();
   const reloadLocation = vi.fn();
@@ -358,6 +359,11 @@ describe('SettingsRoute', () => {
       candidateRunId: 'candidate',
       metrics: [],
     });
+    benchmarkGenerateFlamegraph.mockResolvedValue({
+      artifactPath: '/tmp/kaur-khor/bench-results/gui-run/flamegraph.html',
+      runId: 'gui-run',
+      scenario: 'startup',
+    });
     benchmarkRevealRun.mockResolvedValue(undefined);
     benchmarkOnRunEvent.mockReturnValue(() => {});
     Object.defineProperty(window, 'location', {
@@ -398,6 +404,7 @@ describe('SettingsRoute', () => {
         startRun: benchmarkStartRun,
         cancelRun: benchmarkCancelRun,
         compareRuns: benchmarkCompareRuns,
+        generateFlamegraph: benchmarkGenerateFlamegraph,
         revealRun: benchmarkRevealRun,
         onRunEvent: benchmarkOnRunEvent,
       },
