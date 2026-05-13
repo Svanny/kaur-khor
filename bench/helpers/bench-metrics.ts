@@ -118,6 +118,43 @@ function measurementWindowBounds(events: KaurKhorBenchmarkEvent[]) {
   };
 }
 
+function backendRequestKey(event: KaurKhorBenchmarkEvent) {
+  const id = event.detail?.id;
+  if (typeof id !== 'number' && typeof id !== 'string') {
+    return null;
+  }
+  const role = typeof event.detail?.role === 'string' ? event.detail.role : 'unknown';
+  const workerIndex = typeof event.detail?.workerIndex === 'number' ? event.detail.workerIndex : 'unknown';
+  return `${role}:${workerIndex}:${id}`;
+}
+
+function backendRequestQueuedTimes(events: KaurKhorBenchmarkEvent[]) {
+  const queuedTimes = new Map<string, number>();
+  for (const event of events) {
+    if (event.name !== 'backend.core.request.queued') {
+      continue;
+    }
+    const key = backendRequestKey(event);
+    if (key) {
+      queuedTimes.set(key, event.ts);
+    }
+  }
+  return queuedTimes;
+}
+
+function backendRequestStartedBefore(
+  event: KaurKhorBenchmarkEvent,
+  queuedTimes: Map<string, number>,
+  cutoffTs: number,
+) {
+  if (event.name !== 'backend.core.request.resolve') {
+    return event.ts < cutoffTs;
+  }
+  const key = backendRequestKey(event);
+  const queuedAt = key ? queuedTimes.get(key) : null;
+  return (queuedAt ?? event.ts) < cutoffTs;
+}
+
 function detailNumber(event: KaurKhorBenchmarkEvent, key: string) {
   const value = event.detail?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
@@ -163,8 +200,10 @@ function eventsInMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {
     return events;
   }
   const { measurementStartTs, measurementEndTs } = window;
+  const queuedTimes = backendRequestQueuedTimes(events);
   return events.filter((event) =>
-    event.ts >= measurementStartTs
+    !backendRequestStartedBefore(event, queuedTimes, measurementStartTs)
+      && event.ts >= measurementStartTs
       && (measurementEndTs == null || event.ts <= measurementEndTs));
 }
 
@@ -173,7 +212,8 @@ function eventsBeforeMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {
   if (!window) {
     return [];
   }
-  return events.filter((event) => event.ts < window.measurementStartTs);
+  const queuedTimes = backendRequestQueuedTimes(events);
+  return events.filter((event) => backendRequestStartedBefore(event, queuedTimes, window.measurementStartTs));
 }
 
 function hasMeasurementWindow(events: KaurKhorBenchmarkEvent[]) {

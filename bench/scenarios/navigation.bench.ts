@@ -20,7 +20,7 @@ const SIDEBAR_SECTIONS: Array<{
   readyEvent: string;
 }> = [
   { label: 'Work', metric: 'nav.home_to_work_ms', path: '/work', readyEvent: 'route.work.ready' },
-  { label: 'Catalog', metric: 'nav.work_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
+  { label: 'Products', metric: 'nav.work_to_catalog_ms', path: '/catalog', readyEvent: 'route.catalog.ready' },
   { label: 'Insights', metric: 'nav.work_to_insights_ms', path: '/insights', readyEvent: 'route.insights.ready' },
   { label: 'Settings', path: '/settings', readyEvent: 'route.settings.ready' },
 ];

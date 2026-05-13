@@ -30,3 +30,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Renderer helpers that use `localStorage` or `sessionStorage` must resolve storage inside `try/catch`; optional chaining does not catch blocked browser storage getters.
 - Capture save must leave the route after local validation and receipt confirmation; keep observation, legacy order writes, and SENA reruns in the global saving scope so drafts survive background failures.
 - Shared IPC payload types consumed by preload or browser bridges must be re-exported from `@shared/ipc`, and generated/demo preferences must seed current nav ids rather than legacy aliases.
+- Floating title action geometry reads must be coalesced through `requestAnimationFrame`; keep initial measurement immediate and keep scroll/resize handlers light.

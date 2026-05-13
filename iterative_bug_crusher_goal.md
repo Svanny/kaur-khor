@@ -122,7 +122,7 @@ After each completed and verified batch, stage only the files that belong to the
 - Use targeted `git add <file>` commands.
 - Do not use broad staging unless the changed file set has been carefully reviewed.
 - Leave unrelated user changes untouched.
-- Do not commit.
+- Use Commit Skill. Update all relevant docs and knowledge learnt. Then stage all diffs/changes into meaningful commented commits. Make sure to give each staged commit meaningful summary for ease of review by manual code reviewer down the pipeline.
 
 Loop termination condition:
 

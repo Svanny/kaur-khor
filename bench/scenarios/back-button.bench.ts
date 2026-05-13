@@ -12,12 +12,12 @@ test('back button skips intra-page state changes and returns to previous page', 
   try {
     await waitForPersistedBenchmarkEventCount(launched, 'renderer.workspace.ready');
 
-    // Navigate to Catalog via sidebar
-    await clickSidebarNavigation(launched.page, 'Catalog');
+    // Navigate to Products via sidebar
+    await clickSidebarNavigation(launched.page, 'Products');
     await waitForPersistedBenchmarkEventCount(launched, 'route.catalog.ready');
     const catalogRoute = await currentBenchmarkRoute(launched.page);
 
-    // Navigate to Archive via the Archive link in Catalog
+    // Navigate to Archive via the Archive link in Products
     const archiveLink = launched.page.getByRole('link', { name: 'Archive' });
     await archiveLink.waitFor({ state: 'visible', timeout: 30_000 });
     await archiveLink.click();

@@ -4,6 +4,12 @@ import { cn } from '@/lib/utils';
 
 export const headerActionSurfaceClassName = compactActionSurfaceClassName;
 
+function cancelScheduledFrame(frameId: number | null) {
+  if (frameId != null) {
+    window.cancelAnimationFrame(frameId);
+  }
+}
+
 export function useFloatingTitleActions(enabled: boolean) {
   const [anchorElement, setAnchorElement] = useState<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -18,20 +24,31 @@ export function useFloatingTitleActions(enabled: boolean) {
       return;
     }
 
+    let frameId: number | null = null;
+
     const updateVisibility = () => {
+      frameId = null;
       const nextVisible = anchorElement.getBoundingClientRect().bottom <= 0;
       setVisible((current) => (current === nextVisible ? current : nextVisible));
     };
 
+    const scheduleVisibilityUpdate = () => {
+      if (frameId != null) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(updateVisibility);
+    };
+
     updateVisibility();
-    window.addEventListener('scroll', updateVisibility, { passive: true });
-    window.addEventListener('resize', updateVisibility);
-    document.addEventListener('scroll', updateVisibility, { capture: true, passive: true });
+    window.addEventListener('scroll', scheduleVisibilityUpdate, { passive: true });
+    window.addEventListener('resize', scheduleVisibilityUpdate);
+    document.addEventListener('scroll', scheduleVisibilityUpdate, { capture: true, passive: true });
 
     return () => {
-      window.removeEventListener('scroll', updateVisibility);
-      window.removeEventListener('resize', updateVisibility);
-      document.removeEventListener('scroll', updateVisibility, true);
+      cancelScheduledFrame(frameId);
+      window.removeEventListener('scroll', scheduleVisibilityUpdate);
+      window.removeEventListener('resize', scheduleVisibilityUpdate);
+      document.removeEventListener('scroll', scheduleVisibilityUpdate, true);
     };
   }, [anchorElement, enabled]);
 
@@ -58,14 +75,16 @@ export function useObservedFloatingIslandWidth({
 
     let observedElement: HTMLElement | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let frameId: number | null = null;
 
     const updateWidth = () => {
+      frameId = null;
       const nextElement = document.querySelector<HTMLElement>(selector);
       if (nextElement !== observedElement) {
         resizeObserver?.disconnect();
         observedElement = nextElement;
         if (observedElement && typeof ResizeObserver !== 'undefined') {
-          resizeObserver = new ResizeObserver(updateWidth);
+          resizeObserver = new ResizeObserver(scheduleWidthUpdate);
           resizeObserver.observe(observedElement);
         } else {
           resizeObserver = null;
@@ -74,13 +93,21 @@ export function useObservedFloatingIslandWidth({
       setWidth(observedElement?.getBoundingClientRect().width ?? 0);
     };
 
+    const scheduleWidthUpdate = () => {
+      if (frameId != null) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(updateWidth);
+    };
+
     updateWidth();
-    window.addEventListener('resize', updateWidth);
-    window.addEventListener('scroll', updateWidth, { passive: true });
+    window.addEventListener('resize', scheduleWidthUpdate);
+    window.addEventListener('scroll', scheduleWidthUpdate, { passive: true });
 
     return () => {
-      window.removeEventListener('resize', updateWidth);
-      window.removeEventListener('scroll', updateWidth);
+      cancelScheduledFrame(frameId);
+      window.removeEventListener('resize', scheduleWidthUpdate);
+      window.removeEventListener('scroll', scheduleWidthUpdate);
       resizeObserver?.disconnect();
     };
   }, [enabled, selector]);

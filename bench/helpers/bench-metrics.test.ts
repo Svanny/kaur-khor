@@ -315,6 +315,65 @@ describe('buildScenarioSummary', () => {
     expect(summary.derivedMetrics?.['harness.overhead_p95_ms']).toBe(40);
   });
 
+  it('keeps backend requests queued before measurement out of interactive queue waits', () => {
+    const summary = buildScenarioSummary({
+      runId: 'run-1',
+      scenario: 'stability',
+      events: [
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.queued',
+          phase: 'start',
+          ts: 100,
+          command: 'sena.getObservationFingerprint',
+          detail: { id: 1, role: 'read', workerIndex: 1 },
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_start',
+          ts: 200,
+          phase: 'instant',
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 300,
+          command: 'sena.getObservationFingerprint',
+          durationMs: 240,
+          detail: { id: 1, role: 'read', workerIndex: 1, queueWaitMs: 220 },
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.queued',
+          phase: 'start',
+          ts: 320,
+          command: 'sena.getDiagnostics',
+          detail: { id: 2, role: 'read', workerIndex: 1 },
+        }),
+        benchmarkEvent({
+          category: 'core-command',
+          name: 'backend.core.request.resolve',
+          phase: 'end',
+          ts: 340,
+          command: 'sena.getDiagnostics',
+          durationMs: 20,
+          detail: { id: 2, role: 'read', workerIndex: 1, queueWaitMs: 5 },
+        }),
+        benchmarkEvent({
+          category: 'startup',
+          name: 'benchmark.phase.measurement_end',
+          ts: 400,
+          phase: 'instant',
+        }),
+      ],
+    });
+
+    expect(summary.derivedMetrics?.['backend.core.interactive_queue_wait_p95_ms']).toBe(5);
+    expect(summary.derivedMetrics?.['backend.core.read_pool_queue_wait_p95_ms']).toBe(5);
+    expect(summary.derivedMetrics?.['backend.core.setup_queue_wait_p95_ms']).toBe(220);
+  });
+
   it('reports zero interactive queue wait when measured actions are served from cache', () => {
     const summary = buildScenarioSummary({
       runId: 'run-1',

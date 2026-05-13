@@ -70,68 +70,68 @@ const powershellSourceBuildCommands = [
   '.\\scripts\\build-from-source.ps1 --update',
 ] as const;
 const sourceBuildCodeFontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
-const screenshotWidth = 3456;
-const screenshotHeight = 1984;
+const screenshotWidth = 1600;
+const screenshotHeight = 919;
 const screenshotSlides = [
   {
     alt: 'Kaur Khor mission control overview showing the main work queue',
-    image: publicPath('/screenshots/web-current-overview.png'),
+    image: publicPath('/screenshots/web-current-overview.webp'),
     label: 'Mission Control',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor supplier queue showing supplier follow-up work',
-    image: publicPath('/screenshots/web-current-queue-supplier.png'),
+    image: publicPath('/screenshots/web-current-queue-supplier.webp'),
     label: 'Supplier queue',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor customer queue showing customer order follow-up work',
-    image: publicPath('/screenshots/web-current-queue-customer.png'),
+    image: publicPath('/screenshots/web-current-queue-customer.webp'),
     label: 'Customer queue',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor products view showing searchable SKUs and services',
-    image: publicPath('/screenshots/web-current-catalog.png'),
+    image: publicPath('/screenshots/web-current-catalog.webp'),
     label: 'Products',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor record update workflow for stock and order changes',
-    image: publicPath('/screenshots/web-current-record-update.png'),
+    image: publicPath('/screenshots/web-current-record-update.webp'),
     label: 'Point-of-Sale and updates',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor stock count capture session for physical inventory counts',
-    image: publicPath('/screenshots/web-current-stock-count.png'),
+    image: publicPath('/screenshots/web-current-stock-count.webp'),
     label: 'Stock count',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor customer order capture session for pending customer demand',
-    image: publicPath('/screenshots/web-current-customer-order.png'),
+    image: publicPath('/screenshots/web-current-customer-order.webp'),
     label: 'Customer order',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor business health dashboard showing pressure and diagnostics',
-    image: publicPath('/screenshots/web-current-performance.png'),
+    image: publicPath('/screenshots/web-current-performance.webp'),
     label: 'Business health',
     width: screenshotWidth,
     height: screenshotHeight,
   },
   {
     alt: 'Kaur Khor analysis workspace showing inventory insight tools',
-    image: publicPath('/screenshots/web-current-analysis.png'),
+    image: publicPath('/screenshots/web-current-analysis.webp'),
     label: 'Insights',
     width: screenshotWidth,
     height: screenshotHeight,
@@ -1070,7 +1070,11 @@ function WorkshopIllustration({ language }: { language: AppLanguage }) {
             key={activeSlideItem.image}
             alt={landingText(language, activeSlideItem.alt)}
             className="absolute inset-0 h-full w-full object-cover"
+            decoding="async"
+            height={activeSlideItem.height}
+            loading="lazy"
             src={activeSlideItem.image}
+            width={activeSlideItem.width}
           />
         </div>
         <div className="mx-auto flex w-fit gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label={landingText(language, 'Screenshot carousel')}>

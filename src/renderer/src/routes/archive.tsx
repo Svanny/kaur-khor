@@ -1,4 +1,4 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { EntityLayersIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import { ActionArchiveRestoreIcon, ActionResetIcon } from '@icons/actions';
 import type { IconComponent } from '@icons';
@@ -54,6 +54,7 @@ function updateArchiveSearchParams(
 
 export function ArchiveRoute() {
   const inventory = useInventory();
+  const navigate = useNavigate();
   const { language, t } = usePreferences();
   const [pendingUnarchive, setPendingUnarchive] = useState<{
     entityId: string;
@@ -135,9 +136,10 @@ export function ArchiveRoute() {
         }}
       />
       <WorkspaceTitleCard
+        helperExemptReason="Archive title card descriptor and filter controls explain the route scope."
         title={
           <span className="flex min-w-0 items-center gap-3">
-            <RouteBackButton className="shrink-0" />
+            <RouteBackButton className="shrink-0" onClick={() => navigate('/catalog', { replace: true })} />
             <span className="truncate">{translateUiLiteral(language, 'Archive')}</span>
           </span>
         }
@@ -201,6 +203,7 @@ export function ArchiveRoute() {
       <div className="grid gap-6">
         {showSkus && archivedSkus.length > 0 ? (
           <WorkspacePanel
+            helperExemptReason="Archive SKU panel descriptor explains why these items are separated from active products."
             title={translateUiLiteral(language, 'SKUs ({count})', { count: archivedSkus.length })}
             descriptor={translateUiLiteral(
               language,
@@ -242,6 +245,7 @@ export function ArchiveRoute() {
 
         {showServices && archivedServices.length > 0 ? (
           <WorkspacePanel
+            helperExemptReason="Archive service panel descriptor explains why these services are separated from active products."
             title={`${translateUiLiteral(language, 'Services')} (${archivedServices.length})`}
             descriptor={translateUiLiteral(language, 'Archived services hidden from active planning and products workspaces.')}
           >

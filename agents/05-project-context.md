@@ -21,9 +21,8 @@
 - Startup benchmark: `pnpm bench:startup`
 - Power User startup benchmark: `KAUR_KHOR_BENCHMARK_FIXTURE_SIZE=power-user pnpm bench:startup`
 - Navigation benchmark: `pnpm bench:navigation`
-- Overview benchmark: `pnpm bench:overview`
-- Automations benchmark: `pnpm bench:automations`
-- Record update benchmark: `pnpm bench:record-update`
+- Work benchmark: `pnpm bench:work`
+- Capture benchmark: `pnpm bench:capture`
 - Detail-pages benchmark: `pnpm bench:detail-pages`
 - Stability benchmark: `pnpm bench:stability`
 - Security gate: `bash tool/security/run_security_checks.sh`

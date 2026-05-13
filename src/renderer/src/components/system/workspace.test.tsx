@@ -192,6 +192,54 @@ describe('WorkspacePanel', () => {
     });
   });
 
+  test('coalesces repeated floating action scroll measurements into one animation frame', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      bottom: 24,
+      height: 120,
+      left: 0,
+      right: 800,
+      top: -96,
+      width: 800,
+      x: 0,
+      y: -96,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockReturnValue(1);
+    const cancelAnimationFrameSpy = vi
+      .spyOn(window, 'cancelAnimationFrame')
+      .mockImplementation(() => undefined);
+
+    const { unmount } = render(
+      <div data-testid="embedded-scroll-container">
+        <PreferencesProvider>
+          <WorkspaceTitleCard
+            actions={<button type="button">Quick action</button>}
+            title="Panel title"
+          />
+        </PreferencesProvider>
+      </div>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Panel title')).toBeInTheDocument();
+    });
+
+    fireEvent.scroll(screen.getByTestId('embedded-scroll-container'));
+    fireEvent.scroll(screen.getByTestId('embedded-scroll-container'));
+    fireEvent.scroll(screen.getByTestId('embedded-scroll-container'));
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(1);
+
+    requestAnimationFrameSpy.mockRestore();
+    cancelAnimationFrameSpy.mockRestore();
+  });
+
   test('applies shared header action sizing to title-card and floating action surfaces', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: -12,
