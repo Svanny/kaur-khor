@@ -481,6 +481,47 @@ chmod +x "$node_dir/node"
     expect(workflow).toContain('node scripts/package-source-release.mjs');
   });
 
+  test('release workflow builds tag-specific release notes without stale hardcoded highlights', () => {
+    const workflow = readFileSync(resolve('.github/workflows/release.yml'), 'utf8');
+
+    expect(workflow).toContain('node scripts/build-release-notes.mjs "${RUNNER_TEMP}/release-notes.md"');
+    expect(workflow).not.toContain('Added a desktop-only Settings / Updates page');
+    expect(workflow).not.toContain('Added pre-update snapshot export prompts');
+    expect(workflow).not.toContain('Harmonized source-build archive names');
+  });
+
+  test('release note builder renders the current tag diff instead of stale feature copy', async () => {
+    const { buildReleaseNotes } = await import(pathToFileURL(resolve('scripts/build-release-notes.mjs')).href) as {
+      buildReleaseNotes: (input: {
+        releaseTag: string;
+        previousTag: string;
+        changes: string[];
+        signing: {
+          macSigned: boolean;
+          macNotarized: boolean;
+          windowsSigned: boolean;
+        };
+      }) => string;
+    };
+
+    const notes = buildReleaseNotes({
+      releaseTag: 'v0.5.2',
+      previousTag: 'v0.5.1',
+      changes: ['- fix(release): Generate tag-specific release notes (abc1234)'],
+      signing: {
+        macSigned: false,
+        macNotarized: false,
+        windowsSigned: true,
+      },
+    });
+
+    expect(notes).toContain('Kaur Khor v0.5.2 includes the non-merge changes listed below');
+    expect(notes).toContain('## Changes since v0.5.1');
+    expect(notes).toContain('- fix(release): Generate tag-specific release notes (abc1234)');
+    expect(notes).toContain('- Windows signing: yes');
+    expect(notes).not.toContain('Added a desktop-only Settings / Updates page');
+  });
+
   test('Windows packaging uses a Windows ico for installed app identity', () => {
     const config = readFileSync(resolve('electron-builder.yml'), 'utf8');
 
