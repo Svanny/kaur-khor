@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, test, vi } from 'vitest';
-import type { AutomationOrderIntake } from '@shared/automation';
+import type { AutomationOrderIntake, PromoteAutomationIntakeResult } from '@shared/automation';
+import type { SenaTicketEvent } from '@shared/sena';
 import { AutomationIntakeDrawer } from './intake-drawer';
 
 beforeAll(() => {
@@ -11,6 +12,25 @@ beforeAll(() => {
   Element.prototype.scrollIntoView ??= vi.fn();
 });
 
+const promotedTicketEvent: SenaTicketEvent = {
+  ticketId: 'ticket-customer-1',
+  ticketFamily: 'customer',
+  lifecycle: 'open',
+  stage: 'pending',
+  revision: 1,
+  eventType: 'created',
+  occurredAt: '2026-04-21T00:00:00.000Z',
+  lines: [],
+};
+
+function promotedIntakeResult(): PromoteAutomationIntakeResult {
+  return {
+    intake: makeIntake(),
+    ticketEvent: promotedTicketEvent,
+    commercialEvents: [],
+  };
+}
+
 function makeIntake(): AutomationOrderIntake {
   return {
     channel: 'telegram',
@@ -18,10 +38,13 @@ function makeIntake(): AutomationOrderIntake {
     createdAt: '2026-04-21T00:00:00.000Z',
     customerDisplayName: 'Dara',
     customerHandle: '@dara',
+    currencyCode: 'USD',
+    deliveryFee: null,
     intakeId: 'intake-1',
     lines: [
       {
         ambiguityReason: null,
+        availabilityStatus: 'available',
         entityId: 'sku-1',
         entityType: 'sku',
         lineId: 'line-1',
@@ -38,7 +61,6 @@ function makeIntake(): AutomationOrderIntake {
     promotedTicketId: null,
     quotedSubtotal: 12,
     quotedTotal: 12,
-    rawText: 'soap 2',
     status: 'quoted',
     updatedAt: '2026-04-21T00:00:00.000Z',
   };
@@ -67,12 +89,7 @@ describe('AutomationIntakeDrawer', () => {
 
   test('selects an existing customer ticket before appending intake', async () => {
     const user = userEvent.setup();
-    const onPromote = vi.fn(async () => ({
-      intake: makeIntake(),
-      ticketEvent: {
-        ticketId: 'ticket-customer-1',
-      },
-    }));
+    const onPromote = vi.fn(async () => promotedIntakeResult());
 
     render(
       <AutomationIntakeDrawer
@@ -112,12 +129,7 @@ describe('AutomationIntakeDrawer', () => {
 
   test('shows telegram handle, chat link, and sends edited customer message payload', async () => {
     const user = userEvent.setup();
-    const onPromote = vi.fn(async () => ({
-      intake: makeIntake(),
-      ticketEvent: {
-        ticketId: 'ticket-customer-1',
-      },
-    }));
+    const onPromote = vi.fn(async () => promotedIntakeResult());
     const onViewChat = vi.fn();
 
     render(
