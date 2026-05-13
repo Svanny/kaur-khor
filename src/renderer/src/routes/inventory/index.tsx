@@ -291,7 +291,10 @@ const columnHelpByKey: Record<InventoryColumnKey | 'details', string> = {
   inTransit: 'Units already in supplier orders or receipts that are expected to arrive but are not yet counted on hand.',
   inventoryPosition: 'On-hand stock plus inbound stock, net of modeled demand. This approximates the stock position after known pipeline movement.',
   item: 'The SKU or service being inspected, with supplier context and focus reasons that explain why it appears in this view.',
+  leadTime: 'Expected supplier lead time in days, using the latest posterior estimate or SKU lead-time hints when detail evidence is still thin.',
+  leadTimeUncertainty: 'Estimated lead-time spread in days. Higher uncertainty means the next receipt window is less predictable.',
   lostDemand: 'Estimated customer demand that could not be fulfilled because stock or service capacity was constrained.',
+  nextReceipt: 'The next expected receipt window for inbound stock, derived from open pipeline evidence and lead-time estimates.',
   onHand: 'Current estimated stock on hand. The first number is the posterior mean; the range shows the credible low-high band.',
   orderProbability: 'Estimated probability that an order or reorder need is active based on stock, demand, and lead-time evidence.',
   pipeline: 'Inbound pipeline status: how many units are in transit and the next expected receipt window.',
@@ -1113,15 +1116,16 @@ export function InsightsInventoryRoute() {
       return;
     }
 
+    const observedElement = element;
     function updateTableWidth() {
-      const nextWidth = Math.floor(element.getBoundingClientRect().width);
+      const nextWidth = Math.floor(observedElement.getBoundingClientRect().width);
       setGridTableWidth((currentWidth) => (Math.abs(currentWidth - nextWidth) <= 1 ? currentWidth : nextWidth));
     }
 
     updateTableWidth();
     window.addEventListener('resize', updateTableWidth);
     const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateTableWidth);
-    resizeObserver?.observe(element);
+    resizeObserver?.observe(observedElement);
     const animationFrame = window.requestAnimationFrame(updateTableWidth);
 
     return () => {
@@ -1181,7 +1185,11 @@ export function InsightsInventoryRoute() {
   if (inventory.isLoading && !visibleCatalog) {
     return (
       <WorkspacePage className="gap-5">
-        <WorkspaceTitleCardWireframe />
+        <WorkspaceTitleCardWireframe
+          descriptor={translateUiLiteral(language, 'Preparing inventory health signals and pipeline evidence.')}
+          eyebrow={translateUiLiteral(language, 'Inventory')}
+          title={translateUiLiteral(language, 'Loading inventory health')}
+        />
         <div
           className={rightRailLayoutClassName(showRightRailCards)}
           style={{
@@ -1189,9 +1197,9 @@ export function InsightsInventoryRoute() {
           }}
         >
           <div className="grid gap-6">
-            <WireframeRows rows={6} />
+            <WireframeRows rowCount={6} />
           </div>
-          {showRightRailCards ? <WireframeRailCards /> : null}
+          {showRightRailCards ? <WireframeRailCards count={3} /> : null}
         </div>
       </WorkspacePage>
     );
