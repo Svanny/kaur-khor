@@ -1,6 +1,9 @@
 name: pages
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
@@ -12,7 +15,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -36,6 +39,7 @@ jobs:
         with:
           node-version: 25
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -48,13 +52,14 @@ jobs:
 
       - name: Configure Pages
         id: configure-pages
+        if: github.event_name == 'push'
         uses: actions/configure-pages@v5
         continue-on-error: true
         with:
           enablement: true
 
       - name: Upload Pages artifact
-        if: steps.configure-pages.outcome == 'success'
+        if: github.event_name == 'push' && steps.configure-pages.outcome == 'success'
         uses: actions/upload-pages-artifact@v3
         with:
           path: out/web
@@ -63,7 +68,7 @@ jobs:
     name: deploy-pages
     runs-on: ubuntu-latest
     needs: build
-    if: needs.build.outputs.pages-configured == 'true'
+    if: github.event_name == 'push' && needs.build.outputs.pages-configured == 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
