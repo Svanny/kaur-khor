@@ -2,6 +2,8 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { getTranslation } from '@/lib/translations';
+import type { InventoryContextValue } from '@/state/inventory';
+import type { SenaAnalysisRunRecord } from '@shared/sena';
 import { AnalysisContent } from './analysis-content';
 
 const analysisWorkbenchMock = vi.fn();
@@ -70,8 +72,26 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function createInventory(overrides: Record<string, unknown> = {}) {
+function makeRun(runId: string): SenaAnalysisRunRecord {
   return {
+    algorithmVersion: 'sena-analysis-v3',
+    completedAt: '2026-04-03T08:00:00.000Z',
+    createdAt: '2026-04-03T08:00:00.000Z',
+    diagnostics: null,
+    error: null,
+    observationCount: 0,
+    ownerSub: 'desktop-owner',
+    primaryArtifactKey: null,
+    runId,
+    status: 'succeeded',
+    summary: null,
+  };
+}
+
+function createInventory(overrides: Partial<InventoryContextValue> = {}): InventoryContextValue {
+  return {
+    snapshot: null,
+    reports: [],
     catalog: {
       schemaVersion: 1,
       skus: [],
@@ -80,12 +100,22 @@ function createInventory(overrides: Record<string, unknown> = {}) {
       sharingMask: [],
     },
     diagnostics: null,
+    error: null,
     isLoading: false,
+    isPreparingWorkspace: false,
     isSaving: false,
-    latestRun: { runId: 'run-1' },
+    latestRun: makeRun('run-1'),
+    observationFingerprint: null,
     observations: [],
-    retrySenaRun: vi.fn(async () => ({ runId: 'run-1' })),
-    triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+    orderBatches: [],
+    recordUpdateContext: null,
+    senaMeta: {
+      catalogHash: null,
+      lastBootstrapSkuId: null,
+      lastCompletedRunId: null,
+    },
+    retrySenaRun: vi.fn(async () => makeRun('run-1')),
+    triggerSenaRun: vi.fn(async () => makeRun('run-2')),
     workspaceSummary: {
       ownerSub: 'desktop-owner',
       runId: 'run-1',
@@ -98,6 +128,95 @@ function createInventory(overrides: Record<string, unknown> = {}) {
       highRiskSkuIds: [],
       skuSummaries: [],
     },
+    reload: vi.fn(async () => {}),
+    loadInventorySnapshot: vi.fn(async () => {
+      throw new Error('loadInventorySnapshot is not implemented in this test fixture');
+    }),
+    listStockReports: vi.fn(async () => []),
+    upsertSenaCatalog: vi.fn(async (payload) => payload),
+    renameCatalogEntity: vi.fn(async () => {
+      throw new Error('renameCatalogEntity is not implemented in this test fixture');
+    }),
+    archiveCatalogEntity: vi.fn(async () => {
+      throw new Error('archiveCatalogEntity is not implemented in this test fixture');
+    }),
+    deleteCatalogEntity: vi.fn(async () => {
+      throw new Error('deleteCatalogEntity is not implemented in this test fixture');
+    }),
+    unarchiveCatalogEntity: vi.fn(async () => {
+      throw new Error('unarchiveCatalogEntity is not implemented in this test fixture');
+    }),
+    loadSenaCatalog: vi.fn(async () => null),
+    ingestSenaObservation: vi.fn(async (payload) => ({ input: payload, observationId: 'obs-test', ownerSub: 'desktop-owner' })),
+    updateSenaObservation: vi.fn(async (payload) => ({
+      input: payload.input,
+      observationId: payload.observationId,
+      ownerSub: 'desktop-owner',
+    })),
+    deleteSenaObservation: vi.fn(async () => {}),
+    listSenaObservations: vi.fn(async () => []),
+    loadSenaObservations: vi.fn(async () => []),
+    listSenaObservationPage: vi.fn(async () => ({
+      hasOlder: false,
+      latestObservedAt: null,
+      nextCursor: null,
+      observations: [],
+      totalCount: 0,
+    })),
+    loadWorkSupportData: vi.fn(async () => ({
+      observationPage: null,
+      orderBatches: [],
+      recordUpdateContext: {
+        latestDeliveryFeeByBucket: {},
+        latestObservedAt: null,
+        latestOrderBySku: {},
+        latestReceiptBySku: {},
+        latestRetailSaleBySku: {},
+        latestServiceSaleByService: {},
+        latestStockBySku: {},
+        latestTicketsById: {},
+        observationFingerprint: { count: 0, latestObservationId: null, latestObservedAt: null },
+        openTicketsByFamily: { customer: [], supplier: [] },
+        recentActivity: [],
+      },
+    })),
+    loadSenaRecordUpdateContext: vi.fn(async () => ({
+      latestDeliveryFeeByBucket: {},
+      latestObservedAt: null,
+      latestOrderBySku: {},
+      latestReceiptBySku: {},
+      latestRetailSaleBySku: {},
+      latestServiceSaleByService: {},
+      latestStockBySku: {},
+      latestTicketsById: {},
+      observationFingerprint: { count: 0, latestObservationId: null, latestObservedAt: null },
+      openTicketsByFamily: { customer: [], supplier: [] },
+      recentActivity: [],
+    })),
+    listSenaOrderBatches: vi.fn(async () => []),
+    loadSenaOrderBatches: vi.fn(async () => []),
+    createSenaOrderBatch: vi.fn(async () => {
+      throw new Error('createSenaOrderBatch is not implemented in this test fixture');
+    }),
+    updateSenaOrderBatch: vi.fn(async () => {
+      throw new Error('updateSenaOrderBatch is not implemented in this test fixture');
+    }),
+    updateSenaOrderChild: vi.fn(async () => {
+      throw new Error('updateSenaOrderChild is not implemented in this test fixture');
+    }),
+    splitSenaOrderChild: vi.fn(async () => {
+      throw new Error('splitSenaOrderChild is not implemented in this test fixture');
+    }),
+    runSavingTask: vi.fn(async (task) => task()),
+    runWorkspacePreparation: vi.fn(async (task) => task()),
+    loadSenaWorkspaceSummary: vi.fn(async () => null),
+    loadSenaSkuDetail: vi.fn(async () => null),
+    loadSenaServiceDetail: vi.fn(async () => null),
+    clearSenaSkuDetailCache: vi.fn(async () => {}),
+    clearSenaServiceDetailCache: vi.fn(async () => {}),
+    loadSenaDiagnostics: vi.fn(async () => null),
+    loadSenaRunStatus: vi.fn(async () => null),
+    updateSenaMeta: vi.fn(),
     ...overrides,
   };
 }
@@ -287,7 +406,7 @@ describe('AnalysisContent', () => {
 
   it('animates and disables the rerun button while analysis is running', async () => {
     const user = userEvent.setup();
-    const run = deferred<{ runId: string }>();
+    const run = deferred<SenaAnalysisRunRecord>();
     const retrySenaRun = vi.fn(() => run.promise);
 
     render(
@@ -322,7 +441,7 @@ describe('AnalysisContent', () => {
     expect(button).toHaveAttribute('aria-busy', 'true');
     expect(button.querySelector('.animate-spin')).not.toBeNull();
 
-    run.resolve({ runId: 'run-1' });
+    run.resolve(makeRun('run-1'));
     await waitFor(() => {
       expect(button).not.toBeDisabled();
     });
