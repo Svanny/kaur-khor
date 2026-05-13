@@ -8,6 +8,7 @@ import {
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
   buildCaptureSessionHref,
   buildCustomerTicketCaptureHref,
   buildSupplierTicketCaptureHref,
@@ -24,6 +25,7 @@ describe('record update routes', () => {
       RECORD_UPDATE_CUSTOMER_PENDING_PATH,
       RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
       RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+      RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
       RECORD_UPDATE_CUSTOM_PATH,
     ]);
     expect(new Set(RECORD_UPDATE_LANES.map((lane) => lane.draftStorageKey)).size).toBe(RECORD_UPDATE_LANES.length);

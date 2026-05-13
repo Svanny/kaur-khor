@@ -8,7 +8,9 @@ export function SearchInput({
   className = 'h-12 min-w-0 rounded-full',
   inputClassName,
   inputRef,
+  onFocus,
   onKeyDown,
+  onPointerDown,
   placeholder,
   value,
   onChange,
@@ -19,7 +21,9 @@ export function SearchInput({
   className?: string;
   inputClassName?: string;
   inputRef?: React.Ref<HTMLInputElement>;
+  onFocus?: React.FocusEventHandler<HTMLInputElement>;
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
+  onPointerDown?: React.PointerEventHandler<HTMLInputElement>;
   placeholder: string;
   value: string;
   onChange: React.ChangeEventHandler<HTMLInputElement>;
@@ -40,7 +44,9 @@ export function SearchInput({
         type="search"
         value={value}
         onChange={onChange}
+        onFocus={onFocus}
         onKeyDown={onKeyDown}
+        onPointerDown={onPointerDown}
       />
     </InputGroup>
   );
