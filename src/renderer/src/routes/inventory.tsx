@@ -665,6 +665,7 @@ export function InventoryRoute() {
       <WorkspacePage>
         <WorkspaceTitleCard
           eyebrow={translateUiLiteral(language, 'Products')}
+          helperExemptReason="Empty products title card is covered by the descriptor and first-SKU action."
           title={translateUiLiteral(language, 'Set up products')}
           descriptor={translateUiLiteral(language, 'Start with the first SKU. Kaur Khor uses products to connect stock, services, and planning.')}
           actions={
@@ -689,6 +690,7 @@ export function InventoryRoute() {
     <WorkspacePage>
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Products')}
+        helperExemptReason="Products route title card is covered by the descriptor and catalog controls."
         title={translateUiLiteral(language, 'Offered Selections')}
         descriptor={translateUiLiteral(language, 'Browse products, search by name or description, and jump straight into the next edit.')}
         actions={

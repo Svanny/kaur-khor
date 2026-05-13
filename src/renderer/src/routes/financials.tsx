@@ -705,6 +705,7 @@ export function FinancialsRoute() {
   return (
     <WorkspacePage className="gap-5">
       <WorkspaceTitleCard
+        helperExemptReason="Financials title card uses the descriptor and section blocks as its route-level helper copy."
         title={
           <span className="flex min-w-0 items-center gap-3">
             <RouteBackButton className="shrink-0" />

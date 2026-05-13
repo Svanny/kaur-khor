@@ -4633,6 +4633,7 @@ function CustomerPendingRetailStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record open retail commitments without changing physical stock on hand.')}
+      helperExemptReason="Pending retail order panel is covered by the descriptor and mode-specific field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Open retail / sellable SKU orders')}
     >
@@ -4745,6 +4746,7 @@ function CustomerPendingServiceStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record open service commitments without marking them fulfilled yet.')}
+      helperExemptReason="Pending service order panel is covered by the descriptor and mode-specific field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Open service orders')}
     >
@@ -4889,6 +4891,7 @@ function SalesRetailStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={resolvedDescriptor}
+      helperExemptReason="Retail sales panel is covered by the descriptor, question, and helper copy."
       style={recordUpdateWhiteCardStyle}
       title={resolvedTitle}
     >
@@ -5053,6 +5056,7 @@ function SalesServiceStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={resolvedDescriptor}
+      helperExemptReason="Service sales panel is covered by the descriptor, question, and helper copy."
       style={recordUpdateWhiteCardStyle}
       title={resolvedTitle}
     >
@@ -5246,6 +5250,7 @@ function RecordOrderStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Log new orders, confirm expected arrival timing, and optionally adjust ETA assumptions before saving.')}
+      helperExemptReason="Supplier reorder panel is covered by the descriptor and table field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Reorder table')}
     >
@@ -5385,6 +5390,7 @@ function RecordReceiptStep({
     <WorkspacePanel
       className={recordUpdateWhiteCardClassName}
       descriptor={translateUiLiteral(language, 'Record the stock that physically arrived and confirm the received date before saving.')}
+      helperExemptReason="Supplier receipt panel is covered by the descriptor and receipt field labels."
       style={recordUpdateWhiteCardStyle}
       title={translateUiLiteral(language, 'Record receipt')}
     >

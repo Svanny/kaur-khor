@@ -445,13 +445,7 @@ function collectIntentText(node: ts.JsxElement | ts.JsxSelfClosingElement): stri
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      add(attribute.initializer.text);
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      add(attribute.initializer.expression.getText());
-    }
+    add(attributeExpressionText(attribute));
   }
 
   return parts.join(' ');
@@ -471,13 +465,7 @@ function buttonVariantExpression(node: ts.JsxElement | ts.JsxSelfClosingElement)
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      return attribute.initializer.text;
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      return attribute.initializer.expression.getText();
-    }
+    return attributeExpressionText(attribute);
   }
 
   return null;
@@ -491,13 +479,7 @@ function buttonClassExpression(node: ts.JsxElement | ts.JsxSelfClosingElement): 
       continue;
     }
 
-    if (attribute.initializer && ts.isStringLiteral(attribute.initializer)) {
-      return attribute.initializer.text;
-    }
-
-    if (attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression) {
-      return attribute.initializer.expression.getText();
-    }
+    return attributeExpressionText(attribute);
   }
 
   return '';
