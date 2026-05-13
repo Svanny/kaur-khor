@@ -17,6 +17,8 @@ class MockResizeObserver {
     this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver);
   }
 
+  unobserve() {}
+
   disconnect() {}
 }
 

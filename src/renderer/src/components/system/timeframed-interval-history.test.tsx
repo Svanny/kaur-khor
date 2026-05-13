@@ -25,7 +25,6 @@ function makePage(start: number, count: number, nextBeforeIntervalIndex: number 
     hasOlder: nextBeforeIntervalIndex != null,
     latestIntervalIndex: start + count - 1,
     nextBeforeIntervalIndex,
-    pageLimit: count,
   };
 }
 
@@ -60,7 +59,7 @@ function Harness({
   timeframeBoundaryOverride?: Date | null;
   timeframeCacheKey?: string;
 }) {
-  const { detail, isHydratingDetails, resolvedTimeframe, timeframeHydrationProgress } = useTimeframedIntervalHistory({
+  const { detail, isHydratingDetails, resolvedTimeframe, timeframeHydrationProgress } = useTimeframedIntervalHistory<Detail, Page>({
     fetchInitialPage: async (limit) => fetchInitialPage(limit),
     fetchOlderPage: async (beforeIntervalIndex, limit) => fetchOlderPage(beforeIntervalIndex, limit),
     getLoadedIntervalCount: (page) => page?.detail.items.length ?? 0,
