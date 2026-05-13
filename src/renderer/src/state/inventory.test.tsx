@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   DesktopBridge,
@@ -251,6 +251,8 @@ function TestHarness() {
       <div data-testid="workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
       <div data-testid="latest-run">{inventory.latestRun?.runId ?? 'none'}</div>
       <div data-testid="diagnostics-loaded">{String(inventory.diagnostics != null)}</div>
+      <div data-testid="saving">{String(inventory.isSaving)}</div>
+      <div data-testid="error">{inventory.error ?? 'none'}</div>
       <div data-testid="observation-count">{inventory.observations.length}</div>
       <div data-testid="order-batch-count">{inventory.orderBatches.length}</div>
       <button type="button" onClick={() => void inventory.loadSenaSkuDetail('sku-1')}>
@@ -258,6 +260,15 @@ function TestHarness() {
       </button>
       <button type="button" onClick={() => void inventory.triggerSenaRun()}>
         trigger run
+      </button>
+      <button type="button" onClick={() => void inventory.runSavingTask(() => inventory.triggerSenaRun())}>
+        nested saving task
+      </button>
+      <button type="button" onClick={() => void inventory.runSavingTask(async () => {
+        throw new Error('background failed');
+      }).catch(() => undefined)}
+      >
+        failed saving task
       </button>
       <button type="button" onClick={() => void inventory.loadWorkSupportData({ includeObservations: true })}>
         load work support
@@ -524,6 +535,44 @@ describe('InventoryProvider', () => {
     expect(window.kaurKhorDesktop.sena.getWorkspaceSummary).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps saving visible for nested background saving tasks', async () => {
+    const run = deferred<SenaAnalysisRunRecord>();
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => run.promise);
+
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    fireEvent.click(screen.getByText('nested saving task'));
+
+    await waitFor(() => expect(screen.getByTestId('saving').textContent).toBe('true'));
+    run.resolve(sampleRun);
+    await waitFor(() => expect(screen.getByTestId('saving').textContent).toBe('false'));
+  });
+
+  it('sets a global error and clears saving when a background saving task fails', async () => {
+    render(
+      <InventoryProvider>
+        <TestHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('false');
+    });
+
+    fireEvent.click(screen.getByText('failed saving task'));
+
+    await waitFor(() => expect(screen.getByTestId('error').textContent).toBe('background failed'));
+    expect(screen.getByTestId('saving').textContent).toBe('false');
+  });
+
   it('returns a persisted detail page immediately and refreshes local storage in the background', async () => {
     function CacheHarness() {
       const inventory = useInventory();
@@ -592,6 +641,71 @@ describe('InventoryProvider', () => {
       limit: 20,
       storage: window.localStorage,
     })?.latestIntervalIndex).toBe(40);
+  });
+
+  it('loads detail pages when persisted detail storage is blocked', async () => {
+    function BlockedStorageHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState<string>('none');
+      const [loadError, setLoadError] = useState<string>('none');
+      const [loadStarted, setLoadStarted] = useState(false);
+
+      useEffect(() => {
+        if (loadStarted || inventory.workspaceSummary?.runId !== 'run-1') {
+          return;
+        }
+        setLoadStarted(true);
+        void inventory.loadSenaSkuDetail('sku-1')
+          .then((page) => {
+            setLatestIntervalIndex(page ? 'loaded' : 'none');
+          })
+          .catch((error: unknown) => {
+            setLoadError(error instanceof Error ? error.message : String(error));
+          });
+      }, [inventory, loadStarted]);
+
+      return (
+        <div>
+          <div data-testid="blocked-storage-workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="blocked-storage-latest-interval-index">{latestIntervalIndex}</div>
+          <div data-testid="blocked-storage-load-error">{loadError}</div>
+        </div>
+      );
+    }
+
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      render(
+        <InventoryProvider>
+          <BlockedStorageHarness />
+        </InventoryProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('blocked-storage-workspace-run').textContent).toBe('run-1');
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('blocked-storage-latest-interval-index').textContent).toBe('loaded');
+      });
+      expect(screen.getByTestId('blocked-storage-load-error').textContent).toBe('none');
+      expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledWith({
+        beforeIntervalIndex: null,
+        limit: 20,
+        skuId: 'sku-1',
+      });
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
   });
 
   it('updates and deletes observations through the bridge and refreshes cached observations', async () => {

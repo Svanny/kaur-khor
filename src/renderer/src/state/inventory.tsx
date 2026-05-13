@@ -78,6 +78,17 @@ type ReadCacheValue =
 const DEFAULT_INTERVAL_PAGE_LIMIT = 20;
 
 type SenaDetailLoadStrategy = 'cache-first' | 'network-only';
+
+function optionalLocalStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
 type SenaDetailLoadOptions = {
   beforeIntervalIndex?: number | null;
   limit?: number;
@@ -153,6 +164,7 @@ export interface InventoryContextValue {
   splitSenaOrderChild: (payload: SenaSplitOrderChildPayload) => Promise<SenaOrderBatchRecord>;
   triggerSenaRun: (payload?: { algorithmVersion?: string; parameters?: SenaEngineParameters }) => Promise<SenaAnalysisRunRecord>;
   retrySenaRun: (payload: { runId: string }) => Promise<SenaAnalysisRunRecord>;
+  runSavingTask: <T>(task: () => Promise<T>) => Promise<T>;
   runWorkspacePreparation: <T>(task: () => Promise<T>) => Promise<T>;
   loadSenaWorkspaceSummary: () => Promise<SenaWorkspaceSummary | null>;
   loadSenaSkuDetail: (skuId: string, options?: SenaDetailLoadOptions) => Promise<SenaSkuDetailPage | null>;
@@ -380,6 +392,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const readCacheRef = useRef<Map<string, ReadCacheValue>>(new Map());
   const inflightRef = useRef<Map<string, Promise<ReadCacheValue>>>(new Map());
   const activeDetailFreshnessFingerprintRef = useRef<string | null>(null);
+  const savingDepthRef = useRef(0);
   const workspacePreparationDepthRef = useRef(0);
   const senaMetaRef = useRef<SenaMetaCache>({
     catalogHash: null,
@@ -430,8 +443,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const clearSenaDetailCache = useCallback(
     async (entityType: SenaCatalogEntityType, entityId: string) => {
       clearLocalSenaDetailCache(entityType, entityId);
-      if (typeof window !== 'undefined') {
-        clearPersistedSenaDetailPagesForEntity({ entityId, entityType, storage: window.localStorage });
+      const storage = optionalLocalStorage();
+      if (storage) {
+        clearPersistedSenaDetailPagesForEntity({ entityId, entityType, storage });
       }
       await window.kaurKhorDesktop.sena.clearDetailCache({ entityId, entityType });
     },
@@ -454,9 +468,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       return;
     }
     activeDetailFreshnessFingerprintRef.current = nextFingerprint;
+    const storage = optionalLocalStorage();
+    if (!storage) {
+      return;
+    }
     prunePersistedSenaDetailPages({
       activeFreshnessFingerprint: nextFingerprint,
-      storage: window.localStorage,
+      storage,
     });
   }, []);
 
@@ -615,21 +633,26 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
-  const withSaving = useCallback(async <T,>(task: () => Promise<T>) => {
+  const runSavingTask = useCallback(async <T,>(task: () => Promise<T>) => {
+    savingDepthRef.current += 1;
     setState((current) => ({ ...current, error: null, isSaving: true }));
     try {
-      const result = await task();
-      setState((current) => ({ ...current, isSaving: false }));
-      return result;
+      return await task();
     } catch (error) {
       setState((current) => ({
         ...current,
         error: error instanceof Error ? error.message : 'Workspace mutation failed.',
-        isSaving: false,
       }));
       throw error;
+    } finally {
+      savingDepthRef.current = Math.max(0, savingDepthRef.current - 1);
+      if (savingDepthRef.current === 0) {
+        setState((current) => ({ ...current, isSaving: false }));
+      }
     }
   }, []);
+
+  const withSaving = runSavingTask;
 
   const runWorkspacePreparation = useCallback(async <T,>(task: () => Promise<T>) => {
     workspacePreparationDepthRef.current += 1;
@@ -1235,6 +1258,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           });
           return run;
         }),
+      runSavingTask,
       runWorkspacePreparation,
       loadSenaWorkspaceSummary: async () => {
         const workspaceSummary = await loadWithCache('sena:summary', () => window.kaurKhorDesktop.sena.getWorkspaceSummary());
@@ -1259,7 +1283,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
           const page = normalizeSkuDetailPage(await window.kaurKhorDesktop.sena.getSkuDetail({ skuId, beforeIntervalIndex, limit }), limit);
-          if (typeof window !== 'undefined') {
+          const storage = optionalLocalStorage();
+          if (storage) {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
               entityId: skuId,
@@ -1267,7 +1292,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               freshnessFingerprint,
               limit,
               page,
-              storage: window.localStorage,
+              storage,
             });
           }
           return page;
@@ -1278,17 +1303,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return loadSenaDetailPage({
           key,
           loadFresh,
-          readPersisted: () =>
-            typeof window === 'undefined'
-              ? null
-              : readPersistedSenaDetailPage({
+          readPersisted: () => {
+            const storage = optionalLocalStorage();
+            return storage
+              ? readPersistedSenaDetailPage({
                 beforeIntervalIndex,
                 entityId: skuId,
                 entityType: 'sku',
                 freshnessFingerprint,
                 limit,
-                storage: window.localStorage,
-              }),
+                storage,
+              })
+              : null;
+          },
         });
       },
       loadSenaServiceDetail: async (serviceId, options) => {
@@ -1299,7 +1326,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         const freshnessFingerprint = deriveSenaDetailCacheFreshnessFingerprint(stateRef.current.workspaceSummary);
         const loadFresh = async () => {
           const page = normalizeServiceDetailPage(await window.kaurKhorDesktop.sena.getServiceDetail({ serviceId, beforeIntervalIndex, limit }), limit);
-          if (typeof window !== 'undefined') {
+          const storage = optionalLocalStorage();
+          if (storage) {
             writePersistedSenaDetailPage({
               beforeIntervalIndex,
               entityId: serviceId,
@@ -1307,7 +1335,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
               freshnessFingerprint,
               limit,
               page,
-              storage: window.localStorage,
+              storage,
             });
           }
           return page;
@@ -1318,17 +1346,19 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return loadSenaDetailPage({
           key,
           loadFresh,
-          readPersisted: () =>
-            typeof window === 'undefined'
-              ? null
-              : readPersistedSenaDetailPage({
+          readPersisted: () => {
+            const storage = optionalLocalStorage();
+            return storage
+              ? readPersistedSenaDetailPage({
                 beforeIntervalIndex,
                 entityId: serviceId,
                 entityType: 'service',
                 freshnessFingerprint,
                 limit,
-                storage: window.localStorage,
-              }),
+                storage,
+              })
+              : null;
+          },
         });
       },
       clearSenaSkuDetailCache: async (skuId) => clearSenaDetailCache('sku', skuId),
@@ -1349,7 +1379,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return run;
       },
     }),
-    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runWorkspacePreparation, setStatePartial, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
+    [clearSenaDetailCache, invalidateSenaReads, loadLatestRun, loadSenaDetailPage, loadWithCache, refreshRecordUpdateContext, reload, runSavingTask, runWorkspacePreparation, setStatePartial, syncPersistentSenaDetailCache, updateSenaMeta, withSaving],
   );
 
   const stateValue = useMemo<InventoryStateValue>(

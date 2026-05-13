@@ -68,6 +68,17 @@ interface TicketPickerOption {
 
 const draftStorageKeyByLaneId = new Map(RECORD_UPDATE_LANES.map((lane) => [lane.id, lane.draftStorageKey]));
 
+function recordUpdateDraftStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function supplierBatchOptionDescription(language: ReturnType<typeof usePreferences>['language'], count: number, status: string) {
   return translateUiLiteral(language, '{count} {noun} · {status}', {
     count,
@@ -193,11 +204,8 @@ function hasMultipleTicketEntryActions({
 }
 
 function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
-  if (
-    typeof window === 'undefined' ||
-    !window.localStorage ||
-    typeof window.localStorage.getItem !== 'function'
-  ) {
+  const storage = recordUpdateDraftStorage();
+  if (!storage || typeof storage.getItem !== 'function') {
     return false;
   }
   const draftStorageKey = draftStorageKeyByLaneId.get(laneId);
@@ -205,14 +213,14 @@ function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
     if (!draftStorageKey) {
       return false;
     }
-    const rawDraft = window.localStorage.getItem(draftStorageKey);
+    const rawDraft = storage.getItem(draftStorageKey);
     if (!rawDraft) {
       return false;
     }
     if (isSavedDraftMeaningful(rawDraft, laneId)) {
       return true;
     }
-    window.localStorage.removeItem(draftStorageKey);
+    storage.removeItem(draftStorageKey);
     return false;
   } catch {
     return false;
@@ -220,16 +228,13 @@ function hasDraftSavedForLane(laneId: RecordUpdateLaneId) {
 }
 
 function removeDraftSavedForLane(laneId: RecordUpdateLaneId) {
-  if (
-    typeof window === 'undefined' ||
-    !window.localStorage ||
-    typeof window.localStorage.removeItem !== 'function'
-  ) {
+  const storage = recordUpdateDraftStorage();
+  if (!storage || typeof storage.removeItem !== 'function') {
     return;
   }
   const draftStorageKey = draftStorageKeyByLaneId.get(laneId);
   if (draftStorageKey) {
-    window.localStorage.removeItem(draftStorageKey);
+    storage.removeItem(draftStorageKey);
   }
 }
 

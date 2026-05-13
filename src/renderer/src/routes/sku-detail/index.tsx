@@ -42,6 +42,17 @@ function emptyBootstrap(): BootstrapSkuDetailResult | null {
   return null;
 }
 
+function skuDetailStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function chartSearchValue(searchParams: URLSearchParams) {
   return searchParams.get('chart');
 }
@@ -164,17 +175,18 @@ function SkuDetailScreen() {
     if (!skuId) {
       return;
     }
+    const storage = skuDetailStorage();
     const cachedDetailPage =
-      typeof window === 'undefined'
-        ? null
-        : readPersistedSenaDetailPage({
+      storage
+        ? readPersistedSenaDetailPage({
           beforeIntervalIndex: null,
           entityId: skuId,
           entityType: 'sku',
           freshnessFingerprint: deriveSenaDetailCacheFreshnessFingerprint(inventory.workspaceSummary),
           limit: INTERVAL_PAGE_SIZE,
-          storage: window.localStorage,
-        });
+          storage,
+        })
+        : null;
     setBootstrap(emptyBootstrap());
     setBootstrap(buildSkuDetailBootstrapPreview({
       catalog: inventory.catalog,

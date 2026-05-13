@@ -355,6 +355,63 @@ describe('useSenaDetailHydration', () => {
     expect(loadSenaSkuDetail).toHaveBeenNthCalledWith(3, 'sku-1', { beforeIntervalIndex: 10, limit: 10, strategy: 'network-only' });
   });
 
+  test('hydrates first pages when persisted detail storage is blocked', async () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+    const loadSenaSkuDetail = vi.fn(async () => makeSkuPage(20, 20, null));
+
+    try {
+      inventoryHook.mockReturnValue({
+        catalog: {
+          bundles: [],
+          schemaVersion: 1,
+          services: [],
+          sharingMask: [],
+          skus: [
+            {
+              costPerUnit: 1,
+              description: 'sku',
+              leadTimeMeanDaysHint: 1,
+              leadTimeStdDaysHint: 1,
+              name: 'sku',
+              productPrice: 1,
+              skuId: 'sku-1',
+              soldAsProduct: true,
+            },
+          ],
+        },
+        loadSenaServiceDetail: vi.fn(),
+        loadSenaSkuDetail,
+        workspaceSummary: {
+          highRiskSkuIds: [],
+          intervalCount: 20,
+          latestObservedAt: '2026-03-21T08:00:00.000Z',
+          ownerSub: 'desktop-owner',
+          pendingReorderCount: 0,
+          runId: 'run-1',
+          serviceCount: 0,
+          skuCount: 1,
+          skuSummaries: [],
+          topRegime: 'normal',
+        },
+      });
+
+      render(<TestHarness />);
+
+      await waitFor(() => expect(screen.getByTestId('length')).toHaveTextContent('20'));
+      expect(loadSenaSkuDetail).toHaveBeenCalledTimes(1);
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
+  });
+
   test('loads estimated MAX timeframe hydration in one expanded older request', async () => {
     const olderPage = deferred<ReturnType<typeof makeSkuPage>>();
     const loadSenaSkuDetail = vi.fn(async (_skuId: string, options?: { beforeIntervalIndex?: number | null; limit?: number }) => {

@@ -214,6 +214,33 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getAllByText('/work/capture/immediate-sale?ticketMode=new')[0]).toBeInTheDocument();
   });
 
+  it('opens direct capture actions when draft storage is blocked', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/work/capture']}>
+          <HubRouteTestShell />
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Immediate Sale' }));
+
+      expect(screen.queryByText('What do you want to do?')).not.toBeInTheDocument();
+      expect(screen.getAllByText('/work/capture/immediate-sale?ticketMode=new')[0]).toBeInTheDocument();
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
+  });
+
   it('resumes a saved immediate sale draft from the hub prompt', () => {
     const completedLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-completed')!;
     window.localStorage.setItem(completedLane.draftStorageKey, '{"version":1}');
