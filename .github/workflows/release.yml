@@ -27,9 +27,22 @@ jobs:
         with:
           node-version: 25
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            apps/desktop-core/target
+            apps/sena-core/target
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
 
       - name: Install dependencies
         shell: bash
@@ -93,9 +106,56 @@ jobs:
         with:
           node-version: 25
           cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/git
+            ~/.cargo/registry
+            apps/desktop-core/target
+            apps/sena-core/target
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-
+
+      - name: Cache Electron downloads
+        if: matrix.platform == 'mac'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
+
+      - name: Cache Electron downloads
+        if: matrix.platform == 'linux'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
+
+      - name: Cache Electron downloads
+        if: matrix.platform == 'win'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-${{ hashFiles('pnpm-lock.yaml', 'electron-builder.yml', 'electron-builder.unsigned-win.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-electron-
 
       - name: Install dependencies
         shell: bash
