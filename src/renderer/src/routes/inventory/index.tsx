@@ -48,6 +48,7 @@ import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/c
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
+import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
 import {
   buildInventorySearchParams,
   inventoryProjectionHorizonValues,
@@ -1122,16 +1123,17 @@ export function InsightsInventoryRoute() {
       setGridTableWidth((currentWidth) => (Math.abs(currentWidth - nextWidth) <= 1 ? currentWidth : nextWidth));
     }
 
-    updateTableWidth();
-    window.addEventListener('resize', updateTableWidth);
-    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateTableWidth);
+    const scheduler = createAnimationFrameScheduler(updateTableWidth);
+    scheduler.flush();
+    window.addEventListener('resize', scheduler.schedule);
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduler.schedule);
     resizeObserver?.observe(observedElement);
-    const animationFrame = window.requestAnimationFrame(updateTableWidth);
+    scheduler.schedule();
 
     return () => {
-      window.removeEventListener('resize', updateTableWidth);
+      window.removeEventListener('resize', scheduler.schedule);
       resizeObserver?.disconnect();
-      window.cancelAnimationFrame(animationFrame);
+      scheduler.cancel();
     };
   }, [mainTab]);
 

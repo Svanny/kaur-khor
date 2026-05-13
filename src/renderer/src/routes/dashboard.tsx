@@ -74,6 +74,7 @@ import {
   observedLocalDateInputValue,
 } from '@/lib/date-input-utils';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
+import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
 import { deriveAvailableObservationCount } from '@/lib/observation-count';
 import { buildRememberedCatalogHref } from '@/lib/page-state-memory';
 import { useBenchmarkRouteReady } from '@/lib/benchmark-route-ready';
@@ -619,13 +620,14 @@ function useVirtualizedQueueRows<T>(
     if (!container) {
       return;
     }
-    const handleViewportChange = () => updateRange();
-    handleViewportChange();
-    container.addEventListener('scroll', handleViewportChange, { passive: true });
-    window.addEventListener('resize', handleViewportChange);
+    const scheduler = createAnimationFrameScheduler(updateRange);
+    scheduler.flush();
+    container.addEventListener('scroll', scheduler.schedule, { passive: true });
+    window.addEventListener('resize', scheduler.schedule);
     return () => {
-      container.removeEventListener('scroll', handleViewportChange);
-      window.removeEventListener('resize', handleViewportChange);
+      container.removeEventListener('scroll', scheduler.schedule);
+      window.removeEventListener('resize', scheduler.schedule);
+      scheduler.cancel();
     };
   }, [isVirtualized, rows.length, updateRange]);
 

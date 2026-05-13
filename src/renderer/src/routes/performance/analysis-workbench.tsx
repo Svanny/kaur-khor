@@ -78,6 +78,7 @@ import { useFloatingTitleActions } from '@/components/system/floating-title-acti
 import { Button } from '@/components/ui/button';
 import { ChromeTabs, ChromeTabsList, ChromeTabsTrigger } from '@/components/ui/chrome-tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
 import { rowHoverClassName } from '@/lib/interactive-surface';
 import { translateObservationEvidenceLabel, translateRegimeLabel } from '@/lib/localized-display';
 import { regimeChartFill, regimeTintedSurfaceClassName } from '@/lib/state-tones';
@@ -1794,17 +1795,19 @@ function SupplyFragilityMap({
       setSharedCellWidth((current) => (current === nextWidth ? current : nextWidth));
     };
 
-    measure();
-    window.addEventListener('resize', measure);
+    const scheduler = createAnimationFrameScheduler(measure);
+    scheduler.flush();
+    window.addEventListener('resize', scheduler.schedule);
     const observer = new ResizeObserver(() => {
-      measure();
+      scheduler.schedule();
     });
     if (viewportRef.current) {
       observer.observe(viewportRef.current);
     }
     return () => {
-      window.removeEventListener('resize', measure);
+      window.removeEventListener('resize', scheduler.schedule);
       observer.disconnect();
+      scheduler.cancel();
     };
   }, [model.fragilityRows.length, transposedRows]);
 
@@ -1838,19 +1841,21 @@ function SupplyFragilityMap({
       );
     };
 
-    updateFrame();
-    viewport.addEventListener('scroll', updateFrame, { passive: true });
-    window.addEventListener('scroll', updateFrame, { passive: true });
-    window.addEventListener('resize', updateFrame);
+    const scheduler = createAnimationFrameScheduler(updateFrame);
+    scheduler.flush();
+    viewport.addEventListener('scroll', scheduler.schedule, { passive: true });
+    window.addEventListener('scroll', scheduler.schedule, { passive: true });
+    window.addEventListener('resize', scheduler.schedule);
 
-    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(updateFrame) : null;
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduler.schedule) : null;
     observer?.observe(viewport);
 
     return () => {
-      viewport.removeEventListener('scroll', updateFrame);
-      window.removeEventListener('scroll', updateFrame);
-      window.removeEventListener('resize', updateFrame);
+      viewport.removeEventListener('scroll', scheduler.schedule);
+      window.removeEventListener('scroll', scheduler.schedule);
+      window.removeEventListener('resize', scheduler.schedule);
       observer?.disconnect();
+      scheduler.cancel();
     };
   }, [model.fragilityRows.length, sharedCellWidth]);
 
