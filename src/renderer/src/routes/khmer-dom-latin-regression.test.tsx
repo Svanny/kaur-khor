@@ -371,10 +371,13 @@ function makeIntake(): AutomationOrderIntake {
     createdAt: '2026-04-21T00:00:00.000Z',
     customerDisplayName: 'ដារ៉ា',
     customerHandle: null,
+    currencyCode: 'USD',
+    deliveryFee: null,
     intakeId: 'intake-1',
     lines: [
       {
         ambiguityReason: null,
+        availabilityStatus: 'available',
         entityId: 'sku-1',
         entityType: 'sku',
         lineId: 'line-1',
@@ -391,7 +394,6 @@ function makeIntake(): AutomationOrderIntake {
     promotedTicketId: null,
     quotedSubtotal: 12,
     quotedTotal: 12,
-    rawText: 'សាប៊ូ ២',
     status: 'quoted',
     updatedAt: '2026-04-21T00:00:00.000Z',
   };

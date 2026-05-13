@@ -133,7 +133,7 @@ export interface PerformanceMoveRow {
   whyNow: string;
   expectedEffect: string;
   restockGuidance: string | null;
-  ctaLabel: 'Open queue' | 'Open SKU' | 'Open service' | 'See evidence';
+  ctaLabel: string;
   ctaHref: string;
   tone: StatusPillTone;
 }
@@ -1017,12 +1017,12 @@ function actionForRow(
   language: AppLanguage,
 ): { label: PerformanceMoveRow['ctaLabel']; href: string } {
   if (row.type === 'service') {
-    return { label: 'Open service', href: row.href };
+    return { label: translateUiLiteral(language, 'Open service'), href: row.href };
   }
   if (row.status === 'unblock') {
-    return { label: 'Open queue', href: '/' };
+    return { label: translateUiLiteral(language, 'Open queue'), href: '/' };
   }
-  return { label: 'Open SKU', href: row.href };
+  return { label: translateUiLiteral(language, 'Open SKU'), href: row.href };
 }
 
 function moveDescription(row: SkuBusinessRow | ServiceBusinessRow, language: AppLanguage) {
@@ -1487,7 +1487,7 @@ export function derivePerformanceViewModel({
         expectedEffect: translateUiLiteral(language, 'This reopens stalled customer revenue without changing the current page contract.'),
         restockGuidance: null,
         ctaHref: `/catalog/services/${service.serviceId}`,
-        ctaLabel: 'Open service',
+        ctaLabel: translateUiLiteral(language, 'Open service'),
         tone: 'danger',
       });
     }
@@ -1508,7 +1508,7 @@ export function derivePerformanceViewModel({
         expectedEffect: translateUiLiteral(language, 'Restocking or correcting this SKU should free pending customer completions.'),
         restockGuidance: null,
         ctaHref: `/catalog/skus/${sku.skuId}`,
-        ctaLabel: 'Open SKU',
+        ctaLabel: translateUiLiteral(language, 'Open SKU'),
         tone: 'danger',
       });
     }
