@@ -14,6 +14,7 @@ import {
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
+import type { SenaObservationRecord } from '@shared/sena';
 import { NavigationHistoryProvider } from '@/state/navigation-history';
 import { buildDeliveryFeeMetadata } from '@/lib/ticketing';
 import { getTranslation } from '@/lib/translations';
@@ -128,7 +129,7 @@ const catalog = {
   ],
 };
 
-const observations = [
+const observations: SenaObservationRecord[] = [
   {
     observationId: 'obs-1',
     ownerSub: 'desktop-owner',
@@ -1627,11 +1628,11 @@ describe('StockUpdateSessionRoute', () => {
         }),
         ticketEvents: [{
           ticketId: 'ticket-immediate',
-          ticketFamily: 'customer',
-          lifecycle: 'resolved',
-          stage: 'fulfilled_immediate',
+          ticketFamily: 'customer' as const,
+          lifecycle: 'resolved' as const,
+          stage: 'fulfilled_immediate' as const,
           revision: 1,
-          eventType: 'fulfilled_immediate',
+          eventType: 'fulfilled_immediate' as const,
           occurredAt: '2026-04-22T00:00:00.000Z',
           lines: [],
           deliveryFee: buildDeliveryFeeMetadata({

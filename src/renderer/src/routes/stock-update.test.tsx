@@ -10,8 +10,29 @@ function freezeDate(isoString: string) {
   const fixedDate = new realDate(isoString);
 
   class MockDate extends realDate {
-    constructor(...args: any[]) {
-      super(...(args.length === 0 ? [fixedDate.toISOString()] : args));
+    constructor(
+      ...args:
+        | []
+        | [string | number | Date]
+        | [number, number, number?, number?, number?, number?, number?]
+    ) {
+      if (args.length === 0) {
+        super(fixedDate.toISOString());
+      } else if (args.length === 1) {
+        super(args[0]);
+      } else if (args.length === 2) {
+        super(args[0], args[1]);
+      } else if (args.length === 3) {
+        super(args[0], args[1], args[2]);
+      } else if (args.length === 4) {
+        super(args[0], args[1], args[2], args[3]);
+      } else if (args.length === 5) {
+        super(args[0], args[1], args[2], args[3], args[4]);
+      } else if (args.length === 6) {
+        super(args[0], args[1], args[2], args[3], args[4], args[5]);
+      } else {
+        super(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+      }
     }
 
     static now() {
