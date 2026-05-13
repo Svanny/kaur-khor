@@ -918,23 +918,25 @@ function InventoryWindowFrame({
 }) {
   return (
     <ChromeTabs
-      className="relative min-w-0 gap-0"
+      className="relative min-h-0 flex-1 gap-0"
       value={mainTab}
       onValueChange={(nextValue) => onMainTabChange(nextValue as InventoryMainTab)}
     >
-      <ChromeTabsList aria-label={translateUiLiteral(language, 'Select inventory table window')} className="min-w-0">
-        {([
-          { icon: StatusSquareActivityIcon, label: translateUiLiteral(language, 'Health grid'), value: 'grid' },
-          { icon: StatusInsightIcon, label: translateUiLiteral(language, 'Projection matrix'), value: 'projection' },
-        ] as const).map((tab) => {
-          const TabIcon = tab.icon;
-          return (
-            <ChromeTabsTrigger key={tab.value} leading={<TabIcon className="size-4" />} value={tab.value}>
-              {tab.label}
-            </ChromeTabsTrigger>
-          );
-        })}
-      </ChromeTabsList>
+      <div className="relative flex overflow-hidden px-5 sm:pl-8 sm:pr-6">
+        <ChromeTabsList aria-label={translateUiLiteral(language, 'Select inventory table window')} className="min-w-0">
+          {([
+            { icon: StatusSquareActivityIcon, label: translateUiLiteral(language, 'Health grid'), value: 'grid' },
+            { icon: StatusInsightIcon, label: translateUiLiteral(language, 'Projection matrix'), value: 'projection' },
+          ] as const).map((tab) => {
+            const TabIcon = tab.icon;
+            return (
+              <ChromeTabsTrigger key={tab.value} leading={<TabIcon className="size-4" />} value={tab.value}>
+                {tab.label}
+              </ChromeTabsTrigger>
+            );
+          })}
+        </ChromeTabsList>
+      </div>
       {children}
     </ChromeTabs>
   );
@@ -1180,7 +1182,12 @@ export function InsightsInventoryRoute() {
     return (
       <WorkspacePage className="gap-5">
         <WorkspaceTitleCardWireframe />
-        <div className={rightRailLayoutClassName(showRightRailCards)}>
+        <div
+          className={rightRailLayoutClassName(showRightRailCards)}
+          style={{
+            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2)',
+          }}
+        >
           <div className="grid gap-6">
             <WireframeRows rows={6} />
           </div>
@@ -1337,9 +1344,13 @@ export function InsightsInventoryRoute() {
           mainTab={mainTab}
           onMainTabChange={setMainTab}
         >
-        <div className={rightRailLayoutClassName(showRightRailCards)}>
+        <div
+          className={cn(rightRailLayoutClassName(showRightRailCards), 'relative z-[1]')}
+          style={{
+            marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -3)',
+          }}
+        >
           <PerformanceSectionShell
-            className="mt-[-2px]"
             helpHref={mainTab === 'projection' ? '/settings/help#inventory-projection-matrix' : '/settings/help#inventory-health-grid'}
             title={inventoryPanelTitle(language, mainTab)}
             tooltip={inventoryPanelTooltip(language, mainTab)}
