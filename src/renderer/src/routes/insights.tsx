@@ -1,15 +1,16 @@
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  EntityComparisonIcon,
   EntityRevenueIcon,
   EntitySignalIcon,
 } from '@icons/entities';
+import { StatusSquareActivityIcon } from '@icons/status';
 import type { IconComponent } from '@icons';
 import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
 import { LiquidGridCard } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import {
   buildInsightsHref,
+  buildInventoryHref,
   insightsModePathByValue,
   readInsightsRouteState,
   type InsightsModeValue,
@@ -17,15 +18,15 @@ import {
 import {
   buildRememberedAnalysisHref,
   buildRememberedFinancialsHref,
+  buildRememberedInventoryHref,
   buildRememberedInsightsHref,
-  buildRememberedPerformanceHref,
 } from '@/lib/page-state-memory';
 import { gridCardSurfaceClassName, type GridCardColorKey } from '@/lib/grid-card-colors';
 import { translateUiLiteral } from '@/lib/translations';
 import { usePreferences } from '@/state/preferences';
 import { AnalysisRoute } from './analysis';
 import { FinancialsRoute } from './financials';
-import { PerformanceRoute } from './performance';
+import { InsightsInventoryRoute } from './inventory/index';
 
 const INSIGHT_MODES: Array<{
   id: InsightsModeValue;
@@ -35,11 +36,11 @@ const INSIGHT_MODES: Array<{
   summary: string;
 }> = [
   {
-    id: 'performance',
-    icon: EntityComparisonIcon,
-    label: 'Pressure',
+    id: 'inventory',
+    icon: StatusSquareActivityIcon,
+    label: 'Inventory',
     tone: 'pressure',
-    summary: 'Demand, support, timing, price, and recovery pressure.',
+    summary: 'Stock on hand, in/out flow, cover, inbound pipeline, and projections.',
   },
   {
     id: 'financials',
@@ -63,8 +64,9 @@ function rememberedInsightModeHref(mode: InsightsModeValue) {
       return buildRememberedAnalysisHref();
     case 'financials':
       return buildRememberedFinancialsHref();
+    case 'inventory':
     case 'performance':
-      return buildRememberedPerformanceHref();
+      return buildRememberedInventoryHref();
   }
 }
 
@@ -85,6 +87,10 @@ export function InsightsRoute() {
     return <Navigate replace to={buildInsightsHref({ mode: routeState.mode }, searchParams)} />;
   }
 
+  if (activePath === insightsModePathByValue.performance) {
+    return <Navigate replace to={buildInventoryHref(routeState.performance, searchParams)} />;
+  }
+
   if (!activePath) {
     return (
       <WorkspacePage fitViewport className="gap-5">
@@ -93,6 +99,7 @@ export function InsightsRoute() {
           title={translateUiLiteral(language, 'Understand what needs attention')}
           descriptor={translateUiLiteral(language, 'Choose the operating lens before opening the detailed workspace.')}
           className="rounded-xl"
+          helperExemptReason="Insights hub cards describe each available workspace."
         />
 
         <CenteredTileGrid columns={3}>
@@ -133,8 +140,8 @@ export function InsightsRoute() {
       ? AnalysisRoute
       : activeMode === 'financials'
         ? FinancialsRoute
-        : activeMode === 'performance'
-          ? PerformanceRoute
+        : activeMode === 'inventory'
+          ? InsightsInventoryRoute
           : null;
 
   if (!ActiveRoute) {
@@ -146,7 +153,7 @@ export function InsightsRoute() {
       <ActiveRoute />
 
       <div className="sr-only">
-        <Link to={buildInsightsHref({ mode: 'performance' })}>{translateUiLiteral(language, 'Pressure')}</Link>
+        <Link to={buildInsightsHref({ mode: 'inventory' })}>{translateUiLiteral(language, 'Inventory')}</Link>
         <Link to={buildInsightsHref({ mode: 'financials' })}>{translateUiLiteral(language, 'Money')}</Link>
         <Link to={buildInsightsHref({ mode: 'analysis' })}>{translateUiLiteral(language, 'Explain')}</Link>
       </div>

@@ -326,7 +326,7 @@ function buildPageCommands(
             pageOrder: 2,
             pagePrefix: '/insights',
             priority: 13,
-            subtitle: 'Pressure, money, and explanation views',
+            subtitle: 'Inventory, money, and explanation views',
             title: t('navInsights'),
           }),
         ]
@@ -501,14 +501,14 @@ function buildArchiveCommands() {
 
 function buildPerformanceCommands() {
   const rangeCommands: Array<{ label: string; value: PerformanceRangeValue }> = [
-    { label: 'Pressure / 7D', value: '7d' },
-    { label: 'Pressure / 30D', value: '30d' },
-    { label: 'Pressure / 90D', value: '90d' },
+    { label: 'Inventory / 7D', value: '7d' },
+    { label: 'Inventory / 30D', value: '30d' },
+    { label: 'Inventory / 90D', value: '90d' },
   ];
   const scopeCommands: Array<{ label: string; value: PerformanceScopeValue }> = [
-    { label: 'Pressure / All items', value: 'all' },
-    { label: 'Pressure / Services', value: 'services' },
-    { label: 'Pressure / SKUs', value: 'skus' },
+    { label: 'Inventory / All items', value: 'all' },
+    { label: 'Inventory / Services', value: 'services' },
+    { label: 'Inventory / SKUs', value: 'skus' },
   ];
 
   return [
@@ -522,7 +522,7 @@ function buildPerformanceCommands() {
         pageOrder: 2,
         pagePrefix: '/insights',
         priority: 90 + index,
-        subtitle: 'Pressure range',
+        subtitle: 'Inventory range',
         tabOrder: index,
         title: command.label,
       }),
@@ -537,7 +537,7 @@ function buildPerformanceCommands() {
         pageOrder: 2,
         pagePrefix: '/insights',
         priority: 100 + index,
-        subtitle: 'Pressure scope',
+        subtitle: 'Inventory scope',
         tabOrder: rangeCommands.length + index,
         title: command.label,
       }),
@@ -551,9 +551,9 @@ function buildPerformanceCommands() {
       pageOrder: 2,
       pagePrefix: '/insights',
       priority: 104,
-      subtitle: 'Pressure comparison',
+      subtitle: 'Inventory comparison',
       tabOrder: rangeCommands.length + scopeCommands.length,
-      title: 'Pressure / Compare view',
+      title: 'Inventory / Compare view',
     }),
     tabCommand({
       aliases: ['performance', 'compare'],
@@ -564,9 +564,9 @@ function buildPerformanceCommands() {
       pageOrder: 2,
       pagePrefix: '/insights',
       priority: 105,
-      subtitle: 'Pressure comparison',
+      subtitle: 'Inventory comparison',
       tabOrder: rangeCommands.length + scopeCommands.length + 1,
-      title: 'Pressure / Single view',
+      title: 'Inventory / Single view',
     }),
   ];
 }

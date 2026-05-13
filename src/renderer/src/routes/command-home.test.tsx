@@ -22,7 +22,7 @@ vi.mock('./overview/view-model', () => ({
 vi.mock('@/lib/page-state-memory', () => ({
   buildRememberedCatalogHref: () => '/catalog',
   buildRememberedInboxHref: () => '/work/queue',
-  buildRememberedInsightsHref: () => '/insights',
+  buildRememberedInventoryHref: () => '/insights/inventory',
   usePageStateMemoryVersion: () => undefined,
 }));
 
@@ -58,10 +58,10 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Start Work/i })).toHaveAttribute('href', '/work/queue');
     expect(screen.queryByRole('link', { name: /Capture Update/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Open Products/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Inventory/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Open Products')).not.toBeInTheDocument();
     expect(screen.queryByText('Capture Update')).not.toBeInTheDocument();
-    expect(screen.queryByText('Open Insights')).not.toBeInTheDocument();
+    expect(screen.queryByText('Open Inventory')).not.toBeInTheDocument();
   });
 
   test('uses a single column for the tile grid when only one action is visible', () => {
@@ -117,7 +117,7 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Start Work/i })).toHaveAttribute('href', '/work/queue');
     expect(screen.getByRole('link', { name: /Capture Update/i })).toHaveAttribute('href', '/work/capture');
     expect(screen.getByRole('link', { name: /Open Products/i })).toHaveAttribute('href', '/catalog');
-    expect(screen.getByRole('link', { name: /Open Insights/i })).toHaveAttribute('href', '/insights');
+    expect(screen.getByRole('link', { name: /Open Inventory/i })).toHaveAttribute('href', '/insights/inventory');
   });
 
   test('stretches the action link wrapper to the centered grid track', () => {
@@ -191,7 +191,7 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByText('រក្សាទុកការរាប់ស្តុក ការបញ្ជាទិញអតិថិជន ការលក់ ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ឬព្រឹត្តិការណ៍ផ្ទាល់ខ្លួន។').className).toContain('khmer-safe-display');
   });
 
-  test('hides insights when the analysis page is disabled', () => {
+  test('hides inventory when the analysis page is disabled', () => {
     preferencesHook.mockReturnValue({
       language: 'en',
       showAnalysisPage: false,
@@ -224,7 +224,7 @@ describe('CommandHomeRoute', () => {
 
     renderRoute();
 
-    expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Inventory/i })).not.toBeInTheDocument();
   });
 
   test('uses three columns when exactly three action cards are visible', () => {
@@ -259,7 +259,7 @@ describe('CommandHomeRoute', () => {
     expect(screen.getByRole('link', { name: /Start Work/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Capture Update/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Open Products/i })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /Open Insights/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Inventory/i })).not.toBeInTheDocument();
     const grid = document.querySelector('[data-slot="centered-tile-grid"]');
     expect(grid).not.toBeNull();
     expect(grid).toHaveStyle({ '--centered-tile-columns': '3' });

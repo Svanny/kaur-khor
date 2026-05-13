@@ -14,6 +14,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Khmer Kaur Khor app UI translations must not render Latin letters; transliterate product and technical tokens and keep tests scanning the full Khmer map.
 - Khmer web landing copy must use Khmer pronunciations for app, browser, desktop, backup, snapshots, automations, and code; keep proper nouns and platform/tool names like GitHub, Terminal, macOS, OPFS, and Bash in English.
 - Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
+- Inventory layout fixes must be verified in the desktop Electron app because browser-mode evidence can miss right-rail and table geometry issues.
 - Work and Explain window surfaces must stretch to the viewport, with scrolling breathing room rendered outside the window rather than as inner padding.
 - Web landing-page browser annotations must map each selected element to a concrete source change; verify the rendered localhost page when browser tooling is available before claiming the annotation is addressed.
 - Chart flag overlay pills must read time-scale coordinates on the next animation frame after range/layout changes so attached pill widths track zoom.

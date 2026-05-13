@@ -1,4 +1,5 @@
 export {
+  Activity as StatusActivityIcon,
   AlertTriangle as StatusAlertIcon,
   Archive as StatusArchiveIcon,
   AudioLines as StatusWaveformIcon,
@@ -18,6 +19,7 @@ export {
   ClipboardClock as StatusAwaitingReceiptIcon,
   Cog as StatusSettingsControlIcon,
   Flame as StatusSpikeIcon,
+  HeartPulse as StatusHeartPulseIcon,
   LoaderCircle as StatusLoadingIcon,
   Maximize2 as StatusMaximizeIcon,
   Minimize2 as StatusMinimizeIcon,
@@ -26,11 +28,14 @@ export {
   Radar as StatusRadarIcon,
   ScrollText as StatusNarrativeIcon,
   Send as StatusSendIcon,
+  SquareActivity as StatusSquareActivityIcon,
   Sparkles as StatusInsightIcon,
   TimerReset as StatusTimingIcon,
+  TrendingUpDown as StatusTrendUpDownIcon,
   Triangle as StatusDeltaTriangleIcon,
   TriangleAlert as StatusWarningIcon,
   Trophy as StatusAchievementIcon,
   RulerDimensionLine as StatusReorderPointIcon,
+  Umbrella as StatusUmbrellaIcon,
   Wrench as StatusCorrectionIcon,
 } from 'lucide-react';

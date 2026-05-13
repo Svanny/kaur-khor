@@ -40,8 +40,8 @@ import {
   buildRememberedAnalysisHref,
   buildRememberedFinancialsHref,
   buildRememberedInboxHref,
+  buildRememberedInventoryHref,
   buildRememberedPageHref,
-  buildRememberedPerformanceHref,
   usePageStateMemoryVersion,
 } from '@/lib/page-state-memory';
 import { resolveSettingsSection, visibleSettingsSections, type SettingsSectionConfig } from '@/lib/settings-navigation';
@@ -61,7 +61,6 @@ import brandLogo from '@/assets/kaur-khor-logo.svg';
 import { ActionCreatePackageIcon, ActionRefreshIcon } from '@icons/actions';
 import { RECORD_UPDATE_LANES } from '@/lib/record-update-routes';
 import {
-  EntityComparisonIcon,
   EntityRevenueIcon,
   EntityServiceIcon,
   EntitySignalIcon,
@@ -538,12 +537,12 @@ function KaurKhorShellFrame({ children }: { children: React.ReactNode }) {
           ...APP_SECTIONS[3],
           children: [
             {
-              id: 'insights-performance',
-              destination: buildRememberedPerformanceHref(),
-              label: translateUiLiteral(language, 'Pressure'),
+              id: 'insights-inventory',
+              destination: buildRememberedInventoryHref(),
+              label: translateUiLiteral(language, 'Inventory'),
               labelKey: 'navPerformance',
-              icon: EntityComparisonIcon,
-              matches: (pathname: string) => pathname === '/insights/pressure',
+              icon: EntitySkuIcon,
+              matches: (pathname: string) => pathname === '/insights/inventory' || pathname === '/insights/pressure',
             },
             {
               id: 'insights-financials',

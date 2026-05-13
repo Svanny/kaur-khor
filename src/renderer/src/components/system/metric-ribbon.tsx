@@ -22,6 +22,7 @@ export type MetricRibbonItem = {
   value: ReactNode;
   detail?: ReactNode;
   href?: string;
+  icon?: ReactNode;
   className?: string;
   valueClassName?: string;
   'aria-label'?: string;
@@ -61,7 +62,10 @@ export function MetricRibbon({
         {items.map((item) => {
           const content = (
             <>
-              <p className="truncate text-sm text-muted-foreground">{item.label}</p>
+              <p className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
+                {item.icon ? <span className="shrink-0 text-muted-foreground">{item.icon}</span> : null}
+                <span className="truncate">{item.label}</span>
+              </p>
               <div className={cn('khmer-safe-display mt-1 text-[1.2rem] font-semibold tracking-[-0.03em] text-foreground', item.valueClassName)}>
                 {item.value}
               </div>

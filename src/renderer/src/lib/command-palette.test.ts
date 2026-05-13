@@ -442,7 +442,7 @@ describe('command palette descriptors', () => {
     expect(commands.find((command) => command.id === 'page:catalog')?.action.href).toBe('/catalog?q=scarf&view=skus');
     expect(commands.find((command) => command.id === 'page:insights')?.action.href).toBe('/insights');
     expect(commands.find((command) => command.id === 'performance:range:90d')?.action.href).toBe(
-      '/insights/pressure?range=90d&scope=skus&supplier=Mekong+Looms',
+      '/insights/inventory?range=90d&supplier=Mekong+Looms',
     );
   });
 

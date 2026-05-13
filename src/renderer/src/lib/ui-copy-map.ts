@@ -9,7 +9,7 @@ export const enUiCopyV1 = {
   navHistory: 'History',
   navOverview: 'Work',
   navRecordUpdate: 'Capture',
-  navPerformance: 'Pressure',
+  navPerformance: 'Inventory',
   navFinancials: 'Money',
   navAutomations: 'Automation',
   navAnalysis: 'Explain',
