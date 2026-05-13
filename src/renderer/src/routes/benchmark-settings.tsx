@@ -415,12 +415,13 @@ export function BenchmarkSettingsPage() {
     const unsubscribe = window.kaurKhorDesktop.benchmarkRunner?.onRunEvent((event) => {
       setStatus(event.message);
       if (event.record) {
+        const record = event.record;
         setRuns((currentRuns) => {
-          const without = currentRuns.filter((run) => run.runId !== event.record?.runId);
-          return [event.record, ...without].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
+          const without = currentRuns.filter((run) => run.runId !== record.runId);
+          return [record, ...without].sort((left, right) => right.startedAt.localeCompare(left.startedAt));
         });
-        setSelectedRunId(event.record.runId);
-        setActiveRunId(event.record.status === 'queued' || event.record.status === 'running' ? event.record.runId : null);
+        setSelectedRunId(record.runId);
+        setActiveRunId(record.status === 'queued' || record.status === 'running' ? record.runId : null);
       } else if (event.stream && event.line) {
         setRuns((currentRuns) =>
           currentRuns.map((run) => {
