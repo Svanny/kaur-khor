@@ -136,7 +136,7 @@ describe('useTradingChartController', () => {
   });
 
   it('writes entity layout preferences when chart layout changes', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const Recorder = controllerRecorder({
       onChange: (controller) => {
         latest = controller;
@@ -158,7 +158,7 @@ describe('useTradingChartController', () => {
   });
 
   it('resets zoom token on timeframe, committed custom range, resolution, and explicit reset', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const resetHydratedDetails = vi.fn(async () => {});
     const Recorder = controllerRecorder({
       onChange: (controller) => {
@@ -203,7 +203,7 @@ describe('useTradingChartController', () => {
   });
 
   it('emits custom timeframe boundary override and cache key', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -228,7 +228,7 @@ describe('useTradingChartController', () => {
   });
 
   it('keeps the custom timeframe boundary override stable across rerenders', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -255,7 +255,7 @@ describe('useTradingChartController', () => {
   });
 
   it('applies a selected custom range after hydration completes', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -297,7 +297,7 @@ describe('useTradingChartController', () => {
   });
 
   it('completes persisted custom range hydration and resets chart zoom after reload', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -340,7 +340,7 @@ describe('useTradingChartController', () => {
   });
 
   it('applies a selected custom range when the requested range is already cached', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -372,7 +372,7 @@ describe('useTradingChartController', () => {
   });
 
   it('promotes fixed-timeframe viewport extension into a custom range without starting custom hydration', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     writeEntityChartLayoutPreferences('service', 'service-1', makePreferences({
       timeframe: '1M',
       visibleDateRange: {
@@ -409,7 +409,7 @@ describe('useTradingChartController', () => {
   });
 
   it('does not change an existing custom range from passive viewport observations', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
@@ -513,7 +513,7 @@ describe('useTradingChartController', () => {
   });
 
   it('syncs explicit custom range clears from chart layout updates', async () => {
-    let latest: TradingChartController | null = null;
+    let latest!: TradingChartController;
     const range: ChartCustomTimeframeRange = {
       startAt: '2026-02-01T00:00:00.000Z',
       endAt: '2026-03-01T00:00:00.000Z',
