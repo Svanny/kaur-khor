@@ -308,16 +308,20 @@ function safeRatio(numerator: number, denominator: number) {
   return numerator / denominator;
 }
 
-function sortByValueThenLabel<T extends { label?: string; name?: string }>(
+function sortByValueThenLabel<T>(
   rows: T[],
   valueForRow: (row: T) => number,
+  labelForRow: (row: T) => string = (row) => {
+    const namedRow = row as { label?: string; name?: string };
+    return namedRow.label ?? namedRow.name ?? '';
+  },
 ) {
   return [...rows].sort((left, right) => {
     const delta = valueForRow(right) - valueForRow(left);
     if (Math.abs(delta) > 0.005) {
       return delta;
     }
-    return (left.label ?? left.name ?? '').localeCompare(right.label ?? right.name ?? '');
+    return labelForRow(left).localeCompare(labelForRow(right));
   });
 }
 
@@ -405,7 +409,7 @@ function openCommitmentRows(orderBatches: SenaOrderBatchRecord[], skuById: Map<s
           href: buildBatchUpdateHref({
             batchOrderId: batch.batchOrderId,
             childOrderId: child.childOrderId,
-            laneId: 'supplier-receipt',
+            laneId: 'supplier-order-pending',
             skuIds: [child.skuId],
           }),
           id: child.childOrderId,
@@ -1071,7 +1075,7 @@ export function deriveFinancialsViewModel({
   ).slice(0, 3);
 
   const commitmentRows = openCommitmentRows(orderBatches, entitySets.skuById, entitySets.scopedSkuIds);
-  const commitmentsDue = sortByValueThenLabel(commitmentRows, (row) => row.value).slice(0, 4).map((row) => ({
+  const commitmentsDue: FinancialRailRow[] = sortByValueThenLabel(commitmentRows, (row) => row.value).slice(0, 4).map((row) => ({
     detail: row.expectedArrivalAt
       ? literal(language, 'expected {date} · {count} units open', {
           count: formatWholeNumber(row.remainingQuantity, language),
@@ -1084,7 +1088,7 @@ export function deriveFinancialsViewModel({
     id: row.id,
     label: row.sku?.name ?? row.id,
     valueLabel: formatMoney(row.value, currency, language, usdToKhrExchangeRate),
-    valueTone: 'warning',
+    valueTone: 'warning' as const,
   }));
 
   if (commitmentsDue.length === 0) {
@@ -1101,7 +1105,7 @@ export function deriveFinancialsViewModel({
       id: row.id,
       label: row.label,
       valueLabel: formatMoney(row.value, currency, language, usdToKhrExchangeRate),
-      valueTone: 'info',
+      valueTone: 'info' as const,
     })));
   }
 
@@ -1118,7 +1122,7 @@ export function deriveFinancialsViewModel({
       label: sku.name,
       value,
       valueLabel: formatMoney(value, currency, language, usdToKhrExchangeRate),
-      valueTone: linkedCount > 0 ? 'info' : 'neutral',
+      valueTone: linkedCount > 0 ? 'info' as const : 'neutral' as const,
     };
   }).filter((row) => row.value > 0), (row) => row.value).slice(0, 4);
 
