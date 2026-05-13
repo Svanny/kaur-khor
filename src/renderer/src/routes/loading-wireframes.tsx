@@ -47,8 +47,8 @@ export function WorkspaceTitleCardWireframe({
   actions?: ReactNode;
   children?: ReactNode;
   descriptor: string;
-  eyebrow: string;
-  title: string;
+  eyebrow?: string;
+  title: ReactNode;
 }) {
   return (
     <WorkspaceTitleCard
