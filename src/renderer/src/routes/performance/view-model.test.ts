@@ -1,12 +1,20 @@
 import { describe, expect, test } from 'vitest';
+import type {
+  SenaCatalog,
+  SenaObservationRecord,
+  SenaServiceDetail,
+  SenaSkuDetail,
+  SenaWorkspaceSummary,
+} from '@shared/sena';
 import { getTranslation } from '@/lib/translations';
 import { derivePerformanceViewModel } from './view-model';
 
-const catalog = {
+const catalog: SenaCatalog = {
   schemaVersion: 1,
   bundles: [],
   services: [
     {
+      archived: false,
       bundle: false,
       description: 'High-demand color package',
       name: 'Hair Coloring',
@@ -14,6 +22,7 @@ const catalog = {
       serviceId: 'service-color',
     },
     {
+      archived: false,
       bundle: false,
       description: 'Core haircut service',
       name: 'Haircut',
@@ -27,6 +36,7 @@ const catalog = {
   ],
   skus: [
     {
+      archived: false,
       costPerUnit: 6,
       description: 'Refill cartridge for haircut service',
       leadTimeMeanDaysHint: 5,
@@ -37,6 +47,7 @@ const catalog = {
       soldAsProduct: true,
     },
     {
+      archived: false,
       costPerUnit: 5,
       description: 'Retail and color support shampoo',
       leadTimeMeanDaysHint: 4,
@@ -47,9 +58,9 @@ const catalog = {
       soldAsProduct: true,
     },
   ],
-} as const;
+};
 
-const workspaceSummary = {
+const workspaceSummary: SenaWorkspaceSummary = {
   highRiskSkuIds: ['sku-razor'],
   intervalCount: 4,
   latestObservedAt: '2026-04-03T08:00:00.000Z',
@@ -106,9 +117,9 @@ const workspaceSummary = {
     },
   ],
   topRegime: 'normal',
-} as const;
+};
 
-const observations = [
+const observations: SenaObservationRecord[] = [
   {
     input: {
       leadTimeHints: [],
@@ -143,9 +154,9 @@ const observations = [
     observationId: 'obs-2',
     ownerSub: 'desktop-owner',
   },
-] as const;
+];
 
-const serviceDetailsById = {
+const serviceDetailsById: Record<string, SenaServiceDetail | null> = {
   'service-color': {
     activityIntervalHigh: 8,
     activityIntervalLow: 5,
@@ -164,9 +175,9 @@ const serviceDetailsById = {
     regimeTimeline: [],
     serviceId: 'service-haircut',
   },
-} as const;
+};
 
-const skuDetailsById = {
+const skuDetailsById: Record<string, SenaSkuDetail | null> = {
   'sku-razor': {
     demandPosterior: [],
     inventoryPosterior: [],
@@ -190,13 +201,14 @@ const skuDetailsById = {
     pipelinePosterior: [],
     summary: workspaceSummary.skuSummaries[1],
   },
-} as const;
+};
 
 describe('derivePerformanceViewModel', () => {
   test('keeps comparison data quiet when compare mode is off', () => {
     const model = derivePerformanceViewModel({
       catalog,
       compareMode: false,
+      customRange: null,
       currency: 'USD',
       diagnostics: null,
       language: 'en',
@@ -205,6 +217,7 @@ describe('derivePerformanceViewModel', () => {
       serviceDetailsById: { ...serviceDetailsById },
       skuDetailsById: { ...skuDetailsById },
       timeRange: '30d',
+      previousCustomRange: null,
       workspaceSummary: { ...workspaceSummary },
     });
 
@@ -219,6 +232,7 @@ describe('derivePerformanceViewModel', () => {
     const model = derivePerformanceViewModel({
       catalog,
       compareMode: true,
+      customRange: null,
       currency: 'USD',
       diagnostics: null,
       language: 'en',
@@ -227,6 +241,7 @@ describe('derivePerformanceViewModel', () => {
       serviceDetailsById: { ...serviceDetailsById },
       skuDetailsById: { ...skuDetailsById },
       timeRange: '30d',
+      previousCustomRange: null,
       workspaceSummary: { ...workspaceSummary },
     });
 
@@ -240,7 +255,7 @@ describe('derivePerformanceViewModel', () => {
   });
 
   test('uses manually selected previous custom bounds for compare windows', () => {
-    const customObservations = [
+    const customObservations: SenaObservationRecord[] = [
       {
         input: {
           leadTimeHints: [],
@@ -308,6 +323,7 @@ describe('derivePerformanceViewModel', () => {
     const model = derivePerformanceViewModel({
       catalog,
       compareMode: false,
+      customRange: null,
       currency: 'USD',
       diagnostics: null,
       language: 'en',
@@ -327,6 +343,7 @@ describe('derivePerformanceViewModel', () => {
       serviceDetailsById: { ...serviceDetailsById },
       skuDetailsById: { ...skuDetailsById },
       timeRange: '7d',
+      previousCustomRange: null,
       workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-02T08:00:00.000Z' },
     });
 
@@ -338,6 +355,7 @@ describe('derivePerformanceViewModel', () => {
     const model = derivePerformanceViewModel({
       catalog,
       compareMode: false,
+      customRange: null,
       currency: 'USD',
       diagnostics: null,
       language: 'km',
@@ -347,7 +365,7 @@ describe('derivePerformanceViewModel', () => {
       skuDetailsById: {
         ...skuDetailsById,
         'sku-razor': {
-          ...skuDetailsById['sku-razor'],
+          ...skuDetailsById['sku-razor']!,
           pipelinePosterior: [
             {
               ageDaysMean: 7,
@@ -361,6 +379,7 @@ describe('derivePerformanceViewModel', () => {
         },
       },
       timeRange: '30d',
+      previousCustomRange: null,
       workspaceSummary: { ...workspaceSummary },
     });
 
