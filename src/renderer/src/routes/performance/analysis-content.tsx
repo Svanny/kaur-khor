@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { LoadingMoreIntervalsIsland } from '@/components/system/loading-more-intervals-island';
 import { ChartLedgerOverlay, useHeldTradingChartBusy, useTradingChartController, type TradingChartController } from '@/components/system/trading-chart';
 import type { ChartCustomTimeframeRange, ChartTimeframe } from '@/components/system/chart-timeframe';
+import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { activeSenaCatalog, filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { deriveSavedObservationCount } from '@/lib/observation-count';
 import { translateUiLiteral } from '@/lib/translations';
@@ -28,12 +29,12 @@ import type { InventoryContextValue } from '@/state/inventory';
 import type { AnalysisTimeframe } from './analysis-timeframe';
 
 type AnalysisContentProps = {
-  currency: string;
+  currency: AppCurrency;
   hasOlderIntervals: boolean;
   inventory: InventoryContextValue;
   isHydratingDetails: boolean;
   isLoadingOlderIntervals: boolean;
-  language: string;
+  language: AppLanguage;
   loadOlderIntervals: (limit?: number) => Promise<number>;
   resetHydratedDetails: () => Promise<void>;
   resolvedTimeframeCacheKey?: string | null;
