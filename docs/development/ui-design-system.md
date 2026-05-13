@@ -67,6 +67,10 @@ Use `src/renderer/src/lib/page-state-memory.ts` for page-state persistence and r
 
 Page memory can also store small scoped values such as chart layout preferences through `readRememberedPageValue()` and `writeRememberedPageValue()`. Use validators for these values and clear default values from storage so the remembered record remains small and route-focused. Chart pane heights are only restorable when they are marked as manual user resizes; passive chart measurements should not become persisted layout preferences.
 
+## Floating Action Measurement Rule
+
+Floating title actions and adjacent floating control islands must coalesce scroll, resize, and observer-driven geometry reads through `requestAnimationFrame`. Keep the first measurement immediate so the island appears without a delayed frame, but do not run repeated `getBoundingClientRect()` reads directly inside scroll or resize handlers.
+
 ## Cross-Runtime Auto-Zoom Rule
 
 Use `src/shared/responsive-zoom.ts` as the single threshold model for desktop, web demo, and browser app responsive zoom. The model must consider available width, height, and viewport area, with width as the primary design signal and height/area allowed to tighten the resulting scale. Treat `1600x900` as the normal full-density product viewport; step down around the common `1440`, `1280`, and `1120` width tiers, the `900`, `800`, `720`, and `640` height tiers, and their paired areas. Desktop must apply that model through Electron `webContents.setZoomLevel()` so the whole app scales consistently and must keep resizable windows landscape-first. The web demo and browser app must apply it only inside the embedded product wrapper, not on the public landing page.
