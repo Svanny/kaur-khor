@@ -15,6 +15,7 @@ import {
   rememberPageState,
   writeRememberedPageValue,
 } from './page-state-memory';
+import { readInsightsRouteState } from './navigation-state';
 
 describe('page-state-memory', () => {
   beforeEach(() => {
@@ -29,7 +30,8 @@ describe('page-state-memory', () => {
     rememberPageState('/insights', '?range=7d&scope=skus&compare=0&extra=drop');
 
     expect(buildRememberedInsightsHref()).toBe('/insights');
-    expect(buildRememberedInsightsHref({ inventory: { range: '90d' } })).toBe('/insights/inventory?range=90d');
+    const inventoryNinetyDayState = readInsightsRouteState(new URLSearchParams('mode=inventory&range=90d'));
+    expect(buildRememberedInsightsHref({ inventory: inventoryNinetyDayState.inventory })).toBe('/insights/inventory?range=90d');
 
     rememberPageState('/insights/pressure', '?range=7d&scope=skus&compare=0&extra=drop');
 
