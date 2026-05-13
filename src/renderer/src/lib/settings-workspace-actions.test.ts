@@ -42,7 +42,7 @@ describe('settings workspace actions', () => {
         getDiagnostics: vi.fn(async () => ({ coverageEstimate: 0.91 })),
         getRunStatus: vi.fn(async () => ({ runId: 'run-1', status: 'succeeded' })),
       },
-    } as typeof window.kaurKhorDesktop;
+    } as unknown as typeof window.kaurKhorDesktop;
   });
 
   it('skips anchor click navigation under jsdom while still exporting logs', async () => {
