@@ -82,6 +82,9 @@ workbench:
   navigating immediately
 - the POS/workbench reorder lane can force the operator to save ordering first
   before leaving the route
+- capture save exits the route after local validation and keeps observation,
+  ticket/order persistence, and optional SENA reruns in the global background
+  saving scope; failed background writes leave the draft available for retry
 - delivery fee, payer, and phone metadata are structured fields, even when the
   surface groups them under notes or receipt review UI
 
