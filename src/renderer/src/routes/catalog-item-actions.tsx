@@ -172,18 +172,31 @@ interface RecordCaptureAction {
 
 type CaptureConfirmPrompt = 'saved-draft' | 'leave-page';
 
+function captureDraftStorage() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  try {
+    return window.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function hasSavedCaptureDraft(draftStorageKey: string | null) {
-  if (!draftStorageKey || typeof window === 'undefined' || typeof window.localStorage?.getItem !== 'function') {
+  const storage = captureDraftStorage();
+  if (!draftStorageKey || typeof storage?.getItem !== 'function') {
     return false;
   }
-  return window.localStorage.getItem(draftStorageKey) != null;
+  return storage.getItem(draftStorageKey) != null;
 }
 
 function removeSavedCaptureDraft(draftStorageKey: string | null) {
-  if (!draftStorageKey || typeof window === 'undefined' || typeof window.localStorage?.removeItem !== 'function') {
+  const storage = captureDraftStorage();
+  if (!draftStorageKey || typeof storage?.removeItem !== 'function') {
     return;
   }
-  window.localStorage.removeItem(draftStorageKey);
+  storage.removeItem(draftStorageKey);
 }
 
 function CaptureConfirmDialog({

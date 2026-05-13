@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   curatedProductAttributePresets,
   customProductAttributePresetsFromDraft,
@@ -44,6 +44,21 @@ describe('product attributes helpers', () => {
     expect(mergedProductAttributePresets(presets)).toEqual(
       expect.arrayContaining([{ name: 'Finish', options: ['Matte', 'Gloss', 'Satin'] }]),
     );
+  });
+
+  test('treats blocked localStorage access as optional preset storage', () => {
+    const localStorageSpy = vi.spyOn(globalThis, 'localStorage', 'get').mockImplementation(() => {
+      throw new Error('storage blocked');
+    });
+
+    try {
+      expect(readCustomProductAttributePresets()).toEqual([]);
+      expect(() =>
+        writeCustomProductAttributePresets([{ name: 'Finish', options: ['Matte'] }]),
+      ).not.toThrow();
+    } finally {
+      localStorageSpy.mockRestore();
+    }
   });
 
   test('extracts only custom preset additions from a draft', () => {

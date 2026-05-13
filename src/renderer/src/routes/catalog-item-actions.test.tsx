@@ -548,4 +548,46 @@ describe('catalog item action sheets', () => {
     expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBe('{"version":1}');
     expect(screen.getByTestId('location')).toHaveTextContent('/work/capture/supplier-order');
   });
+
+  test('falls back to the leave-page prompt when draft storage is blocked', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new Error('storage blocked');
+      },
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <SkuMutationActions
+                    actionContext={skuActionContext}
+                    onComplete={vi.fn(async () => {})}
+                    skuId="sku-1"
+                  />
+                  <LocationProbe />
+                </>
+              }
+              path="*"
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+      const dialog = screen.getByRole('dialog');
+      expect(dialog).toHaveTextContent('Leave detail page?');
+      expect(within(dialog).queryByRole('button', { name: 'Delete draft and start new' })).not.toBeInTheDocument();
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
+  });
 });
