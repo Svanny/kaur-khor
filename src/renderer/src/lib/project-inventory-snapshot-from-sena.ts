@@ -1,6 +1,19 @@
-import type { InventorySnapshot } from '@shared/inventory';
+import type { InventorySnapshot, SistRegime } from '@shared/inventory';
 import type { SenaCatalog, SenaObservationRecord, SenaWorkspaceSummary } from '@shared/sena';
 import { linkedSkuIdsForService } from '@/lib/sena-catalog';
+
+const SIST_REGIMES = new Set<string>([
+  'normal',
+  'spike',
+  'lull',
+  'stockout_constrained',
+  'promo',
+  'correction',
+]);
+
+function toSistRegime(value: string | null | undefined): SistRegime | null {
+  return value && SIST_REGIMES.has(value) ? (value as SistRegime) : null;
+}
 
 export function projectInventorySnapshotFromSena(
   catalog: SenaCatalog,
@@ -53,7 +66,7 @@ export function projectInventorySnapshotFromSena(
         smoothingWindowReports: 90,
       },
       asOf: latestObservation?.input.observedAt ?? null,
-      topRegime: workspaceSummary?.topRegime ?? null,
+      topRegime: toSistRegime(workspaceSummary?.topRegime),
       pendingReorderCount: workspaceSummary?.pendingReorderCount ?? 0,
       highRiskSkuIds: workspaceSummary?.highRiskSkuIds ?? [],
       skuInsights: (workspaceSummary?.skuSummaries ?? []).map((summary) => ({
