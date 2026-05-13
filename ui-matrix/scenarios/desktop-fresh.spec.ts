@@ -145,6 +145,17 @@ test.describe('UI matrix: desktop fresh state', () => {
         skuCount: 0,
       });
 
+      await navigateHashRoute(launched.page, '/catalog/skus/new');
+      await launched.page.getByRole('button', { name: 'Create entry' }).click();
+      await expect(launched.page.getByText('Enter a SKU name before saving.')).toBeVisible();
+      await expect(launched.page.getByText('Enter a cost per unit before saving.')).toBeVisible();
+      await expect(launched.page.getByText('Enter the expected time of arrival days before saving.')).toBeVisible();
+      await expect(launched.page.getByText('Enter ETA variation days and hours or choose an ETA variation before saving.')).toBeVisible();
+      await assertUiStable(launched.page, 'fresh new SKU invalid save errors');
+      await captureUi(launched.page, testInfo, 'fresh-new-sku-invalid-save');
+      const afterInvalidSaveCounts = await desktopWorkspaceCounts(launched.page);
+      expect(afterInvalidSaveCounts, 'invalid SKU save should not mutate fresh workspace data').toMatchObject(emptyCounts);
+
       for (const routeCase of freshEmptyRoutes) {
         await navigateHashRoute(launched.page, routeCase.route);
         await routeCase.assertion(launched.page);

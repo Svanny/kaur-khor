@@ -53,10 +53,33 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     await page.waitForFunction(() => window.location.hash === '#/work/queue');
     await assertEmbeddedUiStable(page, 'demo browser work queue');
     await captureUi(page, testInfo, 'web-demo-work-queue');
+
+    const populatedRoutes: Array<{ capture: string; route: string; text: RegExp | string }> = [
+      { route: '#/insights/inventory', text: /Inventory|Inventory analysis/i, capture: 'web-demo-inventory' },
+      { route: '#/insights/money', text: /Money/i, capture: 'web-demo-money' },
+      { route: '#/insights/explain', text: /Explain/i, capture: 'web-demo-explain' },
+      { route: '#/settings/history?view=all', text: /History|Saved updates/i, capture: 'web-demo-history' },
+    ];
+    for (const route of populatedRoutes) {
+      await page.evaluate((hash) => {
+        window.location.hash = hash;
+      }, route.route);
+      await page.waitForFunction((hash) => window.location.hash === hash, route.route);
+      await expect(page.getByText(route.text).first()).toBeVisible();
+      await scrollMainSurface(page);
+      await assertEmbeddedUiStable(page, `demo browser populated route ${route.route}`);
+      await captureUi(page, testInfo, route.capture);
+    }
+
     prepared.issues.assertNoIssues('demo browser matrix');
   });
 
   test('browser app mode keeps local-first controls and persists navigation across reload', async ({ page }, testInfo) => {
+    testInfo.annotations.push({
+      type: 'ui-matrix',
+      description: UI_MATRIX_CASES.find((entry) => entry.id === 'browser-app-fresh-empty-workspace')?.expectedUi ?? '',
+    });
+
     const prepared = await prepareWebPage(page);
     await openEmbeddedRoute(page, 'app', '/onboarding');
     await expectEmbeddedBannerControls(page, 'app');
@@ -65,8 +88,24 @@ test.describe('UI matrix: browser and demo surfaces', () => {
 
     await completeEmbeddedOnboardingIfPresent(page);
     await expectEmbeddedBannerControls(page, 'app');
+    const emptyCounts = await browserWorkspaceCounts(page);
+    expect(emptyCounts).toMatchObject({
+      observationCount: 0,
+      serviceCount: 0,
+      skuCount: 0,
+    });
     await assertEmbeddedUiStable(page, 'browser app home after onboarding');
     await captureUi(page, testInfo, 'web-app-home');
+
+    for (const route of ['#/work/queue', '#/catalog/skus/new', '#/settings/local-data'] as const) {
+      await page.evaluate((hash) => {
+        window.location.hash = hash;
+      }, route);
+      await page.waitForFunction((hash) => window.location.hash === hash, route);
+      await expectEmbeddedBannerControls(page, 'app');
+      await scrollMainSurface(page);
+      await assertEmbeddedUiStable(page, `browser app fresh route ${route}`);
+    }
 
     const sku = await createSkuThroughUi(page, {
       cost: '3.25',
