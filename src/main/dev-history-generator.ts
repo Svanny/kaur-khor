@@ -165,10 +165,8 @@ export async function prepareGeneratedWorkspace(
         customShowHeartbeatRibbons: true,
         seenUnlockedNavItems: {
           catalog: true,
-          operations: true,
-          performance: true,
-          financials: true,
-          automations: true,
+          insights: true,
+          work: true,
         },
       }, null, 2)}\n`,
       'utf8',
