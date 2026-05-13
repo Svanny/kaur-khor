@@ -471,6 +471,7 @@ export function InventoryRoute() {
       return;
     }
 
+    const activeCatalog = catalog;
     let cancelled = false;
     setDeleteScan({ blockersByKey: {}, status: 'checking' });
 
@@ -495,18 +496,18 @@ export function InventoryRoute() {
 
       const scannedOrderBatches = await listSenaOrderBatches();
       const blockersByKey: Record<string, CatalogDeleteBlocker[]> = {};
-      for (const sku of catalog.skus) {
+      for (const sku of activeCatalog.skus) {
         blockersByKey[catalogEntityKey('sku', sku.skuId)] = catalogEntityActivityBlockers({
-          catalog,
+          catalog: activeCatalog,
           entityId: sku.skuId,
           entityType: 'sku',
           observations: scannedObservations,
           orderBatches: scannedOrderBatches,
         });
       }
-      for (const service of catalog.services) {
+      for (const service of activeCatalog.services) {
         blockersByKey[catalogEntityKey('service', service.serviceId)] = catalogEntityActivityBlockers({
-          catalog,
+          catalog: activeCatalog,
           entityId: service.serviceId,
           entityType: 'service',
           observations: scannedObservations,
