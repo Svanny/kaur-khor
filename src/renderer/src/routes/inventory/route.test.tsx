@@ -189,6 +189,17 @@ describe('InsightsInventoryRoute', () => {
     expect(screen.getAllByText('Freshness').length).toBeGreaterThan(0);
   });
 
+  test('renders bottom breathing room outside the inventory window', () => {
+    renderRoute();
+
+    const breathingRoom = document.querySelector('[data-inventory-bottom-breathing-room="true"]');
+    const tabs = document.querySelector('[data-slot="chrome-tabs"]');
+
+    expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
+    expect(tabs).not.toHaveClass('pb-32', 'md:pb-36');
+    expect(tabs?.nextElementSibling).toBe(breathingRoom);
+  });
+
   test('shows all SKU rows when row set is all', () => {
     renderRoute('/insights/inventory?rows=all');
 
