@@ -12,10 +12,12 @@ import {
   prepareAutomationPromotion,
   readAutomationConversation,
   readAutomationIntakeThread,
+  readAutomationWorkspace,
+  readAutomationTransportState,
   recordAutomationWizardItemImageMessage,
   recordAutomationWizardMessage,
   readAutomationWizardSessionForConversation,
-  readAutomationWorkspace,
+  saveAutomationConnection,
   ticketEventsRequiringTelegramNotification,
 } from './automation-store';
 import type { SenaTicketEvent } from '@shared/sena';
@@ -801,6 +803,31 @@ describe('automation telegram ingestion', () => {
     })).rejects.toThrow();
 
     await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
+  });
+
+  it('rejects malformed automation connection patches before persisting state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(saveAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      status: 'sleeping',
+    } as never)).rejects.toThrow('Automation connection status is invalid.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects malformed automation exposure patches before persisting rules', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      sortOrder: Number.NaN,
+    } as never)).rejects.toThrow('Automation exposure sort order must be a finite number or null.');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.exposures.find((row) => row.entityId === 'sku-1')?.sortOrder).toBe(0);
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {
