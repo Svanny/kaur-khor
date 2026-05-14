@@ -36,3 +36,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.
 - Keep browser/demo-only renderer bootstrap code behind a runtime dynamic import so Electron desktop startup does not eagerly load mock bridge data, demo images, or web-only analysis helpers.
+- Generated desktop fixture catalog image paths must use the shipped `src/renderer/src/assets/dev-catalog/*.webp` filenames; stale `.png` paths trigger asset-protocol 404s in UI matrix runs.
