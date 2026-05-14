@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -226,6 +227,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const [seenUnlockedNavItems, setSeenUnlockedNavItemsState] = useState<DesktopSeenUnlockedNavItems>(
     DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   );
+  const seenUnlockedNavItemsRef = useRef<DesktopSeenUnlockedNavItems>(
+    DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
+  );
   const [workbenchTileOrderByLane, setWorkbenchTileOrderByLaneState] = useState<DesktopWorkbenchTileOrderByLane>(
     DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
   );
@@ -325,6 +329,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           normalizeDesktopPreferenceTimestamp(preferences.overviewStaleUpdateReminderSnoozeUntil),
         );
         setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(preferences.onboardingCompletedAt));
+        seenUnlockedNavItemsRef.current = nextSeenUnlockedNavItems;
         setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
         setWorkbenchTileOrderByLaneState(nextWorkbenchTileOrderByLane);
         setPersistedLanguage(preferences.language);
@@ -451,6 +456,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setSenaEngineParametersState(nextSenaEngineParameters);
     setOverviewStaleUpdateReminderSnoozeUntilState(nextOverviewStaleUpdateReminderSnoozeUntil);
     setOnboardingCompletedAtState(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
+    seenUnlockedNavItemsRef.current = nextSeenUnlockedNavItems;
     setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
     setWorkbenchTileOrderByLaneState(nextWorkbenchTileOrderByLane);
     setPersistedLanguage(nextPreferences.language);
@@ -936,15 +942,19 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         });
       },
       markUnlockedNavItemSeen: async (itemId) => {
-        if (seenUnlockedNavItems[itemId]) {
+        if (seenUnlockedNavItemsRef.current[itemId]) {
           return;
         }
 
+        const nextSeenUnlockedNavItems = {
+          ...seenUnlockedNavItemsRef.current,
+          [itemId]: true,
+        };
+        seenUnlockedNavItemsRef.current = nextSeenUnlockedNavItems;
+        setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
+
         await savePreferencesPatch({
-          seenUnlockedNavItems: {
-            ...seenUnlockedNavItems,
-            [itemId]: true,
-          },
+          seenUnlockedNavItems: nextSeenUnlockedNavItems,
         });
       },
       resetPreferences: () => {
@@ -980,6 +990,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
           persistedOverviewStaleUpdateReminderSnoozeUntil,
         );
         setOnboardingCompletedAtState(persistedOnboardingCompletedAt);
+        seenUnlockedNavItemsRef.current = persistedSeenUnlockedNavItems;
         setSeenUnlockedNavItemsState(persistedSeenUnlockedNavItems);
         setWorkbenchTileOrderByLaneState(persistedWorkbenchTileOrderByLane);
       },
