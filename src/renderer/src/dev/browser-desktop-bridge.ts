@@ -1539,6 +1539,7 @@ function installBrowserDesktopBridge() {
         },
       }),
       checkForUpdate: async () => ({
+        availableVersions: [],
         currentVersion: browserMockState.appContext.appVersion,
         isPlatformSupported: false,
         isUpdateAvailable: false,

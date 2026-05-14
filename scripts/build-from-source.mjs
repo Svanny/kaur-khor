@@ -9,13 +9,16 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 import { request as httpsRequest } from 'node:https';
 import { homedir, tmpdir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import {
@@ -121,6 +124,9 @@ async function main(options) {
   if (target.os === 'mac') {
     openReleaseFolder(sourceRoot, target);
   }
+  if (options.update) {
+    await prunePreviousSourceBuilds(sourceRoot, options.oldSourceBuilds);
+  }
 }
 
 function prepareLinuxInstallPrivilege(target) {
@@ -157,6 +163,7 @@ function parseArgs(args) {
     dataDir: null,
     help: false,
     noUninstall: false,
+    oldSourceBuilds: 'ask',
     platform: null,
     resolveOnly: false,
     skipBackup: false,
@@ -186,6 +193,16 @@ function parseArgs(args) {
 
     if (arg === '--no-uninstall') {
       parsed.noUninstall = true;
+      continue;
+    }
+
+    if (arg === '--keep-old-source-builds') {
+      parsed.oldSourceBuilds = 'keep';
+      continue;
+    }
+
+    if (arg === '--delete-old-source-builds') {
+      parsed.oldSourceBuilds = 'delete';
       continue;
     }
 
@@ -239,6 +256,8 @@ Update flags:
   --data-dir=<path>         Back up this Kaur Khor data directory.
   --skip-backup             Replace the app without exporting a pre-update snapshot.
   --no-uninstall            Skip explicit uninstall steps where supported.
+  --keep-old-source-builds  Keep previous source-build folders without prompting.
+  --delete-old-source-builds Delete previous source-build folders without prompting.
 `);
 }
 
@@ -317,7 +336,7 @@ function packagePlanForTarget(target) {
 async function resolveSourceRoot() {
   const currentRoot = findCurrentSourceRoot(process.cwd());
   if (currentRoot) {
-    return currentRoot;
+    return organizeSourceBuildRoot(currentRoot);
   }
 
   const buildDir = resolve(process.env.KAUR_KHOR_BUILD_DIR || join(tmpdir(), 'kaur-khor-source-build'));
@@ -344,11 +363,115 @@ async function resolveSourceRoot() {
     fail(`Expected one source directory inside ${buildDir}, found ${entries.length}.`);
   }
 
-  return resolve(buildDir, entries[0]);
+  return organizeSourceBuildRoot(resolve(buildDir, entries[0]));
 }
 
 function isProductionSourceBuild(sourceRoot) {
   return existsSync(resolve(sourceRoot, SOURCE_BUILD_RELEASE_MARKER));
+}
+
+export function organizeSourceBuildRoot(sourceRoot) {
+  const resolvedSourceRoot = resolve(sourceRoot);
+  if (!isProductionSourceBuild(resolvedSourceRoot)) {
+    return resolvedSourceRoot;
+  }
+
+  const sourceParent = dirname(resolvedSourceRoot);
+  if (basename(sourceParent) === 'kaur-khor') {
+    return resolvedSourceRoot;
+  }
+
+  const sourceBuildParent = resolve(sourceParent, 'kaur-khor');
+  mkdirSync(sourceBuildParent, { recursive: true });
+  const targetRoot = uniqueSourceBuildRoot(sourceBuildParent, basename(resolvedSourceRoot));
+  const originalCwd = process.cwd();
+  process.chdir(sourceParent);
+  renameSourceBuildRoot(resolvedSourceRoot, targetRoot);
+  process.chdir(isSameOrChildPath(originalCwd, resolvedSourceRoot) ? targetRoot : originalCwd);
+  console.log(`Moved source-build folder into ${targetRoot}.`);
+  return targetRoot;
+}
+
+function isSameOrChildPath(candidatePath, parentPath) {
+  const relativePath = relative(parentPath, candidatePath);
+  return relativePath === '' || (relativePath.length > 0 && !relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
+
+function uniqueSourceBuildRoot(parent, name) {
+  let candidate = resolve(parent, name);
+  let suffix = 2;
+
+  while (existsSync(candidate)) {
+    candidate = resolve(parent, `${name}-${suffix}`);
+    suffix += 1;
+  }
+
+  return candidate;
+}
+
+function renameSourceBuildRoot(from, to) {
+  try {
+    rmSync(to, { recursive: true, force: true });
+    mkdirSync(dirname(to), { recursive: true });
+    renameSync(from, to);
+  } catch (error) {
+    fail(`Could not move source-build folder into ${to}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+export function previousSourceBuildRoots(sourceRoot) {
+  const resolvedSourceRoot = resolve(sourceRoot);
+  const parent = dirname(resolvedSourceRoot);
+  if (basename(parent) !== 'kaur-khor' || !existsSync(parent)) {
+    return [];
+  }
+
+  return readdirSync(parent, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => resolve(parent, entry.name))
+    .filter((entryPath) =>
+      entryPath !== resolvedSourceRoot &&
+      /^kaur-khor-v.+-source-build(?:-\d+)?$/.test(basename(entryPath)) &&
+      existsSync(resolve(entryPath, SOURCE_BUILD_RELEASE_MARKER)),
+    )
+    .sort();
+}
+
+export async function prunePreviousSourceBuilds(sourceRoot, mode = 'ask') {
+  const previousRoots = previousSourceBuildRoots(sourceRoot);
+  if (previousRoots.length === 0 || mode === 'keep') {
+    return [];
+  }
+
+  let shouldDelete = mode === 'delete';
+  if (mode === 'ask') {
+    shouldDelete = await askDeletePreviousSourceBuilds(previousRoots);
+  }
+
+  if (!shouldDelete) {
+    console.log('Keeping previous source-build folders.');
+    return [];
+  }
+
+  for (const previousRoot of previousRoots) {
+    rmSync(previousRoot, { recursive: true, force: true });
+  }
+  console.log(`Deleted ${previousRoots.length} previous source-build folder${previousRoots.length === 1 ? '' : 's'}.`);
+  return previousRoots;
+}
+
+async function askDeletePreviousSourceBuilds(previousRoots) {
+  const readline = createInterface({ input, output });
+  try {
+    console.log('Previous Kaur Khor source-build folders were found:');
+    for (const previousRoot of previousRoots) {
+      console.log(`- ${previousRoot}`);
+    }
+    const answer = await readline.question('Delete previous source-build folders? Type DELETE to delete, or press Enter to keep: ');
+    return /^delete$/i.test(answer.trim());
+  } finally {
+    readline.close();
+  }
 }
 
 function findCurrentSourceRoot(start) {

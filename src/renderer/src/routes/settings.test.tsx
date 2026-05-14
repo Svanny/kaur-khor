@@ -298,6 +298,29 @@ describe('SettingsRoute', () => {
       },
     });
     checkForUpdate.mockResolvedValue({
+      availableVersions: [
+        {
+          label: 'Latest (v0.3.5)',
+          releaseTag: 'v0.3.5',
+          releaseUrl: 'https://github.com/Svanny/kaur-khor/releases/tag/v0.3.5',
+          value: 'latest',
+          version: '0.3.5',
+        },
+        {
+          label: 'v0.3.5',
+          releaseTag: 'v0.3.5',
+          releaseUrl: 'https://github.com/Svanny/kaur-khor/releases/tag/v0.3.5',
+          value: 'v0.3.5',
+          version: '0.3.5',
+        },
+        {
+          label: 'v0.3.4',
+          releaseTag: 'v0.3.4',
+          releaseUrl: 'https://github.com/Svanny/kaur-khor/releases/tag/v0.3.4',
+          value: 'v0.3.4',
+          version: '0.3.4',
+        },
+      ],
       currentVersion: '0.3.4',
       isPlatformSupported: true,
       isUpdateAvailable: true,
@@ -1715,6 +1738,7 @@ describe('SettingsRoute', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /check latest release/i }));
     await screen.findByText('Update available: v0.3.5.');
+    expect(screen.getByRole('combobox', { name: /source-build version/i })).toHaveTextContent('Latest (v0.3.5)');
 
     fireEvent.click(screen.getByRole('button', { name: /choose data folder/i }));
     await screen.findByText('Data folder: /tmp/custom-kaur-khor-data');
@@ -1722,12 +1746,40 @@ describe('SettingsRoute', () => {
     fireEvent.click(screen.getByRole('button', { name: /choose snapshot export folder/i }));
     await screen.findByText('Snapshot export folder: /tmp/kaur-khor-update-backups');
 
-    fireEvent.click(screen.getByRole('button', { name: /build and install latest release/i }));
+    fireEvent.click(screen.getByRole('button', { name: /build and install latest/i }));
 
     await waitFor(() => {
       expect(runSourceBuildUpdate).toHaveBeenCalledWith({
         backupDirectoryPath: '/tmp/kaur-khor-update-backups',
         dataDirectoryPath: '/tmp/custom-kaur-khor-data',
+        oldSourceBuilds: 'ask',
+        sourceVersion: 'latest',
+        skipBackup: false,
+      });
+    });
+  });
+
+  it('passes a selected desktop update version to the source-build updater', async () => {
+    renderSettingsRoute('/settings/updates');
+
+    fireEvent.click(await screen.findByRole('button', { name: /check latest release/i }));
+    await screen.findByText('Update available: v0.3.5.');
+
+    const versionSelect = screen.getByRole('combobox', { name: /source-build version/i });
+    fireEvent.click(versionSelect);
+    fireEvent.click(screen.getByRole('option', { name: 'v0.3.4' }));
+
+    fireEvent.click(screen.getByRole('button', { name: /choose snapshot export folder/i }));
+    await screen.findByText('Snapshot export folder: /tmp/kaur-khor-update-backups');
+
+    fireEvent.click(screen.getByRole('button', { name: /build and install v0.3.4/i }));
+
+    await waitFor(() => {
+      expect(runSourceBuildUpdate).toHaveBeenCalledWith({
+        backupDirectoryPath: '/tmp/kaur-khor-update-backups',
+        dataDirectoryPath: '/tmp/kaur-khor',
+        oldSourceBuilds: 'ask',
+        sourceVersion: 'v0.3.4',
         skipBackup: false,
       });
     });

@@ -85,6 +85,22 @@ describe('source-build update support', () => {
     expect(result.dataDir).toBe(dataDir);
   });
 
+  it('skips backup automatically when no existing app data is present', async () => {
+    const root = await tempRoot('kaur-khor-update-empty-');
+    vi.stubEnv('XDG_CONFIG_HOME', root);
+    const promptForBackupDirectory = vi.fn();
+
+    const result = await prepareSourceBuildUpdate({
+      nextVersion: '0.5.2',
+      promptForBackupDirectory,
+      target: { os: 'linux' },
+    });
+
+    expect(result.backupPath).toBe(null);
+    expect(result.dataDir).toBe(resolve(root, 'KAUR KHOR'));
+    expect(promptForBackupDirectory).not.toHaveBeenCalled();
+  });
+
   it('fails when an explicit update data directory is missing', async () => {
     const root = await tempRoot('kaur-khor-update-default-');
     const defaultDataDir = join(root, 'KAUR KHOR');

@@ -1318,6 +1318,8 @@ function DesktopUpdatesPage({
   handleChooseBackupDirectory,
   handleChooseDataDirectory,
   handleRunUpdate,
+  selectedUpdateVersion,
+  setSelectedUpdateVersion,
   setSkipUpdateBackup,
   skipUpdateBackup,
   t,
@@ -1333,6 +1335,8 @@ function DesktopUpdatesPage({
   handleChooseBackupDirectory: () => Promise<void>;
   handleChooseDataDirectory: () => Promise<void>;
   handleRunUpdate: () => Promise<void>;
+  selectedUpdateVersion: string;
+  setSelectedUpdateVersion: (value: string) => void;
   setSkipUpdateBackup: (value: boolean) => void;
   skipUpdateBackup: boolean;
   t: TranslateFn;
@@ -1342,6 +1346,15 @@ function DesktopUpdatesPage({
   }
 
   const canStartUpdate = !isStartingUpdate && (skipUpdateBackup || Boolean(backupDirectoryPath));
+  const updateVersionOptions = updateCheck?.availableVersions.length
+    ? updateCheck.availableVersions
+    : [{
+        label: t('settingsUpdatesLatestVersionOption'),
+        releaseTag: 'latest',
+        releaseUrl: 'https://github.com/Svanny/kaur-khor/releases/latest',
+        value: 'latest',
+        version: null,
+      }];
 
   return (
     <WorkspacePanel>
@@ -1366,6 +1379,33 @@ function DesktopUpdatesPage({
               </div>
             </dl>
           ) : null}
+        </div>
+
+        <div className="grid gap-2 rounded-xl border border-border/70 bg-background/70 p-4 text-sm">
+          <label className="font-medium text-foreground" htmlFor="settings-update-version">
+            {t('settingsUpdatesVersionPickerLabel')}
+          </label>
+          <Select
+            disabled={isStartingUpdate}
+            value={selectedUpdateVersion}
+            onValueChange={setSelectedUpdateVersion}
+          >
+            <SelectTrigger
+              aria-label={t('settingsUpdatesVersionPickerLabel')}
+              className={preferenceSelectTriggerClassName}
+              id="settings-update-version"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="start" position="popper">
+              {updateVersionOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-muted-foreground">{t('settingsUpdatesVersionPickerHelp')}</p>
         </div>
 
         <WorkspaceActionRow>
@@ -1422,7 +1462,9 @@ function DesktopUpdatesPage({
             onClick={() => void handleRunUpdate()}
           >
             <ActionRefreshIcon data-icon="inline-start" />
-            {isStartingUpdate ? t('settingsUpdatesStarting') : t('settingsUpdatesInstallAction')}
+            {isStartingUpdate
+              ? t('settingsUpdatesStarting')
+              : t('settingsUpdatesInstallAction', { version: selectedUpdateVersion === 'latest' ? 'latest' : selectedUpdateVersion })}
           </Button>
         </WorkspaceActionRow>
         {updateStatus ? <p className="text-sm text-muted-foreground">{updateStatus}</p> : null}
@@ -1492,6 +1534,7 @@ export function SettingsRoute() {
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateBackupDirectoryPath, setUpdateBackupDirectoryPath] = useState<string | null>(null);
   const [updateDataDirectoryPath, setUpdateDataDirectoryPath] = useState<string | null>(null);
+  const [selectedUpdateVersion, setSelectedUpdateVersion] = useState('latest');
   const [skipUpdateBackup, setSkipUpdateBackup] = useState(false);
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false);
   const [isStartingUpdate, setIsStartingUpdate] = useState(false);
@@ -1689,6 +1732,9 @@ export function SettingsRoute() {
       setIsCheckingUpdate(true);
       const result = await window.kaurKhorDesktop.system.checkForUpdate();
       setUpdateCheck(result);
+      if (!result.availableVersions.some((option) => option.value === selectedUpdateVersion)) {
+        setSelectedUpdateVersion('latest');
+      }
       if (!result.isPlatformSupported) {
         setUpdateStatus(t('settingsUpdatesUnsupportedPlatform'));
       } else if (result.isUpdateAvailable) {
@@ -1724,6 +1770,8 @@ export function SettingsRoute() {
       const result = await window.kaurKhorDesktop.system.runSourceBuildUpdate({
         backupDirectoryPath: updateBackupDirectoryPath,
         dataDirectoryPath: updateDataDirectoryPath ?? localDataInfo?.dataDirectoryPath ?? null,
+        oldSourceBuilds: 'ask',
+        sourceVersion: selectedUpdateVersion,
         skipBackup: skipUpdateBackup,
       });
       setUpdateStatus(result.message);
@@ -1977,6 +2025,8 @@ export function SettingsRoute() {
                   isBrowserRuntime={isBrowserRuntime}
                   isCheckingUpdate={isCheckingUpdate}
                   isStartingUpdate={isStartingUpdate}
+                  selectedUpdateVersion={selectedUpdateVersion}
+                  setSelectedUpdateVersion={setSelectedUpdateVersion}
                   setSkipUpdateBackup={setSkipUpdateBackup}
                   skipUpdateBackup={skipUpdateBackup}
                   t={t}

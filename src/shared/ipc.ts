@@ -81,6 +81,7 @@ export interface DesktopClearCurrentDataResult {
 }
 
 export interface DesktopUpdateCheckResult {
+  availableVersions: DesktopUpdateVersionOption[];
   currentVersion: string;
   isPlatformSupported: boolean;
   isUpdateAvailable: boolean;
@@ -89,9 +90,19 @@ export interface DesktopUpdateCheckResult {
   releaseUrl: string;
 }
 
+export interface DesktopUpdateVersionOption {
+  label: string;
+  releaseTag: string;
+  releaseUrl: string;
+  value: string;
+  version: string | null;
+}
+
 export interface DesktopUpdateRunPayload {
   backupDirectoryPath?: string | null;
   dataDirectoryPath?: string | null;
+  oldSourceBuilds?: 'ask' | 'delete' | 'keep';
+  sourceVersion?: string | null;
   skipBackup?: boolean;
 }
 

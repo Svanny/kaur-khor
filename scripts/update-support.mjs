@@ -115,6 +115,15 @@ export function createPreUpdateBackup({
   return backupPath;
 }
 
+function dataDirectoryCanBeBackedUp(dataDir) {
+  if (!dataDir) {
+    return false;
+  }
+
+  const resolvedDataDir = resolve(dataDir);
+  return existsSync(resolvedDataDir) && statSync(resolvedDataDir).isDirectory();
+}
+
 export function detectInstalledApp(targetOs = process.platform) {
   if (targetOs === 'darwin' || targetOs === 'mac') {
     return detectInstalledMacApp();
@@ -222,6 +231,11 @@ export async function prepareSourceBuildUpdate({
   console.log(`Detected data directory: ${resolvedDataDir}`);
 
   let backupPath = null;
+  if (!skipBackup && !dataDirectoryCanBeBackedUp(resolvedDataDir)) {
+    skipBackup = true;
+    console.log('No existing Kaur Khor data directory was found, so there is no pre-update snapshot to export.');
+  }
+
   if (!skipBackup) {
     let resolvedBackupDir = backupDir ?? null;
     if (!resolvedBackupDir && prompt) {
@@ -276,6 +290,11 @@ export function parseBackupDirectoryPromptAnswer(answer) {
 }
 
 async function promptForBackupDirectoryFromStdin() {
+  const nativeResult = promptForBackupDirectoryWithNativeDialog();
+  if (nativeResult) {
+    return nativeResult;
+  }
+
   const readline = createInterface({ input, output });
   try {
     const answer = await readline.question(
@@ -285,6 +304,68 @@ async function promptForBackupDirectoryFromStdin() {
   } finally {
     readline.close();
   }
+}
+
+function promptForBackupDirectoryWithNativeDialog(targetOs = process.platform) {
+  if (targetOs === 'darwin') {
+    const result = spawnSync('osascript', [
+      '-e',
+      'POSIX path of (choose folder with prompt "Choose where Kaur Khor should export the pre-update snapshot.")',
+    ], {
+      encoding: 'utf8',
+    });
+    return nativeFolderPromptResult(result);
+  }
+
+  if (targetOs === 'win32') {
+    const result = spawnSync('powershell.exe', [
+      '-NoProfile',
+      '-STA',
+      '-Command',
+      [
+        'Add-Type -AssemblyName System.Windows.Forms;',
+        '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;',
+        '$dialog.Description = "Choose where Kaur Khor should export the pre-update snapshot.";',
+        '$dialog.ShowNewFolderButton = $true;',
+        'if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $dialog.SelectedPath }',
+      ].join(' '),
+    ], {
+      encoding: 'utf8',
+    });
+    return nativeFolderPromptResult(result);
+  }
+
+  for (const command of [
+    {
+      args: ['--file-selection', '--directory', '--title=Choose Kaur Khor pre-update snapshot export folder'],
+      name: 'zenity',
+    },
+    {
+      args: ['--getexistingdirectory', homedir(), 'Choose Kaur Khor pre-update snapshot export folder'],
+      name: 'kdialog',
+    },
+  ]) {
+    const result = spawnSync(command.name, command.args, { encoding: 'utf8' });
+    const promptResult = nativeFolderPromptResult(result);
+    if (promptResult) {
+      return promptResult;
+    }
+  }
+
+  return null;
+}
+
+function nativeFolderPromptResult(result) {
+  if (result.status !== 0) {
+    return null;
+  }
+
+  const selectedPath = result.stdout.trim();
+  if (!selectedPath) {
+    return null;
+  }
+
+  return { action: 'backup', path: selectedPath };
 }
 
 export function releaseVersionFromSourceRoot(sourceRoot) {

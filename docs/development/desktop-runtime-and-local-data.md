@@ -240,15 +240,21 @@ aligned.
 
 ## Desktop Update Flow
 
-Settings / Updates is desktop-only. It checks the latest GitHub release, asks the
-operator to choose a pre-update snapshot export folder, optionally lets them
-choose a custom Kaur Khor data folder, verifies the source-build archive digest
-against the release `.sha256` file, and launches the source-build updater only
-after the app accepts the quit handoff and the terminal process has been
-spawned. The updater replaces the installed app binary only. It never deletes
-the active Electron `userData` folder or a custom data directory; custom-folder
-users should restore the exported snapshot from Settings / Local data after the
-new version opens if they need to rehydrate that workspace.
+Settings / Updates is desktop-only. It checks GitHub releases, defaults the
+source-build version picker to `latest`, asks the operator to choose a
+pre-update snapshot export folder, optionally lets them choose a custom Kaur
+Khor data folder, verifies the selected source-build archive digest against the
+release `.sha256` file, and launches the source-build updater only after the
+app accepts the quit handoff and the terminal process has been spawned. The
+updater replaces the installed app binary only. It never deletes the active
+Electron `userData` folder or a custom data directory; custom-folder users
+should restore the exported snapshot from Settings / Local data after the new
+version opens if they need to rehydrate that workspace.
+
+Source-build update folders are kept beside the downloaded archive under a
+stable `kaur-khor/` parent with one `kaur-khor-v<version>-source-build` child
+per release. After a successful update, the updater prompts before deleting any
+older source-build folders and must never treat those folders as workspace data.
 
 The renderer never supplies the effective update data directory directly. Main
 process IPC resolves the chosen option to either the active Electron `userData`
