@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -28,7 +29,7 @@ import type {
   AutomationResolveIntakePayload,
 } from '@shared/ipc';
 import type { PromoteAutomationIntakePayload } from '@shared/automation';
-import { useInventoryActions } from './inventory';
+import { useInventoryActions, useInventoryState } from './inventory';
 
 export interface AutomationContextValue {
   connection: AutomationChannelConnection | null;
@@ -111,7 +112,9 @@ function emptyState() {
 
 export function AutomationProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState(() => emptyState());
+  const inventory = useInventoryState();
   const { loadWorkSupportData } = useInventoryActions();
+  const initialLoadStartedRef = useRef(false);
 
   const setStatePartial = useCallback((patch: Partial<typeof state>) => {
     setState((current) => ({ ...current, ...patch }));
@@ -158,8 +161,12 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [loadWorkspace, setStatePartial]);
 
   useEffect(() => {
+    if (initialLoadStartedRef.current || inventory.isLoading || inventory.isPreparingWorkspace) {
+      return;
+    }
+    initialLoadStartedRef.current = true;
     void reload();
-  }, [reload]);
+  }, [inventory.isLoading, inventory.isPreparingWorkspace, reload]);
 
   useEffect(() => {
     if (state.connection?.status !== 'connected') {
