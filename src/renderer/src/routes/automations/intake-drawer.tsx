@@ -110,11 +110,19 @@ function canPromote(intake: AutomationOrderIntake | null) {
   if (!intake || intake.quotedTotal == null) {
     return false;
   }
-  return intake.lines.every((line) => line.entityId != null && line.quantity != null && line.quantity > 0 && line.unitPrice != null);
+  return Number.isFinite(intake.quotedTotal)
+    && intake.lines.every((line) =>
+      line.entityId != null
+      && line.quantity != null
+      && Number.isFinite(line.quantity)
+      && line.quantity > 0
+      && line.unitPrice != null
+      && Number.isFinite(line.unitPrice),
+    );
 }
 
 function moneyLabel(value: number | null | undefined) {
-  return value == null ? 'Pending' : `$${value.toFixed(2)}`;
+  return value == null || !Number.isFinite(value) ? 'Pending' : `$${value.toFixed(2)}`;
 }
 
 function buildCustomerMessageDraft(
@@ -411,10 +419,10 @@ export function AutomationIntakeDrawer({
                           </div>
                           <div className="text-right">
                             <p className="font-medium text-foreground">
-                              {line.lineTotal == null ? literal('Pending line total') : `$${line.lineTotal.toFixed(2)}`}
+                              {line.lineTotal == null || !Number.isFinite(line.lineTotal) ? literal('Pending line total') : `$${line.lineTotal.toFixed(2)}`}
                             </p>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {line.unitPrice == null ? literal('No unit price') : translateUiLiteral(language, '{price} each', { price: `$${line.unitPrice.toFixed(2)}` })}
+                              {line.unitPrice == null || !Number.isFinite(line.unitPrice) ? literal('No unit price') : translateUiLiteral(language, '{price} each', { price: `$${line.unitPrice.toFixed(2)}` })}
                             </p>
                           </div>
                         </div>
@@ -426,7 +434,7 @@ export function AutomationIntakeDrawer({
                   </div>
                   <div className="mt-4 border-t border-border/60 pt-4">
                     <p className={sectionTitleClassName()}>{literal('Quoted total')}</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{intake.quotedTotal == null ? literal('Pending') : `$${intake.quotedTotal.toFixed(2)}`}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{moneyLabel(intake.quotedTotal)}</p>
                   </div>
                 </div>
               </div>

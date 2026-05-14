@@ -194,4 +194,35 @@ describe('AutomationIntakeDrawer', () => {
 
     expect(screen.getByRole('button', { name: 'Cancel intake', pressed: true })).toBeInTheDocument();
   });
+
+  test('renders non-finite money values as pending instead of NaN labels', async () => {
+    render(
+      <AutomationIntakeDrawer
+        intake={{
+          ...makeIntake(),
+          lines: [
+            {
+              ...makeIntake().lines[0]!,
+              lineTotal: Number.NaN,
+              unitPrice: Number.POSITIVE_INFINITY,
+            },
+          ],
+          quotedSubtotal: Number.NaN,
+          quotedTotal: Number.NaN,
+        }}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Pending line total')).toBeInTheDocument());
+    expect(screen.getByText('No unit price')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.queryByText(/\$NaN|\$Infinity/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Create customer ticket$/ }).at(-1)).toBeDisabled();
+  });
 });
