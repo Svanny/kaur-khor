@@ -32,3 +32,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Shared IPC payload types consumed by preload or browser bridges must be re-exported from `@shared/ipc`, and generated/demo preferences must seed current nav ids rather than legacy aliases.
 - Floating title action geometry reads must be coalesced through `requestAnimationFrame`; keep initial measurement immediate and keep scroll/resize handlers light.
 - Release workflow notes must be generated from the current tag diff; do not hardcode feature highlights that will become stale in later releases.
+- Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.

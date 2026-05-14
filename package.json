@@ -55,7 +55,7 @@
     "markmap:user-decision-tree:watch": "markmap docs/development/user-decision-tree.markmap.md --offline -o docs/development/user-decision-tree.markmap.html --watch",
     "refresh:tree": "bash ./scripts/refresh-tree.sh",
     "refresh:tree:zsh": "zsh ./scripts/refresh-tree.zsh",
-    "test": "vitest run --reporter=dot --no-file-parallelism"
+    "test": "node ./scripts/run-vitest.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
