@@ -40,6 +40,7 @@ jobs:
             ~/.cargo/registry
             apps/desktop-core/target
             apps/sena-core/target
+            build/cargo-target
           key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-cargo-
@@ -119,6 +120,7 @@ jobs:
             ~/.cargo/registry
             apps/desktop-core/target
             apps/sena-core/target
+            build/cargo-target
           key: ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-${{ hashFiles('apps/*/Cargo.lock', 'apps/*/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-${{ matrix.platform }}-${{ matrix.arch }}-cargo-
