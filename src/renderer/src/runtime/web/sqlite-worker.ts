@@ -106,27 +106,36 @@ function listDocuments(collection?: string): BrowserStorageDocumentRecord[] {
 
 function putDocuments(records: BrowserStorageDocumentRecord[]) {
   const storage = assertDb();
+  return runStorageTransaction(storage, () => insertDocumentsUnlocked(storage, records));
+}
+
+function insertDocumentsUnlocked(storage: SqliteDatabase, records: BrowserStorageDocumentRecord[]) {
+  for (const record of records) {
+    storage.exec({
+      sql: `
+        INSERT INTO kaur_khor_documents(collection, id, json, updated_at)
+        VALUES ($collection, $id, json($json), $updatedAt)
+        ON CONFLICT(collection, id) DO UPDATE SET
+          json = excluded.json,
+          updated_at = excluded.updated_at
+      `,
+      bind: {
+        $collection: record.collection,
+        $id: record.id,
+        $json: jsonStringify(record.json),
+        $updatedAt: record.updatedAt,
+      },
+    });
+  }
+  return records.length;
+}
+
+function runStorageTransaction<T>(storage: SqliteDatabase, task: () => T) {
   storage.exec('BEGIN IMMEDIATE;');
   try {
-    for (const record of records) {
-      storage.exec({
-        sql: `
-          INSERT INTO kaur_khor_documents(collection, id, json, updated_at)
-          VALUES ($collection, $id, json($json), $updatedAt)
-          ON CONFLICT(collection, id) DO UPDATE SET
-            json = excluded.json,
-            updated_at = excluded.updated_at
-        `,
-        bind: {
-          $collection: record.collection,
-          $id: record.id,
-          $json: jsonStringify(record.json),
-          $updatedAt: record.updatedAt,
-        },
-      });
-    }
+    const result = task();
     storage.exec('COMMIT;');
-    return records.length;
+    return result;
   } catch (error) {
     storage.exec('ROLLBACK;');
     throw error;
@@ -282,6 +291,12 @@ function persistSenaState(state: BrowserSenaPersistState) {
 
 function clearDocuments() {
   const storage = assertDb();
+  runStorageTransaction(storage, () => {
+    clearDocumentsUnlocked(storage);
+  });
+}
+
+function clearDocumentsUnlocked(storage: SqliteDatabase) {
   storage.exec('DELETE FROM kaur_khor_documents;');
   storage.exec('DELETE FROM app_metadata;');
   storage.exec('DELETE FROM preferences;');
@@ -308,8 +323,14 @@ function importBackup(requestedBackup: unknown) {
   if (!validation.ok) {
     throw new Error(validation.errors.join(' '));
   }
-  clearDocuments();
-  return putDocuments(validation.backup.records);
+  if (databaseName && validation.backup.databaseName !== databaseName) {
+    throw new Error(`Backup is for ${validation.backup.databaseName}, not ${databaseName}.`);
+  }
+  const storage = assertDb();
+  return runStorageTransaction(storage, () => {
+    clearDocumentsUnlocked(storage);
+    return insertDocumentsUnlocked(storage, validation.backup.records);
+  });
 }
 
 async function handle(request: BrowserStorageWorkerRequest): Promise<BrowserStorageWorkerResult> {
