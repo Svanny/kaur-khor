@@ -487,6 +487,9 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsUpdatesUnknownVersion: 'មិនស្គាល់',
   settingsUpdatesChecking: 'កំពុងពិនិត្យ…',
   settingsUpdatesCheckAction: 'ពិនិត្យការចេញផ្សាយថ្មីបំផុត',
+  settingsUpdatesVersionPickerLabel: 'កំណែកូដបង្កើត',
+  settingsUpdatesVersionPickerHelp: 'កំណែថ្មីបំផុតត្រូវបានជ្រើសជាលំនាំដើម។ ជ្រើសការចេញផ្សាយជាក់លាក់ ប្រសិនបើត្រូវការបង្កើតឡើងវិញ ឬត្រឡប់ទៅកំណែមុន។',
+  settingsUpdatesLatestVersionOption: 'ការចេញផ្សាយថ្មីបំផុត',
   settingsUpdatesChooseDataAction: 'ជ្រើសថតទិន្នន័យ',
   settingsUpdatesChooseBackupAction: 'ជ្រើសថតនាំចេញស្នេបស្ហត',
   settingsUpdatesSkipBackupLabel: 'រំលងការនាំចេញស្នេបស្ហតសម្រាប់អាប់ដេតនេះ។',
@@ -496,7 +499,7 @@ const seedKeyTranslations: Partial<Record<TranslationKey, string>> = {
   settingsUpdatesNoBackupDirectory: 'ជ្រើសថត ឬរំលងការនាំចេញ',
   settingsUpdatesRehydrateHint:
     'បន្ទាប់ពីកំណែថ្មីបើកឡើងវិញ សូមស្តារស្នេបស្ហតដែលបាននាំចេញនេះពី ការកំណត់ / ទិន្នន័យ ប្រសិនបើអ្នកបានជ្រើសថតទិន្នន័យផ្ទាល់ខ្លួន ឬត្រូវការស្តារដោយដៃ។',
-  settingsUpdatesInstallAction: 'បង្កើត និងដំឡើងកំណែថ្មីបំផុត',
+  settingsUpdatesInstallAction: 'បង្កើត និងដំឡើង {version}',
   settingsUpdatesStarting: 'កំពុងចាប់ផ្តើមកម្មវិធីអាប់ដេត…',
   settingsUpdatesAvailable: 'មានកំណែអាប់ដេត៖ {version}។',
   settingsUpdatesCurrent: 'កខកំពុងនៅលើកំណែថ្មីបំផុតហើយ។',

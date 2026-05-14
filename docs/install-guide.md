@@ -48,19 +48,27 @@ cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update
 ```
 
+The update script keeps extracted source-build folders under a stable
+`kaur-khor/` folder beside the downloaded archive, with each release in its own
+versioned child folder such as `kaur-khor/kaur-khor-v0.5.2-source-build`. After
+a successful update, it asks whether to keep previous source-build versions or
+delete the older version folders. The prompt only applies to those source-build
+folders; it does not delete workspace data.
+
 The update script opens the system folder picker for a pre-update snapshot
 export before replacing an installed app. If no existing Kaur Khor data
 directory is present, it skips that export because there is nothing to back up.
-Settings / Updates also verifies the downloaded source-build archive against
-the release `.sha256` file before extracting it and starts the updater only
-after Kaur Khor accepts the quit handoff. If your workspace data lives in a
+Settings / Updates also defaults to the latest source-build release, lets you
+choose a specific release version, verifies the downloaded source-build archive
+against the release `.sha256` file before extracting it, and starts the updater
+only after Kaur Khor accepts the quit handoff. If your workspace data lives in a
 custom folder, pass
 `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the
 desktop app to choose the folder. After installing the new version, restore the
 exported snapshot from Settings / Local data if you need to rehydrate from that
 custom location.
 
-After a source build, the script opens the nested runnable-app folder under `release/` when the platform emits one, such as `release/mac-arm64` on Apple Silicon Macs.
+After a source build, the script opens the nested runnable-app folder under the versioned folder's `release/` directory when the platform emits one, such as `kaur-khor/kaur-khor-v0.5.2-source-build/release/mac-arm64` on Apple Silicon Macs.
 
 To choose a native build explicitly, pass a platform flag such as `./scripts/build-from-source.sh --platform=linux-x64`. If a requested Node version or rustup target does not have a pinned digest in the source-build scripts, install that toolchain yourself from the official vendor instructions, then rerun the build instead of bypassing verification.
 
