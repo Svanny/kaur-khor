@@ -1075,6 +1075,22 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
   });
 
+  test('shows an actionable browser backup export error when persistence fails', async () => {
+    const handle = createSupportedBrowserStorageHandle();
+    vi.mocked(handle.persistSenaState)
+      .mockResolvedValueOnce(1)
+      .mockRejectedValueOnce(new Error('browser storage write failed'));
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+
+    render(<EmbeddedAppRoute mode="app" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Export backup' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('browser storage write failed');
+    expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
+  });
+
   test('does not import a backup before confirming it has browser workspace state', async () => {
     const existingState = fallbackStateForMode('app');
     const handle = createSupportedBrowserStorageHandle([

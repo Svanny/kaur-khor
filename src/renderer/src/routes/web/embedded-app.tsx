@@ -837,16 +837,23 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       if (!storage.handle) {
         return;
       }
-      await persistCurrentState(storage.handle, databaseName);
-      const backup = createBrowserStorageBackup(
-        databaseName,
-        [stateRecord(databaseName, getBrowserDesktopBridgeMockState())],
-      );
-      downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
-      setStorage((current) => ({
-        ...current,
-        lastBackupAt: backup.exportedAt,
-      }));
+      try {
+        await persistCurrentState(storage.handle, databaseName);
+        const backup = createBrowserStorageBackup(
+          databaseName,
+          [stateRecord(databaseName, getBrowserDesktopBridgeMockState())],
+        );
+        downloadJson(`kaur-khor-${mode}-backup-${new Date().toISOString().slice(0, 10)}.kaur-khor-backup.json`, backup);
+        setStorage((current) => ({
+          ...current,
+          lastBackupAt: backup.exportedAt,
+        }));
+      } catch (error) {
+        setStorage((current) => storageStateWithActionableError(
+          current,
+          formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)),
+        ));
+      }
     })();
   }
 
@@ -855,26 +862,33 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       if (!storage.handle) {
         return;
       }
-      const validation = parseBrowserStorageBackupJson(await file.text());
-      if (!validation.ok) {
-        setStorage((current) => storageStateWithActionableError(current, validation.errors.join(' ')));
-        return;
-      }
-      if (validation.backup.databaseName !== databaseName) {
+      try {
+        const validation = parseBrowserStorageBackupJson(await file.text());
+        if (!validation.ok) {
+          setStorage((current) => storageStateWithActionableError(current, validation.errors.join(' ')));
+          return;
+        }
+        if (validation.backup.databaseName !== databaseName) {
+          setStorage((current) => storageStateWithActionableError(
+            current,
+            `Backup is for ${validation.backup.databaseName}, not ${databaseName}.`,
+          ));
+          return;
+        }
+        const restoredState = readStateRecord(validation.backup.records, databaseName);
+        if (!restoredState) {
+          setStorage((current) => storageStateWithActionableError(current, 'Backup did not contain a browser workspace state.'));
+          return;
+        }
+        await storage.handle.importBackup(validation.backup);
+        setBrowserDesktopBridgeMockState(normalizeBrowserStateForMode(mode, restoredState));
+        window.location.reload();
+      } catch (error) {
         setStorage((current) => storageStateWithActionableError(
           current,
-          `Backup is for ${validation.backup.databaseName}, not ${databaseName}.`,
+          formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)),
         ));
-        return;
       }
-      const restoredState = readStateRecord(validation.backup.records, databaseName);
-      if (!restoredState) {
-        setStorage((current) => storageStateWithActionableError(current, 'Backup did not contain a browser workspace state.'));
-        return;
-      }
-      await storage.handle.importBackup(validation.backup);
-      setBrowserDesktopBridgeMockState(normalizeBrowserStateForMode(mode, restoredState));
-      window.location.reload();
     })();
   }
 
@@ -883,13 +897,22 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
       return;
     }
     void (async () => {
-      const nextState = fallbackStateForMode(mode);
-      setBrowserDesktopBridgeMockState(nextState);
-      if (storage.handle) {
-        await storage.handle.clear();
-        await persistCurrentState(storage.handle, databaseName);
+      try {
+        const nextState = fallbackStateForMode(mode);
+        if (storage.handle) {
+          await storage.handle.clear();
+          setBrowserDesktopBridgeMockState(nextState);
+          await persistCurrentState(storage.handle, databaseName);
+        } else {
+          setBrowserDesktopBridgeMockState(nextState);
+        }
+        window.location.reload();
+      } catch (error) {
+        setStorage((current) => storageStateWithActionableError(
+          current,
+          formatBrowserStorageErrorMessage(error instanceof Error ? error.message : String(error)),
+        ));
       }
-      window.location.reload();
     })();
   }
 
