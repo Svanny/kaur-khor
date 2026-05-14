@@ -48,11 +48,13 @@ cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update
 ```
 
-The update script asks where to export a pre-update snapshot before replacing
-the installed app. Settings / Updates also verifies the downloaded
-source-build archive against the release `.sha256` file before extracting it and
-starts the updater only after Kaur Khor accepts the quit handoff. If your
-workspace data lives in a custom folder, pass
+The update script opens the system folder picker for a pre-update snapshot
+export before replacing an installed app. If no existing Kaur Khor data
+directory is present, it skips that export because there is nothing to back up.
+Settings / Updates also verifies the downloaded source-build archive against
+the release `.sha256` file before extracting it and starts the updater only
+after Kaur Khor accepts the quit handoff. If your workspace data lives in a
+custom folder, pass
 `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the
 desktop app to choose the folder. After installing the new version, restore the
 exported snapshot from Settings / Local data if you need to rehydrate from that
