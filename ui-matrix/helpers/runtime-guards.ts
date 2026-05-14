@@ -49,6 +49,14 @@ export function attachPageIssueCollector(page: Page): PageIssueCollector {
     issues.push(`requestfailed: ${request.method()} ${url} ${request.failure()?.errorText ?? ''}`.trim());
   });
 
+  page.on('response', (response) => {
+    const status = response.status();
+    if (status < 400) {
+      return;
+    }
+    issues.push(`response: ${status} ${response.url()}`);
+  });
+
   return {
     issues,
     clear() {
