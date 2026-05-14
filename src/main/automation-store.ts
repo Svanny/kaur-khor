@@ -6,6 +6,7 @@ import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type {
   AutomationAvailabilityStatus,
   AutomationChannelConnection,
+  AutomationConnectionStatus,
   AutomationConversationSummary,
   AutomationExposureEntityType,
   AutomationExposureRow,
@@ -253,6 +254,12 @@ const DEFAULT_STATE: AutomationStoreState = {
 };
 
 let automationWriteQueue: Promise<void> = Promise.resolve();
+const AUTOMATION_CONNECTION_STATUSES = new Set<AutomationConnectionStatus>([
+  'connected',
+  'disconnected',
+  'error',
+  'paused',
+]);
 
 function automationStorePath(userDataPath: string) {
   return join(userDataPath, 'desktop-automation-store.json');
@@ -275,6 +282,47 @@ function safeLower(value: string | null | undefined) {
 function normalizeNullablePhone(value: string | null | undefined) {
   const normalized = normalizePhoneNumber(value);
   return normalized || null;
+}
+
+function assertAutomationConnectionPatchIsValid(payload: AutomationConnectionPatch) {
+  if (!payload || payload.channel !== 'telegram') {
+    throw new Error('Automation connection updates must target the Telegram channel.');
+  }
+  if (payload.status !== undefined && !AUTOMATION_CONNECTION_STATUSES.has(payload.status)) {
+    throw new Error('Automation connection status is invalid.');
+  }
+  for (const [key, value] of Object.entries({
+    botToken: payload.botToken,
+    botDisplayName: payload.botDisplayName,
+    botUsername: payload.botUsername,
+    externalLink: payload.externalLink,
+  })) {
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      throw new Error(`Automation connection ${key} must be a string or null.`);
+    }
+  }
+}
+
+function assertAutomationExposurePatchIsValid(payload: AutomationExposurePatch) {
+  if (!payload || (payload.entityType !== 'sku' && payload.entityType !== 'service')) {
+    throw new Error('Automation exposure updates must target a SKU or service.');
+  }
+  if (typeof payload.entityId !== 'string' || payload.entityId.trim().length === 0) {
+    throw new Error('Automation exposure updates require an entity id.');
+  }
+  if (payload.exposed !== undefined && typeof payload.exposed !== 'boolean') {
+    throw new Error('Automation exposure flag must be a boolean.');
+  }
+  if (payload.alias !== undefined && payload.alias !== null && typeof payload.alias !== 'string') {
+    throw new Error('Automation exposure alias must be a string or null.');
+  }
+  if (
+    payload.sortOrder !== undefined &&
+    payload.sortOrder !== null &&
+    (typeof payload.sortOrder !== 'number' || !Number.isFinite(payload.sortOrder))
+  ) {
+    throw new Error('Automation exposure sort order must be a finite number or null.');
+  }
 }
 
 function automationTextIncludes(haystack: Array<string | null | undefined>, query: string) {
@@ -2392,6 +2440,7 @@ export async function saveAutomationConnection(
   userDataPath: string,
   payload: AutomationConnectionPatch,
 ): Promise<AutomationChannelConnection> {
+  assertAutomationConnectionPatchIsValid(payload);
   return updateAutomationState(userDataPath, (state) => {
     const now = nowIso();
     const current = state.connection;
@@ -2668,6 +2717,7 @@ export async function patchAutomationExposureRow(
   context: ExposureBuildContext,
   payload: AutomationExposurePatch,
 ): Promise<AutomationExposureRow> {
+  assertAutomationExposurePatchIsValid(payload);
   await updateAutomationState(userDataPath, (state) => {
     const existing = state.exposureRules.find(
       (rule) => rule.channel === 'telegram' && rule.entityType === payload.entityType && rule.entityId === payload.entityId,

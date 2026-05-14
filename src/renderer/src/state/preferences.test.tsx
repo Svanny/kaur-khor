@@ -49,6 +49,7 @@ function PreferencesProbe() {
     customShowHeartbeatRibbons,
     resetPreferences,
     savePreferences,
+    markUnlockedNavItemSeen,
     setCurrency,
     setDimChartsWhileLoading,
     setItemImageMode,
@@ -188,6 +189,15 @@ function PreferencesProbe() {
       </button>
       <button type="button" onClick={() => void savePreferences()}>
         save
+      </button>
+      <button
+        type="button"
+        onClick={() => void Promise.all([
+          markUnlockedNavItemSeen('catalog'),
+          markUnlockedNavItemSeen('work'),
+        ])}
+      >
+        mark-two-unlocked-items
       </button>
       <button type="button" onClick={resetPreferences}>
         reset
@@ -462,5 +472,86 @@ describe('preferences state', () => {
     expect(screen.getByTestId('persisted-custom-show-logs-view-toggle').textContent).toBe('false');
     expect(screen.getByTestId('persisted-custom-show-heartbeat-ribbons').textContent).toBe('false');
     expect(screen.getByTestId('pending').textContent).toBe('false');
+  });
+
+  it('preserves concurrent unlocked navigation acknowledgements', async () => {
+    let saveCount = 0;
+    savePreferences.mockImplementation(async (payload) => {
+      saveCount += 1;
+      return {
+        language: 'en',
+        currency: 'USD',
+        usdToKhrExchangeRate: 4000,
+        displayViewMode: 'custom',
+        itemImageMode: 'small',
+        dimChartsWhileLoading: false,
+        showExplanatoryTooltips: true,
+        showFloatingTitleActions: true,
+        showRightRailCards: true,
+        showOverviewTaskTabs: true,
+        showAutomationsPage: true,
+        showAnalysisPage: true,
+        showPerformanceCompareToggle: true,
+        showPerformanceTimelineCard: true,
+        showLogsViewToggle: true,
+        showHeartbeatRibbons: true,
+        taskBatchUpdatePreferences: {
+          logOrder: 'ask',
+          updateEta: 'ask',
+          followUp: 'ask',
+          receive: 'ask',
+          review: 'ask',
+        },
+        customShowExplanatoryTooltips: true,
+        customShowFloatingTitleActions: true,
+        customShowRightRailCards: true,
+        customShowOverviewTaskTabs: true,
+        customShowAutomationsPage: true,
+        customShowAnalysisPage: true,
+        customShowPerformanceCompareToggle: true,
+        customShowPerformanceTimelineCard: true,
+        customShowLogsViewToggle: true,
+        customShowHeartbeatRibbons: true,
+        senaEngineParameters: DEFAULT_SENA_ENGINE_PARAMETERS,
+        overviewStaleUpdateReminderSnoozeUntil: null,
+        onboardingCompletedAt: null,
+        seenUnlockedNavItems:
+          saveCount === 1
+            ? { catalog: true, insights: false, work: false }
+            : payload.seenUnlockedNavItems,
+        workbenchTileOrderByLane: {
+          'supplier-order-pending': ['supplier-order:sku-2'],
+        },
+      };
+    });
+
+    render(
+      <PreferencesProvider>
+        <PreferencesProbe />
+      </PreferencesProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: false, insights: false, work: false }),
+      );
+    });
+
+    fireEvent.click(screen.getByText('mark-two-unlocked-items'));
+
+    await waitFor(() => {
+      expect(savePreferences).toHaveBeenCalledTimes(2);
+    });
+    expect(savePreferences).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      seenUnlockedNavItems: { catalog: true, insights: false, work: false },
+    }));
+    expect(savePreferences).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      seenUnlockedNavItems: { catalog: true, insights: false, work: true },
+    }));
+    await waitFor(() => {
+      expect(screen.getByTestId('seen-unlocked-nav-items').textContent).toBe(
+        JSON.stringify({ catalog: true, insights: false, work: true }),
+      );
+    });
   });
 });

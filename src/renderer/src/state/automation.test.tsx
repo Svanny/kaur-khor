@@ -3,8 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutomationProvider, useAutomation } from './automation';
 
 const loadWorkSupportData = vi.fn();
+let inventoryState = {
+  isLoading: false,
+  isPreparingWorkspace: false,
+};
 
 vi.mock('./inventory', () => ({
+  useInventoryState: () => inventoryState,
   useInventoryActions: () => ({
     loadWorkSupportData,
   }),
@@ -61,6 +66,10 @@ function automationWorkspace(intakes: unknown[] = []) {
 
 describe('AutomationProvider', () => {
   beforeEach(() => {
+    inventoryState = {
+      isLoading: false,
+      isPreparingWorkspace: false,
+    };
     loadWorkSupportData.mockReset();
     loadWorkSupportData.mockResolvedValue(null);
     window.kaurKhorDesktop = {
@@ -98,6 +107,44 @@ describe('AutomationProvider', () => {
         mode: 'create_ticket',
       });
       expect(loadWorkSupportData).toHaveBeenCalledWith({ includeObservations: true });
+    });
+  });
+
+  it('waits for inventory startup before the initial automation workspace load', async () => {
+    inventoryState = {
+      isLoading: true,
+      isPreparingWorkspace: false,
+    };
+    const getWorkspace = vi.fn(async () => automationWorkspace());
+    window.kaurKhorDesktop = {
+      automation: {
+        getWorkspace,
+      },
+    } as never;
+
+    const { rerender } = render(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getWorkspace).not.toHaveBeenCalled();
+
+    inventoryState = {
+      isLoading: false,
+      isPreparingWorkspace: false,
+    };
+    rerender(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    await waitFor(() => {
+      expect(getWorkspace).toHaveBeenCalledTimes(1);
     });
   });
 

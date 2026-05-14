@@ -15,6 +15,7 @@ const RELEASE_API_URL = 'https://api.github.com/repos/Svanny/kaur-khor/releases/
 const RELEASES_API_URL = 'https://api.github.com/repos/Svanny/kaur-khor/releases?per_page=20';
 const RELEASE_DOWNLOAD_BASE_URL = 'https://github.com/Svanny/kaur-khor/releases/download';
 const LATEST_RELEASE_DOWNLOAD_BASE_URL = 'https://github.com/Svanny/kaur-khor/releases/latest/download';
+const SOURCE_VERSION_PATTERN = /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 interface GitHubReleaseResponse {
   html_url?: string;
@@ -122,7 +123,13 @@ function buildUpdateVersionOptions(releases: GitHubReleaseResponse[]): DesktopUp
 
 function normalizeSourceVersion(sourceVersion: string | null | undefined) {
   const trimmed = sourceVersion?.trim();
-  return trimmed && trimmed.length > 0 ? trimmed : 'latest';
+  if (!trimmed || trimmed.length === 0 || trimmed === 'latest') {
+    return 'latest';
+  }
+  if (!SOURCE_VERSION_PATTERN.test(trimmed)) {
+    throw new Error('Choose a valid Kaur Khor release version before starting the updater.');
+  }
+  return trimmed;
 }
 
 export function sourceArchiveUrlForVersion(sourceVersion: string | null | undefined) {

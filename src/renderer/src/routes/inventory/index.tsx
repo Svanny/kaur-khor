@@ -1571,6 +1571,7 @@ export function InsightsInventoryRoute() {
           ) : null}
         </div>
         </InventoryWindowFrame>
+        <div aria-hidden="true" className="h-32 shrink-0 md:h-36" data-inventory-bottom-breathing-room="true" />
       </main>
     </WorkspacePage>
   );

@@ -50,6 +50,17 @@ describe('desktop source-build updater', () => {
     );
   });
 
+  it('rejects source-build versions that cannot be safely embedded in updater scripts', async () => {
+    const { sourceArchiveUrlForVersion } = await import('./desktop-update');
+
+    expect(() => sourceArchiveUrlForVersion('v0.5.2$(touch /tmp/kaur-khor-owned)')).toThrow(
+      'Choose a valid Kaur Khor release version before starting the updater.',
+    );
+    expect(() => sourceArchiveUrlForVersion('v0.5.2"; Start-Process calc; "')).toThrow(
+      'Choose a valid Kaur Khor release version before starting the updater.',
+    );
+  });
+
   it('passes selected source-build version and pruning flags to update scripts', async () => {
     const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
 
