@@ -16,7 +16,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Explain layout fixes must be verified at the full route or Electron geometry level; component-only class assertions can miss collapsed tab rows and clipped right rails.
 - Inventory layout fixes must be verified in the desktop Electron app because browser-mode evidence can miss right-rail and table geometry issues.
 - Inventory Chrome tab alignment must follow Explain's pattern: keep tab wrappers unshifted, pull the window surface up with the Chrome overlap variable, and stack the window with `relative z-[1]`.
-- Work and Explain window surfaces must stretch to the viewport, with scrolling breathing room rendered outside the window rather than as inner padding.
+- Work, Explain, and Inventory window surfaces must stretch to the viewport, with scrolling breathing room rendered outside the window rather than as inner padding.
 - Web landing-page browser annotations must map each selected element to a concrete source change; verify the rendered localhost page when browser tooling is available before claiming the annotation is addressed.
 - Chart flag overlay pills must read time-scale coordinates on the next animation frame after range/layout changes so attached pill widths track zoom.
 - Dense chart flag fallbacks must preserve pill/button geometry; replace icons with color-only rounded pills rather than flat interval rectangles.
