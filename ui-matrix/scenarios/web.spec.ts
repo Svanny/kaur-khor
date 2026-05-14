@@ -23,6 +23,13 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     });
 
     const prepared = await prepareWebPage(page);
+    await page.goto('/kaur-khor/', { waitUntil: 'domcontentloaded' });
+    await page.getByRole('link', { name: 'Start Quick Demo' }).click();
+    await page.waitForURL(/\/kaur-khor\/demo#\/onboarding$/);
+    await expectEmbeddedBannerControls(page, 'demo');
+    await assertEmbeddedUiStable(page, 'demo browser landing entry');
+    await captureUi(page, testInfo, 'web-demo-landing-entry');
+
     await openEmbeddedRoute(page, 'demo', '/');
     await expectEmbeddedBannerControls(page, 'demo');
     const demoDownload = await exportEmbeddedBackup(page);
@@ -135,6 +142,15 @@ test.describe('UI matrix: browser and demo surfaces', () => {
     await backup.saveAs(backupPath);
     const countsAfterMutation = await browserWorkspaceCounts(page);
     expect(countsAfterMutation.skuCount, 'browser app SKU should be saved before backup').toBeGreaterThan(0);
+
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toContain('Reset this browser workspace?');
+      await dialog.dismiss();
+    });
+    await page.getByRole('button', { name: 'Reset workspace' }).first().click();
+    await expect(page.getByText(sku.name, { exact: false }).first()).toBeVisible();
+    const countsAfterResetCancel = await browserWorkspaceCounts(page);
+    expect(countsAfterResetCancel.skuCount, 'canceling browser app reset should preserve created SKU state').toBe(countsAfterMutation.skuCount);
 
     await resetEmbeddedWorkspaceThroughUi(page, 'app');
     await completeEmbeddedOnboardingIfPresent(page);
