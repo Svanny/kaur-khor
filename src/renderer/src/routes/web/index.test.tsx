@@ -29,6 +29,7 @@ import {
   type BrowserStorageDocumentRecord,
   type BrowserStorageJsonBackup,
   type BrowserStorageSupportedHandle,
+  type BrowserStorageUnsupportedHandle,
 } from '@/runtime/web';
 import {
   BROWSER_WORKSPACE_CLOSE_WARNING,
@@ -44,6 +45,7 @@ import {
   PhoneViewWarningOverlay,
   WebRoutes,
 } from './index';
+import { buildPhoneQueueObservationInput, phoneSheetTaskForSupplierTask } from '../mobile';
 
 const operatorFeatureLabels = [
   'Review Work Queue',
@@ -354,6 +356,29 @@ function createSupportedBrowserStorageHandle(
     }),
     seedDemo: vi.fn(async () => 0),
     close: vi.fn(),
+  };
+}
+
+function createUnsupportedBrowserStorageHandle(): BrowserStorageUnsupportedHandle {
+  return {
+    status: 'unsupported',
+    capability: {
+      status: 'unsupported',
+      preferredVfs: 'opfs-sahpool',
+      databaseNames: {
+        app: KAUR_KHOR_BROWSER_APP_DATABASE,
+        demo: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+      },
+      reasons: ['OPFS access handles are unavailable.'],
+      details: {
+        hasWorker: true,
+        hasWebAssembly: true,
+        hasNavigatorStorage: true,
+        hasOpfsDirectory: false,
+        isSecureContext: true,
+        crossOriginIsolated: true,
+      },
+    },
   };
 }
 
@@ -679,6 +704,7 @@ describe('WebRoutes releases section', () => {
     expect(screen.getByRole('heading', { name: 'Android app is not supported' })).toBeInTheDocument();
     expect(screen.getByText('Download is unavailable.')).toBeInTheDocument();
     expect(screen.getAllByText('Android app is not supported. Use the browser app instead.')).toHaveLength(1);
+    expect(screen.getByText('Open the browser app, then use your browser menu to add Kaur Khor to your home screen.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
   });
@@ -698,8 +724,29 @@ describe('WebRoutes releases section', () => {
     expect(screen.getByRole('heading', { name: 'iOS app is not supported' })).toBeInTheDocument();
     expect(screen.getByText('Download is unavailable.')).toBeInTheDocument();
     expect(screen.getAllByText('iOS app is not supported. Use the browser app instead.')).toHaveLength(1);
+    expect(screen.getByText('On iPhone or iPad, open the browser app in Safari, then use Share -> Add to Home Screen.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open browser app' })).toHaveAttribute('href', '/app');
     expect(screen.queryByRole('link', { name: /Download selected/i })).not.toBeInTheDocument();
+  });
+
+  test('renders mobile install guidance in Khmer', async () => {
+    mockLatestReleaseFetch();
+    mockNavigator({
+      userAgentData: {
+        platform: 'Android',
+      },
+    });
+
+    renderWebHome();
+    switchLandingToKhmer();
+
+    const select = await screen.findByLabelText('ទាញយក') as HTMLSelectElement;
+    fireEvent.focus(select);
+    await waitFor(() => expect(select).toBeDisabled());
+
+    expect(screen.getByText('Android អេបមិនទាន់គាំទ្រទេ។ សូមប្រើអេបក្នុងប្រោសឺរជំនួសវិញ។')).toBeInTheDocument();
+    expect(screen.getByText('បើកអេបក្នុងប្រោសឺរ រួចប្រើមីនុយប្រោសឺរដើម្បីបន្ថែម កខ ទៅអេក្រង់ដើម។')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'បើកអេបក្នុងប្រោសឺរ' })).toHaveAttribute('href', '/app');
   });
 
   test('updates the download button when the dropdown changes', async () => {
@@ -1467,58 +1514,75 @@ describe('WebRoutes embedded app fallback state', () => {
     });
   });
 
-  test.each(['demo', 'app'] as const)('shows a blocking rotate overlay for embedded portrait phones without exposing phone shell in %s mode', async (mode) => {
+  test.each(['demo', 'app'] as const)('renders the portrait phone operator shell on public embedded phones in %s mode', async (mode) => {
     window.location.hash = '#/';
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle(mode));
 
     const { container } = render(<EmbeddedAppRoute mode={mode} />);
 
-    expect(await screen.findByRole('dialog', { name: 'Rotate screen' })).toBeInTheDocument();
-    expect(screen.getAllByText('Kaur Khor needs more room. Rotate your screen sideways, then continue in the larger layout.').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('For regular work, use a larger browser window or the desktop app.').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('បង្វិលអេក្រង់').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('កខត្រូវការកន្លែងធំជាងនេះ។ បង្វិលអេក្រង់របស់អ្នកទៅចំហៀង រួចបន្តនៅក្នុងប្លង់ធំជាងនេះ។').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Phone operator mode')).not.toBeInTheDocument();
-    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Done' })).toBeDisabled();
-    const warningIcon = screen.getByRole('dialog', { name: 'Rotate screen' }).querySelector('[data-slot="embedded-phone-view-warning-icon"]');
-    expect(warningIcon).not.toBeNull();
-    expect(warningIcon).toHaveClass('size-[4.75rem]', 'p-3');
-    const warningCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy"]');
-    expect(warningCopy).not.toBeNull();
-    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-title"]')).toHaveClass('overflow-hidden');
-    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-description"]')).toHaveClass('overflow-hidden');
-    expect(container.querySelector('[data-slot="embedded-phone-view-warning-copy-secondary-description"]')).toHaveClass('overflow-hidden');
-    const animatedCopyLayers = Array.from(warningCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
-    expect(animatedCopyLayers).toHaveLength(6);
-    expect(animatedCopyLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
-    expect(animatedCopyLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
-    expect(animatedCopyLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
-    const doneCopy = container.querySelector('[data-slot="embedded-phone-view-warning-copy-done"]');
-    expect(doneCopy).toHaveClass('overflow-hidden');
-    const animatedDoneLayers = Array.from(doneCopy?.querySelectorAll<HTMLElement>('[style*="kaur-khor-onboarding-copy-"]') ?? []);
-    expect(animatedDoneLayers).toHaveLength(2);
-    expect(animatedDoneLayers[0]?.style.animation).toContain('kaur-khor-onboarding-copy-english');
-    expect(animatedDoneLayers[1]?.style.animation).toContain('kaur-khor-onboarding-copy-khmer');
-    expect(animatedDoneLayers.every((layer) => layer.style.animation.includes('9000ms'))).toBe(true);
-
-    const overlay = container.querySelector('[data-slot="embedded-phone-landscape-overlay"]');
-    const frame = container.querySelector('[data-slot="embedded-landscape-frame"]');
-    expect(overlay).not.toBeNull();
-    expect(frame).not.toBeNull();
-    expect(overlay).toContainElement(screen.getByRole('dialog', { name: 'Rotate screen' }));
-    expect(overlay).toHaveClass('fixed', 'inset-0', 'z-[70]');
-    expect(overlay?.firstElementChild).toHaveClass('items-center', 'bg-background');
-    expect(screen.getByRole('dialog', { name: 'Rotate screen' })).toHaveClass('bg-popover');
+    const phoneNav = await screen.findByRole('navigation', { name: 'Phone navigation' });
+    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Rotate screen' })).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
+    expect(screen.getByText('Phone operator mode')).toBeInTheDocument();
+    expect(within(phoneNav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+    expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', '#/work/queue');
+    expect(within(phoneNav).getByRole('link', { name: 'Insights' })).toHaveAttribute('href', '#/insights');
     await waitFor(() => {
-      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'true');
-      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-portrait', 'false');
-      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '-2');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('false');
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe(String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
-      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe(String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-portrait', 'true');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '0');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('true');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe('390');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe('844');
+    });
+  });
+
+  test('blocks real public phone app storage failures before the phone shell renders', async () => {
+    window.location.hash = '#/settings';
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createUnsupportedBrowserStorageHandle());
+
+    const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+    expect(await screen.findByRole('heading', { name: 'Kaur Khor cannot store real browser-app data here.' })).toBeInTheDocument();
+    expect(screen.getByText(/OPFS access handles are unavailable/)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Workspace safety' })).not.toBeInTheDocument();
+  });
+
+  test.each(['demo', 'app'] as const)('keeps first-run portrait phones in the public setup flow in %s mode', async (mode) => {
+    window.location.hash = '#/';
+    mockViewport(390, 844);
+    const state = fallbackStateForMode(mode);
+    state.preferences.onboardingCompletedAt = null;
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: mode === 'demo' ? KAUR_KHOR_BROWSER_DEMO_DATABASE : KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: state,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    const { container } = render(<EmbeddedAppRoute mode={mode} />);
+
+    expect(await screen.findByRole('heading', { name: 'Set up Kaur Khor' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="onboarding-page"]')).not.toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Rotate screen' })).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="embedded-phone-shell"]')).toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-landscape-overlay"]')).toBeNull();
+    await waitFor(() => {
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-portrait', 'true');
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-zoom-level', '0');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('true');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportWidth).toBe('390');
+      expect(document.documentElement.dataset.kaurKhorEffectiveViewportHeight).toBe('844');
     });
   });
 
@@ -1546,7 +1610,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-next-move"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-primary-action"]')).not.toBeNull();
-    expect(container.querySelectorAll('[data-slot="phone-metric"]')).toHaveLength(3);
+    expect(container.querySelector('[data-slot="phone-metric-strip"]')?.querySelectorAll('[data-slot="phone-metric"]')).toHaveLength(3);
+    expect(container.querySelector('[data-slot="phone-secondary-metric-strip"]')?.querySelectorAll('[data-slot="phone-metric"]')).toHaveLength(2);
     expect(container.querySelector('[data-slot="phone-bottom-nav-item"][data-phone-tab="today"]')).not.toBeNull();
     expect(within(phoneNav).getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
     expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
@@ -1556,25 +1621,139 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'Work that needs a decision' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-queue-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-segmented-control"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-queue-filter-row"]')).not.toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Search queue' })).toHaveAttribute('data-slot', 'phone-queue-search');
     expect(within(phoneNav).getByRole('link', { name: 'Queue' })).toHaveAttribute('aria-current', 'page');
+    if (mode === 'demo') {
+      fireEvent.click(screen.getByRole('button', { name: 'To order' }));
+      await waitFor(() => expect(window.location.hash).toContain('filter=to-order'));
+      fireEvent.click(screen.getByRole('button', { name: 'All' }));
+      await waitFor(() => expect(window.location.hash).not.toContain('filter='));
+      fireEvent.change(screen.getByRole('textbox', { name: 'Search queue' }), { target: { value: 'missing queue item' } });
+      await waitFor(() => expect(window.location.hash).toContain('q=missing+queue+item'));
+      expect(container.querySelector('[data-slot="phone-queue-empty-state"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+      await waitFor(() => expect(window.location.hash).not.toContain('q='));
+      const supplierQueueItems = container.querySelectorAll('[data-slot="phone-list-item"]');
+      expect(supplierQueueItems.length).toBeGreaterThan(0);
+      expect(within(supplierQueueItems[0] as HTMLElement).getAllByText(/Supplier/).length).toBeGreaterThan(0);
+      expect(within(supplierQueueItems[0] as HTMLElement).getAllByText(/Recommended|SKUs|Since last update/).length).toBeGreaterThan(0);
+      fireEvent.click(supplierQueueItems[0]);
+      await waitFor(() => expect(window.location.hash).toContain('task='));
+      expect(container.querySelector('[data-slot="phone-task-sheet"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-task-sheet-source"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-task-sheet-why"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-task-sheet-action-form"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-task-sheet-preview"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-task-sheet-actions"]')).not.toBeNull();
+      expect(screen.getByText('Action form')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Action date|Next touch or ETA|Received date/)).toHaveAttribute('type', 'datetime-local');
+      expect(screen.getByRole('textbox', { name: 'Note' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+      fireEvent.change(screen.getByLabelText(/Action date|Next touch or ETA|Received date/), { target: { value: '2026-05-15T09:30' } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'queued phone decision' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Queue action saved.')).toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-task-sheet-save-outcome"]')).not.toBeNull();
+      expect(screen.getByText(/queued phone decision/)).toBeInTheDocument();
+      expect(screen.getByText(/Queue, Inventory, Money, and Explain will refresh from this evidence/)).toBeInTheDocument();
+      const latestQueueObservation = getBrowserDesktopBridgeMockState().observations[0];
+      expect(
+        (latestQueueObservation?.input.orderSignals.length ?? 0) +
+        (latestQueueObservation?.input.commercialEvents?.length ?? 0) +
+        (latestQueueObservation?.input.ticketEvents?.length ?? 0),
+      ).toBeGreaterThan(0);
+      const taskSheetAction = within(container.querySelector('[data-slot="phone-task-sheet-actions"]') as HTMLElement).getAllByRole('link')[0];
+      expect(taskSheetAction).toHaveAttribute('href', expect.stringContaining('source=queue'));
+      expect(taskSheetAction).toHaveAttribute('href', expect.stringContaining('breadcrumb='));
+      expect(taskSheetAction).toHaveAttribute('href', expect.stringContaining('returnTo='));
+      expect(within(container.querySelector('[data-slot="phone-task-sheet-actions"]') as HTMLElement).queryByRole('link', { name: /Open SKU|Open service/ })).not.toBeNull();
+      expect(screen.getByText('Why this is here')).toBeInTheDocument();
+      expect(screen.getByText('Downstream preview')).toBeInTheDocument();
+      fireEvent.click(within(container.querySelector('[data-slot="phone-task-sheet"]') as HTMLElement).getAllByRole('button', { name: 'Close' })[0]);
+      await waitFor(() => expect(window.location.hash).not.toContain('task='));
+      expect(container.querySelector('[data-slot="phone-task-sheet"]')).toBeNull();
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Customer' }));
     expect(screen.getByRole('button', { name: 'Customer' })).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(window.location.hash).toContain('scope=customer'));
+    expect(screen.getByRole('button', { name: 'Quoted' })).toBeInTheDocument();
+    if (mode === 'demo') {
+      const customerQueueItems = container.querySelectorAll('[data-slot="phone-list-item"]');
+      expect(customerQueueItems.length).toBeGreaterThan(0);
+      expect(within(customerQueueItems[0] as HTMLElement).getAllByText(/Ticket|Legacy|Telegram|customer/i).length).toBeGreaterThan(0);
+      expect(within(customerQueueItems[0] as HTMLElement).getAllByText(/pending|completed|blocked|order/i).length).toBeGreaterThan(0);
+    }
     fireEvent.click(within(phoneNav).getByRole('link', { name: 'Capture' }));
     expect(await screen.findByRole('heading', { name: 'Record what changed' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-capture-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="phone-capture-surface"]')).toHaveClass('overflow-x-auto');
+    expect(container.querySelector('[data-slot="phone-capture-menu"]')).not.toBeNull();
+    if (mode === 'app') {
+      expect(screen.getByText('Create a SKU or service before recording updates.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Open products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+    } else {
+      expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
+      expect(screen.getByRole('link', { name: 'Customer Orders Pending' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/customer-order?ticketMode=new`);
+      expect(screen.getByRole('link', { name: 'Customer Orders Completed' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/immediate-sale?ticketMode=new`);
+      expect(screen.getByRole('link', { name: 'Supplier Orders Pending' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/supplier-order?ticketMode=new`);
+      expect(screen.getByRole('link', { name: 'Supplier Receipts' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/supplier-receipt?ticketMode=edit`);
+      expect(screen.getByRole('link', { name: 'Open queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
+    }
     fireEvent.click(within(phoneNav).getByRole('link', { name: 'Products' }));
     expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-products-page"]')).not.toBeNull();
     expect(screen.getByRole('textbox', { name: 'Search products' })).toHaveAttribute('data-slot', 'phone-products-search');
-    fireEvent.click(within(phoneNav).getByRole('link', { name: 'More' }));
+    fireEvent.click(within(phoneNav).getByRole('link', { name: 'Insights' }));
+    expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-insights-page"]')).not.toBeNull();
+    expect(within(phoneNav).getByRole('link', { name: 'Insights' })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('link', { name: 'Inventory' }));
+    expect(await screen.findByRole('heading', { name: 'Inventory health' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-inventory-strip"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-inventory-focus-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-inventory-projection-preview"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to insights' }));
+    expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Money' }));
+    expect(await screen.findByRole('heading', { name: 'Money statement' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-insights-money-page"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-ribbon"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-statement"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-contributors"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to insights' }));
+    expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Explain' }));
+    expect(await screen.findByRole('heading', { name: 'Explain confidence' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-explain-posture"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-evidence-freshness"]')).not.toBeNull();
+    expect(screen.getByText('Count freshness')).toBeInTheDocument();
+    expect(screen.getByText('Confidence')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-explain-fragile-list"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Back to insights' }));
+    expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
+    expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
+    fireEvent.click(screen.getByRole('link', { name: 'Open settings' }));
     expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-more-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-workspace-safety"]')).not.toBeNull();
-    expect(within(phoneNav).getByRole('link', { name: 'More' })).toHaveAttribute('aria-current', 'page');
+    expect(container.querySelector('[data-slot="phone-settings-index"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
+    expect(screen.getByRole('heading', { name: 'Workspace' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Interface' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'History' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Local data' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Planning' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Danger zone' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: mode === 'demo' ? 'Reset demo' : 'Reset workspace' })).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Update history' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings/history`);
+    fireEvent.click(screen.getByRole('link', { name: 'Settings and help' }));
+    expect(await screen.findByRole('heading', { name: 'Settings and help' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-help-page"]')).not.toBeNull();
     await waitFor(() => {
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-portrait', 'true');
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-phone-landscape', 'false');
@@ -1586,7 +1765,1218 @@ describe('WebRoutes embedded app fallback state', () => {
     });
   });
 
-  test.each(['demo', 'app'] as const)('refreshes public embedded route auto zoom from phone flip prompt to wide browser and back in %s mode', async (mode) => {
+  test('opens Today task cards in a phone task sheet instead of jumping routes', async () => {
+    window.location.hash = hiddenPhoneOperatorHash;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull());
+    expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull();
+    const primaryAction = container.querySelector<HTMLButtonElement>('[data-slot="phone-primary-action"]');
+    expect(primaryAction).not.toBeNull();
+    fireEvent.click(primaryAction!);
+
+    expect(container.querySelector('[data-slot="phone-task-sheet"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-task-sheet-source"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-task-sheet-actions"]')).not.toBeNull();
+    expect(window.location.hash).toBe(hiddenPhoneOperatorHash);
+    fireEvent.click(within(container.querySelector('[data-slot="phone-task-sheet"]') as HTMLElement).getAllByRole('button', { name: 'Close' })[0]);
+
+    const firstTaskCard = container.querySelector<HTMLButtonElement>('[data-slot="phone-list-item"]');
+    expect(firstTaskCard).not.toBeNull();
+    fireEvent.click(firstTaskCard!);
+    expect(container.querySelector('[data-slot="phone-task-sheet"]')).not.toBeNull();
+    expect(window.location.hash).toBe(hiddenPhoneOperatorHash);
+  });
+
+  test.each([
+    [360, 740],
+    [375, 812],
+    [390, 844],
+    [414, 896],
+    [430, 932],
+    [768, 1024],
+  ])('renders Today at %i x %i with the required phone sections', async (width, height) => {
+    window.location.hash = hiddenPhoneOperatorHash;
+    mockViewport(width, height);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull());
+    expect(container.querySelector('[data-slot="phone-next-move"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-primary-action"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-metric-strip"]')).not.toBeNull();
+    expect(screen.getByRole('heading', { name: 'Quick record' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Supplier work' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Customer work' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-recent-outcome"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-measured-area', String(width * height));
+    if (width < 768) {
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-width', String(width));
+      expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-height', String(height));
+    }
+    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('overflow-x-hidden');
+  });
+
+  test('only shows Today workspace safety alert while backup state needs attention', async () => {
+    window.location.hash = hiddenPhoneOperatorHash;
+    mockViewport(390, 844);
+    const handle = createOnboardedBrowserStorageHandle('demo');
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:kaur-khor-backup');
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    try {
+      const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+      await waitFor(() => expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull());
+      expect(container.querySelector('[data-slot="phone-workspace-safety-alert"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Export backup' }));
+      await waitFor(() => expect(handle.persistSenaState).toHaveBeenCalled());
+      expect(createObjectUrlSpy).toHaveBeenCalled();
+      expect(anchorClickSpy).toHaveBeenCalled();
+      expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup');
+      expect(await screen.findByText('Backup export ready.')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+      await waitFor(() => expect(container.querySelector('[data-slot="phone-workspace-safety-alert"]')).toBeNull());
+    } finally {
+      createObjectUrlSpy.mockRestore();
+      revokeObjectUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+    }
+  });
+
+  test.each([
+    {
+      heading: 'ក្រមាភ្នំពេញ',
+      route: 'catalog/skus/sku-001',
+      summary: 'phone-product-detail-summary',
+      type: 'SKU',
+    },
+    {
+      heading: 'ឈុតរុំអំណោយក្រមា',
+      route: 'catalog/services/service-001',
+      summary: 'phone-product-detail-summary',
+      type: 'Service',
+    },
+  ])('renders a phone-native $type detail route from Products', async ({ heading, route, summary, type }) => {
+    window.location.hash = `${hiddenPhoneOperatorHash}${route}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(screen.getByText(type)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-product-detail-page"]')).not.toBeNull();
+    expect(container.querySelector(`[data-slot="${summary}"]`)).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-detail-section-tabs"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-detail-metric-strip"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-product-actions"]')).not.toBeNull();
+    if (type === 'SKU') {
+      expect(container.querySelector('[data-slot="phone-sku-heartbeat"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Pipeline' }));
+      expect(container.querySelector('[data-slot="phone-sku-pipeline-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Services' }));
+      expect(container.querySelector('[data-slot="phone-sku-services-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
+      expect(container.querySelector('[data-slot="phone-sku-evidence-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Ledger' }));
+      expect(container.querySelector('[data-slot="phone-sku-ledger-section"]')).not.toBeNull();
+      expect(screen.getByText(/likely on hand|Unknown likely on hand/)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('source=sku-detail'));
+      expect(screen.getByRole('link', { name: 'Supplier Orders Pending' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+      expect(screen.getByRole('link', { name: 'Supplier Receipts' })).toHaveAttribute('href', expect.stringContaining('returnTo='));
+    } else {
+      expect(container.querySelector('[data-slot="phone-service-heartbeat"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Bottlenecks' }));
+      expect(container.querySelector('[data-slot="phone-service-bottlenecks-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Recovery' }));
+      expect(container.querySelector('[data-slot="phone-service-recovery-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Customer work' }));
+      expect(container.querySelector('[data-slot="phone-service-customer-work-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Evidence' }));
+      expect(container.querySelector('[data-slot="phone-service-evidence-section"]')).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Ledger' }));
+      expect(container.querySelector('[data-slot="phone-service-ledger-section"]')).not.toBeNull();
+      expect(screen.getAllByText(/service units likely sellable today|Blocked until linked stock is refreshed|Sellability unknown/).length).toBeGreaterThan(0);
+      expect(screen.queryByText('On hand')).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Customer Orders Pending' })).toHaveAttribute('href', expect.stringContaining('source=service-detail'));
+      expect(screen.getByRole('link', { name: 'Customer Orders Completed' })).toHaveAttribute('href', expect.stringContaining('targetType=service'));
+      expect(screen.getByRole('link', { name: 'Record linked stock' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+    }
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+    expect(screen.queryByRole('heading', { name: 'Catalog' })).not.toBeInTheDocument();
+  });
+
+  test('renders a phone-native missing product state', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/missing-sku`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Product not found' })).toBeInTheDocument();
+    expect(screen.getByText('This product is not available in the phone catalog.')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-product-detail-page"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+  });
+
+  test('shows an empty catalog message before phone product search has inventory', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('app'));
+
+    render(<EmbeddedAppRoute mode="app" />);
+
+    expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
+    expect(screen.getByText('No products yet. Create your first SKU or service to start tracking stock and sellability.')).toBeInTheDocument();
+    expect(screen.queryByText('No products match this search.')).not.toBeInTheDocument();
+  });
+
+  test('renders route-specific phone empty states for an empty browser workspace', async () => {
+    window.location.hash = hiddenPhoneOperatorHash;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('app'));
+
+    const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+    expect(await screen.findByRole('heading', { name: 'Start with products' })).toBeInTheDocument();
+    expect(screen.getByText('Create your first SKU or service so Kaur Khor can build today’s work.')).toBeInTheDocument();
+    expect(screen.getByText('Create a SKU or service before recording updates.')).toBeInTheDocument();
+
+    window.location.hash = `${hiddenPhoneOperatorHash}work/queue`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Work that needs a decision' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-queue-empty-state"]')).not.toBeNull();
+    expect(screen.getByText('Work needs products first.')).toBeInTheDocument();
+
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Record what changed' })).toBeInTheDocument();
+    expect(screen.getByText('Create a SKU or service before recording updates.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/money`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Money statement' })).toBeInTheDocument();
+    expect(screen.getByText('No inventory items yet. Create products before reading mobile insights.')).toBeInTheDocument();
+    expect(screen.getByText('Money is not ready yet. Record stock-linked activity so Kaur Khor can calculate the statement.')).toBeInTheDocument();
+  });
+
+  test('keeps phone insight analysis refresh failures actionable on the route', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/explain`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Explain confidence' })).toBeInTheDocument();
+    const originalTriggerRun = window.kaurKhorDesktop.sena.triggerRun;
+    window.kaurKhorDesktop.sena.triggerRun = vi.fn(async () => {
+      throw new Error('analysis worker unavailable');
+    });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh analysis' }));
+
+      expect(await screen.findByText('Unable to refresh analysis.')).toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-analysis-refresh-error"]')).not.toBeNull();
+      expect(within(container.querySelector('[data-slot="phone-analysis-refresh-error"]') as HTMLElement).getByText(/analysis worker unavailable/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+      expect(screen.getByRole('link', { name: 'Open safety' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
+      expect(container.querySelector('[data-slot="phone-workspace-error"]')).toBeNull();
+      expect(screen.getByRole('heading', { name: 'Explain confidence' })).toBeInTheDocument();
+    } finally {
+      window.kaurKhorDesktop.sena.triggerRun = originalTriggerRun;
+    }
+  });
+
+  test('preserves phone insight route state in URL-backed controls', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/money`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Money statement' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Contributors' }));
+    await waitFor(() => expect(window.location.hash).toContain('scope=contributors'));
+    expect(container.querySelector('[data-slot="phone-money-contributors"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-statement"]')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Compare evidence' }));
+    await waitFor(() => expect(window.location.hash).toContain('compare=evidence'));
+    const moneyContributors = container.querySelector('[data-slot="phone-money-contributors"]') as HTMLElement;
+    const moneyContributorLink = within(moneyContributors).getAllByRole('link')[0];
+    expect(moneyContributorLink).toHaveAttribute('href', expect.stringContaining('returnTo='));
+    fireEvent.click(moneyContributorLink);
+    expect(await screen.findByText('Back to products')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}insights/money?scope=contributors&compare=evidence`);
+
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/explain?section=evidence&timeframe=all`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Explain confidence' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-explain-evidence-freshness"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-posture"]')).toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-fragile-list"]')).toBeNull();
+    expect(screen.getByText(/all-evidence phone diagnostics/)).toBeInTheDocument();
+
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/inventory?scope=all&range=all`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('heading', { name: 'Inventory health' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All rows' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'All evidence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(container.querySelector('[data-slot="phone-inventory-focus-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-inventory-projection-preview"]')).not.toBeNull();
+  });
+
+  test('opens phone inventory row inspector with persisted filters and capture actions', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/inventory?scope=all&range=all&entity=sku&horizon=30d&view=pipeline`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Inventory health' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All rows' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'All evidence' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Pipeline' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '30D' })).toHaveAttribute('aria-pressed', 'true');
+    expect(container.querySelector('[data-slot="phone-inventory-compact-filter-bar"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-inventory-coverage-note"]')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(container.querySelector('[data-slot="phone-inventory-filter-sheet"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'SKUs' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    const firstRowCard = container.querySelector('[data-slot="phone-inventory-row-card"]') as HTMLElement;
+    expect(firstRowCard).not.toBeNull();
+    fireEvent.click(within(firstRowCard).getByRole('button'));
+
+    await waitFor(() => expect(window.location.hash).toContain('row=sku%3A'));
+    const inspector = container.querySelector('[data-slot="phone-inventory-row-inspector"]') as HTMLElement;
+    expect(inspector).not.toBeNull();
+    expect(within(inspector).getByText('Summary')).toBeInTheDocument();
+    expect(within(inspector).getByText('Flow in selected range')).toBeInTheDocument();
+    expect(within(inspector).getByText('Pipeline/projection')).toBeInTheDocument();
+    expect(within(inspector).getByText('Evidence/freshness')).toBeInTheDocument();
+    expect(within(inspector).getByText(/30D projection/)).toBeInTheDocument();
+    expect(within(inspector).getByRole('link', { name: 'View details' })).toHaveAttribute('href', expect.stringContaining('returnTo='));
+    expect(within(inspector).getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+    expect(within(inspector).getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('source=inventory'));
+    expect(within(inspector).getByRole('link', { name: 'Supplier Receipts' })).toHaveAttribute('href', expect.stringContaining('supplier-receipt'));
+  });
+
+  test('renders phone money statement filters, quality bands, and coverage actions', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/money?range=90d&entity=service&compare=evidence`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Money statement' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-money-filter-summary"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-ribbon"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-statement"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-quality-bands"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-rail-sections"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-money-coverage"]')).not.toBeNull();
+    expect(screen.getAllByText(/Net sales/).length).toBeGreaterThan(0);
+    expect(screen.getByText('Money tied up')).toBeInTheDocument();
+    expect(screen.getByText(/Blocked margin/)).toBeInTheDocument();
+    expect(screen.getByText('Earners')).toBeInTheDocument();
+    expect(screen.getByText('Commitments due')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Record Update' })).toHaveAttribute('href', expect.stringContaining(`${hiddenPhoneOperatorHash}work/capture?`));
+    expect(screen.getByRole('link', { name: 'Record Update' })).toHaveAttribute('href', expect.stringContaining('source=money'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    const moneyFilterDialog = screen.getByRole('dialog', { name: 'Filter money' });
+    expect(moneyFilterDialog).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-money-filter-sheet"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Services' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '90D' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'SKUs' }));
+    await waitFor(() => expect(window.location.hash).toContain('entity=sku'));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(window.location.hash).not.toContain('entity='));
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Filter money' }), { key: 'Escape' });
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-money-filter-sheet"]')).toBeNull());
+  });
+
+  test('renders phone explain filters, signals, timeline, and wide boundary', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}insights/explain?entity=sku&timeframe=all`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Explain confidence' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-explain-filter-summary"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-posture"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-evidence-freshness"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-signal-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-fragile-list"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-evidence-timeline"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-explain-wide-boundary"]')).not.toBeNull();
+    expect(screen.getByText(/Coverage/)).toBeInTheDocument();
+    expect(screen.getByText(/Top structural pressure/)).toBeInTheDocument();
+    expect(screen.getByText('Full workbench needs a wider view.')).toBeInTheDocument();
+    const fragileList = container.querySelector('[data-slot="phone-explain-fragile-list"]') as HTMLElement;
+    expect(within(fragileList).getAllByRole('link')[0]).toHaveAttribute('href', expect.stringContaining('source=explain'));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(screen.getByRole('dialog', { name: 'Filter explain' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-explain-filter-sheet"]')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'SKUs' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Services' }));
+    await waitFor(() => expect(window.location.hash).toContain('entity=service'));
+  });
+
+  test('preserves phone product search query through detail navigation', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search products' }), { target: { value: 'ក្រមា' } });
+    await waitFor(() => expect(window.location.hash).toContain('q='));
+    const productLinks = container.querySelectorAll<HTMLAnchorElement>('[data-slot="phone-list-item"]');
+    expect(productLinks.length).toBeGreaterThan(0);
+    expect(productLinks[0]?.getAttribute('href')).toContain('q=');
+    fireEvent.click(productLinks[0]);
+
+    expect(await screen.findByRole('link', { name: 'Back to products' })).toHaveAttribute('href', expect.stringContaining('q='));
+  });
+
+  test('filters phone products and opens product action sheet routes with context', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-products-type-filter"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-products-quick-filter"]')).not.toBeNull();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search products' }), { target: { value: 'MekongLoomHouse' } });
+    expect(await screen.findByText('ក្រមាភ្នំពេញ')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Services' }));
+    expect(await screen.findByText('ឈុតរុំអំណោយក្រមា')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'SKUs' }));
+    expect(await screen.findByText('ក្រមាភ្នំពេញ')).toBeInTheDocument();
+
+    const firstProductCard = container.querySelector('[data-slot="phone-product-card"]') as HTMLElement;
+    expect(firstProductCard).not.toBeNull();
+    fireEvent.click(within(firstProductCard).getByRole('button', { name: 'Actions' }));
+    expect(await screen.findByText('Choose a phone action for this product.')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-product-actions-sheet"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('targetId=sku-001'));
+    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('source=products'));
+    expect(screen.getByRole('link', { name: 'Supplier Receipts' })).toHaveAttribute('href', expect.stringContaining('returnTo='));
+  });
+
+  test('keeps phone product detail usable after detail refresh failure', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('link', { name: 'Back to products' })).toBeInTheDocument();
+    const originalGetSkuDetail = window.kaurKhorDesktop.sena.getSkuDetail;
+    window.kaurKhorDesktop.sena.getSkuDetail = vi.fn(async () => {
+      throw new Error('detail cache unavailable');
+    });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh detail' }));
+
+      expect(await screen.findByText('Unable to refresh product detail.')).toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-detail-refresh-error"]')).not.toBeNull();
+      expect(within(container.querySelector('[data-slot="phone-detail-refresh-error"]') as HTMLElement).getByText(/detail cache unavailable/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+      expect(screen.getByRole('link', { name: 'Open safety' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
+      expect(container.querySelector('[data-slot="phone-workspace-error"]')).toBeNull();
+      expect(screen.getByRole('link', { name: 'Back to products' })).toBeInTheDocument();
+    } finally {
+      window.kaurKhorDesktop.sena.getSkuDetail = originalGetSkuDetail;
+    }
+  });
+
+  test('resets the phone viewport scroll position after route changes', async () => {
+    window.location.hash = '#/';
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+    const scrollToSpy = vi.fn();
+    const originalScrollTo = HTMLElement.prototype.scrollTo;
+    HTMLElement.prototype.scrollTo = scrollToSpy;
+
+    try {
+      render(<EmbeddedAppRoute mode="demo" />);
+
+      const phoneNav = await screen.findByRole('navigation', { name: 'Phone navigation' });
+      scrollToSpy.mockClear();
+      fireEvent.click(within(phoneNav).getByRole('link', { name: 'Products' }));
+
+      expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
+      await waitFor(() => expect(scrollToSpy).toHaveBeenCalledWith(0, 0));
+    } finally {
+      HTMLElement.prototype.scrollTo = originalScrollTo;
+    }
+  });
+
+  test.each([
+    `${hiddenPhoneOperatorHash}catalog/skus/sku-001/edit`,
+    `${hiddenPhoneOperatorHash}work/intake`,
+    `${hiddenPhoneOperatorHash}inventory`,
+  ])('keeps unsupported phone route %s behind the wide-view boundary', async (route) => {
+    window.location.hash = route;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Use a wider view for deep analysis' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-wide-only-page"]')).not.toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Edit SKU' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Inventory' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Intake' })).not.toBeInTheDocument();
+    const safeLinks = container.querySelector('[data-slot="phone-wide-only-safe-links"]') as HTMLElement;
+    expect(safeLinks).not.toBeNull();
+    expect(within(safeLinks).getByRole('link', { name: 'Today' })).toHaveAttribute('href', hiddenPhoneOperatorHash.replace(/\/$/, ''));
+    expect(within(safeLinks).getByRole('link', { name: 'Queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
+    expect(within(safeLinks).getByRole('link', { name: 'Capture' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture`);
+    expect(within(safeLinks).getByRole('link', { name: 'Products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+    expect(within(safeLinks).getByRole('link', { name: 'Insights' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}insights`);
+  });
+
+  test.each([
+    {
+      label: 'Stock Count',
+      route: 'work/capture/stock-count',
+    },
+    {
+      label: 'Supplier Orders Pending',
+      route: 'work/capture/supplier-order?ticketMode=new',
+    },
+    {
+      label: 'Customer Orders Completed',
+      route: 'work/capture/immediate-sale?ticketMode=new',
+    },
+    {
+      label: 'Customer Orders Pending',
+      route: 'work/capture/customer-order?ticketMode=new',
+    },
+    {
+      label: 'Supplier Receipts',
+      route: 'work/capture/supplier-receipt?ticketMode=edit',
+    },
+  ])('renders the phone-native $label capture lane', async ({ label, route }) => {
+    window.location.hash = `#/${route}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: label })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-page"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-lane-summary"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-stepper"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-interval-strip"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-choose-step"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-surface"]')).toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-menu"]')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Command home' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-reduced-nav"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Close capture' })).toHaveAttribute('href', expect.stringContaining('/work/capture'));
+  });
+
+  test('renders contextual phone capture prefill from queue action params', async () => {
+    const params = new URLSearchParams({
+      source: 'queue',
+      breadcrumb: 'Opened from Queue · Supplier task',
+      returnTo: '/work/queue?scope=customer',
+      targetType: 'sku',
+      targetId: 'sku-001',
+      skus: 'sku-001',
+      quantitySuggestion: '12',
+      supplierName: 'Phnom Penh Supply',
+    });
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/supplier-order?${params.toString()}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Supplier Orders Pending' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-source-breadcrumb"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-prefill-summary"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-details-step"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-capture-supplier-context"]')).not.toBeNull();
+    expect(screen.getByDisplayValue('12')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Expected arrival / ETA'), { target: { value: '2026-05-09T10:15' } });
+    fireEvent.change(screen.getByLabelText('Lead-time hint'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText(/ETA: 2026-05-09 10:15/)).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-review-step"]')).not.toBeNull();
+    expect(await screen.findByText('Kaur Khor will update supplier pending state and queue timing.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('link', { name: 'Return to queue' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue?scope=customer`);
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.orderSignals).toEqual([
+      expect.objectContaining({
+        approximateOrderQuantity: 12,
+        orderPlaced: true,
+        receiptArrived: false,
+        skuId: 'sku-001',
+      }),
+    ]);
+    expect(latestObservation?.input.ticketEvents).toEqual([
+      expect.objectContaining({
+        ticketFamily: 'supplier',
+        lifecycle: 'open',
+        stage: 'ordered_waiting',
+        eventType: 'created',
+        lines: [expect.objectContaining({
+          entityId: 'sku-001',
+          orderedQuantity: 12,
+        })],
+      }),
+    ]);
+    expect(latestObservation?.input.leadTimeHints).toEqual([
+      expect.objectContaining({
+        skuId: 'sku-001',
+        typicalDays: 3,
+      }),
+    ]);
+    expect(latestObservation?.input.notes).toBeNull();
+  });
+
+  test('persists phone supplier receipt with physical stock adjustment and discrepancy reason', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/supplier-receipt?targetType=sku&targetId=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Supplier Receipts' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-receipt-disposition-row"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Damaged' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Received quantity' }), { target: { value: '4' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Receipt note or discrepancy' }), { target: { value: 'one carton damaged' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText(/Damaged · one carton damaged/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.orderSignals).toEqual([
+      expect.objectContaining({
+        approximateReceiptQuantity: 4,
+        receiptArrived: true,
+        skuId: 'sku-001',
+      }),
+    ]);
+    expect(latestObservation?.input.adjustmentSignals).toEqual([
+      expect.objectContaining({
+        quantityDelta: 4,
+        reason: 'supplier_receipt_damaged',
+        skuId: 'sku-001',
+      }),
+    ]);
+    expect(latestObservation?.input.ticketEvents).toEqual([
+      expect.objectContaining({
+        eventType: 'fully_received',
+        lifecycle: 'resolved',
+        note: 'Damaged · one carton damaged',
+        stage: 'received',
+      }),
+    ]);
+  });
+
+  test('builds a phone customer ticket queue action as a sparse ticket event', () => {
+    const input = buildPhoneQueueObservationInput({
+      action: 'mark_completed',
+      actionLabel: 'Mark completed',
+      detail: 'Customer wants two',
+      href: '/work/capture/customer-order?ticketMode=edit&ticketId=ticket-phone-customer',
+      id: 'customer:ticket:ticket-phone-customer',
+      meta: '2 requested',
+      quantitySuggestion: 2,
+      returnTo: '/work/queue?scope=customer',
+      scope: 'customer',
+      sourceBreadcrumb: 'Opened from Queue · Customer task',
+      targetId: 'sku-001',
+      targetType: 'sku',
+      ticket: {
+        ticketId: 'ticket-phone-customer',
+        ticketFamily: 'customer',
+        lifecycle: 'open',
+        stage: 'pending',
+        revision: 1,
+        eventType: 'created',
+        occurredAt: '2026-05-05T08:00:00.000Z',
+        nextTouchAt: null,
+        party: {
+          role: 'customer',
+          customerName: 'Phone Customer',
+        },
+        lines: [{
+          entityType: 'sku',
+          entityId: 'sku-001',
+          quantityDelta: 2,
+        }],
+        note: 'Phone ticket seed',
+      },
+      title: 'Customer Ticket ID: 2026-05-05-#1',
+    }, '2', '2026-05-08', 'phone ticket follow-up');
+
+    expect(input?.ticketEvents).toEqual([
+      expect.objectContaining({
+        ticketId: 'ticket-phone-customer',
+        ticketFamily: 'customer',
+        lifecycle: 'resolved',
+        stage: 'fulfilled_immediate',
+        eventType: 'fulfilled_immediate',
+        revision: 2,
+        note: 'phone ticket follow-up',
+      }),
+    ]);
+    expect(input?.ticketEvents?.[0]?.lines[0]).toEqual(expect.objectContaining({
+      entityId: 'sku-001',
+      note: 'phone ticket follow-up',
+    }));
+  });
+
+  test('only exposes phone queue batch metadata when a real supplier group exists', () => {
+    const baseTask = {
+      action: 'log_order',
+      actionLabel: 'Place supplier order',
+      batchOrderId: null,
+      childOrderId: null,
+      id: 'supplier:sku-001',
+      kind: 'sku',
+      skuId: 'sku-001',
+      skuName: 'Phone SKU 1',
+      stateLabel: 'To order',
+      suggestedOrderQuantity: 4,
+      supplierName: 'Phone Supplier',
+      supplierTicketId: null,
+      whyNow: 'Needs replenishment.',
+    } as const;
+    const groupedTask = {
+      ...baseTask,
+      id: 'supplier:sku-002',
+      skuId: 'sku-002',
+      skuName: 'Phone SKU 2',
+    } as const;
+
+    const singleSheetTask = phoneSheetTaskForSupplierTask(baseTask as never, [baseTask as never]);
+    const groupedSheetTask = phoneSheetTaskForSupplierTask(baseTask as never, [baseTask as never, groupedTask as never]);
+
+    expect(singleSheetTask.batchTaskCount).toBeNull();
+    expect(singleSheetTask.batchUpdateHref).toBeNull();
+    expect(groupedSheetTask.batchTaskCount).toBe(2);
+    expect(groupedSheetTask.batchUpdateHref).toContain('skus=sku-001%2Csku-002');
+  });
+
+  test('persists a phone stock count as a sparse stock snapshot', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Review' })).toBeDisabled();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Counted quantity' }), { target: { value: '7' } });
+    fireEvent.change(screen.getByLabelText('Observed date/time'), { target: { value: '2026-05-08T09:30' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'phone count' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText(/Observed: 2026-05-08 09:30/)).toBeInTheDocument();
+    expect(await screen.findByText('Only selected and edited SKUs will be saved.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.stockSnapshot).toEqual([
+      expect.objectContaining({
+        skuId: 'sku-001',
+        unitsInStock: 7,
+      }),
+    ]);
+    expect(latestObservation?.input.notes).toBe('phone count');
+    expect(latestObservation?.input.observedAt).toEqual(expect.stringMatching(/^2026-05-08T\d{2}:30:00\.000Z$/));
+    expect(latestObservation?.input.stockSnapshot).toHaveLength(1);
+  });
+
+  test('persists phone customer pending capture with customer ticket identity', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?targetType=service&targetId=service-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Customer Orders Pending' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-customer-context"]')).not.toBeNull();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Channel' }), { target: { value: 'Telegram' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Customer name' }), { target: { value: 'Dara' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Phone' }), { target: { value: '+855123' } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Committed quantity' }), { target: { value: '2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText(/Customer: Telegram/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.commercialEvents).toEqual([
+      expect.objectContaining({
+        entityId: 'service-001',
+        entityType: 'service',
+        party: 'customer',
+        quantityDelta: -2,
+        stage: 'pending',
+      }),
+    ]);
+    expect(latestObservation?.input.ticketEvents).toEqual([
+      expect.objectContaining({
+        ticketFamily: 'customer',
+        lifecycle: 'open',
+        stage: 'pending',
+        eventType: 'created',
+        party: expect.objectContaining({
+          channelLabel: 'Telegram',
+          customerName: 'Dara',
+          phone: '+855123',
+        }),
+      }),
+    ]);
+  });
+
+  test('persists phone customer pending cancellation mode as canceled ticket evidence', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?ticketMode=cancel&targetType=service&targetId=service-001&ticketId=ticket-existing`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Customer Orders Pending' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-mode-row"]')).not.toBeNull();
+    await waitFor(() => expect(window.location.hash).toContain('ticketMode=cancel'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Committed quantity' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    expect(screen.getByText(/Mode: Cancel pending/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.commercialEvents).toEqual([
+      expect.objectContaining({
+        flow: 'scheduled',
+        quantityDelta: 1,
+        reason: 'cancel pending',
+        stage: 'pending',
+      }),
+    ]);
+    expect(latestObservation?.input.ticketEvents).toEqual([
+      expect.objectContaining({
+        eventType: 'canceled',
+        lifecycle: 'canceled',
+        revision: 2,
+        ticketId: 'ticket-existing',
+        ticketFamily: 'customer',
+      }),
+    ]);
+  });
+
+  test('warns on conflicting phone customer name and phone hints', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?targetType=service&targetId=service-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Customer Orders Pending' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Phone' }), { target: { value: '+855 12000000' } });
+    expect(screen.getByRole('button', { name: 'Use name Sokha' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Customer name' }), { target: { value: 'Dara' } });
+    expect(container.querySelector('[data-slot="phone-capture-customer-conflict"]')).not.toBeNull();
+    expect(screen.getByText(/previously linked to Sokha/)).toBeInTheDocument();
+  });
+
+  test('selects an existing phone customer ticket for edit or cancel capture', async () => {
+    const state = fallbackStateForMode('demo');
+    state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
+    state.observations.unshift({
+      observationId: 'obs-existing-phone-ticket',
+      ownerSub: 'browser-owner',
+      input: {
+        observedAt: '2026-05-05T08:00:00.000Z',
+        stockSnapshot: [],
+        serviceRankings: [],
+        retailRankings: [],
+        serviceStockouts: [],
+        retailStockouts: [],
+        orderSignals: [],
+        servicePrices: [],
+        retailPrices: [],
+        leadTimeHints: [],
+        ticketEvents: [{
+          ticketId: 'ticket-existing-phone',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-05-05T08:00:00.000Z',
+          nextTouchAt: null,
+          party: {
+            role: 'customer',
+            customerName: 'Sokha',
+          },
+          lines: [{
+            entityType: 'service',
+            entityId: 'service-001',
+            quantityDelta: 2,
+          }],
+          note: null,
+        }],
+        notes: null,
+      },
+    });
+    setBrowserDesktopBridgeMockState(state);
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?mode=cancel`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+        json: state,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Customer Orders Pending' })).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-capture-ticket-selector"]')).not.toBeNull());
+    fireEvent.click(screen.getByRole('button', { name: /ticket-existing-phone/ }));
+    await waitFor(() => expect(window.location.hash).toContain('ticketId=ticket-existing-phone'));
+    expect(container.querySelector('[data-slot="phone-capture-selected-ticket"]')).not.toBeNull();
+    expect(screen.getByRole('textbox', { name: 'Committed quantity' })).toHaveValue('2');
+  });
+
+  test('offers stock count handoff after customer completed refund mode', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/immediate-sale?targetType=sku&targetId=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Customer Orders Completed' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Refund / reversal' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Completed quantity' }), { target: { value: '1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add returned stock in Stock Count' })).toHaveAttribute('href', expect.stringContaining('quantitySuggestion=1'));
+
+    const latestObservation = getBrowserDesktopBridgeMockState().observations[0];
+    expect(latestObservation?.input.commercialEvents).toEqual([
+      expect.objectContaining({
+        flow: 'reversal',
+        quantityDelta: 1,
+        reason: 'refund/reversal',
+      }),
+    ]);
+  });
+
+  test('opens Today latest saved update in a lightweight outcome sheet', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Counted quantity' }), { target: { value: '8' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    window.location.hash = hiddenPhoneOperatorHash;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+    expect(await screen.findByText('Last saved')).toBeInTheDocument();
+    const recentOutcome = container.querySelector<HTMLButtonElement>('[data-slot="phone-recent-outcome"]');
+    expect(recentOutcome).not.toBeNull();
+    fireEvent.click(recentOutcome!);
+
+    expect(container.querySelector('[data-slot="phone-today-outcome-sheet"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-today-outcome-detail"]')).not.toBeNull();
+    expect(screen.getByText('Quantity: 8u')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Update history' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings/history`);
+  });
+
+  test('keeps phone capture draft actionable after a save failure', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    const originalIngest = window.kaurKhorDesktop.sena.ingestObservation;
+    window.kaurKhorDesktop.sena.ingestObservation = vi.fn(async () => {
+      throw new Error('ticket event validation failed');
+    });
+    try {
+      fireEvent.change(screen.getByRole('textbox', { name: 'Counted quantity' }), { target: { value: '7' } });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), { target: { value: 'phone count' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+
+      expect(await screen.findByText('Unable to save this update.')).toBeInTheDocument();
+      expect(within(container.querySelector('[data-slot="phone-capture-save-error"]') as HTMLElement).getByText(/ticket event validation failed/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+      expect(screen.getByRole('button', { name: 'Keep draft' })).toBeEnabled();
+      expect(container.querySelector('[data-slot="phone-capture-save-error"]')).not.toBeNull();
+      expect(container.querySelector('[data-slot="phone-workspace-error"]')).toBeNull();
+      expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:stock-count:sku-001')).toContain('phone count');
+      expect(screen.queryByRole('heading', { name: 'Saved' })).not.toBeInTheDocument();
+    } finally {
+      window.kaurKhorDesktop.sena.ingestObservation = originalIngest;
+    }
+  });
+
+  test('restores and clears a phone capture quantity and note draft by lane and target', async () => {
+    window.sessionStorage.setItem(
+      'kaur-khor:phone-capture-draft:stock-count:sku-001',
+      JSON.stringify({ note: 'kept draft', quantity: '9' }),
+    );
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Counted quantity' })).toHaveValue('9');
+    expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue('kept draft');
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:stock-count:sku-001')).toBeNull();
+  });
+
+  test('shows phone capture hub draft indicators per lane', async () => {
+    window.sessionStorage.setItem(
+      'kaur-khor:phone-capture-draft:stock-count:sku-001',
+      JSON.stringify({ note: 'kept draft', observedAt: '2026-05-08T09:30', quantity: '9' }),
+    );
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Record what changed' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-draft-indicator"]')).not.toBeNull();
+    expect(screen.getByText('1 draft')).toBeInTheDocument();
+  });
+
+  test('confirms before leaving a dirty phone capture draft through reduced capture navigation', async () => {
+    const params = new URLSearchParams({
+      returnTo: '/catalog',
+      skus: 'sku-001',
+    });
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?${params.toString()}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Close capture' })).toHaveAttribute('href', expect.stringContaining('/catalog'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Counted quantity' }), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('link', { name: 'Close capture' }));
+
+    expect(container.querySelector('[data-slot="phone-capture-leave-confirmation"]')).not.toBeNull();
+    expect(await screen.findByText('Leave capture draft?')).toBeInTheDocument();
+    expect(window.location.hash).toContain('work/capture/stock-count');
+    fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(container.querySelector('[data-slot="phone-capture-leave-confirmation"]')).toBeNull();
+
+    fireEvent.click(screen.getByRole('link', { name: 'Close capture' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Discard draft' }));
+    expect(await screen.findByRole('heading', { name: 'Look up a sellable' })).toBeInTheDocument();
+    expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:stock-count:sku-001')).toBeNull();
+  });
+
+  test('persists phone capture target selection in URL state', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-choose-step"]')).not.toBeNull();
+    const firstChoice = container.querySelector<HTMLButtonElement>('[data-slot="phone-capture-choose-step"] button');
+    expect(firstChoice).not.toBeNull();
+    fireEvent.click(firstChoice!);
+
+    expect(container.querySelector('[data-slot="phone-capture-details-step"]')).not.toBeNull();
+    await waitFor(() => {
+      expect(window.location.hash).toContain('targetId=');
+      expect(window.location.hash).toContain('targetType=sku');
+      expect(window.location.hash).toContain('skus=');
+    });
+  });
+
+  test('shows a recoverable phone capture state when a contextual target is missing', async () => {
+    const params = new URLSearchParams({
+      breadcrumb: 'Opened from Queue · Supplier task',
+      returnTo: '/work/queue?scope=supplier',
+      targetId: 'missing-sku',
+      targetType: 'sku',
+    });
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?${params.toString()}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-missing-target"]')).not.toBeNull();
+    expect(screen.getByText('The original item is no longer available.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Return to source' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue?scope=supplier`);
+    fireEvent.click(screen.getByRole('button', { name: 'Choose another item' }));
+    expect(container.querySelector('[data-slot="phone-capture-choose-step"]')).not.toBeNull();
+  });
+
+  test('wires hidden phone shell safety actions to browser backup handlers', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}settings`;
+    mockViewport(390, 844);
+    const handle = createOnboardedBrowserStorageHandle('app');
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:kaur-khor-backup');
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+
+    try {
+      const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Export backup' }));
+      await waitFor(() => expect(handle.persistSenaState).toHaveBeenCalled());
+      expect(createObjectUrlSpy).toHaveBeenCalled();
+      expect(anchorClickSpy).toHaveBeenCalled();
+      expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup');
+      expect(container.querySelector('[data-slot="phone-storage-feedback"]')).not.toBeNull();
+      expect(await screen.findByText('Backup export ready.')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Import backup' }));
+      expect(inputClickSpy).toHaveBeenCalled();
+      const input = container.querySelector('input[type="file"]');
+      expect(input).not.toBeNull();
+      fireEvent.change(input as HTMLInputElement, {
+        target: {
+          files: [{
+            name: 'bad-backup.json',
+            text: vi.fn(async () => '{nope'),
+            type: 'application/json',
+          } as unknown as File],
+        },
+      });
+      expect(await screen.findByText('Backup import needs attention.')).toBeInTheDocument();
+      expect(within(container.querySelector('[data-slot="phone-storage-feedback"]') as HTMLElement).getByText('Backup JSON could not be parsed.')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset workspace' }));
+      expect(container.querySelector('[data-slot="phone-reset-confirmation"]')).not.toBeNull();
+      expect(screen.getByText('This removes local browser workspace data from this device. Export a backup first if you need this data. This action cannot be undone.')).toBeInTheDocument();
+      expect(confirmSpy).not.toHaveBeenCalled();
+      expect(handle.clear).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(container.querySelector('[data-slot="phone-reset-confirmation"]')).toBeNull();
+    } finally {
+      createObjectUrlSpy.mockRestore();
+      revokeObjectUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+      inputClickSpy.mockRestore();
+      confirmSpy.mockRestore();
+    }
+  });
+
+  test('renders phone update history as grouped recent saved facts with detail sheet', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Counted quantity' }), { target: { value: '7' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
+    expect(await screen.findByRole('heading', { name: 'Saved' })).toBeInTheDocument();
+
+    window.location.hash = `${hiddenPhoneOperatorHash}settings/history`;
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+    expect(await screen.findByRole('heading', { name: 'Update history' })).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-history-summary"]')).not.toBeNull();
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-history-grouped-list"]')).not.toBeNull());
+    expect(screen.getByRole('heading', { name: 'Stock Count' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Price/cost changes' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByRole('button', { name: /7u/i })[0]!);
+
+    expect(container.querySelector('[data-slot="phone-history-detail-sheet"]')).not.toBeNull();
+    expect(screen.getByText('State layer changed: Physical stock truth')).toBeInTheDocument();
+    expect(screen.getByText('Quantity: 7u')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(container.querySelector('[data-slot="phone-history-detail-sheet"]')).toBeNull();
+  });
+
+  test('keeps phone update history usable after observation refresh failure', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}settings/history`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'Update history' })).toBeInTheDocument();
+    const originalListObservations = window.kaurKhorDesktop.sena.listObservations;
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => {
+      throw new Error('observation index unavailable');
+    });
+    try {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh history' }));
+
+      expect(await screen.findByText('Unable to refresh update history.')).toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-history-refresh-error"]')).not.toBeNull();
+      expect(within(container.querySelector('[data-slot="phone-history-refresh-error"]') as HTMLElement).getByText(/observation index unavailable/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeEnabled();
+      expect(screen.getByRole('link', { name: 'Open safety' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
+      expect(container.querySelector('[data-slot="phone-workspace-error"]')).toBeNull();
+      expect(screen.getByRole('heading', { name: 'Update history' })).toBeInTheDocument();
+    } finally {
+      window.kaurKhorDesktop.sena.listObservations = originalListObservations;
+    }
+  });
+
+  test.each(['demo', 'app'] as const)('refreshes public embedded route auto zoom from phone shell to wide browser and back in %s mode', async (mode) => {
     window.location.hash = '#/';
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle(mode));
@@ -1596,11 +2986,11 @@ describe('WebRoutes embedded app fallback state', () => {
     const viewport = await waitFor(() => {
       const current = container.querySelector('[data-slot="embedded-auto-zoom-viewport"]');
       expect(current).not.toBeNull();
-      expect(current).toHaveAttribute('data-phone-landscape', 'true');
-      expect(current).toHaveAttribute('data-phone-portrait', 'false');
-      expect(current).toHaveAttribute('data-zoom-level', '-2');
-      expect(current).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
-      expect(current).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
+      expect(current).toHaveAttribute('data-phone-landscape', 'false');
+      expect(current).toHaveAttribute('data-phone-portrait', 'true');
+      expect(current).toHaveAttribute('data-zoom-level', '0');
+      expect(current).toHaveAttribute('data-effective-width', '390');
+      expect(current).toHaveAttribute('data-effective-height', '844');
       return current;
     });
 
@@ -1621,13 +3011,13 @@ describe('WebRoutes embedded app fallback state', () => {
     fireEvent.resize(window);
 
     await waitFor(() => {
-      expect(viewport).toHaveAttribute('data-phone-landscape', 'true');
-      expect(viewport).toHaveAttribute('data-phone-portrait', 'false');
-      expect(viewport).toHaveAttribute('data-zoom-level', '-2');
-      expect(viewport).toHaveAttribute('data-effective-width', String(Math.round(844 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
-      expect(viewport).toHaveAttribute('data-effective-height', String(Math.round(475 / RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE)));
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('true');
-      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('false');
+      expect(viewport).toHaveAttribute('data-phone-landscape', 'false');
+      expect(viewport).toHaveAttribute('data-phone-portrait', 'true');
+      expect(viewport).toHaveAttribute('data-zoom-level', '0');
+      expect(viewport).toHaveAttribute('data-effective-width', '390');
+      expect(viewport).toHaveAttribute('data-effective-height', '844');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhoneLandscape).toBe('false');
+      expect(document.documentElement.dataset.kaurKhorEmbeddedPhonePortrait).toBe('true');
     });
   });
 
@@ -1663,7 +3053,19 @@ describe('WebRoutes embedded app fallback state', () => {
 
     expect(await screen.findByRole('navigation', { name: 'ការរុករកលើទូរស័ព្ទ' })).toBeInTheDocument();
     expect(screen.getByText('របៀបប្រតិបត្តិករទូរស័ព្ទ')).toBeInTheDocument();
+    expect(screen.getByText('សកម្មភាពបន្ទាប់')).toBeInTheDocument();
+    expect(screen.getByText('ផ្លូវលឿន')).toBeInTheDocument();
     expect(screen.queryByRole('dialog', { name: 'បង្វិលអេក្រង់' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', { name: 'ទំនិញ' }));
+    expect(await screen.findByRole('heading', { name: 'ស្វែងរកទំនិញ ឬសេវាកម្មដែលអាចលក់បាន' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'ស្វែងរកទំនិញ' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' }));
+    expect(screen.getByRole('link', { name: 'បើកការកំណត់' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
+    fireEvent.click(screen.getByRole('link', { name: 'បើកការកំណត់' }));
+    expect(await screen.findByRole('heading', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeEnabled();
   });
 
   test('renders Khmer rotate warning copy from the browser workspace language', () => {
