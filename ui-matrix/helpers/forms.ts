@@ -38,7 +38,7 @@ export async function pasteCatalogImageFromPage(page: Page, name = 'ui-matrix-pa
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
     document.body.dispatchEvent(pasteEvent);
   }, name);
-  await expect(page.getByText('Replace image').first()).toBeVisible();
+  await expect(page.getByText('Replace image').first()).toBeVisible({ timeout: 5000 });
 }
 
 export async function createSkuThroughUi(page: Page, options?: {
@@ -132,7 +132,9 @@ export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, op
 export async function editServiceImageThroughUi(page: Page, serviceId: string) {
   await navigateHashRoute(page, `/catalog/services/${serviceId}/edit`);
   await pasteCatalogImageFromPage(page, 'ui-matrix-edit-service.png');
-  await page.getByRole('button', { name: 'Save changes' }).click();
+  const saveButton = page.getByRole('button', { name: 'Save changes' });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
   await page.waitForFunction(
     (id) => window.location.hash === `#/catalog/services/${id}`,
     serviceId,
