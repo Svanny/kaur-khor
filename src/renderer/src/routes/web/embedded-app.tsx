@@ -892,8 +892,8 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
     })();
   }
 
-  function handleReset() {
-    if (mode === 'app' && !window.confirm('Reset this browser workspace? Export a backup first if you need this data.')) {
+  function handleReset(options?: { skipBrowserConfirm?: boolean }) {
+    if (!options?.skipBrowserConfirm && mode === 'app' && !window.confirm('Reset this browser workspace? Export a backup first if you need this data.')) {
       return;
     }
     void (async () => {
@@ -953,8 +953,7 @@ export function EmbeddedAppRoute({ mode }: { mode: EmbeddedMode }) {
 
   return (
     <EmbeddedAutoZoomViewport
-      enablePhoneLandscapeWorkaround={!hiddenPhoneOperator}
-      phoneLandscapeOverlay={hiddenPhoneOperator ? undefined : <PhoneViewWarningOverlay />}
+      phoneLandscapeOverlay={undefined}
     >
       <HashRouter basename={hiddenPhoneOperator ? HIDDEN_PHONE_OPERATOR_BASENAME : undefined}>
         <EmbeddedAppContent
@@ -983,11 +982,11 @@ function EmbeddedAppContent({
   storage: StorageUiState;
   onExport: () => void;
   onImport: (file: File) => void;
-  onReset: () => void;
+  onReset: (options?: { skipBrowserConfirm?: boolean }) => void;
 }) {
   const isPhonePortrait = useEmbeddedPhonePortraitViewport();
 
-  if (hiddenPhoneOperator && isPhonePortrait) {
+  if (hiddenPhoneOperator || isPhonePortrait) {
     return (
       <EmbeddedPhoneApp
         mode={mode}

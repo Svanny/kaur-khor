@@ -2079,6 +2079,8 @@ const exactValueTranslations: Record<string, string> = {
   'Back to catalog': 'ត្រឡប់ទៅទំនិញ',
   'Back to products': 'ត្រឡប់ទៅទំនិញ',
   'Back to app': 'ត្រឡប់ទៅកម្មវិធី',
+  'Product not found': 'រកមិនឃើញទំនិញ',
+  'This product is not available in the phone catalog.': 'ទំនិញនេះមិនមានក្នុងបញ្ជីទំនិញលើទូរស័ព្ទទេ។',
   'Skip to content': 'រំលងទៅមាតិកា',
   'Open navigation': 'បើកម៉ឺនុយ',
   'Collapse navigation': 'បង្រួមម៉ឺនុយ',
@@ -2110,9 +2112,14 @@ const exactValueTranslations: Record<string, string> = {
   'Customer Orders Pending': 'ការបញ្ជាទិញអតិថិជនកំពុងបើក',
   'Record new customer orders, changes, or cancellations that are still open.':
     'កត់ត្រាការបញ្ជាទិញថ្មី ការផ្លាស់ប្តូរ ឬការលុបចោលពីអតិថិជន ដែលនៅតែបើក។',
+  'Customer Orders Completed': 'ការបញ្ជាទិញអតិថិជនបានបញ្ចប់',
   'Customer Orders Fulfilled': 'ការបញ្ជាទិញអតិថិជនបានបំពេញ',
   'Record fulfilled customer orders and immediate sales.':
     'កត់ត្រាការបញ្ជាទិញអតិថិជនដែលបានបំពេញ និងការលក់ភ្លាមៗ។',
+  'Enter a quantity greater than zero before saving.': 'បញ្ចូលចំនួនធំជាងសូន្យមុនពេលរក្សាទុក។',
+  'Enter a valid action date before saving.': 'បញ្ចូលកាលបរិច្ឆេទសកម្មភាពត្រឹមត្រូវមុនពេលរក្សាទុក។',
+  'Open the scoped capture lane for this task. This quick form cannot persist it.':
+    'បើកផ្លូវកត់ត្រាដែលបានកំណត់សម្រាប់ភារកិច្ចនេះ។ ទម្រង់រហ័សនេះមិនអាចរក្សាទុកវាបានទេ។',
   'Supplier Orders Pending': 'ការបញ្ជាទិញអ្នកផ្គត់ផ្គង់កំពុងរង់ចាំ',
   'Record supplier orders placed, changes, or cancellations still awaiting receipt.':
     'កត់ត្រាការបញ្ជាទិញអ្នកផ្គត់ផ្គង់ ការផ្លាស់ប្តូរ ឬការលុបចោល ដែលនៅតែរង់ចាំទទួល។',
@@ -2516,6 +2523,7 @@ const exactValueTranslations: Record<string, string> = {
   Status: 'ស្ថានភាព',
   'Linked SKUs': 'SKU ដែលភ្ជាប់',
   'No linked SKUs': 'គ្មាន SKU ដែលភ្ជាប់',
+  'No linked SKUs.': 'គ្មាន SKU ដែលភ្ជាប់។',
   'Potential revenue': 'ចំណូលសក្តានុពល',
   'Potential gross margin': 'ប្រាក់ចំណេញដុលសក្តានុពល',
   'Internal only': 'សម្រាប់ប្រើខាងក្នុងប៉ុណ្ណោះ',
@@ -2563,6 +2571,9 @@ const exactValueTranslations: Record<string, string> = {
   'Cost per unit': 'ថ្លៃដើមក្នុងមួយឯកតា',
   'Supplier cost per unit': 'ថ្លៃដើមពីអ្នកផ្គត់ផ្គង់ក្នុងមួយឯកតា',
   'Product price': 'តម្លៃលក់',
+  'Not sold directly': 'មិនលក់ផ្ទាល់',
+  'Not set': 'មិនទាន់កំណត់',
+  '{count} days': '{count} ថ្ងៃ',
   'Approximate order quantity': 'បរិមាណបញ្ជាទិញប្រហាក់ប្រហែល',
   'Approximate receipt quantity': 'បរិមាណទទួលប្រហាក់ប្រហែល',
   'Typical ETA days': 'ចំនួនថ្ងៃពេលមកដល់ជាទូទៅ',
@@ -2812,6 +2823,10 @@ const exactValueTranslations: Record<string, string> = {
     'មិនមានការងារបន្ទាន់ក្នុងជួរទេ។ កត់ត្រាអាប់ដេតថ្មី នៅពេលការងារនៅទីតាំងផ្លាស់ប្តូរ។',
   'No queue items match this phone view.': 'មិនមានធាតុក្នុងជួរណាត្រូវនឹងទិដ្ឋភាពទូរស័ព្ទនេះទេ។',
   'No products match this search.': 'មិនមានទំនិញណាត្រូវនឹងការស្វែងរកនេះទេ។',
+  'Lead time': 'ពេលវេលាមកដល់',
+  '{count} linked SKUs': 'SKU ដែលភ្ជាប់ {count}',
+  'Phone capture keeps entry fast. Use the queue to update existing tickets or a wider view for custom multi-lane updates.':
+    'ការកត់ត្រាលើទូរស័ព្ទរក្សាការបញ្ចូលឲ្យលឿន។ ប្រើជួរ ដើម្បីអាប់ដេតសំបុត្រដែលមានរួច ឬប្រើទិដ្ឋភាពធំជាងនេះ សម្រាប់អាប់ដេតច្រើនផ្លូវផ្ទាល់ខ្លួន។',
   'Workspace safety': 'សុវត្ថិភាពកន្លែងធ្វើការ',
   'Demo workspace': 'កន្លែងធ្វើការសាកល្បង',
   'Browser workspace': 'កន្លែងធ្វើការក្នុងកម្មវិធីរុករក',
