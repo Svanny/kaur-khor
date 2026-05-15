@@ -10,6 +10,7 @@ import { EditorField } from './editor-form-primitives';
 
 const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const SUPPORTED_INGEST_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const activeCatalogImagePasteOwners: symbol[] = [];
 
 function isSupportedImageType(type: string): boolean {
   return SUPPORTED_INGEST_IMAGE_TYPES.has(type);
@@ -69,6 +70,7 @@ export function CatalogImageField({
   const { language } = usePreferences();
   const { isBrowserRuntime } = useRuntimeMode();
   const browserFileInputRef = useRef<HTMLInputElement | null>(null);
+  const pasteOwnerRef = useRef(Symbol('catalog-image-paste-owner'));
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,8 +155,24 @@ export function CatalogImageField({
   }
 
   useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
+    activeCatalogImagePasteOwners.push(pasteOwner);
+    return () => {
+      const ownerIndex = activeCatalogImagePasteOwners.indexOf(pasteOwner);
+      if (ownerIndex >= 0) {
+        activeCatalogImagePasteOwners.splice(ownerIndex, 1);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
     function handleDocumentPaste(event: ClipboardEvent) {
       if (!event.clipboardData || event.defaultPrevented) {
+        return;
+      }
+
+      if (activeCatalogImagePasteOwners[activeCatalogImagePasteOwners.length - 1] !== pasteOwner) {
         return;
       }
 
