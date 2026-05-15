@@ -12,6 +12,7 @@ import {
   correctLatestObservationNotesThroughUi,
   createServiceThroughUi,
   createSkuThroughUi,
+  editServiceImageThroughUi,
   editSkuCostAndPriceThroughUi,
   fulfillCustomerTicketThroughUi,
   latestTicketIdForEntity,
@@ -29,6 +30,8 @@ import {
   navigateHashRoute,
   scrollMainSurface,
 } from '../helpers/runtime-guards';
+
+const persistedImagePathPattern = /.+\.(png|jpe?g|webp)$/i;
 
 test.describe('UI matrix: desktop dependent state', () => {
   test('organic catalog and stock updates propagate across pages and reload', async ({}, testInfo) => {
@@ -55,6 +58,7 @@ test.describe('UI matrix: desktop dependent state', () => {
       const sku = await createSkuThroughUi(launched.page, {
         cost: '4.25',
         name: 'Matrix Tamarind Jar',
+        pasteImage: true,
         price: '12.50',
         supplier: 'Matrix Supplier',
       });
@@ -67,6 +71,7 @@ test.describe('UI matrix: desktop dependent state', () => {
 
       const service = await createServiceThroughUi(launched.page, {
         name: 'Matrix Gift Wrap',
+        pasteImage: true,
         price: '19.00',
         skuName: sku.name,
       });
@@ -80,6 +85,7 @@ test.describe('UI matrix: desktop dependent state', () => {
 
       await editSkuCostAndPriceThroughUi(launched.page, sku.skuId, {
         cost: '5.00',
+        pasteImage: true,
         price: '13.50',
       });
       await assertUiStable(launched.page, 'dependent SKU detail after price edit');
@@ -89,6 +95,27 @@ test.describe('UI matrix: desktop dependent state', () => {
         skuId: sku.skuId,
       });
       await captureUi(launched.page, testInfo, 'dependent-sku-price-edit');
+
+      await editServiceImageThroughUi(launched.page, service.serviceId);
+      await assertUiStable(launched.page, 'dependent service detail after image edit');
+      await assertDesktopBridgeConsistent(launched.page, {
+        minObservationCount: initialCounts.observationCount,
+        serviceId: service.serviceId,
+        skuId: sku.skuId,
+      });
+      await captureUi(launched.page, testInfo, 'dependent-service-image-edit');
+
+      const catalogImages = await launched.page.evaluate(async ({ serviceId, skuId }) => {
+        const catalog = await window.kaurKhorDesktop.sena.getCatalog();
+        return {
+          serviceImagePath: catalog.services.find((entry) => entry.serviceId === serviceId)?.imagePath ?? null,
+          skuImagePath: catalog.skus.find((entry) => entry.skuId === skuId)?.imagePath ?? null,
+        };
+      }, { serviceId: service.serviceId, skuId: sku.skuId });
+      expect(catalogImages.skuImagePath, 'SKU editor page-level paste should save image path').toEqual(expect.any(String));
+      expect(catalogImages.skuImagePath, 'SKU editor page-level paste should save a supported image path').toMatch(persistedImagePathPattern);
+      expect(catalogImages.serviceImagePath, 'service editor page-level paste should save image path').toEqual(expect.any(String));
+      expect(catalogImages.serviceImagePath, 'service editor page-level paste should save a supported image path').toMatch(persistedImagePathPattern);
 
       await saveStockCountThroughUi(launched.page, sku.skuId, '7');
       await assertUiStable(launched.page, 'dependent after stock count save');
