@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+language: "en-US"
+early_access: false
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: false
+  auto_review:
+    enabled: true
+    drafts: false
+  path_filters:
+    - "!node_modules/**"
+    - "!out/**"
+    - "!build/**"
+    - "!release/**"
+    - "!bench-results/**"
+    - "!.kaur-khor-dev-data/**"
+    - "!.pnpm-store/**"
+    - "!.playwright-cli/**"
+    - "!apps/*/target/**"
+    - "!tree.txt"
+    - "!tree_dir.txt"
+    - "!src/renderer/src/routes/*.bak.*"
+  path_instructions:
+    - path: "src/main/**"
+      instructions: |
+        - Check that Electron main-process changes preserve context isolation and do not expose Node or Electron APIs directly to the renderer.
+        - Verify local data, backup, restore, clear-data, and update paths keep app code separate from user data.
+        - Flag startup-path changes that add full observation hydration, route-specific reads, or broad SENA scans before workspace readiness.
+    - path: "src/preload/**"
+      instructions: |
+        - Check that preload changes keep a narrow bridge and only expose typed, intentional APIs.
+        - Verify renderer-facing payloads are backed by shared IPC contracts from src/shared.
+    - path: "src/renderer/**"
+      instructions: |
+        - Check UI changes for desktop-first behavior, responsive layout stability, and no text overlap in constrained widths.
+        - Verify user-facing behavior changes are reflected in focused tests and relevant help or user-guide docs.
+        - Flag renderer-visible calculation changes that update labels or copy without tracing and testing the underlying model/data path.
+    - path: "apps/**"
+      instructions: |
+        - Check Rust runtime changes for persistence compatibility, deterministic local behavior, and focused crate tests.
+        - Verify mutations stay on the writer path and read-only work remains safe for read-worker routing.
+    - path: "docs/**"
+      instructions: |
+        - Check documentation against the current commands in package.json and AGENTS.md.
+        - Flag stale release, workflow, storage, backup, restore, update, or security-gate guidance.
+
+chat:
+  auto_reply: true
