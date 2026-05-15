@@ -63,9 +63,10 @@ persistence. Demo browser cases cover generated populated surfaces, banners,
 reset controls, Inventory, Money, Explain, History, Catalog, and Work queue.
 
 Mobile/responsive coverage should include all data states that matter for layout:
-phone portrait rotate prompt, fresh tablet empty state, populated demo landscape,
-tablet mutation, route back/forward behavior, resize transitions, and reload
-persistence.
+phone portrait setup, operator shell, product lookup/detail, capture entry and
+deep capture surfaces, fresh tablet empty state, populated demo landscape,
+tablet mutation, route back/forward behavior, resize transitions, reload
+persistence, and browser-app backup export/reset/import recovery.
 
 ## Artifacts
 

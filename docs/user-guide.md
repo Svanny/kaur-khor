@@ -36,7 +36,7 @@ Kaur Khor is for teams that want a practical inventory command app on one machin
 
 Kaur Khor is not a full ERP, accounting system, or blank workflow builder.
 
-Kaur Khor automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app show a rotate prompt because the browser workspace is designed for a wider operating view; rotate the phone sideways, use a wider browser window, or use the desktop app for regular work.
+Kaur Khor automatically reduces app scale when a desktop window, browser demo, or browser app viewport becomes narrow, short, or generally cramped by area. On phone portrait screens, the demo and browser app open the phone operator shell for Today, Queue, Capture, Products, Insights, and workspace safety actions. Phone Products includes SKU/service lookup and summary detail pages; phone Capture provides fast entry for common updates and hands deeper capture screens to a horizontally scrollable surface. Rotate the phone sideways, use a wider browser window, or use the desktop app for analysis, settings, custom multi-lane updates, and the full workspace.
 
 ## Daily Workflow
 
