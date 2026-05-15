@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,7 @@ export function CatalogImageField({
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function storeImageFile(imageFile: File) {
+  const storeImageFile = useCallback(async (imageFile: File) => {
     setBusy(true);
     setError(null);
     try {
@@ -93,7 +93,7 @@ export function CatalogImageField({
     } finally {
       setBusy(false);
     }
-  }
+  }, [isBrowserRuntime, language, onChange]);
 
   async function handleChooseImage() {
     if (isBrowserRuntime) {
@@ -169,7 +169,7 @@ export function CatalogImageField({
 
     document.addEventListener('paste', handleDocumentPaste);
     return () => document.removeEventListener('paste', handleDocumentPaste);
-  });
+  }, [storeImageFile]);
 
   return (
     <EditorField
