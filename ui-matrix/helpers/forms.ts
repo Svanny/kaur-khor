@@ -11,10 +11,41 @@ type TicketExpectation = {
 
 type TicketFamily = 'customer' | 'supplier';
 
+export async function pasteCatalogImageFromPage(page: Page, name = 'ui-matrix-pasted.png') {
+  await page.evaluate(async (fileName) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not create UI matrix paste image.');
+    }
+    context.fillStyle = '#c47a47';
+    context.fillRect(0, 0, 2, 2);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((nextBlob) => {
+        if (nextBlob) {
+          resolve(nextBlob);
+          return;
+        }
+        reject(new Error('Could not encode UI matrix paste image.'));
+      }, 'image/png');
+    });
+    const file = new File([blob], fileName, { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    document.body.dispatchEvent(pasteEvent);
+  }, name);
+  await expect(page.getByText('Replace image').first()).toBeVisible();
+}
+
 export async function createSkuThroughUi(page: Page, options?: {
   cost?: string;
   description?: string;
   name?: string;
+  pasteImage?: boolean;
   price?: string;
   supplier?: string;
 }) {
@@ -31,6 +62,9 @@ export async function createSkuThroughUi(page: Page, options?: {
   await page.getByTestId('sku-lead-time-mean-days-input').fill('7');
   await page.getByRole('combobox', { name: 'ETA variation' }).click();
   await page.getByRole('option', { name: /Normal/ }).click();
+  if (options?.pasteImage) {
+    await pasteCatalogImageFromPage(page, 'ui-matrix-new-sku.png');
+  }
   await page.getByRole('button', { name: 'Create entry' }).click();
   await page.waitForFunction(() => {
     const skuId = window.location.hash.split('/catalog/skus/')[1]?.split(/[/?#]/)[0] ?? '';
@@ -45,6 +79,7 @@ export async function createSkuThroughUi(page: Page, options?: {
 export async function createServiceThroughUi(page: Page, options?: {
   description?: string;
   name?: string;
+  pasteImage?: boolean;
   price?: string;
   skuName?: string;
 }) {
@@ -56,6 +91,9 @@ export async function createServiceThroughUi(page: Page, options?: {
     await page.locator('[data-sku-tile="true"]').filter({ hasText: options.skuName }).click();
   }
   await page.locator('label').filter({ hasText: 'Selling service price' }).locator('input').fill(options?.price ?? '20.00');
+  if (options?.pasteImage) {
+    await pasteCatalogImageFromPage(page, 'ui-matrix-new-service.png');
+  }
   await page.getByRole('button', { name: 'Create entry' }).click();
   await page.waitForFunction(() => {
     const serviceId = window.location.hash.split('/catalog/services/')[1]?.split(/[/?#]/)[0] ?? '';
@@ -69,11 +107,15 @@ export async function createServiceThroughUi(page: Page, options?: {
 
 export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, options?: {
   cost?: string;
+  pasteImage?: boolean;
   price?: string;
 }) {
   await navigateHashRoute(page, `/catalog/skus/${skuId}/edit`);
   await page.getByRole('textbox', { name: 'Supplier Cost per Unit' }).fill(options?.cost ?? '5.00');
   await page.getByRole('textbox', { name: 'Customer Selling Price' }).fill(options?.price ?? '13.50');
+  if (options?.pasteImage) {
+    await pasteCatalogImageFromPage(page, 'ui-matrix-edit-sku.png');
+  }
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   await page.getByRole('button', { name: 'Details', exact: true }).click();
@@ -84,6 +126,16 @@ export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, op
   await page.waitForFunction(
     (id) => window.location.hash === `#/catalog/skus/${id}`,
     skuId,
+  );
+}
+
+export async function editServiceImageThroughUi(page: Page, serviceId: string) {
+  await navigateHashRoute(page, `/catalog/services/${serviceId}/edit`);
+  await pasteCatalogImageFromPage(page, 'ui-matrix-edit-service.png');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  await page.waitForFunction(
+    (id) => window.location.hash === `#/catalog/services/${id}`,
+    serviceId,
   );
 }
 
