@@ -31,6 +31,8 @@ import {
   scrollMainSurface,
 } from '../helpers/runtime-guards';
 
+const persistedImagePathPattern = /.+\.(png|jpe?g|webp)$/i;
+
 test.describe('UI matrix: desktop dependent state', () => {
   test('organic catalog and stock updates propagate across pages and reload', async ({}, testInfo) => {
     testInfo.annotations.push({
@@ -110,8 +112,10 @@ test.describe('UI matrix: desktop dependent state', () => {
           skuImagePath: catalog.skus.find((entry) => entry.skuId === skuId)?.imagePath ?? null,
         };
       }, { serviceId: service.serviceId, skuId: sku.skuId });
-      expect(catalogImages.skuImagePath, 'SKU editor page-level paste should save image path').toBeTruthy();
-      expect(catalogImages.serviceImagePath, 'service editor page-level paste should save image path').toBeTruthy();
+      expect(catalogImages.skuImagePath, 'SKU editor page-level paste should save image path').toEqual(expect.any(String));
+      expect(catalogImages.skuImagePath, 'SKU editor page-level paste should save a supported image path').toMatch(persistedImagePathPattern);
+      expect(catalogImages.serviceImagePath, 'service editor page-level paste should save image path').toEqual(expect.any(String));
+      expect(catalogImages.serviceImagePath, 'service editor page-level paste should save a supported image path').toMatch(persistedImagePathPattern);
 
       await saveStockCountThroughUi(launched.page, sku.skuId, '7');
       await assertUiStable(launched.page, 'dependent after stock count save');
