@@ -8,6 +8,7 @@ import {
   finalizeAutomationPromotion,
   findAutomationConversationForTelegramTicket,
   ingestAutomationTelegramUpdates,
+  listAutomationIntakes,
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
@@ -17,6 +18,7 @@ import {
   recordAutomationWizardItemImageMessage,
   recordAutomationWizardMessage,
   readAutomationWizardSessionForConversation,
+  resolveAutomationIntake,
   saveAutomationConnection,
   ticketEventsRequiringTelegramNotification,
 } from './automation-store';
@@ -828,6 +830,43 @@ describe('automation telegram ingestion', () => {
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.exposures.find((row) => row.entityId === 'sku-1')?.sortOrder).toBe(0);
+  });
+
+  it('rejects malformed automation intake filters before reading state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(listAutomationIntakes(userDataPath, {
+      q: 42,
+    } as never)).rejects.toThrow('Automation intake filter q must be a string or null.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects malformed automation resolution payloads before persisting state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(resolveAutomationIntake(userDataPath, {
+      intakeId: 'intake-1',
+      status: 'ticketed',
+    } as never)).rejects.toThrow('Automation intake resolution status is invalid.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects malformed automation promotion payloads before reading state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(prepareAutomationPromotion(userDataPath, {
+      intakeId: 'intake-1',
+      mode: 'delete_ticket',
+    } as never, {
+      observations: [],
+    })).rejects.toThrow('Automation promotion mode is invalid.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {

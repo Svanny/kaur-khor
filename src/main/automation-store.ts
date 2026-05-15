@@ -7,6 +7,7 @@ import type {
   AutomationAvailabilityStatus,
   AutomationChannelConnection,
   AutomationConnectionStatus,
+  AutomationCustomerMessagePayload,
   AutomationConversationSummary,
   AutomationExposureEntityType,
   AutomationExposureRow,
@@ -260,6 +261,20 @@ const AUTOMATION_CONNECTION_STATUSES = new Set<AutomationConnectionStatus>([
   'error',
   'paused',
 ]);
+const AUTOMATION_LIST_INTAKE_STATUSES = new Set<AutomationIntakeStatus>([
+  'new',
+  'needs_review',
+  'quoted',
+  'ticketed',
+  'completed',
+  'canceled',
+  'failed',
+]);
+const AUTOMATION_RESOLVE_INTAKE_STATUSES = new Set<AutomationResolveIntakePayload['status']>([
+  'needs_review',
+  'quoted',
+  'canceled',
+]);
 
 function automationStorePath(userDataPath: string) {
   return join(userDataPath, 'desktop-automation-store.json');
@@ -282,6 +297,12 @@ function safeLower(value: string | null | undefined) {
 function normalizeNullablePhone(value: string | null | undefined) {
   const normalized = normalizePhoneNumber(value);
   return normalized || null;
+}
+
+function assertNonEmptyString(value: unknown, message: string): asserts value is string {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(message);
+  }
 }
 
 function assertAutomationConnectionPatchIsValid(payload: AutomationConnectionPatch) {
@@ -322,6 +343,88 @@ function assertAutomationExposurePatchIsValid(payload: AutomationExposurePatch) 
     (typeof payload.sortOrder !== 'number' || !Number.isFinite(payload.sortOrder))
   ) {
     throw new Error('Automation exposure sort order must be a finite number or null.');
+  }
+}
+
+function assertAutomationListIntakesPayloadIsValid(payload: AutomationListIntakesPayload | undefined) {
+  if (payload === undefined) {
+    return;
+  }
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Automation intake filters must be an object.');
+  }
+  if (payload.status !== undefined && !AUTOMATION_LIST_INTAKE_STATUSES.has(payload.status)) {
+    throw new Error('Automation intake status filter is invalid.');
+  }
+  for (const [key, value] of Object.entries({
+    conversationId: payload.conversationId,
+    q: payload.q,
+    ticketId: payload.ticketId,
+  })) {
+    if (value !== undefined && value !== null && typeof value !== 'string') {
+      throw new Error(`Automation intake filter ${key} must be a string or null.`);
+    }
+  }
+}
+
+function assertAutomationResolvePayloadIsValid(payload: AutomationResolveIntakePayload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Automation intake resolution must be an object.');
+  }
+  assertNonEmptyString(payload.intakeId, 'Automation intake resolution requires an intake id.');
+  if (!AUTOMATION_RESOLVE_INTAKE_STATUSES.has(payload.status)) {
+    throw new Error('Automation intake resolution status is invalid.');
+  }
+  if (payload.note !== undefined && payload.note !== null && typeof payload.note !== 'string') {
+    throw new Error('Automation intake resolution note must be a string or null.');
+  }
+  assertAutomationCustomerMessagePayloadIsValid(payload.customerMessage);
+}
+
+function assertAutomationCustomerMessagePayloadIsValid(payload: unknown) {
+  if (payload === undefined) {
+    return;
+  }
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Automation customer message must be an object.');
+  }
+  const message = payload as AutomationCustomerMessagePayload;
+  if (typeof message.send !== 'boolean') {
+    throw new Error('Automation customer message send flag must be a boolean.');
+  }
+  if (message.text !== null && typeof message.text !== 'string') {
+    throw new Error('Automation customer message text must be a string or null.');
+  }
+}
+
+function assertPromoteAutomationIntakePayloadIsValid(payload: PromoteAutomationIntakePayload) {
+  if (!payload || typeof payload !== 'object') {
+    throw new Error('Automation promotion must be an object.');
+  }
+  assertNonEmptyString(payload.intakeId, 'Automation promotion requires an intake id.');
+  if (payload.mode !== 'create_ticket' && payload.mode !== 'append_ticket') {
+    throw new Error('Automation promotion mode is invalid.');
+  }
+  if (payload.mode === 'append_ticket') {
+    assertNonEmptyString(payload.ticketId, 'Appending Telegram intake requires a target customer ticket.');
+  } else if (payload.ticketId !== undefined && payload.ticketId !== null && typeof payload.ticketId !== 'string') {
+    throw new Error('Automation promotion ticket id must be a string or null.');
+  }
+  if (payload.note !== undefined && payload.note !== null && typeof payload.note !== 'string') {
+    throw new Error('Automation promotion note must be a string or null.');
+  }
+  assertAutomationCustomerMessagePayloadIsValid(payload.customerMessage);
+  const identity = payload.customerIdentityOverride;
+  if (identity !== undefined) {
+    if (!identity || typeof identity !== 'object') {
+      throw new Error('Automation promotion customer identity override must be an object.');
+    }
+    if (identity.customerName !== undefined && identity.customerName !== null && typeof identity.customerName !== 'string') {
+      throw new Error('Automation promotion customer name must be a string or null.');
+    }
+    if (identity.phone !== undefined && identity.phone !== null && typeof identity.phone !== 'string') {
+      throw new Error('Automation promotion phone must be a string or null.');
+    }
   }
 }
 
@@ -2867,6 +2970,7 @@ export async function listAutomationIntakes(
   userDataPath: string,
   payload?: AutomationListIntakesPayload,
 ): Promise<AutomationOrderIntake[]> {
+  assertAutomationListIntakesPayloadIsValid(payload);
   const state = await loadAutomationState(userDataPath);
   return filterIntakes(
     [...state.intakes].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
@@ -2886,6 +2990,7 @@ export async function resolveAutomationIntake(
   userDataPath: string,
   payload: AutomationResolveIntakePayload,
 ): Promise<AutomationOrderIntake> {
+  assertAutomationResolvePayloadIsValid(payload);
   return updateAutomationState(userDataPath, (state) => {
     const intake = state.intakes.find((entry) => entry.intakeId === payload.intakeId);
     if (!intake) {
@@ -3250,6 +3355,7 @@ export async function prepareAutomationPromotion(
     observations: SenaObservationRecord[];
   },
 ): Promise<PromotionPreparation> {
+  assertPromoteAutomationIntakePayloadIsValid(payload);
   const state = await loadAutomationState(userDataPath);
   const intake = state.intakes.find((entry) => entry.intakeId === payload.intakeId);
   if (!intake) {
