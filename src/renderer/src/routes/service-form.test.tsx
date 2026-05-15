@@ -185,6 +185,7 @@ describe('ServiceFormRoute', () => {
     const view = renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Edit service' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Service 1')).toHaveFocus();
     expect(view.container.firstElementChild).toHaveClass('pb-32', 'md:pb-36');
     expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
     expect(screen.getByRole('heading', { level: 2, name: 'Core details' })).toBeInTheDocument();
@@ -208,6 +209,12 @@ describe('ServiceFormRoute', () => {
     expect(screen.getAllByText('Supplier cost per unit: $4.00 · Customer selling price: $9.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Supplier cost per unit: $8.00 · Customer selling price: $15.00').length).toBeGreaterThan(0);
     expect(screen.queryByText('sku-1')).not.toBeInTheDocument();
+  });
+
+  test('focuses the name field on the new service page', () => {
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
+
+    expect(screen.getAllByRole('textbox')[0]).toHaveFocus();
   });
 
   test('creates service attribute variants with linked SKUs and service price', async () => {
@@ -485,6 +492,80 @@ describe('ServiceFormRoute', () => {
     });
 
     expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/dropped-service.png');
+  });
+
+  test('adds a service picture from page-level clipboard image paste', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
+
+    const file = new File(['fake-image'], 'page-pasted.png', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(document, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].services[0].imagePath).toBe('/tmp/dropped-service.png');
+  });
+
+  test('adds a new service picture from page-level clipboard image paste', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isLoading: false,
+      isSaving: false,
+      renameCatalogEntity: vi.fn(async () => sampleCatalog),
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
+
+    fillNewServiceRequiredFields('Page Pasted Service');
+    const file = new File(['fake-image'], 'new-page-pasted.png', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(document, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    const savedService = upsertSenaCatalog.mock.calls[0]?.[0].services.find(
+      (service: { name: string }) => service.name === 'Page Pasted Service',
+    );
+    expect(savedService?.imagePath).toBe('/tmp/dropped-service.png');
   });
 
   test('localizes catalog image labels in Khmer mode', () => {

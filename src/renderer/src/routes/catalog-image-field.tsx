@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { EditorField } from './editor-form-primitives';
 
 const SUPPORTED_INGEST_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 const SUPPORTED_INGEST_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const activeCatalogImagePasteOwners: symbol[] = [];
 
 function isSupportedImageType(type: string): boolean {
   return SUPPORTED_INGEST_IMAGE_TYPES.has(type);
@@ -69,11 +70,12 @@ export function CatalogImageField({
   const { language } = usePreferences();
   const { isBrowserRuntime } = useRuntimeMode();
   const browserFileInputRef = useRef<HTMLInputElement | null>(null);
+  const pasteOwnerRef = useRef(Symbol('catalog-image-paste-owner'));
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function storeImageFile(imageFile: File) {
+  const storeImageFile = useCallback(async (imageFile: File) => {
     setBusy(true);
     setError(null);
     try {
@@ -93,7 +95,7 @@ export function CatalogImageField({
     } finally {
       setBusy(false);
     }
-  }
+  }, [isBrowserRuntime, language, onChange]);
 
   async function handleChooseImage() {
     if (isBrowserRuntime) {
@@ -151,6 +153,41 @@ export function CatalogImageField({
 
     await storeImageFile(imageFile);
   }
+
+  useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
+    activeCatalogImagePasteOwners.push(pasteOwner);
+    return () => {
+      const ownerIndex = activeCatalogImagePasteOwners.indexOf(pasteOwner);
+      if (ownerIndex >= 0) {
+        activeCatalogImagePasteOwners.splice(ownerIndex, 1);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const pasteOwner = pasteOwnerRef.current;
+    function handleDocumentPaste(event: ClipboardEvent) {
+      if (!event.clipboardData || event.defaultPrevented) {
+        return;
+      }
+
+      if (activeCatalogImagePasteOwners[activeCatalogImagePasteOwners.length - 1] !== pasteOwner) {
+        return;
+      }
+
+      const imageFile = findClipboardImageFile(event.clipboardData);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      void storeImageFile(imageFile);
+    }
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  }, [storeImageFile]);
 
   return (
     <EditorField

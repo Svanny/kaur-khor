@@ -545,6 +545,7 @@ export function ServiceFormRoute() {
             tooltip={t('catalogServiceEditorDetailsTooltip')}
           >
             <input
+              autoFocus
               className={editorInputClassName}
               required
               value={form.name}

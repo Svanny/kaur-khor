@@ -273,7 +273,7 @@ Dependency impact shows which linked SKUs are limiting or supporting a service. 
 
 Service details define the stable identity of a service: name, description, and image. Kaur Khor generates the internal service ID when a new service is created and keeps it stable after that. These fields affect search, detail pages, automation matching, and customer-facing labels. Keep them clear before linking SKUs or exposing the service.
 
-You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image from the page or field clipboard. PNG, JPEG, and WebP are accepted. Dropped or pasted images must be 20 MB or smaller, no more than 12000 px on either side, and no more than 40 megapixels.
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image anywhere on the service editor page, including when another field is focused. PNG, JPEG, and WebP are accepted. Dropped or pasted images must be 20 MB or smaller, no more than 12000 px on either side, and no more than 40 megapixels.
 
 ### Product Attributes {#catalog-product-attributes}
 
@@ -303,7 +303,7 @@ SKU dependency impact shows which services rely on this SKU and how severely the
 
 SKU details define the stock item's identity: name, supplier, description, and image. Name and supplier are required before creating or saving a SKU. These fields affect search, supplier queues, automation exposure, and detail-page interpretation. Fix details here when the wrong item appears in work or customer-facing surfaces.
 
-You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image from the page or field clipboard. PNG, JPEG, and WebP are accepted. Dropped or pasted images must be 20 MB or smaller, no more than 12000 px on either side, and no more than 40 megapixels.
+You can add or replace the image by choosing a file, dragging one onto the picture field, or pasting an image anywhere on the SKU editor page, including when another field is focused. PNG, JPEG, and WebP are accepted. Dropped or pasted images must be 20 MB or smaller, no more than 12000 px on either side, and no more than 40 megapixels.
 
 ### SKU Editor Attributes {#catalog-sku-editor-attributes}
 

@@ -191,7 +191,6 @@ export function LeadTimeVariabilityField({
         <div aria-label={translateUiLiteral(language, 'Custom ETA variation')} className="grid gap-3 sm:grid-cols-2">
           <NumberStepperInput
             aria-label={translateUiLiteral(language, 'Custom ETA variation days')}
-            autoFocus
             className={cn(customInputClassName)}
             min="0"
             placeholder={translateUiLiteral(language, 'Days')}
