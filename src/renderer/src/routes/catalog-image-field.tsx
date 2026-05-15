@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActionDeleteIcon, ActionEditIcon } from '@icons/actions';
 import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
@@ -151,6 +151,25 @@ export function CatalogImageField({
 
     await storeImageFile(imageFile);
   }
+
+  useEffect(() => {
+    function handleDocumentPaste(event: ClipboardEvent) {
+      if (!event.clipboardData || event.defaultPrevented) {
+        return;
+      }
+
+      const imageFile = findClipboardImageFile(event.clipboardData);
+      if (!imageFile) {
+        return;
+      }
+
+      event.preventDefault();
+      void storeImageFile(imageFile);
+    }
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  });
 
   return (
     <EditorField

@@ -229,7 +229,9 @@ desktop bridge instead of rendering a raw external anchor.
 Catalog image ingest currently follows two paths:
 
 - `pickAndStoreImage()` handles chooser-based imports for SKU and service editors.
-- `storeDroppedImage(payload)` handles drag-and-drop and clipboard-paste image imports for those same editors.
+- `storeDroppedImage(payload)` handles drag-and-drop imports from the picture
+  field and clipboard-paste imports from anywhere on mounted SKU and service
+  editor pages.
 
 Both paths accept PNG, JPEG, and WebP source files. Drag/drop and clipboard
 payloads include the browser MIME type when available, are sniffed by file

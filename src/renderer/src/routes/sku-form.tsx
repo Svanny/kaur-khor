@@ -496,6 +496,7 @@ export function SkuFormRoute() {
                 label={t('fieldName')}
               >
                 <input
+                  autoFocus
                   className={editorInputClassName}
                   required
                   value={form.name}

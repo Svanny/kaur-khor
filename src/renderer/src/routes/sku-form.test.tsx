@@ -222,6 +222,7 @@ describe('SkuFormRoute', () => {
     const view = renderWithProviders('/catalog/skus/sku-1/edit', <SkuFormRoute />, '/catalog/skus/:skuId/edit');
 
     expect(screen.getByRole('heading', { level: 1, name: 'Edit SKU' })).toBeInTheDocument();
+    expect(screen.getByDisplayValue('SKU 1')).toHaveFocus();
     expect(view.container.firstElementChild).toHaveClass('pb-32', 'md:pb-36');
     await waitFor(() => {
       expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
@@ -244,6 +245,14 @@ describe('SkuFormRoute', () => {
     await waitFor(() => {
       expect(screen.getByRole('combobox', { name: 'ETA variation' })).toHaveTextContent('Custom');
     });
+    expect(screen.getByLabelText('Custom ETA variation days')).not.toHaveFocus();
+  });
+
+  test('focuses the name field on the new sku page', () => {
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    expect(screen.getAllByRole('textbox')[0]).toHaveFocus();
+    expect(screen.getByLabelText('Custom ETA variation days')).not.toHaveFocus();
   });
 
   test('creates attribute variants while keeping the base SKU', async () => {
@@ -617,7 +626,7 @@ describe('SkuFormRoute', () => {
     });
   });
 
-  test('does not hijack page-level clipboard image paste outside the image field', async () => {
+  test('adds a sku picture from page-level clipboard image paste', async () => {
     const upsertSenaCatalog = vi.fn(async (payload) => payload);
     inventoryHook.mockReturnValue({
       catalog: sampleCatalog,
@@ -634,9 +643,58 @@ describe('SkuFormRoute', () => {
     Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
     fireEvent(document, pasteEvent);
 
-    expect(storeDroppedImage).not.toHaveBeenCalled();
-    expect(pasteEvent.defaultPrevented).toBe(false);
-    expect(findButtonByText('Choose image')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    expect(upsertSenaCatalog.mock.calls[0]?.[0].skus[0].imagePath).toBe('/tmp/dropped-sku.png');
+  });
+
+  test('adds a new sku picture from page-level clipboard image paste', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      snapshot: sampleSnapshot,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    fillNewSkuRequiredFields('Page Pasted SKU');
+    const file = new File(['fake-image'], 'new-page-pasted.png', { type: 'image/png' });
+    const clipboardData = new DataTransfer();
+    clipboardData.items.add(file);
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: clipboardData });
+    fireEvent(document, pasteEvent);
+
+    await waitFor(() => {
+      expect(storeDroppedImage).toHaveBeenCalledTimes(1);
+      expect(findButtonByText('Replace image')).toBeInTheDocument();
+    });
+
+    expect(pasteEvent.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).toHaveBeenCalledTimes(1);
+    });
+
+    const savedSku = upsertSenaCatalog.mock.calls[0]?.[0].skus.find(
+      (sku: { name: string }) => sku.name === 'Page Pasted SKU',
+    );
+    expect(savedSku?.imagePath).toBe('/tmp/dropped-sku.png');
   });
 
   test('adds a sku picture via clipboard paste using items fallback', async () => {
