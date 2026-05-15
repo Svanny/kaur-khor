@@ -10,6 +10,20 @@ const EmbeddedAppRoute = React.lazy(() => import('@/routes/web/embedded-app').th
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const embeddedMode = embeddedModeForPath(window.location.pathname, basePath);
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || import.meta.env.DEV) {
+    return;
+  }
+
+  const serviceWorkerPath = `${basePath}/sw.js`;
+  const scope = `${basePath}/`;
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register(serviceWorkerPath, { scope });
+  });
+}
+
+registerServiceWorker();
+
 const app = embeddedMode
   ? <EmbeddedAppRoute mode={embeddedMode} />
   : (
