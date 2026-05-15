@@ -227,6 +227,7 @@ const landingKhmerCopy: Record<string, string> = {
   'Browse Archived Items': 'មើលធាតុដែលបានរក្សាទុក',
   'Android app is not supported': 'Android អេបមិនទាន់គាំទ្រទេ',
   'Android app is not supported. Use the browser app instead.': 'Android អេបមិនទាន់គាំទ្រទេ។ សូមប្រើអេបក្នុងប្រោសឺរជំនួសវិញ។',
+  'Open the browser app, then use your browser menu to add Kaur Khor to your home screen.': 'បើកអេបក្នុងប្រោសឺរ រួចប្រើមីនុយប្រោសឺរដើម្បីបន្ថែម កខ ទៅអេក្រង់ដើម។',
   'Choose a download': 'ជ្រើសរើសឯកសារទាញយក',
   'Choose a download to see the matching install notes.': 'ជ្រើសរើសឯកសារទាញយក ដើម្បីមើលកំណត់សម្គាល់ដំឡើងដែលត្រូវគ្នា។',
   'Choose the download for your computer': 'ជ្រើសរើសឯកសារទាញយកសម្រាប់កុំព្យូទ័ររបស់អ្នក',
@@ -267,6 +268,7 @@ const landingKhmerCopy: Record<string, string> = {
   'It detects your computer and installs': 'វាស្គាល់កុំព្យូទ័ររបស់អ្នក ហើយដំឡើង',
   'iOS app is not supported': 'iOS អេបមិនទាន់គាំទ្រទេ',
   'iOS app is not supported. Use the browser app instead.': 'iOS អេបមិនទាន់គាំទ្រទេ។ សូមប្រើអេបក្នុងប្រោសឺរជំនួសវិញ។',
+  'On iPhone or iPad, open the browser app in Safari, then use Share -> Add to Home Screen.': 'លើ iPhone ឬ iPad សូមបើកអេបក្នុងប្រោសឺរ Safari រួចប្រើ Share -> Add to Home Screen។',
   'Install notes': 'កំណត់សម្គាល់ដំឡើង',
   'Install the': 'ដំឡើង',
   'Install the desktop app': 'ដំឡើងដេសថបអេប',
@@ -702,6 +704,7 @@ function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['p
       return {
         steps: [
           'Android app is not supported. Use the browser app instead.',
+          'Open the browser app, then use your browser menu to add Kaur Khor to your home screen.',
           { href: publicPath('/app'), label: 'Open browser app' },
         ],
         title: 'Android app is not supported',
@@ -710,6 +713,7 @@ function guideForDownloadPlatform(platform: DetectedPlatform | DownloadOption['p
       return {
         steps: [
           'iOS app is not supported. Use the browser app instead.',
+          'On iPhone or iPad, open the browser app in Safari, then use Share -> Add to Home Screen.',
           { href: publicPath('/app'), label: 'Open browser app' },
         ],
         title: 'iOS app is not supported',

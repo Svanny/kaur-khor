@@ -1,0 +1,89 @@
+{
+  "name": "Kaur Khor",
+  "short_name": "Kaur Khor",
+  "description": "Local-first inventory workspace for mobile browser, demo, and desktop install flows.",
+  "start_url": "./app",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8F1EB",
+  "theme_color": "#F8F1EB",
+  "icons": [
+    {
+      "src": "./icons/kaur-khor-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/kaur-khor-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/kaur-khor-browser-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "./screenshots/web-current-overview.webp",
+      "sizes": "1600x919",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Kaur Khor command home with queue and product metrics"
+    },
+    {
+      "src": "./screenshots/web-current-catalog.webp",
+      "sizes": "1600x919",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Catalog view with local products and services"
+    },
+    {
+      "src": "./screenshots/web-current-stock-count.webp",
+      "sizes": "1600x919",
+      "type": "image/webp",
+      "form_factor": "wide",
+      "label": "Record update stock count workflow"
+    },
+    {
+      "src": "./screenshots/web-current-phone-today.webp",
+      "sizes": "390x844",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Phone operator Today view"
+    },
+    {
+      "src": "./screenshots/web-current-phone-products.webp",
+      "sizes": "390x844",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Phone product lookup view"
+    },
+    {
+      "src": "./screenshots/web-current-phone-more.webp",
+      "sizes": "390x844",
+      "type": "image/webp",
+      "form_factor": "narrow",
+      "label": "Phone workspace safety controls"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open browser app",
+      "short_name": "App",
+      "url": "./app",
+      "description": "Open the durable browser workspace."
+    },
+    {
+      "name": "Try demo",
+      "short_name": "Demo",
+      "url": "./demo",
+      "description": "Open the seeded demo workspace."
+    }
+  ]
+}
