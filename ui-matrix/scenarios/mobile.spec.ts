@@ -6,13 +6,63 @@ import {
   browserWorkspaceCounts,
   completeEmbeddedOnboardingIfPresent,
   expectEmbeddedBannerControls,
+  exportEmbeddedBackup,
+  importEmbeddedBackup,
   openEmbeddedRoute,
   prepareWebPage,
+  resetEmbeddedWorkspaceThroughUi,
 } from '../helpers/web';
 import { createSkuThroughUi } from '../helpers/forms';
 
+async function returnToPhoneCaptureMenu(page: import('@playwright/test').Page) {
+  const reducedNav = page.locator('[data-slot="phone-capture-reduced-nav"]');
+  if (await reducedNav.isVisible().catch(() => false)) {
+    await reducedNav.getByRole('link', { name: 'Close capture' }).click();
+  } else {
+    const phoneNav = page.getByRole('navigation', { name: 'Phone navigation' });
+    await phoneNav.getByRole('link', { name: 'Capture' }).click();
+  }
+  const leaveDialog = page.getByRole('dialog').filter({ hasText: 'Leave record update?' });
+  if (await leaveDialog.isVisible().catch(() => false)) {
+    await leaveDialog.getByRole('button', { name: 'Discard changes' }).click();
+  }
+  await expect(page.locator('[data-slot="phone-capture-menu"]')).toBeVisible();
+}
+
 test.describe('UI matrix: mobile and responsive embedded layouts', () => {
-  test('phone portrait shows stable rotate prompt without exposing cramped desktop shell', async ({ page }, testInfo) => {
+  test('required phone viewport sizes keep the operator shell stable', async ({ page }, testInfo) => {
+    const requiredViewports = [
+      { width: 360, height: 740 },
+      { width: 375, height: 812 },
+      { width: 390, height: 844 },
+      { width: 414, height: 896 },
+      { width: 430, height: 932 },
+      { width: 768, height: 1024 },
+    ];
+    const prepared = await prepareWebPage(page);
+
+    for (const viewport of requiredViewports) {
+      await page.setViewportSize(viewport);
+      await openEmbeddedRoute(page, 'demo', '/');
+      await completeEmbeddedOnboardingIfPresent(page);
+      const phoneShell = page.locator('[data-slot="embedded-phone-shell"]');
+      if (await phoneShell.isVisible().catch(() => false)) {
+        await expect(phoneShell).toBeVisible();
+        const phoneNav = page.getByRole('navigation', { name: 'Phone navigation' });
+        await expect(phoneNav).toBeVisible();
+        await expect(phoneNav.getByRole('link', { name: 'Capture', exact: true })).toBeVisible();
+      } else {
+        await expect(page.locator('[data-slot="embedded-auto-zoom-viewport"]')).toBeVisible();
+        await expect(page.getByRole('dialog', { name: 'Rotate screen' })).toHaveCount(0);
+      }
+      await assertEmbeddedUiStable(page, `required phone viewport ${viewport.width}x${viewport.height}`);
+      await captureUi(page, testInfo, `mobile-required-${viewport.width}x${viewport.height}`);
+    }
+
+    prepared.issues.assertNoIssues('mobile required viewport matrix');
+  });
+
+  test('phone portrait shows stable operator shell without exposing cramped desktop shell', async ({ page }, testInfo) => {
     testInfo.annotations.push({
       type: 'ui-matrix',
       description: UI_MATRIX_CASES.find((entry) => entry.id === 'mobile-responsive-embedded-layouts')?.expectedUi ?? '',
@@ -21,10 +71,114 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     const prepared = await prepareWebPage(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await openEmbeddedRoute(page, 'demo', '/');
-    await expect(page.getByRole('dialog', { name: 'Rotate screen' })).toBeVisible();
-    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toHaveCount(0);
-    await assertEmbeddedUiStable(page, 'phone portrait rotate prompt');
-    await captureUi(page, testInfo, 'mobile-phone-portrait-rotate');
+    await expect(page.getByRole('dialog', { name: 'Rotate screen' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Set up Kaur Khor' })).toBeVisible();
+    await assertEmbeddedUiStable(page, 'phone portrait first-run setup');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-setup');
+    await completeEmbeddedOnboardingIfPresent(page);
+    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toBeVisible();
+    const phoneNav = page.getByRole('navigation', { name: 'Phone navigation' });
+    await expect(phoneNav).toBeVisible();
+    await expect(page.locator('[data-slot="phone-today-page"]')).toBeVisible();
+    await expect(phoneNav.getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+    await assertEmbeddedUiStable(page, 'phone portrait operator shell');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-shell');
+
+    await page.getByRole('button', { name: 'Workspace safety' }).click();
+    await expect(page.locator('[data-slot="phone-utility-safety-sheet"]')).toBeVisible();
+    await page.getByRole('link', { name: 'Open settings' }).click();
+    await expect(page.locator('[data-slot="phone-more-page"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-workspace-safety"]')).toBeVisible();
+    const phoneBackup = await exportEmbeddedBackup(page);
+    expect(await phoneBackup.path(), 'phone portrait backup export should produce a local test artifact').not.toBeNull();
+    await assertEmbeddedUiStable(page, 'phone portrait workspace safety');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-more-safety');
+
+    await phoneNav.getByRole('link', { name: 'Products' }).click();
+    await expect(page.locator('[data-slot="phone-products-page"]')).toBeVisible();
+    await page.locator('[data-slot="phone-list-item"][href="#/catalog/skus/sku-001"]').click();
+    await expect(page.locator('[data-slot="phone-product-detail-page"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-product-detail-summary"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Pipeline' }).click();
+    await expect(page.locator('[data-slot="phone-sku-pipeline-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Services' }).click();
+    await expect(page.locator('[data-slot="phone-sku-services-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Evidence' }).click();
+    await expect(page.locator('[data-slot="phone-sku-evidence-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Ledger' }).click();
+    await expect(page.locator('[data-slot="phone-sku-ledger-section"]')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to products' })).toBeVisible();
+    await assertEmbeddedUiStable(page, 'phone portrait product detail');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-product-detail');
+    await page.getByRole('link', { name: 'Back to products' }).click();
+    await expect(page.locator('[data-slot="phone-products-page"]')).toBeVisible();
+    await page.locator('[data-slot="phone-list-item"][href="#/catalog/services/service-001"]').click();
+    await expect(page.locator('[data-slot="phone-product-detail-page"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-product-detail-summary"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Bottlenecks' }).click();
+    await expect(page.locator('[data-slot="phone-service-bottlenecks-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Recovery' }).click();
+    await expect(page.locator('[data-slot="phone-service-recovery-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Customer work' }).click();
+    await expect(page.locator('[data-slot="phone-service-customer-work-section"]')).toBeVisible();
+    await page.getByRole('button', { name: 'Evidence' }).click();
+    await expect(page.locator('[data-slot="phone-service-evidence-section"]')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to products' })).toBeVisible();
+    await assertEmbeddedUiStable(page, 'phone portrait service detail');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-service-detail');
+
+    await phoneNav.getByRole('link', { name: 'Capture' }).click();
+    await expect(page.locator('[data-slot="phone-capture-menu"]')).toBeVisible();
+    await assertEmbeddedUiStable(page, 'phone portrait capture menu');
+    await captureUi(page, testInfo, 'mobile-phone-portrait-capture-menu');
+    await page.getByRole('link', { name: 'Stock Count' }).click();
+    await expect(page.locator('[data-slot="phone-capture-lane-summary"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-stepper"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-choose-step"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-menu"]')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Stock Count' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Command home' })).toHaveCount(0);
+    await expect(page.locator('[data-slot="phone-capture-surface"]')).toHaveCount(0);
+    await captureUi(page, testInfo, 'mobile-phone-portrait-stock-count');
+    await returnToPhoneCaptureMenu(page);
+    await page.getByRole('link', { name: 'Supplier Orders Pending' }).click();
+    await expect(page.locator('[data-slot="phone-capture-lane-summary"]')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Supplier Orders Pending' })).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-menu"]')).toHaveCount(0);
+    await captureUi(page, testInfo, 'mobile-phone-portrait-supplier-order');
+    await returnToPhoneCaptureMenu(page);
+    await page.getByRole('link', { name: 'Customer Orders Completed' }).click();
+    await expect(page.locator('[data-slot="phone-capture-lane-summary"]')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Customer Orders Completed' })).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-menu"]')).toHaveCount(0);
+    await captureUi(page, testInfo, 'mobile-phone-portrait-immediate-sale');
+    await returnToPhoneCaptureMenu(page);
+    await page.getByRole('link', { name: 'Customer Orders Pending' }).click();
+    await expect(page.locator('[data-slot="phone-capture-lane-summary"]')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Customer Orders Pending' })).toBeVisible();
+    await expect(page.locator('[data-slot="phone-capture-menu"]')).toHaveCount(0);
+    await captureUi(page, testInfo, 'mobile-phone-portrait-customer-order');
+    await returnToPhoneCaptureMenu(page);
+
+    await phoneNav.getByRole('link', { name: 'Insights' }).click();
+    await expect(page.locator('[data-slot="phone-insights-page"]')).toBeVisible();
+    await page.getByRole('link', { name: 'Inventory' }).click();
+    await expect(page.locator('[data-slot="phone-inventory-strip"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-inventory-focus-list"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-inventory-projection-preview"]')).toBeVisible();
+    await captureUi(page, testInfo, 'mobile-phone-portrait-inventory-insight');
+    await page.getByRole('link', { name: 'Back to insights' }).click();
+    await page.getByRole('link', { name: 'Money' }).click();
+    await expect(page.locator('[data-slot="phone-money-ribbon"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-money-statement"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-money-contributors"]')).toBeVisible();
+    await captureUi(page, testInfo, 'mobile-phone-portrait-money-insight');
+    await page.getByRole('link', { name: 'Back to insights' }).click();
+    await page.getByRole('link', { name: 'Explain' }).click();
+    await expect(page.locator('[data-slot="phone-explain-posture"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-explain-evidence-freshness"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-explain-fragile-list"]')).toBeVisible();
+    await captureUi(page, testInfo, 'mobile-phone-portrait-explain-insight');
     prepared.issues.assertNoIssues('mobile phone portrait matrix');
   });
 
@@ -121,6 +275,53 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await expect(page.getByText(sku.name, { exact: false }).first()).toBeVisible();
     await assertEmbeddedUiStable(page, 'tablet browser app SKU after reload');
     await captureUi(page, testInfo, 'mobile-dependent-after-reload');
+
+    const backupDownload = await exportEmbeddedBackup(page);
+    const backupPath = await backupDownload.path();
+    expect(backupPath, 'mobile browser app backup should be available as a local test artifact').not.toBeNull();
+
+    await resetEmbeddedWorkspaceThroughUi(page, 'app');
+    await expectEmbeddedBannerControls(page, 'app');
+    const countsAfterReset = await browserWorkspaceCounts(page);
+    expect(countsAfterReset.skuCount).toBe(0);
+
+    await importEmbeddedBackup(page, backupPath!);
+    await expectEmbeddedBannerControls(page, 'app');
+    await page.evaluate(() => {
+      window.location.hash = '#/catalog';
+    });
+    await page.waitForFunction(() => window.location.hash === '#/catalog');
+    await expect(page.getByText(sku.name, { exact: false }).first()).toBeVisible();
+    const countsAfterImport = await browserWorkspaceCounts(page);
+    expect(countsAfterImport.skuCount).toBeGreaterThan(0);
+    await assertEmbeddedUiStable(page, 'tablet browser app SKU after backup import');
+    await captureUi(page, testInfo, 'mobile-dependent-after-backup-import');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openEmbeddedRoute(page, 'app', '/settings');
+    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-more-page"]')).toBeVisible();
+    await expect(page.locator('[data-slot="phone-workspace-safety"]')).toBeVisible();
+    const phoneAppBackup = await exportEmbeddedBackup(page);
+    expect(await phoneAppBackup.path(), 'phone browser app backup should produce a local test artifact').not.toBeNull();
+    await assertEmbeddedUiStable(page, 'phone browser app workspace safety');
+    await captureUi(page, testInfo, 'mobile-dependent-phone-app-safety');
+
+    await resetEmbeddedWorkspaceThroughUi(page, 'app');
+    await expect(page.getByRole('heading', { name: 'Set up Kaur Khor' })).toBeVisible();
+    await completeEmbeddedOnboardingIfPresent(page);
+    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toBeVisible();
+    const countsAfterPhoneReset = await browserWorkspaceCounts(page);
+    expect(countsAfterPhoneReset.skuCount).toBe(0);
+
+    await openEmbeddedRoute(page, 'app', '/settings');
+    await importEmbeddedBackup(page, backupPath!);
+    await expect(page.locator('[data-slot="embedded-phone-shell"]')).toBeVisible();
+    await openEmbeddedRoute(page, 'app', '/catalog');
+    await expect(page.locator('[data-slot="phone-products-page"]')).toBeVisible();
+    await expect(page.getByText(sku.name, { exact: false }).first()).toBeVisible();
+    await assertEmbeddedUiStable(page, 'phone browser app after backup import');
+    await captureUi(page, testInfo, 'mobile-dependent-phone-after-backup-import');
     prepared.issues.assertNoIssues('mobile responsive matrix');
   });
 });

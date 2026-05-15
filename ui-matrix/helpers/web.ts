@@ -84,6 +84,10 @@ export async function resetEmbeddedWorkspaceThroughUi(page: Page, mode: 'app' | 
     });
   }
   await page.getByRole('button', { name: mode === 'demo' ? 'Reset demo' : 'Reset workspace' }).first().click();
+  const phoneResetConfirmation = page.locator('[data-slot="phone-reset-confirmation"]');
+  if (await phoneResetConfirmation.isVisible().catch(() => false)) {
+    await phoneResetConfirmation.getByRole('button', { name: mode === 'demo' ? 'Reset demo' : 'Reset workspace' }).click();
+  }
   await reloadPromise;
   await page.waitForTimeout(750);
 }
