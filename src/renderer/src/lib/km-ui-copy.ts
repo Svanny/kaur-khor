@@ -3191,6 +3191,7 @@ const exactValueTranslations: Record<string, string> = {
   'linked supply risk': 'ហានិភ័យពីការផ្គត់ផ្គង់ដែលភ្ជាប់',
   'Sparse evidence update with no operator note attached.': 'ការអាប់ដេតនេះមានភស្តុតាងតិច ហើយមិនមានកំណត់ចំណាំពីអ្នកប្រើទេ។',
   'Saved update with no staff note attached.': 'ការអាប់ដេតនេះត្រូវបានរក្សាទុក ដោយមិនមានកំណត់ចំណាំពីបុគ្គលិកភ្ជាប់មកជាមួយទេ។',
+  '{count} draft{suffix}': '{count} ពង្រាង{suffix}',
   'Current regime': 'លំនាំបច្ចុប្បន្ន',
   'Current sales pattern': 'លំនាំលក់បច្ចុប្បន្ន',
   'Pipeline pressure': 'សម្ពាធពីស្តុកកំពុងមកដល់',
@@ -4689,6 +4690,7 @@ function localizeKhmerProductWords(text: string): string {
     .replace(/\bETA\b/g, 'ពេលមកដល់')
     .replace(/\bESS\b/g, 'កម្លាំងភស្តុតាង')
     .replace(/\bPOS\b/g, 'ចំណុចលក់')
+    .replace(/\b95CI\b/g, '៩៥ស៊ីអាយ')
     .replace(/\bID\b/g, 'លេខសម្គាល់')
     .replace(/\bIDs\b/g, 'លេខសម្គាល់')
     .replace(/\bHome\b/g, 'ទំព័រដើម')
@@ -4788,6 +4790,7 @@ function localizeKhmerProductWords(text: string): string {
         display: 'ការបង្ហាញ',
         Do: 'តើ',
         drag: 'អូស',
+        draft: 'ពង្រាង',
         editing: 'ការកែប្រែ',
         empty: 'ទទេ',
         entrance: 'ច្រកចូល',
@@ -4930,9 +4933,84 @@ function localizeKhmerProductWords(text: string): string {
         your: 'របស់អ្នក',
         Yes: 'បាទ/ចាស',
       };
-      return fallback[word] ?? word;
+      return fallback[word] ?? transliterateLatinWordForKhmerUi(word);
     });
   return restorePlaceholders(localized, placeholders);
+}
+
+function transliterateLatinWordForKhmerUi(word: string): string {
+  const lower = word.toLowerCase();
+  const direct: Record<string, string> = {
+    ci: 'ស៊ីអាយ',
+    eta: 'ពេលមកដល់',
+    id: 'លេខសម្គាល់',
+    json: 'ទម្រង់ទិន្នន័យ',
+    khr: 'រៀល',
+    pos: 'ចំណុចលក់',
+    sku: 'អេសខេយូ',
+    skus: 'អេសខេយូ',
+    usd: 'ដុល្លារ',
+  };
+  const exact = direct[lower];
+  if (exact) {
+    return exact;
+  }
+
+  const digraphs: ReadonlyArray<readonly [string, string]> = [
+    ['tion', 'សិន'],
+    ['sion', 'សិន'],
+    ['ship', 'ស៊ីប'],
+    ['ch', 'ឆ'],
+    ['sh', 'ស្ហ'],
+    ['th', 'ថ'],
+    ['ph', 'ហ្វ'],
+    ['gh', 'ហ្គ'],
+    ['ck', 'ក'],
+    ['qu', 'ខ្វ'],
+  ];
+  const letters: Record<string, string> = {
+    a: 'អា',
+    b: 'ប',
+    c: 'ក',
+    d: 'ដ',
+    e: 'អេ',
+    f: 'ហ្វ',
+    g: 'ហ្គ',
+    h: 'ហ',
+    i: 'អ៊ី',
+    j: 'ជ',
+    k: 'ក',
+    l: 'ល',
+    m: 'ម',
+    n: 'ន',
+    o: 'អូ',
+    p: 'ព',
+    q: 'ខ',
+    r: 'រ',
+    s: 'ស',
+    t: 'ត',
+    u: 'អ៊ូ',
+    v: 'វ',
+    w: 'វ',
+    x: 'ក្ស',
+    y: 'យ',
+    z: 'ហ្ស',
+  };
+
+  let index = 0;
+  let output = '';
+  while (index < lower.length) {
+    const match = digraphs.find(([source]) => lower.startsWith(source, index));
+    if (match) {
+      output += match[1];
+      index += match[0].length;
+      continue;
+    }
+    output += letters[lower[index]] ?? '';
+    index += 1;
+  }
+
+  return output || word;
 }
 
 function normalizeBrandAliasesForLookup(text: string): string {

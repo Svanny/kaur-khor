@@ -546,10 +546,10 @@ function PhoneWorkspaceErrorBanner() {
         </p>
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Button className="min-h-11 rounded-[0.8rem]" type="button" variant="outline" onClick={() => void inventory.reload()}>
+        <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => void inventory.reload()}>
           {translateUiLiteral(language, 'Retry')}
         </Button>
-        <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+        <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
           <Link to="/settings">
             {translateUiLiteral(language, 'Open safety')}
           </Link>
@@ -2008,7 +2008,7 @@ function PhoneBottomSheet({
             <h2 id={titleId} className="text-xl font-semibold leading-tight text-foreground">{title}</h2>
             {description ? <p id={descriptionId} className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p> : null}
           </div>
-          <Button className="min-h-10 rounded-[0.8rem]" type="button" variant="outline" onClick={onClose}>
+          <Button className="min-h-10 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={onClose}>
             {translateUiLiteral(language, 'Close')}
           </Button>
         </div>
@@ -2135,7 +2135,7 @@ function PhoneQueueTaskSheet({
                 <span className="inline-flex min-h-10 items-center justify-center rounded-[0.8rem] border border-primary bg-primary px-3 text-sm font-semibold text-primary-foreground">
                   {translateUiLiteral(language, 'This item only')}
                 </span>
-                <Button asChild className="min-h-10 rounded-[0.8rem]" variant="outline">
+                <Button asChild className="min-h-10 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                   <Link to={phoneHrefWithActionContext(task.batchUpdateHref, task)}>
                     {translateUiLiteral(language, 'Update group')}
                   </Link>
@@ -2172,7 +2172,7 @@ function PhoneQueueTaskSheet({
         </PhoneSurface>
 
         <div className="grid gap-2" data-slot="phone-task-sheet-actions">
-          <Button className="min-h-12 rounded-[0.8rem]" disabled={savingAction} type="button" onClick={() => void saveQueueAction()}>
+          <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt disabled={savingAction} type="button" onClick={() => void saveQueueAction()}>
             {translateUiLiteral(language, savingAction ? 'Saving…' : 'Save')}
           </Button>
           <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneHrefWithActionContext(task.href, task)}>
@@ -2187,7 +2187,7 @@ function PhoneQueueTaskSheet({
               {translateUiLiteral(language, 'Open service')}
             </PhoneActionRow>
           ) : null}
-          <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={onClose}>
+          <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={onClose}>
             {translateUiLiteral(language, 'Close')}
           </Button>
         </div>
@@ -2392,6 +2392,7 @@ function PhoneTodayRoute({
         <PhoneSection title={translateUiLiteral(language, 'Last saved')}>
           <button
             className={cn(phoneSurfaceClassName, phoneFocusClassName, 'grid min-w-0 gap-2 p-4 text-left')}
+            data-design-icon-exempt
             data-slot="phone-recent-outcome"
             type="button"
             onClick={() => {
@@ -2434,10 +2435,10 @@ function PhoneTodayRoute({
             ) : null}
           </PhoneSurface>
           <div className="grid grid-cols-2 gap-2">
-            <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setSelectedOutcome(null)}>
+            <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setSelectedOutcome(null)}>
               {translateUiLiteral(language, 'Close')}
             </Button>
-            <Button asChild className="min-h-12 rounded-[0.8rem]" variant="outline">
+            <Button asChild className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
               <Link to="/settings/history">
                 {translateUiLiteral(language, 'Update history')}
               </Link>
@@ -2681,7 +2682,7 @@ function PhoneQueueRoute() {
                 {translateUiLiteral(language, 'Open products')}
               </PhoneActionRow>
             ) : normalizedQuery ? (
-              <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => updateQueueState({ q: '' })}>
+              <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => updateQueueState({ q: '' })}>
                 {translateUiLiteral(language, 'Clear search')}
               </Button>
             ) : updateCount === 0 ? (
@@ -3203,10 +3204,10 @@ function PhoneLegacyCaptureRoute() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setPendingNavigationTarget(null)}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setPendingNavigationTarget(null)}>
                   {translateUiLiteral(language, 'Keep editing')}
                 </Button>
-                <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="destructive" onClick={discardCaptureDraftAndNavigate}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="destructive" onClick={discardCaptureDraftAndNavigate}>
                   {translateUiLiteral(language, 'Discard draft')}
                 </Button>
               </div>
@@ -3288,6 +3289,7 @@ function PhoneLegacyCaptureRoute() {
                   {selectableTickets.slice(0, 3).map((ticket) => (
                     <button
                       key={ticket.ticketId}
+                      data-design-icon-exempt
                       className={cn(phoneFocusClassName, 'min-h-12 rounded-[0.8rem] border border-border/70 bg-card px-3 py-2 text-left text-sm text-muted-foreground')}
                       type="button"
                       onClick={() => {
@@ -3304,6 +3306,7 @@ function PhoneLegacyCaptureRoute() {
               {entityOptions.length > 0 ? entityOptions.slice(0, 8).map((option) => (
                 <button
                   key={`${option.type}:${option.id}`}
+                  data-design-icon-exempt
                   className={cn(phoneSurfaceClassName, phoneFocusClassName, 'min-h-[4.75rem] px-3.5 py-3 text-left')}
                   type="button"
                   onClick={() => {
@@ -3336,14 +3339,14 @@ function PhoneLegacyCaptureRoute() {
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => {
+                    <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => {
                       setIgnorePrefillTarget(true);
                       setSelectedTargetId('');
                       setStep('choose');
                     }}>
                       {translateUiLiteral(language, 'Choose another item')}
                     </Button>
-                    <Button asChild className="min-h-12 rounded-[0.8rem]" variant="outline">
+                    <Button asChild className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                       <Link to={returnTo}>
                         {translateUiLiteral(language, 'Return to source')}
                       </Link>
@@ -3393,12 +3396,12 @@ function PhoneLegacyCaptureRoute() {
                     />
                   </label>
                   {matchingCustomerByPhone?.name && !customerName.trim() ? (
-                    <Button className="min-h-10 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setCustomerName(matchingCustomerByPhone.name ?? '')}>
+                    <Button className="min-h-10 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setCustomerName(matchingCustomerByPhone.name ?? '')}>
                       {translateUiLiteral(language, 'Use name {value}', { value: matchingCustomerByPhone.name })}
                     </Button>
                   ) : null}
                   {matchingCustomerByName?.phone && !customerPhone.trim() ? (
-                    <Button className="min-h-10 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setCustomerPhone(matchingCustomerByName.phone ?? '')}>
+                    <Button className="min-h-10 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setCustomerPhone(matchingCustomerByName.phone ?? '')}>
                       {translateUiLiteral(language, 'Use phone {value}', { value: matchingCustomerByName.phone })}
                     </Button>
                   ) : null}
@@ -3415,6 +3418,7 @@ function PhoneLegacyCaptureRoute() {
                   {selectableTickets.slice(0, 3).map((ticket) => (
                     <button
                       key={ticket.ticketId}
+                      data-design-icon-exempt
                       className={cn(
                         phoneFocusClassName,
                         'min-h-12 rounded-[0.8rem] border px-3 py-2 text-left text-sm',
@@ -3505,10 +3509,10 @@ function PhoneLegacyCaptureRoute() {
                 />
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setStep('choose')}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setStep('choose')}>
                   {translateUiLiteral(language, 'Back')}
                 </Button>
-                <Button className="min-h-12 rounded-[0.8rem]" disabled={!selectedTarget || !quantity.trim()} type="button" onClick={() => setStep('review')}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt disabled={!selectedTarget || !quantity.trim()} type="button" onClick={() => setStep('review')}>
                   {translateUiLiteral(language, 'Review')}
                 </Button>
               </div>
@@ -3531,10 +3535,10 @@ function PhoneLegacyCaptureRoute() {
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <Button className="min-h-11 rounded-[0.8rem]" disabled={saving} type="button" variant="outline" onClick={() => void savePhoneCapture()}>
+                    <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt disabled={saving} type="button" variant="outline" onClick={() => void savePhoneCapture()}>
                       {translateUiLiteral(language, 'Retry')}
                     </Button>
-                    <Button className="min-h-11 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setSaveError(null)}>
+                    <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setSaveError(null)}>
                       {translateUiLiteral(language, 'Keep draft')}
                     </Button>
                   </div>
@@ -3566,10 +3570,10 @@ function PhoneLegacyCaptureRoute() {
                 {note.trim() ? <p className="mt-1 text-sm text-muted-foreground">{note}</p> : null}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button className="min-h-12 rounded-[0.8rem]" type="button" variant="outline" onClick={() => setStep('details')}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setStep('details')}>
                   {translateUiLiteral(language, 'Back')}
                 </Button>
-                <Button className="min-h-12 rounded-[0.8rem]" disabled={saving} type="button" onClick={() => void savePhoneCapture()}>
+                <Button className="min-h-12 rounded-[0.8rem]" data-design-icon-exempt disabled={saving} type="button" onClick={() => void savePhoneCapture()}>
                   {translateUiLiteral(language, saving ? 'Saving…' : 'Save')}
                 </Button>
               </div>
@@ -4049,10 +4053,10 @@ function PhoneDetailRefresh({
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button className="min-h-11 rounded-[0.8rem]" disabled={refreshing} type="button" variant="outline" onClick={() => void refreshDetail()}>
+            <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt disabled={refreshing} type="button" variant="outline" onClick={() => void refreshDetail()}>
               {translateUiLiteral(language, 'Retry')}
             </Button>
-            <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+            <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
               <Link to="/settings">
                 {translateUiLiteral(language, 'Open safety')}
               </Link>
@@ -4450,11 +4454,12 @@ function PhoneSafetyRoute({
                 )}
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" onClick={() => setConfirmingReset(false)}>
+                <Button data-design-icon-exempt type="button" variant="outline" onClick={() => setConfirmingReset(false)}>
                   {translateUiLiteral(language, 'Cancel')}
                 </Button>
                 <Button
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-design-icon-exempt
                   type="button"
                   onClick={() => {
                     setConfirmingReset(false);
@@ -4527,6 +4532,7 @@ function PhoneSafetyRoute({
                   <Button
                     key={value}
                     className="min-h-11 justify-start gap-2 rounded-[0.8rem]"
+                    data-design-icon-exempt
                     type="button"
                     variant={language === value ? 'default' : 'outline'}
                     onClick={() => {
@@ -4554,6 +4560,7 @@ function PhoneSafetyRoute({
                   <Button
                     key={value}
                     className="min-h-11 justify-start gap-2 rounded-[0.8rem]"
+                    data-design-icon-exempt
                     type="button"
                     variant={currency === value ? 'default' : 'outline'}
                     onClick={() => {
@@ -5040,10 +5047,10 @@ function PhoneInsightsRoute() {
                 </p>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button className="min-h-11 rounded-[0.8rem]" disabled={analysisRefreshing} type="button" variant="outline" onClick={() => void refreshAnalysis()}>
+                <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt disabled={analysisRefreshing} type="button" variant="outline" onClick={() => void refreshAnalysis()}>
                   {translateUiLiteral(language, 'Retry')}
                 </Button>
-                <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+                <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                   <Link to="/settings">
                     {translateUiLiteral(language, 'Open safety')}
                   </Link>
@@ -5080,7 +5087,7 @@ function PhoneInsightsRoute() {
                 <div className="rounded-[0.75rem] border border-border/70 px-3 py-2 text-xs font-semibold text-foreground">
                   {inventoryHorizon.toUpperCase()}
                 </div>
-                <Button className="min-h-10 rounded-[0.75rem]" type="button" variant="outline" onClick={() => setShowInventoryFilters(true)}>
+                <Button className="min-h-10 rounded-[0.75rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setShowInventoryFilters(true)}>
                   {translateUiLiteral(language, 'Filter')}
                 </Button>
               </div>
@@ -5154,7 +5161,7 @@ function PhoneInsightsRoute() {
                   <div className="rounded-[0.8rem] border border-border/70 px-3 py-3 text-sm leading-6 text-muted-foreground">
                     {translateUiLiteral(language, '95CI is available in the inspector evidence section when a row is selected.')}
                   </div>
-                  <Button className="min-h-11 rounded-[0.8rem]" type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'scope', 'range', 'supplier', 'view', 'horizon'])}>
+                  <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'scope', 'range', 'supplier', 'view', 'horizon'])}>
                     {translateUiLiteral(language, 'Clear filters')}
                   </Button>
                 </div>
@@ -5212,7 +5219,7 @@ function PhoneInsightsRoute() {
                       ? 'Projection preview is using every loaded observation available to the phone route.'
                       : 'Projection preview is scoped to recent evidence and focus rows. Use a wider view for the full projection matrix.')}
                 </p>
-                <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+                <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                   <Link to="/insights/inventory">
                     {translateUiLiteral(language, 'Open wide mode')}
                   </Link>
@@ -5351,7 +5358,7 @@ function PhoneInsightsRoute() {
                 <div className="rounded-[0.75rem] border border-border/70 px-3 py-2 text-xs font-semibold text-foreground">
                   {translateUiLiteral(language, moneyEntity === 'sku' ? 'SKUs' : moneyEntity === 'service' ? 'Services' : 'All')}
                 </div>
-                <Button className="min-h-10 rounded-[0.75rem]" type="button" variant="outline" onClick={() => setShowMoneyFilters(true)}>
+                <Button className="min-h-10 rounded-[0.75rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setShowMoneyFilters(true)}>
                   {translateUiLiteral(language, 'Filter')}
                 </Button>
               </div>
@@ -5403,7 +5410,7 @@ function PhoneInsightsRoute() {
                     ]}
                     onChange={(value) => setInsightParam('compare', value, 'none')}
                   />
-                  <Button className="min-h-11 rounded-[0.8rem]" type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'range', 'supplier', 'compare'])}>
+                  <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'range', 'supplier', 'compare'])}>
                     {translateUiLiteral(language, 'Clear filters')}
                   </Button>
                 </div>
@@ -5586,7 +5593,7 @@ function PhoneInsightsRoute() {
                 <div className="rounded-[0.75rem] border border-border/70 px-3 py-2 text-xs font-semibold text-foreground">
                   {translateUiLiteral(language, explainTimeframe === 'all' ? 'All evidence' : 'Recent')}
                 </div>
-                <Button className="min-h-10 rounded-[0.75rem]" type="button" variant="outline" onClick={() => setShowExplainFilters(true)}>
+                <Button className="min-h-10 rounded-[0.75rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => setShowExplainFilters(true)}>
                   {translateUiLiteral(language, 'Filter')}
                 </Button>
               </div>
@@ -5628,7 +5635,7 @@ function PhoneInsightsRoute() {
                     ]}
                     onChange={(value) => setInsightParam('supplier', value, 'all')}
                   />
-                  <Button className="min-h-11 rounded-[0.8rem]" type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'section', 'timeframe', 'supplier'])}>
+                  <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt type="button" variant="outline" onClick={() => clearInsightParams(['entity', 'section', 'timeframe', 'supplier'])}>
                     {translateUiLiteral(language, 'Clear filters')}
                   </Button>
                 </div>
@@ -5741,7 +5748,7 @@ function PhoneInsightsRoute() {
               <p className="text-sm leading-6 text-muted-foreground">
                 {translateUiLiteral(language, 'This phone summary still shows model posture, signals, fragile entities, and recent evidence.')}
               </p>
-              <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+              <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                 <Link to="/insights/explain">
                   {translateUiLiteral(language, 'Open wide workbench')}
                 </Link>
@@ -5844,7 +5851,7 @@ function PhoneHistoryRoute() {
                 <p>{translateUiLiteral(language, 'Saved')}: {selectedEntry.time}</p>
                 {selectedEntry.quantity ? <p>{translateUiLiteral(language, 'Quantity')}: {selectedEntry.quantity}</p> : null}
               </div>
-              <Button type="button" variant="outline" onClick={() => setSelectedEntry(null)}>
+              <Button data-design-icon-exempt type="button" variant="outline" onClick={() => setSelectedEntry(null)}>
                 {translateUiLiteral(language, 'Close')}
               </Button>
             </div>
@@ -5878,10 +5885,10 @@ function PhoneHistoryRoute() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <Button className="min-h-11 rounded-[0.8rem]" disabled={historyRefreshing} type="button" variant="outline" onClick={() => void refreshHistory()}>
+              <Button className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt disabled={historyRefreshing} type="button" variant="outline" onClick={() => void refreshHistory()}>
                 {translateUiLiteral(language, 'Retry')}
               </Button>
-              <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
+              <Button asChild className="min-h-11 rounded-[0.8rem]" data-design-icon-exempt variant="outline">
                 <Link to="/settings">
                   {translateUiLiteral(language, 'Open safety')}
                 </Link>
@@ -6060,7 +6067,7 @@ function PhoneChrome({
                 <PhoneActionRow className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive" icon={<ActionResetIcon data-icon="inline-start" />} onClick={() => setConfirmingReset(true)}>
                   {translateUiLiteral(language, resetLabel)}
                 </PhoneActionRow>
-                <Button type="button" variant="outline" onClick={() => setUtilityOpen(false)}>
+                <Button data-design-icon-exempt type="button" variant="outline" onClick={() => setUtilityOpen(false)}>
                   {translateUiLiteral(language, 'Close')}
                 </Button>
                 <input
@@ -6102,11 +6109,12 @@ function PhoneChrome({
                 )}
               </p>
               <div className="grid grid-cols-2 gap-2">
-                <Button type="button" variant="outline" onClick={() => setConfirmingReset(false)}>
+                <Button data-design-icon-exempt type="button" variant="outline" onClick={() => setConfirmingReset(false)}>
                   {translateUiLiteral(language, 'Cancel')}
                 </Button>
                 <Button
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  data-design-icon-exempt
                   type="button"
                   onClick={() => {
                     setConfirmingReset(false);
