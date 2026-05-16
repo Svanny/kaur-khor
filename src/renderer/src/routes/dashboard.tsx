@@ -1681,6 +1681,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     <WorkspacePage fitViewport className={embedded ? 'gap-4 p-0' : 'gap-5'}>
       {!embedded ? (
         <WorkspaceTitleCard
+          helperExemptReason="Queue route copy and filter controls provide the desktop overview context."
           title={
             <span className="flex min-w-0 items-center gap-3">
               <RouteBackButton className="shrink-0" />
@@ -1811,10 +1812,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
                   <HeaderedTable>
                     <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
                       <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
-                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Customer work')}</HeaderedTableHeaderCell>
-                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Contact')}</HeaderedTableHeaderCell>
-                        <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Request')}</HeaderedTableHeaderCell>
-                        <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Customer work')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Contact')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Request')}</HeaderedTableHeaderCell>
+                        <HeaderedTableHeaderCell align="center" data-helper-exempt>{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                       </HeaderedTableHeader>
                       <HeaderedTableBody
                         className={`${overviewQueueTableLayout.bodyClassName}${customerQueue.isVirtualized ? ' max-h-[68vh] overflow-y-auto' : ''}`}
@@ -2004,10 +2005,10 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
               <HeaderedTable>
                 <div className={overviewQueueTableLayout.containerClassName} style={overviewQueueTableLayout.style}>
                   <HeaderedTableHeader className={overviewQueueTableLayout.headerClassName}>
-                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item / impact')}</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Why now')}</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell>{translateUiLiteral(language, 'ETA / window')}</HeaderedTableHeaderCell>
-                    <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Item / impact')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Why now')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'ETA / window')}</HeaderedTableHeaderCell>
+                    <HeaderedTableHeaderCell align="center" data-helper-exempt>{translateUiLiteral(language, 'Action')}</HeaderedTableHeaderCell>
                   </HeaderedTableHeader>
                   <HeaderedTableBody
                     className={`${overviewQueueTableLayout.bodyClassName}${supplierQueue.isVirtualized ? ' max-h-[68vh] overflow-y-auto' : ''}`}

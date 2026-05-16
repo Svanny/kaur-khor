@@ -491,9 +491,9 @@ function StockCountPosChangeTable({
     <div style={stockCountPosSummaryTableLayout.style}>
       <HeaderedTable className={stockCountPosSummaryTableLayout.containerClassName} overflowX={stockCountPosSummaryTableLayout.overflowX} variant="overview">
         <HeaderedTableHeader className={stockCountPosSummaryTableLayout.headerClassName}>
-          <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell align="center">{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
-          <HeaderedTableHeaderCell>{translateUiLiteral(language, 'Details')}</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell align="center" data-helper-exempt>{translateUiLiteral(language, 'Changed')}</HeaderedTableHeaderCell>
+          <HeaderedTableHeaderCell data-helper-exempt>{translateUiLiteral(language, 'Details')}</HeaderedTableHeaderCell>
         </HeaderedTableHeader>
         <HeaderedTableBody className={stockCountPosSummaryTableLayout.bodyClassName}>
           {changedRows.map((row) => {
