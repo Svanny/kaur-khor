@@ -1,6 +1,6 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import type { SenaSkuDetail, SenaTicketEvent, SenaTicketLine, SenaTicketSummary, SenaWorkspaceSummary } from '@shared/sena';
+import type { SenaSkuDetail, SenaTicketEvent, SenaTicketLine, SenaWorkspaceSummary } from '@shared/sena';
 import {
   ActionClipboardClockIcon,
   ActionCloseIcon,
@@ -100,6 +100,7 @@ import {
   buildOverviewModel,
   isOverviewSupplierTicketTask,
   isOverviewSkuTask,
+  supplierTicketTaskForSkuTask,
   shouldShowTask,
   type OverviewSkuTask,
   type OverviewSupplierTicketTask,
@@ -667,7 +668,6 @@ function railBlockClassName() {
 
 const overviewStartUpdateButtonClassName =
   'border-[#b87745] bg-[#b87745] text-white shadow-xs hover:bg-[#a66a3b]';
-const DRAFT_SUPPLIER_TICKET_ID_PREFIX = 'draft-supplier-ticket:';
 
 function buildFilterOptions(language: 'en' | 'km'): Array<{ value: OverviewTaskFilter; label: string }> {
   return [
@@ -895,53 +895,6 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
 
   function updateRouteState(nextState: Parameters<typeof buildOverviewSearchParams>[1], replace = false) {
     setSearchParams(buildOverviewSearchParams(searchParams, nextState), { replace });
-  }
-
-  function draftSupplierTicketForSkuTask(task: OverviewSkuTask): SenaTicketSummary {
-    return task.supplierTicket ?? {
-      ticketId: `${DRAFT_SUPPLIER_TICKET_ID_PREFIX}${task.skuId}`,
-      ticketFamily: 'supplier',
-      lifecycle: 'open',
-      stage: task.defaultDrawerMode === 'goods_received' ? 'ordered_waiting' : 'to_order',
-      revision: 0,
-      eventType: 'created',
-      occurredAt: task.latestOrderAt ?? task.latestObservationAt ?? inventory.workspaceSummary?.latestObservedAt ?? new Date().toISOString(),
-      nextTouchAt: task.expectedArrivalDate,
-      party: {
-        role: 'supplier',
-        supplierName: task.supplierName,
-      },
-      lines: [{
-        entityType: 'sku',
-        entityId: task.skuId,
-        orderedQuantity: task.recentOrderQuantity ?? task.suggestedOrderQuantity ?? null,
-        receivedQuantity: task.recentReceiptQuantity ?? null,
-        expectedArrivalAt: task.expectedArrivalDate,
-      }],
-      note: null,
-    };
-  }
-
-  function supplierTicketTaskForSkuTask(task: OverviewSkuTask): OverviewSupplierTicketTask {
-    const ticket = draftSupplierTicketForSkuTask(task);
-    const displayTicketLabel = task.supplierTicket
-      ? `Supplier Ticket ID: ${ticket.ticketId}`
-      : translateUiLiteral(language, 'Supplier order');
-    return {
-      ...task,
-      id: task.supplierTicketId ? `supplier-ticket:${task.supplierTicketId}` : `${DRAFT_SUPPLIER_TICKET_ID_PREFIX}${task.skuId}`,
-      kind: 'supplier_ticket',
-      ticketId: ticket.ticketId,
-      displayTicketId: task.supplierTicketId ?? task.skuId,
-      displayTicketLabel,
-      ticket,
-      childTasks: [task],
-      skuCount: 1,
-      skuSummaryLabel: `1 SKU: ${task.skuName}`,
-      skuNames: [task.skuName],
-      defaultDrawerMode: task.defaultDrawerMode === 'not_ordered' ? 'ordered_waiting' : task.defaultDrawerMode,
-      heartbeat: task.supplierTicket ? task.heartbeat : [task.skuName, ...task.heartbeat.slice(0, 2)],
-    };
   }
 
   function openSingleTask(task: Pick<OverviewSkuTask | OverviewSupplierTicketTask, 'id' | 'defaultDrawerMode'>, mode = task.defaultDrawerMode) {
@@ -1346,7 +1299,11 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
         return task;
       }
       if (isOverviewSkuTask(task)) {
-        return supplierTicketTaskForSkuTask(task);
+        return supplierTicketTaskForSkuTask({
+          latestObservedAt: inventory.workspaceSummary?.latestObservedAt,
+          task,
+          translate: (value) => translateUiLiteral(language, value),
+        });
       }
       return null;
     },
