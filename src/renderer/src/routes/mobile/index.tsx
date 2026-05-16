@@ -2343,7 +2343,7 @@ function PhoneTodayRoute({
                 <Link
                   key={row.id}
                   className={cn(phoneFocusClassName, 'grid grid-cols-[minmax(0,1fr)_4.25rem_4rem_4rem] items-center px-3 py-2.5 text-sm hover:bg-accent/30')}
-                  to={`/catalog/skus/${row.id}`}
+                  to={`/catalog/skus/${encodeURIComponent(row.id)}`}
                 >
                   <span className="flex min-w-0 items-center gap-2.5">
                     <ItemAvatar
@@ -2630,25 +2630,30 @@ function PhoneQueueRoute() {
         })}
       </div>
       <div className="grid gap-3">
-        {tasks.length > 0 ? tasks.slice(0, 12).map((task) => (
-          scope === 'supplier' ? (
+        {tasks.length > 0 ? tasks.slice(0, 12).map((task) => {
+          if (scope === 'supplier') {
+            const supplierTask = task as OverviewTask;
+            const canOpenDrawer = isOverviewSupplierTicketTask(supplierTask) || isOverviewSkuTask(supplierTask);
+            return (
             <PhoneTaskCard
-              key={(task as OverviewTask).id}
+              key={supplierTask.id}
               actionLabel={translateUiLiteral(language, 'Record now')}
-              detail={phoneSupplierTaskDetail(task as OverviewTask, language)}
-              href={phoneSupplierTaskHref(task as OverviewTask)}
+              detail={phoneSupplierTaskDetail(supplierTask, language)}
+              href={phoneSupplierTaskHref(supplierTask)}
               label={
-                isOverviewSupplierTicketTask(task as OverviewTask)
-                  ? (task as Extract<OverviewTask, { kind: 'supplier_ticket' }>).skuSummaryLabel
-                  : isOverviewSkuTask(task as OverviewTask)
-                    ? (task as Extract<OverviewTask, { kind: 'sku' }>).skuName
-                    : (task as OverviewTask).stateLabel
+                isOverviewSupplierTicketTask(supplierTask)
+                  ? supplierTask.skuSummaryLabel
+                  : isOverviewSkuTask(supplierTask)
+                    ? supplierTask.skuName
+                    : supplierTask.stateLabel
               }
-              meta={phoneSupplierTaskMeta(task as OverviewTask, language)}
-              onSelect={() => openTaskSheet((task as OverviewTask).id)}
-              tone={(task as OverviewTask).statusTone}
+              meta={phoneSupplierTaskMeta(supplierTask, language)}
+              onSelect={canOpenDrawer ? () => openTaskSheet(supplierTask.id) : undefined}
+              tone={supplierTask.statusTone}
             />
-          ) : (
+            );
+          }
+          return (
             <PhoneTaskCard
               key={(task as OverviewCustomerTask).id}
               actionLabel={(task as OverviewCustomerTask).actionLabel}
@@ -2659,8 +2664,8 @@ function PhoneQueueRoute() {
               onSelect={() => navigate((task as OverviewCustomerTask).href)}
               tone={(task as OverviewCustomerTask).stateBadgeTone}
             />
-          )
-        )) : (
+          );
+        }) : (
           <PhoneSurface className="grid gap-3 text-center" slot="phone-queue-empty-state">
             <p className="text-sm leading-6 text-muted-foreground">
               {translateUiLiteral(language, !hasCatalogItems
@@ -4373,6 +4378,7 @@ function PhoneSafetyRoute({
     usdToKhrExchangeRate,
   } = usePreferences();
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const preferencesRequestRef = useRef(0);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
   const [preferencesStatus, setPreferencesStatus] = useState<string | null>(null);
@@ -4395,19 +4401,30 @@ function PhoneSafetyRoute({
     language: 'en' | 'km';
     usdToKhrExchangeRate: number;
   }>) {
+    const requestId = preferencesRequestRef.current + 1;
+    preferencesRequestRef.current = requestId;
     const nextLanguage = next.language ?? language;
     const nextCurrency = next.currency ?? currency;
     const nextExchangeRate = next.usdToKhrExchangeRate ?? usdToKhrExchangeRate;
     setPreferencesStatus(null);
-    setLanguage(nextLanguage);
-    setCurrency(nextCurrency);
-    setUsdToKhrExchangeRate(nextExchangeRate);
-    await savePreferences({
-      language: nextLanguage,
-      currency: nextCurrency,
-      usdToKhrExchangeRate: nextExchangeRate,
-    });
-    setPreferencesStatus(translateUiLiteral(nextLanguage, 'Preferences saved.'));
+    try {
+      await savePreferences({
+        language: nextLanguage,
+        currency: nextCurrency,
+        usdToKhrExchangeRate: nextExchangeRate,
+      });
+      if (requestId !== preferencesRequestRef.current) {
+        return;
+      }
+      setLanguage(nextLanguage);
+      setCurrency(nextCurrency);
+      setUsdToKhrExchangeRate(nextExchangeRate);
+      setPreferencesStatus(translateUiLiteral(nextLanguage, 'Preferences saved.'));
+    } catch {
+      if (requestId === preferencesRequestRef.current) {
+        setPreferencesStatus(translateUiLiteral(language, 'Unable to save preferences.'));
+      }
+    }
   }
 
   return (

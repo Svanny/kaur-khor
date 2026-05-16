@@ -1798,6 +1798,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByRole('link', { name: /Edit in Capture/ })).toHaveAttribute('href', expect.stringContaining('/work/capture/supplier-order'));
     fireEvent.click(within(document.querySelector('[data-slot="phone-task-drawer"]') as HTMLElement).getAllByRole('button', { name: 'Close' })[0]);
     await waitFor(() => expect(document.querySelector('[data-slot="phone-task-drawer"]')).toBeNull());
+    expect(window.location.hash).not.toContain('task=');
   });
 
   test.each([
@@ -2160,6 +2161,13 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'Actions' })).toBeInTheDocument();
     expect(window.location.hash).toContain('q=');
     expect(screen.queryByRole('link', { name: 'Back to products' })).not.toBeInTheDocument();
+    window.history.back();
+    expect(await screen.findByRole('heading', { name: 'Offered Selections' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Search products' })).toHaveValue('ក្រមា');
+    await waitFor(() => expect(window.location.hash).toContain('q='));
+    const restoredProductLinks = container.querySelectorAll<HTMLAnchorElement>('[data-slot="phone-list-item"]');
+    expect(restoredProductLinks.length).toBeGreaterThan(0);
+    expect(restoredProductLinks[0]?.getAttribute('href')).toContain('q=');
   });
 
   test('filters phone products and opens product action sheet routes with context', async () => {
@@ -2437,6 +2445,32 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-capture-draft-indicator"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-capture-leave-confirmation"]')).toBeNull();
     expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:stock-count:sku-001')).toContain('legacy draft');
+  });
+
+  test('keeps shared capture sessions rendering when sessionStorage is blocked', async () => {
+    const getItemSpy = vi.spyOn(window.sessionStorage.__proto__, 'getItem').mockImplementation(() => {
+      throw new Error('sessionStorage blocked');
+    });
+    const setItemSpy = vi.spyOn(window.sessionStorage.__proto__, 'setItem').mockImplementation(() => {
+      throw new Error('sessionStorage blocked');
+    });
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?skus=sku-001&returnTo=/catalog`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    try {
+      const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+      await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Stock Count'));
+      expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
+      expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
+      expect(container.querySelector('[data-slot="phone-capture-draft-indicator"]')).toBeNull();
+      expect(container.querySelector('[data-slot="phone-capture-leave-confirmation"]')).toBeNull();
+    } finally {
+      getItemSpy.mockRestore();
+      setItemSpy.mockRestore();
+    }
   });
 
   test('wires hidden phone shell safety actions to browser backup handlers', async () => {

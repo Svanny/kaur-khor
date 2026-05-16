@@ -347,7 +347,6 @@
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="centered-tile-grid"] {
-    align-content: center;
     align-items: stretch;
     justify-items: stretch;
     padding-block: 0;
