@@ -145,6 +145,7 @@ import { MetricRibbon } from '@/components/system/metric-ribbon';
 import { RecommendedOrderCard } from '@/components/system/recommended-order-card';
 import { SaveErrorFlash } from '@/components/system/save-error-flash';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
+import { useEmbeddedPhonePortraitViewport } from '@/routes/web/embedded-viewport';
 import {
   currentInternalNavigationPath,
   navigationAnchorFromClick,
@@ -308,6 +309,8 @@ const WORKBENCH_REORDERABLE_LANE_IDS: WorkbenchReorderLaneId[] = [...DESKTOP_WOR
 const WORKBENCH_REORDER_HOLD_DELAY_MS = 320;
 const CAPTURE_TARGET_FLASH_MS = 3000;
 const WORK_QUEUE_BATCH_DEBUG_STORAGE_KEY = 'KAUR_KHOR_DEBUG_WORK_QUEUE_BATCH';
+const WORKBENCH_JIGGLE_DEBUG_STORAGE_KEY = 'KAUR_KHOR_DEBUG_WORKBENCH_JIGGLE';
+const WORKBENCH_JIGGLE_PERIOD_MS = 240;
 const captureTargetFlashClassName = 'ring-2 ring-primary/40 motion-safe:animate-[kaur-khor-attention-flash_3000ms_ease-in-out_infinite] motion-reduce:ring-primary/60';
 const captureTargetFlashTextClassName = 'motion-safe:animate-[kaur-khor-attention-flash-text_3000ms_ease-in-out_infinite]';
 const captureTargetFlashBadgeClassName = 'motion-safe:animate-[kaur-khor-attention-flash-badge_3000ms_ease-in-out_infinite]';
@@ -330,6 +333,32 @@ function logCaptureBatchDebug(event: string, detail: Record<string, unknown>) {
     return;
   }
   console.debug(`[capture-batch] ${event}`, detail);
+}
+
+function isWorkbenchJiggleDebugEnabled() {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  try {
+    const globalDebug = (window as Window & { __KAUR_KHOR_DEBUG_WORKBENCH_JIGGLE__?: boolean }).__KAUR_KHOR_DEBUG_WORKBENCH_JIGGLE__;
+    return globalDebug === true || window.localStorage.getItem(WORKBENCH_JIGGLE_DEBUG_STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function logWorkbenchJiggleDebug(event: string, detail: Record<string, unknown>) {
+  if (!isWorkbenchJiggleDebugEnabled()) {
+    return;
+  }
+  console.debug(`[workbench-jiggle] ${event}`, detail);
+}
+
+function syncedWorkbenchJigglePhaseMs() {
+  if (typeof performance === 'undefined') {
+    return 0;
+  }
+  return Math.round(performance.now() % WORKBENCH_JIGGLE_PERIOD_MS);
 }
 
 function RecordUpdateSaveErrorFlash({
@@ -420,12 +449,6 @@ interface DiscountDraftState {
   percent: string;
 }
 
-const posReceiptConfirmTableLayout = createHeaderedTableLayout({
-  breakpoint: 'lg',
-  columns: 'minmax(0, 0.9fr) 4rem minmax(0, 1.25fr)',
-  gap: 4,
-});
-
 const stockCountPosSummaryTableLayout = createHeaderedTableLayout({
   breakpoint: 'xl',
   columns: 'minmax(0, 0.82fr) 7rem minmax(0, 1.24fr)',
@@ -481,7 +504,7 @@ function StockCountPosChangeTable({
                 key={row.key}
                 className={cn(
                   stockCountPosSummaryTableLayout.rowClassName,
-                  'items-start',
+                  'items-center',
                   interactive &&
                     'cursor-pointer transition-colors hover:bg-emerald-50/80 focus-visible:bg-emerald-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600/35',
                 )}
@@ -680,17 +703,99 @@ function workbenchTileInnerClassName() {
 
 function WorkbenchTileVisual({
   isDragging = false,
+  jigglePhaseMs = 0,
+  jiggleStyleOverride,
+  jiggleWhileDragging = false,
+  layout = 'grid',
   reorderMode = false,
   tile,
 }: {
   isDragging?: boolean;
+  jigglePhaseMs?: number;
+  jiggleStyleOverride?: CSSProperties;
+  jiggleWhileDragging?: boolean;
+  layout?: 'grid' | 'row';
   reorderMode?: boolean;
   tile: PosWorkbenchTile;
 }) {
+  const shouldJiggle = reorderMode && (!isDragging || jiggleWhileDragging);
+  const jiggleStyle: CSSProperties | undefined = shouldJiggle && jiggleStyleOverride
+    ? jiggleStyleOverride
+    : shouldJiggle && jigglePhaseMs > 0
+    ? { animationDelay: `-${jigglePhaseMs}ms` }
+    : undefined;
+
+  if (layout === 'row') {
+    const Icon = tile.itemType === 'service' ? EntityServiceIcon : EntitySkuIcon;
+    const quantityLabel = tile.currentQuantity > 0 ? formatCompactQuantityPill(tile.currentQuantity) : null;
+    return (
+      <div
+        className={cn(
+          'relative flex min-w-0 items-center gap-3 rounded-[1rem] border px-3 py-3 text-left transition-colors',
+          tile.touched
+            ? 'border-foreground/70 bg-foreground text-background shadow-[0_12px_32px_rgba(48,31,20,0.12)]'
+            : 'border-border/70 bg-white text-foreground hover:border-foreground/30 hover:shadow-[0_10px_28px_rgba(48,31,20,0.08)]',
+          shouldJiggle && !jiggleStyleOverride && (
+            layout === 'row'
+              ? 'motion-safe:animate-[kaur-khor-workbench-phone-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]'
+              : 'motion-safe:animate-[kaur-khor-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]'
+          ),
+          isDragging && 'shadow-[0_18px_40px_rgba(48,31,20,0.20)]',
+          tile.flash && captureTargetFlashClassName,
+        )}
+        data-slot="workbench-tile-visual"
+        style={jiggleStyle}
+      >
+        <ItemAvatar
+          className={cn('size-12 rounded-[0.8rem] border-border/60 bg-white text-muted-foreground shadow-sm', tile.touched && 'bg-background/10 text-background')}
+          imagePath={tile.imagePath}
+          name={tile.title}
+          size="default"
+          type={tile.itemType}
+        />
+        <div className="min-w-0 flex-1">
+          <p
+            className={cn(
+              'khmer-safe-label flex min-w-0 items-center gap-1.5 text-base font-semibold leading-tight',
+              tile.flash && captureTargetFlashTextClassName,
+            )}
+          >
+            <Icon aria-hidden="true" className="size-4 shrink-0" data-icon="inline-start" />
+            <span className="min-w-0 truncate">{tile.title}</span>
+          </p>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-xs">
+            {tile.kind === 'supplier-order' ? (
+              <SupplierBadge
+                className={cn(
+                  'max-w-full justify-center truncate rounded-full px-2.5',
+                  tile.touched && 'border-background/35 bg-background/15 text-background',
+                  tile.flash && captureTargetFlashBadgeClassName,
+                )}
+                showEmpty
+                supplierName={tile.supplierName}
+              />
+            ) : (
+              <span className={cn('truncate text-muted-foreground', tile.touched && 'text-background/75')}>{tile.metaLabel}</span>
+            )}
+          </div>
+        </div>
+        {quantityLabel ? (
+          <span className={cn('shrink-0 rounded-full border px-2.5 py-1 text-sm font-semibold tabular-nums', tile.touched ? 'border-background/35 bg-background/15 text-background' : 'border-border/70 bg-background text-foreground')}>
+            {quantityLabel}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
-      className={workbenchTileShellClassName({ flash: tile.flash, isDragging, reorderMode, touched: tile.touched })}
+      className={cn(
+        workbenchTileShellClassName({ flash: tile.flash, isDragging, reorderMode: reorderMode && !jiggleWhileDragging, touched: tile.touched }),
+        jiggleWhileDragging && shouldJiggle && !jiggleStyleOverride && 'motion-safe:animate-[kaur-khor-workbench-jiggle_120ms_cubic-bezier(0.36,0,0.22,1)_infinite_alternate]',
+      )}
       data-slot="workbench-tile-visual"
+      style={jiggleStyle}
     >
       <div className={workbenchTileInnerClassName()}>
         <WorkbenchTileQuantityPill tile={tile} />
@@ -701,12 +806,18 @@ function WorkbenchTileVisual({
 }
 
 function SortableWorkbenchTile({
+  jigglePhaseMs = 0,
+  jiggleStyleOverride,
+  layout = 'grid',
   onHoldStart,
   onHoldEnd,
   tile,
   reorderMode,
   onActivate,
 }: {
+  jigglePhaseMs?: number;
+  jiggleStyleOverride?: CSSProperties;
+  layout?: 'grid' | 'row';
   onHoldStart: (tileKey: string) => void;
   onHoldEnd: () => void;
   tile: PosWorkbenchTile;
@@ -734,7 +845,7 @@ function SortableWorkbenchTile({
       {...attributes}
       {...listeners}
       className={cn(
-        workbenchTileButtonClassName({ isDragging, reorderMode }),
+        layout === 'row' ? 'relative block h-auto w-full min-w-0 overflow-visible text-left' : workbenchTileButtonClassName({ isDragging, reorderMode }),
         isDragging && 'opacity-0',
       )}
       data-workbench-tile-key={tile.key}
@@ -755,7 +866,14 @@ function SortableWorkbenchTile({
       onPointerLeave={onHoldEnd}
       onPointerUpCapture={onHoldEnd}
     >
-      <WorkbenchTileVisual isDragging={isDragging} reorderMode={reorderMode} tile={tile} />
+      <WorkbenchTileVisual
+        isDragging={isDragging}
+        jigglePhaseMs={jigglePhaseMs}
+        jiggleStyleOverride={jiggleStyleOverride}
+        layout={layout}
+        reorderMode={reorderMode}
+        tile={tile}
+      />
     </button>
   );
 }
@@ -6224,6 +6342,7 @@ export function StockUpdateSessionRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const { canGoBack, goBack, previousLocation } = useNavigationHistory();
+  const embeddedPhonePortrait = useEmbeddedPhonePortraitViewport();
   const lane = useMemo(() => getRecordUpdateLane(location.pathname), [location.pathname]);
   const routeCaptureTarget = useMemo(() => readCaptureSessionTarget(location.search), [location.search]);
   const routeCaptureFlashTargetKeys = useMemo(() => readCaptureSessionFlashTargetKeys(location.search), [location.search]);
@@ -6367,6 +6486,7 @@ export function StockUpdateSessionRoute() {
   const [activePosTileKey, setActivePosTileKey] = useState<string | null>(null);
   const [activeWorkbenchDragTileKey, setActiveWorkbenchDragTileKey] = useState<string | null>(null);
   const [activeWorkbenchDragSize, setActiveWorkbenchDragSize] = useState<{ width: number; height: number } | null>(null);
+  const [workbenchJigglePhaseMs, setWorkbenchJigglePhaseMs] = useState(0);
   const [posTileDialogQuantity, setPosTileDialogQuantity] = useState('1');
   const [posReceiptConfirmOpen, setPosReceiptConfirmOpen] = useState(false);
   const [posReceiptCopyStatus, setPosReceiptCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -6379,6 +6499,14 @@ export function StockUpdateSessionRoute() {
   const [posTouchedLineKeys, setPosTouchedLineKeys] = useState<string[]>([]);
   const [customerPendingModeFilters, setCustomerPendingModeFilters] = useState<CustomerPendingMode[]>(() => [...CUSTOMER_PENDING_MODE_OPTIONS]);
   const [customerCompletedModeFilters, setCustomerCompletedModeFilters] = useState<CustomerCompletedMode[]>(() => [...CUSTOMER_COMPLETED_MODE_OPTIONS]);
+  const phoneWorkbenchJiggleStyle = useMemo<CSSProperties | undefined>(() => {
+    if (!embeddedPhonePortrait || !workbenchReorderMode) {
+      return undefined;
+    }
+    return {
+      transform: 'var(--kaur-khor-workbench-jiggle-transform, translateY(0px) rotate(0deg))',
+    };
+  }, [embeddedPhonePortrait, workbenchReorderMode]);
   const [supplierPendingModeFilters, setSupplierPendingModeFilters] = useState<SupplierPendingMode[]>(() => [...SUPPLIER_PENDING_MODE_OPTIONS]);
   const [supplierReceiptModeFilters, setSupplierReceiptModeFilters] = useState<SupplierReceiptMode[]>(() => [...SUPPLIER_RECEIPT_MODE_OPTIONS]);
   const [refundStockReturnDrafts, setRefundStockReturnDrafts] = useState<Record<string, RefundStockReturnChoice>>({});
@@ -10416,6 +10544,38 @@ export function StockUpdateSessionRoute() {
       window.clearTimeout(captureTargetFlashTimeoutRef.current);
     }
   }, []);
+  useEffect(() => {
+    if (!embeddedPhonePortrait || !workbenchReorderMode) {
+      document.documentElement.style.removeProperty('--kaur-khor-workbench-jiggle-transform');
+      return;
+    }
+
+    let animationFrame = 0;
+    let lastLoggedPhaseBucket = -1;
+    const updateJiggle = (timestamp: number) => {
+      const cycle = (timestamp % WORKBENCH_JIGGLE_PERIOD_MS) / WORKBENCH_JIGGLE_PERIOD_MS;
+      const phase = Math.sin(cycle * Math.PI * 2 - Math.PI / 2);
+      const translateY = Number((phase * 0.18).toFixed(3));
+      const rotate = Number((phase * 0.7).toFixed(3));
+      document.documentElement.style.setProperty('--kaur-khor-workbench-jiggle-transform', `translateY(${translateY}px) rotate(${rotate}deg)`);
+
+      if (isWorkbenchJiggleDebugEnabled()) {
+        const phaseBucket = Math.floor(cycle * 12);
+        if (phaseBucket !== lastLoggedPhaseBucket) {
+          lastLoggedPhaseBucket = phaseBucket;
+          logWorkbenchJiggleDebug('shared-frame', { phaseBucket, rotate, translateY });
+        }
+      }
+
+      animationFrame = window.requestAnimationFrame(updateJiggle);
+    };
+
+    animationFrame = window.requestAnimationFrame(updateJiggle);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.documentElement.style.removeProperty('--kaur-khor-workbench-jiggle-transform');
+    };
+  }, [embeddedPhonePortrait, workbenchReorderMode]);
   const activatePosTile = useCallback((tile: PosWorkbenchTile) => {
     logCaptureBatchDebug('pos-tile-activated', {
       remainingFlashKeysBeforeClick: persistentCaptureFlashKeys,
@@ -10484,6 +10644,7 @@ export function StockUpdateSessionRoute() {
     setWorkbenchReorderPromptOpen(false);
     setActiveWorkbenchDragTileKey(null);
     setActiveWorkbenchDragSize(null);
+    setWorkbenchJigglePhaseMs(0);
     const pendingAction = pendingWorkbenchInteractionRef.current;
     pendingWorkbenchInteractionRef.current = null;
     if (resumePendingAction) {
@@ -10525,6 +10686,9 @@ export function StockUpdateSessionRoute() {
     }
     clearWorkbenchHoldTimer();
     workbenchHoldTimerRef.current = window.setTimeout(() => {
+      const phaseMs = syncedWorkbenchJigglePhaseMs();
+      setWorkbenchJigglePhaseMs(phaseMs);
+      logWorkbenchJiggleDebug('hold-start', { phaseMs, tileKey });
       setWorkbenchReorderMode(true);
       workbenchHoldTimerRef.current = null;
     }, WORKBENCH_REORDER_HOLD_DELAY_MS);
@@ -10537,6 +10701,9 @@ export function StockUpdateSessionRoute() {
       return;
     }
     clearWorkbenchHoldTimer();
+    const phaseMs = syncedWorkbenchJigglePhaseMs();
+    setWorkbenchJigglePhaseMs(phaseMs);
+    logWorkbenchJiggleDebug('drag-start', { activeId: String(event.active.id), phaseMs });
     setWorkbenchReorderMode(true);
     const activeTileKey = String(event.active.id);
     const activeTileElement = Array.from(document.querySelectorAll<HTMLElement>('[data-workbench-tile-key]'))
@@ -10549,16 +10716,19 @@ export function StockUpdateSessionRoute() {
     );
     setActiveWorkbenchDragTileKey(activeTileKey);
   }, [clearWorkbenchHoldTimer, workbenchReorderLaneId]);
-  const clearWorkbenchDragState = useCallback(() => {
+  const clearWorkbenchDragState = useCallback((reason: string) => {
+    const phaseMs = syncedWorkbenchJigglePhaseMs();
+    setWorkbenchJigglePhaseMs(phaseMs);
+    logWorkbenchJiggleDebug('drag-clear', { phaseMs, reason });
     setActiveWorkbenchDragTileKey(null);
     setActiveWorkbenchDragSize(null);
   }, []);
   const handleWorkbenchDragCancel = useCallback((_event: DragCancelEvent) => {
-    clearWorkbenchDragState();
+    clearWorkbenchDragState('cancel');
   }, [clearWorkbenchDragState]);
   const handleWorkbenchDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
-    clearWorkbenchDragState();
+    clearWorkbenchDragState('end');
     if (!workbenchReorderLaneId || !over) {
       return;
     }
@@ -11721,6 +11891,37 @@ export function StockUpdateSessionRoute() {
   const posReviewDialogDescription = stockCountPosMode
     ? translateUiLiteral(language, 'Review these stock-count changes before saving the record update. This is the final confirmation step.')
     : translateUiLiteral(language, 'Review this receipt before saving the record update. This is the final confirmation step.');
+  const sessionDescriptor = latestAt
+    ? t('stockUpdateDescriptorWithHistory', {
+        date: formatSenaDateTime(latestAt, language),
+        suffix:
+          intervalDays == null
+            ? ''
+            : t('stockUpdateDescriptorIntervalSuffix', { days: intervalDays }),
+      })
+    : t('stockUpdateDescriptorFirst');
+  const phoneCaptureHeaderMetaTarget = embeddedPhonePortrait && typeof document !== 'undefined'
+    ? document.querySelector('[data-slot="embedded-phone-capture-header-meta"]')
+    : null;
+  const phoneCaptureHeaderActionsTarget = embeddedPhonePortrait && typeof document !== 'undefined'
+    ? document.querySelector('[data-slot="embedded-phone-capture-header-actions"]')
+    : null;
+  const phoneCaptureHeaderPortals = embeddedPhonePortrait ? (
+    <>
+      {phoneCaptureHeaderMetaTarget
+        ? createPortal(
+            <>
+              <p>{sessionDescriptor}</p>
+              {draftStatusLabel ? <p>{draftStatusLabel}</p> : null}
+            </>,
+            phoneCaptureHeaderMetaTarget,
+          )
+        : null}
+      {phoneCaptureHeaderActionsTarget
+        ? createPortal(renderSessionTitleActions(false), phoneCaptureHeaderActionsTarget)
+        : null}
+    </>
+  ) : null;
   const currentWorkbenchPanel =
     currentStepId === 'stock' ? (
       <StockCountStep
@@ -12001,10 +12202,15 @@ export function StockUpdateSessionRoute() {
         skuSignalDrafts={skuSignalDrafts}
       />
     ) : null;
+  const renderEmbeddedPhoneDialog = (dialog: ReactNode) =>
+    embeddedPhonePortrait && typeof document !== 'undefined'
+      ? createPortal(dialog, document.body)
+      : dialog;
 
   return (
     <SaveErrorFlashKeyContext.Provider value={saveErrorFlashKey}>
-    <WorkspacePage className="relative pb-32 md:pb-36">
+    {phoneCaptureHeaderPortals}
+    <WorkspacePage className={cn('relative pb-32 md:pb-36', embeddedPhonePortrait && 'bg-transparent px-0 pt-0')}>
       {isCustomerPendingLane ? (
         <TicketEntryPrompt
           family="customer"
@@ -12045,97 +12251,82 @@ export function StockUpdateSessionRoute() {
           }}
         />
       ) : null}
-      <ConfirmActionDialog
-        cancelLabel={translateUiLiteral(language, 'Cancel')}
-        confirmLabel={translateUiLiteral(language, 'Replace draft')}
-        confirmVariant="default"
-        description={translateUiLiteral(language, 'You already have an in-progress logs update on this device. Replace it with the saved report you chose to edit?')}
-        open={replaceDraftDialogOpen}
-        title={translateUiLiteral(language, 'Replace saved draft?')}
-        onCancel={() => {
-          draftHydrationCheckedRef.current = false;
-          setPendingEditSession(null);
-          setReplaceDraftDialogOpen(false);
-          navigate(location.pathname, { replace: true, state: null });
-        }}
-        onConfirm={() => {
-          if (!(catalog ?? visibleCatalog) || !pendingEditSession) {
+      {renderEmbeddedPhoneDialog(
+        <ConfirmActionDialog
+          cancelLabel={translateUiLiteral(language, 'Cancel')}
+          confirmLabel={translateUiLiteral(language, 'Replace draft')}
+          confirmVariant="default"
+          description={translateUiLiteral(language, 'You already have an in-progress logs update on this device. Replace it with the saved report you chose to edit?')}
+          open={replaceDraftDialogOpen}
+          title={translateUiLiteral(language, 'Replace saved draft?')}
+          onCancel={() => {
+            draftHydrationCheckedRef.current = false;
+            setPendingEditSession(null);
             setReplaceDraftDialogOpen(false);
-            return;
-          }
-          skipNextDraftPersistRef.current = true;
-          removeStockUpdateDraft(draftStorageKey);
-          hydrateEditSession(pendingEditSession, buildOrderedInitialRows(catalog ?? visibleCatalog));
-        }}
-      />
-      {discardConfirmDialog}
-      <ConfirmActionDialog
-        cancelLabel={translateUiLiteral(language, 'Keep editing')}
-        confirmLabel={translateUiLiteral(language, 'Save draft')}
-        confirmVariant="default"
-        destructiveActionLabel={translateUiLiteral(language, 'Discard changes')}
-        description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
-        open={leaveDraftDialogOpen}
-        title={translateUiLiteral(language, 'Leave record update?')}
-        onCancel={() => {
-          pendingNavigationRef.current = null;
-          setLeaveDraftDialogOpen(false);
-        }}
-        onConfirm={() => {
-          const pendingNavigation = pendingNavigationRef.current;
-          pendingNavigationRef.current = null;
-          persistDraftForLater();
-          setLeaveDraftDialogOpen(false);
-          pendingNavigation?.continueNavigation();
-        }}
-        onDestructiveAction={() => {
-          const pendingNavigation = pendingNavigationRef.current;
-          pendingNavigationRef.current = null;
-          clearCurrentSession();
-          setLeaveDraftDialogOpen(false);
-          pendingNavigation?.continueNavigation();
-        }}
-      />
-      <ConfirmActionDialog
-        cancelLabel={translateUiLiteral(language, 'Keep reordering')}
-        confirmLabel={translateUiLiteral(language, 'Done')}
-        confirmVariant="default"
-        description={translateUiLiteral(language, 'Finish and save this card ordering before doing anything else in POS view.')}
-        open={workbenchReorderPromptOpen}
-        title={translateUiLiteral(language, 'Save ordering first?')}
-        onCancel={() => {
-          pendingWorkbenchInteractionRef.current = null;
-          setWorkbenchReorderPromptOpen(false);
-        }}
-        onConfirm={() => {
-          finishWorkbenchReorderMode(true);
-        }}
-      />
-	      <WorkspaceTitleCard
-	        actions={titleActions}
-	        floatingActions={floatingTitleActions}
-	        helperExemptReason="Record update title card is covered by route-level step copy and action labels."
-	        descriptor={
-          latestAt
-            ? t('stockUpdateDescriptorWithHistory', {
-                date: formatSenaDateTime(latestAt, language),
-                suffix:
-                  intervalDays == null
-                    ? ''
-                    : t('stockUpdateDescriptorIntervalSuffix', { days: intervalDays }),
-              })
-            : t('stockUpdateDescriptorFirst')
-        }
-        title={
-          <span className="flex min-w-0 items-center gap-4">
-            <RouteBackButton className="shrink-0" onClick={canGoBack ? handleRouteBack : undefined} />
-            <span className="min-w-0">{translateUiLiteral(language, lane.title)}</span>
-          </span>
-        }
-      >
-        <div className="grid gap-5">
+            navigate(location.pathname, { replace: true, state: null });
+          }}
+          onConfirm={() => {
+            if (!(catalog ?? visibleCatalog) || !pendingEditSession) {
+              setReplaceDraftDialogOpen(false);
+              return;
+            }
+            skipNextDraftPersistRef.current = true;
+            removeStockUpdateDraft(draftStorageKey);
+            hydrateEditSession(pendingEditSession, buildOrderedInitialRows(catalog ?? visibleCatalog));
+          }}
+        />,
+      )}
+      {renderEmbeddedPhoneDialog(discardConfirmDialog)}
+      {renderEmbeddedPhoneDialog(
+        <ConfirmActionDialog
+          cancelLabel={translateUiLiteral(language, 'Keep editing')}
+          confirmLabel={translateUiLiteral(language, 'Save draft')}
+          confirmVariant="default"
+          destructiveActionLabel={translateUiLiteral(language, 'Discard changes')}
+          description={translateUiLiteral(language, 'Save this in-progress record update as a draft before leaving?')}
+          open={leaveDraftDialogOpen}
+          title={translateUiLiteral(language, 'Leave record update?')}
+          onCancel={() => {
+            pendingNavigationRef.current = null;
+            setLeaveDraftDialogOpen(false);
+          }}
+          onConfirm={() => {
+            const pendingNavigation = pendingNavigationRef.current;
+            pendingNavigationRef.current = null;
+            persistDraftForLater();
+            setLeaveDraftDialogOpen(false);
+            pendingNavigation?.continueNavigation();
+          }}
+          onDestructiveAction={() => {
+            const pendingNavigation = pendingNavigationRef.current;
+            pendingNavigationRef.current = null;
+            clearCurrentSession();
+            setLeaveDraftDialogOpen(false);
+            pendingNavigation?.continueNavigation();
+          }}
+        />,
+      )}
+      {renderEmbeddedPhoneDialog(
+        <ConfirmActionDialog
+          cancelLabel={translateUiLiteral(language, 'Keep reordering')}
+          confirmLabel={translateUiLiteral(language, 'Done')}
+          confirmVariant="default"
+          description={translateUiLiteral(language, 'Finish and save this card ordering before doing anything else in POS view.')}
+          open={workbenchReorderPromptOpen}
+          title={translateUiLiteral(language, 'Save ordering first?')}
+          onCancel={() => {
+            pendingWorkbenchInteractionRef.current = null;
+            setWorkbenchReorderPromptOpen(false);
+          }}
+          onConfirm={() => {
+            finishWorkbenchReorderMode(true);
+          }}
+        />,
+      )}
+      {embeddedPhonePortrait ? (
+        <div className="mb-4 grid gap-3" data-slot="phone-capture-session-header">
           {sessionViewMode === 'pos' ? (
-            <div className="flex w-full flex-wrap gap-3">
+            <div className="grid grid-cols-2 gap-2" data-slot="phone-capture-metadata-actions">
               {metadataSections.map((section) => {
                 const active = activePosMetadataPopup === section.id;
                 const untouched = !active && !touchedPosMetadataPopupIds.has(section.id);
@@ -12145,8 +12336,9 @@ export function StockUpdateSessionRoute() {
                   <Button
                     key={section.id}
                     className={cn(
-                      'h-auto min-w-[12rem] flex-1 items-start justify-start rounded-[1.25rem] px-4 py-3 text-left whitespace-normal',
-                      active ? 'text-background' : 'bg-white',
+                      'h-auto min-h-12 items-start justify-start rounded-[0.9rem] px-3 py-2.5 text-left whitespace-normal',
+                      section.id === 'context' && 'col-span-2',
+                      active ? 'text-background' : 'bg-card',
                       untouched && posMetadataUntouchedGlowClassName,
                     )}
                     type="button"
@@ -12166,58 +12358,128 @@ export function StockUpdateSessionRoute() {
                       });
                     }}
                   >
-                    <span className="grid min-w-0 gap-1">
-                      <span className="flex items-center gap-2">
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="flex min-w-0 items-center gap-2">
                         <Icon
                           className={cn('size-4 shrink-0', highlighted ? 'text-background' : 'text-foreground')}
                           data-slot="capture-metadata-card-icon"
                         />
                         <span
-                          className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', highlighted ? 'text-background' : 'text-foreground')}
+                          className={cn('truncate text-[10px] font-semibold uppercase tracking-[0.18em]', highlighted ? 'text-background' : 'text-foreground')}
                           data-slot="capture-metadata-card-title"
                         >
                           {section.label}
                         </span>
                       </span>
-                      {section.summaryParts ? (
-                        <span
-                          className={cn('flex min-w-0 flex-wrap gap-x-1.5 gap-y-0 text-sm font-medium', highlighted ? 'text-background/80' : 'text-muted-foreground')}
-                          data-slot="capture-metadata-card-summary"
-                        >
-                          {section.summaryParts.map((part, index) => (
-                            <span key={`${section.id}-${part}-${index}`} className="whitespace-nowrap" data-slot="capture-metadata-card-summary-part">
-                              {part}
-                              {index < section.summaryParts!.length - 1 ? ' ·' : ''}
-                            </span>
-                          ))}
-                        </span>
-                      ) : (
-                        <span
-                          className={cn('min-w-0 text-sm font-medium', highlighted ? 'text-background/80' : 'text-muted-foreground')}
-                          data-slot="capture-metadata-card-summary"
-                        >
-                          {section.summary}
-                        </span>
-                      )}
+                      <span className={cn('min-w-0 truncate text-sm font-medium', highlighted ? 'text-background/80' : 'text-muted-foreground')} data-slot="capture-metadata-card-summary">
+                        {section.summaryParts ? section.summaryParts.join(' · ') : section.summary}
+                      </span>
                     </span>
                   </Button>
                 );
               })}
             </div>
           ) : null}
-          <div className={sessionViewMode === 'pos' ? 'sr-only' : undefined}>
-            <StepWizard
-              currentStepId={currentStepId}
-              percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
-              steps={stepStates}
-              unlockedStepCount={unlockedStepCount}
-              onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
-            />
-
-            {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
-          </div>
         </div>
-      </WorkspaceTitleCard>
+      ) : (
+        <WorkspaceTitleCard
+          actions={titleActions}
+          floatingActions={floatingTitleActions}
+          helperExemptReason="Record update title card is covered by route-level step copy and action labels."
+          descriptor={sessionDescriptor}
+          title={
+            <span className="flex min-w-0 items-center gap-4">
+              <RouteBackButton className="shrink-0" onClick={canGoBack ? handleRouteBack : undefined} />
+              <span className="min-w-0">{translateUiLiteral(language, lane.title)}</span>
+            </span>
+          }
+        >
+          <div className="grid gap-5">
+            {sessionViewMode === 'pos' ? (
+              <div className="flex w-full flex-wrap gap-3">
+                {metadataSections.map((section) => {
+                  const active = activePosMetadataPopup === section.id;
+                  const untouched = !active && !touchedPosMetadataPopupIds.has(section.id);
+                  const highlighted = active || untouched;
+                  const Icon = section.icon;
+                  return (
+                    <Button
+                      key={section.id}
+                      className={cn(
+                        'h-auto min-w-[12rem] flex-1 items-start justify-start rounded-[1.25rem] px-4 py-3 text-left whitespace-normal',
+                        active ? 'text-background' : 'bg-white',
+                        untouched && posMetadataUntouchedGlowClassName,
+                      )}
+                      type="button"
+                      variant={active ? 'default' : 'outline'}
+                      onClick={() => {
+                        guardWorkbenchReorderInteraction(() => {
+                          setTouchedPosMetadataPopupIds((current) => {
+                            if (current.has(section.id)) {
+                              return current;
+                            }
+                            const next = new Set(current);
+                            next.add(section.id);
+                            return next;
+                          });
+                          selectStep(section.stepId);
+                          setActivePosMetadataPopup(section.id);
+                        });
+                      }}
+                    >
+                      <span className="grid min-w-0 gap-1">
+                        <span className="flex items-center gap-2">
+                          <Icon
+                            className={cn('size-4 shrink-0', highlighted ? 'text-background' : 'text-foreground')}
+                            data-slot="capture-metadata-card-icon"
+                          />
+                          <span
+                            className={cn('text-[11px] font-semibold uppercase tracking-[0.2em]', highlighted ? 'text-background' : 'text-foreground')}
+                            data-slot="capture-metadata-card-title"
+                          >
+                            {section.label}
+                          </span>
+                        </span>
+                        {section.summaryParts ? (
+                          <span
+                            className={cn('flex min-w-0 flex-wrap gap-x-1.5 gap-y-0 text-sm font-medium', highlighted ? 'text-background/80' : 'text-muted-foreground')}
+                            data-slot="capture-metadata-card-summary"
+                          >
+                            {section.summaryParts.map((part, index) => (
+                              <span key={`${section.id}-${part}-${index}`} className="whitespace-nowrap" data-slot="capture-metadata-card-summary-part">
+                                {part}
+                                {index < section.summaryParts!.length - 1 ? ' ·' : ''}
+                              </span>
+                            ))}
+                          </span>
+                        ) : (
+                          <span
+                            className={cn('min-w-0 text-sm font-medium', highlighted ? 'text-background/80' : 'text-muted-foreground')}
+                            data-slot="capture-metadata-card-summary"
+                          >
+                            {section.summary}
+                          </span>
+                        )}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className={sessionViewMode === 'pos' ? 'sr-only' : undefined}>
+              <StepWizard
+                currentStepId={currentStepId}
+                percentComplete={(unlockedStepCount / activeStepOrder.length) * 100}
+                steps={stepStates}
+                unlockedStepCount={unlockedStepCount}
+                onStepSelect={(stepId) => selectStep(stepId as StockUpdateStepId)}
+              />
+
+              {showHeartbeatRibbons ? <MetricRibbon items={summaryRibbonItems} /> : null}
+            </div>
+          </div>
+        </WorkspaceTitleCard>
+      )}
 
       <form id="stock-update-session-form" className="grid gap-6" onSubmit={(event) => void handleSubmit(event)}>
         {sessionViewMode === 'pos' ? (
@@ -12226,10 +12488,11 @@ export function StockUpdateSessionRoute() {
               <section
                 className={cn(
                   'min-w-0 overflow-hidden rounded-[1.9rem] border border-border/70 bg-white shadow-[0_18px_60px_rgba(48,31,20,0.08)]',
+                  embeddedPhonePortrait && 'rounded-[1rem] shadow-panel',
                   workbenchReorderMode && 'relative z-30',
                 )}
               >
-                <div className="border-b border-border/60 px-5 py-5">
+                <div className={cn('border-b border-border/60 px-5 py-5', embeddedPhonePortrait && 'px-4 py-4')}>
                   <div className="flex flex-col gap-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
@@ -12271,6 +12534,9 @@ export function StockUpdateSessionRoute() {
                       </div>
                     </div>
                     <FilterControlRow
+                      className={embeddedPhonePortrait
+                        ? '[&_[data-slot=filter-control-row-search]]:min-w-0 [&_[data-slot=filter-control-row-search]]:flex-[1_1_12rem] [&_[data-slot=filter-control-row-primary]]:hidden [&_[data-slot=filter-control-row-secondary]]:flex-[0_0_auto]'
+                        : undefined}
                       search={
                         <SearchInput
                           ariaLabel={translateUiLiteral(language, 'Search workbench items')}
@@ -12295,7 +12561,7 @@ export function StockUpdateSessionRoute() {
                         />
                       }
                       primaryFilter={
-                        <ResponsiveToggleFilter
+                        embeddedPhonePortrait ? undefined : <ResponsiveToggleFilter
                           ariaLabel={translateUiLiteral(language, 'Workbench filters')}
                           className="min-w-0"
                           toggleClassName="rounded-full bg-muted/40"
@@ -12318,7 +12584,7 @@ export function StockUpdateSessionRoute() {
                 </div>
 
                 <div
-                  className="px-5 py-5"
+                  className={cn('px-5 py-5', embeddedPhonePortrait && 'px-4 py-4')}
                   onClick={(event) => {
                     if (event.target !== event.currentTarget) {
                       return;
@@ -12339,10 +12605,13 @@ export function StockUpdateSessionRoute() {
                         onDragStart={handleWorkbenchDragStart}
                       >
                         <SortableContext items={filteredPosTiles.map((tile) => tile.key)} strategy={rectSortingStrategy}>
-                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                          <div className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', embeddedPhonePortrait && 'sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1')}>
                             {filteredPosTiles.map((tile) => (
                               <SortableWorkbenchTile
                                 key={tile.key}
+                                jigglePhaseMs={workbenchJigglePhaseMs}
+                                jiggleStyleOverride={phoneWorkbenchJiggleStyle}
+                                layout={embeddedPhonePortrait ? 'row' : 'grid'}
                                 onHoldEnd={endWorkbenchHold}
                                 onHoldStart={beginWorkbenchHold}
                                 reorderMode={workbenchReorderMode}
@@ -12364,7 +12633,15 @@ export function StockUpdateSessionRoute() {
                                 data-slot="workbench-drag-overlay-tile"
                                 style={activeWorkbenchDragSize ?? undefined}
                               >
-                                <WorkbenchTileVisual isDragging reorderMode tile={activeWorkbenchDragTile} />
+                                <WorkbenchTileVisual
+                                  isDragging
+                                  jigglePhaseMs={workbenchJigglePhaseMs}
+                                  jiggleStyleOverride={phoneWorkbenchJiggleStyle}
+                                  jiggleWhileDragging
+                                  layout={embeddedPhonePortrait ? 'row' : 'grid'}
+                                  reorderMode
+                                  tile={activeWorkbenchDragTile}
+                                />
                               </div>
                             ) : null}
                           </DragOverlay>,
@@ -12372,11 +12649,11 @@ export function StockUpdateSessionRoute() {
                         )}
                       </DndContext>
                     ) : (
-                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                      <div className={cn('grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4', embeddedPhonePortrait && 'sm:grid-cols-1 lg:grid-cols-1 xl:grid-cols-1')}>
                         {filteredPosTiles.map((tile) => (
                           <button
                             key={tile.key}
-                            className={workbenchTileButtonClassName({})}
+                            className={embeddedPhonePortrait ? 'relative block h-auto w-full min-w-0 overflow-visible text-left' : workbenchTileButtonClassName({})}
                             type="button"
                             onClick={() => {
                               guardWorkbenchReorderInteraction(() => {
@@ -12384,7 +12661,7 @@ export function StockUpdateSessionRoute() {
                               });
                             }}
                           >
-                            <WorkbenchTileVisual tile={tile} />
+                            <WorkbenchTileVisual layout={embeddedPhonePortrait ? 'row' : 'grid'} tile={tile} />
                           </button>
                         ))}
                       </div>
@@ -12896,7 +13173,7 @@ export function StockUpdateSessionRoute() {
                 language={language}
               />
             ) : (
-              <div className="grid gap-4" style={posReceiptConfirmTableLayout.style}>
+              <div className="grid gap-4">
                 {posReceiptMetadataRows.length > 0 ? (
                   <div className="grid gap-3 rounded-[1.35rem] border border-border/70 bg-background/70 px-4 py-4 sm:grid-cols-2">
                     {posReceiptMetadataRows.map((row) => (
@@ -12909,106 +13186,86 @@ export function StockUpdateSessionRoute() {
                     ))}
                   </div>
                 ) : null}
-                <HeaderedTable
-                  className={posReceiptConfirmTableLayout.containerClassName}
-                  variant="overview"
-                >
-                  <HeaderedTableHeader className={posReceiptConfirmTableLayout.headerClassName}>
-	                    <HeaderedTableHeaderCell helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Item')}</HeaderedTableHeaderCell>
-	                    <HeaderedTableHeaderCell align="center" helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Qty')}</HeaderedTableHeaderCell>
-	                    <HeaderedTableHeaderCell helperExemptReason="Receipt confirmation headers are self-explanatory in the review table.">{translateUiLiteral(language, 'Pricing')}</HeaderedTableHeaderCell>
-                  </HeaderedTableHeader>
-                  <HeaderedTableBody className={posReceiptConfirmTableLayout.bodyClassName}>
+                <div className="overflow-hidden rounded-[1.2rem] border border-border/70 bg-white" data-slot="pos-receipt-review-table">
+                  <div className="hidden grid-cols-[minmax(0,1fr)_4rem_minmax(0,1.2fr)] gap-4 border-b border-border/60 px-5 py-3 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:grid">
+                    <span>{translateUiLiteral(language, 'Item')}</span>
+                    <span className="text-center">{translateUiLiteral(language, 'Qty')}</span>
+                    <span>{translateUiLiteral(language, 'Pricing')}</span>
+                  </div>
+                  <div className="divide-y divide-border/60">
                     {posReceiptTextLines.map((line) => (
-                      <HeaderedTableRow
+                      <div
                         key={`${line.title}:${line.quantity}:${line.totalLabel}`}
-                        className={cn(posReceiptConfirmTableLayout.rowClassName, 'items-center')}
+                        className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1.2fr)] sm:items-start"
                       >
-                        <HeaderedTableCellStack
-                          primary={line.title}
-                          primaryClassName="font-semibold tracking-[-0.02em]"
-                        />
                         <div className="min-w-0">
-                          <HeaderedTableMobileLabel className={posReceiptConfirmTableLayout.mobileLabelClassName}>
-                            {translateUiLiteral(language, 'Qty')}
-                          </HeaderedTableMobileLabel>
-                          <p className="font-medium text-foreground tabular-nums lg:text-center">{line.quantity}</p>
+                          <p className="khmer-safe-label min-w-0 break-words font-semibold leading-6 tracking-[-0.02em] text-foreground">{line.title}</p>
                         </div>
-                        <div className="grid gap-1 text-sm">
-                          <HeaderedTableMobileLabel className={posReceiptConfirmTableLayout.mobileLabelClassName}>
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 sm:block sm:text-center">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:hidden">
+                            {translateUiLiteral(language, 'Qty')}
+                          </p>
+                          <p className="font-medium text-foreground tabular-nums">{line.quantity}</p>
+                        </div>
+                        <div className="grid gap-1.5 text-sm">
+                          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground sm:hidden">
                             {translateUiLiteral(language, 'Pricing')}
-                          </HeaderedTableMobileLabel>
-                          <p className="flex items-baseline justify-between gap-3 whitespace-nowrap">
-                            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                          </p>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
+                            <span className="min-w-0 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                               {translateUiLiteral(language, 'Unit price')}
                             </span>
-                            <span className="font-medium text-foreground tabular-nums">{line.unitPriceLabel}</span>
-                          </p>
-                          <p className="flex items-baseline justify-between gap-3 whitespace-nowrap">
-                            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                            <span className="text-right font-medium text-foreground tabular-nums">{line.unitPriceLabel}</span>
+                          </div>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
+                            <span className="min-w-0 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
                               {translateUiLiteral(language, 'Total price')}
                             </span>
-                            <span className="font-semibold text-foreground tabular-nums">{line.totalLabel}</span>
-                          </p>
+                            <span className="text-right font-semibold text-foreground tabular-nums">{line.totalLabel}</span>
+                          </div>
                         </div>
-                      </HeaderedTableRow>
+                      </div>
                     ))}
-                    <div className="grid gap-2 px-5 py-5 sm:px-6 lg:col-span-full lg:grid lg:grid-cols-subgrid lg:gap-2">
+                    <div className="grid gap-3 px-5 py-5 sm:px-6">
                       {deliveryFeeEnabled ? (
                         <>
-                          <div className={cn('grid gap-3', posReceiptConfirmTableLayout.rowClassName, 'items-center px-0 py-0 sm:px-0')}>
-                            <HeaderedTableCellStack
-                              primary={translateUiLiteral(language, 'Subtotal')}
-                              primaryClassName="font-medium tracking-[-0.02em]"
-                            />
-                            <span aria-hidden="true" />
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
+                            <p className="min-w-0 font-medium tracking-[-0.02em] text-foreground">{translateUiLiteral(language, 'Subtotal')}</p>
                             <p className="text-right font-medium text-foreground tabular-nums">{deliverySubtotalLabel}</p>
                           </div>
                           {discountReceiptRowVisible ? (
-                            <div className={cn('grid gap-3', posReceiptConfirmTableLayout.rowClassName, 'items-center px-0 py-0 sm:px-0')}>
+                            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
                               <div className="flex min-w-0 items-center gap-2">
-                                <HeaderedTableCellStack
-                                  primary={discountReceiptTitle}
-                                  primaryClassName="font-medium tracking-[-0.02em]"
-                                />
+                                <p className="min-w-0 font-medium tracking-[-0.02em] text-foreground">{discountReceiptTitle}</p>
                                 <HelpTooltip
                                   content={discountHelpText(language)}
                                   helpHref="/settings/help#record-update-discount"
                                   label={translateUiLiteral(language, 'Discount')}
                                 />
                               </div>
-                              <span aria-hidden="true" />
                               <p className="text-right font-medium text-foreground tabular-nums">{discountDisplayLabel}</p>
                             </div>
                           ) : null}
-                          <div className={cn('grid gap-3', posReceiptConfirmTableLayout.rowClassName, 'items-center px-0 py-0 sm:px-0')}>
+                          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
                             <div className="flex min-w-0 items-center gap-2">
-                              <HeaderedTableCellStack
-                                primary={translateUiLiteral(language, 'Delivery')}
-                                primaryClassName="font-medium tracking-[-0.02em]"
-                              />
+                              <p className="min-w-0 font-medium tracking-[-0.02em] text-foreground">{translateUiLiteral(language, 'Delivery')}</p>
                               <HelpTooltip
                                 content={deliveryFeeHelpText(language)}
                                 helpHref="/settings/help#record-update-delivery-fee"
                                 label={translateUiLiteral(language, 'Delivery fee')}
                               />
                             </div>
-                            <span aria-hidden="true" />
                             <p className="text-right font-medium text-foreground tabular-nums">{deliveryDisplayLabel}</p>
                           </div>
                         </>
                       ) : null}
-                      <div className={cn('grid gap-3', posReceiptConfirmTableLayout.rowClassName, 'items-center px-0 py-0 sm:px-0')}>
-                        <HeaderedTableCellStack
-                          primary={translateUiLiteral(language, 'Total')}
-                          primaryClassName="font-semibold tracking-[-0.02em]"
-                        />
-                        <span aria-hidden="true" />
+                      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-4">
+                        <p className="min-w-0 font-semibold tracking-[-0.02em] text-foreground">{translateUiLiteral(language, 'Total')}</p>
                         <p className="text-right text-lg font-semibold text-foreground tabular-nums">{posReceiptTotalLabel}</p>
                       </div>
                     </div>
-                  </HeaderedTableBody>
-                </HeaderedTable>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -13049,7 +13306,13 @@ export function StockUpdateSessionRoute() {
       }}>
         <SheetContent
           aria-describedby={undefined}
-          className="w-full max-w-2xl gap-0 overflow-y-auto border-l border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-2xl"
+          className={cn(
+            'w-full gap-0 overflow-y-auto border-border/70 bg-white px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]',
+            embeddedPhonePortrait
+              ? 'max-h-[min(84dvh,var(--kaur-khor-embedded-effective-height,84dvh))] rounded-t-[1.25rem] border-t'
+              : 'max-w-2xl border-l sm:max-w-2xl',
+          )}
+          side={embeddedPhonePortrait ? 'bottom' : 'right'}
           onOpenAutoFocus={(event) => {
             if (activePosMetadataPopup !== 'delivery' && activePosMetadataPopup !== 'discount') {
               return;

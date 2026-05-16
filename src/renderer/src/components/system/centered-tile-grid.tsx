@@ -10,6 +10,7 @@ export function CenteredTileGrid({
   children,
   className,
   columns = 2,
+  disableMeasurement = false,
   gapRem = DEFAULT_CENTERED_TILE_GAP_REM,
   maxTileRem = DEFAULT_CENTERED_TILE_MAX_REM,
   minTileRem = DEFAULT_CENTERED_TILE_MIN_REM,
@@ -18,6 +19,7 @@ export function CenteredTileGrid({
   children: ReactNode;
   className?: string;
   columns?: number;
+  disableMeasurement?: boolean;
   gapRem?: number;
   maxTileRem?: number;
   minTileRem?: number;
@@ -32,6 +34,10 @@ export function CenteredTileGrid({
   const [measuredTileSize, setMeasuredTileSize] = useState<string | null>(null);
 
   useLayoutEffect(() => {
+    if (disableMeasurement) {
+      setMeasuredTileSize(null);
+      return undefined;
+    }
     const grid = gridRef.current;
     if (!grid || typeof ResizeObserver === 'undefined') {
       return undefined;
@@ -59,7 +65,7 @@ export function CenteredTileGrid({
     return () => {
       resizeObserver.disconnect();
     };
-  }, [columnCount, gapRem, maxTileRem, paddingRem, rowCount]);
+  }, [columnCount, disableMeasurement, gapRem, maxTileRem, paddingRem, rowCount]);
 
   return (
     <div

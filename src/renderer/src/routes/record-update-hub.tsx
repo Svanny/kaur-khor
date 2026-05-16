@@ -700,7 +700,11 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
           helperExemptReason="Record update hub title is route framing; each selectable lane card carries the actionable workflow explanation."
         />
       ) : null}
-      <CenteredTileGrid>
+      <CenteredTileGrid
+        className={embedded ? 'min-h-[min(44rem,calc(var(--kaur-khor-embedded-effective-height,100dvh)-15rem))]' : undefined}
+        disableMeasurement={embedded}
+        maxTileRem={embedded ? 18 : undefined}
+      >
         {VISIBLE_HUB_CARDS.map((card) => (
           <HubCard
             key={card.title}

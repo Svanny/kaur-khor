@@ -91,19 +91,19 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
   {
     id: 'customer-order-pending',
     path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
-    title: 'Customer Orders Pending',
+    title: 'Customer Order',
     draftStorageKey: 'kaur-khor:record-update:draft:customer-order-pending:v1',
   },
   {
     id: 'customer-order-completed',
     path: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
-    title: 'Customer Orders Completed',
+    title: 'Immediate Sale',
     draftStorageKey: 'kaur-khor:record-update:draft:customer-order-completed:v1',
   },
   {
     id: 'supplier-order-pending',
     path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-    title: 'Supplier Orders Pending',
+    title: 'Supplier Order',
     draftStorageKey: 'kaur-khor:record-update:draft:supplier-order-pending:v1',
   },
   {
