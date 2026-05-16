@@ -78,6 +78,16 @@
   }
 }
 
+@keyframes kaur-khor-workbench-phone-jiggle {
+  from {
+    transform: translateY(-0.18px) rotate(-0.7deg);
+  }
+
+  to {
+    transform: translateY(0.18px) rotate(0.7deg);
+  }
+}
+
 @keyframes kaur-khor-attention-flash {
   0%, 45%, 100% {
     opacity: 0;
@@ -337,17 +347,23 @@
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="centered-tile-grid"] {
-    align-content: start;
+    align-content: center;
     align-items: stretch;
     justify-items: stretch;
     padding-block: 0;
-    place-content: start stretch;
+    place-content: center stretch;
     place-items: stretch;
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="centered-tile-grid-inner"] {
     max-width: none;
     width: 100%;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="centered-tile-grid-inner"] .liquid-grid-card-frame {
+    height: var(--hub-tile-size);
+    max-height: var(--hub-tile-size);
+    max-width: none;
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="centered-tile-card-summary"] {
@@ -569,6 +585,44 @@
     z-index: 2;
   }
 
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-page"] {
+    align-items: flex-start;
+    justify-content: flex-start;
+    min-height: auto;
+    padding: 0 0 1rem !important;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-card"] {
+    border-radius: 1rem;
+    max-width: none;
+    padding: 1rem !important;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-title"] {
+    font-size: 1.85rem;
+    line-height: 1.12;
+    margin-top: 0.5rem;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-description"] {
+    font-size: 0.95rem;
+    line-height: 1.55;
+    margin-top: 0.75rem;
+    max-width: none;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-controls"] {
+    margin-top: 1rem !important;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-actions"] {
+    justify-content: space-between;
+    margin-top: 1rem !important;
+    position: static;
+    right: auto;
+    top: auto;
+  }
+
   .embedded-sidebar-action-label-medium,
   .embedded-sidebar-action-label-compact {
     display: none;
@@ -613,6 +667,11 @@
     text-wrap: balance;
   }
 
+  .khmer-safe-display {
+    line-height: 1.5 !important;
+    padding-block: 0.08em 0.12em !important;
+  }
+
   [data-language="km"],
   [data-language="km"] :where(:not(code):not(pre):not(kbd):not(samp):not(.source-code-island):not(.source-code-island *)) {
     font-family: "Noto Sans Khmer", var(--font-sans);
@@ -620,7 +679,6 @@
 
   [data-language="km"] .khmer-safe-display {
     letter-spacing: 0 !important;
-    line-height: 1.35;
   }
 
   [data-language="km"] .khmer-safe-eyebrow,
@@ -636,6 +694,54 @@
     letter-spacing: 0 !important;
     line-height: 1.45;
     text-transform: none !important;
+  }
+
+  .phone-queue-filter-row {
+    container-type: inline-size;
+  }
+
+  .phone-product-filter-row {
+    container-type: inline-size;
+  }
+
+  @container (max-width: 46rem) {
+    .phone-product-filter-option {
+      aspect-ratio: 1;
+      padding-inline: 0.6rem;
+    }
+
+    .phone-product-filter-option[aria-pressed="true"] {
+      aspect-ratio: auto;
+      padding-inline: 0.75rem;
+    }
+
+    .phone-product-filter-label {
+      display: none;
+    }
+
+    .phone-product-filter-option[aria-pressed="true"] .phone-product-filter-label {
+      display: inline;
+    }
+  }
+
+  @container (max-width: 42rem) {
+    .phone-queue-filter-option {
+      aspect-ratio: 1;
+      padding-inline: 0.6rem;
+    }
+
+    .phone-queue-filter-option[aria-pressed="true"] {
+      aspect-ratio: auto;
+      padding-inline: 0.75rem;
+    }
+
+    .phone-queue-filter-label {
+      display: none;
+    }
+
+    .phone-queue-filter-option[aria-pressed="true"] .phone-queue-filter-label {
+      display: inline;
+    }
   }
 
   .editorial-panel {
