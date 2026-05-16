@@ -40,3 +40,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Generated desktop fixture catalog image paths must use the shipped `src/renderer/src/assets/dev-catalog/*.webp` filenames; stale `.png` paths trigger asset-protocol 404s in UI matrix runs.
 - SKU and service editor image paste must work from anywhere on the mounted editor page, including when another field is focused; keep non-image paste unhandled.
 - SKU and service editor pages must initially focus the Name field; nested planning controls such as ETA variation inputs must not steal first focus.
+- Embedded phone action surfaces must reuse desktop action/session models and icons, keeping only presentation phone-specific in `routes/mobile` with focused route/session tests.

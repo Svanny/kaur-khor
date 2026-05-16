@@ -24,16 +24,17 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
 - Demo onboarding exposes backup/import/reset and main-page actions only. The browser-app route keeps its download action, but the demo route no longer links to `/app` from the embedded banner.
 - Phone portrait views use the embedded operator shell instead of exposing the
   full desktop workspace in a cramped upright frame. The shell keeps the
-  practical daily flow in Today, Queue, Capture, Products, and Insights tabs.
+  practical daily flow in Today, Queue, Capture, and Products tabs, with
+  Insights kept in code but hidden until that phone surface is ready.
   The phone implementation uses shared mobile primitives for pages, sections,
   cards, action rows, chips, metrics, bottom sheets, loading/empty/error states,
   and capture review/result panels so route surfaces keep consistent spacing,
   focus rings, safe-area behavior, and touch target sizing.
-  Today opens its next-action hero and supplier/customer work rows in the same
-  mobile task sheet used by Queue, so the home surface stays a decision layer
-  instead of jumping straight into dense routes. Its latest saved update opens a
-  compact outcome sheet with the changed state layer and a link to full update
-  history.
+  Today opens its next-action hero, merged queue metrics, inventory-today
+  summary table, four quick record actions, and latest saved update as the
+  phone home surface. The queue metric strip is a single linked row with
+  vertical dividers, and the inventory table reuses catalog images while
+  showing current, units-in, and units-out counts for the day.
   Queue keeps supplier/customer scope, compact filter chips, search, and the
   open task sheet in the phone URL so browser back/forward restores the visible
   task set. Supplier cards include supplier/state context and ETA or recommended
@@ -48,61 +49,34 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
   ticket form. Batch controls appear only for real grouped supplier work, keeping
   single-task saves single by default while offering an Update group route when
   grouped SKU targets exist.
-  Products opens phone-native
-  SKU/service lookup and summary detail pages with URL-backed search, type
-  filters, quick filters, status cards, quiet create actions, and product action
-  sheets. Search matches SKU name/id/supplier and service name/linked SKU terms,
-  and query/filter state is preserved when opening a detail and returning to the
-  search list. SKU and service actions use the same capture context grammar for
-  Stock Count, Supplier Orders Pending, Supplier Receipts, Customer Orders
-  Pending, Customer Orders Completed, and linked-stock recovery actions. Detail
-  pages expose mobile heartbeats, section tabs, compact metric strips, and
-  phone-native SKU pipeline/services/evidence/ledger plus service
-  bottlenecks/recovery/customer-work/evidence/ledger sections instead of
-  appending the desktop right rail below the page.
-  Capture opens a compact phone menu for Stock Count, Customer Orders Pending,
-  Customer Orders Completed, Supplier Orders Pending, and Supplier Receipts.
-  Lane routes use a phone-native choose/details/review/saved shell instead of
-  mounting the dense desktop record-update workspace. Queue task actions pass
-  source breadcrumb, target entity, suggested quantity, supplier context, and a
-  return route into capture so contextual lane routes can start at Details with
-  the relevant prefill instead of a generic picker. Customer and supplier lanes
-  expose URL-backed mode chips for new/modify/cancel, completion/refund, and
-  receipt/purchase choices before saving. Mobile capture saves now
-  persist sparse observations for Stock Count, supplier order/receipt signals,
-  and customer pending/completed commercial events before showing the saved
-  confirmation. Supplier pending/receipt capture also records sparse supplier
-  ticket evidence with ETA, lead-time hint, receipt, and discrepancy context.
-  Supplier Receipts include a receipt condition choice and emit a positive stock
-  adjustment signal so the physical stock impact is explicit in the saved
-  observation.
-  Customer pending/completed capture records customer channel, name, and phone
-  into sparse customer ticket evidence so the commitment has identity context
-  instead of only anonymous commercial movement. Capture routes that include a
-  `ticketId` revise that ticket id for edit/cancel saves instead of minting an
-  unrelated phone ticket. Direct edit/cancel/complete/receive capture modes load
-  existing open tickets and let the operator choose one before editing, with the
-  selected ticket id and first line written back into the phone URL. If a
-  contextual capture target no longer exists, phone capture
-  names that problem and offers to choose another item or return to the source
-  route with the draft state intact. Entity selections made inside capture are
-  written back to the phone URL so refresh and browser navigation preserve the
-  selected target. Contextual actions from Products, detail pages, Inventory,
-  Money, and Explain all use the same mobile action query grammar for source,
-  breadcrumb, target, likely lane/mode, quantity or evidence hints, ticket,
-  supplier/customer context, and return route before entering capture. The
-  capture hub shows per-lane draft indicators when saved
-  session drafts exist. Quantity, note, and observed timestamp drafts are cached per
-  lane/target in the browser session and cleared after a successful save. If the user tries to
-  leave capture with an edited draft, phone mode shows a confirmation sheet and
-  keeps the draft until the user explicitly discards it. Deep capture lanes hide
-  the five-tab bottom navigation and replace it with a compact Close capture
-  control so the form does not compete with global tabs. The top
-  workspace-safety control opens a compact safety sheet with backup/import,
-  settings, help, and reset actions; reset opens a phone-native destructive
-  confirmation sheet before clearing demo or browser workspace data. The phone
-  settings route also exposes a mobile index for Workspace, Interface, History,
-  Local data, Planning, Help, and a separated Danger zone. Phone history groups recent
+  Products opens phone-native SKU/service lookup and summary detail pages with
+  URL-backed search, a segmented SKU/service type toggle, quick filters, status
+  cards, and item-name detail headers. Search matches SKU name/id/supplier and
+  service name/linked SKU terms, and query/filter state is preserved when
+  opening a detail and returning to the search list. SKU and service detail pages
+  use row-divided metric summaries and a titled Actions section instead of
+  nested metric cards, tabs, refresh-detail panels, ledger placeholders, or
+  back-to-products actions.
+  Capture reuses the shared desktop record-update hub and session routes in an
+  embedded phone presentation. The phone hub exposes the four desktop-visible
+  capture modes: Stock Count, Supplier Order, Immediate Sale, and Customer
+  Order. Supplier receipts remain supported by the shared Supplier Order update
+  flow instead of appearing as a separate primary phone lane. Queue, Capture,
+  and product detail actions pass the same capture context grammar for source,
+  breadcrumb, target, likely mode, quantity or evidence hints, ticket,
+  supplier/customer context, and return route before entering the shared
+  session. Mobile session screens keep the desktop save and draft logic, but
+  move back, subtitle, draft status, discard, and done controls into the phone
+  header. Workbench item lists render as row-by-row phone cards, supplier filters
+  share a row with search, and desktop right-drawer surfaces become bottom
+  drawers on phone. If the user tries to leave capture with an edited draft,
+  phone mode shows a centered confirmation dialog and keeps the draft until the
+  user explicitly discards it.
+  The top workspace-safety control opens the Settings route except when already
+  on Settings, where it is hidden. The phone settings route exposes
+  Configurations with backup/import, Preferences for language/currency/USD to
+  KHR exchange rate, History, Local data, and a separated Danger zone. Phone
+  history groups recent
   saved facts by Stock Count, Customer Orders Pending, Customer Orders
   Completed, Supplier Orders Pending, Supplier Receipts, Corrections, and
   Price/cost changes, with a compact detail sheet for the changed state layer.
@@ -121,12 +95,12 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
   routes also expose a phone-local Refresh analysis action; failed runs keep the
   lens open with Retry and Open safety actions. Phone update history can refresh
   observations in place; failed observation listing keeps existing rows visible
-  with Retry and Open safety actions. SKU and service detail pages expose a
-  phone-local Refresh detail action; failed detail hydration keeps the catalog
-  summary and actions usable. Sparse evidence is labeled with Unknown,
+  with Retry and Open safety actions. SKU and service detail hydration keeps the
+  catalog summary and actions usable without showing a phone-local refresh card.
+  Sparse evidence is labeled with Unknown,
   Estimated, Fresh count, or Stale count where phone mode shows confidence or
   freshness.
-  Insights opens phone-native Inventory, Money, and Explain
+  Insights code still contains phone-native Inventory, Money, and Explain
   routes with compact stock-health, statement/contributor, and model-posture
   sections instead of blocking the whole section. Inventory scope/range, Money
   scope/compare, and Explain section/timeframe controls are URL-backed so

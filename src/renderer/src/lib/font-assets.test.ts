@@ -34,7 +34,8 @@ describe('bundled font assets', () => {
   test('keeps Khmer-safe display utilities vertically roomy', () => {
     const globalsCss = readFileSync(join(process.cwd(), 'src/renderer/src/globals.css'), 'utf8');
 
-    expect(globalsCss).toMatch(/\[data-language="km"\]\s+\.khmer-safe-display\s*\{[^}]*letter-spacing:\s*0\s*!important;[^}]*line-height:\s*1\.35;/s);
+    expect(globalsCss).toMatch(/\.khmer-safe-display\s*\{[^}]*line-height:\s*1\.5\s*!important;[^}]*padding-block:\s*0\.08em 0\.12em\s*!important;/s);
+    expect(globalsCss).toMatch(/\[data-language="km"\]\s+\.khmer-safe-display\s*\{[^}]*letter-spacing:\s*0\s*!important;/s);
     expect(globalsCss).toMatch(/\[data-language="km"\]\s+\.khmer-safe-eyebrow,\s*\[data-language="km"\]\s+\.khmer-safe-label\s*\{[^}]*letter-spacing:\s*0\s*!important;[^}]*line-height:\s*1\.45;[^}]*text-transform:\s*none\s*!important;/s);
   });
 

@@ -36,7 +36,12 @@ function readStore(storage: Storage): PersistedSenaDetailPageStore {
   if (!storage || typeof storage.getItem !== 'function') {
     return { entries: {}, entityIndex: {}, fingerprintIndex: {} };
   }
-  const raw = storage.getItem(STORAGE_KEY);
+  let raw: string | null;
+  try {
+    raw = storage.getItem(STORAGE_KEY);
+  } catch {
+    return { entries: {}, entityIndex: {}, fingerprintIndex: {} };
+  }
   if (!raw) {
     return { entries: {}, entityIndex: {}, fingerprintIndex: {} };
   }

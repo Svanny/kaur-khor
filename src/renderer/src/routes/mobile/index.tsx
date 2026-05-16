@@ -4,22 +4,30 @@ import type { SenaObservationInput, SenaObservationRecord, SenaTicketEvent, Sena
 import {
   ActionCreatePackageIcon,
   ActionDatabaseUploadIcon,
+  ActionExplosionIcon,
   ActionExportIcon,
+  ActionOpenFolderIcon,
   ActionOpenExternalIcon,
+  ActionReceiveInventoryIcon,
   ActionResetIcon,
+  ActionSaveIcon,
   ActionSearchIcon,
 } from '@icons/actions';
-import { EntityCustomerIcon, EntityServiceIcon, EntitySkuIcon, EntityTransitIcon } from '@icons/entities';
+import { overviewCustomerFilterIcons, overviewTaskActionIcons, overviewTaskFilterIcons } from '@icons/domain';
+import { EntityCustomerIcon, EntityLayersIcon, EntityPackageSearchIcon, EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon, EntityTagsIcon, EntityTransitIcon } from '@icons/entities';
 import {
   NavigationCatalogIcon,
+  NavigationBackIcon,
   NavigationDashboardIcon,
+  NavigationHistoryIcon,
   NavigationListIcon,
   NavigationSettingsIcon,
   NavigationTaskListIcon,
 } from '@icons/navigation';
-import { StatusInsightIcon, StatusWarningIcon } from '@icons/status';
+import { StatusInsightIcon, StatusReadyIcon, StatusTimingIcon, StatusWarningIcon } from '@icons/status';
+import type { IconComponent } from '@icons';
 import { AppProviders } from '@/App';
-import { CommandPaletteProvider } from '@/components/command-palette';
+import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buildRememberedCatalogHref, buildRememberedInboxHref } from '@/lib/page-state-memory';
@@ -32,7 +40,6 @@ import {
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
   type OverviewTaskAction,
 } from '@/lib/record-update-routes';
 import { activeSenaCatalog, linkedSkuIdsForService, linkedSkusForService, supplierNameForSku } from '@/lib/sena-catalog';
@@ -46,6 +53,7 @@ import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OnboardingRoute } from '@/routes/onboarding';
+import { OverviewTaskDrawer } from '@/routes/overview/task-drawer';
 import {
   buildCustomerOverviewModel,
   type OverviewCustomerTask,
@@ -54,8 +62,12 @@ import {
   buildOverviewModel,
   isOverviewSkuTask,
   isOverviewSupplierTicketTask,
+  supplierTicketTaskForSkuTask,
   type OverviewTask,
+  type OverviewSupplierTicketTask,
 } from '@/routes/overview/view-model';
+import { RecordUpdateHubRoute } from '@/routes/record-update-hub';
+import { StockUpdateSessionRoute } from '@/routes/stock-update-session';
 
 type EmbeddedMode = 'app' | 'demo';
 type PhoneStorage = {
@@ -152,8 +164,10 @@ type PhoneTab = {
   matches: (pathname: string) => boolean;
 };
 
+const PHONE_INSIGHTS_NAV_ENABLED = false;
+
 function phoneTabs(language: ReturnType<typeof usePreferences>['language']): PhoneTab[] {
-  return [
+  const tabs: PhoneTab[] = [
     {
       href: '/',
       icon: NavigationDashboardIcon,
@@ -190,22 +204,129 @@ function phoneTabs(language: ReturnType<typeof usePreferences>['language']): Pho
       matches: (pathname) => pathname.startsWith('/insights'),
     },
   ];
+
+  return PHONE_INSIGHTS_NAV_ENABLED ? tabs : tabs.filter((tab) => tab.id !== 'insights');
 }
 
-const PHONE_CONTENT_BOTTOM_PADDING = 'calc(var(--embedded-phone-bottom-nav-height) + env(safe-area-inset-bottom) + 1rem)';
+function phoneShellHeaderCopy(pathname: string, language: ReturnType<typeof usePreferences>['language'], catalog?: ReturnType<typeof activeSenaCatalog>) {
+  if (pathname === '/') {
+    return {
+      eyebrow: 'KAUR KHOR',
+      title: translateUiLiteral(language, 'Phone operator mode'),
+    };
+  }
+  if (pathname.startsWith('/onboarding')) {
+    return {
+      eyebrow: 'KAUR KHOR',
+      title: translateUiLiteral(language, 'Set up Kaur Khor'),
+    };
+  }
+
+  const captureLane = phoneCaptureLaneForPath(pathname);
+  if (captureLane) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Capture'),
+      title: translateUiLiteral(language, captureLane.title),
+    };
+  }
+  if (pathname.startsWith('/work/capture')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Capture'),
+      title: translateUiLiteral(language, 'Record what changed'),
+    };
+  }
+  if (pathname.startsWith('/work/queue')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Queue'),
+      title: translateUiLiteral(language, 'Work that needs a decision'),
+    };
+  }
+  if (pathname.startsWith('/catalog/skus')) {
+    const skuId = decodePhoneRouteParam(pathname.split('/').filter(Boolean).at(-1));
+    const sku = catalog?.skus.find((candidate) => candidate.skuId === skuId && !candidate.archived);
+    return {
+      eyebrow: translateUiLiteral(language, 'SKU'),
+      title: sku?.name ?? translateUiLiteral(language, 'Offered Selections'),
+    };
+  }
+  if (pathname.startsWith('/catalog/services')) {
+    const serviceId = decodePhoneRouteParam(pathname.split('/').filter(Boolean).at(-1));
+    const service = catalog?.services.find((candidate) => candidate.serviceId === serviceId && !candidate.archived);
+    return {
+      eyebrow: translateUiLiteral(language, 'Service'),
+      title: service?.name ?? translateUiLiteral(language, 'Offered Selections'),
+    };
+  }
+  if (pathname.startsWith('/catalog')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Products'),
+      title: translateUiLiteral(language, 'Offered Selections'),
+    };
+  }
+  if (pathname.startsWith('/settings/history')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Settings'),
+      title: translateUiLiteral(language, 'Update history'),
+    };
+  }
+  if (pathname.startsWith('/settings/help')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Settings'),
+      title: translateUiLiteral(language, 'Settings and help'),
+    };
+  }
+  if (pathname.startsWith('/settings')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Settings'),
+      title: translateUiLiteral(language, 'Configurations'),
+    };
+  }
+  if (pathname.startsWith('/insights/money')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Insights'),
+      title: translateUiLiteral(language, 'Money statement'),
+    };
+  }
+  if (pathname.startsWith('/insights/explain')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Insights'),
+      title: translateUiLiteral(language, 'Explain confidence'),
+    };
+  }
+  if (pathname.startsWith('/insights/inventory')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Insights'),
+      title: translateUiLiteral(language, 'Inventory health'),
+    };
+  }
+  if (pathname.startsWith('/insights')) {
+    return {
+      eyebrow: translateUiLiteral(language, 'Insights'),
+      title: translateUiLiteral(language, 'Choose an operating lens'),
+    };
+  }
+
+  return {
+    eyebrow: translateUiLiteral(language, 'Use a wider view for deep analysis'),
+    title: translateUiLiteral(language, 'Phone operator mode'),
+  };
+}
+
 const phoneFocusClassName = 'focus:outline-none focus:ring-2 focus:ring-ring/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70';
 const phoneSurfaceClassName = 'rounded-[1rem] border border-border/70 bg-card/88 shadow-panel';
 const phoneActionClassName = cn(phoneFocusClassName, 'h-auto min-h-12 w-full justify-start whitespace-normal rounded-[0.8rem] border-border/70 bg-card py-2.5 text-left text-sm shadow-xs');
 
 function PhonePage({
   children,
+  className,
   slot,
 }: {
   children: ReactNode;
+  className?: string;
   slot: string;
 }) {
   return (
-    <div className="grid min-w-0 gap-4" data-slot={slot}>
+    <div className={cn('grid min-w-0 gap-4', className)} data-slot={slot}>
       {children}
     </div>
   );
@@ -219,7 +340,7 @@ function PhonePageHeader({
   title: string;
 }) {
   return (
-    <header className="grid min-w-0 gap-1.5" data-slot="phone-page-header">
+    <header className="sr-only" data-slot="phone-page-header">
       <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary">{eyebrow}</p>
       <h1 className="khmer-safe-display text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground">{title}</h1>
     </header>
@@ -245,16 +366,21 @@ function PhoneSurface({
 function PhoneSection({
   action,
   children,
+  icon,
   title,
 }: {
   action?: ReactNode;
   children: ReactNode;
+  icon?: ReactNode;
   title: string;
 }) {
   return (
     <section className="grid min-w-0 gap-2.5" data-slot="phone-section">
       <div className="flex min-w-0 items-center justify-between gap-3">
-        <h2 className="khmer-safe-label min-w-0 text-base font-semibold text-foreground">{title}</h2>
+        <h2 className="khmer-safe-label flex min-w-0 items-center gap-2 text-base font-semibold text-foreground">
+          {icon ? <span className="shrink-0 text-muted-foreground" data-slot="phone-section-title-icon">{icon}</span> : null}
+          <span className="min-w-0 truncate">{title}</span>
+        </h2>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {children}
@@ -434,16 +560,74 @@ function PhoneWorkspaceErrorBanner() {
 }
 
 function PhoneMetric({
+  icon,
   label,
   value,
 }: {
+  icon?: ReactNode;
   label: string;
   value: ReactNode;
 }) {
   return (
     <div className="min-w-0 rounded-[0.8rem] border border-border/70 bg-card/80 px-3 py-2.5" data-slot="phone-metric">
-      <p className="khmer-safe-eyebrow truncate text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p>
+      <p className="khmer-safe-eyebrow flex min-w-0 items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        {icon ? <span className="shrink-0 text-muted-foreground" data-slot="phone-metric-icon">{icon}</span> : null}
+        <span className="min-w-0 truncate">{label}</span>
+      </p>
       <p className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function PhoneMetricStrip({
+  className,
+  metrics,
+  slot,
+  to,
+}: {
+  className?: string;
+  metrics: Array<{
+    icon?: ReactNode;
+    label: string;
+    value: ReactNode;
+  }>;
+  slot: string;
+  to?: string;
+}) {
+  const content = metrics.map((metric, index) => (
+    <div
+      key={metric.label}
+      className={cn('min-w-0 px-3 py-2.5', index > 0 ? 'border-l border-border/70' : null)}
+      data-slot="phone-metric"
+    >
+      <p className="khmer-safe-eyebrow flex min-w-0 items-center gap-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+        {metric.icon ? <span className="shrink-0 text-muted-foreground" data-slot="phone-metric-icon">{metric.icon}</span> : null}
+        <span className="min-w-0 truncate">{metric.label}</span>
+      </p>
+      <p className="mt-1 truncate text-lg font-semibold leading-tight text-foreground">{metric.value}</p>
+    </div>
+  ));
+  const stripClassName = cn(phoneSurfaceClassName, 'grid min-w-0 grid-cols-3 overflow-hidden bg-card/80 p-0', className);
+
+  if (to) {
+    return (
+      <Link
+        className={cn(
+          phoneFocusClassName,
+          stripClassName,
+          'transition-colors hover:border-accent/60 hover:bg-accent/15 active:border-accent/70 active:bg-accent/30',
+        )}
+        data-slot={slot}
+        to={to}
+      >
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={stripClassName} data-slot={slot}>
+      {content}
     </div>
   );
 }
@@ -532,7 +716,7 @@ function PhoneSegmentedControl<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 rounded-[1rem] border border-border/70 bg-card/90 p-1" data-slot="phone-segmented-control">
+    <div className={cn('grid gap-2 rounded-[1rem] border border-border/70 bg-card/90 p-1', options.length === 3 ? 'grid-cols-3' : 'grid-cols-2')} data-slot="phone-segmented-control">
       {options.map((option) => (
         <button
           key={option.value}
@@ -561,6 +745,7 @@ function PhoneChipRow<T extends string>({
   onChange,
 }: {
   options: Array<{
+    icon?: IconComponent;
     label: string;
     value: T;
   }>;
@@ -568,15 +753,24 @@ function PhoneChipRow<T extends string>({
   value: T;
   onChange: (value: T) => void;
 }) {
+  const collapseLabels = slot === 'phone-products-quick-filter';
+
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" data-slot={slot}>
+    <div
+      className={cn(
+        '-mx-4 flex gap-2 px-4 pb-1',
+        collapseLabels ? 'phone-product-filter-row min-w-0 flex-nowrap' : 'overflow-x-auto',
+      )}
+      data-slot={slot}
+    >
       {options.map((option) => (
         <button
           key={option.value}
           aria-pressed={value === option.value}
           className={cn(
             phoneFocusClassName,
-            'min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold',
+            'flex min-h-10 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold',
+            collapseLabels ? 'phone-product-filter-option justify-center' : null,
             value === option.value
               ? 'border-primary bg-primary text-primary-foreground'
               : 'border-border/70 bg-card text-muted-foreground hover:bg-accent/40',
@@ -584,7 +778,8 @@ function PhoneChipRow<T extends string>({
           type="button"
           onClick={() => onChange(option.value)}
         >
-          {option.label}
+          {option.icon ? <option.icon aria-hidden="true" className="size-4 shrink-0" data-slot="phone-chip-row-icon" /> : null}
+          <span className={collapseLabels ? 'phone-product-filter-label min-w-0 truncate' : undefined} data-slot={collapseLabels ? 'phone-product-filter-label' : undefined}>{option.label}</span>
         </button>
       ))}
     </div>
@@ -624,44 +819,34 @@ const PHONE_CAPTURE_LANES: PhoneCaptureLaneConfig[] = [
     title: 'Stock Count',
   },
   {
-    description: 'Record customer commitments not yet fulfilled.',
-    effect: 'Committed demand changes. Physical stock does not change.',
-    icon: <EntityCustomerIcon data-icon="inline-start" />,
-    id: 'customer-order-pending',
-    path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
-    primaryFieldLabel: 'Committed quantity',
-    reviewCopy: 'Kaur Khor will update the customer pending layer.',
-    title: 'Customer Orders Pending',
+    description: 'Create a supplier ticket or update an existing supplier ticket, including receipts.',
+    effect: 'Committed supply, ETA, cancellation, and receipt state change through one ticket flow.',
+    icon: <ActionCreatePackageIcon data-icon="inline-start" />,
+    id: 'supplier-order-pending',
+    path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+    primaryFieldLabel: 'Ordered quantity',
+    reviewCopy: 'Kaur Khor will update supplier ticket state, queue timing, and receipts.',
+    title: 'Supplier Order',
   },
   {
-    description: 'Record fulfilled customer work and immediate sales.',
+    description: 'Record a same-session sale as realized demand without framing it as order fulfillment.',
     effect: 'Realized customer output changes after confirmation.',
     icon: <EntityServiceIcon data-icon="inline-start" />,
     id: 'customer-order-completed',
     path: RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
     primaryFieldLabel: 'Completed quantity',
     reviewCopy: 'Confirm physical stock impact separately when needed.',
-    title: 'Customer Orders Completed',
+    title: 'Immediate Sale',
   },
   {
-    description: 'Record supplier commitments not yet received.',
-    effect: 'Committed supply changes. On-hand stock does not change.',
-    icon: <ActionCreatePackageIcon data-icon="inline-start" />,
-    id: 'supplier-order-pending',
-    path: RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-    primaryFieldLabel: 'Ordered quantity',
-    reviewCopy: 'Kaur Khor will update supplier pending state and queue timing.',
-    title: 'Supplier Orders Pending',
-  },
-  {
-    description: 'Record goods received and immediate purchases.',
-    effect: 'Realized incoming stock changes after save.',
-    icon: <ActionCreatePackageIcon data-icon="inline-start" />,
-    id: 'supplier-receipt',
-    path: RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
-    primaryFieldLabel: 'Received quantity',
-    reviewCopy: 'Kaur Khor will add received units and refresh queue, Inventory, and Money.',
-    title: 'Supplier Receipts',
+    description: 'Create a ticket-backed customer commitment or update an existing customer ticket.',
+    effect: 'Customer commitments change. Fulfillment happens in Immediate Sale.',
+    icon: <EntityRevenueIcon data-icon="inline-start" />,
+    id: 'customer-order-pending',
+    path: RECORD_UPDATE_CUSTOMER_PENDING_PATH,
+    primaryFieldLabel: 'Committed quantity',
+    reviewCopy: 'Kaur Khor will update the customer ticket layer.',
+    title: 'Customer Order',
   },
 ];
 
@@ -689,12 +874,6 @@ function phoneCaptureModesForLane(laneId: PhoneCaptureLaneId | null | undefined)
       { label: 'New supplier order', value: 'new' },
       { label: 'Edit supplier order', value: 'modify' },
       { label: 'Cancel supplier order', value: 'cancel' },
-    ];
-  }
-  if (laneId === 'supplier-receipt') {
-    return [
-      { label: 'Receive supplier order', value: 'receive' },
-      { label: 'Immediate purchase', value: 'purchase' },
     ];
   }
   return [];
@@ -734,13 +913,13 @@ const PHONE_PRODUCT_TYPE_FILTERS: Array<{ label: string; value: PhoneProductType
   { label: 'Services', value: 'service' },
 ];
 
-const PHONE_PRODUCT_QUICK_FILTERS: Array<{ label: string; value: PhoneProductQuickFilter }> = [
-  { label: 'All', value: 'all' },
-  { label: 'Recent', value: 'recent' },
-  { label: 'Needs count', value: 'needs-count' },
-  { label: 'Low stock', value: 'low-stock' },
-  { label: 'In transit', value: 'in-transit' },
-  { label: 'Blocked services', value: 'blocked-services' },
+const PHONE_PRODUCT_QUICK_FILTERS: Array<{ icon: IconComponent; label: string; value: PhoneProductQuickFilter }> = [
+  { icon: EntityLayersIcon, label: 'All', value: 'all' },
+  { icon: StatusTimingIcon, label: 'Recent', value: 'recent' },
+  { icon: EntityPackageSearchIcon, label: 'Needs count', value: 'needs-count' },
+  { icon: StatusWarningIcon, label: 'Low stock', value: 'low-stock' },
+  { icon: EntityTransitIcon, label: 'In transit', value: 'in-transit' },
+  { icon: EntityServiceIcon, label: 'Blocked services', value: 'blocked-services' },
 ];
 
 function normalizePhoneProductTypeFilter(value: string | null): PhoneProductTypeFilter {
@@ -797,6 +976,19 @@ function phoneHistoryDateLabel(observedAt: string) {
   }).format(date);
 }
 
+function isSamePhoneLocalDay(value: string | null | undefined, reference = new Date()) {
+  if (!value) {
+    return false;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return false;
+  }
+  return date.getFullYear() === reference.getFullYear()
+    && date.getMonth() === reference.getMonth()
+    && date.getDate() === reference.getDate();
+}
+
 function phoneSkuName(catalog: ReturnType<typeof activeSenaCatalog>, skuId: string) {
   return catalog?.skus.find((sku) => sku.skuId === skuId)?.name ?? skuId;
 }
@@ -807,6 +999,83 @@ function phoneServiceName(catalog: ReturnType<typeof activeSenaCatalog>, service
 
 function phoneEntityName(catalog: ReturnType<typeof activeSenaCatalog>, entityType: 'sku' | 'service', entityId: string) {
   return entityType === 'service' ? phoneServiceName(catalog, entityId) : phoneSkuName(catalog, entityId);
+}
+
+function buildPhoneTodayInventoryRows({
+  catalog,
+  inventory,
+}: {
+  catalog: ReturnType<typeof activeSenaCatalog>;
+  inventory: ReturnType<typeof useInventory>;
+}) {
+  if (!catalog) {
+    return [];
+  }
+
+  const currentBySku = new Map<string, number | null>();
+  const summaryBySku = new Map(inventory.workspaceSummary?.skuSummaries.map((summary) => [summary.skuId, summary]) ?? []);
+  for (const sku of catalog.skus) {
+    const latestStock = inventory.recordUpdateContext?.latestStockBySku[sku.skuId]?.value;
+    const summary = summaryBySku.get(sku.skuId);
+    currentBySku.set(sku.skuId, latestStock?.unitsInStock ?? summary?.latestPosteriorUnits ?? null);
+  }
+
+  const unitsInBySku = new Map<string, number>();
+  const unitsOutBySku = new Map<string, number>();
+
+  for (const observation of inventory.observations ?? []) {
+    if (!isSamePhoneLocalDay(observation.input.observedAt)) {
+      continue;
+    }
+
+    for (const signal of observation.input.orderSignals ?? []) {
+      if (signal.receiptArrived) {
+        unitsInBySku.set(
+          signal.skuId,
+          (unitsInBySku.get(signal.skuId) ?? 0) + Math.max(0, signal.approximateReceiptQuantity ?? 0),
+        );
+      }
+    }
+
+    for (const event of observation.input.commercialEvents ?? []) {
+      if (event.stage !== 'realized' || event.quantityDelta <= 0) {
+        continue;
+      }
+      const skuIds = event.entityType === 'sku' ? [event.entityId] : linkedSkuIdsForService(catalog, event.entityId);
+      for (const skuId of skuIds) {
+        unitsOutBySku.set(skuId, (unitsOutBySku.get(skuId) ?? 0) + event.quantityDelta);
+      }
+    }
+  }
+
+  return catalog.skus
+    .filter((sku) => !sku.archived)
+    .map((sku) => {
+      const current = currentBySku.get(sku.skuId) ?? null;
+      const unitsIn = unitsInBySku.get(sku.skuId) ?? 0;
+      const unitsOut = unitsOutBySku.get(sku.skuId) ?? 0;
+      return {
+        current,
+        id: sku.skuId,
+        imagePath: sku.imagePath ?? null,
+        name: sku.name,
+        supplier: supplierNameForSku(sku) ?? '',
+        unitsIn,
+        unitsOut,
+      };
+    })
+    .sort((left, right) => {
+      const leftActivity = left.unitsIn + left.unitsOut;
+      const rightActivity = right.unitsIn + right.unitsOut;
+      if (leftActivity !== rightActivity) {
+        return rightActivity - leftActivity;
+      }
+      if ((left.current == null) !== (right.current == null)) {
+        return left.current == null ? 1 : -1;
+      }
+      return (left.current ?? Number.POSITIVE_INFINITY) - (right.current ?? Number.POSITIVE_INFINITY);
+    })
+    .slice(0, 5);
 }
 
 function buildPhoneHistoryEntries(observations: SenaObservationRecord[], catalog: ReturnType<typeof activeSenaCatalog>) {
@@ -1495,22 +1764,30 @@ function phoneSheetTaskForCustomerTask(task: OverviewCustomerTask): PhoneQueueSh
   };
 }
 
-const PHONE_SUPPLIER_QUEUE_FILTERS: Array<{ label: string; value: PhoneQueueFilter }> = [
-  { label: 'All', value: 'all' },
-  { label: 'To order', value: 'to-order' },
-  { label: 'Waiting', value: 'waiting' },
-  { label: 'Follow up', value: 'follow-up' },
-  { label: 'Receive', value: 'receive' },
-  { label: 'Review', value: 'review' },
+type PhoneQueueFilterOption = {
+  icon: IconComponent;
+  label: string;
+  value: PhoneQueueFilter;
+};
+
+const phoneQueueReviewFilterIcon = overviewTaskActionIcons.review ?? overviewTaskFilterIcons.all;
+
+const PHONE_SUPPLIER_QUEUE_FILTERS: PhoneQueueFilterOption[] = [
+  { icon: overviewTaskFilterIcons.all, label: 'All', value: 'all' },
+  { icon: overviewTaskFilterIcons.to_order, label: 'To order', value: 'to-order' },
+  { icon: overviewTaskFilterIcons.awaiting_receipt, label: 'Waiting', value: 'waiting' },
+  { icon: overviewTaskFilterIcons.follow_up_today, label: 'Follow up', value: 'follow-up' },
+  { icon: overviewTaskFilterIcons.ready_to_receive, label: 'Receive', value: 'receive' },
+  { icon: phoneQueueReviewFilterIcon, label: 'Review', value: 'review' },
 ];
 
-const PHONE_CUSTOMER_QUEUE_FILTERS: Array<{ label: string; value: PhoneQueueFilter }> = [
-  { label: 'All', value: 'all' },
-  { label: 'Review', value: 'review' },
-  { label: 'Quoted', value: 'quoted' },
-  { label: 'Open', value: 'open' },
-  { label: 'Ready', value: 'ready' },
-  { label: 'Closed', value: 'closed' },
+const PHONE_CUSTOMER_QUEUE_FILTERS: PhoneQueueFilterOption[] = [
+  { icon: overviewCustomerFilterIcons.all, label: 'All', value: 'all' },
+  { icon: overviewCustomerFilterIcons.review, label: 'Review', value: 'review' },
+  { icon: overviewCustomerFilterIcons.quoted, label: 'Quoted', value: 'quoted' },
+  { icon: overviewCustomerFilterIcons.open, label: 'Open', value: 'open' },
+  { icon: StatusReadyIcon, label: 'Ready', value: 'ready' },
+  { icon: overviewCustomerFilterIcons.closed, label: 'Closed', value: 'closed' },
 ];
 
 function normalizePhoneQueueFilter(value: string | null, scope: PhoneQueueScope): PhoneQueueFilter {
@@ -1721,7 +1998,7 @@ function PhoneBottomSheet({
       aria-describedby={description ? descriptionId : undefined}
       aria-labelledby={titleId}
       aria-modal="true"
-      className="fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-[1.25rem] border border-border/80 bg-background px-4 pt-4 pb-[max(env(safe-area-inset-bottom),1rem)] shadow-[0_-18px_50px_rgba(27,15,7,0.22)]"
+      className="fixed inset-x-0 bottom-0 z-50 max-h-[82dvh] overflow-y-auto rounded-t-[1.25rem] border border-border/80 bg-background px-4 pt-4 pb-[max(env(safe-area-inset-bottom),1rem)] shadow-[0_-18px_50px_rgba(27,15,7,0.22)] motion-safe:animate-in motion-safe:slide-in-from-bottom motion-safe:fade-in-0 motion-safe:duration-300 motion-safe:ease-out"
       data-slot={slot}
       role="dialog"
     >
@@ -1956,7 +2233,6 @@ function PhoneTodayRoute({
   const inventory = useInventory();
   const { language } = usePreferences();
   const { customer, supplier } = usePhoneModels();
-  const [selectedTodayTask, setSelectedTodayTask] = useState<PhoneQueueSheetTask | null>(null);
   const [selectedOutcome, setSelectedOutcome] = useState<PhoneHistoryEntry | null>(null);
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const productCount = (catalog?.skus.filter((sku) => !sku.archived).length ?? 0)
@@ -1968,13 +2244,16 @@ function PhoneTodayRoute({
   );
   const topSupplierTask = supplier.tasks[0] ?? null;
   const topCustomerTask = customer.tasks[0] ?? null;
-  const topSheetTask = topSupplierTask
-    ? phoneSheetTaskForSupplierTask(topSupplierTask, supplier.tasks)
-    : topCustomerTask
-      ? phoneSheetTaskForCustomerTask(topCustomerTask)
-      : null;
   const hasCatalogItems = productCount > 0;
-  const nextHref = !hasCatalogItems ? '/catalog' : topSupplierTask ? phoneSupplierTaskHref(topSupplierTask) : topCustomerTask?.href ?? RECORD_UPDATE_HUB_PATH;
+  const todayInventoryRows = useMemo(
+    () => buildPhoneTodayInventoryRows({ catalog, inventory }),
+    [catalog, inventory],
+  );
+  const nextHref = !hasCatalogItems
+    ? '/catalog'
+    : topSupplierTask
+      ? `/work/queue?task=${encodeURIComponent(topSupplierTask.id)}`
+      : topCustomerTask?.href ?? RECORD_UPDATE_HUB_PATH;
   const nextLabel =
     !hasCatalogItems
       ? translateUiLiteral(language, 'Start with products')
@@ -1991,8 +2270,6 @@ function PhoneTodayRoute({
     () => buildPhoneHistoryEntries(latestObservation ? [latestObservation] : [], catalog)[0] ?? null,
     [catalog, latestObservation],
   );
-  const shouldShowSafetyAlert = storage.status !== 'ready' || !storage.lastBackupAt;
-
   if (inventory.isLoading && !inventory.catalog) {
     return (
       <PhonePage slot="phone-today-page">
@@ -2022,120 +2299,93 @@ function PhoneTodayRoute({
             ? translateUiLiteral(language, 'Create your first SKU or service so Kaur Khor can build today’s work.')
             : topSupplierTask?.whyNow ?? topCustomerTask?.whyNow ?? translateUiLiteral(language, updateCount > 0 ? 'No urgent work right now. Capture the next stock, supplier, or customer change when it happens.' : 'Capture your first update. Record what is physically on hand so Kaur Khor can build the queue.')}
         </p>
-        {topSheetTask ? (
-          <Button className={cn(phoneFocusClassName, 'min-h-12 w-full justify-center rounded-[0.8rem] bg-primary text-primary-foreground hover:bg-primary/90')} data-slot="phone-primary-action" type="button" onClick={() => setSelectedTodayTask(topSheetTask)}>
+        <Button asChild className={cn(phoneFocusClassName, 'min-h-12 w-full justify-center rounded-[0.8rem] bg-primary text-primary-foreground hover:bg-primary/90')} data-slot="phone-primary-action">
+          <Link to={nextHref}>
             <ActionOpenExternalIcon data-icon="inline-start" />
             <span className="min-w-0 whitespace-normal leading-5">{nextAction}</span>
-          </Button>
-        ) : (
-          <Button asChild className={cn(phoneFocusClassName, 'min-h-12 w-full justify-center rounded-[0.8rem] bg-primary text-primary-foreground hover:bg-primary/90')} data-slot="phone-primary-action">
-            <Link to={nextHref}>
-              <ActionOpenExternalIcon data-icon="inline-start" />
-              <span className="min-w-0 whitespace-normal leading-5">{nextAction}</span>
-            </Link>
-          </Button>
-        )}
+          </Link>
+        </Button>
       </PhoneSurface>
 
-      <div className="grid min-w-0 grid-cols-3 gap-2" data-slot="phone-metric-strip">
-        <PhoneMetric label={translateUiLiteral(language, 'Queue')} value={supplier.tasks.length + customer.tasks.length} />
-        <PhoneMetric label={translateUiLiteral(language, 'Supplier')} value={supplier.tasks.length} />
-        <PhoneMetric label={translateUiLiteral(language, 'Customer')} value={customer.tasks.length} />
-      </div>
+      <PhoneMetricStrip
+        slot="phone-metric-strip"
+        to={buildRememberedInboxHref()}
+        metrics={[
+          {
+            icon: <NavigationTaskListIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Queue'),
+            value: supplier.tasks.length + customer.tasks.length,
+          },
+          {
+            icon: <EntityTransitIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Supplier'),
+            value: supplier.tasks.length,
+          },
+          {
+            icon: <EntityCustomerIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Customer'),
+            value: customer.tasks.length,
+          },
+        ]}
+      />
+
+      <PhoneSection title={translateUiLiteral(language, 'Inventory today')}>
+        {todayInventoryRows.length > 0 ? (
+          <div className={cn(phoneSurfaceClassName, 'overflow-hidden p-0')} data-slot="phone-today-inventory-table">
+            <div className="grid grid-cols-[minmax(0,1fr)_4.25rem_4rem_4rem] border-b border-border/60 px-3 py-2 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              <span className="min-w-0">{translateUiLiteral(language, 'Item')}</span>
+              <span className="text-center">{translateUiLiteral(language, 'Current')}</span>
+              <span className="text-center">{translateUiLiteral(language, 'In')}</span>
+              <span className="text-center">{translateUiLiteral(language, 'Out')}</span>
+            </div>
+            <div className="divide-y divide-border/55">
+              {todayInventoryRows.map((row) => (
+                <Link
+                  key={row.id}
+                  className={cn(phoneFocusClassName, 'grid grid-cols-[minmax(0,1fr)_4.25rem_4rem_4rem] items-center px-3 py-2.5 text-sm hover:bg-accent/30')}
+                  to={`/catalog/skus/${encodeURIComponent(row.id)}`}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <ItemAvatar
+                      className="size-9 rounded-[0.7rem]"
+                      imagePath={row.imagePath}
+                      name={row.name}
+                      size="compact"
+                      type="sku"
+                    />
+                    <span className="min-w-0">
+                      <span className="khmer-safe-label block truncate font-semibold text-foreground">{row.name}</span>
+                      {row.supplier ? <span className="block truncate text-xs text-muted-foreground">{row.supplier}</span> : null}
+                    </span>
+                  </span>
+                  <span className="text-center font-semibold tabular-nums text-foreground">{row.current == null ? '—' : row.current}</span>
+                  <span className="text-center tabular-nums text-emerald-700">{row.unitsIn}</span>
+                  <span className="text-center tabular-nums text-destructive">{row.unitsOut}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <PhoneEmptyState>
+            {translateUiLiteral(language, 'Record stock, receipt, or sale activity to fill today’s inventory flow.')}
+          </PhoneEmptyState>
+        )}
+      </PhoneSection>
 
       <PhoneSection title={translateUiLiteral(language, 'Quick record')}>
         {hasCatalogItems ? (
           <div className="grid grid-cols-2 gap-2">
-            <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={RECORD_UPDATE_STOCK_COUNT_PATH}>
-              {translateUiLiteral(language, 'Stock Count')}
-            </PhoneActionRow>
-            <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit`}>
-              {translateUiLiteral(language, 'Supplier Receipts')}
-            </PhoneActionRow>
-            <PhoneActionRow icon={<EntityServiceIcon data-icon="inline-start" />} to={`${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?ticketMode=new`}>
-              {translateUiLiteral(language, 'Customer Orders Completed')}
-            </PhoneActionRow>
-            <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`}>
-              {translateUiLiteral(language, 'Supplier Orders Pending')}
-            </PhoneActionRow>
+            {PHONE_CAPTURE_LANES.map((lane) => (
+              <PhoneActionRow key={lane.id} icon={lane.icon} to={phoneCaptureLaneHubHref(lane)}>
+                {translateUiLiteral(language, lane.title)}
+              </PhoneActionRow>
+            ))}
           </div>
         ) : (
           <PhoneEmptyState>
             {translateUiLiteral(language, 'Create a SKU or service before recording updates.')}
           </PhoneEmptyState>
         )}
-      </PhoneSection>
-
-      <div className="grid min-w-0 grid-cols-2 gap-2" data-slot="phone-secondary-metric-strip">
-        <PhoneMetric label={translateUiLiteral(language, 'Products')} value={productCount} />
-        <PhoneMetric label={translateUiLiteral(language, 'Updates')} value={updateCount} />
-      </div>
-
-      <PhoneSection
-        title={translateUiLiteral(language, 'Fast paths')}
-        action={
-          <Link
-            className={cn(phoneFocusClassName, 'inline-flex min-h-11 items-center rounded-[0.8rem] px-3 text-sm font-medium text-primary hover:bg-accent/30')}
-            to={buildRememberedInboxHref()}
-          >
-            {translateUiLiteral(language, 'Queue')}
-          </Link>
-        }
-      >
-        <div className="grid gap-2">
-          <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={RECORD_UPDATE_HUB_PATH}>
-            {translateUiLiteral(language, 'Capture update')}
-          </PhoneActionRow>
-          <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={buildRememberedCatalogHref()}>
-            {translateUiLiteral(language, 'Open products')}
-          </PhoneActionRow>
-        </div>
-      </PhoneSection>
-
-      <PhoneSection title={translateUiLiteral(language, 'Supplier work')}>
-        <div className="grid gap-3">
-          {supplier.tasks.length > 0 ? (
-            supplier.tasks.slice(0, 3).map((task) => (
-              <PhoneTaskCard
-                key={task.id}
-                actionLabel={task.actionLabel}
-                detail={task.whyNow}
-                href={phoneSupplierTaskHref(task)}
-                label={isOverviewSupplierTicketTask(task) ? task.skuSummaryLabel : isOverviewSkuTask(task) ? task.skuName : task.stateLabel}
-                meta={task.stateLabel}
-                onSelect={() => setSelectedTodayTask(phoneSheetTaskForSupplierTask(task, supplier.tasks))}
-                tone={task.statusTone}
-              />
-            ))
-          ) : (
-            <PhoneEmptyState>
-              {translateUiLiteral(language, 'No supplier work needs action right now.')}
-            </PhoneEmptyState>
-          )}
-        </div>
-      </PhoneSection>
-
-      <PhoneSection title={translateUiLiteral(language, 'Customer work')}>
-        <div className="grid gap-3">
-          {customer.tasks.length > 0 ? (
-            customer.tasks.slice(0, 3).map((task) => (
-              <PhoneTaskCard
-                key={task.id}
-                actionLabel={task.actionLabel}
-                detail={task.whyNow}
-                href={task.href}
-                label={task.label}
-                meta={task.requestSummary}
-                onSelect={() => setSelectedTodayTask(phoneSheetTaskForCustomerTask(task))}
-                tone={task.stateBadgeTone}
-              />
-            ))
-          ) : (
-            <PhoneEmptyState>
-              {translateUiLiteral(language, 'No customer work needs action right now.')}
-            </PhoneEmptyState>
-          )}
-        </div>
       </PhoneSection>
 
       {latestObservation || updateCount > 0 ? (
@@ -2164,24 +2414,6 @@ function PhoneTodayRoute({
         </PhoneSection>
       ) : null}
 
-      {shouldShowSafetyAlert ? (
-        <PhoneSection title={translateUiLiteral(language, 'Workspace safety')}>
-          <PhoneSurface className="grid gap-3" slot="phone-workspace-safety-alert">
-            <p className="text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(
-                language,
-                storage.status === 'ready'
-                  ? 'Export a backup before clearing browser data or changing profiles.'
-                  : 'Workspace safety needs attention. Open safety to review backup or storage status.',
-              )}
-            </p>
-            <PhoneActionRow icon={<NavigationSettingsIcon data-icon="inline-start" />} to="/settings">
-              {translateUiLiteral(language, 'Open safety')}
-            </PhoneActionRow>
-          </PhoneSurface>
-        </PhoneSection>
-      ) : null}
-      {selectedTodayTask ? <PhoneQueueTaskSheet task={selectedTodayTask} onClose={() => setSelectedTodayTask(null)} /> : null}
       {selectedOutcome ? (
         <PhoneBottomSheet
           description={`${selectedOutcome.entity} · ${selectedOutcome.time}`}
@@ -2220,6 +2452,7 @@ function PhoneTodayRoute({
 function PhoneQueueRoute() {
   const { language } = usePreferences();
   const inventory = useInventory();
+  const navigate = useNavigate();
   const { customer, supplier } = usePhoneModels();
   const [searchParams, setSearchParams] = useSearchParams();
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
@@ -2281,10 +2514,16 @@ function PhoneQueueRoute() {
       ? supplier.tasks.find((task) => task.id === selectedTaskId)
       : customer.tasks.find((task) => task.id === selectedTaskId)
     : null;
-  const selectedSheetTask = selectedTask
-    ? scope === 'supplier'
-      ? phoneSheetTaskForSupplierTask(selectedTask as OverviewTask, supplier.tasks)
-      : phoneSheetTaskForCustomerTask(selectedTask as OverviewCustomerTask)
+  const selectedDrawerTask: OverviewSupplierTicketTask | null = selectedTask && scope === 'supplier'
+    ? isOverviewSupplierTicketTask(selectedTask as OverviewTask)
+      ? selectedTask as OverviewSupplierTicketTask
+      : isOverviewSkuTask(selectedTask as OverviewTask)
+        ? supplierTicketTaskForSkuTask({
+            latestObservedAt: inventory.workspaceSummary?.latestObservedAt,
+            task: selectedTask as Extract<OverviewTask, { kind: 'sku' }>,
+            translate: (value) => translateUiLiteral(language, value),
+          })
+        : null
     : null;
   const openTaskSheet = (taskId: string) => {
     const params = new URLSearchParams(searchParams);
@@ -2345,50 +2584,76 @@ function PhoneQueueRoute() {
           onChange={(event) => updateQueueState({ q: event.target.value })}
         />
       </label>
-      <div className="grid min-w-0 grid-cols-3 gap-2" data-slot="phone-queue-summary-strip">
-        <PhoneMetric label={translateUiLiteral(language, 'Supplier')} value={scope === 'supplier' ? supplierTasks.length : supplierSearchTasks.length} />
-        <PhoneMetric label={translateUiLiteral(language, 'Customer')} value={scope === 'customer' ? customerTasks.length : customerSearchTasks.length} />
-        <PhoneMetric label={translateUiLiteral(language, 'Showing')} value={tasks.length} />
-      </div>
-      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" data-slot="phone-queue-filter-row">
-        {activeFilters.map((option) => (
-          <button
-            key={option.value}
-            aria-pressed={filter === option.value}
-            className={cn(
-              phoneFocusClassName,
-              'min-h-10 shrink-0 rounded-full border px-3 text-sm font-semibold',
-              filter === option.value
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border/70 bg-card text-muted-foreground hover:bg-accent/40',
-            )}
-            type="button"
-            onClick={() => updateQueueState({ filter: option.value })}
-          >
-            {translateUiLiteral(language, option.label)}
-          </button>
-        ))}
+      <PhoneMetricStrip
+        slot="phone-queue-summary-strip"
+        metrics={[
+          {
+            icon: <EntityTransitIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Supplier'),
+            value: scope === 'supplier' ? supplierTasks.length : supplierSearchTasks.length,
+          },
+          {
+            icon: <EntityCustomerIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Customer'),
+            value: scope === 'customer' ? customerTasks.length : customerSearchTasks.length,
+          },
+          {
+            icon: <NavigationListIcon aria-hidden="true" className="size-3.5" />,
+            label: translateUiLiteral(language, 'Showing'),
+            value: tasks.length,
+          },
+        ]}
+      />
+      <div className="phone-queue-filter-row -mx-4 flex min-w-0 flex-nowrap gap-2 px-4 pb-1" data-slot="phone-queue-filter-row">
+        {activeFilters.map((option) => {
+          const Icon = option.icon;
+          const label = translateUiLiteral(language, option.label);
+          return (
+            <button
+              key={option.value}
+              aria-label={label}
+              aria-pressed={filter === option.value}
+              className={cn(
+                phoneFocusClassName,
+                'phone-queue-filter-option flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-sm font-semibold',
+                filter === option.value
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border/70 bg-card text-muted-foreground hover:bg-accent/40',
+              )}
+              type="button"
+              onClick={() => updateQueueState({ filter: option.value })}
+            >
+              <Icon aria-hidden="true" className="phone-queue-filter-icon size-4 shrink-0" data-slot="phone-queue-filter-icon" />
+              <span className="phone-queue-filter-label min-w-0 truncate" data-slot="phone-queue-filter-label">{label}</span>
+            </button>
+          );
+        })}
       </div>
       <div className="grid gap-3">
-        {tasks.length > 0 ? tasks.slice(0, 12).map((task) => (
-          scope === 'supplier' ? (
+        {tasks.length > 0 ? tasks.slice(0, 12).map((task) => {
+          if (scope === 'supplier') {
+            const supplierTask = task as OverviewTask;
+            const canOpenDrawer = isOverviewSupplierTicketTask(supplierTask) || isOverviewSkuTask(supplierTask);
+            return (
             <PhoneTaskCard
-              key={(task as OverviewTask).id}
-              actionLabel={(task as OverviewTask).actionLabel}
-              detail={phoneSupplierTaskDetail(task as OverviewTask, language)}
-              href={phoneSupplierTaskHref(task as OverviewTask)}
+              key={supplierTask.id}
+              actionLabel={translateUiLiteral(language, 'Record now')}
+              detail={phoneSupplierTaskDetail(supplierTask, language)}
+              href={phoneSupplierTaskHref(supplierTask)}
               label={
-                isOverviewSupplierTicketTask(task as OverviewTask)
-                  ? (task as Extract<OverviewTask, { kind: 'supplier_ticket' }>).skuSummaryLabel
-                  : isOverviewSkuTask(task as OverviewTask)
-                    ? (task as Extract<OverviewTask, { kind: 'sku' }>).skuName
-                    : (task as OverviewTask).stateLabel
+                isOverviewSupplierTicketTask(supplierTask)
+                  ? supplierTask.skuSummaryLabel
+                  : isOverviewSkuTask(supplierTask)
+                    ? supplierTask.skuName
+                    : supplierTask.stateLabel
               }
-              meta={phoneSupplierTaskMeta(task as OverviewTask, language)}
-              onSelect={() => openTaskSheet((task as OverviewTask).id)}
-              tone={(task as OverviewTask).statusTone}
+              meta={phoneSupplierTaskMeta(supplierTask, language)}
+              onSelect={canOpenDrawer ? () => openTaskSheet(supplierTask.id) : undefined}
+              tone={supplierTask.statusTone}
             />
-          ) : (
+            );
+          }
+          return (
             <PhoneTaskCard
               key={(task as OverviewCustomerTask).id}
               actionLabel={(task as OverviewCustomerTask).actionLabel}
@@ -2396,11 +2661,11 @@ function PhoneQueueRoute() {
               href={(task as OverviewCustomerTask).href}
               label={(task as OverviewCustomerTask).label}
               meta={phoneCustomerTaskMeta(task as OverviewCustomerTask)}
-              onSelect={() => openTaskSheet((task as OverviewCustomerTask).id)}
+              onSelect={() => navigate((task as OverviewCustomerTask).href)}
               tone={(task as OverviewCustomerTask).stateBadgeTone}
             />
-          )
-        )) : (
+          );
+        }) : (
           <PhoneSurface className="grid gap-3 text-center" slot="phone-queue-empty-state">
             <p className="text-sm leading-6 text-muted-foreground">
               {translateUiLiteral(language, !hasCatalogItems
@@ -2427,12 +2692,34 @@ function PhoneQueueRoute() {
           </PhoneSurface>
         )}
       </div>
-      {selectedSheetTask ? <PhoneQueueTaskSheet task={selectedSheetTask} onClose={closeTaskSheet} /> : null}
+      <OverviewTaskDrawer
+        open={selectedDrawerTask != null}
+        presentation="bottom"
+        task={selectedDrawerTask}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeTaskSheet();
+          }
+        }}
+      />
     </PhonePage>
   );
 }
 
 function PhoneCaptureRoute() {
+  const location = useLocation();
+  if (location.pathname === RECORD_UPDATE_HUB_PATH) {
+    return (
+      <PhonePage className="min-h-full content-center" slot="phone-capture-page">
+        <PhonePageHeader eyebrow="Capture" title="Record what changed" />
+        <RecordUpdateHubRoute embedded />
+      </PhonePage>
+    );
+  }
+  return <StockUpdateSessionRoute />;
+}
+
+function PhoneLegacyCaptureRoute() {
   const inventory = useInventory();
   const automation = useAutomation();
   const { language } = usePreferences();
@@ -2905,7 +3192,7 @@ function PhoneCaptureRoute() {
     return (
       <PhonePage slot="phone-capture-page">
         {pendingNavigationTarget ? (
-          <div className="fixed inset-0 z-50 grid place-items-end bg-foreground/30 px-4 pb-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-capture-leave-confirmation">
+          <div className="fixed inset-0 z-50 grid place-items-center bg-foreground/30 px-4 py-[max(env(safe-area-inset-bottom),1rem)]" data-slot="phone-capture-leave-confirmation">
             <PhoneSurface className="grid w-full max-w-[28rem] gap-3 px-4 py-4">
               <div>
                 <p className="text-base font-semibold text-foreground">
@@ -3368,11 +3655,6 @@ function PhoneCaptureRoute() {
           </>
         )}
       </PhoneSurface>
-      {hasCatalogItems ? (
-        <PhoneEmptyState>
-          {translateUiLiteral(language, 'Phone capture keeps entry fast. Use the queue to update existing tickets or a wider view for custom multi-lane updates.')}
-        </PhoneEmptyState>
-      ) : null}
     </PhonePage>
   );
 }
@@ -3521,7 +3803,7 @@ function PhoneProductsRoute() {
       <PhonePage slot="phone-products-page">
         <PhonePageHeader
           eyebrow={translateUiLiteral(language, 'Products')}
-          title={translateUiLiteral(language, 'Look up a sellable')}
+          title={translateUiLiteral(language, 'Offered Selections')}
         />
         <PhoneLoadingState
           title={translateUiLiteral(language, 'Loading products…')}
@@ -3535,8 +3817,31 @@ function PhoneProductsRoute() {
     <PhonePage slot="phone-products-page">
       <PhonePageHeader
         eyebrow={translateUiLiteral(language, 'Products')}
-        title={translateUiLiteral(language, 'Look up a sellable')}
+        title={translateUiLiteral(language, 'Offered Selections')}
       />
+      <div data-slot="phone-products-type-filter">
+        <PhoneSegmentedControl
+          value={typeFilter}
+          options={[
+            {
+              icon: <EntityLayersIcon aria-hidden="true" className="size-4" data-icon="inline-start" />,
+              label: translateUiLiteral(language, 'All'),
+              value: 'all',
+            },
+            {
+              icon: <EntitySkuIcon aria-hidden="true" className="size-4" data-icon="inline-start" />,
+              label: translateUiLiteral(language, 'SKUs'),
+              value: 'sku',
+            },
+            {
+              icon: <EntityServiceIcon aria-hidden="true" className="size-4" data-icon="inline-start" />,
+              label: translateUiLiteral(language, 'Services'),
+              value: 'service',
+            },
+          ]}
+          onChange={(value: PhoneProductTypeFilter) => updateProductsParam('type', value, 'all')}
+        />
+      </div>
       <label className="relative block">
         <ActionSearchIcon aria-hidden="true" className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -3558,18 +3863,10 @@ function PhoneProductsRoute() {
         />
       </label>
       <PhoneChipRow
-        slot="phone-products-type-filter"
-        value={typeFilter}
-        options={PHONE_PRODUCT_TYPE_FILTERS.map((option) => ({
-          label: translateUiLiteral(language, option.label),
-          value: option.value,
-        }))}
-        onChange={(value) => updateProductsParam('type', value, 'all')}
-      />
-      <PhoneChipRow
         slot="phone-products-quick-filter"
         value={quickFilter}
         options={PHONE_PRODUCT_QUICK_FILTERS.map((option) => ({
+          icon: option.icon,
           label: translateUiLiteral(language, option.label),
           value: option.value,
         }))}
@@ -3599,14 +3896,6 @@ function PhoneProductsRoute() {
                 </span>
                 <span className="line-clamp-2 text-sm leading-5 text-muted-foreground">{item.detail}</span>
               </Link>
-              <Button
-                className="min-h-11 rounded-[0.8rem]"
-                type="button"
-                variant="outline"
-                onClick={() => updateProductsParam('action', item.id, '')}
-              >
-                {translateUiLiteral(language, 'Actions')}
-              </Button>
             </div>
           );
         }) : (
@@ -3641,17 +3930,7 @@ function PhoneProductsRoute() {
                   targetId: selectedAction.sku.skuId,
                   targetType: 'sku',
                 })}>
-                  {translateUiLiteral(language, 'Supplier Orders Pending')}
-                </PhoneActionRow>
-                <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit`, {
-                  breadcrumb: `Opened from Products · Search "${query}"`,
-                  returnTo: `/catalog?${searchParams.toString()}`,
-                  source: 'products',
-                  supplierName: selectedAction.supplierName,
-                  targetId: selectedAction.sku.skuId,
-                  targetType: 'sku',
-                })}>
-                  {translateUiLiteral(language, 'Supplier Receipts')}
+                  {translateUiLiteral(language, 'Supplier Order')}
                 </PhoneActionRow>
                 <PhoneActionRow icon={<NavigationListIcon data-icon="inline-start" />} to={phoneHrefWithReturnTo(`/insights/inventory?scope=stock`, `/catalog?${searchParams.toString()}`)}>
                   {translateUiLiteral(language, 'Open Inventory row')}
@@ -3791,7 +4070,6 @@ function PhoneSkuDetailRoute() {
   const { currency, language, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [activeSection, setActiveSection] = useState('summary');
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const decodedSkuId = decodePhoneRouteParam(skuId);
   const sku = catalog?.skus.find((candidate) => candidate.skuId === decodedSkuId && !candidate.archived) ?? null;
@@ -3870,71 +4148,34 @@ function PhoneSkuDetailRoute() {
           </p>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">{sku.description}</p>
-        <PhoneChipRow
-          slot="phone-detail-section-tabs"
-          value={activeSection}
-          options={[
-            { label: translateUiLiteral(language, 'Summary'), value: 'summary' },
-            { label: translateUiLiteral(language, 'Pipeline'), value: 'pipeline' },
-            { label: translateUiLiteral(language, 'Services'), value: 'services' },
-            { label: translateUiLiteral(language, 'Evidence'), value: 'evidence' },
-            { label: translateUiLiteral(language, 'Ledger'), value: 'ledger' },
-          ]}
-          onChange={setActiveSection}
-        />
-        <div className="grid grid-cols-2 gap-2" data-slot="phone-detail-metric-strip">
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'On hand')}
-            value={likelyOnHand == null ? translateUiLiteral(language, 'Unknown') : likelyOnHand}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'In transit')}
-            value={inboundUnits && inboundUnits > 0 ? inboundUnits : translateUiLiteral(language, 'None')}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Freshness')}
-            value={freshness}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Supplier')}
-            value={supplierNameForSku(sku) ?? translateUiLiteral(language, 'Unknown')}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Product price')}
-            value={sku.soldAsProduct && sku.productPrice != null
-              ? formatCurrency(sku.productPrice, currency, language, usdToKhrExchangeRate)
-              : translateUiLiteral(language, 'Not sold directly')}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Supplier cost per unit')}
-            value={formatCurrency(sku.costPerUnit, currency, language, usdToKhrExchangeRate)}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Lead time')}
-            value={sku.leadTimeMeanDaysHint == null
-              ? translateUiLiteral(language, 'Unknown')
-              : translateUiLiteral(language, '{count} days', { count: sku.leadTimeMeanDaysHint })}
-          />
+        <div className="divide-y divide-border/60 rounded-[0.9rem] border border-border/70 bg-background/55" data-slot="phone-detail-metric-strip">
+          {[
+            [translateUiLiteral(language, 'On hand'), likelyOnHand == null ? translateUiLiteral(language, 'Unknown') : likelyOnHand],
+            [translateUiLiteral(language, 'In transit'), inboundUnits && inboundUnits > 0 ? inboundUnits : translateUiLiteral(language, 'None')],
+            [translateUiLiteral(language, 'Freshness'), freshness],
+            [translateUiLiteral(language, 'Supplier'), supplierNameForSku(sku) ?? translateUiLiteral(language, 'Unknown')],
+            [
+              translateUiLiteral(language, 'Product price'),
+              sku.soldAsProduct && sku.productPrice != null
+                ? formatCurrency(sku.productPrice, currency, language, usdToKhrExchangeRate)
+                : translateUiLiteral(language, 'Not sold directly'),
+            ],
+            [translateUiLiteral(language, 'Supplier cost per unit'), formatCurrency(sku.costPerUnit, currency, language, usdToKhrExchangeRate)],
+            [
+              translateUiLiteral(language, 'Lead time'),
+              sku.leadTimeMeanDaysHint == null
+                ? translateUiLiteral(language, 'Unknown')
+                : translateUiLiteral(language, '{count} days', { count: sku.leadTimeMeanDaysHint }),
+            ],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-3 px-3 py-2.5">
+              <span className="min-w-0 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+              <span className="khmer-safe-label min-w-0 truncate text-right text-sm font-semibold text-foreground">{value}</span>
+            </div>
+          ))}
         </div>
       </PhoneSurface>
-      <PhoneDetailRefresh onRefresh={async () => {
-        await inventory.loadSenaSkuDetail(sku.skuId, { strategy: 'network-only' });
-      }} />
-      {activeSection === 'pipeline' ? <PhoneSection title={translateUiLiteral(language, 'Pipeline')}>
-        <PhoneSurface className="grid gap-2" slot="phone-sku-pipeline-section">
-          <p className="text-sm font-semibold text-foreground">
-            {supplierNameForSku(sku) ?? translateUiLiteral(language, 'No supplier')}
-          </p>
-          <p className="text-sm leading-6 text-muted-foreground">
-            {inboundUnits && inboundUnits > 0
-              ? translateUiLiteral(language, '{count} inbound units are attached to the latest supplier pipeline evidence.', { count: inboundUnits })
-              : sku.leadTimeMeanDaysHint == null
-                ? translateUiLiteral(language, 'No lead-time hint is set. Use Supplier Orders Pending or Supplier Receipts to refresh the pipeline.')
-                : translateUiLiteral(language, 'Lead-time hint is {count} days. Use supplier actions to keep pending and received stock current.', { count: sku.leadTimeMeanDaysHint })}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      {activeSection === 'services' ? <PhoneSection title={translateUiLiteral(language, 'Services')}>
+      <PhoneSection title={translateUiLiteral(language, 'Linked services')}>
         <div className="grid gap-2" data-slot="phone-sku-services-section">
           {linkedServices.length > 0 ? linkedServices.map((service) => (
             <PhoneListItem
@@ -3950,41 +4191,23 @@ function PhoneSkuDetailRoute() {
             </PhoneEmptyState>
           )}
         </div>
-      </PhoneSection> : null}
-      {activeSection === 'evidence' ? <PhoneSection title={translateUiLiteral(language, 'Evidence')}>
-        <PhoneSurface className="grid gap-2" slot="phone-sku-evidence-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Use Stock Count for physical truth, Supplier Orders Pending for committed supply, and Supplier Receipts for realized incoming stock.')} {translateUiLiteral(language, 'Latest count status')}: {freshness}.
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      {activeSection === 'ledger' ? <PhoneSection title={translateUiLiteral(language, 'Ledger')}>
-        <PhoneSurface className="grid gap-2" slot="phone-sku-ledger-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Recent stock trend')}: {likelyOnHand == null ? translateUiLiteral(language, 'No count yet') : translateUiLiteral(language, '{count} units now', { count: likelyOnHand })}. {translateUiLiteral(language, 'Use a wider view for expanded charts and ledger repair.')}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      <div className="grid gap-2" data-slot="phone-product-actions">
-        <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, detailContext)}>
-          {translateUiLiteral(language, 'Stock Count')}
-        </PhoneActionRow>
-        <PhoneActionRow
-          icon={<ActionCreatePackageIcon data-icon="inline-start" />}
-          to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`, {
-            ...detailContext,
-            quantitySuggestion: null,
-          })}
-        >
-          {translateUiLiteral(language, 'Supplier Orders Pending')}
-        </PhoneActionRow>
-        <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit`, detailContext)}>
-          {translateUiLiteral(language, 'Supplier Receipts')}
-        </PhoneActionRow>
-        <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={productsHref}>
-          {translateUiLiteral(language, 'Back to products')}
-        </PhoneActionRow>
-      </div>
+      </PhoneSection>
+      <PhoneSection title={translateUiLiteral(language, 'Actions')}>
+        <div className="grid gap-2" data-slot="phone-product-actions">
+          <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, detailContext)}>
+            {translateUiLiteral(language, 'Stock Count')}
+          </PhoneActionRow>
+          <PhoneActionRow
+            icon={<ActionCreatePackageIcon data-icon="inline-start" />}
+            to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?ticketMode=new`, {
+              ...detailContext,
+              quantitySuggestion: null,
+            })}
+          >
+            {translateUiLiteral(language, 'Supplier Order')}
+          </PhoneActionRow>
+        </div>
+      </PhoneSection>
     </PhonePage>
   );
 }
@@ -3995,7 +4218,6 @@ function PhoneServiceDetailRoute() {
   const { currency, language, usdToKhrExchangeRate } = usePreferences();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const [activeSection, setActiveSection] = useState('summary');
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const decodedServiceId = decodePhoneRouteParam(serviceId);
   const service = catalog?.services.find((candidate) => candidate.serviceId === decodedServiceId && !candidate.archived) ?? null;
@@ -4080,46 +4302,22 @@ function PhoneServiceDetailRoute() {
           </p>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">{service.description}</p>
-        <PhoneChipRow
-          slot="phone-detail-section-tabs"
-          value={activeSection}
-          options={[
-            { label: translateUiLiteral(language, 'Summary'), value: 'summary' },
-            { label: translateUiLiteral(language, 'Bottlenecks'), value: 'bottlenecks' },
-            { label: translateUiLiteral(language, 'Recovery'), value: 'recovery' },
-            { label: translateUiLiteral(language, 'Customer work'), value: 'customer-work' },
-            { label: translateUiLiteral(language, 'Evidence'), value: 'evidence' },
-            { label: translateUiLiteral(language, 'Ledger'), value: 'ledger' },
-          ]}
-          onChange={setActiveSection}
-        />
-        <div className="grid grid-cols-2 gap-2" data-slot="phone-detail-metric-strip">
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Sellable now')}
-            value={sellableNow == null ? translateUiLiteral(language, 'Unknown') : sellableNow}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Bottleneck')}
-            value={bottleneckSku?.name ?? translateUiLiteral(language, 'None')}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Next disruption')}
-            value={bottleneckUnits == null ? translateUiLiteral(language, 'Unknown') : bottleneckUnits <= 2 ? translateUiLiteral(language, 'Soon') : translateUiLiteral(language, 'Not near')}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Product price')}
-            value={formatCurrency(service.price, currency, language, usdToKhrExchangeRate)}
-          />
-          <PhoneProductDetailMetric
-            label={translateUiLiteral(language, 'Linked SKUs')}
-            value={linkedSkus.length}
-          />
+        <div className="divide-y divide-border/60 rounded-[0.9rem] border border-border/70 bg-background/55" data-slot="phone-detail-metric-strip">
+          {[
+            [translateUiLiteral(language, 'Sellable now'), sellableNow == null ? translateUiLiteral(language, 'Unknown') : sellableNow],
+            [translateUiLiteral(language, 'Bottleneck'), bottleneckSku?.name ?? translateUiLiteral(language, 'None')],
+            [translateUiLiteral(language, 'Next disruption'), bottleneckUnits == null ? translateUiLiteral(language, 'Unknown') : bottleneckUnits <= 2 ? translateUiLiteral(language, 'Soon') : translateUiLiteral(language, 'Not near')],
+            [translateUiLiteral(language, 'Product price'), formatCurrency(service.price, currency, language, usdToKhrExchangeRate)],
+            [translateUiLiteral(language, 'Linked SKUs'), linkedSkus.length],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] items-center gap-3 px-3 py-2.5">
+              <span className="min-w-0 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground">{label}</span>
+              <span className="khmer-safe-label min-w-0 truncate text-right text-sm font-semibold text-foreground">{value}</span>
+            </div>
+          ))}
         </div>
       </PhoneSurface>
-      <PhoneDetailRefresh onRefresh={async () => {
-        await inventory.loadSenaServiceDetail(service.serviceId, { strategy: 'network-only' });
-      }} />
-      {activeSection === 'summary' ? <PhoneSection title={translateUiLiteral(language, 'Linked SKUs')}>
+      <PhoneSection title={translateUiLiteral(language, 'Linked SKUs')}>
         <div className="grid gap-2">
           {linkedSkus.length > 0 ? linkedSkus.slice(0, 6).map((sku) => (
             <PhoneListItem
@@ -4135,78 +4333,30 @@ function PhoneServiceDetailRoute() {
             </PhoneEmptyState>
           )}
         </div>
-      </PhoneSection> : null}
-      {activeSection === 'bottlenecks' ? <PhoneSection title={translateUiLiteral(language, 'Bottlenecks')}>
-        <div className="grid gap-2" data-slot="phone-service-bottlenecks-section">
-          {linkedSkus.length > 0 ? linkedSkus.slice(0, 4).map((sku) => (
-            <PhoneListItem
-              key={sku.skuId}
-              href={phoneHrefWithSearch(`/catalog/skus/${encodeURIComponent(sku.skuId)}`, searchParams, ['q', 'type', 'filter'])}
-              icon={<EntitySkuIcon aria-hidden="true" className="size-5" />}
-              label={sku.name}
-              meta={supplierNameForSku(sku) ?? translateUiLiteral(language, 'SKU')}
-            />
-          )) : (
-            <PhoneEmptyState>
-              {translateUiLiteral(language, 'No bottleneck SKU is linked.')}
-            </PhoneEmptyState>
-          )}
+      </PhoneSection>
+      <PhoneSection title={translateUiLiteral(language, 'Actions')}>
+        <div className="grid gap-2" data-slot="phone-product-actions">
+          {bottleneckSku ? (
+            <PhoneActionRow icon={<ActionOpenExternalIcon data-icon="inline-start" />} to={phoneHrefWithSearch(`/catalog/skus/${encodeURIComponent(bottleneckSku.skuId)}`, searchParams, ['q', 'type', 'filter'])}>
+              {translateUiLiteral(language, 'Open bottleneck SKU')}
+            </PhoneActionRow>
+          ) : null}
+          <PhoneActionRow icon={<EntityCustomerIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`, serviceContext)}>
+            {translateUiLiteral(language, 'Customer Order')}
+          </PhoneActionRow>
+          <PhoneActionRow icon={<EntityRevenueIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?ticketMode=new`, serviceContext)}>
+            {translateUiLiteral(language, 'Immediate Sale')}
+          </PhoneActionRow>
+          {bottleneckContext ? (
+            <PhoneActionRow icon={<ActionReceiveInventoryIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, bottleneckContext)}>
+              {translateUiLiteral(language, 'Record linked stock')}
+            </PhoneActionRow>
+          ) : null}
+          <PhoneActionRow icon={<EntityTagsIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_HUB_PATH, serviceContext)}>
+            {translateUiLiteral(language, 'Update price')}
+          </PhoneActionRow>
         </div>
-      </PhoneSection> : null}
-      {activeSection === 'recovery' ? <PhoneSection title={translateUiLiteral(language, 'Recovery')}>
-        <PhoneSurface className="grid gap-2" slot="phone-service-recovery-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {bottleneckSku
-              ? translateUiLiteral(language, 'Recover sellability by counting linked stock or recording supplier receipts for the bottleneck SKU.')
-              : translateUiLiteral(language, 'Add linked SKUs on desktop before phone mode can suggest recovery actions.')}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      {activeSection === 'customer-work' ? <PhoneSection title={translateUiLiteral(language, 'Customer work')}>
-        <PhoneSurface className="grid gap-2" slot="phone-service-customer-work-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Use Customer Orders Pending for commitments and Customer Orders Completed for realized service output.')}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      {activeSection === 'evidence' ? <PhoneSection title={translateUiLiteral(language, 'Evidence')}>
-        <PhoneSurface className="grid gap-2" slot="phone-service-evidence-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Phone mode keeps service evidence compact. Use a wider view for the full viability ledger and expanded charts.')}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      {activeSection === 'ledger' ? <PhoneSection title={translateUiLiteral(language, 'Ledger')}>
-        <PhoneSurface className="grid gap-2" slot="phone-service-ledger-section">
-          <p className="text-sm leading-6 text-muted-foreground">
-            {translateUiLiteral(language, 'Compact service viability timeline')}: {serviceStatus}. {translateUiLiteral(language, 'Use a wider view for expanded charts.')}
-          </p>
-        </PhoneSurface>
-      </PhoneSection> : null}
-      <div className="grid gap-2" data-slot="phone-product-actions">
-        {bottleneckSku ? (
-          <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={phoneHrefWithSearch(`/catalog/skus/${encodeURIComponent(bottleneckSku.skuId)}`, searchParams, ['q', 'type', 'filter'])}>
-            {translateUiLiteral(language, 'Open bottleneck SKU')}
-          </PhoneActionRow>
-        ) : null}
-        <PhoneActionRow icon={<EntityCustomerIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?ticketMode=new`, serviceContext)}>
-          {translateUiLiteral(language, 'Customer Orders Pending')}
-        </PhoneActionRow>
-        <PhoneActionRow icon={<EntityServiceIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_CUSTOMER_COMPLETED_PATH}?ticketMode=new`, serviceContext)}>
-          {translateUiLiteral(language, 'Customer Orders Completed')}
-        </PhoneActionRow>
-        {bottleneckContext ? (
-          <PhoneActionRow icon={<EntitySkuIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_STOCK_COUNT_PATH, bottleneckContext)}>
-            {translateUiLiteral(language, 'Record linked stock')}
-          </PhoneActionRow>
-        ) : null}
-        <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(RECORD_UPDATE_HUB_PATH, serviceContext)}>
-          {translateUiLiteral(language, 'Update price')}
-        </PhoneActionRow>
-        <PhoneActionRow icon={<NavigationCatalogIcon data-icon="inline-start" />} to={productsHref}>
-          {translateUiLiteral(language, 'Back to products')}
-        </PhoneActionRow>
-      </div>
+      </PhoneSection>
     </PhonePage>
   );
 }
@@ -4218,11 +4368,64 @@ function PhoneSafetyRoute({
   onImport,
   onReset,
 }: EmbeddedPhoneAppProps) {
-  const { language } = usePreferences();
+  const {
+    currency,
+    language,
+    savePreferences,
+    setCurrency,
+    setLanguage,
+    setUsdToKhrExchangeRate,
+    usdToKhrExchangeRate,
+  } = usePreferences();
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const preferencesRequestRef = useRef(0);
   const [confirmingReset, setConfirmingReset] = useState(false);
+  const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
+  const [preferencesStatus, setPreferencesStatus] = useState<string | null>(null);
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
+  const exchangeRateValue = Number(exchangeRateDraft);
+  const exchangeRateError =
+    exchangeRateDraft.trim().length === 0
+      ? translateUiLiteral(language, 'Exchange rate is required.')
+      : !Number.isFinite(exchangeRateValue) || exchangeRateValue <= 0
+        ? translateUiLiteral(language, 'Enter a number greater than zero.')
+        : null;
+
+  useEffect(() => {
+    setExchangeRateDraft(String(usdToKhrExchangeRate));
+  }, [usdToKhrExchangeRate]);
+
+  async function applyPhonePreferences(next: Partial<{
+    currency: 'USD' | 'KHR';
+    language: 'en' | 'km';
+    usdToKhrExchangeRate: number;
+  }>) {
+    const requestId = preferencesRequestRef.current + 1;
+    preferencesRequestRef.current = requestId;
+    const nextLanguage = next.language ?? language;
+    const nextCurrency = next.currency ?? currency;
+    const nextExchangeRate = next.usdToKhrExchangeRate ?? usdToKhrExchangeRate;
+    setPreferencesStatus(null);
+    try {
+      await savePreferences({
+        language: nextLanguage,
+        currency: nextCurrency,
+        usdToKhrExchangeRate: nextExchangeRate,
+      });
+      if (requestId !== preferencesRequestRef.current) {
+        return;
+      }
+      setLanguage(nextLanguage);
+      setCurrency(nextCurrency);
+      setUsdToKhrExchangeRate(nextExchangeRate);
+      setPreferencesStatus(translateUiLiteral(nextLanguage, 'Preferences saved.'));
+    } catch {
+      if (requestId === preferencesRequestRef.current) {
+        setPreferencesStatus(translateUiLiteral(language, 'Unable to save preferences.'));
+      }
+    }
+  }
 
   return (
     <PhonePage slot="phone-more-page">
@@ -4312,30 +4515,101 @@ function PhoneSafetyRoute({
         <PhoneStorageFeedback mode={mode} storage={storage} />
       </PhoneSurface>
       <div className="grid gap-4" data-slot="phone-settings-index">
-        <PhoneSection title={translateUiLiteral(language, 'Workspace')}>
-          <PhoneSurface className="grid gap-2">
-            <PhoneMetric
-              label={translateUiLiteral(language, 'Mode')}
-              value={translateUiLiteral(language, mode === 'demo' ? 'Demo' : 'Browser')}
-            />
-            <p className="text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, storage.status === 'ready' ? 'Backup controls are ready for this phone workspace.' : storage.message)}
-            </p>
+        <PhoneSection icon={<NavigationSettingsIcon aria-hidden="true" className="size-4" />} title={translateUiLiteral(language, 'Preferences')}>
+          <PhoneSurface className="grid gap-4" slot="phone-settings-preferences">
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'Language')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['en', 'abc', 'English'],
+                  ['km', 'កខគ', 'Khmer'],
+                ] as const).map(([value, prefix, label]) => (
+                  <Button
+                    key={value}
+                    className="min-h-11 justify-start gap-2 rounded-[0.8rem]"
+                    type="button"
+                    variant={language === value ? 'default' : 'outline'}
+                    onClick={() => {
+                      void applyPhonePreferences({ language: value });
+                    }}
+                  >
+                    <span className={cn(
+                      'font-mono text-xs font-semibold uppercase tracking-[0.18em]',
+                      language === value ? 'text-primary-foreground/80' : 'text-muted-foreground',
+                    )}>
+                      {prefix}
+                    </span>
+                    <span className="min-w-0 truncate">{translateUiLiteral(language, label)}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'Currency')}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  ['USD', '$', 'US dollar'],
+                  ['KHR', '៛', 'Cambodian riel'],
+                ] as const).map(([value, prefix, label]) => (
+                  <Button
+                    key={value}
+                    className="min-h-11 justify-start gap-2 rounded-[0.8rem]"
+                    type="button"
+                    variant={currency === value ? 'default' : 'outline'}
+                    onClick={() => {
+                      void applyPhonePreferences({ currency: value });
+                    }}
+                  >
+                    <span className={cn(
+                      'font-mono text-xs font-semibold uppercase tracking-[0.18em]',
+                      currency === value ? 'text-primary-foreground/80' : 'text-muted-foreground',
+                    )}>
+                      {prefix}
+                    </span>
+                    <span className="min-w-0 truncate">{translateUiLiteral(language, label)}</span>
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="grid gap-1.5">
+                <span className="text-sm font-semibold text-foreground">{translateUiLiteral(language, 'USD to KHR exchange rate')}</span>
+                <Input
+                  inputMode="decimal"
+                  min="0"
+                  step="1"
+                  type="number"
+                  value={exchangeRateDraft}
+                  onChange={(event) => {
+                    setPreferencesStatus(null);
+                    setExchangeRateDraft(event.currentTarget.value);
+                  }}
+                />
+              </label>
+              {exchangeRateError ? <p className="text-sm text-destructive">{exchangeRateError}</p> : null}
+              {preferencesStatus ? <p className="text-sm text-muted-foreground">{preferencesStatus}</p> : null}
+              <Button
+                className="min-h-11 rounded-[0.8rem]"
+                disabled={Boolean(exchangeRateError)}
+                type="button"
+                onClick={() => {
+                  if (!exchangeRateError) {
+                    void applyPhonePreferences({ usdToKhrExchangeRate: exchangeRateValue });
+                  }
+                }}
+              >
+                <ActionSaveIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Save preferences')}
+              </Button>
+            </div>
           </PhoneSurface>
         </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'Interface')}>
-          <PhoneSurface className="grid gap-2">
-            <p className="text-sm leading-6 text-muted-foreground">
-              {translateUiLiteral(language, 'Phone mode keeps dense desktop controls behind focused cards, sheets, and compact route summaries.')}
-            </p>
-          </PhoneSurface>
-        </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'History')}>
+        <PhoneSection icon={<NavigationHistoryIcon aria-hidden="true" className="size-4" />} title={translateUiLiteral(language, 'History')}>
           <PhoneActionRow icon={<NavigationListIcon data-icon="inline-start" />} to="/settings/history">
             {translateUiLiteral(language, 'Update history')}
           </PhoneActionRow>
         </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'Local data')}>
+        <PhoneSection icon={<ActionOpenFolderIcon aria-hidden="true" className="size-4" />} title={translateUiLiteral(language, 'Local data')}>
           <PhoneSurface className="grid gap-2">
             <p className="text-sm leading-6 text-muted-foreground">
               {translateUiLiteral(language, mode === 'demo'
@@ -4344,17 +4618,7 @@ function PhoneSafetyRoute({
             </p>
           </PhoneSurface>
         </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'Planning')}>
-          <PhoneActionRow icon={<StatusInsightIcon data-icon="inline-start" />} to="/insights">
-            {translateUiLiteral(language, 'Lightweight insights')}
-          </PhoneActionRow>
-        </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'Help')}>
-          <PhoneActionRow icon={<NavigationSettingsIcon data-icon="inline-start" />} to="/settings/help">
-            {translateUiLiteral(language, 'Settings and help')}
-          </PhoneActionRow>
-        </PhoneSection>
-        <PhoneSection title={translateUiLiteral(language, 'Danger zone')}>
+        <PhoneSection icon={<ActionExplosionIcon aria-hidden="true" className="size-4" />} title={translateUiLiteral(language, 'Danger zone')}>
           <PhoneSurface className="grid gap-3 border-destructive/25">
             <p className="text-sm leading-6 text-muted-foreground">
               {translateUiLiteral(language, 'Reset is separated from backup controls because it removes local workspace state. Export first if you need this data.')}
@@ -5014,17 +5278,7 @@ function PhoneInsightsRoute() {
                           targetId: selectedInventoryRow.sku.skuId,
                           targetType: 'sku',
                         })}>
-                          {translateUiLiteral(language, 'Supplier Orders Pending')}
-                        </PhoneActionRow>
-                        <PhoneActionRow icon={<ActionCreatePackageIcon data-icon="inline-start" />} to={phoneCaptureHrefWithContext(`${RECORD_UPDATE_SUPPLIER_RECEIPT_PATH}?ticketMode=edit`, {
-                          breadcrumb: `Opened from Inventory · ${selectedInventoryRow.label}`,
-                          returnTo: insightReturnTo,
-                          source: 'inventory',
-                          supplierName: supplierNameForSku(selectedInventoryRow.sku),
-                          targetId: selectedInventoryRow.sku.skuId,
-                          targetType: 'sku',
-                        })}>
-                          {translateUiLiteral(language, 'Supplier Receipts')}
+                          {translateUiLiteral(language, 'Supplier Order')}
                         </PhoneActionRow>
                       </>
                     ) : (
@@ -5729,6 +5983,7 @@ function PhoneChrome({
 } & EmbeddedPhoneAppProps) {
   const location = useLocation();
   const { language } = usePreferences();
+  const inventory = useInventory();
   const tabs = phoneTabs(language);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [utilityOpen, setUtilityOpen] = useState(false);
@@ -5736,8 +5991,10 @@ function PhoneChrome({
   const ready = storage.status === 'ready';
   const resetLabel = mode === 'demo' ? 'Reset demo' : 'Reset workspace';
   const isDeepCaptureRoute = location.pathname.startsWith('/work/capture/');
+  const isSettingsRoute = location.pathname.startsWith('/settings');
   const captureReturnTo = new URLSearchParams(location.search).get('returnTo') ?? RECORD_UPDATE_HUB_PATH;
   const captureBackHref = isInternalPhoneHref(captureReturnTo) ? captureReturnTo : RECORD_UPDATE_HUB_PATH;
+  const shellHeader = phoneShellHeaderCopy(location.pathname, language, activeSenaCatalog(inventory.catalog) ?? inventory.catalog);
 
   useEffect(() => {
     const scrollRoot = document.querySelector<HTMLElement>('[data-slot="embedded-auto-zoom-viewport"]');
@@ -5759,7 +6016,7 @@ function PhoneChrome({
 
   return (
     <div
-      className="min-h-dvh overscroll-contain bg-background text-foreground [--embedded-phone-bottom-nav-height:5.5rem]"
+      className="grid min-h-[var(--kaur-khor-embedded-effective-height,100dvh)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overscroll-contain bg-background text-foreground"
       data-language={language}
       data-slot="embedded-phone-shell"
       lang={language === 'km' ? 'km' : 'en'}
@@ -5871,47 +6128,60 @@ function PhoneChrome({
         {translateUiLiteral(language, 'Skip to content')}
       </a>
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
-        <div className="flex items-center justify-between gap-3">
+        <div className={cn(isDeepCaptureRoute ? 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1' : 'flex items-start justify-between gap-3')}>
           <div className="min-w-0">
-            <p className="khmer-safe-eyebrow text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-primary">KAUR KHOR</p>
-            <p className="truncate text-sm font-medium text-muted-foreground">{translateUiLiteral(language, 'Phone operator mode')}</p>
+            {!isDeepCaptureRoute ? (
+              <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary" data-slot="embedded-phone-header-eyebrow">
+                {shellHeader.eyebrow}
+              </p>
+            ) : null}
+            <p className="khmer-safe-display flex min-w-0 items-center gap-2 text-[1.7rem] font-semibold leading-[1.12] tracking-normal text-foreground" data-slot="embedded-phone-header-title">
+              {isDeepCaptureRoute ? (
+                <Button asChild aria-label={translateUiLiteral(language, 'Back')} className="size-9 shrink-0 rounded-full p-0" size="icon" variant="ghost">
+                  <Link to={captureBackHref}>
+                    <NavigationBackIcon aria-hidden="true" className="size-4" />
+                  </Link>
+                </Button>
+              ) : null}
+              <span className="min-w-0 truncate">{shellHeader.title}</span>
+            </p>
           </div>
-          <Button aria-label={translateUiLiteral(language, 'Workspace safety')} className="size-11 rounded-[0.8rem] border-border/70 bg-card" size="icon" type="button" variant="outline" onClick={() => setUtilityOpen(true)}>
-            <NavigationSettingsIcon aria-hidden="true" className="size-4" />
-          </Button>
+          {isDeepCaptureRoute ? (
+            <>
+              <div className="flex shrink-0 items-start gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
+              <div className="col-span-2 min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
+            </>
+          ) : isSettingsRoute ? null : (
+            <Button asChild aria-label={translateUiLiteral(language, 'Workspace safety')} className="size-11 rounded-[0.8rem] border-border/70 bg-card" size="icon" variant="outline">
+              <Link to="/settings">
+                <NavigationSettingsIcon aria-hidden="true" className="size-4" />
+              </Link>
+            </Button>
+          )}
         </div>
       </header>
-      {isDeepCaptureRoute ? (
-        <div className="sticky top-[4.5rem] z-20 border-b border-border/70 bg-background/92 px-4 py-2 backdrop-blur" data-slot="phone-capture-reduced-nav">
-          <Button asChild className="min-h-11 rounded-[0.8rem]" variant="outline">
-            <Link to={captureBackHref}>
-              {translateUiLiteral(language, 'Close capture')}
-            </Link>
-          </Button>
-        </div>
-      ) : null}
       <main
         id="main-content"
-        className="min-w-0 overflow-x-hidden px-4 pt-4"
+        className={cn('min-w-0 overflow-x-hidden px-4 pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
         data-slot="embedded-phone-main"
-        style={{ paddingBottom: isDeepCaptureRoute ? 'calc(env(safe-area-inset-bottom) + 1rem)' : PHONE_CONTENT_BOTTOM_PADDING }}
+        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
       >
         <PhoneWorkspaceErrorBanner />
         {children}
       </main>
       {!isDeepCaptureRoute ? (
         <nav
-        aria-label={translateUiLiteral(language, 'Phone navigation')}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-background/95 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-12px_30px_rgba(27,15,7,0.10)] backdrop-blur"
-        data-slot="embedded-phone-bottom-nav"
-      >
-        <div className="grid grid-cols-5 gap-1">
-          {tabs.map((tab) => {
-            const active = tab.matches(location.pathname);
-            return <PhoneBottomNavItem key={tab.id} active={active} tab={tab} />;
-          })}
-        </div>
-      </nav>
+          aria-label={translateUiLiteral(language, 'Phone navigation')}
+          className="sticky bottom-0 z-40 row-start-4 h-fit self-end border-t border-border/70 bg-background/95 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] shadow-[0_-12px_30px_rgba(27,15,7,0.10)] backdrop-blur"
+          data-slot="embedded-phone-bottom-nav"
+        >
+          <div className={cn('grid gap-1', tabs.length === 4 ? 'grid-cols-4' : 'grid-cols-5')}>
+            {tabs.map((tab) => {
+              const active = tab.matches(location.pathname);
+              return <PhoneBottomNavItem key={tab.id} active={active} tab={tab} />;
+            })}
+          </div>
+        </nav>
       ) : null}
     </div>
   );
@@ -5922,15 +6192,14 @@ function PhoneRoutes(props: EmbeddedPhoneAppProps) {
     <PhoneChrome {...props}>
       <Routes>
         <Route element={<PhoneTodayRoute storage={props.storage} />} path="/" />
+        <Route element={<OnboardingRoute allowCompleted />} path="/onboarding" />
         <Route element={<Navigate replace to="/work/queue" />} path="/work" />
         <Route element={<PhoneQueueRoute />} path="/work/queue" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture/stock-count/*" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture/supplier-order/*" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/supplier-receipt/*" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture/immediate-sale/*" />
         <Route element={<PhoneCaptureRoute />} path="/work/capture/customer-order/*" />
-        <Route element={<PhoneCaptureRoute />} path="/work/capture/custom/*" />
         <Route element={<PhoneWideOnlyRoute />} path="/work/*" />
         <Route element={<PhoneSkuDetailRoute />} path="/catalog/skus/:skuId" />
         <Route element={<PhoneServiceDetailRoute />} path="/catalog/services/:serviceId" />
@@ -5979,9 +6248,7 @@ function EmbeddedPhoneAppFrame(props: EmbeddedPhoneAppProps) {
   return (
     <NavigationHistoryProvider>
       <PageStateMemoryObserver />
-      <CommandPaletteProvider>
-        <PhoneRoutes {...props} />
-      </CommandPaletteProvider>
+      <PhoneRoutes {...props} />
     </NavigationHistoryProvider>
   );
 }
