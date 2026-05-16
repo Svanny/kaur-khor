@@ -165,6 +165,69 @@ export interface OverviewSupplierTicketTask extends OverviewTaskBase {
 
 export type OverviewTask = OverviewSkuTask | OverviewSupplierTicketTask | OverviewStaleUpdateReminderTask;
 
+export const DRAFT_SUPPLIER_TICKET_ID_PREFIX = 'draft-supplier-ticket:';
+
+export function draftSupplierTicketForSkuTask({
+  latestObservedAt,
+  task,
+}: {
+  latestObservedAt: string | null | undefined;
+  task: OverviewSkuTask;
+}): SenaTicketSummary {
+  return task.supplierTicket ?? {
+    ticketId: `${DRAFT_SUPPLIER_TICKET_ID_PREFIX}${task.skuId}`,
+    ticketFamily: 'supplier',
+    lifecycle: 'open',
+    stage: task.defaultDrawerMode === 'goods_received' ? 'ordered_waiting' : 'to_order',
+    revision: 0,
+    eventType: 'created',
+    occurredAt: task.latestOrderAt ?? task.latestObservationAt ?? latestObservedAt ?? new Date().toISOString(),
+    nextTouchAt: task.expectedArrivalDate,
+    party: {
+      role: 'supplier',
+      supplierName: task.supplierName,
+    },
+    lines: [{
+      entityType: 'sku',
+      entityId: task.skuId,
+      orderedQuantity: task.recentOrderQuantity ?? task.suggestedOrderQuantity ?? null,
+      receivedQuantity: task.recentReceiptQuantity ?? null,
+      expectedArrivalAt: task.expectedArrivalDate,
+    }],
+    note: null,
+  };
+}
+
+export function supplierTicketTaskForSkuTask({
+  latestObservedAt,
+  task,
+  translate,
+}: {
+  latestObservedAt: string | null | undefined;
+  task: OverviewSkuTask;
+  translate: (value: string) => string;
+}): OverviewSupplierTicketTask {
+  const ticket = draftSupplierTicketForSkuTask({ latestObservedAt, task });
+  const displayTicketLabel = task.supplierTicket
+    ? `Supplier Ticket ID: ${ticket.ticketId}`
+    : translate('Supplier order');
+  return {
+    ...task,
+    id: task.supplierTicketId ? `supplier-ticket:${task.supplierTicketId}` : `${DRAFT_SUPPLIER_TICKET_ID_PREFIX}${task.skuId}`,
+    kind: 'supplier_ticket',
+    ticketId: ticket.ticketId,
+    displayTicketId: task.supplierTicketId ?? task.skuId,
+    displayTicketLabel,
+    ticket,
+    childTasks: [task],
+    skuCount: 1,
+    skuSummaryLabel: `1 SKU: ${task.skuName}`,
+    skuNames: [task.skuName],
+    defaultDrawerMode: task.defaultDrawerMode === 'not_ordered' ? 'ordered_waiting' : task.defaultDrawerMode,
+    heartbeat: task.supplierTicket ? task.heartbeat : [task.skuName, ...task.heartbeat.slice(0, 2)],
+  };
+}
+
 export interface OverviewInTransitRow {
   id: string;
   skuId: string;

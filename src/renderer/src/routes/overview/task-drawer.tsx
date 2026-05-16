@@ -65,10 +65,10 @@ import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import type { TranslationKey, TranslationVariables } from '@/lib/translations';
 import type { IconComponent } from '@icons';
-import type { OverviewDrawerBandId, OverviewSupplierTicketTask, OverviewTaskDrawerMode } from './view-model';
+import { DRAFT_SUPPLIER_TICKET_ID_PREFIX, type OverviewDrawerBandId, type OverviewSupplierTicketTask, type OverviewTaskDrawerMode } from './view-model';
 
 type DrawerTranslate = (key: TranslationKey, variables?: TranslationVariables) => string;
-const DRAFT_SUPPLIER_TICKET_ID_PREFIX = 'draft-supplier-ticket:';
+type OverviewTaskDrawerPresentation = 'side' | 'bottom';
 
 function initialObservedAt(value: string | null) {
   return formatLocalDateTimeInputValue(value);
@@ -448,6 +448,7 @@ function finalizeSuccessfulDrawerSave({
 export function OverviewTaskDrawer({
   onPrepareAfterSave,
   open,
+  presentation = 'side',
   mode: controlledMode,
   onModeChange,
   task,
@@ -455,6 +456,7 @@ export function OverviewTaskDrawer({
 }: {
   open: boolean;
   mode?: OverviewTaskDrawerMode | null;
+  presentation?: OverviewTaskDrawerPresentation;
   onPrepareAfterSave?: () => Promise<unknown>;
   onModeChange?: (mode: OverviewTaskDrawerMode) => void;
   task: OverviewSupplierTicketTask | null;
@@ -789,6 +791,13 @@ export function OverviewTaskDrawer({
   const submitDisabled =
     isSaving ||
     ((mode === 'ordered_waiting' || mode === 'eta_changed') && !expectedArrivalDate);
+  const bottomPresentation = presentation === 'bottom';
+  const drawerContentStyle = bottomPresentation
+    ? undefined
+    : {
+        width: `${drawerWidth}px`,
+        maxWidth: `calc(var(--kaur-khor-effective-viewport-width, 100vw) - ${DRAWER_VIEWPORT_GUTTER}px)`,
+      };
 
   function startDrawerResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (typeof window === 'undefined') {
@@ -833,28 +842,37 @@ export function OverviewTaskDrawer({
     <>
     <Sheet open={open && !dismissedAfterSave} onOpenChange={handleOpenChange}>
       <SheetContent
-        className="w-full max-w-none gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]"
+        {...(bottomPresentation ? { 'data-slot': 'phone-task-drawer' } : {})}
+        className={cn(
+          'w-full gap-0 overflow-hidden border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]',
+          bottomPresentation
+            ? 'max-h-[min(86dvh,var(--kaur-khor-embedded-effective-height,86dvh))] rounded-t-[1.35rem] border-t'
+            : 'max-w-none border-l',
+        )}
         showCloseButton={false}
-        style={{
-          width: `${drawerWidth}px`,
-          maxWidth: `calc(var(--kaur-khor-effective-viewport-width, 100vw) - ${DRAWER_VIEWPORT_GUTTER}px)`,
-        }}
+        side={bottomPresentation ? 'bottom' : 'right'}
+        style={drawerContentStyle}
       >
         {discardConfirmDialog}
-        <div
-          aria-hidden="true"
-          className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
-          onPointerDown={startDrawerResize}
-        />
+        {!bottomPresentation ? (
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 left-0 z-30 w-5 cursor-ew-resize touch-none"
+            onPointerDown={startDrawerResize}
+          />
+        ) : null}
 
-        <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
-          <div className="flex items-start justify-between gap-4">
+        <SheetHeader className={cn(
+          'sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 backdrop-blur-sm',
+          bottomPresentation ? 'px-4 py-4' : 'px-8 py-7',
+        )}>
+          <div className={cn('flex justify-between gap-4', bottomPresentation ? 'items-center' : 'items-start')}>
             <div className="min-w-0 flex-1">
-              <div className="flex items-start gap-4">
+              <div className={cn('flex gap-4', bottomPresentation ? 'items-center' : 'items-start')}>
                 <ItemAvatar imagePath={task.imagePath} name={task.displayTicketLabel} size="hero" type="sku" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <SheetTitle className="text-[2rem] leading-tight tracking-[-0.04em]">{task.displayTicketLabel}</SheetTitle>
+                  <div className="flex min-h-14 flex-wrap items-center gap-3">
+                    <SheetTitle className={cn('leading-tight tracking-[-0.04em]', bottomPresentation ? 'text-xl' : 'text-[2rem]')}>{task.displayTicketLabel}</SheetTitle>
                     <SupplierBadge supplierName={task.supplierName} />
                     <span
                       className={cn(
@@ -890,7 +908,7 @@ export function OverviewTaskDrawer({
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="px-8 py-6 pb-44">
+          <div className={cn(bottomPresentation ? 'px-4 py-4 pb-40' : 'px-8 py-6 pb-44')}>
             <section className={drawerCanvasClassName()} data-band-id="real_life">
               <div className="flex items-center gap-2">
                 <RealLifeIcon className="size-4 text-primary" />
@@ -1101,7 +1119,10 @@ export function OverviewTaskDrawer({
           </div>
         </div>
 
-        <SheetFooter className="sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 px-8 py-5 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm">
+        <SheetFooter className={cn(
+          'sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm',
+          bottomPresentation ? 'px-4 pt-4 pb-[max(env(safe-area-inset-bottom),1rem)]' : 'px-8 py-5',
+        )}>
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 sm:max-w-[18rem]">
               <p className="text-sm font-medium text-foreground">{t('overviewDrawerModeLabel', { value: drawerModeLabel(t, mode) })}</p>

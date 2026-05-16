@@ -40,8 +40,9 @@ vi.mock('@/components/ui/sheet', () => ({
   SheetContent: ({
     children,
     showCloseButton: _showCloseButton,
+    side: _side,
     ...props
-  }: HTMLAttributes<HTMLDivElement> & { showCloseButton?: boolean }) => <div {...props}>{children}</div>,
+  }: HTMLAttributes<HTMLDivElement> & { showCloseButton?: boolean; side?: 'top' | 'right' | 'bottom' | 'left' }) => <div {...props}>{children}</div>,
   SheetHeader: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   SheetFooter: ({ children, ...props }: HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
   SheetTitle: ({ children, ...props }: HTMLAttributes<HTMLHeadingElement>) => <h2 {...props}>{children}</h2>,
@@ -272,10 +273,15 @@ function recordUpdateContextWithSupplierTicket(ticket: SenaTicketSummary): SenaR
   };
 }
 
-function renderDrawer(task: OverviewSupplierTicketTask, mode = task.defaultDrawerMode, onOpenChange = vi.fn()) {
+function renderDrawer(
+  task: OverviewSupplierTicketTask,
+  mode = task.defaultDrawerMode,
+  onOpenChange = vi.fn(),
+  presentation: 'side' | 'bottom' = 'side',
+) {
   render(
     <MemoryRouter>
-      <OverviewTaskDrawer open mode={mode} task={task} onModeChange={vi.fn()} onOpenChange={onOpenChange} />
+      <OverviewTaskDrawer open mode={mode} presentation={presentation} task={task} onModeChange={vi.fn()} onOpenChange={onOpenChange} />
     </MemoryRouter>,
   );
   return { onOpenChange };
@@ -338,6 +344,17 @@ describe('OverviewTaskDrawer', () => {
     expect(screen.queryByLabelText('Received cost')).not.toBeInTheDocument();
     expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
     expect(screen.queryByText(/next stock/i)).not.toBeInTheDocument();
+  });
+
+  test('uses the bottom sheet presentation for embedded phone drawers', async () => {
+    renderDrawer(ticketTask, ticketTask.defaultDrawerMode, vi.fn(), 'bottom');
+
+    await screen.findByRole('heading', { name: 'Supplier Ticket ID: 2026-04-09-#1' });
+    const drawer = document.querySelector('[data-slot="phone-task-drawer"]');
+    expect(drawer).not.toBeNull();
+    expect(drawer).toHaveAttribute('data-slot', 'phone-task-drawer');
+    expect(drawer).toHaveClass('max-h-[min(86dvh,var(--kaur-khor-embedded-effective-height,86dvh))]', 'rounded-t-[1.35rem]', 'border-t');
+    expect(drawer).not.toHaveClass('sm:max-w-2xl', 'border-l');
   });
 
   test('reuses the existing supplier ticket identity when saving an ETA update', async () => {
