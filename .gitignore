@@ -51,6 +51,7 @@ tree_dir.txt
 /.playwright-cli/
 .kaur-khor-dev-data/
 .env.local
+.env
 .env.*.local
 config/env/*.local
 src/renderer/src/routes/*.bak.*
