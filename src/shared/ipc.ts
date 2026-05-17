@@ -572,6 +572,20 @@ export function normalizeDesktopPreferenceTimestamp(value: string | null | undef
   if (typeof value !== 'string' || value.trim().length === 0) {
     return null;
   }
+  const calendarDate = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (calendarDate) {
+    const year = Number(calendarDate[1]);
+    const month = Number(calendarDate[2]);
+    const day = Number(calendarDate[3]);
+    const normalizedDate = new Date(Date.UTC(year, month - 1, day));
+    if (
+      normalizedDate.getUTCFullYear() !== year ||
+      normalizedDate.getUTCMonth() !== month - 1 ||
+      normalizedDate.getUTCDate() !== day
+    ) {
+      return null;
+    }
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) {
     return null;

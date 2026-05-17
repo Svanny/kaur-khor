@@ -545,6 +545,25 @@ describe('desktop preferences store', () => {
     );
   });
 
+  it('rejects impossible stored preference timestamps', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences } = await loadPreferencesModule();
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        overviewStaleUpdateReminderSnoozeUntil: '2026-02-30T00:00:00.000Z',
+        onboardingCompletedAt: '2026-04-31T00:00:00.000Z',
+      }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(expect.objectContaining({
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+    }));
+  });
+
   it('normalizes dirty boolean preference values back to booleans', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
