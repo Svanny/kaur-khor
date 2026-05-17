@@ -35,6 +35,9 @@ export function normalizeAllowedExternalUrl(targetUrl: string): string {
     if (!ALLOWED_HTTPS_HOSTS.has(parsedUrl.hostname)) {
       throw new Error('Only Kaur Khor GitHub and Telegram links can be opened.');
     }
+    if (parsedUrl.username !== '' || parsedUrl.password !== '') {
+      throw new Error('Only Kaur Khor GitHub and Telegram links can be opened.');
+    }
     return normalizedUrl;
   }
 
