@@ -2540,10 +2540,19 @@ function buildFullObservationPayload({
 const tableDebugTrackClassName = '[&>*]:outline [&>*]:outline-1 [&>*]:outline-rose-500/50 [&>*]:outline-offset-[-1px]';
 const tableDebugFlushClassName = 'outline outline-1 outline-amber-500/40 outline-offset-[-1px]';
 
-function latestStockBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+function observationSortValue(observedAt: string) {
+  const time = new Date(observedAt).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
+function sortObservationsByRecent(observations: ReturnType<typeof useInventory>['observations']) {
+  return [...observations].sort(
+    (left, right) => observationSortValue(right.input.observedAt) - observationSortValue(left.input.observedAt),
   );
+}
+
+function latestStockBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
+  const latest = sortObservationsByRecent(observations);
   const stockBySku = new Map<string, SenaStockSnapshot>();
   for (const observation of latest) {
     for (const snapshot of observation.input.stockSnapshot) {
@@ -2567,9 +2576,7 @@ function latestStockBySku(catalog: SenaCatalog | null, observations: ReturnType<
 
 function latestCountedAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, string>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const snapshot of observation.input.stockSnapshot) {
       if (!values.has(snapshot.skuId)) {
@@ -2582,9 +2589,7 @@ function latestCountedAtBySku(observations: ReturnType<typeof useInventory>['obs
 
 function latestRetailSalesBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, number>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const snapshot of observation.input.retailSalesSnapshot ?? []) {
       if (!values.has(snapshot.skuId)) {
@@ -2597,9 +2602,7 @@ function latestRetailSalesBySku(catalog: SenaCatalog | null, observations: Retur
 
 function latestRetailSalesAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, string>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const snapshot of observation.input.retailSalesSnapshot ?? []) {
       if (!values.has(snapshot.skuId)) {
@@ -2612,9 +2615,7 @@ function latestRetailSalesAtBySku(observations: ReturnType<typeof useInventory>[
 
 function latestServiceSalesByService(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, number>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const snapshot of observation.input.serviceSalesSnapshot ?? []) {
       if (!values.has(snapshot.serviceId)) {
@@ -2627,9 +2628,7 @@ function latestServiceSalesByService(catalog: SenaCatalog | null, observations: 
 
 function latestServiceSalesAtByService(observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, string>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const snapshot of observation.input.serviceSalesSnapshot ?? []) {
       if (!values.has(snapshot.serviceId)) {
@@ -2642,9 +2641,7 @@ function latestServiceSalesAtByService(observations: ReturnType<typeof useInvent
 
 function latestOrderQuantityBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, number>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const signal of observation.input.orderSignals) {
       if (signal.orderPlaced && signal.approximateOrderQuantity != null && !values.has(signal.skuId)) {
@@ -2657,9 +2654,7 @@ function latestOrderQuantityBySku(catalog: SenaCatalog | null, observations: Ret
 
 function latestOrderAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, string>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const signal of observation.input.orderSignals) {
       if (signal.orderPlaced && signal.approximateOrderQuantity != null && !values.has(signal.skuId)) {
@@ -2672,9 +2667,7 @@ function latestOrderAtBySku(observations: ReturnType<typeof useInventory>['obser
 
 function latestReceiptQuantityBySku(catalog: SenaCatalog | null, observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, number>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const signal of observation.input.orderSignals) {
       if (signal.receiptArrived && signal.approximateReceiptQuantity != null && !values.has(signal.skuId)) {
@@ -2687,9 +2680,7 @@ function latestReceiptQuantityBySku(catalog: SenaCatalog | null, observations: R
 
 function latestReceiptAtBySku(observations: ReturnType<typeof useInventory>['observations']) {
   const values = new Map<string, string>();
-  const latest = [...observations].sort(
-    (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-  );
+  const latest = sortObservationsByRecent(observations);
   for (const observation of latest) {
     for (const signal of observation.input.orderSignals) {
       if (signal.receiptArrived && signal.approximateReceiptQuantity != null && !values.has(signal.skuId)) {
@@ -12381,6 +12372,7 @@ export function StockUpdateSessionRoute() {
       ) : (
         <WorkspaceTitleCard
           actions={titleActions}
+          className="[&>[data-slot=card-header]]:grid-cols-1 [&>[data-slot=card-header]>[data-slot=card-action]]:col-start-1 [&>[data-slot=card-header]>[data-slot=card-action]]:row-start-auto [&>[data-slot=card-header]>[data-slot=card-action]]:justify-self-start sm:[&>[data-slot=card-header]]:grid-cols-[minmax(0,1fr)_auto] sm:[&>[data-slot=card-header]>[data-slot=card-action]]:col-start-2 sm:[&>[data-slot=card-header]>[data-slot=card-action]]:row-start-1 sm:[&>[data-slot=card-header]>[data-slot=card-action]]:justify-self-end"
           floatingActions={floatingTitleActions}
           helperExemptReason="Record update title card is covered by route-level step copy and action labels."
           descriptor={sessionDescriptor}
