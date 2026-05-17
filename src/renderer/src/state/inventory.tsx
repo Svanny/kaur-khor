@@ -528,7 +528,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           })
           .catch((error) => {
             inflightRef.current.delete(key);
-            throw error;
+            console.warn('[inventory] failed to refresh persisted detail page', error);
+            return persisted;
           });
         inflightRef.current.set(key, request);
       }
