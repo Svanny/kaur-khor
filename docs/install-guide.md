@@ -58,6 +58,8 @@ folders; it does not delete workspace data.
 The update script opens the system folder picker for a pre-update snapshot
 export before replacing an installed app. If no existing Kaur Khor data
 directory is present, it skips that export because there is nothing to back up.
+The export copies regular workspace files and folders and skips symlinks so a
+workspace path cannot pull unrelated files into the update snapshot.
 Settings / Updates also defaults to the latest source-build release, lets you
 choose a specific release version, verifies the downloaded source-build archive
 against the release `.sha256` file before extracting it, and starts the updater

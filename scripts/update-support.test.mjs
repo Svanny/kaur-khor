@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -68,6 +68,31 @@ describe('source-build update support', () => {
     expect(readFileSync(join(backupPath, 'desktop-preferences.json'), 'utf8')).toBe('{}');
     expect(readFileSync(join(backupPath, 'sena-checkpoints', 'checkpoint.json'), 'utf8')).toBe('checkpoint');
     expect(() => readFileSync(join(backupPath, 'skip.tmp'), 'utf8')).toThrow();
+  });
+
+  it('skips symlinks in pre-update backup exports', async () => {
+    const dataDir = await tempRoot('kaur-khor-data-');
+    const backupDir = await tempRoot('kaur-khor-backups-');
+    const outsideRoot = await tempRoot('kaur-khor-outside-');
+    writeFileSync(join(dataDir, 'desktop-sena-store.sqlite3'), 'sqlite');
+    mkdirSync(join(dataDir, 'sena-checkpoints'));
+    writeFileSync(join(dataDir, 'sena-checkpoints', 'checkpoint.json'), 'checkpoint');
+    writeFileSync(join(outsideRoot, 'outside.txt'), 'outside');
+    symlinkSync(join(outsideRoot, 'outside.txt'), join(dataDir, 'linked-outside.txt'));
+    symlinkSync(join(outsideRoot, 'outside.txt'), join(dataDir, 'sena-checkpoints', 'linked-nested.txt'));
+
+    const backupPath = createPreUpdateBackup({
+      backupDir,
+      currentVersion: '0.3.4',
+      dataDir,
+      nextVersion: '0.3.5',
+      now: new Date('2026-05-09T09:00:00.000Z'),
+    });
+
+    expect(readFileSync(join(backupPath, 'desktop-sena-store.sqlite3'), 'utf8')).toBe('sqlite');
+    expect(readFileSync(join(backupPath, 'sena-checkpoints', 'checkpoint.json'), 'utf8')).toBe('checkpoint');
+    expect(() => lstatSync(join(backupPath, 'linked-outside.txt'))).toThrow();
+    expect(() => lstatSync(join(backupPath, 'sena-checkpoints', 'linked-nested.txt'))).toThrow();
   });
 
   it('treats interactive SKIP as an explicit backup skip', async () => {
