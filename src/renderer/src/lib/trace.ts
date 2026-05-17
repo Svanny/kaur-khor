@@ -18,8 +18,12 @@ function storageTraceEnabled() {
   if (!storage || typeof storage.getItem !== 'function') {
     return false;
   }
-  const raw = storage.getItem('KAUR_KHOR_DESKTOP_TRACE_RENDERER');
-  return typeof raw === 'string' && truthyValues.has(raw.toLowerCase());
+  try {
+    const raw = storage.getItem('KAUR_KHOR_DESKTOP_TRACE_RENDERER');
+    return typeof raw === 'string' && truthyValues.has(raw.toLowerCase());
+  } catch {
+    return false;
+  }
 }
 
 export function rendererTraceEnabled() {
