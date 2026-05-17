@@ -60,7 +60,10 @@ describe('normalizeAllowedExternalUrl', () => {
     expect(() => normalizeAllowedExternalUrl('https://github.com@example.com/Svanny/kaur-khor')).toThrow(
       'Only Kaur Khor GitHub and Telegram links can be opened.',
     );
-    expect(() => normalizeAllowedExternalUrl('https://user:token@github.com/Svanny/kaur-khor')).toThrow(
+    const credentialUrl = new URL('https://github.com/Svanny/kaur-khor');
+    credentialUrl.username = 'user';
+    credentialUrl.password = 'token';
+    expect(() => normalizeAllowedExternalUrl(credentialUrl.href)).toThrow(
       'Only Kaur Khor GitHub and Telegram links can be opened.',
     );
   });
