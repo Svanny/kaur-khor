@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, net, protocol, 
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { hasMacDockIconPair, macIconAssets } from '@icons/native';
 import { createManagedCoreController } from './core-manager';
@@ -17,6 +17,7 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import { normalizeDesktopImage } from './desktop-image';
+import { resolveDesktopAssetPathFromRequest } from './desktop-asset-protocol';
 import { normalizeAllowedExternalUrl } from './external-url';
 import { normalizeAllowedLocalDataPath } from './local-path-access';
 import { installMainWindowNavigationGuards } from './navigation-guards';
@@ -177,7 +178,6 @@ const SENA_READ_CACHE_SCHEMA_VERSION = 1;
 const SENA_READ_CACHE_MAX_PERSISTED_ENTRY_BYTES = 512_000;
 const DESKTOP_ASSET_DIRECTORY = 'assets';
 const DESKTOP_ASSET_PROTOCOL = 'kaur-khor-asset';
-const DESKTOP_ASSET_HOST = 'local';
 const DESKTOP_IMAGE_IMPORT_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'] as const;
 const DESKTOP_ALLOWED_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 
@@ -621,38 +621,10 @@ function desktopAssetDirectoryPath() {
   return join(desktopDataPath, DESKTOP_ASSET_DIRECTORY);
 }
 
-function resolveDesktopAssetPathFromRequest(requestUrl: string) {
-  try {
-    const assetUrl = new URL(requestUrl);
-    if (assetUrl.protocol !== `${DESKTOP_ASSET_PROTOCOL}:` || assetUrl.hostname !== DESKTOP_ASSET_HOST) {
-      return null;
-    }
-
-    const requestedAssetName = decodeURIComponent(assetUrl.pathname.replace(/^\/+/, ''));
-    if (!requestedAssetName || requestedAssetName !== basename(requestedAssetName)) {
-      return null;
-    }
-
-    const assetExtension = extname(requestedAssetName).toLowerCase();
-    if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(assetExtension)) {
-      return null;
-    }
-
-    return join(desktopAssetDirectoryPath(), requestedAssetName);
-  } catch {
-    return null;
-  }
-}
-
 function installDesktopAssetProtocol() {
   protocol.handle(DESKTOP_ASSET_PROTOCOL, async (request) => {
-    const assetPath = resolveDesktopAssetPathFromRequest(request.url);
+    const assetPath = await resolveDesktopAssetPathFromRequest(request.url, desktopAssetDirectoryPath());
     if (!assetPath) {
-      return new Response('Not found', { status: 404 });
-    }
-
-    const assetStats = await stat(assetPath).catch(() => null);
-    if (!assetStats?.isFile()) {
       return new Response('Not found', { status: 404 });
     }
 
