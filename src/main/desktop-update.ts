@@ -19,6 +19,7 @@ const SOURCE_VERSION_PATTERN = /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 interface GitHubReleaseResponse {
   html_url?: string;
+  prerelease?: boolean;
   tag_name?: string;
 }
 
@@ -89,7 +90,11 @@ async function fetchLatestRelease(): Promise<GitHubReleaseResponse> {
 async function fetchReleaseVersions(): Promise<GitHubReleaseResponse[]> {
   const body = await downloadText(RELEASES_API_URL);
   const releases = JSON.parse(body) as GitHubReleaseResponse[];
-  return releases.filter((release) => typeof release.tag_name === 'string' && release.tag_name.trim().length > 0);
+  return releases.filter((release) =>
+    release.prerelease !== true &&
+    typeof release.tag_name === 'string' &&
+    release.tag_name.trim().length > 0,
+  );
 }
 
 function buildUpdateVersionOptions(releases: GitHubReleaseResponse[]): DesktopUpdateVersionOption[] {
