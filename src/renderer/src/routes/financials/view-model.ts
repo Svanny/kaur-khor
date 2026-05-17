@@ -207,13 +207,14 @@ function latestObservationObservedAt(observations: SenaObservationRecord[]) {
 function lastUpdatedAt(workspaceSummary: SenaWorkspaceSummary | null, observations: SenaObservationRecord[]) {
   const summaryObservedAt = workspaceSummary?.latestObservedAt ?? null;
   const latestObservationAt = latestObservationObservedAt(observations);
-  if (!summaryObservedAt) {
+  const summaryObservedTime = summaryObservedAt ? new Date(summaryObservedAt).getTime() : Number.NaN;
+  if (!summaryObservedAt || !Number.isFinite(summaryObservedTime)) {
     return latestObservationAt;
   }
   if (!latestObservationAt) {
     return summaryObservedAt;
   }
-  return new Date(latestObservationAt).getTime() > new Date(summaryObservedAt).getTime()
+  return new Date(latestObservationAt).getTime() > summaryObservedTime
     ? latestObservationAt
     : summaryObservedAt;
 }
