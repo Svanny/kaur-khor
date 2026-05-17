@@ -269,5 +269,9 @@ export function observationRecordActivityEntries(
       ticketId: ticket.ticketId,
     });
   }
-  return rows.sort((left, right) => right.observedAt.localeCompare(left.observedAt) || right.activityId.localeCompare(left.activityId));
+  return rows.sort(
+    (left, right) =>
+      recordActivitySortValue(right.observedAt) - recordActivitySortValue(left.observedAt) ||
+      right.activityId.localeCompare(left.activityId),
+  );
 }

@@ -316,4 +316,26 @@ describe('record activity helpers', () => {
     expect(entries.map((entry) => entry.activityType)).toEqual(['ticket', 'receipt', 'order', 'stock']);
     expect(entries.find((entry) => entry.activityType === 'ticket')?.detail).toBe('Telegram order');
   });
+
+  test('sorts dirty observation activity timestamps after valid activity', () => {
+    const entries = observationRecordActivityEntries({
+      ...ticketObservation,
+      input: {
+        ...ticketObservation.input,
+        observedAt: 'zzzz',
+        orderSignals: [{
+          skuId: 'sku-1',
+          orderPlaced: true,
+          receiptArrived: false,
+          approximateOrderQuantity: 4,
+          approximateReceiptQuantity: null,
+          placementTimestamp: '2026-04-21T10:03:00.000Z',
+          receiptTimestamp: null,
+        }],
+        ticketEvents: [],
+      },
+    });
+
+    expect(entries.map((entry) => entry.activityType)).toEqual(['order', 'stock']);
+  });
 });
