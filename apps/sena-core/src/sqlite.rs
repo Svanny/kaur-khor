@@ -2272,6 +2272,8 @@ impl SenaRepository for SqliteSenaRepository {
             }],
         };
         refresh_batch(&mut new_batch);
+        new_batch.children[0].status = child.status;
+        new_batch.status = order_batch_status(&new_batch.children);
         validate_order_batch_record(&new_batch)?;
         persist_batch(&connection, &new_batch)?;
         Ok(new_batch)
@@ -4759,5 +4761,64 @@ mod tests {
             split_batch.children[0].effective.received_quantity,
             Some(5.0)
         );
+    }
+
+    #[test]
+    fn split_order_child_preserves_manual_review_status() {
+        let path = temp_store_path("order-split-reviewed");
+        let repo = SqliteSenaRepository::open(&path).expect("repo should open");
+        let batch = block_on(repo.create_order_batch(
+            "owner",
+            &SenaCreateOrderBatchPayload {
+                supplier_name: Some("Mekong Looms".to_string()),
+                shared: SenaOrderFieldValues::default(),
+                children: vec![
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "shirt".to_string(),
+                        overrides: Some(SenaOrderFieldValues {
+                            received_quantity: Some(5.0),
+                            receipt_timestamp: Some("2026-04-21T00:00:00Z".to_string()),
+                            ..Default::default()
+                        }),
+                    },
+                    crate::types::SenaOrderBatchCreateChildInput {
+                        sku_id: "pants".to_string(),
+                        overrides: None,
+                    },
+                ],
+            },
+        ))
+        .expect("order batch should create");
+        let child_id = batch.children[0].child_order_id.clone();
+
+        let reviewed = block_on(repo.update_order_child(
+            "owner",
+            &SenaUpdateOrderChildPayload {
+                child_order_id: child_id.clone(),
+                sku_id: None,
+                overrides: None,
+                status: Some(crate::types::SenaOrderChildStatus::Reviewed),
+                append_supplier_note: None,
+            },
+        ))
+        .expect("order child should mark reviewed");
+        assert_eq!(
+            reviewed.children[0].status,
+            crate::types::SenaOrderChildStatus::Reviewed
+        );
+
+        let split_batch = block_on(repo.split_order_child(
+            "owner",
+            &SenaSplitOrderChildPayload {
+                child_order_id: child_id,
+            },
+        ))
+        .expect("reviewed child should split");
+
+        assert_eq!(
+            split_batch.children[0].status,
+            crate::types::SenaOrderChildStatus::Reviewed
+        );
+        assert_eq!(split_batch.status, crate::types::SenaOrderBatchStatus::Reviewed);
     }
 }
