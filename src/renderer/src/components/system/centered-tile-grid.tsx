@@ -15,6 +15,7 @@ export function CenteredTileGrid({
   maxTileRem = DEFAULT_CENTERED_TILE_MAX_REM,
   minTileRem = DEFAULT_CENTERED_TILE_MIN_REM,
   paddingRem = DEFAULT_CENTERED_TILE_PADDING_REM,
+  tileSize,
 }: {
   children: ReactNode;
   className?: string;
@@ -24,6 +25,7 @@ export function CenteredTileGrid({
   maxTileRem?: number;
   minTileRem?: number;
   paddingRem?: number;
+  tileSize?: string;
 }) {
   const columnCount = Math.max(1, columns);
   const childCount = Children.count(children);
@@ -82,7 +84,7 @@ export function CenteredTileGrid({
           '--centered-tile-padding': `${paddingRem}rem`,
           '--centered-grid-max-inline-size': gridMaxInlineSize,
           '--centered-grid-max-block-size': gridMaxBlockSize,
-          '--hub-tile-size': measuredTileSize ?? 'var(--centered-tile-max-size)',
+          '--hub-tile-size': measuredTileSize ?? tileSize ?? 'var(--centered-tile-max-size)',
         } as CSSProperties
       }
     >

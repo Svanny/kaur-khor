@@ -1,4 +1,4 @@
-import { useRef, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent, type TouchEvent } from 'react';
 import {
   INTERFACE_VIEW_PRESETS,
   type InterfaceVisibilityPreferences,
@@ -237,6 +237,7 @@ export function InterfaceViewModeCards({
   language = 'en',
   modes,
   onDisplayViewModeChange,
+  presentation = 'grid',
   visibility,
 }: {
   className?: string;
@@ -244,12 +245,15 @@ export function InterfaceViewModeCards({
   language?: AppLanguage;
   modes: InterfaceViewMode[];
   onDisplayViewModeChange: (value: InterfaceViewMode) => void;
+  presentation?: 'grid' | 'carousel';
   visibility?: InterfaceVisibilityPreferences;
 }) {
   const copy = interfaceViewCardCopy[language];
   const radioRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectedModeIndex = modes.indexOf(displayViewMode);
   const tabIndexModeIndex = selectedModeIndex >= 0 ? selectedModeIndex : 0;
+  const carouselModeIndex = selectedModeIndex >= 0 ? selectedModeIndex : 0;
 
   const gridColsClass = (() => {
     if (modes.length === 1) return 'grid-cols-[minmax(0,23rem)]';
@@ -297,6 +301,123 @@ export function InterfaceViewModeCards({
     }
   }
 
+  function handleCarouselTouchStart(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0];
+    if (!touch) {
+      return;
+    }
+    swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
+  }
+
+  function handleCarouselTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.changedTouches[0];
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!touch || !start || modes.length < 2) {
+      return;
+    }
+
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    if (Math.abs(deltaX) < 40 || Math.abs(deltaX) < Math.abs(deltaY)) {
+      return;
+    }
+
+    const nextIndex = deltaX < 0
+      ? Math.min(carouselModeIndex + 1, modes.length - 1)
+      : Math.max(carouselModeIndex - 1, 0);
+    const nextMode = modes[nextIndex];
+    if (nextMode && nextMode !== displayViewMode) {
+      onDisplayViewModeChange(nextMode);
+    }
+  }
+
+  if (presentation === 'carousel') {
+    return (
+      <div
+        className={['grid gap-3', className].filter(Boolean).join(' ')}
+      >
+        <div
+          aria-label={copy.groupLabel}
+          className="overflow-hidden rounded-2xl"
+          data-presentation={presentation}
+          data-slot="interface-view-carousel-viewport"
+          role="radiogroup"
+          onTouchEnd={handleCarouselTouchEnd}
+          onTouchStart={handleCarouselTouchStart}
+        >
+          <div
+            className="flex transition-transform duration-300 ease-out"
+            data-slot="interface-view-carousel-track"
+            style={{ transform: `translateX(-${carouselModeIndex * 100}%)` }}
+          >
+            {modes.map((mode, index) => {
+              const selected = displayViewMode === mode;
+              const labelId = `interface-view-card-${mode}-label`;
+              const descriptionId = `interface-view-card-${mode}-description`;
+              const modeVisibility = mode === 'custom' && visibility
+                ? visibility
+                : INTERFACE_VIEW_PRESETS[mode === 'custom' ? 'maximal' : mode];
+              return (
+                <button
+                  key={mode}
+                  aria-checked={selected}
+                  aria-describedby={descriptionId}
+                  aria-labelledby={labelId}
+                  className={[
+                    'relative grid w-full min-w-0 shrink-0 grid-rows-[auto_auto] gap-3 rounded-2xl border p-3 text-left transition',
+                    selected
+                      ? 'border-primary bg-primary/10 ring-2 ring-primary/30'
+                      : 'border-border bg-background/80 hover:border-primary/50 hover:bg-accent/40',
+                  ].join(' ')}
+                  ref={(element) => {
+                    radioRefs.current[index] = element;
+                  }}
+                  role="radio"
+                  tabIndex={index === tabIndexModeIndex ? 0 : -1}
+                  type="button"
+                  onClick={() => onDisplayViewModeChange(mode)}
+                  onKeyDown={(event) => handleRadioKeyDown(event, index)}
+                >
+                  <span className="mx-auto grid aspect-[1.2/1] w-3/4 items-stretch overflow-hidden">
+                    <span className="grid size-full">
+                      <InterfaceViewWireframe visibility={modeVisibility} />
+                    </span>
+                  </span>
+                  <span className="grid content-end gap-1">
+                    <span id={labelId} className="khmer-safe-display flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                      <span>{copy[mode].label}</span>
+                      <ActionSelectCheckIcon
+                        aria-hidden="true"
+                        className={[
+                          'size-4 transition-opacity',
+                          selected ? 'opacity-100' : 'opacity-0',
+                        ].join(' ')}
+                      />
+                    </span>
+                    <span id={descriptionId} className="khmer-safe text-xs leading-5 text-muted-foreground">{copy[mode].description}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="mx-auto flex w-fit gap-1.5 rounded-full border border-border/70 bg-card/95 px-3 py-2 shadow-panel backdrop-blur" aria-label={copy.groupLabel} data-slot="interface-view-carousel-dots">
+          {modes.map((mode, index) => (
+            <button
+              key={mode}
+              aria-current={index === carouselModeIndex ? 'true' : undefined}
+              aria-label={`Show ${copy[mode].label}`}
+              className={`size-2.5 rounded-full transition-colors ${index === carouselModeIndex ? 'bg-primary' : 'bg-muted-foreground/25'}`}
+              type="button"
+              onClick={() => onDisplayViewModeChange(mode)}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       aria-label={copy.groupLabel}
@@ -305,6 +426,7 @@ export function InterfaceViewModeCards({
         gridColsClass,
         className,
       ].filter(Boolean).join(' ')}
+      data-presentation={presentation}
       role="radiogroup"
     >
       {modes.map((mode, index) => {

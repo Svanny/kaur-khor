@@ -31,6 +31,7 @@ import { ItemAvatar } from '@/components/system/item-identity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { buildRememberedCatalogHref, buildRememberedInboxHref } from '@/lib/page-state-memory';
+import { recordTicketOptions, sortRecordTicketOptionsByRecent } from '@/lib/record-activity';
 import {
   buildBatchUpdateHref,
   buildSupplierTicketCaptureHref,
@@ -53,6 +54,7 @@ import { useAutomation } from '@/state/automation';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { OnboardingRoute } from '@/routes/onboarding';
+import { AutomationIntakeDrawer } from '@/routes/automations/intake-drawer';
 import { OverviewTaskDrawer } from '@/routes/overview/task-drawer';
 import {
   buildCustomerOverviewModel,
@@ -326,7 +328,7 @@ function PhonePage({
   slot: string;
 }) {
   return (
-    <div className={cn('grid min-w-0 gap-4', className)} data-slot={slot}>
+    <div className={cn('grid min-w-0 max-w-full gap-4', className)} data-slot={slot}>
       {children}
     </div>
   );
@@ -758,8 +760,8 @@ function PhoneChipRow<T extends string>({
   return (
     <div
       className={cn(
-        '-mx-4 flex gap-2 px-4 pb-1',
-        collapseLabels ? 'phone-product-filter-row min-w-0 flex-nowrap' : 'overflow-x-auto',
+        'flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-1',
+        collapseLabels ? 'phone-product-filter-row min-w-0 flex-nowrap overflow-hidden' : null,
       )}
       data-slot={slot}
     >
@@ -2354,8 +2356,8 @@ function PhoneTodayRoute({
                       type="sku"
                     />
                     <span className="min-w-0">
-                      <span className="khmer-safe-label block truncate font-semibold text-foreground">{row.name}</span>
-                      {row.supplier ? <span className="block truncate text-xs text-muted-foreground">{row.supplier}</span> : null}
+                      <span className="khmer-safe-label block whitespace-normal break-words font-semibold text-foreground" data-slot="phone-today-inventory-item-title">{row.name}</span>
+                      {row.supplier ? <span className="block whitespace-normal break-words text-xs text-muted-foreground" data-slot="phone-today-inventory-item-description">{row.supplier}</span> : null}
                     </span>
                   </span>
                   <span className="text-center font-semibold tabular-nums text-foreground">{row.current == null ? '—' : row.current}</span>
@@ -2453,9 +2455,11 @@ function PhoneTodayRoute({
 function PhoneQueueRoute() {
   const { language } = usePreferences();
   const inventory = useInventory();
+  const automation = useAutomation();
   const navigate = useNavigate();
   const { customer, supplier } = usePhoneModels();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [selectedAutomationIntakeId, setSelectedAutomationIntakeId] = useState<string | null>(null);
   const catalog = activeSenaCatalog(inventory.catalog) ?? inventory.catalog;
   const hasCatalogItems = Boolean(catalog && (
     catalog.skus.some((sku) => !sku.archived) ||
@@ -2526,6 +2530,13 @@ function PhoneQueueRoute() {
           })
         : null
     : null;
+  const selectedAutomationIntake = selectedAutomationIntakeId
+    ? automation.intakes.find((intake) => intake.intakeId === selectedAutomationIntakeId) ?? null
+    : null;
+  const customerTicketOptions = useMemo(
+    () => sortRecordTicketOptionsByRecent(recordTicketOptions(inventory.recordUpdateContext, 'customer', inventory.catalog)),
+    [inventory.catalog, inventory.recordUpdateContext],
+  );
   const openTaskSheet = (taskId: string) => {
     const params = new URLSearchParams(searchParams);
     params.set('task', taskId);
@@ -2536,6 +2547,19 @@ function PhoneQueueRoute() {
     params.delete('task');
     setSearchParams(params);
   };
+  const openCustomerTask = (task: OverviewCustomerTask) => {
+    if (task.source === 'telegram_intake' && task.automationIntakeId && !task.promotedTicketId) {
+      setSelectedAutomationIntakeId(task.automationIntakeId);
+      return;
+    }
+    navigate(task.href);
+  };
+
+  useEffect(() => {
+    if (selectedAutomationIntakeId && !selectedAutomationIntake) {
+      setSelectedAutomationIntakeId(null);
+    }
+  }, [selectedAutomationIntake, selectedAutomationIntakeId]);
 
   if (inventory.isLoading && !inventory.catalog) {
     return (
@@ -2605,7 +2629,7 @@ function PhoneQueueRoute() {
           },
         ]}
       />
-      <div className="phone-queue-filter-row -mx-4 flex min-w-0 flex-nowrap gap-2 px-4 pb-1" data-slot="phone-queue-filter-row">
+      <div className="phone-queue-filter-row flex max-w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-1" data-slot="phone-queue-filter-row">
         {activeFilters.map((option) => {
           const Icon = option.icon;
           const label = translateUiLiteral(language, option.label);
@@ -2662,7 +2686,7 @@ function PhoneQueueRoute() {
               href={(task as OverviewCustomerTask).href}
               label={(task as OverviewCustomerTask).label}
               meta={phoneCustomerTaskMeta(task as OverviewCustomerTask)}
-              onSelect={() => navigate((task as OverviewCustomerTask).href)}
+              onSelect={() => openCustomerTask(task as OverviewCustomerTask)}
               tone={(task as OverviewCustomerTask).stateBadgeTone}
             />
           );
@@ -2702,6 +2726,17 @@ function PhoneQueueRoute() {
             closeTaskSheet();
           }
         }}
+      />
+      <AutomationIntakeDrawer
+        intake={selectedAutomationIntake}
+        isSaving={automation.isSaving}
+        language={language}
+        open={selectedAutomationIntake != null}
+        presentation="bottom"
+        ticketOptions={customerTicketOptions}
+        onClose={() => setSelectedAutomationIntakeId(null)}
+        onPromote={automation.promoteIntake}
+        onResolve={automation.resolveIntake}
       />
     </PhonePage>
   );
@@ -6023,7 +6058,7 @@ function PhoneChrome({
 
   return (
     <div
-      className="grid min-h-[var(--kaur-khor-embedded-effective-height,100dvh)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overscroll-contain bg-background text-foreground"
+      className="grid min-h-[var(--kaur-khor-embedded-effective-height,100dvh)] max-w-full grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto] overflow-x-clip overscroll-contain bg-background text-foreground"
       data-language={language}
       data-slot="embedded-phone-shell"
       lang={language === 'km' ? 'km' : 'en'}
@@ -6136,7 +6171,7 @@ function PhoneChrome({
         {translateUiLiteral(language, 'Skip to content')}
       </a>
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/92 px-4 pt-[max(env(safe-area-inset-top),0.75rem)] pb-3 backdrop-blur" data-slot="embedded-phone-header">
-        <div className={cn(isDeepCaptureRoute ? 'grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1' : 'flex items-start justify-between gap-3')}>
+        <div className={cn(isDeepCaptureRoute ? 'grid grid-cols-1 items-start gap-y-2' : 'flex items-start justify-between gap-3')}>
           <div className="min-w-0">
             {!isDeepCaptureRoute ? (
               <p className="khmer-safe-eyebrow text-xs font-semibold uppercase tracking-[0.14em] text-primary" data-slot="embedded-phone-header-eyebrow">
@@ -6151,13 +6186,13 @@ function PhoneChrome({
                   </Link>
                 </Button>
               ) : null}
-              <span className="min-w-0 truncate">{shellHeader.title}</span>
+              <span className={cn('min-w-0', isDeepCaptureRoute ? 'whitespace-normal break-words' : 'truncate')}>{shellHeader.title}</span>
             </p>
           </div>
           {isDeepCaptureRoute ? (
             <>
-              <div className="flex shrink-0 items-start gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
-              <div className="col-span-2 min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
+              <div className="flex w-full shrink-0 flex-wrap items-start justify-end gap-2 [&_[data-slot=workspace-action-row]]:gap-2 [&_[data-slot=workspace-action-row]]:[&>span]:inline-flex [&_button]:min-h-10 [&_button]:rounded-full [&_button]:px-3 [&_button]:text-sm" data-slot="embedded-phone-capture-header-actions" />
+              <div className="min-w-0 text-sm leading-5 text-muted-foreground [&_p]:max-w-none" data-slot="embedded-phone-capture-header-meta" />
             </>
           ) : isSettingsRoute ? null : (
             <Button asChild aria-label={translateUiLiteral(language, 'Workspace safety')} className="size-11 rounded-[0.8rem] border-border/70 bg-card" size="icon" variant="outline">
@@ -6170,7 +6205,7 @@ function PhoneChrome({
       </header>
       <main
         id="main-content"
-        className={cn('min-w-0 overflow-x-hidden px-4 pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
+        className={cn('min-w-0 max-w-full overflow-x-clip px-4 pt-4', isDeepCaptureRoute ? 'row-start-2' : 'row-start-3')}
         data-slot="embedded-phone-main"
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}
       >

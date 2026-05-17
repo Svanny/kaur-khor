@@ -238,7 +238,7 @@ function removeDraftSavedForLane(laneId: RecordUpdateLaneId) {
   }
 }
 
-function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () => void }) {
+function HubCard({ card, compact = false, onClick }: { card: RecordUpdateHubCard; compact?: boolean; onClick?: () => void }) {
   const CardIcon = card.icon;
   const { language } = usePreferences();
   const hasDraftSaved = hasDraftSavedForLane(card.laneId);
@@ -252,9 +252,9 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
   );
   const contents = (
     <>
-      <LiquidGridCardLayer />
-      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 px-4 py-5 text-center sm:px-6 md:gap-6 md:px-8 md:py-6">
-        <CardIcon className="size-12 shrink-0 sm:size-16 md:size-20" />
+      {compact ? null : <LiquidGridCardLayer />}
+      <div className="relative z-10 flex h-full flex-col items-center justify-center gap-4 px-4 py-5 text-center sm:px-6 md:gap-6 md:px-8 md:py-6" data-slot="centered-tile-card-body">
+        <CardIcon className="size-12 shrink-0 sm:size-16 md:size-20" data-slot="centered-tile-card-icon" />
         <div className="space-y-2 md:space-y-3">
           <h2
             className="khmer-safe-display text-lg font-semibold text-foreground sm:text-xl md:text-2xl"
@@ -274,6 +274,7 @@ function HubCard({ card, onClick }: { card: RecordUpdateHubCard; onClick?: () =>
               'mx-auto inline-flex min-h-[1.625rem] min-w-[6.75rem] items-center justify-center rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary',
               hasDraftSaved ? null : 'invisible',
             )}
+            data-slot="centered-tile-card-draft"
           >
             {hasDraftSaved ? translateUiLiteral(language, 'Draft saved') : null}
           </p>
@@ -701,14 +702,22 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         />
       ) : null}
       <CenteredTileGrid
-        className={embedded ? 'min-h-[min(44rem,calc(var(--kaur-khor-embedded-effective-height,100dvh)-15rem))]' : undefined}
+        className={embedded ? 'phone-capture-hub-grid h-full min-h-0' : undefined}
         disableMeasurement={embedded}
-        maxTileRem={embedded ? 18 : undefined}
+        gapRem={embedded ? 1 : undefined}
+        maxTileRem={embedded ? 10.75 : undefined}
+        paddingRem={embedded ? 0 : undefined}
+        tileSize={
+          embedded
+            ? 'min(calc((100vw - 3rem) / 2), calc((var(--kaur-khor-embedded-effective-height,100dvh) - 19rem) / 2), 10.75rem)'
+            : undefined
+        }
       >
         {VISIBLE_HUB_CARDS.map((card) => (
           <HubCard
             key={card.title}
             card={card}
+            compact={embedded}
             onClick={
               card.laneId === 'customer-order-pending' || card.laneId === 'customer-order-completed' || card.laneId === 'supplier-order-pending'
                 ? () => handleHubCardClick(card)

@@ -44,4 +44,10 @@ describe('bundled font assets', () => {
 
     expect(globalsCss).toMatch(/\[data-language="km"\]\s+\.khmer-safe-action,\s*\[data-language="km"\]\s+:where\(button, \[role="button"\], \[data-slot="button"\], \[data-slot="toggle-group-item"\]\),\s*\[data-language="km"\]\s+:where\(button, \[role="button"\], \[data-slot="button"\], \[data-slot="toggle-group-item"\]\)\s+:where\(\*\)\s*\{[^}]*letter-spacing:\s*0\s*!important;[^}]*line-height:\s*1\.45;[^}]*text-transform:\s*none\s*!important;/s);
   });
+
+  test('keeps embedded phone onboarding inside horizontal gutters', () => {
+    const globalsCss = readFileSync(join(process.cwd(), 'src/renderer/src/globals.css'), 'utf8');
+
+    expect(globalsCss).toMatch(/html\[data-kaur-khor-embedded-phone-portrait="true"\]\s+\[data-slot="onboarding-page"\]\s*\{[^}]*padding:\s*0 0\.75rem 1rem\s*!important;/s);
+  });
 });

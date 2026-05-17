@@ -1658,10 +1658,10 @@ describe('WebRoutes embedded app fallback state', () => {
     const phoneHeaderEyebrow = container.querySelector('[data-slot="embedded-phone-header-eyebrow"]');
     const phoneHeaderTitle = container.querySelector('[data-slot="embedded-phone-header-title"]');
     expect(phoneShell).not.toBeNull();
-    expect(phoneShell).toHaveClass('grid', 'min-h-[var(--kaur-khor-embedded-effective-height,100dvh)]', 'grid-rows-[auto_auto_minmax(0,1fr)_auto]', 'overscroll-contain', 'bg-background');
+    expect(phoneShell).toHaveClass('grid', 'min-h-[var(--kaur-khor-embedded-effective-height,100dvh)]', 'max-w-full', 'grid-cols-[minmax(0,1fr)]', 'grid-rows-[auto_auto_minmax(0,1fr)_auto]', 'overflow-x-clip', 'overscroll-contain', 'bg-background');
     expect(phoneShell).not.toHaveClass('content-start', 'grid-rows-[auto_auto_auto_auto]', 'min-h-dvh');
     expect(phoneMain).not.toBeNull();
-    expect(phoneMain).toHaveClass('row-start-3');
+    expect(phoneMain).toHaveClass('row-start-3', 'max-w-full', 'overflow-x-clip');
     expect(phoneMain?.style.paddingBottom).toContain('env(safe-area-inset-bottom)');
     expect(container.querySelector('[data-slot="embedded-phone-bottom-nav"]')).toHaveClass('sticky', 'bottom-0', 'row-start-4', 'h-fit', 'self-end');
     expect(container.querySelector('[data-slot="embedded-phone-header"]')).not.toBeNull();
@@ -1670,6 +1670,20 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-next-move"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-primary-action"]')).not.toBeNull();
+    if (mode === 'demo') {
+      const inventoryItemTitles = container.querySelectorAll('[data-slot="phone-today-inventory-item-title"]');
+      const inventoryItemDescriptions = container.querySelectorAll('[data-slot="phone-today-inventory-item-description"]');
+      expect(inventoryItemTitles.length).toBeGreaterThan(0);
+      expect(inventoryItemDescriptions.length).toBeGreaterThan(0);
+      for (const title of inventoryItemTitles) {
+        expect(title).not.toHaveClass('truncate');
+        expect(title).toHaveClass('whitespace-normal', 'break-words');
+      }
+      for (const description of inventoryItemDescriptions) {
+        expect(description).not.toHaveClass('truncate');
+        expect(description).toHaveClass('whitespace-normal', 'break-words');
+      }
+    }
     expect(container.querySelector('[data-slot="phone-metric-strip"]')?.querySelectorAll('[data-slot="phone-metric"]')).toHaveLength(3);
     expect(container.querySelector('[data-slot="phone-metric-strip"]')?.querySelectorAll('[data-slot="phone-metric-icon"]')).toHaveLength(3);
     expect(container.querySelector('[data-slot="phone-metric-strip"]')).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/queue`);
@@ -1694,12 +1708,16 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(phoneHeaderEyebrow).toHaveTextContent('Queue');
     expect(phoneHeaderTitle).toHaveTextContent('Work that needs a decision');
     expect(container.querySelector('[data-slot="phone-queue-page"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-queue-page"]')).toHaveClass('max-w-full');
+    expect(container.querySelector('[data-slot="phone-queue-page"]')).not.toHaveClass('overflow-x-hidden', 'overflow-x-clip');
     expect(container.querySelector('[data-slot="phone-segmented-control"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')).toHaveClass('grid-cols-3', 'overflow-hidden');
     expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')?.querySelectorAll('[data-slot="phone-metric-icon"]')).toHaveLength(3);
     expect(container.querySelector('[data-slot="phone-queue-summary-strip"]')?.querySelectorAll('[data-slot="phone-metric"].border-l')).toHaveLength(2);
     expect(container.querySelector('[data-slot="phone-queue-filter-row"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="phone-queue-filter-row"]')).toHaveClass('max-w-full', 'overflow-x-auto', 'overscroll-x-contain');
+    expect(container.querySelector('[data-slot="phone-queue-filter-row"]')).not.toHaveClass('-mx-4');
     expect(container.querySelector('[data-slot="phone-queue-filter-row"]')?.querySelectorAll('[data-slot="phone-queue-filter-icon"]')).toHaveLength(6);
     expect(container.querySelector('[data-slot="phone-queue-filter-row"]')?.querySelectorAll('[data-slot="phone-queue-filter-label"]')).toHaveLength(6);
     expect(screen.getByRole('textbox', { name: 'Search queue' })).toHaveAttribute('data-slot', 'phone-queue-search');
@@ -1738,13 +1756,31 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(customerQueueItems.length).toBeGreaterThan(0);
       expect(within(customerQueueItems[0] as HTMLElement).getAllByText(/Ticket|Legacy|Telegram|customer/i).length).toBeGreaterThan(0);
       expect(within(customerQueueItems[0] as HTMLElement).getAllByText(/pending|completed|blocked|order/i).length).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+      await waitFor(() => expect(window.location.hash).toContain('filter=review'));
+      const queueHashBeforeIntake = window.location.hash;
+      fireEvent.click(screen.getByRole('button', { name: /Open intake/ }));
+      await waitFor(() => expect(screen.getByText('Telegram intake')).toBeInTheDocument());
+      expect(window.location.hash).toBe(queueHashBeforeIntake);
+      expect(window.location.hash).not.toContain('/work/intake');
+      expect(window.location.hash).not.toContain('/insights');
+      expect(document.querySelector('[data-slot="sheet-content"]')?.className).toContain('data-[state=open]:slide-in-from-bottom');
+      expect(document.querySelector('[data-slot="sheet-content"]')).toHaveClass('rounded-t-[1.4rem]');
+      fireEvent.click(screen.getAllByRole('button', { name: 'Close' })[0]);
+      await waitFor(() => expect(screen.queryByText('Telegram intake')).not.toBeInTheDocument());
     }
     fireEvent.click(within(phoneNav).getByRole('link', { name: 'Capture' }));
     expect(await screen.findByRole('heading', { name: 'Record what changed' })).toBeInTheDocument();
     expect(phoneHeaderEyebrow).toHaveTextContent('Capture');
     expect(phoneHeaderTitle).toHaveTextContent('Record what changed');
     expect(container.querySelector('[data-slot="phone-capture-page"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="centered-tile-grid"]')).not.toBeNull();
+    const captureGrid = container.querySelector('[data-slot="centered-tile-grid"]');
+    expect(captureGrid).not.toBeNull();
+    expect(captureGrid).toHaveClass('phone-capture-hub-grid');
+    expect(captureGrid).toHaveStyle({
+      '--hub-tile-size': 'min(calc((100vw - 3rem) / 2), calc((var(--kaur-khor-embedded-effective-height,100dvh) - 19rem) / 2), 10.75rem)',
+    });
+    expect(captureGrid?.querySelector('.liquid-grid-card-glass')).toBeNull();
     expect(screen.queryByText('Phone capture keeps entry fast. Use the queue to update existing tickets or a wider view for custom multi-lane updates.')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
     expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
@@ -1881,7 +1917,7 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-width', String(width));
       expect(container.querySelector('[data-slot="embedded-auto-zoom-viewport"]')).toHaveAttribute('data-effective-height', String(height));
     }
-    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('overflow-x-hidden');
+    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('overflow-x-clip');
   });
 
   test('opens workspace safety from the phone header without a Today safety card', async () => {
@@ -2364,6 +2400,9 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-capture-reduced-nav"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('grid-cols-1');
+    expect(container.querySelector('[data-slot="embedded-phone-header-title"] span')).toHaveClass('whitespace-normal', 'break-words');
+    expect(container.querySelector('[data-slot="embedded-phone-capture-header-actions"]')).toHaveClass('w-full', 'flex-wrap', 'justify-end');
     expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
   });
 
