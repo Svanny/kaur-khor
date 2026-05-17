@@ -134,6 +134,7 @@ describe('catalog item action sheets', () => {
 
     expect(parseDatetimeLocalIso(localValue)).toBe(new Date(sourceIso).toISOString());
     expect(parseDatetimeLocalIso('')).toBeNull();
+    expect(parseDatetimeLocalIso('2026-02-31T08:30')).toBeNull();
   });
 
   test('defaults new SKU and service action timestamps to the current system time', () => {

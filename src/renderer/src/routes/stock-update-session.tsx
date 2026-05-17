@@ -172,6 +172,7 @@ import {
   dateInputToIsoOnOrAfterObserved,
   formatLocalDateTimeInputValue,
   observedLocalDateInputValue,
+  parseLocalDateTimeInputIso,
 } from '@/lib/date-input-utils';
 import { readRecordUpdateEditSession } from '@/lib/observation-edit-session';
 import {
@@ -1399,11 +1400,7 @@ function localDateTimeInputValue(value: string | null) {
 }
 
 function dateTimeInputToIso(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date.toISOString();
+  return parseLocalDateTimeInputIso(value);
 }
 
 export function dateInputValue(value: string | null) {

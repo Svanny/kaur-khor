@@ -3,6 +3,18 @@ function padLocalDatePart(value: number): string {
 }
 
 const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const DATETIME_LOCAL_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
+
+function dateInputParts(value: string): { day: number; month: number; year: number } | null {
+  if (!DATE_INPUT_PATTERN.test(value)) {
+    return null;
+  }
+  const [year, month, day] = value.split('-').map((part) => Number.parseInt(part, 10));
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+  return { day, month, year };
+}
 
 function dateFromInputValue(value: string | Date | null | undefined): Date {
   if (value instanceof Date) {
@@ -42,11 +54,20 @@ export function observedLocalDateInputValue(value?: string | Date | null): strin
 }
 
 function dateInputToLocalDate(value: string): Date | null {
-  if (!DATE_INPUT_PATTERN.test(value)) {
+  const parts = dateInputParts(value);
+  if (!parts) {
     return null;
   }
   const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== parts.year ||
+    date.getMonth() + 1 !== parts.month ||
+    date.getDate() !== parts.day
+  ) {
+    return null;
+  }
+  return date;
 }
 
 export function isDateInputBeforeObservedDate(value: string, observedAt?: string | Date | null): boolean {
@@ -108,12 +129,40 @@ export function isoStringFromDateInput(value: string, boundary: 'start' | 'end')
   if (!value) {
     return null;
   }
+  if (!dateInputToLocalDate(value)) {
+    return null;
+  }
   const suffix = boundary === 'start' ? 'T00:00:00.000Z' : 'T23:59:59.999Z';
   const timestamp = Date.parse(`${value}${suffix}`);
   if (!Number.isFinite(timestamp)) {
     return null;
   }
   return new Date(timestamp).toISOString();
+}
+
+export function parseLocalDateTimeInputIso(value: string): string | null {
+  const trimmed = value.trim();
+  if (!DATETIME_LOCAL_INPUT_PATTERN.test(trimmed)) {
+    return null;
+  }
+  const [datePart, timePart] = trimmed.split('T');
+  const parts = dateInputParts(datePart ?? '');
+  if (!parts || !timePart) {
+    return null;
+  }
+  const [hours, minutes] = timePart.split(':').map((part) => Number.parseInt(part, 10));
+  const date = new Date(trimmed);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== parts.year ||
+    date.getMonth() + 1 !== parts.month ||
+    date.getDate() !== parts.day ||
+    date.getHours() !== hours ||
+    date.getMinutes() !== minutes
+  ) {
+    return null;
+  }
+  return date.toISOString();
 }
 
 export function daysBetween(startAt: string, endAt: string): number {
