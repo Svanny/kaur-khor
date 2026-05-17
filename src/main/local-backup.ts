@@ -99,6 +99,20 @@ async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number, pre
   }
 }
 
+async function uniqueSnapshotDirectoryPath(backupDirectoryPath: string, snapshotDirectoryName: string) {
+  let candidate = join(backupDirectoryPath, snapshotDirectoryName);
+  for (let suffix = 2; ; suffix += 1) {
+    const exists = await fs.stat(candidate).then(
+      () => true,
+      () => false,
+    );
+    if (!exists) {
+      return candidate;
+    }
+    candidate = join(backupDirectoryPath, `${snapshotDirectoryName}-${suffix}`);
+  }
+}
+
 function runBackupQueue<T>(userDataPath: string, task: () => Promise<T>): Promise<T> {
   const previous = backupQueues.get(userDataPath) ?? Promise.resolve();
   const next = previous
@@ -201,7 +215,7 @@ async function createDesktopBackupSnapshotUnchecked({
     .filter(Boolean)
     .join('-');
   const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
-  const snapshotPath = join(backupDirectoryPath, snapshotDirectoryName);
+  const snapshotPath = await uniqueSnapshotDirectoryPath(backupDirectoryPath, snapshotDirectoryName);
   const sourceFiles = await listSnapshotSourceFiles(userDataPath);
 
   await copyFilesIntoDirectory(sourceFiles, snapshotPath, fs);
