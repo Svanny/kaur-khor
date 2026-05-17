@@ -318,6 +318,22 @@ function automationCreatedAtSortValue(value: string) {
   return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
+function automationTimestampMs(value: string | null | undefined) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
+function compareAutomationNewestFirst(left: string | null | undefined, right: string | null | undefined) {
+  return (automationTimestampMs(right) ?? Number.NEGATIVE_INFINITY) - (automationTimestampMs(left) ?? Number.NEGATIVE_INFINITY);
+}
+
+function compareAutomationOldestFirst(left: string | null | undefined, right: string | null | undefined) {
+  return (automationTimestampMs(left) ?? Number.POSITIVE_INFINITY) - (automationTimestampMs(right) ?? Number.POSITIVE_INFINITY);
+}
+
 function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -761,10 +777,10 @@ function recalculateConversation(state: AutomationStoreState, conversationId: st
   }
   const conversationMessages = state.messages
     .filter((message) => message.conversationId === conversationId)
-    .sort((left, right) => new Date(right.sentAt).getTime() - new Date(left.sentAt).getTime());
+    .sort((left, right) => compareAutomationNewestFirst(left.sentAt, right.sentAt));
   const conversationIntakes = state.intakes
     .filter((intake) => intake.conversationId === conversationId)
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt));
   conversation.messageCount = conversationMessages.length;
   conversation.lastMessageAt = conversationMessages[0]?.sentAt ?? conversation.lastMessageAt;
   conversation.latestIntakeStatus = conversationIntakes[0]?.status ?? null;
@@ -959,7 +975,7 @@ function latestTicketEventForId(observations: SenaObservationRecord[], ticketId:
       if (right.revision !== left.revision) {
         return right.revision - left.revision;
       }
-      return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime();
+      return compareAutomationNewestFirst(left.occurredAt, right.occurredAt);
     })[0] ?? null;
 }
 
@@ -1962,7 +1978,7 @@ function latestActiveTelegramIntakeForConversation(
 ) {
   return state.intakes
     .filter((intake) => intake.conversationId === conversationId && isActiveTelegramIntake(intake))
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0] ?? null;
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt))[0] ?? null;
 }
 
 function appendExtraTelegramMessageToActiveIntake(
@@ -2576,8 +2592,8 @@ export async function readAutomationWorkspace(
     connection: state.connection,
     metrics: buildAutomationMetrics(state.intakes, exposures),
     exposures,
-    conversations: [...state.conversations].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime()),
-    intakes: [...state.intakes].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    conversations: [...state.conversations].sort((left, right) => compareAutomationNewestFirst(left.lastMessageAt, right.lastMessageAt)),
+    intakes: [...state.intakes].sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
   };
 }
 
@@ -2912,7 +2928,7 @@ export async function patchAutomationExposureRow(
 
 export async function listAutomationConversations(userDataPath: string): Promise<AutomationConversationSummary[]> {
   const state = await loadAutomationState(userDataPath);
-  return [...state.conversations].sort((left, right) => new Date(right.lastMessageAt).getTime() - new Date(left.lastMessageAt).getTime());
+  return [...state.conversations].sort((left, right) => compareAutomationNewestFirst(left.lastMessageAt, right.lastMessageAt));
 }
 
 export async function readAutomationConversation(
@@ -2932,10 +2948,10 @@ export async function readAutomationConversation(
     conversation,
     messages: state.messages
       .filter((entry) => entry.conversationId === conversationId)
-      .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()),
+      .sort((left, right) => compareAutomationOldestFirst(left.sentAt, right.sentAt)),
     intakes: state.intakes
       .filter((entry) => entry.conversationId === conversationId)
-      .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+      .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
   };
 }
 
@@ -2970,7 +2986,7 @@ export async function readAutomationIntakeThread(
     conversation,
     intake,
     messages: [...linkedMessages, ...legacySourceMessages]
-      .sort((left, right) => new Date(left.sentAt).getTime() - new Date(right.sentAt).getTime()),
+      .sort((left, right) => compareAutomationOldestFirst(left.sentAt, right.sentAt)),
   };
 }
 
@@ -3000,7 +3016,7 @@ export async function findAutomationConversationForTelegramTicket(
   const state = await loadAutomationState(userDataPath);
   const intakeMatch = [...state.intakes]
     .filter((entry) => entry.promotedTicketId === ticketEvent.ticketId)
-    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0];
+    .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt))[0];
 
   if (intakeMatch) {
     return state.conversations.find((entry) => entry.conversationId === intakeMatch.conversationId) ?? null;
@@ -3031,7 +3047,7 @@ export async function listAutomationIntakes(
   assertAutomationListIntakesPayloadIsValid(payload);
   const state = await loadAutomationState(userDataPath);
   return filterIntakes(
-    [...state.intakes].sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()),
+    [...state.intakes].sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
     payload,
   );
 }
