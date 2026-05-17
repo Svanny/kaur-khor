@@ -545,4 +545,94 @@ describe('catalog item action sheets', () => {
       }
     }
   });
+
+  test('falls back to the leave-page prompt when draft reads fail', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => {
+          throw new Error('read blocked');
+        },
+        removeItem: vi.fn(),
+      },
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <SkuMutationActions
+                    actionContext={skuActionContext}
+                    onComplete={vi.fn(async () => {})}
+                    skuId="sku-1"
+                  />
+                  <LocationProbe />
+                </>
+              }
+              path="*"
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+      expect(screen.getByRole('dialog')).toHaveTextContent('Leave detail page?');
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
+  });
+
+  test('continues capture navigation when draft deletion fails', () => {
+    const localStorageDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: () => '{"version":1}',
+        removeItem: () => {
+          throw new Error('delete blocked');
+        },
+      },
+    });
+
+    try {
+      render(
+        <MemoryRouter initialEntries={['/catalog/skus/sku-1']}>
+          <Routes>
+            <Route
+              element={
+                <>
+                  <SkuMutationActions
+                    actionContext={skuActionContext}
+                    onComplete={vi.fn(async () => {})}
+                    skuId="sku-1"
+                  />
+                  <LocationProbe />
+                </>
+              }
+              path="*"
+            />
+          </Routes>
+        </MemoryRouter>,
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Record' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Supplier Order' }));
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete draft and start new' }));
+
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/work/capture/supplier-order?targetAction=supplier-order&targetType=sku&targetId=sku-1&ticketMode=new',
+      );
+    } finally {
+      if (localStorageDescriptor) {
+        Object.defineProperty(window, 'localStorage', localStorageDescriptor);
+      }
+    }
+  });
 });
