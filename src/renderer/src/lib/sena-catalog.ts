@@ -12,17 +12,21 @@ export function normalizeSenaSku(sku: SenaSku): SenaSku {
     ...sku,
     imagePath: normalizeImagePath(sku.imagePath),
     supplierName: normalizeSupplierName(sku.supplierName),
-    archived: sku.archived ?? false,
+    archived: normalizeArchivedFlag(sku.archived),
   };
 }
 
+function normalizeOptionalString(value: string | null | undefined) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 function normalizeImagePath(value: string | null | undefined) {
-  const normalized = value?.trim() ?? '';
+  const normalized = normalizeOptionalString(value);
   return normalized.length > 0 ? normalized : null;
 }
 
 export function normalizeSupplierName(value: string | null | undefined) {
-  const normalized = value?.trim() ?? '';
+  const normalized = normalizeOptionalString(value);
   return normalized.length > 0 ? normalized : null;
 }
 
@@ -144,8 +148,12 @@ export function normalizeSenaService(service: SenaService): SenaService {
   return {
     ...service,
     imagePath: normalizeImagePath(service.imagePath),
-    archived: service.archived ?? false,
+    archived: normalizeArchivedFlag(service.archived),
   };
+}
+
+function normalizeArchivedFlag(value: boolean | null | undefined) {
+  return typeof value === 'boolean' ? value : false;
 }
 
 export function normalizeSenaCatalog(catalog: SenaCatalog | null): SenaCatalog | null {
