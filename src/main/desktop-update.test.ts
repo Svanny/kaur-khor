@@ -114,6 +114,17 @@ describe('desktop source-build updater', () => {
     expect(source).toContain('sourceArchiveUrlForVersion(sourceVersion)');
   });
 
+  it('single-quotes Windows updater path arguments', async () => {
+    const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
+
+    expect(source).toContain('function powerShellQuote(value: string)');
+    expect(source).toContain("` --backup-dir=${powerShellQuote(backupDirectoryPath)}`");
+    expect(source).toContain('--data-dir=${powerShellQuote(dataDirectoryPath)}');
+    expect(source).toContain('value.replaceAll("\'", "\'\'")');
+    expect(source).not.toContain('dataDirectoryPath.replaceAll(\'"\', \'`"\')');
+    expect(source).not.toContain('backupDirectoryPath.replaceAll(\'"\', \'`"\')');
+  });
+
   it('does not quit or report started when terminal handoff fails', async () => {
     const child = new EventEmitter() as EventEmitter & { unref: ReturnType<typeof vi.fn> };
     child.unref = vi.fn();
