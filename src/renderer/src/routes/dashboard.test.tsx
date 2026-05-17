@@ -1427,6 +1427,38 @@ describe('DashboardRoute', () => {
     expect(nextTouchInput).toHaveValue('2026-04-10');
   });
 
+  test('shows an inline error when customer quick update date is missing', async () => {
+    const user = userEvent.setup();
+    const ticket = customerTicketFixture();
+    const ingestSenaObservation = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation,
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    const ticketButton = await screen.findByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' });
+    const ticketRow = ticketButton.closest('[data-customer-task-id]') as HTMLElement;
+    await user.click(within(ticketRow).getByRole('button', { name: 'Review' }));
+
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
+    const observedInput = await within(dialog).findByLabelText('Update date and time');
+    fireEvent.change(observedInput, { target: { value: '' } });
+    await user.click(within(dialog).getByRole('button', { name: 'Save quick update' }));
+
+    expect(await within(dialog).findByText('Update date and time is required.')).toBeInTheDocument();
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
   test('deep-links into customer workflow and highlights a Telegram intake task', async () => {
     automationHook.mockReturnValue({
       intakes: [

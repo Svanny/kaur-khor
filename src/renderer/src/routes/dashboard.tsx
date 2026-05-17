@@ -72,6 +72,7 @@ import {
   dateInputToIsoOnOrAfterObserved,
   formatLocalDateTimeInputValue,
   observedLocalDateInputValue,
+  parseLocalDateTimeInputIso,
 } from '@/lib/date-input-utils';
 import { buildOverviewSearchParams, buildSkuDetailHref, readOverviewRouteState } from '@/lib/navigation-state';
 import { createAnimationFrameScheduler } from '@/lib/animation-frame-scheduler';
@@ -1403,7 +1404,11 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       return false;
     }
     setCustomerCompletionError(null);
-    const observedAtIso = new Date(input.observedAt).toISOString();
+    const observedAtIso = parseLocalDateTimeInputIso(input.observedAt);
+    if (!observedAtIso) {
+      setCustomerCompletionError(translateUiLiteral(language, 'Update date and time is required.'));
+      return false;
+    }
     const note = input.notes.trim() || null;
     const payload = createEmptyObservationInput({
       observedAt: observedAtIso,
@@ -1535,7 +1540,11 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     }
     setCustomerCompletionError(null);
     const ticket = selectedCustomerCompletionTask.ticket;
-    const observedAtIso = new Date(input.observedAt).toISOString();
+    const observedAtIso = parseLocalDateTimeInputIso(input.observedAt);
+    if (!observedAtIso) {
+      setCustomerCompletionError(translateUiLiteral(language, 'Update date and time is required.'));
+      return false;
+    }
     const note = input.notes.trim() || null;
     if (input.action === 'follow_up' && input.nextTouchAt && clampDateInputToObservedDate(input.nextTouchAt, input.observedAt) !== input.nextTouchAt) {
       setCustomerCompletionError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
