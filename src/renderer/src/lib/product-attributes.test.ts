@@ -3,8 +3,10 @@ import {
   curatedProductAttributePresets,
   customProductAttributePresetsFromDraft,
   formatProductAttributeSuffix,
+  MAX_PRODUCT_ATTRIBUTE_VARIANTS,
   mergedProductAttributePresets,
   PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY,
+  productAttributeCombinationCount,
   productAttributeCombinations,
   readCustomProductAttributePresets,
   sanitizeProductAttributePresets,
@@ -96,6 +98,20 @@ describe('product attributes helpers', () => {
       '(Size: S, Color: Blue)',
       '(Size: M, Color: Blue)',
     ]);
+  });
+
+  test('counts oversized attribute sets without generating every variant', () => {
+    const oversizedDraft = {
+      enabled: true,
+      rows: [
+        { name: 'Size', options: ['1', '2', '3', '4', '5', '6'], selectedOptions: ['1', '2', '3', '4', '5', '6'] },
+        { name: 'Color', options: ['1', '2', '3', '4', '5'], selectedOptions: ['1', '2', '3', '4', '5'] },
+        { name: 'Quality', options: ['1', '2', '3', '4'], selectedOptions: ['1', '2', '3', '4'] },
+      ],
+    };
+
+    expect(productAttributeCombinationCount(oversizedDraft)).toBeGreaterThan(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
+    expect(productAttributeCombinations(oversizedDraft)).toEqual([]);
   });
 
   test('generates unique variant names with incrementing conflicts', () => {

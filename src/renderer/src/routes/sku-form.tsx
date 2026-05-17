@@ -32,8 +32,10 @@ import {
 } from '@/lib/sena-catalog';
 import {
   emptyProductAttributeDraft,
+  MAX_PRODUCT_ATTRIBUTE_VARIANTS,
   mergeCustomProductAttributePresets,
   mergedProductAttributePresets,
+  productAttributeCombinationCount,
   productAttributeCombinations,
   productAttributeDraftDirtyKey,
   readCustomProductAttributePresets,
@@ -277,6 +279,10 @@ export function SkuFormRoute() {
   const parsedProductPriceDraft = productPriceDraft.trim()
     ? parseNonNegativeMoneyDraft(productPriceDraft, currency, usdToKhrExchangeRate)
     : null;
+  const attributeCombinationCount = useMemo(
+    () => productAttributeCombinationCount(attributeDraft),
+    [attributeDraft],
+  );
   const skuValidationErrors = {
     name: !form.name.trim() ? t('catalogSkuEditorNameRequired') : null,
     costPerUnit: !costPerUnitDraft.trim()
@@ -297,6 +303,9 @@ export function SkuFormRoute() {
         : !leadTimeVariability
         ? t('catalogSkuEditorLeadTimeUncertaintyRequired')
         : null,
+    attributes: attributeCombinationCount > MAX_PRODUCT_ATTRIBUTE_VARIANTS
+      ? translateUiLiteral(language, 'Choose 100 or fewer variants before saving.')
+      : null,
   };
   const hasSkuValidationErrors = Object.values(skuValidationErrors).some(Boolean);
   const visibleSkuValidationErrors = saveAttempted ? skuValidationErrors : {

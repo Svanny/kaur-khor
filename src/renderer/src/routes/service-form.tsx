@@ -22,8 +22,10 @@ import {
 } from '@/lib/sena-catalog';
 import {
   emptyProductAttributeDraft,
+  MAX_PRODUCT_ATTRIBUTE_VARIANTS,
   mergeCustomProductAttributePresets,
   mergedProductAttributePresets,
+  productAttributeCombinationCount,
   productAttributeCombinations,
   productAttributeDraftDirtyKey,
   readCustomProductAttributePresets,
@@ -241,6 +243,7 @@ function ServiceFormLoadingState({ title }: { title: string }) {
       <div className="grid gap-6">
         <WorkspacePanel
           className={editorPanelClassName}
+          helperExemptReason="loading skeleton panel has no visible business label"
           title={<Skeleton className="h-7 w-36 rounded-full" />}
         >
           <div className="grid items-start gap-4 md:grid-cols-2">
@@ -252,6 +255,7 @@ function ServiceFormLoadingState({ title }: { title: string }) {
 
         <WorkspacePanel
           className={editorPanelClassName}
+          helperExemptReason="loading skeleton panel has no visible business label"
           title={<Skeleton className="h-7 w-40 rounded-full" />}
         >
           <Skeleton className="h-14 rounded-xl md:max-w-[24rem]" />
@@ -259,6 +263,7 @@ function ServiceFormLoadingState({ title }: { title: string }) {
 
         <WorkspacePanel
           className={editorPanelClassName}
+          helperExemptReason="loading skeleton panel has no visible business label"
           title={<Skeleton className="h-7 w-32 rounded-full" />}
         >
           <Skeleton className="h-12 rounded-full" />
@@ -372,6 +377,10 @@ export function ServiceFormRoute() {
     () => productAttributeCombinations(attributeDraft),
     [attributeDraft],
   );
+  const attributeCombinationCount = useMemo(
+    () => productAttributeCombinationCount(attributeDraft),
+    [attributeDraft],
+  );
   const hasUnsavedServiceChanges =
     JSON.stringify(draftDirtySnapshot) !== JSON.stringify(baselineDirtySnapshot) ||
     servicePriceDraft !== baselineServicePriceDraft ||
@@ -384,6 +393,9 @@ export function ServiceFormRoute() {
       : parsedServicePriceDraft == null
         ? translateUiLiteral(language, 'Enter a non-negative finite service price before saving.')
         : null,
+    attributes: attributeCombinationCount > MAX_PRODUCT_ATTRIBUTE_VARIANTS
+      ? translateUiLiteral(language, 'Choose 100 or fewer variants before saving.')
+      : null,
   };
   const hasServiceValidationErrors = Object.values(serviceValidationErrors).some(Boolean);
   const visibleServiceValidationErrors = saveAttempted ? serviceValidationErrors : {

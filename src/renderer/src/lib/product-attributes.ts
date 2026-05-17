@@ -23,6 +23,8 @@ export interface ProductAttributeSelection {
 
 export type ProductAttributeCombination = ProductAttributeSelection[];
 
+export const MAX_PRODUCT_ATTRIBUTE_VARIANTS = 100;
+
 export const curatedProductAttributePresets: ProductAttributePreset[] = [
   { name: 'Size', options: ['XS', 'S', 'M', 'L', 'XL', 'XXL'] },
   { name: 'Color', options: ['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Gray', 'Brown'] },
@@ -242,6 +244,10 @@ export function productAttributeCombinations(draft: ProductAttributeDraft): Prod
     return [];
   }
 
+  if (productAttributeCombinationCount(draft) > MAX_PRODUCT_ATTRIBUTE_VARIANTS) {
+    return [];
+  }
+
   return rows.reduce<ProductAttributeCombination[]>(
     (combinations, row) =>
       combinations.flatMap((combination) =>
@@ -249,6 +255,27 @@ export function productAttributeCombinations(draft: ProductAttributeDraft): Prod
       ),
     [[]],
   );
+}
+
+export function productAttributeCombinationCount(draft: ProductAttributeDraft) {
+  const sanitizedDraft = sanitizedProductAttributeDraft(draft);
+  if (!sanitizedDraft.enabled) {
+    return 0;
+  }
+
+  const rows = sanitizedDraft.rows.filter((row) => row.name && row.selectedOptions.length > 0);
+  if (rows.length === 0) {
+    return 0;
+  }
+
+  let count = 1;
+  for (const row of rows) {
+    count *= row.selectedOptions.length;
+    if (count > MAX_PRODUCT_ATTRIBUTE_VARIANTS) {
+      return count;
+    }
+  }
+  return count;
 }
 
 export function formatProductAttributeSuffix(combination: ProductAttributeCombination) {
