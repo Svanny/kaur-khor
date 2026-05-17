@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -265,6 +265,22 @@ describe('desktop local backup snapshots', () => {
     expect(cleared.clearedFileCount).toBe(2);
     await expect(readdir(join(userDataPath, 'sena-checkpoints'))).rejects.toThrow();
     await expect(readFile(join(cleared.safetySnapshot.snapshotPath, 'sena-checkpoints', 'sku-1', 'checkpoint.json'), 'utf8')).resolves.toBe('checkpoint-v1');
+  });
+
+  it('rejects snapshot directories that contain nested symbolic links', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-symlink-'));
+    const outsidePath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-outside-'));
+    const snapshotPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-snapshot-'));
+    await mkdir(join(snapshotPath, 'sena-checkpoints', 'sku-1'), { recursive: true });
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
+    await writeFile(join(outsidePath, 'secret.txt'), 'outside-secret', 'utf8');
+    await symlink(join(outsidePath, 'secret.txt'), join(snapshotPath, 'sena-checkpoints', 'sku-1', 'secret-link.txt'));
+
+    await expect(
+      restoreWorkspaceFiles(userDataPath, [join(snapshotPath, 'sena-checkpoints')]),
+    ).rejects.toThrow('Backup snapshots cannot contain symbolic links.');
+
+    await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('current-sqlite');
   });
 
   it('restores the original workspace files if writing the snapshot back fails', async () => {
