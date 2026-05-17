@@ -8,6 +8,7 @@ import {
   finalizeAutomationPromotion,
   findAutomationConversationForTelegramTicket,
   ingestAutomationTelegramUpdates,
+  listAutomationPendingTelegramOutboundJobs,
   listAutomationIntakes,
   patchAutomationExposureRow,
   prepareAutomationPromotion,
@@ -834,25 +835,26 @@ describe('automation telegram ingestion', () => {
 
   it('normalizes dirty automation store connection and exposure shapes', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
-    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
-      version: 1,
-      connection: {
-        channel: 'telegram',
-        status: 'sleeping',
-        hasBotToken: 'yes',
-        botDisplayName: 123,
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), `{
+      "version": 1,
+      "telegramUpdateCursor": 1e999,
+      "connection": {
+        "channel": "telegram",
+        "status": "sleeping",
+        "hasBotToken": "yes",
+        "botDisplayName": 123
       },
-      exposureRules: [
+      "exposureRules": [
         {
-          channel: 'telegram',
-          entityType: 'sku',
-          entityId: 'sku-1',
-          exposed: 'yes',
-          alias: 123,
-          sortOrder: 'first',
-        },
-      ],
-    }), 'utf8');
+          "channel": "telegram",
+          "entityType": "sku",
+          "entityId": "sku-1",
+          "exposed": "yes",
+          "alias": 123,
+          "sortOrder": "first"
+        }
+      ]
+    }`, 'utf8');
 
     const transport = await readAutomationTransportState(userDataPath);
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
@@ -860,11 +862,46 @@ describe('automation telegram ingestion', () => {
     expect(transport.connection.status).toBe('disconnected');
     expect(transport.connection.hasBotToken).toBe(false);
     expect(transport.connection.botDisplayName).toBeNull();
+    expect(transport.telegramUpdateCursor).toBeNull();
     expect(workspace.exposures.find((row) => row.entityId === 'sku-1')).toMatchObject({
       alias: null,
       exposed: false,
       sortOrder: 0,
     });
+  });
+
+  it('sorts dirty pending outbound job timestamps after valid jobs', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      pendingOutboundJobs: [
+        {
+          jobId: 'dirty',
+          createdAt: 'zzzz',
+          job: {
+            kind: 'send',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            text: 'dirty',
+          },
+        },
+        {
+          jobId: 'valid',
+          createdAt: '2026-04-22T00:00:00.000Z',
+          job: {
+            kind: 'send',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            text: 'valid',
+          },
+        },
+      ],
+    }), 'utf8');
+
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([
+      expect.objectContaining({ jobId: 'valid' }),
+      expect.objectContaining({ jobId: 'dirty' }),
+    ]);
   });
 
   it('rejects malformed automation intake filters before reading state', async () => {

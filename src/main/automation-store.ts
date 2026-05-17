@@ -309,6 +309,15 @@ function normalizeConnectionStatus(value: unknown): AutomationConnectionStatus {
     : DEFAULT_CONNECTION.status;
 }
 
+function normalizeTelegramUpdateCursor(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function automationCreatedAtSortValue(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
+}
+
 function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] {
   if (!Array.isArray(value)) {
     return [];
@@ -491,7 +500,7 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
       pausedAt: normalizeOptionalString(connection?.pausedAt),
       status: normalizeConnectionStatus(connection?.status),
     },
-    telegramUpdateCursor: typeof value?.telegramUpdateCursor === 'number' ? value.telegramUpdateCursor : null,
+    telegramUpdateCursor: normalizeTelegramUpdateCursor(value?.telegramUpdateCursor),
     exposureRules: normalizeExposureRules(value?.exposureRules),
     conversations: Array.isArray(value?.conversations)
       ? value.conversations.map((conversation) => ({
@@ -2800,7 +2809,9 @@ export async function listAutomationPendingTelegramOutboundJobs(
   userDataPath: string,
 ): Promise<AutomationPendingTelegramOutboundJob[]> {
   const state = await loadAutomationState(userDataPath);
-  return [...state.pendingOutboundJobs].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+  return [...state.pendingOutboundJobs].sort(
+    (left, right) => automationCreatedAtSortValue(left.createdAt) - automationCreatedAtSortValue(right.createdAt),
+  );
 }
 
 export async function removeAutomationPendingTelegramOutboundJob(
