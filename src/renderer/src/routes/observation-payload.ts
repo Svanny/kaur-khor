@@ -272,10 +272,15 @@ export function observationCompositionLabel(input: SenaObservationInput, languag
 }
 
 export function latestObservationAt(observations: SenaObservationRecord[]) {
+  function sortValue(observedAt: string) {
+    const time = new Date(observedAt).getTime();
+    return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+  }
+
   return observations
     .map((observation) => observation.input.observedAt)
     .filter(Boolean)
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+    .sort((left, right) => sortValue(right) - sortValue(left))[0] ?? null;
 }
 
 export function intervalDaysBetween(startAt: string | null, endAt: string | null) {
