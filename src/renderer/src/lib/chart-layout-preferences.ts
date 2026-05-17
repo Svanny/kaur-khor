@@ -83,6 +83,25 @@ export function defaultChartLayoutPreferences(): PersistedChartLayoutPreferences
   };
 }
 
+function normalizeDateRange(value: unknown): ChartVisibleDateRange | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+  const candidate = value as Partial<ChartVisibleDateRange>;
+  if (typeof candidate.startAt !== 'string' || typeof candidate.endAt !== 'string') {
+    return null;
+  }
+  const start = Date.parse(candidate.startAt);
+  const end = Date.parse(candidate.endAt);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+    return null;
+  }
+  return {
+    startAt: candidate.startAt,
+    endAt: candidate.endAt,
+  };
+}
+
 export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPreferences | null | undefined): PersistedChartLayoutPreferences {
   const defaults = defaultChartLayoutPreferences();
   if (!value || typeof value !== 'object') {
@@ -94,24 +113,12 @@ export function normalizeChartLayoutPreferences(value: PersistedChartLayoutPrefe
   const chartResolution = value.chartResolution === 'H' || value.chartResolution === '1D' || value.chartResolution === '1W' || value.chartResolution === '1M' || value.chartResolution === '3M' || value.chartResolution === '1Y' || value.chartResolution === 'Custom'
     ? value.chartResolution
     : defaults.chartResolution;
-  const customTimeframeRange =
-    value.customTimeframeRange?.startAt && value.customTimeframeRange?.endAt
-      ? {
-          startAt: value.customTimeframeRange.startAt,
-          endAt: value.customTimeframeRange.endAt,
-        }
-      : null;
+  const customTimeframeRange = normalizeDateRange(value.customTimeframeRange);
   const customChartResolution =
     chartResolution === 'Custom'
       ? parseChartCustomResolution(value.customChartResolution?.expression ?? '') ?? null
       : null;
-  const visibleDateRange =
-    value.visibleDateRange?.startAt && value.visibleDateRange?.endAt
-      ? {
-          startAt: value.visibleDateRange.startAt,
-          endAt: value.visibleDateRange.endAt,
-        }
-      : null;
+  const visibleDateRange = normalizeDateRange(value.visibleDateRange);
   const paneHeightsSource = value.paneHeightsSource === 'manual' ? value.paneHeightsSource : undefined;
   const paneHeights = paneHeightsSource === 'manual'
     ? Object.fromEntries(
