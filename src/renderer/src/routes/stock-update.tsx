@@ -329,6 +329,17 @@ function buildHeatmapBuckets(thresholds: HeatmapThresholds): HeatmapBuckets {
   };
 }
 
+function observationSortValue(observedAt: string) {
+  const time = new Date(observedAt).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
+function sortObservationsByRecent(observations: SenaObservationRecord[]) {
+  return [...observations].sort(
+    (left, right) => observationSortValue(right.input.observedAt) - observationSortValue(left.input.observedAt),
+  );
+}
+
 function heatLevelForCount(count: number, buckets: HeatmapBuckets): HeatLevel {
   if (count <= 0) {
     return 0;
@@ -422,9 +433,7 @@ function buildHeatmapWindow(
         key,
         isoValue: date.toISOString(),
         count: entries.length,
-        observations: [...entries].sort(
-          (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-        ),
+        observations: sortObservationsByRecent(entries),
         level: inWindow ? heatLevelForCount(entries.length, buckets) : 0,
         inWindow,
       });
@@ -535,14 +544,14 @@ function paginatedObservationRange(page: number, totalCount: number) {
 }
 
 function previousObservationAt(observation: SenaObservationRecord, observations: SenaObservationRecord[]) {
-  const observedTime = new Date(observation.input.observedAt).getTime();
+  const observedTime = observationSortValue(observation.input.observedAt);
   return observations
     .map((entry) => entry.input.observedAt)
     .filter((observedAt) => {
-      const candidateTime = new Date(observedAt).getTime();
-      return !Number.isNaN(candidateTime) && candidateTime < observedTime;
+      const candidateTime = observationSortValue(observedAt);
+      return candidateTime > Number.NEGATIVE_INFINITY && candidateTime < observedTime;
     })
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+    .sort((left, right) => observationSortValue(right) - observationSortValue(left))[0] ?? null;
 }
 
 function observationIntervalLabel(
@@ -671,7 +680,7 @@ export function StockUpdateRoute() {
         )
         .sort(
           (left, right) =>
-            new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+            observationSortValue(right.input.observedAt) - observationSortValue(left.input.observedAt),
         ),
     [baseCatalog, catalog, deferredQuery, observations, scope, serviceLinkedSkuIdSet, supplierFilter],
   );
