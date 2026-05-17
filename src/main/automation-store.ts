@@ -496,6 +496,10 @@ function automationTextIncludes(haystack: Array<string | null | undefined>, quer
   return haystack.some((entry) => safeLower(entry).includes(normalizedQuery));
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
   const connection = value?.connection;
   return {
@@ -519,28 +523,29 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
     telegramUpdateCursor: normalizeTelegramUpdateCursor(value?.telegramUpdateCursor),
     exposureRules: normalizeExposureRules(value?.exposureRules),
     conversations: Array.isArray(value?.conversations)
-      ? value.conversations.map((conversation) => ({
+      ? value.conversations.filter(isObjectRecord).map((conversation) => ({
         ...conversation,
         phone: normalizeNullablePhone(conversation.phone),
-      }))
+      } as AutomationConversationSummary))
       : [],
     messages: Array.isArray(value?.messages)
-      ? value.messages.map((message) => ({
+      ? value.messages.filter(isObjectRecord).map((message) => ({
         ...message,
         intakeId: typeof message.intakeId === 'string' ? message.intakeId : null,
-      }))
+      } as AutomationMessageRecord))
       : [],
     intakes: Array.isArray(value?.intakes)
-      ? value.intakes.map((intake) => ({
+      ? value.intakes.filter(isObjectRecord).map((intake) => ({
         ...intake,
         phone: normalizeNullablePhone(intake.phone),
-      }))
+      } as AutomationOrderIntake))
       : [],
     customerPreferences: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.customerPreferences)
-      ? [...(value as Partial<AutomationStoreState>).customerPreferences!]
+      ? (value as Partial<AutomationStoreState>).customerPreferences!.filter(isObjectRecord)
+        .map((preference) => ({ ...preference } as AutomationCustomerPreferencesRecord))
       : [],
     wizardSessions: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.wizardSessions)
-      ? (value as Partial<AutomationStoreState>).wizardSessions!.map((session) => ({
+      ? (value as Partial<AutomationStoreState>).wizardSessions!.filter(isObjectRecord).map((session) => ({
         ...session,
         currentStep: session.currentStep ?? 'menu',
         catalogCursor: typeof session.catalogCursor === 'number' ? session.catalogCursor : 0,

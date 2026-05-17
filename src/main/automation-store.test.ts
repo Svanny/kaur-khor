@@ -809,6 +809,25 @@ describe('automation telegram ingestion', () => {
     await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
   });
 
+  it('drops malformed persisted collection entries while loading automation workspace', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [null, 'dirty-conversation'],
+      messages: [null, 7],
+      intakes: [null, false],
+      customerPreferences: [null, 'dirty-preferences'],
+      wizardSessions: [null, 'dirty-session'],
+      pendingOutboundJobs: [null, 'dirty-job'],
+    }), 'utf8');
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(workspace.conversations).toEqual([]);
+    expect(workspace.intakes).toEqual([]);
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([]);
+  });
+
   it('rejects malformed automation connection patches before persisting state', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
