@@ -62,4 +62,12 @@ describe('chart settings memory', () => {
     expect(() => writeSubtypeDefaultChartSettings('sku', { visible: true }, normalizeSettings)).not.toThrow();
     expect(storage.setItem).toHaveBeenCalled();
   });
+
+  it('ignores malformed persisted subtype settings records', () => {
+    window.localStorage.setItem('kaur-khor:chart-settings:defaults:v1', JSON.stringify('not-a-record'));
+
+    expect(readSubtypeDefaultChartSettings('sku', normalizeSettings)).toBeNull();
+    expect(() => writeSubtypeDefaultChartSettings('sku', { visible: true }, normalizeSettings)).not.toThrow();
+    expect(readSubtypeDefaultChartSettings('sku', normalizeSettings)).toEqual({ visible: true });
+  });
 });
