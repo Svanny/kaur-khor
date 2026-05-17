@@ -267,6 +267,50 @@ describe('record activity helpers', () => {
     expect(latestDeliveryFeeMetadataFromContext(context, 'customer_order', [])?.displayTotalUsd).toBe(11);
   });
 
+  test('sorts dirty fallback delivery fee timestamps after valid metadata', () => {
+    const dirtyObservation: SenaObservationRecord = {
+      ...ticketObservation,
+      observationId: 'obs-dirty',
+      input: {
+        ...ticketObservation.input,
+        observedAt: 'zzzz',
+        deliveryFee: {
+          bucket: 'customer_order',
+          payer: 'customer',
+          feeUsd: 9,
+          subtotalUsd: 10,
+          displayDeliveryUsd: 9,
+          displayTotalUsd: 19,
+          netSettlementUsd: 19,
+        },
+        ticketEvents: [],
+      },
+    };
+    const validObservation: SenaObservationRecord = {
+      ...ticketObservation,
+      observationId: 'obs-valid',
+      input: {
+        ...ticketObservation.input,
+        observedAt: '2026-04-22T10:00:00.000Z',
+        deliveryFee: {
+          bucket: 'customer_order',
+          payer: 'customer',
+          feeUsd: 2,
+          subtotalUsd: 10,
+          displayDeliveryUsd: 2,
+          displayTotalUsd: 12,
+          netSettlementUsd: 12,
+        },
+        ticketEvents: [],
+      },
+    };
+
+    expect(
+      latestDeliveryFeeMetadataFromContext(null, 'customer_order', [dirtyObservation, validObservation])
+        ?.displayTotalUsd,
+    ).toBe(12);
+  });
+
   test('normalizes observation stock, receipt, and ticket activity using canonical lines', () => {
     const entries = observationRecordActivityEntries(ticketObservation);
     expect(entries.map((entry) => entry.activityType)).toEqual(['ticket', 'receipt', 'order', 'stock']);
