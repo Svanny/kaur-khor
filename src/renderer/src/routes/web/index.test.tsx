@@ -1188,6 +1188,59 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
   });
 
+  test('does not import a backup with malformed browser workspace state', async () => {
+    const existingState = fallbackStateForMode('app');
+    const handle = createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: existingState,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+
+    const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+    await screen.findByRole('button', { name: 'Export backup' });
+    const input = container.querySelector('input[type="file"]');
+    expect(input).not.toBeNull();
+    const malformedBackupFile = {
+      name: 'malformed-state-backup.json',
+      text: vi.fn(async () => JSON.stringify({
+        databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+        exportedAt: '2026-05-05T00:00:00.000Z',
+        format: 'kaur-khor.browser.storage.backup',
+        records: [{
+          collection: 'browser_state',
+          id: KAUR_KHOR_BROWSER_APP_DATABASE,
+          json: {},
+          updatedAt: '2026-05-05T00:00:00.000Z',
+        }],
+        schemaVersion: 1,
+        version: 1,
+      })),
+      type: 'application/json',
+    } as unknown as File;
+
+    fireEvent.change(input as HTMLInputElement, {
+      target: {
+        files: [malformedBackupFile],
+      },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Backup did not contain a browser workspace state.');
+    expect(handle.importBackup).not.toHaveBeenCalled();
+    await expect(handle.listDocuments('browser_state')).resolves.toEqual([
+      expect.objectContaining({
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: expect.objectContaining({
+          appContext: expect.objectContaining({ platform: 'web' }),
+        }),
+      }),
+    ]);
+  });
+
   test('shows browser workspace data-risk copy without Telegram copy when no bot is connected', () => {
     setBrowserDesktopBridgeMockState(fallbackStateForMode('app'));
 

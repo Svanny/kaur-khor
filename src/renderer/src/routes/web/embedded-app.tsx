@@ -142,12 +142,37 @@ function stateRecord(
   };
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isBrowserMockStateRecord(value: unknown): value is BrowserMockState {
+  if (!isObjectRecord(value)) {
+    return false;
+  }
+
+  return (
+    isObjectRecord(value.appContext) &&
+    isObjectRecord(value.automation) &&
+    isObjectRecord(value.catalog) &&
+    isObjectRecord(value.diagnostics) &&
+    isObjectRecord(value.latestRun) &&
+    isObjectRecord(value.localDataInfo) &&
+    isObjectRecord(value.preferences) &&
+    isObjectRecord(value.serviceDetails) &&
+    isObjectRecord(value.skuDetails) &&
+    isObjectRecord(value.workspaceSummary) &&
+    Array.isArray(value.observations) &&
+    Array.isArray(value.orderBatches)
+  );
+}
+
 function readStateRecord(records: BrowserStorageDocumentRecord[], databaseName: KaurKhorBrowserDatabaseName): BrowserMockState | null {
   const record = records.find((entry) => entry.collection === 'browser_state' && entry.id === databaseName);
-  if (!record || typeof record.json !== 'object' || record.json === null) {
+  if (!record || !isBrowserMockStateRecord(record.json)) {
     return null;
   }
-  return record.json as BrowserMockState;
+  return record.json;
 }
 
 async function persistCurrentState(handle: BrowserStorageSupportedHandle, databaseName: KaurKhorBrowserDatabaseName) {
