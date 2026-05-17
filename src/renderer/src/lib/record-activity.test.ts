@@ -221,6 +221,33 @@ describe('record activity helpers', () => {
     expect(option?.label).not.toContain('service-');
   });
 
+  test('sorts dirty customer ticket timestamps after valid display labels', () => {
+    const dirtyContext: SenaRecordUpdateContext = {
+      ...context,
+      openTicketsByFamily: {
+        customer: [
+          {
+            ...ticketObservation.input.ticketEvents![0]!,
+            ticketId: 'ticket-customer-dirty',
+            occurredAt: '2026-04-21-bad',
+          },
+          {
+            ...ticketObservation.input.ticketEvents![0]!,
+            ticketId: 'ticket-customer-valid',
+            occurredAt: '2026-04-21T10:10:00.000Z',
+          },
+        ],
+        supplier: [],
+      },
+      latestTicketsById: {},
+    };
+
+    expect(recordTicketOptions(dirtyContext, 'customer', catalog).map((option) => option.label)).toEqual([
+      'Ticket ID: 2026-04-21-#2',
+      'Ticket ID: 2026-04-21-#1',
+    ]);
+  });
+
   test('uses non-leaky fallbacks when ticket entity ids are not in the catalog', () => {
     const supplierContext: SenaRecordUpdateContext = {
       ...context,
