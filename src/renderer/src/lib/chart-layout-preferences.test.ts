@@ -344,6 +344,22 @@ describe('chart layout preference storage', () => {
     localStorageGetter.mockRestore();
   });
 
+  it('ignores malformed persisted subtype layout records', () => {
+    window.localStorage.setItem('kaur-khor:chart-layout:defaults:v1', JSON.stringify('not-a-record'));
+
+    expect(readSubtypeDefaultChartLayoutPreferences('sku')).toBeNull();
+    expect(() =>
+      writeSubtypeDefaultChartLayoutPreferences('sku', {
+        ...defaultChartLayoutPreferences(),
+        timeframe: 'MAX',
+      }),
+    ).not.toThrow();
+    expect(readSubtypeDefaultChartLayoutPreferences('sku')).toEqual({
+      ...defaultChartLayoutPreferences(),
+      timeframe: 'MAX',
+    });
+  });
+
   it('ignores legacy pane heights that were saved without a manual source marker', () => {
     window.localStorage.setItem(
       'kaur-khor:page-state-memory:v1',

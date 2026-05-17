@@ -57,7 +57,11 @@ function readStorageRecord<T>(storage: Storage | null, key: string): Record<stri
     if (!rawValue) {
       return {};
     }
-    return JSON.parse(rawValue) as Record<string, T>;
+    const parsed = JSON.parse(rawValue);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+    return parsed as Record<string, T>;
   } catch {
     return {};
   }
