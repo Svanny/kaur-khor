@@ -475,6 +475,45 @@ describe('automation telegram ingestion', () => {
     expect(thread.messages.every((message) => message.intakeId === workspace.intakes[0]!.intakeId)).toBe(true);
   });
 
+  it('falls back to local timestamps for malformed Telegram message dates', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-date-'));
+
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_110,
+      firstName: 'Sokha',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 99,
+          message: {
+            message_id: 199,
+            date: 'not-a-telegram-date' as never,
+            text: '2 cotton scarf',
+            chat: {
+              id: 555_110,
+              type: 'private',
+            },
+            from: {
+              id: 555_110,
+              first_name: 'Sokha',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes[0]?.status).toBe('quoted');
+    expect(Number.isFinite(Date.parse(workspace.intakes[0]!.createdAt))).toBe(true);
+    expect(Number.isFinite(Date.parse(workspace.conversations[0]!.lastMessageAt))).toBe(true);
+    expect(workspace.connection.lastWebhookAt).not.toBeNull();
+    expect(Number.isFinite(Date.parse(workspace.connection.lastWebhookAt!))).toBe(true);
+  });
+
   it('routes extra free-text messages in one Telegram chat to the active intake thread', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const firstIntake = await createQuotedAutomationIntake(userDataPath, 555_112);
