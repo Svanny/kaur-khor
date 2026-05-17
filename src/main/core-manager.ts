@@ -29,14 +29,21 @@ export function createManagedCoreController(
       return startingCore;
     }
 
-    startingCore = start(options)
+    const startPromise = start(options)
       .then((core) => {
+        if (startingCore !== startPromise) {
+          void core.stop();
+          throw new Error('desktop core startup was canceled');
+        }
         managedCore = core;
         return core;
       })
       .finally(() => {
-        startingCore = null;
+        if (startingCore === startPromise) {
+          startingCore = null;
+        }
       });
+    startingCore = startPromise;
     return startingCore;
   }
 

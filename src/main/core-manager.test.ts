@@ -101,4 +101,43 @@ describe('managed core controller', () => {
     await expect(secondInvoke).resolves.toEqual({ ok: true });
     expect(start).toHaveBeenCalledTimes(1);
   });
+
+  it('stops a core process that resolves after startup was canceled', async () => {
+    let resolveFirstStart: ((core: ManagedCoreProcess) => void) | null = null;
+    const firstCore = createCoreStub({
+      invoke: createInvokeMock().mockResolvedValue({ ok: false }),
+      isStopped: () => false,
+      stop: vi.fn(async () => undefined),
+    });
+    const secondCore = createCoreStub({
+      invoke: createInvokeMock().mockResolvedValue({ ok: true }),
+      isStopped: () => false,
+    });
+    const start = vi.fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<ManagedCoreProcess>((resolve) => {
+            resolveFirstStart = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(secondCore);
+    const controller = createManagedCoreController(
+      {
+        projectRoot: '/tmp/project',
+        userDataPath: '/tmp/user-data',
+      },
+      start,
+    );
+
+    const firstInvoke = controller.invoke('sena.getCatalog');
+    await controller.stop();
+
+    expect(resolveFirstStart).not.toBeNull();
+    resolveFirstStart!(firstCore);
+
+    await expect(firstInvoke).rejects.toThrow('desktop core startup was canceled');
+    expect(firstCore.stop).toHaveBeenCalledTimes(1);
+    await expect(controller.invoke('sena.getCatalog')).resolves.toEqual({ ok: true });
+    expect(start).toHaveBeenCalledTimes(2);
+  });
 });
