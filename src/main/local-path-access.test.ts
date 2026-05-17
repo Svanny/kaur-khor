@@ -43,4 +43,15 @@ describe('normalizeAllowedLocalDataPath', () => {
       'Only kaur khor workspace paths can be revealed.',
     );
   });
+
+  it('rejects missing children below symlinked directories outside the data root', async () => {
+    const rootPath = await mkdtemp(join(tmpdir(), 'kaur-khor-local-path-root-'));
+    const outsidePath = await mkdtemp(join(tmpdir(), 'kaur-khor-local-path-outside-'));
+    const linkedDirectoryPath = join(rootPath, 'linked-outside');
+    await symlink(outsidePath, linkedDirectoryPath);
+
+    expect(() => normalizeAllowedLocalDataPath(join(linkedDirectoryPath, 'missing.txt'), [rootPath])).toThrow(
+      'Only kaur khor workspace paths can be revealed.',
+    );
+  });
 });
