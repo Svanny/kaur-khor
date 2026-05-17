@@ -302,12 +302,23 @@ type IntervalAggregateSeed = {
 
 function orderedObservations(observations: SenaObservationRecord[]) {
   return [...observations].sort((left, right) => {
-    return new Date(left.input.observedAt).getTime() - new Date(right.input.observedAt).getTime();
+    const leftTime = new Date(left.input.observedAt).getTime();
+    const rightTime = new Date(right.input.observedAt).getTime();
+    return (
+      (Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY) -
+      (Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY)
+    );
   });
 }
 
 function lastObservedAt(workspaceSummary: SenaWorkspaceSummary | null, observations: SenaObservationRecord[]) {
-  return workspaceSummary?.latestObservedAt ?? orderedObservations(observations).at(-1)?.input.observedAt ?? null;
+  const summaryObservedAt = workspaceSummary?.latestObservedAt ?? null;
+  if (summaryObservedAt && Number.isFinite(new Date(summaryObservedAt).getTime())) {
+    return summaryObservedAt;
+  }
+  return orderedObservations(observations).filter((observation) =>
+    Number.isFinite(new Date(observation.input.observedAt).getTime()),
+  ).at(-1)?.input.observedAt ?? null;
 }
 
 function clamp(value: number, minimum: number, maximum: number) {

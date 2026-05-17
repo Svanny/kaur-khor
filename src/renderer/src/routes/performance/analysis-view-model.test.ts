@@ -224,6 +224,34 @@ const skuDetailsById: Record<string, SenaSkuDetail | null> = {
 };
 
 describe('deriveAnalysisViewModel', () => {
+  test('falls back to valid observations when summary latest date is invalid', () => {
+    const model = deriveAnalysisViewModel({
+      catalog,
+      currency: 'USD',
+      diagnostics,
+      language: 'en',
+      observations: [
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: 'not-a-date' },
+          observationId: 'dirty',
+        },
+        {
+          ...observations[1],
+          input: { ...observations[1].input, observedAt: '2026-04-10T08:00:00.000Z' },
+          observationId: 'latest',
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'also-not-a-date' },
+    });
+
+    expect(model.lastUpdatedLabel).toContain('Apr 10');
+    expect(model.settings.latestObservedAt).toContain('Apr 10');
+  });
+
   test('preserves all hydrated intervals instead of truncating to the latest ten', () => {
     const longDiagnostics: SenaDiagnostics = {
       ...diagnostics,
