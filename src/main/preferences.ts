@@ -73,6 +73,10 @@ function normalizeUsdToKhrExchangeRate(value: unknown): number {
     : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
 }
 
+function normalizeBooleanPreference(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback;
+}
+
 function normalizePreferences(
   value: Partial<DesktopPreferences> | null | undefined,
   options?: { hasExistingPreferencesFile?: boolean },
@@ -81,28 +85,43 @@ function normalizePreferences(
     taskBatchUpdateMode?: DesktopTaskBatchUpdatePreference;
   } | null | undefined)?.taskBatchUpdateMode;
   const hasExistingPreferencesFile = options?.hasExistingPreferencesFile ?? false;
-  const showExplanatoryTooltips = value?.showExplanatoryTooltips ?? true;
-  const showFloatingTitleActions = value?.showFloatingTitleActions ?? true;
-  const showRightRailCards = value?.showRightRailCards ?? true;
-  const showOverviewTaskTabs = value?.showOverviewTaskTabs ?? true;
-  const showAutomationsPage = value?.showAutomationsPage ?? true;
+  const showExplanatoryTooltips = normalizeBooleanPreference(value?.showExplanatoryTooltips, true);
+  const showFloatingTitleActions = normalizeBooleanPreference(value?.showFloatingTitleActions, true);
+  const showRightRailCards = normalizeBooleanPreference(value?.showRightRailCards, true);
+  const showOverviewTaskTabs = normalizeBooleanPreference(value?.showOverviewTaskTabs, true);
+  const showAutomationsPage = normalizeBooleanPreference(value?.showAutomationsPage, true);
   const showAnalysisPage = true;
-  const showPerformanceCompareToggle = value?.showPerformanceCompareToggle ?? true;
-  const showPerformanceTimelineCard = value?.showPerformanceTimelineCard ?? true;
-  const showLogsViewToggle = value?.showLogsViewToggle ?? true;
-  const showHeartbeatRibbons = value?.showHeartbeatRibbons ?? true;
-  const customShowExplanatoryTooltips = value?.customShowExplanatoryTooltips ?? showExplanatoryTooltips;
-  const customShowFloatingTitleActions = value?.customShowFloatingTitleActions ?? showFloatingTitleActions;
-  const customShowRightRailCards = value?.customShowRightRailCards ?? showRightRailCards;
-  const customShowOverviewTaskTabs = value?.customShowOverviewTaskTabs ?? showOverviewTaskTabs;
-  const customShowAutomationsPage = value?.customShowAutomationsPage ?? showAutomationsPage;
+  const showPerformanceCompareToggle = normalizeBooleanPreference(value?.showPerformanceCompareToggle, true);
+  const showPerformanceTimelineCard = normalizeBooleanPreference(value?.showPerformanceTimelineCard, true);
+  const showLogsViewToggle = normalizeBooleanPreference(value?.showLogsViewToggle, true);
+  const showHeartbeatRibbons = normalizeBooleanPreference(value?.showHeartbeatRibbons, true);
+  const customShowExplanatoryTooltips = normalizeBooleanPreference(
+    value?.customShowExplanatoryTooltips,
+    showExplanatoryTooltips,
+  );
+  const customShowFloatingTitleActions = normalizeBooleanPreference(
+    value?.customShowFloatingTitleActions,
+    showFloatingTitleActions,
+  );
+  const customShowRightRailCards = normalizeBooleanPreference(
+    value?.customShowRightRailCards,
+    showRightRailCards,
+  );
+  const customShowOverviewTaskTabs = normalizeBooleanPreference(
+    value?.customShowOverviewTaskTabs,
+    showOverviewTaskTabs,
+  );
+  const customShowAutomationsPage = normalizeBooleanPreference(
+    value?.customShowAutomationsPage,
+    showAutomationsPage,
+  );
   const customShowAnalysisPage = true;
   const customShowPerformanceCompareToggle =
-    value?.customShowPerformanceCompareToggle ?? showPerformanceCompareToggle;
+    normalizeBooleanPreference(value?.customShowPerformanceCompareToggle, showPerformanceCompareToggle);
   const customShowPerformanceTimelineCard =
-    value?.customShowPerformanceTimelineCard ?? showPerformanceTimelineCard;
-  const customShowLogsViewToggle = value?.customShowLogsViewToggle ?? showLogsViewToggle;
-  const customShowHeartbeatRibbons = value?.customShowHeartbeatRibbons ?? showHeartbeatRibbons;
+    normalizeBooleanPreference(value?.customShowPerformanceTimelineCard, showPerformanceTimelineCard);
+  const customShowLogsViewToggle = normalizeBooleanPreference(value?.customShowLogsViewToggle, showLogsViewToggle);
+  const customShowHeartbeatRibbons = normalizeBooleanPreference(value?.customShowHeartbeatRibbons, showHeartbeatRibbons);
   const visibilityPreferences = {
     showExplanatoryTooltips,
     showFloatingTitleActions,
@@ -142,7 +161,7 @@ function normalizePreferences(
     usdToKhrExchangeRate: normalizeUsdToKhrExchangeRate(value?.usdToKhrExchangeRate),
     displayViewMode,
     itemImageMode,
-    dimChartsWhileLoading: value?.dimChartsWhileLoading ?? false,
+    dimChartsWhileLoading: normalizeBooleanPreference(value?.dimChartsWhileLoading, false),
     showExplanatoryTooltips,
     showFloatingTitleActions,
     showRightRailCards,

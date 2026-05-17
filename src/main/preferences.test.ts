@@ -545,6 +545,35 @@ describe('desktop preferences store', () => {
     );
   });
 
+  it('normalizes dirty boolean preference values back to booleans', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        dimChartsWhileLoading: 'yes',
+        showExplanatoryTooltips: 'false',
+        showFloatingTitleActions: 0,
+        showRightRailCards: false,
+        customShowRightRailCards: 'true',
+      }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(expect.objectContaining({
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
+      customShowRightRailCards: false,
+    }));
+
+    await expect(saveDesktopPreferences(userDataPath, { dimChartsWhileLoading: 'yes' as never })).resolves.toEqual(
+      expect.objectContaining({ dimChartsWhileLoading: false }),
+    );
+  });
+
   it('round-trips and normalizes workbench tile order by lane', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
