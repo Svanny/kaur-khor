@@ -883,6 +883,27 @@ export function AutomationsRoute({
     }
   }
 
+  async function handlePatchExposureRow(
+    row: AutomationExposureRow,
+    patch: { alias?: string | null; exposed?: boolean },
+  ) {
+    try {
+      await patchExposureRow({
+        ...patch,
+        entityId: row.entityId,
+        entityType: row.entityType,
+      });
+    } catch (patchError) {
+      setSaveResultDialog({
+        title: translateUiLiteral(language, 'Telegram sellable not updated'),
+        description: patchError instanceof Error
+          ? patchError.message
+          : translateUiLiteral(language, 'Kaur Khor could not update the Telegram sellable.'),
+        tone: 'error',
+      });
+    }
+  }
+
   const hasSavedTelegramConfiguration = Boolean(connection?.hasBotToken) || hasUnlockedAutomationTabs;
   const section = forcedSection ?? (hasSavedTelegramConfiguration ? routeState.section : 'settings');
   const workIntakeWindow = useWorkspaceWindowMinHeight<HTMLDivElement>(`intake:${intakeTab}:${section}:${hasSavedTelegramConfiguration}`);
@@ -1252,18 +1273,10 @@ export function AutomationsRoute({
                   language={language}
                   rows={visibleExposureRows}
                   onAliasCommit={(row, nextAlias) => {
-                    void patchExposureRow({
-                      alias: nextAlias.trim() || null,
-                      entityId: row.entityId,
-                      entityType: row.entityType,
-                    });
+                    void handlePatchExposureRow(row, { alias: nextAlias.trim() || null });
                   }}
                   onToggle={(row, checked) => {
-                    void patchExposureRow({
-                      entityId: row.entityId,
-                      entityType: row.entityType,
-                      exposed: checked,
-                    });
+                    void handlePatchExposureRow(row, { exposed: checked });
                   }}
                 />
               ) : (
