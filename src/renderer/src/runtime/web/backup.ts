@@ -47,10 +47,12 @@ function validateDocumentRecord(value: unknown, index: number, errors: string[])
   const collection = value.collection;
   const id = value.id;
   const updatedAt = value.updatedAt;
-  if (typeof collection !== 'string' || collection.trim().length === 0) {
+  const normalizedCollection = typeof collection === 'string' ? collection.trim() : '';
+  const normalizedId = typeof id === 'string' ? id.trim() : '';
+  if (normalizedCollection.length === 0) {
     errors.push(`records[${index}].collection must be a non-empty string.`);
   }
-  if (typeof id !== 'string' || id.trim().length === 0) {
+  if (normalizedId.length === 0) {
     errors.push(`records[${index}].id must be a non-empty string.`);
   }
   if (!Object.hasOwn(value, 'json')) {
@@ -63,8 +65,8 @@ function validateDocumentRecord(value: unknown, index: number, errors: string[])
     return null;
   }
   return {
-    collection: collection as string,
-    id: id as string,
+    collection: normalizedCollection,
+    id: normalizedId,
     json: value.json,
     updatedAt: updatedAt as string,
   };

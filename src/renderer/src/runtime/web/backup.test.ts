@@ -52,6 +52,32 @@ describe('browser storage backup helpers', () => {
     }
   });
 
+  it('normalizes backup document keys before import', () => {
+    const validation = validateBrowserStorageBackup({
+      format: 'kaur-khor.browser.storage.backup',
+      version: BROWSER_STORAGE_BACKUP_VERSION,
+      databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+      schemaVersion: KAUR_KHOR_BROWSER_SCHEMA_VERSION,
+      exportedAt: '2026-05-01T00:01:00.000Z',
+      records: [{
+        collection: ' preferences ',
+        id: ' current ',
+        json: { language: 'en' },
+        updatedAt: '2026-05-01T00:00:00.000Z',
+      }],
+    });
+
+    expect(validation).toMatchObject({
+      ok: true,
+      backup: {
+        records: [{
+          collection: 'preferences',
+          id: 'current',
+        }],
+      },
+    });
+  });
+
   it('rejects invalid JSON input', () => {
     expect(parseBrowserStorageBackupJson('{nope')).toEqual({
       ok: false,
@@ -59,4 +85,3 @@ describe('browser storage backup helpers', () => {
     });
   });
 });
-
