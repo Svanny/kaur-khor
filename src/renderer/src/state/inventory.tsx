@@ -1299,7 +1299,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           return page;
         };
         if (strategy === 'network-only') {
-          return loadFresh();
+          const page = await loadFresh();
+          readCacheRef.current.set(key, page);
+          return page;
         }
         return loadSenaDetailPage({
           key,
@@ -1342,7 +1344,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           return page;
         };
         if (strategy === 'network-only') {
-          return loadFresh();
+          const page = await loadFresh();
+          readCacheRef.current.set(key, page);
+          return page;
         }
         return loadSenaDetailPage({
           key,

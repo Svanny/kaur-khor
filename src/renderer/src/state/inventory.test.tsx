@@ -672,6 +672,71 @@ describe('InventoryProvider', () => {
     warnSpy.mockRestore();
   });
 
+  it('updates the in-memory detail cache after network-only detail loads', async () => {
+    function NetworkOnlyDetailHarness() {
+      const inventory = useInventory();
+      const [latestIntervalIndex, setLatestIntervalIndex] = useState<string>('none');
+
+      return (
+        <div>
+          <div data-testid="cache-workspace-run">{inventory.workspaceSummary?.runId ?? 'none'}</div>
+          <div data-testid="latest-interval-index">{latestIntervalIndex}</div>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.loadSenaSkuDetail('sku-1').then((page) => {
+                setLatestIntervalIndex(String(page?.latestIntervalIndex ?? 'none'));
+              })
+            }
+          >
+            load cached sku
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void inventory.loadSenaSkuDetail('sku-1', { strategy: 'network-only' }).then((page) => {
+                setLatestIntervalIndex(String(page?.latestIntervalIndex ?? 'none'));
+              })
+            }
+          >
+            refresh sku
+          </button>
+        </div>
+      );
+    }
+
+    window.kaurKhorDesktop.sena.getSkuDetail = vi
+      .fn()
+      .mockResolvedValueOnce(makeSkuDetailPage(10))
+      .mockResolvedValueOnce(makeSkuDetailPage(30));
+
+    render(
+      <InventoryProvider>
+        <NetworkOnlyDetailHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('cache-workspace-run').textContent).toBe('run-1');
+    });
+
+    fireEvent.click(screen.getByText('load cached sku'));
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('10');
+    });
+
+    fireEvent.click(screen.getByText('refresh sku'));
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('30');
+    });
+
+    fireEvent.click(screen.getByText('load cached sku'));
+    await waitFor(() => {
+      expect(screen.getByTestId('latest-interval-index').textContent).toBe('30');
+    });
+    expect(window.kaurKhorDesktop.sena.getSkuDetail).toHaveBeenCalledTimes(2);
+  });
+
   it('loads detail pages when persisted detail storage is blocked', async () => {
     function BlockedStorageHarness() {
       const inventory = useInventory();
