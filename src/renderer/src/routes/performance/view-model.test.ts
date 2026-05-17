@@ -351,6 +351,39 @@ describe('derivePerformanceViewModel', () => {
     expect(model.confidence.evidenceLabel).toContain('Apr 10');
   });
 
+  test('ignores invalid workspace summary dates when anchoring windows', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      customRange: null,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        {
+          ...observations[1],
+          input: { ...observations[1].input, observedAt: '2026-04-01T08:00:00.000Z' },
+          observationId: 'older-first',
+        },
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: '2026-04-10T08:00:00.000Z' },
+          observationId: 'latest-second',
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: '7d',
+      previousCustomRange: null,
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'not-a-date' },
+    });
+
+    expect(model.lastUpdatedLabel).toContain('Apr 10');
+    expect(model.confidence.evidenceLabel).toContain('Apr 10');
+    expect(model.ribbon.find((metric) => metric.key === 'demand')?.trendSignal?.points.length).toBeGreaterThan(0);
+  });
+
   test('keeps overdue pipeline summaries working with localized labels', () => {
     const model = derivePerformanceViewModel({
       catalog,
