@@ -387,6 +387,7 @@ pub fn preprocess_workspace(
     if observations.len() < 2 {
         return Err(anyhow!("SENA analysis requires at least two observations"));
     }
+    let observations = observations_chronological(observations)?;
 
     let mut sku_index = HashMap::new();
     for (index, sku) in catalog.skus.iter().enumerate() {
@@ -430,8 +431,8 @@ pub fn preprocess_workspace(
                 .max(12.0)
         })
         .collect::<Vec<_>>();
-    let observation_sigma = estimate_observation_sigma(catalog, observations, &sku_index);
-    let intervals = normalize_intervals(observations)?;
+    let observation_sigma = estimate_observation_sigma(catalog, &observations, &sku_index);
+    let intervals = normalize_intervals(&observations)?;
 
     Ok(PreprocessedWorkspace {
         initial_inventory,
@@ -440,6 +441,24 @@ pub fn preprocess_workspace(
         observation_sigma,
         intervals,
     })
+}
+
+fn observations_chronological(
+    observations: &[SenaObservationRecord],
+) -> Result<Vec<SenaObservationRecord>> {
+    let mut with_times = observations
+        .iter()
+        .map(|observation| {
+            let observed_at = OffsetDateTime::parse(&observation.input.observed_at, &Rfc3339)
+                .map_err(|err| anyhow!("invalid observation timestamp: {err}"))?;
+            Ok((observed_at, observation.clone()))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    with_times.sort_by_key(|(observed_at, _)| *observed_at);
+    Ok(with_times
+        .into_iter()
+        .map(|(_, observation)| observation)
+        .collect())
 }
 
 fn build_initial_runtime_state(
@@ -2603,6 +2622,25 @@ mod tests {
     fn stockout_path_detects_within_interval_depletion() {
         let hit = compute_stockout_hit(3.0, &[(1.5, 2.0)], 10.0, 0.0, 1.0, 2.0);
         assert!(hit);
+    }
+
+    #[test]
+    fn preprocessing_sorts_offset_observations_chronologically() {
+        let catalog = sample_catalog();
+        let observations = vec![
+            observation("2026-04-01T01:00:00-05:00", 4.0, false, false, 12.0),
+            observation("2026-04-01T05:00:00Z", 10.0, false, false, 12.0),
+        ];
+
+        let preprocessed =
+            preprocess_workspace(&catalog, &observations).expect("preprocessing should succeed");
+
+        assert_eq!(preprocessed.initial_inventory[0], 10.0);
+        assert_eq!(preprocessed.intervals[0].start_at, "2026-04-01T05:00:00Z");
+        assert_eq!(
+            preprocessed.intervals[0].end_at,
+            "2026-04-01T01:00:00-05:00"
+        );
     }
 
     #[test]
