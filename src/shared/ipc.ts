@@ -520,10 +520,19 @@ export function normalizeDesktopSeenUnlockedNavItems(
     operations?: boolean;
     performance?: boolean;
   }) | null | undefined;
+  const normalizedFallback = typeof fallbackValue === 'boolean' ? fallbackValue : false;
+  const booleanOrFallback = (candidate: unknown, fallback: boolean) =>
+    typeof candidate === 'boolean' ? candidate : fallback;
   return {
-    catalog: value?.catalog ?? fallbackValue,
-    insights: value?.insights ?? legacyValue?.performance ?? legacyValue?.financials ?? fallbackValue,
-    work: value?.work ?? legacyValue?.operations ?? legacyValue?.automations ?? fallbackValue,
+    catalog: booleanOrFallback(value?.catalog, normalizedFallback),
+    insights: booleanOrFallback(
+      value?.insights,
+      booleanOrFallback(legacyValue?.performance, booleanOrFallback(legacyValue?.financials, normalizedFallback)),
+    ),
+    work: booleanOrFallback(
+      value?.work,
+      booleanOrFallback(legacyValue?.operations, booleanOrFallback(legacyValue?.automations, normalizedFallback)),
+    ),
   };
 }
 
@@ -589,7 +598,9 @@ export function normalizeSenaEngineParameters(
     intervalHighQuantile,
     needProbabilityGate: clampNumber(value?.needProbabilityGate, 0, 1, defaultParameters.needProbabilityGate),
     reviewDelayDays: clampNumber(value?.reviewDelayDays, 0, 365, defaultParameters.reviewDelayDays),
-    smoothingEnabled: value?.smoothingEnabled ?? defaultParameters.smoothingEnabled,
+    smoothingEnabled: typeof value?.smoothingEnabled === 'boolean'
+      ? value.smoothingEnabled
+      : defaultParameters.smoothingEnabled,
   };
 }
 

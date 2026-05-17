@@ -557,6 +557,15 @@ describe('desktop preferences store', () => {
         showFloatingTitleActions: 0,
         showRightRailCards: false,
         customShowRightRailCards: 'true',
+        seenUnlockedNavItems: {
+          catalog: 'yes',
+          insights: true,
+          work: 1,
+        },
+        senaEngineParameters: {
+          ...defaultSenaEngineParameters,
+          smoothingEnabled: 'yes',
+        },
       }),
       'utf8',
     );
@@ -567,6 +576,12 @@ describe('desktop preferences store', () => {
       showFloatingTitleActions: true,
       showRightRailCards: false,
       customShowRightRailCards: false,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: true,
+        work: false,
+      },
+      senaEngineParameters: defaultSenaEngineParameters,
     }));
 
     await expect(saveDesktopPreferences(userDataPath, { dimChartsWhileLoading: 'yes' as never })).resolves.toEqual(
