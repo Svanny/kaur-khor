@@ -284,6 +284,11 @@ function latestRelevantPrice({
   return reportPrice?.price ?? service.price;
 }
 
+function parsedObservationTime(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : null;
+}
+
 function sellableFromStockSnapshot({
   linkedSkuIds,
   stockSnapshot,
@@ -357,9 +362,14 @@ function buildRestorationEvents({
   >();
   const events: ServiceRestorationEventViewModel[] = [];
 
-  const orderedObservations = [...observations].sort(
-    (left, right) => new Date(left.input.observedAt).getTime() - new Date(right.input.observedAt).getTime(),
-  );
+  const orderedObservations = observations
+    .map((observation) => ({
+      observation,
+      observedAtTime: parsedObservationTime(observation.input.observedAt),
+    }))
+    .filter((entry): entry is { observation: SenaObservationRecord; observedAtTime: number } => entry.observedAtTime != null)
+    .sort((left, right) => left.observedAtTime - right.observedAtTime)
+    .map((entry) => entry.observation);
 
   for (const entry of orderedObservations) {
     for (const signal of entry.input.orderSignals) {
