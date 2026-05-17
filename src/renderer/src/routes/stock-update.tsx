@@ -816,6 +816,7 @@ export function StockUpdateRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Settings')}
         title={translateUiLiteral(language, 'History')}
+        helperExemptReason="legacy history title card awaiting route-level helper copy"
         descriptor={translateUiLiteral(language, 'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.')}
         actions={
           <WorkspaceActionRow>
@@ -888,6 +889,7 @@ export function StockUpdateRoute() {
                 ? translateUiLiteral(language, 'Loading contributions…')
                 : heatmapTitle(visibleHeatmapWindow, language)
             }
+            helperExemptReason="legacy history panel awaiting helper copy"
             descriptor={translateUiLiteral(language, 'Review the activity footprint across the last 365 days, then pick a day to inspect.')}
             action={
               <WorkspaceActionRow className="gap-2">
@@ -992,7 +994,11 @@ export function StockUpdateRoute() {
               </div>
             </div>
           </WorkspacePanel>
-          <WorkspacePanel title={selectedDayTitle} descriptor={selectedDayDescription}>
+          <WorkspacePanel
+            title={selectedDayTitle}
+            helperExemptReason="selected-day title is dynamic context, not a reusable concept header"
+            descriptor={selectedDayDescription}
+          >
             {selectedDay ? (
               selectedDayObservations.length > 0 ? (
                 <div className="grid gap-3">
@@ -1027,6 +1033,7 @@ export function StockUpdateRoute() {
       ) : (
         <WorkspacePanel
           title={translateUiLiteral(language, 'All observations ({count})', { count: filteredObservations.length })}
+          helperExemptReason="legacy history panel awaiting helper copy"
           descriptor={
             filteredObservations.length > 0
               ? translateUiLiteral(language, 'Showing {start}-{end} of {count} filtered observations.', {
