@@ -101,4 +101,27 @@ describe('mapServiceTimelineEvents', () => {
     );
     expect(events[0]?.summary).not.toContain('sku-internal');
   });
+
+  test('sorts invalid report dates after valid service updates', () => {
+    const events = mapServiceTimelineEvents({
+      service,
+      snapshot,
+      currency: 'USD',
+      language: 'en',
+      reports: [
+        report({
+          reportId: 'dirty',
+          reportedAt: 'not-a-date',
+          skuObservations: [{ skuId: 'sku-internal-a', unitsInStock: 1, costPerUnit: 1 }],
+        }),
+        report({
+          reportId: 'valid',
+          reportedAt: '2026-05-08T00:00:00.000Z',
+          skuObservations: [{ skuId: 'sku-internal-b', unitsInStock: 1, costPerUnit: 2 }],
+        }),
+      ],
+    });
+
+    expect(events.map((event) => event.report.reportId)).toEqual(['valid', 'dirty']);
+  });
 });

@@ -72,6 +72,11 @@ function confidenceLabel(confidence: SistConfidence) {
   return 'Low';
 }
 
+function reportSortTime(report: StockReport) {
+  const time = new Date(report.reportedAt).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
 function contributorHealth({
   sku,
   highRiskSkuIds,
@@ -178,7 +183,7 @@ export function latestEvidenceHint(reports: StockReport[], language: AppLanguage
     return null;
   }
   const latest = [...reports].sort(
-    (left, right) => new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime(),
+    (left, right) => reportSortTime(right) - reportSortTime(left),
   )[0];
   return latest?.reportSource === 'manual'
     ? translateUiLiteral(language, 'Reviewed in latest session')
@@ -300,7 +305,7 @@ export function mapServiceTimelineEvents({
         report.topServiceRanking.includes(service.serviceId) ||
         report.skuObservations.some((observation) => service.skuIds.includes(observation.skuId)),
     )
-    .sort((left, right) => new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime());
+    .sort((left, right) => reportSortTime(right) - reportSortTime(left));
 
   return relevant.map<TimelineEvent>((report, index) => {
     const previous = relevant[index + 1];
