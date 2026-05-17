@@ -870,6 +870,41 @@ describe('automation telegram ingestion', () => {
     });
   });
 
+  it('ignores dirty conversation names while matching Telegram tickets', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'dirty-conversation',
+          chatId: 'chat-1',
+          customerDisplayName: { name: 'Sokha' },
+          customerHandle: ['sokha'],
+          phone: null,
+          status: 'active',
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+        },
+      ],
+      intakes: [],
+    }), 'utf8');
+
+    await expect(findAutomationConversationForTelegramTicket(userDataPath, {
+      eventType: 'created',
+      lifecycle: 'open',
+      lines: [],
+      occurredAt: '2026-04-22T00:00:00.000Z',
+      party: {
+        channelKey: 'telegram',
+        customerName: 'Sokha',
+        role: 'customer',
+      },
+      revision: 1,
+      stage: 'pending',
+      ticketFamily: 'customer',
+      ticketId: 'ticket-1',
+    })).resolves.toBeNull();
+  });
+
   it('sorts dirty pending outbound job timestamps after valid jobs', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({

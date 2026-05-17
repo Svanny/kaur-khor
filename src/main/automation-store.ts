@@ -291,7 +291,7 @@ function startOfTodayIso() {
 }
 
 function safeLower(value: string | null | undefined) {
-  return value?.trim().toLowerCase() ?? '';
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
 function normalizeNullablePhone(value: string | null | undefined) {
