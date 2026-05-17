@@ -501,6 +501,50 @@ describe('buildOverviewModel stale update reminder', () => {
     expect(model.tasks.some((task) => task.kind === 'sku' && task.id === 'sku-1')).toBe(false);
   });
 
+  it('prefers valid supplier ticket timestamps over dirty revisions', () => {
+    const baseTicket: SenaTicketSummary = {
+      ticketId: 'supplier-ticket-dirty-revision',
+      ticketFamily: 'supplier',
+      lifecycle: 'open',
+      stage: 'ordered_waiting',
+      revision: 1,
+      eventType: 'created',
+      occurredAt: 'not-a-date',
+      nextTouchAt: null,
+      party: { role: 'supplier', supplierName: 'Mekong Looms' },
+      lines: [{ entityType: 'sku', entityId: 'sku-1', orderedQuantity: 8, receivedQuantity: null, expectedArrivalAt: null }],
+      note: null,
+    };
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [{ ...taskCatalog.skus[0]!, supplierName: 'Mekong Looms' }],
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [{
+        ...makeObservation('2026-04-09T09:59:00.000Z'),
+        input: {
+          ...makeObservation('2026-04-09T09:59:00.000Z').input,
+          ticketEvents: [
+            baseTicket,
+            { ...baseTicket, occurredAt: '2026-04-09T09:59:00.000Z', revision: 2 },
+          ],
+        },
+      }],
+      recordUpdateContext: null,
+      workspaceSummary: taskWorkspaceSummary,
+    });
+
+    const ticketTask = model.tasks.find(isOverviewSupplierTicketTask);
+
+    expect(ticketTask).toMatchObject({
+      ticketId: 'supplier-ticket-dirty-revision',
+      displayTicketLabel: 'Supplier Ticket ID: 2026-04-09-#1',
+    });
+    expect(ticketTask?.whyDetail).toMatch(/^Ordered Apr 9/);
+  });
+
   it('groups observation-backed multi-SKU supplier tickets without record-update context', () => {
     const ticket: SenaTicketSummary = {
       ticketId: 'supplier-ticket-observed-multi',
