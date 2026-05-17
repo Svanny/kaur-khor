@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { SenaServiceDetailPage, SenaSkuDetailPage } from '@shared/sena';
+import { SENA_SCHEMA_VERSION, type SenaServiceDetailPage, type SenaSkuDetailPage } from '@shared/sena';
 import {
   clearPersistedSenaDetailPagesForEntity,
   deriveSenaDetailCacheFreshnessFingerprint,
@@ -114,6 +114,10 @@ const freshness = deriveSenaDetailCacheFreshnessFingerprint({
   runId: 'run-1',
 });
 const storageKey = 'kaur-khor:sena:detail-pages:v1';
+
+function cacheKey(beforeIntervalIndex: number | null) {
+  return `sku:sku-1:before:${beforeIntervalIndex ?? 'latest'}:limit:20`;
+}
 
 describe('sena detail page cache', () => {
   beforeEach(() => {
@@ -310,5 +314,91 @@ describe('sena detail page cache', () => {
       }) != null,
     ).length;
     expect(remainingOlderWindowCount).toBe(3);
+  });
+
+  it('prunes corrupt cache timestamps before valid windows', () => {
+    const keys = [null, 40, 30, 20, 10].map(cacheKey);
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: {
+        [keys[0]!]: {
+          beforeIntervalIndex: null,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(50),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-05T00:00:00.000Z',
+        },
+        [keys[1]!]: {
+          beforeIntervalIndex: 40,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(40),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: 'not-a-date',
+        },
+        [keys[2]!]: {
+          beforeIntervalIndex: 30,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(30),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-02T00:00:00.000Z',
+        },
+        [keys[3]!]: {
+          beforeIntervalIndex: 20,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(20),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-03T00:00:00.000Z',
+        },
+        [keys[4]!]: {
+          beforeIntervalIndex: 10,
+          entityId: 'sku-1',
+          entityType: 'sku',
+          freshnessFingerprint: freshness,
+          limit: 20,
+          page: makeSkuPage(10),
+          schemaVersion: SENA_SCHEMA_VERSION,
+          writtenAt: '2026-04-04T00:00:00.000Z',
+        },
+      },
+      entityIndex: {
+        'sku:sku-1': keys,
+      },
+      fingerprintIndex: {
+        [freshness ?? '']: keys,
+      },
+    }));
+
+    prunePersistedSenaDetailPages({
+      activeFreshnessFingerprint: freshness,
+      storage: window.localStorage,
+    });
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: 40,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })).toBeNull();
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: 30,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(30);
   });
 });
