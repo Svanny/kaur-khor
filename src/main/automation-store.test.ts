@@ -832,6 +832,41 @@ describe('automation telegram ingestion', () => {
     expect(workspace.exposures.find((row) => row.entityId === 'sku-1')?.sortOrder).toBe(0);
   });
 
+  it('normalizes dirty automation store connection and exposure shapes', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      connection: {
+        channel: 'telegram',
+        status: 'sleeping',
+        hasBotToken: 'yes',
+        botDisplayName: 123,
+      },
+      exposureRules: [
+        {
+          channel: 'telegram',
+          entityType: 'sku',
+          entityId: 'sku-1',
+          exposed: 'yes',
+          alias: 123,
+          sortOrder: 'first',
+        },
+      ],
+    }), 'utf8');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+    expect(transport.connection.status).toBe('disconnected');
+    expect(transport.connection.hasBotToken).toBe(false);
+    expect(transport.connection.botDisplayName).toBeNull();
+    expect(workspace.exposures.find((row) => row.entityId === 'sku-1')).toMatchObject({
+      alias: null,
+      exposed: false,
+      sortOrder: 0,
+    });
+  });
+
   it('rejects malformed automation intake filters before reading state', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 

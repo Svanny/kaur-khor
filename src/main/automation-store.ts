@@ -299,6 +299,41 @@ function normalizeNullablePhone(value: string | null | undefined) {
   return normalized || null;
 }
 
+function normalizeOptionalString(value: unknown) {
+  return typeof value === 'string' ? value : null;
+}
+
+function normalizeConnectionStatus(value: unknown): AutomationConnectionStatus {
+  return typeof value === 'string' && AUTOMATION_CONNECTION_STATUSES.has(value as AutomationConnectionStatus)
+    ? value as AutomationConnectionStatus
+    : DEFAULT_CONNECTION.status;
+}
+
+function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((entry): entry is Partial<AutomationExposureRuleRecord> =>
+      Boolean(entry) &&
+      typeof entry === 'object' &&
+      (entry as Partial<AutomationExposureRuleRecord>).channel === 'telegram' &&
+      ((entry as Partial<AutomationExposureRuleRecord>).entityType === 'sku' || (entry as Partial<AutomationExposureRuleRecord>).entityType === 'service') &&
+      typeof (entry as Partial<AutomationExposureRuleRecord>).entityId === 'string' &&
+      (entry as Partial<AutomationExposureRuleRecord>).entityId!.trim().length > 0,
+    )
+    .map((entry) => ({
+      channel: 'telegram',
+      entityType: entry.entityType!,
+      entityId: entry.entityId!.trim(),
+      exposed: typeof entry.exposed === 'boolean' ? entry.exposed : false,
+      alias: normalizeOptionalString(entry.alias),
+      sortOrder: typeof entry.sortOrder === 'number' && Number.isFinite(entry.sortOrder) ? entry.sortOrder : 0,
+      createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : nowIso(),
+      updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : nowIso(),
+    }));
+}
+
 function assertNonEmptyString(value: unknown, message: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(message);
@@ -437,15 +472,27 @@ function automationTextIncludes(haystack: Array<string | null | undefined>, quer
 }
 
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
+  const connection = value?.connection;
   return {
     version: 1,
     connection: {
       ...DEFAULT_CONNECTION,
-      ...value?.connection,
+      botDisplayName: normalizeOptionalString(connection?.botDisplayName),
+      botToken: normalizeOptionalString(connection?.botToken),
+      botUsername: normalizeOptionalString(connection?.botUsername),
       channel: 'telegram',
+      commandsConfiguredAt: normalizeOptionalString(connection?.commandsConfiguredAt),
+      connectedAt: normalizeOptionalString(connection?.connectedAt),
+      externalLink: normalizeOptionalString(connection?.externalLink),
+      hasBotToken: typeof connection?.hasBotToken === 'boolean' ? connection.hasBotToken : DEFAULT_CONNECTION.hasBotToken,
+      lastErrorAt: normalizeOptionalString(connection?.lastErrorAt),
+      lastErrorMessage: normalizeOptionalString(connection?.lastErrorMessage),
+      lastWebhookAt: normalizeOptionalString(connection?.lastWebhookAt),
+      pausedAt: normalizeOptionalString(connection?.pausedAt),
+      status: normalizeConnectionStatus(connection?.status),
     },
     telegramUpdateCursor: typeof value?.telegramUpdateCursor === 'number' ? value.telegramUpdateCursor : null,
-    exposureRules: Array.isArray(value?.exposureRules) ? [...value.exposureRules] : [],
+    exposureRules: normalizeExposureRules(value?.exposureRules),
     conversations: Array.isArray(value?.conversations)
       ? value.conversations.map((conversation) => ({
         ...conversation,
