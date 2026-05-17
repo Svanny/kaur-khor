@@ -427,6 +427,14 @@ function assertAutomationListIntakesPayloadIsValid(payload: AutomationListIntake
   }
 }
 
+function assertAutomationReadConversationIdIsValid(conversationId: unknown) {
+  assertNonEmptyString(conversationId, 'Automation conversation reads require a conversation id.');
+}
+
+function assertAutomationReadIntakeIdIsValid(intakeId: unknown) {
+  assertNonEmptyString(intakeId, 'Automation intake reads require an intake id.');
+}
+
 function assertAutomationResolvePayloadIsValid(payload: AutomationResolveIntakePayload) {
   if (!payload || typeof payload !== 'object') {
     throw new Error('Automation intake resolution must be an object.');
@@ -2944,6 +2952,7 @@ export async function readAutomationConversation(
   messages: AutomationMessageRecord[];
   intakes: AutomationOrderIntake[];
 }> {
+  assertAutomationReadConversationIdIsValid(conversationId);
   const state = await loadAutomationState(userDataPath);
   const conversation = state.conversations.find((entry) => entry.conversationId === conversationId);
   if (!conversation) {
@@ -2968,6 +2977,7 @@ export async function readAutomationIntakeThread(
   intake: AutomationOrderIntake;
   messages: AutomationMessageRecord[];
 }> {
+  assertAutomationReadIntakeIdIsValid(intakeId);
   const state = await loadAutomationState(userDataPath);
   const intake = state.intakes.find((entry) => entry.intakeId === intakeId);
   if (!intake) {
@@ -3061,6 +3071,7 @@ export async function readAutomationIntake(
   userDataPath: string,
   intakeId: string,
 ): Promise<AutomationOrderIntake | null> {
+  assertAutomationReadIntakeIdIsValid(intakeId);
   const state = await loadAutomationState(userDataPath);
   return state.intakes.find((entry) => entry.intakeId === intakeId) ?? null;
 }

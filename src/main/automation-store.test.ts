@@ -14,6 +14,7 @@ import {
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
+  readAutomationIntake,
   readAutomationIntakeThread,
   readAutomationWorkspace,
   readAutomationTransportState,
@@ -1079,6 +1080,20 @@ describe('automation telegram ingestion', () => {
     await expect(listAutomationIntakes(userDataPath, {
       q: 42,
     } as never)).rejects.toThrow('Automation intake filter q must be a string or null.');
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects malformed automation read identifiers before reading state', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(readAutomationConversation(userDataPath, '' as never))
+      .rejects.toThrow('Automation conversation reads require a conversation id.');
+    await expect(readAutomationIntake(userDataPath, null as never))
+      .rejects.toThrow('Automation intake reads require an intake id.');
+    await expect(readAutomationIntakeThread(userDataPath, '   ' as never))
+      .rejects.toThrow('Automation intake reads require an intake id.');
 
     const transport = await readAutomationTransportState(userDataPath);
     expect(transport.connection.status).toBe('disconnected');
