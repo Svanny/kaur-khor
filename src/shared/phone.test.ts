@@ -37,4 +37,11 @@ describe('phone formatting', () => {
     expect(formatPhoneForDisplay('+85512345678')).toBe('+855 12345678');
     expect(formatPhoneForDisplay('')).toBe('');
   });
+
+  test('treats dirty non-string phone values as blank', () => {
+    expect(sanitizePhoneInput({ phone: '012345678' } as unknown as string)).toBe('');
+    expect(normalizePhoneNumber(12345 as unknown as string)).toBe('');
+    expect(normalizePhoneLookupKey(['012345678'] as unknown as string)).toBe('');
+    expect(formatPhoneForDisplay(false as unknown as string)).toBe('');
+  });
 });
