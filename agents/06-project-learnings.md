@@ -35,6 +35,7 @@ When the user corrects your approach, append a one-line rule here before ending 
 - Release workflow notes must be generated from the current tag diff; do not hardcode feature highlights that will become stale in later releases.
 - Release workflow Cargo caches must include the packaging `build/cargo-target` directory because `scripts/stage-desktop-core.mjs` sets `CARGO_TARGET_DIR` there.
 - Keep script-level Vitest files inside `vitest.config.ts` include globs, and route `pnpm test` through the project wrapper so `pnpm test -- path/to/file.test.*` stays file-targeted.
+- Test runtime parallelism must keep dependent UI-matrix flows ordered, keep benchmark Playwright workers at one, and provide serial escape hatches for shared-state diagnosis.
 - Source-build updates must keep versioned source folders under a stable `kaur-khor/` parent, ask before pruning old source-build versions, and default Settings / Updates to `latest` while allowing a specific release.
 - Keep browser/demo-only renderer bootstrap code behind a runtime dynamic import so Electron desktop startup does not eagerly load mock bridge data, demo images, or web-only analysis helpers.
 - Generated desktop fixture catalog image paths must use the shipped `src/renderer/src/assets/dev-catalog/*.webp` filenames; stale `.png` paths trigger asset-protocol 404s in UI matrix runs.

@@ -25,9 +25,23 @@ Additional Playwright flags can be appended:
 pnpm ui:matrix:desktop -- --grep dependent
 ```
 
+Run the matrix in the old fully serial mode when diagnosing ordering-sensitive
+failures:
+
+```bash
+pnpm ui:matrix --serial
+KAUR_KHOR_UI_MATRIX_SERIAL=1 pnpm ui:matrix
+```
+
 The desktop target builds the Electron app and `apps/desktop-core` before
-launching isolated Electron sessions. Browser and mobile targets start the local
-web app through the UI-matrix Playwright Vite server port.
+launching isolated Electron sessions. All targets start the local web app
+through the UI-matrix Playwright Vite server port so desktop-only and full
+matrix runs use the same launch contract.
+
+The matrix runs independent spec files with multiple Playwright workers by
+default, but keeps test order inside each spec file. The desktop dependent spec
+must remain a single ordered scenario because it verifies one organic mutation
+chain from first-run state through reload and close/reopen persistence.
 
 ## Data States
 
