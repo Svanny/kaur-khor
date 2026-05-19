@@ -747,7 +747,7 @@ function automationTextIncludes(haystack: Array<string | null | undefined>, quer
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isTelegramMessageId(value: unknown): value is number {

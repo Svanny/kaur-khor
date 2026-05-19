@@ -1844,23 +1844,62 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
-        let mut stmt = connection.prepare(
-            r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
-            WHERE owner_sub = ?1
-            "#,
-        )?;
-        let rows = stmt.query_map(params![owner_sub], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })?;
+        let fetch_limit = limit + 1;
         let mut raw_rows = Vec::new();
-        for row in rows {
-            raw_rows.push(row?);
+        if let Some(before_observed_at) = request.before_observed_at.as_deref() {
+            parse_observed_at(before_observed_at)?;
+            let before_observation_id = request.before_observation_id.as_deref().unwrap_or("");
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                  AND (
+                    unixepoch(observed_at) < unixepoch(?2)
+                    OR (unixepoch(observed_at) = unixepoch(?2) AND observation_id < ?3)
+                  )
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?4
+                "#,
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    owner_sub,
+                    before_observed_at,
+                    before_observation_id,
+                    fetch_limit as i64
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
+        } else {
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(params![owner_sub, fetch_limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
         }
         let mut raw_rows = parsed_observation_rows(raw_rows)?;
         raw_rows.sort_by(|left, right| {
@@ -1869,17 +1908,6 @@ impl SenaRepository for SqliteSenaRepository {
                 .cmp(&left.observed_time)
                 .then_with(|| right.observation_id.cmp(&left.observation_id))
         });
-        if let Some(before_observed_at) = request.before_observed_at.as_deref() {
-            let before_time = parse_observed_at(before_observed_at)?;
-            let before_observation_id = request.before_observation_id.as_deref();
-            raw_rows.retain(|row| {
-                row.observed_time < before_time
-                    || (row.observed_time == before_time
-                        && before_observation_id
-                            .map(|cursor_id| row.observation_id.as_str() < cursor_id)
-                            .unwrap_or(false))
-            });
-        }
         let has_older = raw_rows.len() > limit;
         raw_rows.truncate(limit);
         let next_cursor = if has_older {
