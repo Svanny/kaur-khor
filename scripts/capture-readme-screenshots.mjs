@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { cp, mkdir } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -11,6 +11,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const screenshotDir = join(repoRoot, 'docs/readme');
 const viewport = { width: 1728, height: 996 };
 const finalPixelSize = { width: 3456, height: 1984 };
+const webPixelSize = { width: 1600, height: 919 };
 const execFileAsync = promisify(execFile);
 
 const captures = [
@@ -39,15 +40,15 @@ const captures = [
 ];
 
 const webCopies = new Map([
-  ['overview-fullscreen.png', 'web-current-overview.png'],
-  ['queue-supplier-fullscreen.png', 'web-current-queue-supplier.png'],
-  ['queue-customer-fullscreen.png', 'web-current-queue-customer.png'],
-  ['stock-count-fullscreen.png', 'web-current-stock-count.png'],
-  ['customer-order-fullscreen.png', 'web-current-customer-order.png'],
-  ['record-update-fullscreen.png', 'web-current-record-update.png'],
-  ['performance-fullscreen.png', 'web-current-performance.png'],
-  ['catalog-fullscreen.png', 'web-current-catalog.png'],
-  ['analysis-fullscreen.png', 'web-current-analysis.png'],
+  ['overview-fullscreen.png', 'web-current-overview.webp'],
+  ['queue-supplier-fullscreen.png', 'web-current-queue-supplier.webp'],
+  ['queue-customer-fullscreen.png', 'web-current-queue-customer.webp'],
+  ['stock-count-fullscreen.png', 'web-current-stock-count.webp'],
+  ['customer-order-fullscreen.png', 'web-current-customer-order.webp'],
+  ['record-update-fullscreen.png', 'web-current-record-update.webp'],
+  ['performance-fullscreen.png', 'web-current-performance.webp'],
+  ['catalog-fullscreen.png', 'web-current-catalog.webp'],
+  ['analysis-fullscreen.png', 'web-current-analysis.webp'],
 ]);
 
 function childEnv(extra = {}) {
@@ -99,6 +100,29 @@ async function settle(page, waitForText) {
 
 async function resizeToFinalSize(filePath) {
   await execFileAsync('sips', ['-z', String(finalPixelSize.height), String(finalPixelSize.width), filePath]);
+}
+
+async function writeWebpScreenshot(pngPath, webpPath) {
+  try {
+    await execFileAsync('cwebp', [
+      '-quiet',
+      '-q',
+      '82',
+      '-resize',
+      String(webPixelSize.width),
+      String(webPixelSize.height),
+      pngPath,
+      '-o',
+      webpPath,
+    ]);
+    return;
+  } catch (error) {
+    if (!error || error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  await execFileAsync('magick', [pngPath, '-resize', `${webPixelSize.width}x${webPixelSize.height}!`, '-quality', '82', webpPath]);
 }
 
 async function expandSidebarTree(page) {
@@ -155,7 +179,7 @@ try {
 
     const copyName = webCopies.get(capture.file);
     if (copyName) {
-      await cp(filePath, join(screenshotDir, copyName));
+      await writeWebpScreenshot(filePath, join(screenshotDir, copyName));
     }
 
     console.log(`${capture.route} -> ${capture.file}${copyName ? `, ${copyName}` : ''}`);

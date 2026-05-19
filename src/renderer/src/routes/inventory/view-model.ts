@@ -378,10 +378,7 @@ function skuRows(input: DeriveInventoryViewModelInput) {
   return input.catalog.skus
     .filter((sku) => matchesSkuSupplier(sku, input.supplier))
     .flatMap((sku): InventorySkuRow[] => {
-      const summary = summaryBySkuId.get(sku.skuId);
-      if (!summary) {
-        return [];
-      }
+      const summary = summaryBySkuId.get(sku.skuId) ?? null;
       const detail = input.skuDetailsById.get(sku.skuId) ?? null;
       const latestPipeline = detail?.pipelinePosterior.at(-1) ?? null;
       const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
@@ -392,17 +389,17 @@ function skuRows(input: DeriveInventoryViewModelInput) {
         .filter((service): service is NonNullable<typeof service> => Boolean(service));
       const countAnchor = latestCountAnchor(input.recordUpdateContext, sku.skuId);
       const countAge = ageDays(countAnchor?.observedAt ?? null, latestAt);
-      const recommendation = summary.reorderQuantity;
-      const leadTimeMeanDays = nonNegativeOrNull(latestLeadTime?.meanDays) ?? nonNegativeOrNull(summary.leadTimeMeanDays) ?? nonNegativeOrNull(sku.leadTimeMeanDaysHint);
-      const leadTimeStdDays = nonNegativeOrNull(latestLeadTime?.stdDays) ?? nonNegativeOrNull(summary.leadTimeStdDays) ?? nonNegativeOrNull(sku.leadTimeStdDaysHint);
-      const daysOfCover = nonNegativeOrNull(summary.daysOfCover);
-      const demandPerDay = nonNegativeOrZero(summary.demandPerDayMean);
-      const onHandHigh = nonNegativeOrZero(summary.credibleIntervalHigh);
-      const onHandLow = Math.min(onHandHigh, nonNegativeOrZero(summary.credibleIntervalLow));
-      const onHandMean = nonNegativeOrZero(summary.latestPosteriorUnits);
-      const reorderPoint = nonNegativeOrZero(summary.reorderPoint);
-      const reorderTriggerProbability = probabilityOrZero(summary.reorderTriggerProbability);
-      const stockoutRisk = probabilityOrZero(summary.stockoutRisk);
+      const recommendation = summary?.reorderQuantity;
+      const leadTimeMeanDays = nonNegativeOrNull(latestLeadTime?.meanDays) ?? nonNegativeOrNull(summary?.leadTimeMeanDays) ?? nonNegativeOrNull(sku.leadTimeMeanDaysHint);
+      const leadTimeStdDays = nonNegativeOrNull(latestLeadTime?.stdDays) ?? nonNegativeOrNull(summary?.leadTimeStdDays) ?? nonNegativeOrNull(sku.leadTimeStdDaysHint);
+      const daysOfCover = nonNegativeOrNull(summary?.daysOfCover);
+      const demandPerDay = nonNegativeOrZero(summary?.demandPerDayMean);
+      const onHandHigh = nonNegativeOrZero(summary?.credibleIntervalHigh);
+      const onHandLow = Math.min(onHandHigh, nonNegativeOrZero(summary?.credibleIntervalLow));
+      const onHandMean = nonNegativeOrZero(summary?.latestPosteriorUnits);
+      const reorderPoint = nonNegativeOrZero(summary?.reorderPoint);
+      const reorderTriggerProbability = probabilityOrZero(summary?.reorderTriggerProbability);
+      const stockoutRisk = probabilityOrZero(summary?.stockoutRisk);
       const projection = projectedUnitsByHorizon({
         demandPerDay,
         inTransitMean,
@@ -461,7 +458,7 @@ function skuRows(input: DeriveInventoryViewModelInput) {
         recommendationIssued: Boolean(recommendation?.recommendationIssued),
         reorderPoint,
         reorderTriggerProbability,
-        safetyStock: nonNegativeOrZero(summary.safetyStock),
+        safetyStock: nonNegativeOrZero(summary?.safetyStock),
         serviceExposureSort: linkedServices.length,
         stockoutRisk,
         supplierName: sku.supplierName ?? null,

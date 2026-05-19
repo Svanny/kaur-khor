@@ -2391,7 +2391,7 @@ describe('WebRoutes embedded app fallback state', () => {
 
   test('lets phone SKU detail delete an existing capture draft before starting a targeted session', async () => {
     window.sessionStorage.setItem(
-      'kaur-khor:phone-capture-draft:supplier-order-pending:sku-001',
+      'kaur-khor:record-update:draft:supplier-order-pending:v1',
       JSON.stringify({ note: 'saved supplier draft', quantity: '4' }),
     );
     window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
@@ -2412,7 +2412,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(window.location.hash).toContain('targetAction=supplier-order');
     expect(window.location.hash).toContain('targetType=sku');
     expect(window.location.hash).toContain('targetId=sku-001');
-    expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:supplier-order-pending:sku-001')).toBeNull();
+    expect(window.sessionStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBeNull();
   });
 
   test('omits the phone SKU price capture action for non-sellable SKUs', async () => {

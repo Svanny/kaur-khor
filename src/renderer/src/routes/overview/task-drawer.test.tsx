@@ -273,6 +273,19 @@ function recordUpdateContextWithSupplierTicket(ticket: SenaTicketSummary): SenaR
   };
 }
 
+function recordUpdateContextWithSupplierTicketAndStock(ticket: SenaTicketSummary, unitsInStock: number): SenaRecordUpdateContext {
+  return {
+    ...recordUpdateContextWithSupplierTicket(ticket),
+    latestStockBySku: {
+      'sku-3': {
+        observationId: 'obs-stock',
+        observedAt: '2026-04-08T09:00:00.000Z',
+        value: { skuId: 'sku-3', unitsInStock, costPerUnit: 7, productPrice: 12 },
+      },
+    },
+  };
+}
+
 function renderDrawer(
   task: OverviewSupplierTicketTask,
   mode = task.defaultDrawerMode,
@@ -291,6 +304,41 @@ describe('OverviewTaskDrawer', () => {
   beforeEach(() => {
     inventoryHook.mockReturnValue({
       ingestSenaObservation: vi.fn(async (payload: unknown) => payload),
+      snapshot: {
+        ranking: [],
+        services: [],
+        skus: [{
+          costPerUnit: 4,
+          description: 'Coke bottles',
+          leadTimeMeanDays: null,
+          leadTimeStdDays: null,
+          name: 'Coke',
+          productPrice: 9,
+          skuId: 'sku-3',
+          soldAsProduct: true,
+          unitsInStock: 5,
+        }],
+        sist: {
+          asOf: null,
+          highRiskSkuIds: [],
+          pendingReorderCount: 0,
+          settings: {
+            forecastHorizonDays: 14,
+            particleCount: 512,
+            smoothingWindowReports: 90,
+            targetServiceLevel: 0.95,
+          },
+          skuInsights: [],
+          status: {
+            confidence: 'low',
+            reason: null,
+            reportCount: 0,
+            state: 'ready',
+            updatedAt: null,
+          },
+          topRegime: null,
+        },
+      },
       recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
       runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
       triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
@@ -469,6 +517,14 @@ describe('OverviewTaskDrawer', () => {
             skuId: 'sku-3',
           }),
         ],
+        stockSnapshot: [
+          expect.objectContaining({
+            costPerUnit: 4,
+            productPrice: 9,
+            skuId: 'sku-3',
+            unitsInStock: 13,
+          }),
+        ],
         ticketEvents: [
           expect.objectContaining({
             eventType: 'fully_received',
@@ -479,6 +535,131 @@ describe('OverviewTaskDrawer', () => {
                 receivedQuantity: 8,
               }),
             ],
+          }),
+        ],
+      }));
+    });
+  });
+
+  test('falls back to child order quantities and task stock when receiving sparse supplier ticket lines', async () => {
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      snapshot: null,
+      recordUpdateContext: recordUpdateContextWithSupplierTicket(supplierTicket),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+    renderDrawer({
+      ...ticketTask,
+      defaultDrawerMode: 'goods_received',
+      ticket: {
+        ...supplierTicket,
+        lines: [{
+          ...supplierTicket.lines[0]!,
+          orderedQuantity: null,
+          receivedQuantity: null,
+        }],
+      },
+      childTasks: [{
+        ...childTask,
+        currentStock: 36,
+        recentOrderQuantity: 8,
+      }],
+    }, 'goods_received');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm inventory update' }));
+
+    await waitFor(() => {
+      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        orderSignals: [
+          expect.objectContaining({
+            approximateReceiptQuantity: 8,
+            receiptArrived: true,
+            skuId: 'sku-3',
+          }),
+        ],
+        stockSnapshot: [
+          expect.objectContaining({
+            skuId: 'sku-3',
+            unitsInStock: 44,
+          }),
+        ],
+        ticketEvents: [
+          expect.objectContaining({
+            lines: [
+              expect.objectContaining({
+                entityId: 'sku-3',
+                receivedQuantity: 8,
+              }),
+            ],
+          }),
+        ],
+      }));
+    });
+  });
+
+  test('uses the latest stock anchor before stale snapshot or task stock when receiving supplier tickets', async () => {
+    const ingestSenaObservation = vi.fn(async (payload: unknown) => payload);
+    inventoryHook.mockReturnValue({
+      ingestSenaObservation,
+      snapshot: {
+        ranking: [],
+        services: [],
+        skus: [{
+          costPerUnit: 4,
+          description: 'Coke bottles',
+          leadTimeMeanDays: null,
+          leadTimeStdDays: null,
+          name: 'Coke',
+          productPrice: 9,
+          skuId: 'sku-3',
+          soldAsProduct: true,
+          unitsInStock: 5,
+        }],
+        sist: {
+          asOf: null,
+          highRiskSkuIds: [],
+          pendingReorderCount: 0,
+          settings: {
+            forecastHorizonDays: 14,
+            particleCount: 512,
+            smoothingWindowReports: 90,
+            targetServiceLevel: 0.95,
+          },
+          skuInsights: [],
+          status: {
+            confidence: 'low',
+            reason: null,
+            reportCount: 0,
+            state: 'ready',
+            updatedAt: null,
+          },
+          topRegime: null,
+        },
+      },
+      recordUpdateContext: recordUpdateContextWithSupplierTicketAndStock(supplierTicket, 20),
+      runWorkspacePreparation: vi.fn(async (task: () => Promise<unknown>) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+    renderDrawer({
+      ...ticketTask,
+      defaultDrawerMode: 'goods_received',
+      childTasks: [{ ...childTask, currentStock: 36 }],
+    }, 'goods_received');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm inventory update' }));
+
+    await waitFor(() => {
+      expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
+        stockSnapshot: [
+          expect.objectContaining({
+            costPerUnit: 7,
+            productPrice: 12,
+            skuId: 'sku-3',
+            unitsInStock: 28,
           }),
         ],
       }));

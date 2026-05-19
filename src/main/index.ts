@@ -140,8 +140,10 @@ import {
 import { registerBenchmarkRunnerIpc } from './benchmark-runner';
 import {
   detectDevWorkspaceSeedState,
+  markDevWorkspaceBlank,
   prepareGeneratedWorkspace,
   shouldPrepareGeneratedWorkspace,
+  shouldSeedGeneratedDevWorkspace,
 } from './dev-history-generator';
 import {
   prepareInactiveMacDevWindowLaunch,
@@ -1343,14 +1345,14 @@ async function boot() {
   });
   await loadPersistedSenaReadCache();
   if (!app.isPackaged) {
-    if (process.env.KAUR_KHOR_BENCHMARK_DISABLE_DEV_SEED !== '1') {
+    if (shouldSeedGeneratedDevWorkspace()) {
       const endSeed = startBenchmarkSpan({
         category: 'startup',
         name: 'main.boot.dev-seed',
       });
       try {
         const seedState = await detectDevWorkspaceSeedState(desktopDataPath);
-        const seeded = shouldPrepareGeneratedWorkspace(seedState)
+        const seeded = shouldPrepareGeneratedWorkspace(seedState, { allowBlankWorkspaceSeed: true })
           ? (await prepareGeneratedWorkspace({
             dataDirectory: desktopDataPath,
             size: 'medium',
@@ -1483,6 +1485,9 @@ ipcMain.handle(IPC_CHANNELS.systemRestoreBackupSnapshot, benchmarkIpcHandle(IPC_
 ipcMain.handle(IPC_CHANNELS.systemClearCurrentData, benchmarkIpcHandle(IPC_CHANNELS.systemClearCurrentData, async () => {
   return runDesktopDataReplacement(async () => {
     const result: DesktopClearCurrentDataResult = await clearCurrentDesktopData(desktopDataPath);
+    if (!app.isPackaged) {
+      await markDevWorkspaceBlank(desktopDataPath);
+    }
     await invalidateSenaReadCache();
     return result;
   });
@@ -1589,9 +1594,9 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
       sourceBytes: sourceStats?.size ?? null,
     },
   });
-  let normalizedImage: ReturnType<typeof normalizeDesktopImage>;
+  let normalizedImage: Awaited<ReturnType<typeof normalizeDesktopImage>>;
   try {
-    normalizedImage = normalizeDesktopImage(sourcePath);
+    normalizedImage = await normalizeDesktopImage(sourcePath);
     endNormalize({
       ok: true,
       outputBytes: normalizedImage.bytes.byteLength,

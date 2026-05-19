@@ -326,6 +326,40 @@ describe('InventoryRoute', () => {
     expect(serviceRow!.textContent).toMatch(/Detail.*Edit.*Duplicate.*Archive.*Delete/s);
   });
 
+  test('shows newly attributed SKU variants when the catalog object is reused', async () => {
+    const state = makeProductsInventory();
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    const { rerender } = render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole('link', { name: 'SKU 1 (Size: S)' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(state.listSenaObservationPage).toHaveBeenCalled();
+    });
+
+    state.catalog.skus.push({
+      ...state.catalog.skus[0]!,
+      name: 'SKU 1 (Size: S)',
+      skuId: 'sku-1-size-s',
+    });
+    inventoryHook.mockReturnValue({
+      ...state,
+      isSaving: true,
+    });
+    rerender(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: 'SKU 1 (Size: S)' })).toBeInTheDocument();
+  });
+
   test('duplicates a SKU from metadata without writing observations', async () => {
     const state = makeProductsInventory();
     inventoryHook.mockReturnValue(state);

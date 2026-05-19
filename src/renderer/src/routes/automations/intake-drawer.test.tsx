@@ -297,4 +297,34 @@ describe('AutomationIntakeDrawer', () => {
     await waitFor(() => expect(screen.getByText('Pending line total')).toBeInTheDocument());
     expect(screen.getAllByRole('button', { name: /^Create customer ticket$/ }).at(-1)).toBeDisabled();
   });
+
+  test('keeps promotion disabled for needs-review intakes even when totals are priced', async () => {
+    render(
+      <AutomationIntakeDrawer
+        intake={{
+          ...makeIntake(),
+          lines: [
+            {
+              ...makeIntake().lines[0]!,
+              ambiguityReason: 'availability_unknown',
+              availabilityStatus: 'unknown',
+            },
+          ],
+          parseConfidence: 'medium',
+          status: 'needs_review',
+        }}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Issue: availability unknown')).toBeInTheDocument());
+    await userEvent.click(screen.getByRole('button', { name: 'Create customer ticket', pressed: false }));
+    expect(screen.getAllByRole('button', { name: /^Create customer ticket$/ }).at(-1)).toBeDisabled();
+    expect(screen.getByText('Resolve every line and compute a quote before Kaur Khor can promote this intake.')).toBeInTheDocument();
+  });
 });

@@ -62,6 +62,10 @@ describe('backup IPC handlers', () => {
     expect(clearHandlerSource.indexOf('return runDesktopDataReplacement(async () => {')).toBeLessThan(
       clearHandlerSource.indexOf('clearCurrentDesktopData(desktopDataPath)'),
     );
+    expect(clearHandlerSource).toContain('markDevWorkspaceBlank(desktopDataPath)');
+    expect(clearHandlerSource.indexOf('clearCurrentDesktopData(desktopDataPath)')).toBeLessThan(
+      clearHandlerSource.indexOf('markDevWorkspaceBlank(desktopDataPath)'),
+    );
   });
 
   it('launches source-build updates only after quit confirmation and main-selected update path validation', async () => {
@@ -140,7 +144,7 @@ describe('backup IPC handlers', () => {
     expect(source).toContain("import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';");
     expect(handlerSource).toContain('await assertDesktopImageFileIsSafeForImport(sourcePath);');
     expect(handlerSource.indexOf('await assertDesktopImageFileIsSafeForImport(sourcePath);')).toBeLessThan(
-      handlerSource.indexOf('normalizedImage = normalizeDesktopImage(sourcePath);'),
+      handlerSource.indexOf('normalizedImage = await normalizeDesktopImage(sourcePath);'),
     );
     expect(handlerSource).toContain('endNormalize({');
     expect(handlerSource).toContain('ok: false,');

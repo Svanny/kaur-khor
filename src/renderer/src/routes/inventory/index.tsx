@@ -615,7 +615,15 @@ function buildColumnPages({
 
 function gridTemplateForColumns(columns: InventoryColumnKey[], widths: Partial<Record<InventoryColumnKey | 'details', number>>) {
   const cellTemplates = columns.map((column) => `${Math.round(widths[column] ?? inventoryColumnWidthSpecs[column].preferredWidth)}px`);
-  return [...cellTemplates, `${Math.round(widths.details ?? inventoryColumnWidthSpecs.details.preferredWidth)}px`].join(' ');
+  const detailsWidth = Math.round(widths.details ?? inventoryColumnWidthSpecs.details.preferredWidth);
+  return [...cellTemplates, `minmax(${detailsWidth}px,1fr)`].join(' ');
+}
+
+function estimatedInventoryGridTableWidth() {
+  if (typeof window === 'undefined') {
+    return 1120;
+  }
+  return Math.max(1120, Math.floor(window.innerWidth - 360));
 }
 
 function isCenteredInventoryColumn(column: InventoryColumnKey) {
@@ -1006,7 +1014,7 @@ export function InsightsInventoryRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const routeState = readInventoryRouteState(searchParams);
   const supplierFilter = supplierFilterValueForQuery(routeState.supplier);
-  const visibleCatalog = useMemo(() => activeSenaCatalog(inventory.catalog), [inventory.catalog]);
+  const visibleCatalog = activeSenaCatalog(inventory.catalog);
   const baseCatalog = visibleCatalog ?? {
     bundles: [],
     schemaVersion: 1,
@@ -1148,7 +1156,7 @@ export function InsightsInventoryRoute() {
       language,
       rows: visibleRows,
       showConfidenceInterval,
-      tableWidth: gridTableWidth || 1120,
+      tableWidth: gridTableWidth || estimatedInventoryGridTableWidth(),
     }),
     [columns, gridTableWidth, language, routeState.projectionHorizon, showConfidenceInterval, visibleRows],
   );
@@ -1439,6 +1447,10 @@ export function InsightsInventoryRoute() {
           >
             {mainTab === 'projection' ? (
               <ProjectionMatrix language={language} rows={model.projectionMatrix} showConfidenceInterval={showConfidenceInterval} />
+            ) : hydration.isHydratingDetails ? (
+              <div className="px-6 py-6" data-inventory-grid-loading="true">
+                <WireframeRows rowCount={6} />
+              </div>
             ) : routeState.rowSet === 'focus' && !hasRenderableRows(visibleRows) ? (
               <div className="px-6 py-8">
                 <WorkspaceEmpty
@@ -1453,8 +1465,8 @@ export function InsightsInventoryRoute() {
                 />
               </div>
             ) : (
-              <HeaderedTable ref={gridTableRef} overflowX="hidden">
-                <div className={inventoryGridLayout.containerClassName} style={inventoryGridStyle}>
+              <HeaderedTable ref={gridTableRef} className="w-full" overflowX="hidden">
+                <div className={cn(inventoryGridLayout.containerClassName, 'w-full')} style={inventoryGridStyle}>
                   <HeaderedTableHeader className={inventoryGridLayout.headerClassName}>
                     {activeGridColumns.map((column) => (
                       <HeaderedTableHeaderCell key={column} className={cn(isCenteredInventoryColumn(column) && 'text-center')} helperExemptReason="Inventory grid column includes an adjacent helper tooltip.">
@@ -1514,7 +1526,7 @@ export function InsightsInventoryRoute() {
                                       primary={cellParts?.primary}
                                       primaryClassName={cn('text-sm break-words', isCenteredInventoryColumn(column) && 'justify-center text-center')}
                                       secondary={cellParts?.secondary}
-                                      secondaryClassName={cn('mt-1 text-[0.58rem] leading-4', isCenteredInventoryColumn(column) && 'text-center')}
+                                      secondaryClassName={cn('mt-1 text-xs leading-4', isCenteredInventoryColumn(column) && 'text-center')}
                                     />
                                   )}
                                 </div>
@@ -1549,11 +1561,6 @@ export function InsightsInventoryRoute() {
                 </div>
               </HeaderedTable>
             )}
-            {hydration.isHydratingDetails ? (
-              <div className="border-t border-border/60 px-6 py-3 text-sm text-muted-foreground">
-                {translateUiLiteral(language, 'Hydrating visible inventory detail...')}
-              </div>
-            ) : null}
           </PerformanceSectionShell>
 
           {showRightRailCards ? (

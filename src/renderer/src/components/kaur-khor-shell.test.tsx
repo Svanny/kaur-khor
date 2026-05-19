@@ -189,6 +189,7 @@ describe('KaurKhorShell', () => {
       expect(document.querySelector('[data-slot="shell-viewport-frame"]')).toHaveStyle({
         height: 'var(--kaur-khor-shell-viewport-height, 100svh)',
       });
+      expect(screen.getByText('Version Alpha')).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     } finally {
@@ -238,6 +239,13 @@ describe('KaurKhorShell', () => {
     const brandLabel = within(brandToggle).getByText('KAUR KHOR');
     expect(brandLabel).toBeInTheDocument();
     expect(brandLabel).not.toHaveClass('uppercase');
+    const versionPill = screen.getByText('Version Alpha');
+    expect(versionPill).toHaveAttribute('data-slot', 'sidebar-version-pill');
+    expect(versionPill).toHaveAttribute('title', 'Expect some bugs!');
+    expect(versionPill).toHaveClass('border-destructive/40');
+    expect(versionPill).toHaveClass('bg-destructive/10');
+    expect(versionPill).toHaveClass('w-full');
+    expect(versionPill.compareDocumentPosition(screen.getByText('Main')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Search')).toBeInTheDocument();
     expect(screen.getByLabelText('Command')).toBeInTheDocument();
     expect(screen.getByText('K')).toBeInTheDocument();
@@ -328,6 +336,7 @@ describe('KaurKhorShell', () => {
     fireEvent.click(screen.getByTestId('sidebar-collapse-toggle'));
 
     await waitFor(() => {
+      expect(screen.queryByText('Version Alpha')).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Queue' })).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Capture' })).not.toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Inventory' })).not.toBeInTheDocument();
@@ -335,6 +344,24 @@ describe('KaurKhorShell', () => {
         .map((link) => link.getAttribute('aria-label'));
       expect(topLevelLinks).toEqual(['Home', 'Work', 'Products', 'Insights', 'Settings']);
     });
+  });
+
+  test('does not render the alpha version pill in the mobile sidebar sheet', () => {
+    setViewport({ width: 375, isMobile: true });
+
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <KaurKhorShell>
+          <Routes>
+            <Route element={<div>Overview screen</div>} path="/" />
+          </Routes>
+        </KaurKhorShell>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open navigation' }));
+
+    expect(screen.queryByText('Version Alpha')).not.toBeInTheDocument();
   });
 
   test('localizes the command shortcut glyph label in Khmer', () => {

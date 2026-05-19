@@ -113,7 +113,7 @@ const pressureTableLayout = createHeaderedTableLayout({
   gap: 4,
 });
 
-const ANALYSIS_BOARD_CLASS_NAME = 'editorial-panel relative z-[1] flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2rem] !border-white/70 bg-white text-sm text-card-foreground shadow-[0_16px_40px_rgba(48,31,20,0.06)]';
+const ANALYSIS_BOARD_CLASS_NAME = 'editorial-panel relative z-[1] flex min-h-0 flex-col overflow-hidden rounded-[2rem] !border-white/70 bg-white text-sm text-card-foreground shadow-[0_16px_40px_rgba(48,31,20,0.06)]';
 const ANALYSIS_PANEL_SURFACE_CLASS_NAME = 'analysis-panel-shell !overflow-visible !rounded-none !border-transparent !shadow-none ![background:transparent]';
 const ANALYSIS_RAIL_PANEL_BASE_CLASS_NAME = 'flex flex-col bg-secondary/15 lg:rounded-l-none lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]';
 const ANALYSIS_SECTIONS: AnalysisSection[] = ['workbench', 'pressure', 'observations', 'fragility', 'settings'];
@@ -2366,7 +2366,7 @@ function PressureSurface({
 }) {
   const { t } = usePreferences();
   return (
-    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
+    <div className="grid gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchPressureTitle')}
         tooltip={t('analysisWorkbenchPressureTooltip')}
@@ -2392,7 +2392,7 @@ function ObservationsSurface({
 }) {
   const { t } = usePreferences();
   return (
-    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
+    <div className="grid gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchObservationsTitle')}
         tooltip={t('analysisWorkbenchObservationsTooltip')}
@@ -2417,7 +2417,7 @@ function FragilitySurface({
   showRightRailCards: boolean;
 }) {
   return (
-    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
+    <div className="grid gap-6" data-analysis-surface-content="true">
       <SupplyFragilityMap model={model} setSelection={setSelection} showRightRailCards={showRightRailCards} />
     </div>
   );
@@ -2443,7 +2443,7 @@ function SettingsSurface({
     { key: 'scope', label: t('analysisWorkbenchSettingsScopeLabel'), tooltip: t('analysisWorkbenchSettingsScopeTooltip'), helpHref: '/settings/help#explain-settings-scope', valueKey: 'scopeSummary' },
   ] as const;
   return (
-    <div className="grid min-h-full gap-6" data-analysis-surface-content="true">
+    <div className="grid gap-6" data-analysis-surface-content="true">
       <PerformanceSectionShell
         title={t('analysisWorkbenchSettingsTitle')}
         tooltip={t('analysisWorkbenchSettingsTooltip')}
@@ -2662,6 +2662,10 @@ export function AnalysisWorkbench({
   const workbenchFitsViewport = workbenchSectionActive && railEnabled;
 
   useLayoutEffect(() => {
+    if (!workbenchFitsViewport) {
+      setNaturalSectionMinHeight(null);
+      return;
+    }
     const root = rootRef.current;
     const main = document.getElementById('main-content');
     if (!root || !main) {
@@ -2686,7 +2690,7 @@ export function AnalysisWorkbench({
       observer.disconnect();
       window.removeEventListener('resize', updateMinHeight);
     };
-  }, [activeSection]);
+  }, [workbenchFitsViewport]);
 
   return (
     <div
@@ -2709,7 +2713,7 @@ export function AnalysisWorkbench({
         style={naturalSectionMinHeight != null ? { minHeight: naturalSectionMinHeight } : undefined}
       >
         <ChromeTabs
-          className="relative min-h-0 flex-1 gap-0"
+          className={cn('relative min-h-0 gap-0', workbenchFitsViewport && 'flex-1')}
           value={activeSection}
           onValueChange={(nextValue) => {
             if (nextValue) {
@@ -2727,7 +2731,7 @@ export function AnalysisWorkbench({
           <InternalNav section={activeSection} showRightRailCards={railEnabled} visibleSections={visibleSections} />
 
           <section
-            className={ANALYSIS_BOARD_CLASS_NAME}
+            className={cn(ANALYSIS_BOARD_CLASS_NAME, workbenchFitsViewport && 'flex-1')}
             data-testid="insights-board-section"
             style={{
               marginTop: 'calc(var(--chrome-tabs-surface-overlap) * -2)',
@@ -2736,15 +2740,14 @@ export function AnalysisWorkbench({
             <div
               className={cn(
                 railEnabled ? 'grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]' : 'grid grid-cols-[minmax(0,1fr)] gap-0',
-                'min-h-full flex-1 items-stretch',
-                workbenchFitsViewport && 'h-full min-h-0',
+                workbenchFitsViewport ? 'h-full min-h-0 flex-1 items-stretch' : 'items-start',
               )}
             >
               <div
                 className={cn('min-w-0 border-b border-white/70 lg:border-b-0', 'flex min-h-0 flex-col', railEnabled && 'lg:border-r lg:rounded-r-none')}
                 data-analysis-content-column="true"
               >
-                <div className={cn('flex min-h-0 min-w-0 gap-6 px-0 py-0 flex-1 flex-col')} data-analysis-surface="true">{surface}</div>
+                <div className={cn('flex min-h-0 min-w-0 gap-6 px-0 py-0 flex-col', workbenchFitsViewport && 'flex-1')} data-analysis-surface="true">{surface}</div>
               </div>
               {railEnabled ? (
                 isSectionPending

@@ -1,5 +1,53 @@
 import { prepareDesktopImageUpload } from './desktop-image';
 
+const TELEGRAM_REQUEST_TIMEOUT_MS = 30_000;
+
+function signalWithTimeout(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (signal?.aborted) {
+    controller.abort(signal.reason);
+  } else {
+    signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutHandle),
+  };
+}
+
+async function telegramFetch(input: string, init?: RequestInit) {
+  const timeout = signalWithTimeout(init?.signal, TELEGRAM_REQUEST_TIMEOUT_MS);
+  const fetchInit = { ...init, signal: timeout.signal };
+
+  if (process.versions.electron) {
+    let electronFetch: typeof fetch | null = null;
+    try {
+      const electron = await import('electron');
+      if (typeof electron.net?.fetch === 'function') {
+        electronFetch = electron.net.fetch.bind(electron.net) as typeof fetch;
+      }
+    } catch {
+      // Non-Electron test runners and build tools should keep using global fetch.
+    }
+    if (electronFetch) {
+      try {
+        return await electronFetch(input, fetchInit);
+      } finally {
+        timeout.clear();
+      }
+    }
+  }
+
+  try {
+    return await fetch(input, fetchInit);
+  } finally {
+    timeout.clear();
+  }
+}
+
 type TelegramApiEnvelope<T> = {
   ok: boolean;
   result?: T;
@@ -254,7 +302,7 @@ async function telegramApiRequest<TResult>(
   method: string,
   body?: Record<string, unknown>,
 ): Promise<TResult> {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const response = await telegramFetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: body ? 'POST' : 'GET',
     headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -362,7 +410,7 @@ export async function telegramSendPhoto(
     formData.set('parse_mode', parseMode);
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+  const response = await telegramFetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
     method: 'POST',
     body: formData,
   });

@@ -32,7 +32,7 @@ async function assertGeneratedRoute(page: Page, route: `/${string}`, hasObservat
   }
   if (route === '/work/queue') {
     if (hasObservations) {
-      await expect(page.getByRole('heading', { name: 'Queue' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Task queue' })).toBeVisible();
       await expect(page.getByRole('searchbox', { name: 'Search queue' })).toBeVisible();
     } else {
       await expect(page.getByText('Work needs your first update')).toBeVisible();

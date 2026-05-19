@@ -84,6 +84,11 @@ const exportSelectTriggerClassName =
 const exportActionButtonClassName =
   'h-11 rounded-l-2xl rounded-r-none border-border/70 bg-background/80 text-foreground shadow-xs';
 const CLEAR_CURRENT_DATA_CONFIRMATION_TOKEN = 'DELETE CURRENT DATA';
+const WORKSPACE_STORAGE_KEY_PREFIXES = [
+  'kaur-khor:record-update:draft:',
+  'kaur-khor:phone-capture-draft:',
+  'sena:',
+];
 const settingsInterfaceHighlightDelayMs = 500;
 const settingsInterfaceHighlightDurationMs = 1900;
 const settingsInterfaceHighlightTargets = ['help', 'automations'] as const;
@@ -1789,10 +1794,33 @@ export function SettingsRoute() {
     });
   }
 
+  function clearWorkspaceStorage(storage: Storage | null | undefined) {
+    if (!storage) {
+      return;
+    }
+    try {
+      const keys = Array.from({ length: storage.length }, (_value, index) => storage.key(index))
+        .filter((key): key is string =>
+          key != null && WORKSPACE_STORAGE_KEY_PREFIXES.some((prefix) => key.startsWith(prefix)),
+        );
+      for (const key of keys) {
+        storage.removeItem(key);
+      }
+    } catch {
+      // Storage is best-effort in browser/private contexts.
+    }
+  }
+
+  function clearRendererWorkspaceStorage() {
+    clearWorkspaceStorage(window.localStorage);
+    clearWorkspaceStorage(window.sessionStorage);
+  }
+
   async function handleConfirmClearCurrentData() {
     try {
       setClearInFlight(true);
       const result = await window.kaurKhorDesktop.system.clearCurrentData();
+      clearRendererWorkspaceStorage();
       setBackupStatus(formatClearCurrentDataStatus(result));
       setClearConfirmOpen(false);
       setClearConfirmValue('');

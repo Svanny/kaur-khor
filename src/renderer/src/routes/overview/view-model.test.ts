@@ -5,6 +5,7 @@ import {
   isOverviewSupplierTicketTask,
   nextCheckLabel,
   relativeReceiptLabel,
+  shouldShowTask,
 } from './view-model';
 
 type BuildOverviewModelInput = Parameters<typeof buildOverviewModelBase>[0];
@@ -652,8 +653,11 @@ describe('buildOverviewModel stale update reminder', () => {
       kind: 'supplier_ticket',
       defaultDrawerMode: 'ordered_waiting',
       ticketId: 'supplier-ticket-from-observation',
+      displayTicketId: '2026-04-09-#1',
+      displayTicketLabel: 'Supplier Ticket ID: 2026-04-09-#1',
       skuCount: 1,
     });
+    expect(ticketTask?.displayTicketLabel).not.toContain('supplier-ticket-from-observation');
     expect(ticketTask?.whyDetail).toMatch(/^Ordered Apr 9/);
     expect(ticketTask?.whyDetail).not.toContain('arrival window');
     expect(model.tasks.some((task) => task.kind === 'sku' && task.id === 'sku-1')).toBe(false);
@@ -851,6 +855,116 @@ describe('buildOverviewModel stale update reminder', () => {
       stateLabel: 'Order canceled',
       ticketId: 'supplier-ticket-canceled',
     });
+  });
+
+  it('lets resolved supplier tickets override stale awaiting-receipt order batches', () => {
+    const ticket: SenaTicketSummary = {
+      ticketId: 'supplier-ticket-received',
+      ticketFamily: 'supplier',
+      lifecycle: 'resolved',
+      stage: 'received',
+      revision: 2,
+      eventType: 'fully_received',
+      occurredAt: '2026-04-12T09:00:00.000Z',
+      nextTouchAt: null,
+      party: { role: 'supplier', supplierName: 'Mekong Looms' },
+      lines: [{ entityType: 'sku', entityId: 'sku-1', orderedQuantity: 8, receivedQuantity: 8, expectedArrivalAt: null }],
+      note: null,
+    };
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [{ ...taskCatalog.skus[0]!, supplierName: 'Mekong Looms' }],
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [],
+      orderBatches: [{
+        batchOrderId: 'batch-stale-awaiting',
+        ownerSub: 'desktop-owner',
+        supplierName: 'Mekong Looms',
+        status: 'awaiting_receipt',
+        createdAt: '2026-04-09T09:00:00.000Z',
+        updatedAt: '2026-04-09T09:00:00.000Z',
+        shared: {
+          supplierName: 'Mekong Looms',
+          supplierNote: null,
+          orderedQuantity: null,
+          receivedQuantity: null,
+          costPerUnit: null,
+          expectedArrivalAt: '2026-04-12T09:00:00.000Z',
+          placementTimestamp: '2026-04-09T09:00:00.000Z',
+          receiptTimestamp: null,
+          leadTimeDaysHint: null,
+          leadTimeVariability: null,
+        },
+        children: [{
+          childOrderId: 'child-stale-awaiting',
+          skuId: 'sku-1',
+          status: 'awaiting_receipt',
+          createdAt: '2026-04-09T09:00:00.000Z',
+          updatedAt: '2026-04-09T09:00:00.000Z',
+          inheritedFromBatch: true,
+          effective: {
+            supplierName: 'Mekong Looms',
+            supplierNote: null,
+            orderedQuantity: 8,
+            receivedQuantity: null,
+            costPerUnit: null,
+            expectedArrivalAt: '2026-04-12T09:00:00.000Z',
+            placementTimestamp: '2026-04-09T09:00:00.000Z',
+            receiptTimestamp: null,
+            leadTimeDaysHint: null,
+            leadTimeVariability: null,
+          },
+          overrides: {},
+        }],
+      }],
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([ticket]),
+      workspaceSummary: taskWorkspaceSummary,
+    });
+
+    expect(model.tasks.find(isOverviewSupplierTicketTask)).toMatchObject({
+      action: 'review',
+      defaultDrawerMode: 'goods_received',
+      displayTicketLabel: 'Supplier Ticket ID: 2026-04-12-#1',
+      latestReceiptAt: '2026-04-12T09:00:00.000Z',
+      state: 'received_today',
+      ticketId: 'supplier-ticket-received',
+    });
+    expect(model.todayCounts.readyToReceive).toBe(0);
+  });
+
+  it('shows received today tasks in all and received today filters', () => {
+    const ticket: SenaTicketSummary = {
+      ticketId: 'supplier-ticket-received-filter',
+      ticketFamily: 'supplier',
+      lifecycle: 'resolved',
+      stage: 'received',
+      revision: 2,
+      eventType: 'fully_received',
+      occurredAt: '2026-04-12T09:00:00.000Z',
+      nextTouchAt: null,
+      party: { role: 'supplier', supplierName: 'Mekong Looms' },
+      lines: [{ entityType: 'sku', entityId: 'sku-1', orderedQuantity: 8, receivedQuantity: 8, expectedArrivalAt: null }],
+      note: null,
+    };
+    const model = buildOverviewModel({
+      catalog: {
+        ...taskCatalog,
+        skus: [{ ...taskCatalog.skus[0]!, supplierName: 'Mekong Looms' }],
+      },
+      detailBySkuId: {},
+      language: 'en',
+      observations: [],
+      recordUpdateContext: recordUpdateContextWithSupplierTickets([ticket]),
+      workspaceSummary: taskWorkspaceSummary,
+    });
+
+    const task = model.tasks.find(isOverviewSupplierTicketTask);
+    expect(task).toMatchObject({ state: 'received_today' });
+    expect(task ? shouldShowTask(task, 'all') : null).toBe(true);
+    expect(task ? shouldShowTask(task, 'received_today') : null).toBe(true);
   });
 
   it('shows daily sequential supplier ticket ids while preserving internal ids', () => {

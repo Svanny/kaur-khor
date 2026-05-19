@@ -487,7 +487,7 @@ export function OnboardingRoute({ allowCompleted = false }: { allowCompleted?: b
               language={selectedLanguage}
               modes={['default', 'minimal', 'maximal']}
               onDisplayViewModeChange={setSelectedViewMode}
-              presentation="carousel"
+              presentation="grid"
             />
           </div>
         )}

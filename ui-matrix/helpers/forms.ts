@@ -11,6 +11,10 @@ type TicketExpectation = {
 
 type TicketFamily = 'customer' | 'supplier';
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function pasteCatalogImageFromPage(page: Page, name = 'ui-matrix-pasted.png') {
   await page.evaluate(async (fileName) => {
     const canvas = document.createElement('canvas');
@@ -125,22 +129,15 @@ export async function editSkuCostAndPriceThroughUi(page: Page, skuId: string, op
   }
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByRole('button', { name: 'Save changes' })).toBeDisabled();
-  await page.getByRole('button', { name: 'Details', exact: true }).click();
-  const discardDialog = page.getByRole('dialog', { name: 'Discard changes?' });
-  const navigatedWithoutDialog = await page.waitForFunction(
-    (id) => window.location.hash === `#/catalog/skus/${id}`,
-    skuId,
-    { timeout: 2_000 },
-  ).then(() => true).catch(() => false);
-  if (!navigatedWithoutDialog) {
-    await discardDialog.waitFor({ state: 'visible', timeout: 30_000 });
-    await discardDialog.getByRole('button', { name: 'Save changes' }).click();
-    await expect(discardDialog).toBeHidden();
-  }
   await page.waitForFunction(
-    (id) => window.location.hash === `#/catalog/skus/${id}`,
-    skuId,
+    ({ cost, id, price }) =>
+      window.kaurKhorDesktop.sena.getCatalog().then((catalog) => {
+        const sku = catalog.skus.find((entry) => entry.skuId === id);
+        return sku?.costPerUnit === Number(cost) && sku.productPrice === Number(price);
+      }),
+    { cost: options?.cost ?? '5.00', id: skuId, price: options?.price ?? '13.50' },
   );
+  await navigateHashRoute(page, `/catalog/skus/${skuId}`);
 }
 
 export async function editServiceImageThroughUi(page: Page, serviceId: string) {
@@ -155,9 +152,11 @@ export async function editServiceImageThroughUi(page: Page, serviceId: string) {
   );
 }
 
-export async function saveStockCountThroughUi(page: Page, skuId: string, units = '7') {
+export async function saveStockCountThroughUi(page: Page, skuId: string, units = '7', skuName?: string) {
   await navigateHashRoute(page, `/work/capture/stock-count?skus=${encodeURIComponent(skuId)}`);
-  const tile = page.locator('[data-slot="workbench-tile-visual"]').first();
+  const tile = skuName
+    ? page.getByRole('button', { name: new RegExp(escapeRegExp(skuName), 'i') }).first()
+    : page.locator('[data-slot="workbench-tile-visual"]').first();
   await tile.waitFor({ state: 'visible', timeout: 30_000 });
   await tile.click();
   const dialog = page.getByRole('dialog').first();
@@ -425,7 +424,7 @@ export async function assertDesktopBridgeConsistent(page: Page, options: {
 async function addPosLineThroughUi(page: Page, targetName: string, quantity: string) {
   const dialog = page.getByRole('dialog', { name: targetName });
   if (!(await dialog.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: new RegExp(targetName, 'i') }).first().click();
+    await page.getByRole('button', { name: new RegExp(escapeRegExp(targetName), 'i') }).first().click();
   }
   await dialog.waitFor({ state: 'visible', timeout: 30_000 });
   await dialog.getByLabel(`Quantity for ${targetName}`).fill(quantity);

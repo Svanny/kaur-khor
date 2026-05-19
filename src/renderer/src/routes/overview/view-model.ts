@@ -85,6 +85,7 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   childOrderId: string | null;
   supplierTicket: SenaTicketSummary | null;
   supplierTicketId: string | null;
+  supplierTicketDisplayId: string | null;
   batchChildCount: number;
   state: Exclude<OverviewTaskFilter, 'all'>;
   stateLabel: string;
@@ -209,15 +210,18 @@ export function supplierTicketTaskForSkuTask({
   translate: (value: string) => string;
 }): OverviewSupplierTicketTask {
   const ticket = draftSupplierTicketForSkuTask({ latestObservedAt, task });
+  const displayTicketId = task.supplierTicket
+    ? task.supplierTicketDisplayId ?? `${ticketDisplayDate(ticket.occurredAt)}-#1`
+    : task.skuId;
   const displayTicketLabel = task.supplierTicket
-    ? `Supplier Ticket ID: ${ticket.ticketId}`
+    ? `Supplier Ticket ID: ${displayTicketId}`
     : translate('Supplier order');
   return {
     ...task,
     id: task.supplierTicketId ? `supplier-ticket:${task.supplierTicketId}` : `${DRAFT_SUPPLIER_TICKET_ID_PREFIX}${task.skuId}`,
     kind: 'supplier_ticket',
     ticketId: ticket.ticketId,
-    displayTicketId: task.supplierTicketId ?? task.skuId,
+    displayTicketId,
     displayTicketLabel,
     ticket,
     childTasks: [task],
@@ -562,6 +566,42 @@ function latestSupplierTicketForSku({
       right.revision - left.revision ||
       right.ticketId.localeCompare(left.ticketId),
   )[0] ?? null;
+}
+
+function supplierTicketForSkuById({
+  observations,
+  recordUpdateContext,
+  skuId,
+  supplierName,
+  ticketId,
+}: {
+  observations: SenaObservationRecord[];
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  skuId: string;
+  supplierName: string | null;
+  ticketId: string | null;
+}) {
+  if (!ticketId) {
+    return null;
+  }
+  const matches: SenaTicketSummary[] = [];
+  const rememberTicket = (ticket: SenaTicketSummary) => {
+    if (ticket.ticketId === ticketId && supplierTicketMatchesSku(ticket, skuId, supplierName)) {
+      matches.push(ticket);
+    }
+  };
+  for (const ticket of Object.values(recordUpdateContext?.latestTicketsById ?? {}).map((anchor) => anchor.value)) {
+    rememberTicket(ticket);
+  }
+  for (const ticket of recordUpdateContext?.openTicketsByFamily.supplier ?? []) {
+    rememberTicket(ticket);
+  }
+  for (const observation of observations) {
+    for (const ticket of observation.input.ticketEvents ?? []) {
+      rememberTicket(ticket);
+    }
+  }
+  return matches.sort(compareSupplierTicketsByFreshness)[0] ?? null;
 }
 
 function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
@@ -930,7 +970,10 @@ function supplierTicketIsActive(ticket: SenaTicketSummary) {
 function supplierTicketForTask(task: OverviewSkuTask, tickets: SenaTicketSummary[]) {
   const lineMatches = tickets.filter((ticket) => supplierTicketMatchesTaskLine(ticket, task));
   const activeMatch = lineMatches.filter(supplierTicketIsActive).sort(compareSupplierTicketsByFreshness)[0] ?? null;
-  return activeMatch ?? lineMatches.sort(compareSupplierTicketsByFreshness)[0] ?? null;
+  const closedMatch = lineMatches
+    .filter((ticket) => ticket.lifecycle === 'resolved' || ticket.lifecycle === 'canceled')
+    .sort(compareSupplierTicketsByFreshness)[0] ?? null;
+  return activeMatch ?? closedMatch;
 }
 
 function groupSupplierTicketTasks(tasks: OverviewSkuTask[], language: AppLanguage, tickets: SenaTicketSummary[]) {
@@ -1197,7 +1240,6 @@ function buildTask({
     skuId: summary.skuId,
     supplierName,
   });
-  const orderCanceled = latestSupplierTicket?.lifecycle === 'canceled';
   const supplierTicketId = resolveSupplierTicketIdForOrderContext({
     observations,
     orderContext,
@@ -1205,15 +1247,36 @@ function buildTask({
     skuId: summary.skuId,
     supplierName,
   }) ?? latestSupplierTicket?.ticketId ?? null;
-  const latestOrderAt = orderCanceled ? null : (orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt);
-  const latestReceiptAt = orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
+  const currentSupplierTicket = supplierTicketForSkuById({
+    observations,
+    recordUpdateContext,
+    skuId: summary.skuId,
+    supplierName,
+    ticketId: supplierTicketId,
+  }) ?? latestSupplierTicket;
+  const orderCanceled = currentSupplierTicket?.lifecycle === 'canceled';
+  const orderResolved = currentSupplierTicket?.lifecycle === 'resolved';
+  const latestOrderAt = orderCanceled || orderResolved ? null : (orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt);
+  const latestReceiptAt = orderResolved
+    ? currentSupplierTicket.occurredAt
+    : orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
+  const ticketReceiptQuantity = orderResolved
+    ? currentSupplierTicket.lines
+        .filter((line) => line.entityType === 'sku' && line.entityId === summary.skuId)
+        .reduce<number | null>((total, line) => {
+          const quantity = safeOptionalNonNegativeNumber(line.receivedQuantity);
+          return quantity == null ? total : (total ?? 0) + quantity;
+        }, null)
+    : null;
   const receiptWindow = receiptWindowSummary({
     detail,
     language,
     latestOrderAt,
     summary,
   });
-  const state = orderContext
+  const state = orderResolved
+    ? isSameLocalDay(latestReceiptAt) ? ('received_today' as const) : null
+    : orderContext
     ? (() => {
         switch (orderContext.child.status) {
           case 'reviewed':
@@ -1248,7 +1311,7 @@ function buildTask({
   const leadTimeMeanDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.meanDays ?? summary.leadTimeMeanDays);
   const leadTimeStdDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays);
   const recentOrderQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.orderedQuantity ?? observationSignals.latestOrderQuantity);
-  const recentReceiptQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity);
+  const recentReceiptQuantity = safeOptionalNonNegativeNumber(ticketReceiptQuantity ?? orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity);
   const fallbackOrderQuantity = fallbackRecommendedOrderQuantity(summary, detail);
   const reorderRecommendation = formatSenaReorderQuantity(
     summary.reorderQuantity,
@@ -1282,9 +1345,9 @@ function buildTask({
         ? translate(language, 'overviewTaskEtaOrderCanceledDetail')
         : translate(language, 'overviewTaskEtaNotOrderedDetail')
       : state === 'received_today'
-        ? observationSignals.latestReceiptAt
+        ? latestReceiptAt
           ? translate(language, 'overviewTaskEtaReceivedLogged', {
-              date: formatSenaDate(observationSignals.latestReceiptAt, language),
+              date: formatSenaDate(latestReceiptAt, language),
             })
           : translate(language, 'overviewTaskEtaReceivedFallback')
         : (receiptWindow?.etaDetail ?? translate(language, 'overviewTaskEtaWaitingSignal'));
@@ -1298,8 +1361,9 @@ function buildTask({
     supplierName,
     batchOrderId: orderContext?.batch.batchOrderId ?? null,
     childOrderId: orderContext?.child.childOrderId ?? null,
-    supplierTicket: latestSupplierTicket,
+    supplierTicket: currentSupplierTicket,
     supplierTicketId,
+    supplierTicketDisplayId: null,
     batchChildCount: orderContext?.batch.children.length ?? 0,
     state,
     stateLabel: taskStateLabel(state, language),
@@ -1533,6 +1597,8 @@ export function buildOverviewModel({
     };
   }
 
+  const supplierTickets = collectSupplierTickets({ observations, recordUpdateContext });
+  const supplierTicketLabels = supplierTicketDisplayLabels(supplierTickets);
   const skuTasks = workspaceSummary.skuSummaries
     .map((summary) =>
       buildTask({
@@ -1546,8 +1612,11 @@ export function buildOverviewModel({
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),
     )
-    .filter((value): value is OverviewSkuTask => value != null);
-  const supplierTickets = collectSupplierTickets({ observations, recordUpdateContext });
+    .filter((value): value is OverviewSkuTask => value != null)
+    .map((task) => ({
+      ...task,
+      supplierTicketDisplayId: task.supplierTicketId ? supplierTicketLabels.get(task.supplierTicketId) ?? null : null,
+    }));
   const tasks = groupSupplierTicketTasks(skuTasks, language, supplierTickets);
   const staleUpdateReminderTask = buildStaleUpdateReminderTask({
     forceVisible: forceStaleUpdateReminder ?? false,

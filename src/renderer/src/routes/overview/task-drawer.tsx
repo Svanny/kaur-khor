@@ -1,5 +1,5 @@
 import { type PointerEvent as ReactPointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
-import type { SenaLeadTimeVariabilityClass, SenaRecordUpdateContext, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
+import type { SenaLeadTimeVariabilityClass, SenaObservationInput, SenaRecordUpdateContext, SenaTicketEvent, SenaTicketEventType, SenaTicketStage, SenaTicketSummary } from '@shared/sena';
 import { Link } from 'react-router-dom';
 import {
   deriveLeadTimeFromStdDays,
@@ -53,6 +53,7 @@ import {
 import { buildSupplierTicketCaptureHref } from '@/lib/record-update-routes';
 import { translateUiLiteral } from '@/lib/translations';
 import { statusPillClassName } from '@/lib/state-tones';
+import { stockSnapshotForTicketInventoryDeltas } from '@/lib/ticket-inventory-reconciliation';
 import { makeNewTicketId } from '@/lib/ticketing';
 import { cn } from '@/lib/utils';
 import {
@@ -267,10 +268,14 @@ function ticketLinesForDrawer({
 
   return task.ticket.lines.map((line) => {
     const orderedQuantity = line.orderedQuantity ?? null;
+    const childTask = line.entityType === 'sku'
+      ? task.childTasks.find((task) => task.skuId === line.entityId)
+      : null;
+    const receiptQuantity = line.receivedQuantity ?? line.orderedQuantity ?? childTask?.recentOrderQuantity ?? childTask?.suggestedOrderQuantity ?? null;
     return {
       ...line,
       orderedQuantity: mode === 'order_canceled' ? null : orderedQuantity,
-      receivedQuantity: mode === 'goods_received' ? orderedQuantity : line.receivedQuantity ?? null,
+      receivedQuantity: mode === 'goods_received' ? receiptQuantity : line.receivedQuantity ?? null,
       expectedArrivalAt,
       note,
     };
@@ -508,7 +513,7 @@ export function OverviewTaskDrawer({
   task: OverviewSupplierTicketTask | null;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { ingestSenaObservation, isSaving, recordUpdateContext, runWorkspacePreparation, triggerSenaRun } = useInventory();
+  const { catalog, ingestSenaObservation, isSaving, recordUpdateContext, runWorkspacePreparation, snapshot, triggerSenaRun } = useInventory();
   const { language, t } = usePreferences();
   const [mode, setMode] = useControllableDrawerMode(controlledMode, onModeChange);
   const [observedAt, setObservedAt] = useState(initialObservedAt(null));
@@ -780,13 +785,33 @@ export function OverviewTaskDrawer({
       });
       senaPayload.orderSignals = activeTask.ticket.lines
         .filter((line) => line.entityType === 'sku')
-        .map((line) => ({
-          skuId: line.entityId,
-          orderPlaced: false,
-          receiptArrived: true,
-          approximateOrderQuantity: null,
-          approximateReceiptQuantity: line.orderedQuantity ?? line.receivedQuantity ?? null,
-        }));
+        .map((line) => {
+          const childTask = activeTask.childTasks.find((task) => task.skuId === line.entityId);
+          return {
+            skuId: line.entityId,
+            orderPlaced: false,
+            receiptArrived: true,
+            approximateOrderQuantity: null,
+            approximateReceiptQuantity: line.orderedQuantity ?? line.receivedQuantity ?? childTask?.recentOrderQuantity ?? childTask?.suggestedOrderQuantity ?? null,
+          };
+        });
+      const receiptDeltas = new Map<string, number>();
+      for (const signal of senaPayload.orderSignals) {
+        if (signal.receiptArrived && signal.approximateReceiptQuantity != null) {
+          receiptDeltas.set(signal.skuId, (receiptDeltas.get(signal.skuId) ?? 0) + signal.approximateReceiptQuantity);
+        }
+      }
+      senaPayload.stockSnapshot = stockSnapshotForTicketInventoryDeltas({
+        catalog,
+        deltasBySkuId: receiptDeltas,
+        fallbacksBySkuId: new Map(activeTask.childTasks.map((childTask) => [childTask.skuId, {
+          costPerUnit: childTask.costPerUnit,
+          productPrice: childTask.productPrice,
+          unitsInStock: childTask.currentStock,
+        }])),
+        recordUpdateContext,
+        snapshot,
+      });
       senaPayload.ticketEvents = [
         supplierTicketEventFromDrawer({
           eventType: 'fully_received',

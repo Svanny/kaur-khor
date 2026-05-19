@@ -23,6 +23,23 @@ function phoneCaptureDoneButton(page: import('@playwright/test').Page) {
   return page.getByRole('banner').getByRole('button', { name: 'Done' });
 }
 
+async function seedFullCaptureDraft(page: import('@playwright/test').Page, laneId: string) {
+  await page.evaluate((id) => {
+    window.localStorage.setItem(`kaur-khor:record-update:draft:${id}:v1`, JSON.stringify({
+      currentStepId: 'stock',
+      customSelectedLaneIds: [],
+      notes: 'UI matrix full capture draft',
+      observedAt: '2026-05-19T09:00',
+      posTouchedLineKeys: [],
+      rows: [],
+      savedAt: '2026-05-19T09:00:00.000Z',
+      touchedPosMetadataPopupIds: [],
+      unlockedStepCount: 1,
+      version: 1,
+    }));
+  }, laneId);
+}
+
 async function chooseNewCaptureTicketIfPrompted(page: import('@playwright/test').Page) {
   const prompt = page.getByRole('dialog').filter({ hasText: 'What do you want to do?' });
   if (await prompt.isVisible().catch(() => false)) {
@@ -126,6 +143,20 @@ test.describe('UI matrix: mobile and responsive embedded layouts', () => {
     await expect(page.getByRole('button', { name: 'Supplier Order' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Customer Order' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Immediate Sale' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Back to products' })).toBeVisible();
+    await seedFullCaptureDraft(page, 'supplier-order-pending');
+    await page.getByRole('button', { name: 'Supplier Order' }).click();
+    await expect(page.getByRole('dialog')).toContainText('Delete saved draft?');
+    await page.getByRole('button', { name: 'Delete draft and start new' }).click();
+    await expect(page.getByRole('heading', { name: 'Supplier Order' })).toBeVisible();
+    await expect(
+      page.evaluate(() => window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')),
+      'phone detail targeted capture should clear an existing full capture draft when requested',
+    ).resolves.toBeNull();
+    await returnToPhoneCaptureMenu(page);
+    await phoneNav.getByRole('link', { name: 'Products' }).click();
+    await page.locator('[data-slot="phone-list-item"][href="#/catalog/skus/sku-001"]').click();
+    await expect(page.locator('[data-slot="phone-product-detail-page"]')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Back to products' })).toBeVisible();
     await assertEmbeddedUiStable(page, 'phone portrait product detail');
     await captureUi(page, testInfo, 'mobile-phone-portrait-product-detail');

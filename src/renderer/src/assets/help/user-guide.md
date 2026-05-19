@@ -98,6 +98,8 @@ Capture is the update-authoring workflow inside Work. It turns real-world events
 
 For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there is no meaningful saved draft or editable ticket. It only asks whether to resume, start new, or edit/update when that choice would change real work. Mode-only placeholders are discarded instead of being shown as saved drafts.
 
+Clearing current data from Settings removes saved capture drafts and cached product detail pages from this device before reloading, so a blank workspace opens without previous Products Update, Customer Order, or demo rows.
+
 ### Delivery Fee {#record-update-delivery-fee}
 
 Delivery fee records the charge and payer for a customer order or receipt summary when delivery handling is enabled. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual customer agreement.

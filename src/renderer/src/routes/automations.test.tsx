@@ -127,6 +127,14 @@ function renderForcedIntake(initialEntry = '/work/intake') {
   );
 }
 
+function renderForcedSettings(initialEntry = '/settings/automation') {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <AutomationsRoute allowConfigurationWithoutEligibility forcedSection="settings" />
+    </MemoryRouter>,
+  );
+}
+
 function makeAutomationState(hasBotToken: boolean, overrides: Partial<AutomationContextValue> = {}): AutomationContextValue {
   return {
     connection: {
@@ -282,6 +290,7 @@ describe('AutomationsRoute', () => {
     preferencesHook.mockReturnValue({
       currency: 'USD',
       language: 'en',
+      savePreferences: vi.fn(),
       showAutomationsPage: true,
       usdToKhrExchangeRate: 4000,
       t: (key: string) => (key === 'navAutomations' ? 'Automations' : key),
@@ -792,9 +801,23 @@ describe('AutomationsRoute', () => {
   it('links from Telegram bot settings to Work intake', () => {
     automationHook.mockReturnValue(makeAutomationState(true));
 
-    renderRoute();
+    renderForcedSettings();
 
-    expect(screen.getByRole('link', { name: 'Open intake' })).toHaveAttribute('href', '/work/intake');
+    const openIntakeLink = screen.getByRole('link', { name: 'Open Intake' });
+    expect(openIntakeLink).toHaveAttribute('href', '/work/intake');
+    expect(openIntakeLink.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the Settings automation intake link available before bot setup', () => {
+    automationHook.mockReturnValue(makeAutomationState(false));
+
+    renderForcedSettings();
+
+    const openIntakeLink = screen.getByRole('link', { name: 'Open Intake' });
+    expect(openIntakeLink).toHaveAttribute('href', '/work/intake');
+    expect(openIntakeLink.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 
   it('links from Work intake to Telegram automation settings', () => {
@@ -802,7 +825,19 @@ describe('AutomationsRoute', () => {
 
     renderForcedIntake();
 
-    expect(screen.getByRole('link', { name: 'Open settings' })).toHaveAttribute('href', '/settings/automation');
+    const openSettingsLink = screen.getByRole('link', { name: 'Open Settings' });
+    expect(openSettingsLink).toHaveAttribute('href', '/settings/automation');
+    expect(openSettingsLink.querySelector('svg')).not.toBeNull();
+  });
+
+  it('keeps the Work intake settings link available before bot setup', () => {
+    automationHook.mockReturnValue(makeAutomationState(false));
+
+    renderForcedIntake();
+
+    const openSettingsLink = screen.getByRole('link', { name: 'Open Settings' });
+    expect(openSettingsLink).toHaveAttribute('href', '/settings/automation');
+    expect(openSettingsLink.querySelector('svg')).not.toBeNull();
   });
 
   it('hides the Work intake link while already embedded in Work intake', () => {
@@ -810,7 +845,7 @@ describe('AutomationsRoute', () => {
 
     renderForcedIntake();
 
-    expect(screen.queryByRole('link', { name: 'Open intake' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Open Intake' })).not.toBeInTheDocument();
   });
 
   it('builds the Telegram app link from the current bot username draft', () => {
@@ -849,6 +884,39 @@ describe('AutomationsRoute', () => {
     expect(screen.getByRole('tab', { name: /Overview/i })).toBeInTheDocument();
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     expect(saveConnection).toHaveBeenCalledTimes(1);
+  });
+
+  it('enables automations before showing the unlocked tabs after saving telegram settings', async () => {
+    const saveConnection = vi.fn().mockResolvedValue({
+      channel: 'telegram',
+      status: 'connected',
+      hasBotToken: true,
+      botDisplayName: 'Configured bot',
+      botUsername: 'configured_bot',
+      externalLink: 'https://t.me/configured_bot',
+      connectedAt: '2026-04-21T00:00:00.000Z',
+      pausedAt: null,
+      lastWebhookAt: null,
+      lastErrorAt: null,
+      lastErrorMessage: null,
+    });
+    const savePreferences = vi.fn().mockResolvedValue(undefined);
+    automationHook.mockReturnValue(makeAutomationState(false, { saveConnection }));
+    preferencesHook.mockReturnValue({
+      currency: 'USD',
+      language: 'en',
+      savePreferences,
+      showAutomationsPage: false,
+      usdToKhrExchangeRate: 4000,
+      t: (key: string) => (key === 'navAutomations' ? 'Automations' : key),
+    });
+
+    renderForcedSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Set token' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save Telegram settings' }));
+
+    await waitFor(() => expect(screen.getByText('Telegram settings saved')).toBeInTheDocument());
+    expect(savePreferences).toHaveBeenCalledWith({ showAutomationsPage: true });
   });
 
   it('shows a failure popup when saving without a telegram bot token', async () => {

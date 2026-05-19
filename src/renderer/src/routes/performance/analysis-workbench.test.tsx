@@ -329,6 +329,39 @@ describe('AnalysisWorkbench', () => {
     expect(setSection).not.toHaveBeenCalled();
   });
 
+  test('keeps blockers content-fit when opened through tab navigation', async () => {
+    const user = userEvent.setup();
+    const model = buildModel();
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <AnalysisWorkbench model={model} section="pressure" setSection={vi.fn()} showRightRailCards={false} />
+      </MemoryRouter>,
+    );
+
+    await user.click(screen.getByRole('tab', { name: 'Blockers' }));
+
+    rerender(
+      <MemoryRouter>
+        <AnalysisWorkbench model={model} section="fragility" setSection={vi.fn()} showRightRailCards={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Service blocker map')).toBeInTheDocument();
+    const board = screen.getByTestId('insights-board-section');
+    const analysisWindow = document.querySelector('[data-analysis-window="true"]');
+    const tabs = board.closest('[data-slot="chrome-tabs"]');
+    const surface = document.querySelector('[data-analysis-surface="true"]');
+    const surfaceContent = document.querySelector('[data-analysis-surface-content="true"]');
+    expect(analysisWindow).not.toHaveAttribute('style');
+    expect(board).not.toHaveClass('flex-1');
+    expect(board.firstElementChild).not.toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board.firstElementChild).toHaveClass('items-start');
+    expect(tabs).not.toHaveClass('flex-1');
+    expect(surface).not.toHaveClass('flex-1');
+    expect(surfaceContent).not.toHaveClass('min-h-full');
+  });
+
   test('hides only the Observations tab when no observations exist', async () => {
     const model = {
       ...buildModel(),
@@ -435,6 +468,25 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(screen.getAllByText('ខ្ពស់').find((node) => node.className.includes('text-rose-800'))).toBeTruthy();
     expect(screen.getAllByText('ទាប').find((node) => node.className.includes('text-sky-700'))).toBeTruthy();
     expect(screen.getAllByText('មធ្យម').find((node) => node.className.includes('text-amber-800'))).toBeTruthy();
+  });
+
+  test('keeps the pressure risk table sized to its rows', () => {
+    const model = buildModel();
+
+    const { container } = render(
+      <MemoryRouter>
+        <AnalysisWorkbench model={model} section="pressure" setSection={vi.fn()} showRightRailCards={false} />
+      </MemoryRouter>,
+    );
+
+    const riskTable = container.querySelector('[data-slot="headered-table"]');
+    const riskTableLayout = riskTable?.querySelector('div.bg-white');
+    expect(screen.getByText('Risk explorer')).toBeInTheDocument();
+    expect(riskTable).toHaveAttribute('data-height-mode', 'content');
+    expect(riskTable?.className).not.toContain('min-h-full');
+    expect(riskTable?.className).not.toContain('flex-1');
+    expect(riskTableLayout?.className).not.toContain('min-h-full');
+    expect(riskTableLayout?.className).not.toContain('flex-1');
   });
 
   test('renders Explain navigation in Khmer without English leaks', () => {
@@ -546,7 +598,7 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(rail).not.toHaveClass('min-h-full');
   });
 
-  test('lets non-chart explain sections fill available height and grow when needed', () => {
+  test('keeps non-chart explain sections sized to their content', () => {
     render(
       <AnalysisWorkbench
         model={buildModel()}
@@ -564,8 +616,10 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     const surface = document.querySelector('[data-analysis-surface="true"]');
     const surfaceContent = document.querySelector('[data-analysis-surface-content="true"]');
     const nav = document.querySelector('[data-analysis-nav="true"]');
-    expect(board).toHaveClass('flex-1', 'overflow-hidden');
-    expect(board.firstElementChild).toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board).not.toHaveClass('flex-1');
+    expect(board).toHaveClass('overflow-hidden');
+    expect(board.firstElementChild).not.toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board.firstElementChild).toHaveClass('items-start');
     expect(nav).toHaveClass('overflow-hidden');
     expect(board).not.toHaveClass('overflow-y-auto');
     expect(root).toHaveClass('flex-1', 'flex-col');
@@ -573,10 +627,10 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     expect(root).not.toHaveClass('h-full', 'min-h-full', 'mb-32', 'md:mb-36');
     expect(analysisWindow).toHaveClass('shrink-0');
     expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
-    expect(tabs).toHaveClass('flex-1');
+    expect(tabs).not.toHaveClass('flex-1');
     expect(tabs).not.toHaveClass('pb-32', 'md:pb-36');
-    expect(surface).toHaveClass('flex-1');
-    expect(surfaceContent).toHaveClass('min-h-full');
+    expect(surface).not.toHaveClass('flex-1');
+    expect(surfaceContent).not.toHaveClass('min-h-full');
   });
 
   test('keeps non-chart sections natural height with right-rail bottom breathing room', () => {
@@ -601,18 +655,20 @@ test('shows reorder policy in the selected SKU inspector', async () => {
     const rail = document.querySelector('[data-analysis-inspector="true"]');
     const firstRailSection = rail?.querySelector('section');
     const measurements = document.querySelector('[data-analysis-inspector-measurements="true"]');
-    expect(board).toHaveClass('flex-1', 'overflow-hidden');
-    expect(board.firstElementChild).toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board).not.toHaveClass('flex-1');
+    expect(board).toHaveClass('overflow-hidden');
+    expect(board.firstElementChild).not.toHaveClass('min-h-full', 'flex-1', 'items-stretch');
+    expect(board.firstElementChild).toHaveClass('items-start');
     expect(board).not.toHaveClass('overflow-y-auto');
     expect(root).toHaveClass('flex-1', 'flex-col');
     expect(root).toHaveClass('shrink-0');
     expect(root).not.toHaveClass('h-full', 'min-h-full', 'mb-32', 'md:mb-36');
     expect(analysisWindow).toHaveClass('shrink-0');
     expect(breathingRoom).toHaveClass('h-32', 'shrink-0', 'md:h-36');
-    expect(tabs).toHaveClass('flex-1');
+    expect(tabs).not.toHaveClass('flex-1');
     expect(tabs).not.toHaveClass('pb-32', 'md:pb-36');
-    expect(surface).toHaveClass('flex-1');
-    expect(surfaceContent).toHaveClass('min-h-full');
+    expect(surface).not.toHaveClass('flex-1');
+    expect(surfaceContent).not.toHaveClass('min-h-full');
     expect(rail).toHaveClass('h-full', 'min-h-full');
     expect(rail).toHaveClass('lg:[background:linear-gradient(to_bottom,#fff_0,#fff_8px,hsl(var(--secondary)/0.15)_8px)]');
     expect(firstRailSection).toHaveClass('first-of-type:border-t-0');

@@ -37,6 +37,7 @@ import {
   telegramSendMessage,
   telegramSetChatMenuButton,
   telegramSetMyCommands,
+  TelegramBotApiError,
 } from './telegram-bot-api';
 
 type AutomationWorkspaceContext = Parameters<typeof ingestAutomationTelegramUpdates>[1]['context'];
@@ -173,6 +174,18 @@ async function configureTelegramBotUi(userDataPath: string, token: string) {
   await markAutomationTelegramCommandsConfigured(userDataPath);
 }
 
+function isTelegramNetworkValidationError(error: unknown) {
+  return !(error instanceof TelegramBotApiError) &&
+    error instanceof Error &&
+    (error.name === 'TypeError' || error.name === 'AbortError');
+}
+
+function telegramValidationErrorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : String(error);
+}
+
 async function sendTelegramConversationMessage(
   userDataPath: string,
   {
@@ -239,17 +252,29 @@ export async function validateAndSaveTelegramAutomationConnection(
   }
 
   if (token?.trim()) {
-    const bot = await telegramGetMe(token);
-    await applyAutomationTelegramProfile(userDataPath, { token, user: bot });
-    await configureTelegramBotUi(userDataPath, token);
-    return saveAutomationConnection(userDataPath, {
-      ...payload,
-      botDisplayName: payload.botDisplayName ?? bot.first_name,
-      botToken: undefined,
-      botUsername: payload.botUsername ?? bot.username ?? null,
-      externalLink: payload.externalLink ?? (bot.username ? `https://t.me/${bot.username}` : null),
-      status: payload.status ?? 'connected',
-    });
+    try {
+      const bot = await telegramGetMe(token);
+      await applyAutomationTelegramProfile(userDataPath, { token, user: bot });
+      await configureTelegramBotUi(userDataPath, token);
+      return saveAutomationConnection(userDataPath, {
+        ...payload,
+        botDisplayName: payload.botDisplayName ?? bot.first_name,
+        botToken: undefined,
+        botUsername: payload.botUsername ?? bot.username ?? null,
+        externalLink: payload.externalLink ?? (bot.username ? `https://t.me/${bot.username}` : null),
+        status: payload.status ?? 'connected',
+      });
+    } catch (error) {
+      if (!isTelegramNetworkValidationError(error)) {
+        throw error;
+      }
+      await saveAutomationConnection(userDataPath, {
+        ...payload,
+        botToken: token,
+        status: payload.status ?? 'connected',
+      });
+      return recordAutomationTelegramError(userDataPath, telegramValidationErrorMessage(error));
+    }
   }
 
   return saveAutomationConnection(userDataPath, { ...payload, botToken: token });

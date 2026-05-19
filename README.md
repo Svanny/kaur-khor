@@ -29,13 +29,13 @@ The guides explain Kaur Khor's current workspaces, lane-based update flows, impo
 | --- | --- |
 | ![Kaur Khor stock count capture session](docs/readme/stock-count-fullscreen.png) | ![Kaur Khor customer order capture session](docs/readme/customer-order-fullscreen.png) |
 
-| Performance | Financials |
+| Insights / Pressure | Insights / Money |
 | --- | --- |
-| ![Kaur Khor performance workspace](docs/readme/performance-fullscreen.png) | ![Kaur Khor financials workspace](docs/readme/financials-fullscreen.png) |
+| ![Kaur Khor Insights Pressure workspace](docs/readme/performance-fullscreen.png) | ![Kaur Khor Insights Money workspace](docs/readme/financials-fullscreen.png) |
 
-| Catalog | Analysis |
+| Products | Insights / Explain |
 | --- | --- |
-| ![Kaur Khor catalog workspace](docs/readme/catalog-fullscreen.png) | ![Kaur Khor analysis workspace](docs/readme/analysis-fullscreen.png) |
+| ![Kaur Khor Products workspace](docs/readme/catalog-fullscreen.png) | ![Kaur Khor Insights Explain workspace](docs/readme/analysis-fullscreen.png) |
 
 ## What To Expect
 
@@ -76,7 +76,7 @@ All entry points are free, require no sign-up or login, and keep data on the use
 - Overview and performance surfaces that turn updates into concrete follow-up tasks.
 - A financial workspace that turns the same inventory state into money-in, money-tied-up, and money-leaking views.
 - An operations workspace for saved update history, heatmap inspection, report editing, and report deletion.
-- Analysis and Help views that explain what the current inventory picture seems to be and how Kaur Khor works.
+- Insights / Explain and Help views that explain what the current inventory picture seems to be and how Kaur Khor works.
 - Local settings for language and currency, including English and Khmer plus USD and KHR support.
 
 ## Current Limits
@@ -187,6 +187,9 @@ pnpm install
 ```bash
 pnpm dev
 ```
+
+`pnpm dev` opens the current local workspace as-is. Use `pnpm dev:seed` when
+you want the development shell to seed the generated demo workspace first.
 
 For phone or tablet checks against the browser surface:
 

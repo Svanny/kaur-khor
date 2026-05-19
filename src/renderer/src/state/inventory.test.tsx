@@ -426,6 +426,65 @@ describe('InventoryProvider', () => {
     expect(window.kaurKhorDesktop.sena.listObservations).not.toHaveBeenCalled();
   });
 
+  it('publishes the persisted catalog returned by IPC after a successful save', async () => {
+    function CatalogSaveHarness() {
+      const inventory = useInventory();
+      return (
+        <div>
+          <div data-testid="catalog-names">{inventory.catalog?.skus.map((sku) => sku.name).join('|') ?? ''}</div>
+          <button
+            type="button"
+            onClick={() => void inventory.upsertSenaCatalog({
+              ...sampleCatalog,
+              skus: [
+                ...sampleCatalog.skus,
+                {
+                  ...sampleCatalog.skus[0]!,
+                  name: 'SKU 1 (Size: S)',
+                  skuId: 'sku-1-size-s',
+                },
+              ],
+            })}
+          >
+            save attributed variant
+          </button>
+        </div>
+      );
+    }
+
+    const persistedCatalog = {
+      ...sampleCatalog,
+      skus: [
+        ...sampleCatalog.skus,
+        {
+          ...sampleCatalog.skus[0]!,
+          name: 'SKU 1 (Size: S)',
+          skuId: 'sku-1-size-s',
+        },
+      ],
+    };
+    window.kaurKhorDesktop.sena.upsertCatalog = vi.fn(async () => persistedCatalog);
+
+    render(
+      <InventoryProvider>
+        <CatalogSaveHarness />
+      </InventoryProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-names').textContent).toBe('SKU 1');
+    });
+
+    fireEvent.click(screen.getByText('save attributed variant'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('catalog-names').textContent).toContain('SKU 1 (Size: S)');
+    });
+    expect(window.kaurKhorDesktop.sena.upsertCatalog).toHaveBeenCalledWith(expect.objectContaining({
+      skus: expect.arrayContaining([expect.objectContaining({ skuId: 'sku-1-size-s' })]),
+    }));
+  });
+
   it('loads route-driven Work support data without full startup hydration', async () => {
     render(
       <InventoryProvider>

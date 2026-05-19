@@ -6,6 +6,11 @@ import { InsightsInventoryRoute } from './index';
 
 const inventoryHook = vi.fn();
 const preferencesHook = vi.fn();
+const useSenaDetailHydration = vi.fn(() => ({
+  isHydratingDetails: false,
+  serviceDetailsById: {},
+  skuDetailsById: {},
+}));
 
 vi.mock('@/state/inventory', () => ({
   useInventory: () => inventoryHook(),
@@ -18,11 +23,7 @@ vi.mock('@/state/preferences', () => ({
 }));
 
 vi.mock('@/routes/performance/use-sena-detail-hydration', () => ({
-  useSenaDetailHydration: () => ({
-    isHydratingDetails: false,
-    serviceDetailsById: {},
-    skuDetailsById: {},
-  }),
+  useSenaDetailHydration: () => useSenaDetailHydration(),
 }));
 
 function mockPreferences() {
@@ -171,6 +172,11 @@ function renderRoute(initialEntry = '/insights/inventory') {
 describe('InsightsInventoryRoute', () => {
   beforeEach(() => {
     mockPreferences();
+    useSenaDetailHydration.mockReturnValue({
+      isHydratingDetails: false,
+      serviceDetailsById: {},
+      skuDetailsById: {},
+    });
     inventoryHook.mockReturnValue(createInventoryState());
   });
 
@@ -181,6 +187,7 @@ describe('InsightsInventoryRoute', () => {
     expect(screen.getByText('Stock on hand, in/out flow, cover, inbound pipeline, and projections.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Inventory health grid' })).toBeInTheDocument();
     expect(screen.getAllByText('Razor Refill').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Shampoo Classic').length).toBeGreaterThan(0);
     expect(screen.queryByText('Haircut')).not.toBeInTheDocument();
     expect(screen.getAllByText('On hand').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Cover').length).toBeGreaterThan(0);
@@ -205,6 +212,66 @@ describe('InsightsInventoryRoute', () => {
 
     expect(screen.getAllByText('Razor Refill').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Shampoo Classic').length).toBeGreaterThan(0);
+  });
+
+  test('shows newly attributed SKU variants when the catalog object is reused', () => {
+    const reusedCatalog = {
+      ...catalog,
+      skus: [...catalog.skus],
+    };
+    inventoryHook.mockReturnValue(createInventoryState({ catalog: reusedCatalog }));
+
+    const { rerender } = renderRoute('/insights/inventory?rows=all');
+
+    expect(screen.queryByText('Razor Refill (Size: S)')).not.toBeInTheDocument();
+
+    reusedCatalog.skus.push({
+      ...reusedCatalog.skus[0]!,
+      name: 'Razor Refill (Size: S)',
+      skuId: 'sku-razor-size-s',
+    });
+    inventoryHook.mockReturnValue(createInventoryState({
+      catalog: reusedCatalog,
+      isSaving: true,
+    }));
+    rerender(
+      <MemoryRouter initialEntries={['/insights/inventory?rows=all']}>
+        <Routes>
+          <Route element={<InsightsInventoryRoute />} path="/insights/inventory" />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getAllByText('Razor Refill (Size: S)').length).toBeGreaterThan(0);
+  });
+
+  test('keeps the inventory grid hidden while visible detail hydration is loading', () => {
+    useSenaDetailHydration.mockReturnValue({
+      isHydratingDetails: true,
+      serviceDetailsById: {},
+      skuDetailsById: {},
+    });
+
+    renderRoute('/insights/inventory?rows=all');
+
+    expect(screen.queryByText('Hydrating visible inventory detail...')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Razor Refill' })).not.toBeInTheDocument();
+    expect(document.querySelector('[data-inventory-grid-loading="true"]')).toBeInTheDocument();
+  });
+
+  test('uses a viewport-based fallback width before grid measurement settles', () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1800 });
+
+    try {
+      renderRoute('/insights/inventory?rows=all');
+
+      expect(document.querySelector<HTMLElement>('[data-slot="headered-table"]')).toHaveClass('w-full');
+      expect(document.querySelector<HTMLElement>('[data-slot="headered-table"] > div')?.style.gridTemplateColumns)
+        .toContain('minmax');
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
+    }
   });
 
   test('switches view presets through the URL-backed controls', () => {

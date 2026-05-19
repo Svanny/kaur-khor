@@ -20,7 +20,8 @@
   "type": "module",
   "main": "out/main/index.js",
   "scripts": {
-    "dev": "pnpm data:generate && electron-vite dev --watch",
+    "dev": "electron-vite dev --watch",
+    "dev:seed": "cross-env KAUR_KHOR_DEV_SEED=1 electron-vite dev --watch",
     "data:generate": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5",
     "data:generate:force": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 3.5 --force",
     "data:generate:screenshot": "python3 ./scripts/generate_dev_history.py --years 5 --interval-days 1 --force --use-bundled-dev-catalog",
@@ -97,6 +98,7 @@
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@vitejs/plugin-react": "^5.2.0",
+    "cross-env": "^10.1.0",
     "electron": "39.8.9",
     "electron-builder": "^26.0.12",
     "electron-devtools-installer": "^4.0.0",

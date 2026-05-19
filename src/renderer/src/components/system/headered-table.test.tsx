@@ -39,9 +39,10 @@ describe('HeaderedTable', () => {
     expect(screen.getByText('Alpha')).toBeInTheDocument();
     expect(screen.getByText('Beta').className).toContain('text-center');
     expect(table?.getAttribute('data-variant')).toBe('overview');
+    expect(table).toHaveAttribute('data-height-mode', 'content');
     expect(table?.className).toContain('rounded-none');
-    expect(table?.className).toContain('min-h-full');
-    expect(table?.className).toContain('flex-1');
+    expect(table?.className).not.toContain('min-h-full');
+    expect(table?.className).not.toContain('flex-1');
     expect(header?.className).toContain('sm:px-6');
     expect(container.querySelector('[data-slot="headered-table-body"]')?.className).toContain('bg-white');
     expect(container.querySelector('[data-slot="headered-table-body"]')?.className).not.toContain('flex-1');
@@ -60,6 +61,21 @@ describe('HeaderedTable', () => {
     expect(table?.getAttribute('data-variant')).toBe('framed');
     expect(table?.className).toContain('rounded-[1.4rem]');
     expect(table?.className).toContain('border');
+    expect(table?.className).not.toContain('min-h-full');
+    expect(table?.className).not.toContain('flex-1');
+  });
+
+  test('can opt into filling the available pane height', () => {
+    const { container } = render(
+      <HeaderedTable heightMode="fill">
+        <div>Full-height content</div>
+      </HeaderedTable>,
+    );
+
+    const table = container.querySelector('[data-slot="headered-table"]');
+    expect(table).toHaveAttribute('data-height-mode', 'fill');
+    expect(table?.className).toContain('min-h-full');
+    expect(table?.className).toContain('flex-1');
   });
 
   test('creates one shared layout contract for header, rows, and mobile labels', () => {
@@ -70,9 +86,9 @@ describe('HeaderedTable', () => {
     });
 
     expect(layout.containerClassName).toContain('lg:[grid-template-columns:var(--headered-table-columns)]');
-    expect(layout.containerClassName).toContain('min-h-full');
     expect(layout.containerClassName).toContain('bg-white');
-    expect(layout.containerClassName).toContain('flex-1');
+    expect(layout.containerClassName).not.toContain('min-h-full');
+    expect(layout.containerClassName).not.toContain('flex-1');
     expect(layout.containerClassName).toContain('lg:auto-rows-max');
     expect(layout.containerClassName).toContain('lg:content-start');
     expect(layout.headerClassName).toContain('lg:grid-cols-subgrid');
