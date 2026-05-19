@@ -55,11 +55,15 @@ Core commands:
 ```bash
 pnpm install
 pnpm dev
+pnpm dev:seed
 pnpm test
 pnpm build
 pnpm run build:web
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 ```
+
+Use `pnpm dev` to preserve the current local workspace during development. Use
+`pnpm dev:seed` when you explicitly want startup to seed generated demo data.
 
 Useful packaging commands:
 

@@ -25,6 +25,7 @@ export interface GeneratedWorkspaceSeedResult extends GeneratedWorkspaceSeed {
 }
 
 export interface DevWorkspaceSeedState {
+  hasBlankWorkspaceMarker: boolean;
   hasGeneratedHistoryMarker: boolean;
   hasWorkspaceStore: boolean;
   mode: 'generated-history';
@@ -76,20 +77,35 @@ export function buildGenerateDevHistoryArgs({
 }
 
 export function shouldPrepareGeneratedWorkspace({
+  hasBlankWorkspaceMarker,
   hasGeneratedHistoryMarker,
   hasWorkspaceStore,
 }: {
+  hasBlankWorkspaceMarker: boolean;
   hasGeneratedHistoryMarker: boolean;
   hasWorkspaceStore: boolean;
-}) {
-  return !hasGeneratedHistoryMarker || !hasWorkspaceStore;
+}, options: { allowBlankWorkspaceSeed?: boolean } = {}) {
+  return (options.allowBlankWorkspaceSeed || !hasBlankWorkspaceMarker) && (!hasGeneratedHistoryMarker || !hasWorkspaceStore);
+}
+
+export function shouldSeedGeneratedDevWorkspace(env: Record<string, string | undefined> = process.env) {
+  return env.KAUR_KHOR_DEV_SEED === '1';
 }
 
 export async function detectDevWorkspaceSeedState(dataDirectory: string): Promise<DevWorkspaceSeedState> {
+  const blankMarkerPath = join(dataDirectory, '.kaur-khor-blank-workspace.json');
   const seedMarkerPath = join(dataDirectory, 'desktop-sena-dev-history.json');
   const storePath = join(dataDirectory, 'desktop-sena-store.sqlite3');
+  let hasBlankWorkspaceMarker = false;
   let hasGeneratedHistoryMarker = false;
   let hasWorkspaceStore = false;
+
+  try {
+    const markerStats = await stat(blankMarkerPath);
+    hasBlankWorkspaceMarker = markerStats.isFile() && markerStats.size > 0;
+  } catch {
+    hasBlankWorkspaceMarker = false;
+  }
 
   try {
     const markerStats = await stat(seedMarkerPath);
@@ -106,10 +122,20 @@ export async function detectDevWorkspaceSeedState(dataDirectory: string): Promis
   }
 
   return {
+    hasBlankWorkspaceMarker,
     hasGeneratedHistoryMarker,
     hasWorkspaceStore,
     mode: 'generated-history',
   };
+}
+
+export async function markDevWorkspaceBlank(dataDirectory: string) {
+  await mkdir(dataDirectory, { recursive: true });
+  await writeFile(
+    join(dataDirectory, '.kaur-khor-blank-workspace.json'),
+    `${JSON.stringify({ clearedAt: new Date().toISOString(), version: 1 }, null, 2)}\n`,
+    'utf8',
+  );
 }
 
 export async function prepareGeneratedWorkspace(

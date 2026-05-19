@@ -56,9 +56,9 @@ export async function storeDroppedImageHandler(
       sourceBytes: sourceStats?.size ?? null,
     },
   });
-  let normalizedImage: ReturnType<typeof normalizeDesktopImage>;
+  let normalizedImage: Awaited<ReturnType<typeof normalizeDesktopImage>>;
   try {
-    normalizedImage = normalizeDesktopImage(tempPath);
+    normalizedImage = await normalizeDesktopImage(tempPath);
     endNormalize({
       ok: true,
       outputBytes: normalizedImage.bytes.byteLength,

@@ -1319,7 +1319,7 @@ describe('SettingsRoute', () => {
     expect(highlightedRow).toHaveAttribute('data-highlight-flash-key', '1');
     const highlight = screen.getByTestId('settings-automations-highlight');
     expect(highlight).toHaveClass('inset-0');
-    expect(highlight).toHaveClass('opacity-0');
+    expect(highlight).toHaveClass('[opacity:var(--kaur-khor-attention-progress,0)]');
     expect(highlight).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
@@ -1346,7 +1346,7 @@ describe('SettingsRoute', () => {
     expect(highlightedRow).toHaveAttribute('data-highlight-flash-key', '1');
     const highlight = screen.getByTestId('settings-help-highlight');
     expect(highlight).toHaveClass('inset-0');
-    expect(highlight).toHaveClass('opacity-0');
+    expect(highlight).toHaveClass('[opacity:var(--kaur-khor-attention-progress,0)]');
     expect(highlight).toHaveClass('motion-safe:animate-[kaur-khor-attention-flash_1800ms_ease-in-out_1]');
     expect(intersectionObserver.disconnect).toHaveBeenCalled();
     intersectionObserver.restore();
@@ -1827,6 +1827,11 @@ describe('SettingsRoute', () => {
 
     const deleteCurrentButton = await screen.findByRole('button', { name: /delete current data/i });
     expect(deleteCurrentButton).toHaveAttribute('data-variant', 'destructive');
+    window.localStorage.setItem('kaur-khor:record-update:draft:stock-count:v1', '{"notes":"stale"}');
+    window.localStorage.setItem('kaur-khor:record-update:draft:customer-order-pending:v1', '{"customerName":"Dara Sok"}');
+    window.localStorage.setItem('sena:sku:sku-demo:detail', '{"name":"Hotdog"}');
+    window.localStorage.setItem('kaur-khor:settings:keep', 'keep');
+    window.sessionStorage.setItem('kaur-khor:phone-capture-draft:customer-order-pending:sku-demo', '{"quantity":"1"}');
     fireEvent.click(deleteCurrentButton);
     fireEvent.change(
       screen.getByLabelText(/deletion confirmation token/i),
@@ -1842,6 +1847,11 @@ describe('SettingsRoute', () => {
     await waitFor(() => {
       expect(screen.getByText('Overview destination')).toBeInTheDocument();
     });
+    expect(window.localStorage.getItem('kaur-khor:record-update:draft:stock-count:v1')).toBeNull();
+    expect(window.localStorage.getItem('kaur-khor:record-update:draft:customer-order-pending:v1')).toBeNull();
+    expect(window.localStorage.getItem('sena:sku:sku-demo:detail')).toBeNull();
+    expect(window.localStorage.getItem('kaur-khor:settings:keep')).toBe('keep');
+    expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:customer-order-pending:sku-demo')).toBeNull();
     expect(reloadLocation).toHaveBeenCalledTimes(1);
   });
 

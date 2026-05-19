@@ -5,17 +5,19 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { createFromPathMock } = vi.hoisted(() => ({
+const { createFromPathMock, createThumbnailFromPathMock } = vi.hoisted(() => ({
   createFromPathMock: vi.fn(),
+  createThumbnailFromPathMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   nativeImage: {
     createFromPath: createFromPathMock,
+    createThumbnailFromPath: createThumbnailFromPathMock,
   },
 }));
 
-import { prepareDesktopImageUpload } from './desktop-image';
+import { normalizeDesktopImage, prepareDesktopImageUpload } from './desktop-image';
 
 function buildPngHeader(width: number, height: number) {
   const bytes = Buffer.alloc(33);
@@ -59,6 +61,7 @@ function buildWebpHeader(width: number, height: number, byteLength = 128) {
 describe('prepareDesktopImageUpload', () => {
   beforeEach(() => {
     createFromPathMock.mockReset();
+    createThumbnailFromPathMock.mockReset();
   });
 
   it('keeps the original image bytes when the source is not high definition', async () => {
@@ -95,8 +98,12 @@ describe('prepareDesktopImageUpload', () => {
     createFromPathMock.mockReturnValue({
       isEmpty: () => true,
     });
+    createThumbnailFromPathMock.mockResolvedValue({
+      isEmpty: () => true,
+    });
 
     await expect(prepareDesktopImageUpload(imagePath)).rejects.toThrow('Kaur Khor could not read that image file.');
+    expect(createThumbnailFromPathMock).not.toHaveBeenCalled();
   });
 
   it('rejects non-finite decoded image dimensions before resize math', async () => {
@@ -177,6 +184,38 @@ describe('prepareDesktopImageUpload', () => {
     expect(Array.from(upload.bytes)).toEqual([9, 8, 7, 6]);
     expect(sourceImage.resize).toHaveBeenCalled();
     expect(resizedImage.toPNG).toHaveBeenCalled();
+  });
+
+  it('decodes picked WebP files through the thumbnail fallback when native path decoding is empty', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-desktop-image-'));
+    const imagePath = join(userDataPath, 'picked.webp');
+    await writeFile(imagePath, buildWebpHeader(1200, 800));
+    const resizedImage = {
+      toJPEG: vi.fn(() => new Uint8Array([8, 7, 6])),
+      toPNG: vi.fn(() => new Uint8Array([4, 3, 2, 1])),
+    };
+    const thumbnailImage = {
+      isEmpty: () => false,
+      getSize: () => ({ width: 1200, height: 800 }),
+      resize: vi.fn(() => resizedImage),
+      toJPEG: vi.fn(() => new Uint8Array([8, 7, 6])),
+      toPNG: vi.fn(() => new Uint8Array([4, 3, 2, 1])),
+    };
+
+    createFromPathMock.mockReturnValue({
+      isEmpty: () => true,
+    });
+    createThumbnailFromPathMock.mockResolvedValue(thumbnailImage);
+
+    const normalized = await normalizeDesktopImage(imagePath);
+
+    expect(createThumbnailFromPathMock).toHaveBeenCalledWith(imagePath, {
+      width: 1600,
+      height: 1600,
+    });
+    expect(normalized.extension).toBe('.png');
+    expect(Array.from(normalized.bytes)).toEqual([4, 3, 2, 1]);
+    expect(thumbnailImage.resize).toHaveBeenCalled();
   });
 
   it('normalizes small WebP images to PNG instead of uploading raw WebP bytes', async () => {

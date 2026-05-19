@@ -44,17 +44,32 @@ function encodeDesktopImage(
   return targetExtension === '.png' ? image.toPNG() : image.toJPEG(jpegQuality ?? 80);
 }
 
-export function normalizeDesktopImage(sourcePath: string) {
+async function decodeDesktopImage(sourcePath: string, targetExtension: '.png' | '.jpg') {
+  const decodedImage = nativeImage.createFromPath(sourcePath);
+  if (!decodedImage.isEmpty()) {
+    return decodedImage;
+  }
+
+  if (targetExtension === '.png' && extname(sourcePath).toLowerCase() === '.webp') {
+    const thumbnailImage = await nativeImage.createThumbnailFromPath(sourcePath, {
+      width: DESKTOP_IMAGE_MAX_DIMENSION_PX,
+      height: DESKTOP_IMAGE_MAX_DIMENSION_PX,
+    });
+    if (!thumbnailImage.isEmpty()) {
+      return thumbnailImage;
+    }
+  }
+
+  throw new Error('Kaur Khor could not read that image file.');
+}
+
+export async function normalizeDesktopImage(sourcePath: string) {
   const targetExtension = normalizeDesktopImageExtension(sourcePath);
   if (!targetExtension) {
     throw new Error('Please choose a PNG, JPEG, or WebP image.');
   }
 
-  const importedImage = nativeImage.createFromPath(sourcePath);
-  if (importedImage.isEmpty()) {
-    throw new Error('Kaur Khor could not read that image file.');
-  }
-
+  const importedImage = await decodeDesktopImage(sourcePath, targetExtension);
   const { width, height } = importedImage.getSize();
   assertDecodedImageDimensionsAreSafe(width, height);
 
@@ -118,7 +133,7 @@ export async function prepareDesktopImageUpload(sourcePath: string) {
     };
   }
 
-  const normalized = normalizeDesktopImage(sourcePath);
+  const normalized = await normalizeDesktopImage(sourcePath);
   return {
     bytes: normalized.bytes,
     filename: `${basename(sourcePath, extname(sourcePath))}-telegram${normalized.extension}`,

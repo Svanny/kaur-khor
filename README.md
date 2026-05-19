@@ -188,6 +188,9 @@ pnpm install
 pnpm dev
 ```
 
+`pnpm dev` opens the current local workspace as-is. Use `pnpm dev:seed` when
+you want the development shell to seed the generated demo workspace first.
+
 For phone or tablet checks against the browser surface:
 
 ```bash

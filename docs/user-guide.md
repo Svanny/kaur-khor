@@ -100,6 +100,8 @@ For ticket-backed lanes, Kaur Khor opens a new ticket flow directly when there i
 
 After validation and any required receipt confirmation, saving a capture closes the session immediately and returns you to the previous Work surface. The bottom-left **Saving...** indicator stays visible while Kaur Khor finishes writing the observation, ticket/order updates, and any follow-up analysis in the background. If that background save fails, the draft remains recoverable and the normal workspace error surface reports the failure.
 
+Clearing current data from Settings removes saved capture drafts and cached product detail pages from this device before reloading, so a blank workspace opens without previous Products Update, Customer Order, or demo rows.
+
 ### Delivery Fee {#record-update-delivery-fee}
 
 Delivery fee records the charge and payer for a customer order or receipt summary when delivery handling is enabled. It affects the customer-facing total and can matter for margin review. Check it before saving so totals match the actual customer agreement.

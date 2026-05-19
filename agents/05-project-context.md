@@ -29,6 +29,7 @@
 - Typecheck: `pnpm exec tsc --build tsconfig.json`
 - Lint: no repo lint script is configured; do not invent one.
 - Run locally: `pnpm dev`
+- Run locally with generated demo data seeded on startup: `pnpm dev:seed`
 - Package: `pnpm package:mac`, `pnpm package:linux`, or `pnpm package:win:native`
 
 Prefer single-file or single-test runs during iteration. Full suites are for the final verification pass.

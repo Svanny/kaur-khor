@@ -19,11 +19,15 @@ Main commands:
 ```bash
 pnpm install
 pnpm dev
+pnpm dev:seed
 pnpm test
 pnpm build
 cargo test --manifest-path apps/desktop-core/Cargo.toml
 cargo test --manifest-path apps/sena-core/Cargo.toml
 ```
+
+`pnpm dev` preserves the current local workspace. Use `pnpm dev:seed` when you
+want the development shell to seed generated demo data on startup.
 
 Packaging commands:
 

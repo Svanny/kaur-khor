@@ -43,3 +43,4 @@ When the user corrects your approach, append a one-line rule here before ending 
 - SKU and service editor pages must initially focus the Name field; nested planning controls such as ETA variation inputs must not steal first focus.
 - Embedded phone action surfaces must reuse desktop action/session models and icons, keeping only presentation phone-specific in `routes/mobile` with focused route/session tests.
 - Embedded phone capture cards must hide clipped copy with zero layout footprint, then verify the remaining visible icon/title groups are vertically centered in the rendered phone route.
+- `pnpm dev` must preserve the current local workspace; use `pnpm dev:seed` for generated demo data, and mark cleared dev workspaces blank so startup does not repopulate them.
