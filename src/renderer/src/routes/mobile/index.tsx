@@ -529,7 +529,7 @@ function PhoneCaptureActionRow({
       targetType,
     },
   );
-  const draftStorageKey = draftStorageKeyForLane(laneForCaptureSessionAction(action));
+  const draftStorageKey = phoneCaptureDraftKey(laneForCaptureSessionAction(action), targetId);
   const hasDraftConfirmPrompt = confirmPrompt === 'saved-draft';
 
   function requestCaptureSession() {

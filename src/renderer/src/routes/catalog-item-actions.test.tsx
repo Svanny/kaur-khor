@@ -559,9 +559,9 @@ describe('catalog item action sheets', () => {
     expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!h-9');
     expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!min-h-9');
     expect(serviceActions?.className).toContain('[&_[data-slot=button]]:!rounded-full');
-    expect(screen.getByRole('link', { name: 'Open bottleneck SKU' }).className).toContain('!h-9');
-    expect(screen.getByRole('button', { name: 'Record' }).className).toContain('!h-9');
-    expect(screen.getByRole('link', { name: 'Edit service' }).className).toContain('!h-9');
+    expect(screen.getByRole('link', { name: 'Open bottleneck SKU' }).className).toContain('h-9!');
+    expect(screen.getByRole('button', { name: 'Record' }).className).toContain('h-9!');
+    expect(screen.getByRole('link', { name: 'Edit service' }).className).toContain('h-9!');
     expect(screen.getByRole('link', { name: 'Open bottleneck SKU' })).toHaveAttribute('data-slot', 'button');
     expect(screen.getByRole('button', { name: 'Record' })).toHaveAttribute('data-slot', 'button');
     expect(screen.getByRole('link', { name: 'Edit service' })).toHaveAttribute('data-slot', 'button');

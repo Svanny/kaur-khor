@@ -396,6 +396,7 @@ function CatalogLoadingState() {
         <WorkspacePanel
           title={translateUiLiteral(language, 'Services')}
           descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
+          helperExemptReason="Loading services panel descriptor supplies the active section guidance."
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 3 })}

@@ -2390,7 +2390,10 @@ describe('WebRoutes embedded app fallback state', () => {
   });
 
   test('lets phone SKU detail delete an existing capture draft before starting a targeted session', async () => {
-    window.localStorage.setItem('kaur-khor:record-update:draft:supplier-order-pending:v1', '{"version":1}');
+    window.sessionStorage.setItem(
+      'kaur-khor:phone-capture-draft:supplier-order-pending:sku-001',
+      JSON.stringify({ note: 'saved supplier draft', quantity: '4' }),
+    );
     window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
     mockViewport(390, 844);
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
@@ -2409,7 +2412,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(window.location.hash).toContain('targetAction=supplier-order');
     expect(window.location.hash).toContain('targetType=sku');
     expect(window.location.hash).toContain('targetId=sku-001');
-    expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBeNull();
+    expect(window.sessionStorage.getItem('kaur-khor:phone-capture-draft:supplier-order-pending:sku-001')).toBeNull();
   });
 
   test('omits the phone SKU price capture action for non-sellable SKUs', async () => {

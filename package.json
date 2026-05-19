@@ -116,11 +116,13 @@
     "overrides": {
       "@xmldom/xmldom": "0.8.13",
       "@hono/node-server": "1.19.13",
+      "brace-expansion": "5.0.6",
       "hono": "4.12.18",
       "fast-uri": "3.1.2",
       "ip-address": "10.1.1",
       "path-to-regexp": "8.4.0",
-      "postcss": "8.5.10"
+      "postcss": "8.5.10",
+      "ws": "8.20.1"
     },
     "onlyBuiltDependencies": [
       "electron",
