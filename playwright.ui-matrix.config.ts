@@ -3,7 +3,7 @@ import { defineConfig } from '@playwright/test';
 const needsWebServer = process.env.KAUR_KHOR_UI_MATRIX_WEB === '1';
 const webPort = Number(process.env.KAUR_KHOR_UI_MATRIX_WEB_PORT ?? 5176);
 const webHost = process.env.KAUR_KHOR_UI_MATRIX_WEB_HOST ?? '127.0.0.1';
-const parsedWorkerCount = Number(process.env.KAUR_KHOR_UI_MATRIX_WORKERS ?? 3);
+const parsedWorkerCount = Number.parseInt(process.env.KAUR_KHOR_UI_MATRIX_WORKERS ?? '3', 10);
 const workerCount = Number.isFinite(parsedWorkerCount) ? Math.max(1, parsedWorkerCount) : 3;
 
 export default defineConfig({

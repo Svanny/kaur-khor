@@ -3850,7 +3850,7 @@ export async function ingestAutomationTelegramUpdates(
       state.telegramUpdateCursor = Math.max(state.telegramUpdateCursor ?? 0, update.update_id + 1);
       const callbackQuery = update.callback_query;
       if (callbackQuery?.message?.chat.type === 'private' && callbackQuery.message.chat.id != null) {
-        const callbackSentAt = telegramMessageSentAt(callbackQuery.message);
+        const callbackSentAt = nowIso();
         const conversation = upsertTelegramConversationFromCallback(
           state,
           String(callbackQuery.message.chat.id),
