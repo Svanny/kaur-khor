@@ -1,5 +1,5 @@
 import { realpath } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
 import type { AppCurrency } from '@shared/inventory';
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import {
@@ -50,6 +50,29 @@ const TELEGRAM_BOT_COMMANDS = [
   { command: 'cancel', description: 'Cancel the current order draft' },
   { command: 'preferences', description: 'Change bot language and display currency' },
 ] as const;
+const TELEGRAM_PHOTO_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+
+async function canonicalizeExistingOrMissingPath(path: string) {
+  const normalizedPath = resolve(path);
+  const missingSegments: string[] = [];
+  let currentPath = normalizedPath;
+
+  while (true) {
+    try {
+      return resolve(await realpath(currentPath), ...missingSegments);
+    } catch (error) {
+      if (!(error instanceof Error) || !('code' in error) || (error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw error;
+      }
+      const parentPath = dirname(currentPath);
+      if (parentPath === currentPath) {
+        return normalizedPath;
+      }
+      missingSegments.unshift(basename(currentPath));
+      currentPath = parentPath;
+    }
+  }
+}
 
 export async function resolveTelegramPhotoPath(userDataPath: string, photoPath: string) {
   const trimmed = photoPath.trim();
@@ -57,7 +80,7 @@ export async function resolveTelegramPhotoPath(userDataPath: string, photoPath: 
     return trimmed;
   }
 
-  if (/^https?:\/\//i.test(trimmed)) {
+  if (/^https?:\/\//i.test(trimmed) || !TELEGRAM_PHOTO_EXTENSIONS.has(extname(trimmed).toLowerCase())) {
     throw new Error('Telegram photo paths must point to a managed Kaur Khor asset.');
   }
 
@@ -70,27 +93,20 @@ export async function resolveTelegramPhotoPath(userDataPath: string, photoPath: 
 
   const assetsRoot = resolve(userDataPath, 'assets');
   const candidate = isAbsolute(trimmed) ? resolve(trimmed) : resolve(assetsRoot, trimmed);
-  try {
-    const [canonicalAssetsRoot, canonicalCandidate] = await Promise.all([
-      realpath(assetsRoot),
-      realpath(candidate),
-    ]);
-    assertManagedAssetPath(canonicalCandidate, canonicalAssetsRoot);
-    return canonicalCandidate;
-  } catch (error) {
-    assertManagedAssetPath(candidate, assetsRoot);
-    if (error instanceof Error && ('code' in error) && (error as NodeJS.ErrnoException).code === 'ENOENT') {
-      return candidate;
-    }
-    throw error;
-  }
+  const [canonicalAssetsRoot, canonicalCandidate] = await Promise.all([
+    canonicalizeExistingOrMissingPath(assetsRoot),
+    canonicalizeExistingOrMissingPath(candidate),
+  ]);
+  assertManagedAssetPath(canonicalCandidate, canonicalAssetsRoot);
+  return canonicalCandidate;
 }
 
 function displayMoneyFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
-  if (amount == null) {
+  if (amount == null || !Number.isFinite(amount)) {
     return null;
   }
-  return currency === 'KHR' ? amount * usdToKhrExchangeRate : amount;
+  const displayAmount = currency === 'KHR' ? amount * usdToKhrExchangeRate : amount;
+  return Number.isFinite(displayAmount) ? displayAmount : null;
 }
 
 function formatTelegramMoney(
@@ -101,12 +117,12 @@ function formatTelegramMoney(
   },
 ) {
   const displayAmount = displayMoneyFromUsd(amountUsd, preferences.currency, preferences.usdToKhrExchangeRate);
-  if (amountUsd == null) {
+  if (displayAmount == null) {
     return `${preferences.currency} TBD`;
   }
   return preferences.currency === 'KHR'
-    ? `${preferences.currency} ${Math.round(displayAmount!).toFixed(0)}`
-    : `${preferences.currency} ${displayAmount!.toFixed(2)}`;
+    ? `${preferences.currency} ${Math.round(displayAmount).toFixed(0)}`
+    : `${preferences.currency} ${displayAmount.toFixed(2)}`;
 }
 
 function isKhmer(language: 'en' | 'km') {

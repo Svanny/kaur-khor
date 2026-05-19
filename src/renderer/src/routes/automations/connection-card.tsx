@@ -113,10 +113,10 @@ export function AutomationConnectionCard({
       ) : null}
 
       <div className="grid gap-3 rounded-[1.25rem] border border-border/60 bg-background/70 p-4">
-        <Input placeholder={literal('Bot display name')} value={botDisplayName} onChange={(event) => onBotDisplayNameChange(event.target.value)} />
-        <Input placeholder={literal('@bot_username')} value={botUsername} onChange={(event) => onBotUsernameChange(event.target.value)} />
-        <Input placeholder={literal('https://t.me/your_bot')} value={externalLink} onChange={(event) => onExternalLinkChange(event.target.value)} />
-        <Textarea placeholder={literal('Telegram bot token')} value={botToken} onChange={(event) => onBotTokenChange(event.target.value)} />
+        <Input aria-label={literal('Bot display name')} placeholder={literal('Bot display name')} value={botDisplayName} onChange={(event) => onBotDisplayNameChange(event.target.value)} />
+        <Input aria-label={literal('Bot username')} placeholder={literal('@bot_username')} value={botUsername} onChange={(event) => onBotUsernameChange(event.target.value)} />
+        <Input aria-label={literal('Telegram bot link')} placeholder={literal('https://t.me/your_bot')} value={externalLink} onChange={(event) => onExternalLinkChange(event.target.value)} />
+        <Textarea aria-label={literal('Telegram bot token')} placeholder={literal('Telegram bot token')} value={botToken} onChange={(event) => onBotTokenChange(event.target.value)} />
         <div className="flex justify-end">
           <Button disabled={isSaving} type="button" onClick={onSave}>
             <ActionSaveIcon className="size-4" />

@@ -117,7 +117,11 @@ function canPromote(intake: AutomationOrderIntake | null) {
       && Number.isFinite(line.quantity)
       && line.quantity > 0
       && line.unitPrice != null
-      && Number.isFinite(line.unitPrice),
+      && Number.isFinite(line.unitPrice)
+      && line.unitPrice >= 0
+      && line.lineTotal != null
+      && Number.isFinite(line.lineTotal)
+      && line.lineTotal >= 0,
     );
 }
 
