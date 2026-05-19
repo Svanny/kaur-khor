@@ -2257,7 +2257,8 @@ function PhoneQueueTaskSheet({
   const saveQueueAction = async () => {
     const parsedQuantity = parsePhoneQueueActionQuantity(actionQuantity);
     const parsedDate = parseExplicitPhoneQueueActionDate(actionDate);
-    if (parsedQuantity == null || parsedQuantity <= 0) {
+    const requiresQuantity = !task.ticket || task.action === 'receive';
+    if (requiresQuantity && (parsedQuantity == null || parsedQuantity <= 0)) {
       setSavedAction(false);
       setActionError(translateUiLiteral(language, 'Enter a quantity greater than zero before saving.'));
       return;

@@ -53,7 +53,7 @@ import {
   restoreBackupSnapshotAction,
   type SettingsExportFormat,
 } from '@/lib/settings-workspace-actions';
-import { parseEditableNumberWithCommas } from '@/lib/format';
+import { formatEditableNumberWithCommas, parseEditableNumberWithCommas } from '@/lib/format';
 import { isBenchmarkSettingsEnabled, resolveSettingsSection } from '@/lib/settings-navigation';
 import { translateUiLiteral, type TranslationKey } from '@/lib/translations';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
@@ -630,9 +630,9 @@ function WorkspacePreferencesPage({
                   <Input
                     aria-label={t('settingsExchangeRateInputLabel')}
                     className="h-full min-w-0 flex-1 rounded-none border-0 bg-transparent px-3 shadow-none outline-none focus-visible:border-transparent focus-visible:ring-0"
-                    min="1"
-                    step="10"
-                    type="number"
+                    inputMode="numeric"
+                    pattern="[0-9,]*"
+                    type="text"
                     value={exchangeRateDraft}
                     onChange={(event) => setExchangeRateDraft(event.target.value)}
                   />
@@ -1543,7 +1543,7 @@ export function SettingsRoute() {
   const [clearConfirmValue, setClearConfirmValue] = useState('');
   const [clearInFlight, setClearInFlight] = useState(false);
   const [saveErrorFlashKey, setSaveErrorFlashKey] = useState(0);
-  const [exchangeRateDraft, setExchangeRateDraft] = useState(() => String(usdToKhrExchangeRate));
+  const [exchangeRateDraft, setExchangeRateDraft] = useState(() => formatEditableNumberWithCommas(String(usdToKhrExchangeRate)));
   const [senaEngineNumberDrafts, setSenaEngineNumberDrafts] = useState<SenaEngineNumberDrafts>(() =>
     createSenaEngineNumberDrafts(senaEngineParameters),
   );
@@ -1563,7 +1563,7 @@ export function SettingsRoute() {
       : !Number.isFinite(exchangeRateValue) || exchangeRateValue <= 0
         ? t('settingsExchangeRatePositive')
         : null;
-  const exchangeRateChanged = exchangeRateDraft !== String(usdToKhrExchangeRate);
+  const exchangeRateChanged = exchangeRateValue !== usdToKhrExchangeRate;
   const hasUnsavedSettingsChanges = hasPendingChanges || senaParametersChanged || exchangeRateChanged;
   const senaEngineParameterFields = buildSenaEngineParameterFields(t);
   const showDevOnboardingInjector = false;
@@ -1591,7 +1591,7 @@ export function SettingsRoute() {
 
   function handleDiscardSettingsChanges() {
     resetPreferences();
-    setExchangeRateDraft(String(usdToKhrExchangeRate));
+    setExchangeRateDraft(formatEditableNumberWithCommas(String(usdToKhrExchangeRate)));
     setSenaEngineNumberDrafts(createSenaEngineNumberDrafts(persistedSenaEngineParameters));
     setSenaEngineNumberErrors({});
     setSenaRunStatus(null);
@@ -1618,7 +1618,7 @@ export function SettingsRoute() {
   }, [senaEngineParameters]);
 
   useEffect(() => {
-    setExchangeRateDraft(String(usdToKhrExchangeRate));
+    setExchangeRateDraft(formatEditableNumberWithCommas(String(usdToKhrExchangeRate)));
   }, [usdToKhrExchangeRate]);
 
   useEffect(() => {
