@@ -4287,7 +4287,7 @@ describe('StockUpdateSessionRoute', () => {
     expect(triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
     expect(runWorkspacePreparation).not.toHaveBeenCalled();
     await waitFor(() => expect(screen.getByText('Overview destination')).toBeInTheDocument());
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
 
     rerun.resolve(undefined);
 
@@ -4311,7 +4311,7 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByText('Capture destination')).toBeInTheDocument());
     expect(triggerSenaRun).not.toHaveBeenCalled();
-    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(window.localStorage.getItem(STOCK_UPDATE_DRAFT_STORAGE_KEY)).not.toBeNull();
 
     observationSave.resolve({ observationId: 'obs-background' });
 

@@ -568,6 +568,42 @@ function latestSupplierTicketForSku({
   )[0] ?? null;
 }
 
+function supplierTicketForSkuById({
+  observations,
+  recordUpdateContext,
+  skuId,
+  supplierName,
+  ticketId,
+}: {
+  observations: SenaObservationRecord[];
+  recordUpdateContext: SenaRecordUpdateContext | null | undefined;
+  skuId: string;
+  supplierName: string | null;
+  ticketId: string | null;
+}) {
+  if (!ticketId) {
+    return null;
+  }
+  const matches: SenaTicketSummary[] = [];
+  const rememberTicket = (ticket: SenaTicketSummary) => {
+    if (ticket.ticketId === ticketId && supplierTicketMatchesSku(ticket, skuId, supplierName)) {
+      matches.push(ticket);
+    }
+  };
+  for (const ticket of Object.values(recordUpdateContext?.latestTicketsById ?? {}).map((anchor) => anchor.value)) {
+    rememberTicket(ticket);
+  }
+  for (const ticket of recordUpdateContext?.openTicketsByFamily.supplier ?? []) {
+    rememberTicket(ticket);
+  }
+  for (const observation of observations) {
+    for (const ticket of observation.input.ticketEvents ?? []) {
+      rememberTicket(ticket);
+    }
+  }
+  return matches.sort(compareSupplierTicketsByFreshness)[0] ?? null;
+}
+
 function latestVariabilityClass(summary: SenaSkuSummary, detail: SenaSkuDetail | null) {
   const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
   if (latestLeadTime?.observedVariabilityClass) {
@@ -1204,8 +1240,6 @@ function buildTask({
     skuId: summary.skuId,
     supplierName,
   });
-  const orderCanceled = latestSupplierTicket?.lifecycle === 'canceled';
-  const orderResolved = latestSupplierTicket?.lifecycle === 'resolved';
   const supplierTicketId = resolveSupplierTicketIdForOrderContext({
     observations,
     orderContext,
@@ -1213,12 +1247,21 @@ function buildTask({
     skuId: summary.skuId,
     supplierName,
   }) ?? latestSupplierTicket?.ticketId ?? null;
+  const currentSupplierTicket = supplierTicketForSkuById({
+    observations,
+    recordUpdateContext,
+    skuId: summary.skuId,
+    supplierName,
+    ticketId: supplierTicketId,
+  }) ?? latestSupplierTicket;
+  const orderCanceled = currentSupplierTicket?.lifecycle === 'canceled';
+  const orderResolved = currentSupplierTicket?.lifecycle === 'resolved';
   const latestOrderAt = orderCanceled || orderResolved ? null : (orderContext?.effective.placementTimestamp ?? observationSignals.latestOrderAt);
   const latestReceiptAt = orderResolved
-    ? latestSupplierTicket.occurredAt
+    ? currentSupplierTicket.occurredAt
     : orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
   const ticketReceiptQuantity = orderResolved
-    ? latestSupplierTicket.lines
+    ? currentSupplierTicket.lines
         .filter((line) => line.entityType === 'sku' && line.entityId === summary.skuId)
         .reduce<number | null>((total, line) => {
           const quantity = safeOptionalNonNegativeNumber(line.receivedQuantity);
@@ -1318,7 +1361,7 @@ function buildTask({
     supplierName,
     batchOrderId: orderContext?.batch.batchOrderId ?? null,
     childOrderId: orderContext?.child.childOrderId ?? null,
-    supplierTicket: latestSupplierTicket,
+    supplierTicket: currentSupplierTicket,
     supplierTicketId,
     supplierTicketDisplayId: null,
     batchChildCount: orderContext?.batch.children.length ?? 0,

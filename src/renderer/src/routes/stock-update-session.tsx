@@ -3290,7 +3290,9 @@ function buildDraftsFromObservationInput({
     ]),
     posTouchedLineKeys: [
       ...input.stockSnapshot.map((snapshot) => `stock:${snapshot.skuId}`),
+      ...input.retailStockouts.map((skuId) => `stock:${skuId}`),
       ...(input.servicePrices ?? []).map((price) => `service-price:${price.serviceId}`),
+      ...input.serviceStockouts.map((serviceId) => `service-price:${serviceId}`),
     ],
     currentStepId: (
       stepOrder.includes('stock')
@@ -9136,6 +9138,12 @@ export function StockUpdateSessionRoute() {
         observedAt: observedAtIso ?? new Date().toISOString(),
         notes: notes.trim() || null,
       });
+      const ticketInventoryDeltas = new Map<string, number>();
+      const addTicketInventoryDeltas = (entries: Iterable<readonly [string, number]>) => {
+        for (const [skuId, delta] of entries) {
+          ticketInventoryDeltas.set(skuId, (ticketInventoryDeltas.get(skuId) ?? 0) + delta);
+        }
+      };
 
       if (isCustomerPendingLane) {
         (payload.commercialEvents ??= []).push(
@@ -9228,11 +9236,11 @@ export function StockUpdateSessionRoute() {
         if (customerCompletedMode !== 'refund_reversal') {
           payload.retailSalesSnapshot = retailSalesSnapshot;
           payload.serviceSalesSnapshot = serviceSalesSnapshot;
-          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          addTicketInventoryDeltas(
             retailSalesSnapshot
               .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
               .map((entry) => [entry.skuId, -entry.unitsSold] as const),
-          ));
+          );
         }
         payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
         payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
@@ -9382,11 +9390,11 @@ export function StockUpdateSessionRoute() {
                 return signals;
               })),
         );
-        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+        addTicketInventoryDeltas(
           payload.orderSignals
             .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
             .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
-        ));
+        );
         payload.leadTimeHints.push(
           ...(supplierPendingMode === 'cancel_supplier_order'
             ? []
@@ -9482,7 +9490,7 @@ export function StockUpdateSessionRoute() {
                 }];
               })),
         );
-        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+        addTicketInventoryDeltas(
           Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
             const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
             if (quantity == null) {
@@ -9490,7 +9498,7 @@ export function StockUpdateSessionRoute() {
             }
             return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
           }),
-        ));
+        );
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
             const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
@@ -9529,6 +9537,10 @@ export function StockUpdateSessionRoute() {
             ];
           }),
         );
+      }
+
+      if (ticketInventoryDeltas.size > 0) {
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(ticketInventoryDeltas);
       }
 
       if (hasStockCountLane) {
@@ -10654,6 +10666,11 @@ export function StockUpdateSessionRoute() {
     }
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     const draftSnapshot = latestDraftStateRef.current;
+    if (draftSnapshot) {
+      const wroteDraft = writeStockUpdateDraft(draftSnapshot, draftStorageKey);
+      setHasSavedDraft(wroteDraft);
+      setDraftWasRestored(false);
+    }
     finalSaveStartedRef.current = true;
     void runSavingTask(async () => persistCurrentSessionInBackground({
       draftSnapshot,
