@@ -422,6 +422,36 @@ describe('InventoryRoute', () => {
     });
   });
 
+  test('shows a product notice instead of leaking a rejected delete action', async () => {
+    const state = makeProductsInventory({
+      deleteCatalogEntity: vi.fn(async () => {
+        throw new Error('disk write failed');
+      }),
+    });
+    inventoryHook.mockReturnValue(state);
+    mockEnglishPreferences();
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <InventoryRoute />
+      </MemoryRouter>,
+    );
+
+    const serviceRow = screen.getByRole('link', { name: 'Service 1' }).closest<HTMLElement>('div.group');
+    expect(serviceRow).not.toBeNull();
+    const deleteButton = within(serviceRow!).getByRole('button', { name: 'Delete' });
+    await waitFor(() => {
+      expect(deleteButton).not.toHaveAttribute('aria-disabled');
+    });
+    fireEvent.click(deleteButton);
+    const dialog = screen.getByText('Delete Service 1?').closest<HTMLElement>('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    fireEvent.click(within(dialog!).getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByText('Could not delete Service 1')).toBeInTheDocument();
+    expect(screen.getByText('Kaur Khor could not delete this product. Try again.')).toBeInTheDocument();
+  });
+
   test('explains why an ineligible delete cannot run', async () => {
     const state = makeProductsInventory();
     inventoryHook.mockReturnValue(state);

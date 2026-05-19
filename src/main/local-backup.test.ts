@@ -148,6 +148,23 @@ describe('desktop local backup snapshots', () => {
     await expect(readFile(join(restored.safetySnapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('new-sqlite');
   });
 
+  it('rejects restore snapshots outside the current workspace backup directory', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-restore-confine-'));
+    const outsideSnapshotPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-external-snapshot-'));
+    await mkdir(desktopBackupDirectoryPath(userDataPath), { recursive: true });
+    await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'current-sqlite', 'utf8');
+    await writeFile(join(outsideSnapshotPath, 'snapshot-manifest.json'), '{}', 'utf8');
+    await writeFile(join(outsideSnapshotPath, 'desktop-sena-store.sqlite3'), 'external-sqlite', 'utf8');
+
+    await expect(
+      restoreDesktopBackupSnapshot({
+        selectedPath: outsideSnapshotPath,
+        userDataPath,
+      }),
+    ).rejects.toThrow('Restore snapshots must come from this workspace backup directory.');
+    await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('current-sqlite');
+  });
+
   it('does not prune the selected snapshot while creating the restore safety snapshot', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-backup-restore-prune-'));
     await writeFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'old-sqlite', 'utf8');

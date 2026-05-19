@@ -79,8 +79,9 @@ describe('backup IPC handlers', () => {
     expect(resolverSource).toContain('selectedUpdateBackupDirectoryPath');
     expect(resolverSource).toContain('throw new Error(\'Choose the update snapshot export folder from Kaur Khor before starting the updater.\');');
     expect(source).toContain('selectedUpdateBackupDirectoryPath = selection.canceled ? null : selection.filePaths[0] ?? null;');
-    expect(runHandlerSource).toContain('const dataDirectoryPath = resolveUpdateDataDirectoryPath(payload.dataDirectoryPath);');
-    expect(runHandlerSource).toContain('const backupDirectoryPath = resolveUpdateBackupDirectoryPath(payload.backupDirectoryPath, payload.skipBackup === true);');
+    expect(runHandlerSource).toContain('async (_event, payload?: DesktopUpdateRunPayload)');
+    expect(runHandlerSource).toContain('const dataDirectoryPath = resolveUpdateDataDirectoryPath(payload?.dataDirectoryPath);');
+    expect(runHandlerSource).toContain('const backupDirectoryPath = resolveUpdateBackupDirectoryPath(payload?.backupDirectoryPath, payload?.skipBackup === true);');
     expect(runHandlerSource).toContain('const shouldQuit = await confirmDesktopQuitForLiveAutomation();');
     expect(runHandlerSource).toContain('started: false');
     expect(runHandlerSource).toContain('desktopQuitConfirmed = true;');
@@ -128,5 +129,21 @@ describe('backup IPC handlers', () => {
     expect(windowAllClosedSource.indexOf('desktopQuitConfirmed = true;')).toBeLessThan(
       windowAllClosedSource.indexOf('app.quit();'),
     );
+  });
+
+  it('validates picked image bytes before native image decoding', async () => {
+    const source = await readFile(join(process.cwd(), 'src/main/index.ts'), 'utf8');
+    const handlerStart = source.indexOf('IPC_CHANNELS.systemPickAndStoreImage');
+    const handlerEnd = source.indexOf('IPC_CHANNELS.systemStoreDroppedImage', handlerStart);
+    const handlerSource = source.slice(handlerStart, handlerEnd);
+
+    expect(source).toContain("import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';");
+    expect(handlerSource).toContain('await assertDesktopImageFileIsSafeForImport(sourcePath);');
+    expect(handlerSource.indexOf('await assertDesktopImageFileIsSafeForImport(sourcePath);')).toBeLessThan(
+      handlerSource.indexOf('normalizedImage = normalizeDesktopImage(sourcePath);'),
+    );
+    expect(handlerSource).toContain('endNormalize({');
+    expect(handlerSource).toContain('ok: false,');
+    expect(handlerSource).toContain('throw error;');
   });
 });

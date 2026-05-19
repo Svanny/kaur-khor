@@ -64,8 +64,8 @@ function ResultSortHeader({
     </button>
   );
 }
-function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boolean') {
-  if (value == null) {
+export function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boolean') {
+  if (value == null || !Number.isFinite(value)) {
     return 'No data';
   }
   if (unit === 'boolean') {
@@ -75,6 +75,10 @@ function formatMetricValue(value: number | null, unit: 'ms' | 'percent' | 'boole
     return `${value.toFixed(1)}%`;
   }
   return `${Math.round(value)} ms`;
+}
+
+export function formatBenchmarkComparisonValue(value: number | null) {
+  return value == null || !Number.isFinite(value) ? 'No data' : value.toFixed(1);
 }
 
 function formatDistributionValue(
@@ -281,8 +285,8 @@ function ComparisonTable({ comparison }: { comparison: KaurKhorBenchmarkComparis
             {visibleMetrics.map((metric) => (
               <tr key={metric.metricName}>
                 <td className="py-3 pr-4 font-mono text-xs">{metric.metricName}</td>
-                <td className="py-3 pr-4">{metric.baseline == null ? 'No data' : metric.baseline.toFixed(1)}</td>
-                <td className="py-3 pr-4">{metric.candidate == null ? 'No data' : metric.candidate.toFixed(1)}</td>
+                <td className="py-3 pr-4">{formatBenchmarkComparisonValue(metric.baseline)}</td>
+                <td className="py-3 pr-4">{formatBenchmarkComparisonValue(metric.candidate)}</td>
                 <td className="py-3 pr-4">
                   <span className={cn(
                     'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ring-1',
@@ -293,7 +297,7 @@ function ComparisonTable({ comparison }: { comparison: KaurKhorBenchmarkComparis
                         : statusClassName.missing,
                   )}
                   >
-                    {metric.percent == null ? 'No data' : `${metric.percent.toFixed(1)}% ${metric.status}`}
+                    {metric.percent == null || !Number.isFinite(metric.percent) ? 'No data' : `${metric.percent.toFixed(1)}% ${metric.status}`}
                   </span>
                 </td>
               </tr>

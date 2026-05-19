@@ -35,11 +35,17 @@ describe('buildScenarioSummary', () => {
       'utf8',
     );
     await writeFile(join(directory, 'core-events.jsonl'), '', 'utf8');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-    const events = await readBenchmarkEvents(directory);
+    try {
+      const events = await readBenchmarkEvents(directory);
 
-    expect(events).toHaveLength(1);
-    expect(events[0]?.name).toBe('good-event');
+      expect(events).toHaveLength(1);
+      expect(events[0]?.name).toBe('good-event');
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[benchmark] skipped malformed event line in events.jsonl'));
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('retries transient partial event writes before warning', async () => {

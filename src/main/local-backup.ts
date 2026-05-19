@@ -1,5 +1,5 @@
 import * as fs from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative } from 'node:path';
 import type {
   DesktopBackupRestoreResult,
   DesktopBackupSnapshotResult,
@@ -317,9 +317,19 @@ export async function cleanupCloseSafetyDesktopBackupSnapshots(userDataPath: str
   });
 }
 
-async function resolveSnapshotDirectory(selectedPath: string) {
+function pathIsInside(parentPath: string, childPath: string) {
+  const relativePath = relative(parentPath, childPath);
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
+
+async function resolveSnapshotDirectory(selectedPath: string, userDataPath: string) {
   const selectedStats = await fs.stat(selectedPath);
   const snapshotPath = selectedStats.isDirectory() ? selectedPath : dirname(selectedPath);
+  const backupRootPath = await fs.realpath(desktopBackupDirectoryPath(userDataPath));
+  const snapshotRealPath = await fs.realpath(snapshotPath);
+  if (!pathIsInside(backupRootPath, snapshotRealPath)) {
+    throw new Error('Restore snapshots must come from this workspace backup directory.');
+  }
   const manifestPath = join(snapshotPath, SNAPSHOT_MANIFEST_FILENAME);
   await fs.readFile(manifestPath, 'utf8');
   return snapshotPath;
@@ -330,7 +340,7 @@ export async function restoreDesktopBackupSnapshot({
   userDataPath,
 }: RestoreDesktopBackupSnapshotOptions): Promise<DesktopBackupRestoreResult> {
   return runBackupQueue(userDataPath, async () => {
-    const snapshotPath = await resolveSnapshotDirectory(selectedPath);
+    const snapshotPath = await resolveSnapshotDirectory(selectedPath, userDataPath);
     const snapshotFiles = await listRestorableSnapshotFiles(snapshotPath);
     if (snapshotFiles.length === 0) {
       throw new Error('The selected snapshot does not contain any restorable workspace files.');

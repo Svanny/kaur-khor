@@ -95,6 +95,44 @@ describe('source-build update support', () => {
     expect(() => lstatSync(join(backupPath, 'sena-checkpoints', 'linked-nested.txt'))).toThrow();
   });
 
+  it('does not copy a user-selected backup folder nested inside app data into itself', async () => {
+    const dataDir = await tempRoot('kaur-khor-data-');
+    const backupDir = join(dataDir, 'manual-update-backups');
+    writeFileSync(join(dataDir, 'desktop-sena-store.sqlite3'), 'sqlite');
+    mkdirSync(join(dataDir, 'sena-checkpoints'));
+    writeFileSync(join(dataDir, 'sena-checkpoints', 'checkpoint.json'), 'checkpoint');
+
+    const backupPath = createPreUpdateBackup({
+      backupDir,
+      currentVersion: '0.3.4',
+      dataDir,
+      nextVersion: '0.3.5',
+      now: new Date('2026-05-09T09:00:00.000Z'),
+    });
+
+    expect(readFileSync(join(backupPath, 'desktop-sena-store.sqlite3'), 'utf8')).toBe('sqlite');
+    expect(readFileSync(join(backupPath, 'sena-checkpoints', 'checkpoint.json'), 'utf8')).toBe('checkpoint');
+    expect(() => lstatSync(join(backupPath, 'manual-update-backups'))).toThrow();
+  });
+
+  it('backs up data when the selected backup folder is outside and above the app data directory', async () => {
+    const root = await tempRoot('kaur-khor-parent-backups-');
+    const dataDir = join(root, 'profiles', 'KAUR KHOR');
+    const backupDir = root;
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(join(dataDir, 'desktop-sena-store.sqlite3'), 'sqlite');
+
+    const backupPath = createPreUpdateBackup({
+      backupDir,
+      currentVersion: '0.3.4',
+      dataDir,
+      nextVersion: '0.3.5',
+      now: new Date('2026-05-09T09:00:00.000Z'),
+    });
+
+    expect(readFileSync(join(backupPath, 'desktop-sena-store.sqlite3'), 'utf8')).toBe('sqlite');
+  });
+
   it('treats interactive SKIP as an explicit backup skip', async () => {
     const dataDir = await tempRoot('kaur-khor-data-');
     writeFileSync(join(dataDir, 'desktop-sena-store.sqlite3'), 'sqlite');
@@ -155,12 +193,22 @@ describe('source-build update support', () => {
 
     expect(shellSnippet).toContain('kaur-khor-latest-source-build.tar.gz.sha256');
     expect(shellSnippet).toMatch(/shasum -a 256 -c|sha256sum -c/);
+    expect(shellSnippet).toContain('tar -tzf kaur-khor-latest-source-build.tar.gz');
+    expect(shellSnippet).toContain('Refusing unsafe archive path');
     expect(shellSnippet.indexOf('kaur-khor-latest-source-build.tar.gz.sha256')).toBeLessThan(
+      shellSnippet.indexOf('tar -tzf kaur-khor-latest-source-build.tar.gz'),
+    );
+    expect(shellSnippet.indexOf('tar -tzf kaur-khor-latest-source-build.tar.gz')).toBeLessThan(
       shellSnippet.indexOf('tar -xzf kaur-khor-latest-source-build.tar.gz'),
     );
     expect(powershellSnippet).toContain('kaur-khor-latest-source-build.tar.gz.sha256');
     expect(powershellSnippet).toContain('Get-FileHash -Algorithm SHA256');
+    expect(powershellSnippet).toContain('$archiveEntries = tar -tf "kaur-khor-latest-source-build.tar.gz"');
+    expect(powershellSnippet).toContain('Refusing unsafe archive path');
     expect(powershellSnippet.indexOf('Get-FileHash -Algorithm SHA256')).toBeLessThan(
+      powershellSnippet.indexOf('$archiveEntries = tar -tf "kaur-khor-latest-source-build.tar.gz"'),
+    );
+    expect(powershellSnippet.indexOf('$archiveEntries = tar -tf "kaur-khor-latest-source-build.tar.gz"')).toBeLessThan(
       powershellSnippet.indexOf('tar -xzf "kaur-khor-latest-source-build.tar.gz"'),
     );
   });

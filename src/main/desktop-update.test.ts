@@ -21,7 +21,12 @@ describe('desktop source-build updater', () => {
     expect(shellScriptSource).toContain('sourceArchiveName');
     expect(shellScriptSource).toContain('sha256sum -c ${shellQuote(`${sourceArchiveName}.sha256`)}');
     expect(shellScriptSource).toContain('shasum -a 256 -c ${shellQuote(`${sourceArchiveName}.sha256`)}');
+    expect(shellScriptSource).toContain('tar -tzf ${shellQuote(sourceArchiveName)}');
+    expect(shellScriptSource).toContain('Refusing to extract unsafe source-build archive path');
     expect(shellScriptSource.indexOf('sha256sum -c ${shellQuote(`${sourceArchiveName}.sha256`)}')).toBeLessThan(
+      shellScriptSource.indexOf('tar -tzf ${shellQuote(sourceArchiveName)}'),
+    );
+    expect(shellScriptSource.indexOf('tar -tzf ${shellQuote(sourceArchiveName)}')).toBeLessThan(
       shellScriptSource.indexOf('tar -xzf ${shellQuote(sourceArchiveName)}'),
     );
   });
@@ -34,7 +39,12 @@ describe('desktop source-build updater', () => {
 
     expect(windowsScriptSource).toContain('Get-FileHash -Algorithm SHA256');
     expect(windowsScriptSource).toContain('SHA-256 mismatch for Kaur Khor source-build archive');
+    expect(windowsScriptSource).toContain('$archiveEntries = tar -tf "${sourceArchiveName}"');
+    expect(windowsScriptSource).toContain('Refusing to extract unsafe source-build archive path');
     expect(windowsScriptSource.indexOf('Get-FileHash -Algorithm SHA256')).toBeLessThan(
+      windowsScriptSource.indexOf('$archiveEntries = tar -tf "${sourceArchiveName}"'),
+    );
+    expect(windowsScriptSource.indexOf('$archiveEntries = tar -tf "${sourceArchiveName}"')).toBeLessThan(
       windowsScriptSource.indexOf('tar -xzf "${sourceArchiveName}"'),
     );
   });
@@ -93,6 +103,310 @@ describe('desktop source-build updater', () => {
     expect(result.availableVersions.map((option) => option.releaseTag)).not.toContain('v0.6.0-beta.1');
   });
 
+  it('ignores malformed stable release tags when choosing the update target', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? JSON.stringify([
+                { tag_name: 'release-notes', prerelease: false, html_url: 'https://example.test/bad' },
+                { tag_name: 'v0.5.8', prerelease: false, html_url: 'https://example.test/stable' },
+              ])
+            : JSON.stringify({ tag_name: 'v0.5.8', html_url: 'https://example.test/stable' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.isUpdateAvailable).toBe(true);
+    expect(result.latestVersion).toBe('0.5.8');
+    expect(result.availableVersions.map((option) => option.releaseTag)).toEqual(['v0.5.8']);
+  });
+
+  it('falls back to the latest release when the releases list response is not an array', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? JSON.stringify({ message: 'API rate limit exceeded' })
+            : JSON.stringify({ tag_name: 'v0.5.7', html_url: 'https://example.test/latest' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.isUpdateAvailable).toBe(true);
+    expect(result.latestVersion).toBe('0.5.7');
+    expect(result.releaseUrl).toBe('https://github.com/Svanny/kaur-khor/releases/tag/v0.5.7');
+    expect(result.availableVersions).toHaveLength(1);
+    expect(result.availableVersions[0]).toMatchObject({
+      label: 'Latest (v0.5.7)',
+      releaseTag: 'v0.5.7',
+      value: 'latest',
+    });
+  });
+
+  it('falls back to the latest release when the releases list response is malformed JSON', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? '<html>temporarily unavailable</html>'
+            : JSON.stringify({ tag_name: 'v0.5.7', html_url: 'https://example.test/latest' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.isUpdateAvailable).toBe(true);
+    expect(result.latestVersion).toBe('0.5.7');
+    expect(result.releaseUrl).toBe('https://github.com/Svanny/kaur-khor/releases/tag/v0.5.7');
+    expect(result.availableVersions.map((option) => option.releaseTag)).toEqual(['v0.5.7']);
+  });
+
+  it('normalizes release page URLs to the Kaur Khor GitHub release pages', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? JSON.stringify([
+                { tag_name: 'v0.5.8', prerelease: false, html_url: 'https://github.com/Svanny/kaur-khor/releases/tag/v0.5.8?utm_source=spoof' },
+                { tag_name: 'v0.5.7', prerelease: false, html_url: 'https://example.test/stable' },
+              ])
+            : JSON.stringify({ tag_name: 'v0.5.8', html_url: 'https://example.test/latest' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.releaseUrl).toBe('https://github.com/Svanny/kaur-khor/releases/tag/v0.5.8');
+    expect(result.availableVersions.map((option) => option.releaseUrl)).toEqual([
+      'https://github.com/Svanny/kaur-khor/releases/tag/v0.5.8',
+      'https://github.com/Svanny/kaur-khor/releases/tag/v0.5.7',
+    ]);
+  });
+
+  it('ignores malformed latest release tags when the releases list fallback is used', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? JSON.stringify({ message: 'API rate limit exceeded' })
+            : JSON.stringify({ tag_name: 'release-notes', html_url: 'https://example.test/latest' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.isUpdateAvailable).toBe(false);
+    expect(result.latestVersion).toBeNull();
+    expect(result.releaseTag).toBeNull();
+    expect(result.availableVersions).toEqual([]);
+  });
+
+  it('stops following release lookup redirects after a bounded number of hops', async () => {
+    const request = vi.fn((_url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = { location: '/redirect-loop' };
+        response.resume = vi.fn();
+        response.statusCode = 302;
+        callback(response);
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    await expect(checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    })).rejects.toThrow('GitHub release lookup exceeded the redirect limit.');
+    expect(request).toHaveBeenCalledTimes(6);
+  });
+
+  it('rejects release lookup redirects to non-HTTPS URLs', async () => {
+    const request = vi.fn((_url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = { location: 'http://example.test/releases' };
+        response.resume = vi.fn();
+        response.statusCode = 302;
+        callback(response);
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    await expect(checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    })).rejects.toThrow('GitHub release lookup redirected to an unsupported protocol.');
+  });
+
+  it('rejects release lookup redirects to non-GitHub API hosts', async () => {
+    const request = vi.fn((_url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = { location: 'https://example.test/repos/Svanny/kaur-khor/releases/latest' };
+        response.resume = vi.fn();
+        response.statusCode = 302;
+        callback(response);
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    await expect(checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    })).rejects.toThrow('GitHub release lookup redirected to an untrusted host.');
+  });
+
   it('rejects source-build versions that cannot be safely embedded in updater scripts', async () => {
     const { sourceArchiveUrlForVersion } = await import('./desktop-update');
 
@@ -107,11 +421,41 @@ describe('desktop source-build updater', () => {
   it('passes selected source-build version and pruning flags to update scripts', async () => {
     const source = await readFile(join(process.cwd(), 'src/main/desktop-update.ts'), 'utf8');
 
-    expect(source).toContain('sourceVersion: normalizeSourceVersion(payload.sourceVersion)');
-    expect(source).toContain("oldSourceBuilds: payload.oldSourceBuilds ?? 'ask'");
+    expect(source).toContain('const updatePayload = normalizeDesktopUpdateRunPayload(payload)');
+    expect(source).toContain('sourceVersion: updatePayload.sourceVersion');
+    expect(source).toContain('oldSourceBuilds: updatePayload.oldSourceBuilds');
     expect(source).toContain("--delete-old-source-builds");
     expect(source).toContain("--keep-old-source-builds");
     expect(source).toContain('sourceArchiveUrlForVersion(sourceVersion)');
+  });
+
+  it('rejects malformed updater payloads before terminal handoff', async () => {
+    const spawn = vi.fn();
+    vi.doMock('node:child_process', () => ({ spawn }));
+    const { launchKaurKhorSourceUpdate } = await import('./desktop-update');
+    const app = { quit: vi.fn() };
+
+    await expect(launchKaurKhorSourceUpdate({
+      app: app as never,
+      appVersion: '0.4.1',
+      dataDirectoryPath: '/tmp/kaur-khor-data',
+      payload: undefined as never,
+    })).rejects.toThrow('Desktop updater options must be an object.');
+    await expect(launchKaurKhorSourceUpdate({
+      app: app as never,
+      appVersion: '0.4.1',
+      dataDirectoryPath: '/tmp/kaur-khor-data',
+      payload: { dataDirectoryPath: 42, skipBackup: true } as never,
+    })).rejects.toThrow('Desktop updater data directory must be a string.');
+    await expect(launchKaurKhorSourceUpdate({
+      app: app as never,
+      appVersion: '0.4.1',
+      dataDirectoryPath: '/tmp/kaur-khor-data',
+      payload: { oldSourceBuilds: 'wipe', skipBackup: true } as never,
+    })).rejects.toThrow('Desktop updater old source-build cleanup option is invalid.');
+
+    expect(spawn).not.toHaveBeenCalled();
+    expect(app.quit).not.toHaveBeenCalled();
   });
 
   it('single-quotes Windows updater path arguments', async () => {

@@ -147,6 +147,19 @@ describe('storeDroppedImageHandler', () => {
     expect(result.endsWith('.png')).toBe(true);
   });
 
+  it('rejects non-string MIME types before extension fallback', async () => {
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
+    const payload = {
+      name: 'clipboard-image',
+      type: 42,
+      data: buildPngHeader(100, 100),
+    };
+
+    await expect(storeDroppedImageHandler(payload as never, assetDir)).rejects.toThrow('Invalid image payload.');
+    expect(normalizeDesktopImageMock).not.toHaveBeenCalled();
+    expect(await readdir(assetDir)).toHaveLength(0);
+  });
+
   it('rejects oversized image payloads before normalization', async () => {
     const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-store-dropped-image-'));
     const payload = {
@@ -155,7 +168,7 @@ describe('storeDroppedImageHandler', () => {
     };
 
     await expect(storeDroppedImageHandler(payload, assetDir)).rejects.toThrow(
-      'Dropped images must be 20 MB or smaller.',
+      'Images must be 20 MB or smaller.',
     );
     expect(normalizeDesktopImageMock).not.toHaveBeenCalled();
     expect(await readdir(assetDir)).toHaveLength(0);
@@ -169,7 +182,7 @@ describe('storeDroppedImageHandler', () => {
     };
 
     await expect(storeDroppedImageHandler(payload, assetDir)).rejects.toThrow(
-      'Dropped images must be 12000 px or smaller per side and 40 megapixels or smaller.',
+      'Images must be 12000 px or smaller per side and 40 megapixels or smaller.',
     );
     expect(normalizeDesktopImageMock).not.toHaveBeenCalled();
     expect(await readdir(assetDir)).toHaveLength(0);
@@ -184,7 +197,7 @@ describe('storeDroppedImageHandler', () => {
     };
 
     await expect(storeDroppedImageHandler(payload, assetDir)).rejects.toThrow(
-      'Dropped images must be 12000 px or smaller per side and 40 megapixels or smaller.',
+      'Images must be 12000 px or smaller per side and 40 megapixels or smaller.',
     );
     expect(normalizeDesktopImageMock).not.toHaveBeenCalled();
     expect(await readdir(assetDir)).toHaveLength(0);

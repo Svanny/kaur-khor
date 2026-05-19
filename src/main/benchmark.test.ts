@@ -70,4 +70,24 @@ describe('benchmark event counter hydration', () => {
       ts: expect.any(Number),
     });
   });
+
+  it('rejects invalid waiter count and timeout values before scheduling timers', async () => {
+    const outputDirectory = await mkdtemp(join(tmpdir(), 'kaur-khor-benchmark-events-'));
+    process.env.KAUR_KHOR_BENCHMARK = '1';
+    process.env.KAUR_KHOR_BENCHMARK_OUTPUT_DIR = outputDirectory;
+    process.env.KAUR_KHOR_BENCHMARK_RUN_ID = 'startup-cold-dev';
+
+    const { waitForBenchmarkEventCount } = await loadBenchmarkModule();
+
+    await expect(waitForBenchmarkEventCount({
+      name: 'route.dashboard.ready',
+      minimumCount: 1.5,
+      timeoutMs: 250,
+    })).rejects.toThrow('Benchmark minimumCount must be a positive integer.');
+    await expect(waitForBenchmarkEventCount({
+      name: 'route.dashboard.ready',
+      minimumCount: 1,
+      timeoutMs: Number.POSITIVE_INFINITY,
+    })).rejects.toThrow('Benchmark timeoutMs must be a positive integer.');
+  });
 });

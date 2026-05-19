@@ -4,7 +4,8 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { describe, expect, test } from 'vitest';
+import { gzipSync } from 'node:zlib';
+import { describe, expect, test, vi } from 'vitest';
 
 const scriptPath = resolve('scripts/build-from-source.mjs');
 const shellBootstrapPath = resolve('scripts/build-from-source.sh');
@@ -153,6 +154,15 @@ function expectedNativeTarget() {
   }
 
   return null;
+}
+
+function tarHeader(name: string, size: number) {
+  const header = Buffer.alloc(512);
+  header.write(name, 0, Math.min(Buffer.byteLength(name), 100), 'utf8');
+  header.write('0000644\0', 100, 'ascii');
+  header.write(size.toString(8).padStart(11, '0') + '\0', 124, 'ascii');
+  header[156] = '0'.charCodeAt(0);
+  return header;
 }
 
 describe('build-from-source script', () => {
@@ -379,6 +389,8 @@ chmod +x "$node_dir/node"
     expect(script).toContain("const electronBuilderConfig = isUnsignedLocalPackage ? 'electron-builder.unsigned-win.yml' : 'electron-builder.yml'");
     expect(script).toContain("process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = 'true'");
     expect(script).toContain('ensureProjectDependencies();');
+    expect(script).toContain("commandLine(command, args)");
+    expect(script).toContain('replaceAll(\'"\', \'""\')');
     expect(script).toContain("hasResolvablePackage('rcedit')");
     expect(script).toContain("'install', '--frozen-lockfile'");
     expect(unsignedConfig).toContain('extends: ./electron-builder.yml');
@@ -480,6 +492,89 @@ chmod +x "$node_dir/node"
     } finally {
       rmSync(root, { force: true, recursive: true });
     }
+  });
+
+  test('source archive extraction rejects truncated tar entries before writing partial files', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-extract-'));
+    try {
+      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+        extractTarGz: (archive: Buffer, destination: string) => void;
+      };
+      const archive = gzipSync(tarHeader('kaur-khor-source/file.txt', 10));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      expect(() => extractTarGz(archive, root)).toThrow('process.exit unexpectedly called with "1"');
+      expect(consoleError).toHaveBeenCalledWith('Refusing to extract truncated archive entry: kaur-khor-source/file.txt');
+      expect(existsSync(join(root, 'file.txt'))).toBe(false);
+      consoleError.mockRestore();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test('source archive extraction rejects root-level file entries', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-root-file-'));
+    try {
+      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+        extractTarGz: (archive: Buffer, destination: string) => void;
+      };
+      const archive = gzipSync(Buffer.concat([
+        tarHeader('README.md', 0),
+        Buffer.alloc(1024),
+      ]));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      expect(() => extractTarGz(archive, root)).toThrow('process.exit unexpectedly called with "1"');
+      expect(consoleError).toHaveBeenCalledWith(
+        'Refusing to extract archive file without a path inside the source root: README.md',
+      );
+      expect(readdirSync(root)).toEqual([]);
+      consoleError.mockRestore();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test('source archive extraction rejects absolute file entries before rewriting paths', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'kaur-khor-source-absolute-file-'));
+    try {
+      const { extractTarGz } = await import(pathToFileURL(resolve('scripts/build-from-source.mjs')).href) as {
+        extractTarGz: (archive: Buffer, destination: string) => void;
+      };
+      const archive = gzipSync(Buffer.concat([
+        tarHeader('/tmp/evil.txt', 0),
+        Buffer.alloc(1024),
+      ]));
+      const windowsArchive = gzipSync(Buffer.concat([
+        tarHeader('C:/tmp/evil.txt', 0),
+        Buffer.alloc(1024),
+      ]));
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+      expect(() => extractTarGz(archive, root)).toThrow('process.exit unexpectedly called with "1"');
+      expect(consoleError).toHaveBeenCalledWith('Refusing to extract absolute archive path: /tmp/evil.txt');
+      expect(() => extractTarGz(windowsArchive, root)).toThrow('process.exit unexpectedly called with "1"');
+      expect(consoleError).toHaveBeenCalledWith('Refusing to extract absolute archive path: C:/tmp/evil.txt');
+      expect(readdirSync(root)).toEqual([]);
+      consoleError.mockRestore();
+    } finally {
+      rmSync(root, { force: true, recursive: true });
+    }
+  });
+
+  test('source archive downloader rejects non-HTTPS inputs and caps redirects', async () => {
+    const { downloadOrThrow } = await import(pathToFileURL(scriptPath).href) as {
+      downloadOrThrow: (url: string, redirectCount?: number) => Promise<Buffer>;
+    };
+    const script = readFileSync(scriptPath, 'utf8');
+
+    await expect(downloadOrThrow('http://example.com/source-build.tar.gz')).rejects.toThrow(
+      'Refusing to download source-build archive over http:',
+    );
+    await expect(downloadOrThrow('https://example.com/source-build.tar.gz', 6)).rejects.toThrow(
+      'Source-build archive download exceeded 5 redirects',
+    );
+    expect(script).toContain('Refusing to follow non-HTTPS source-build archive redirect');
   });
 
   test('source build pruning deletes only older source-build versions', async () => {

@@ -55,6 +55,7 @@ const RUSTUP_SHA256_BY_TARGET = {
   'x86_64-unknown-linux-gnu': '20a06e644b0d9bd2fbdbfd52d42540bdde820ea7df86e92e533c073da0cdd43c',
   'x86_64-pc-windows-msvc': '88d8258dcf6ae4f7a80c7d1088e1f36fa7025a1cfd1343731b4ee6f385121fc0',
 };
+const MAX_SOURCE_ARCHIVE_REDIRECTS = 5;
 
 if (isDirectExecution()) {
   const options = parseArgs(process.argv.slice(2));
@@ -569,12 +570,24 @@ async function download(url) {
   });
 }
 
-async function downloadOrThrow(url) {
+export async function downloadOrThrow(url, redirectCount = 0) {
+  const parsedUrl = new URL(url);
+  if (parsedUrl.protocol !== 'https:') {
+    throw new Error(`Refusing to download source-build archive over ${parsedUrl.protocol || 'an unknown protocol'}: ${url}`);
+  }
+  if (redirectCount > MAX_SOURCE_ARCHIVE_REDIRECTS) {
+    throw new Error(`Source-build archive download exceeded ${MAX_SOURCE_ARCHIVE_REDIRECTS} redirects: ${url}`);
+  }
   return new Promise((resolveDownload, rejectDownload) => {
     const request = httpsRequest(url, { headers: { 'User-Agent': 'kaur-khor-source-build' } }, (response) => {
       if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
-        downloadOrThrow(new URL(response.headers.location, url).toString()).then(resolveDownload, rejectDownload);
+        const redirectUrl = new URL(response.headers.location, url);
+        if (redirectUrl.protocol !== 'https:') {
+          rejectDownload(new Error(`Refusing to follow non-HTTPS source-build archive redirect: ${redirectUrl.toString()}`));
+          return;
+        }
+        downloadOrThrow(redirectUrl.toString(), redirectCount + 1).then(resolveDownload, rejectDownload);
         return;
       }
 
@@ -594,7 +607,7 @@ async function downloadOrThrow(url) {
   });
 }
 
-function extractTarGz(archive, destination) {
+export function extractTarGz(archive, destination) {
   const tar = gunzipSync(archive);
   let offset = 0;
 
@@ -611,6 +624,12 @@ function extractTarGz(archive, destination) {
     const fullName = prefix ? `${prefix}/${name}` : name;
     const sizeText = readTarString(header, 124, 12).trim();
     const size = Number.parseInt(sizeText || '0', 8);
+    if (!Number.isFinite(size) || size < 0) {
+      fail(`Refusing to extract archive entry with invalid size: ${fullName}`);
+    }
+    if (offset + size > tar.length) {
+      fail(`Refusing to extract truncated archive entry: ${fullName}`);
+    }
     const type = String.fromCharCode(header[156] || 0);
     const data = tar.subarray(offset, offset + size);
     offset += Math.ceil(size / 512) * 512;
@@ -626,6 +645,9 @@ function extractTarGz(archive, destination) {
     }
 
     if (type === '0' || type === '\0' || type === '') {
+      if (safePath === destination) {
+        fail(`Refusing to extract archive file without a path inside the source root: ${fullName}`);
+      }
       mkdirSync(dirname(safePath), { recursive: true });
       writeFileSync(safePath, data);
       const modeText = readTarString(header, 100, 8).trim();
@@ -644,6 +666,10 @@ function readTarString(buffer, start, length) {
 }
 
 function safeExtractPath(destination, archivePath) {
+  if (archivePath.startsWith('/') || /^[A-Za-z]:[\\/]/.test(archivePath)) {
+    fail(`Refusing to extract absolute archive path: ${archivePath}`);
+  }
+
   const parts = archivePath.split('/').filter(Boolean).slice(1);
   if (parts.length === 0) {
     return destination;

@@ -288,6 +288,65 @@ describe('desktop preferences store', () => {
     });
   });
 
+  it('ignores undefined preference patch values instead of resetting stored preferences', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await saveDesktopPreferences(userDataPath, {
+      currency: 'KHR',
+      language: 'km',
+      showAutomationsPage: true,
+      usdToKhrExchangeRate: 4100,
+    });
+
+    await expect(saveDesktopPreferences(userDataPath, {
+      currency: undefined,
+      language: undefined,
+      showAutomationsPage: undefined,
+      usdToKhrExchangeRate: undefined,
+    } as Partial<Parameters<typeof saveDesktopPreferences>[1]>)).resolves.toMatchObject({
+      currency: 'KHR',
+      language: 'km',
+      showAutomationsPage: true,
+      usdToKhrExchangeRate: 4100,
+    });
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toMatchObject({
+      currency: 'KHR',
+      language: 'km',
+      showAutomationsPage: true,
+      usdToKhrExchangeRate: 4100,
+    });
+  });
+
+  it('ignores malformed preference save payloads instead of throwing', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await saveDesktopPreferences(userDataPath, {
+      currency: 'KHR',
+      language: 'km',
+      usdToKhrExchangeRate: 4100,
+    });
+
+    await expect(saveDesktopPreferences(userDataPath, null as never)).resolves.toMatchObject({
+      currency: 'KHR',
+      language: 'km',
+      usdToKhrExchangeRate: 4100,
+    });
+    await expect(saveDesktopPreferences(userDataPath, ['dirty'] as never)).resolves.toMatchObject({
+      currency: 'KHR',
+      language: 'km',
+      usdToKhrExchangeRate: 4100,
+    });
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toMatchObject({
+      currency: 'KHR',
+      language: 'km',
+      usdToKhrExchangeRate: 4100,
+    });
+  });
+
   it('derives interface view presets from stored visibility combinations', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const preferencesPath = join(userDataPath, 'desktop-preferences.json');
@@ -611,12 +670,20 @@ describe('desktop preferences store', () => {
   it('round-trips and normalizes workbench tile order by lane', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+    const oversizedOrder = Array.from({ length: 525 }, (_, index) => `supplier-order:sku-${index}`);
+    const expectedCappedSupplierOrder = [
+      'supplier-order:sku-2',
+      'supplier-order:sku-1',
+      'supplier-order:sku-0',
+      ...Array.from({ length: 497 }, (_, index) => `supplier-order:sku-${index + 3}`),
+    ];
 
     await expect(
       saveDesktopPreferences(userDataPath, {
         workbenchTileOrderByLane: {
           'stock-count': ['stock:sku-2', 'stock:sku-1'],
-          'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
+          'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1', ...oversizedOrder],
+          'supplier-receipt': ['supplier-receipt:sku-2', 'supplier-receipt:sku-1'],
           'customer-order-pending': ['retail:sku-1', '', 'retail:sku-1', 'service:service-1'],
           'customer-order-completed': ['retail:sku-2'],
         },
@@ -625,7 +692,8 @@ describe('desktop preferences store', () => {
       expect.objectContaining({
         workbenchTileOrderByLane: {
           'stock-count': ['stock:sku-2', 'stock:sku-1'],
-          'supplier-order-pending': ['supplier-order:sku-2', 'supplier-order:sku-1'],
+          'supplier-order-pending': expectedCappedSupplierOrder,
+          'supplier-receipt': ['supplier-receipt:sku-2', 'supplier-receipt:sku-1'],
           'customer-order-pending': ['retail:sku-1', 'service:service-1'],
           'customer-order-completed': ['retail:sku-2'],
         },
@@ -640,6 +708,7 @@ describe('desktop preferences store', () => {
         workbenchTileOrderByLane: {
           'stock-count': ['stock:sku-3', 'stock:sku-3', null],
           'supplier-order-pending': ['supplier-order:sku-3', 'supplier-order:sku-3', null],
+          'supplier-receipt': ['supplier-receipt:sku-3', '', 'supplier-receipt:sku-3'],
           'customer-order-pending': ['retail:sku-2'],
           invalid: ['bad'],
         },
@@ -652,6 +721,7 @@ describe('desktop preferences store', () => {
         workbenchTileOrderByLane: {
           'stock-count': ['stock:sku-3'],
           'supplier-order-pending': ['supplier-order:sku-3'],
+          'supplier-receipt': ['supplier-receipt:sku-3'],
           'customer-order-pending': ['retail:sku-2'],
         },
       }),
