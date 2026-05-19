@@ -358,7 +358,11 @@ export async function readBenchmarkJsonFile<T>(path: string): Promise<T | null> 
     return null;
   }
   try {
-    return JSON.parse(raw) as T;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as T;
   } catch {
     return null;
   }
