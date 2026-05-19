@@ -395,5 +395,5 @@ export function ticketLabel(event: SenaTicketEvent) {
     .map((line) => line.entityId)
     .slice(0, 2)
     .join(', ');
-  return (partyName ?? lineSummary) || event.ticketId;
+  return partyName?.trim().length ? partyName : (lineSummary || event.ticketId);
 }

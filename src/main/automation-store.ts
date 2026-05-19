@@ -510,18 +510,19 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
   const connection = value?.connection;
+  const normalizedBotToken = normalizeOptionalString(connection?.botToken);
   return {
     version: 1,
     connection: {
       ...DEFAULT_CONNECTION,
       botDisplayName: normalizeOptionalString(connection?.botDisplayName),
-      botToken: normalizeOptionalString(connection?.botToken),
+      botToken: normalizedBotToken,
       botUsername: normalizeOptionalString(connection?.botUsername),
       channel: 'telegram',
       commandsConfiguredAt: normalizeOptionalString(connection?.commandsConfiguredAt),
       connectedAt: normalizeOptionalString(connection?.connectedAt),
       externalLink: normalizeOptionalString(connection?.externalLink),
-      hasBotToken: typeof connection?.hasBotToken === 'boolean' ? connection.hasBotToken : DEFAULT_CONNECTION.hasBotToken,
+      hasBotToken: Boolean(normalizedBotToken),
       lastErrorAt: normalizeOptionalString(connection?.lastErrorAt),
       lastErrorMessage: normalizeOptionalString(connection?.lastErrorMessage),
       lastWebhookAt: normalizeOptionalString(connection?.lastWebhookAt),
