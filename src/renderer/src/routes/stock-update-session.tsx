@@ -662,7 +662,7 @@ function formatWorkbenchStockSubtitle(unitsInStock: number | null | undefined, l
   const roundedUnits = Math.round(safeUnits);
   return translateUiLiteral(language, '({count} {unit} left in stock)', {
     count: formatWholeNumber(roundedUnits, language),
-    unit: roundedUnits === 1 ? 'unit' : 'units',
+    unit: translateUiLiteral(language, roundedUnits === 1 ? 'unit' : 'units'),
   });
 }
 
@@ -8833,6 +8833,15 @@ export function StockUpdateSessionRoute() {
     }
 
     const receivedQuantities = new Map<string, number>();
+    for (const line of selectedSupplierTicket.lines) {
+      if (line.entityType !== 'sku') {
+        continue;
+      }
+      const receivedQuantity = line.receivedQuantity ?? null;
+      if (receivedQuantity != null && Number.isFinite(receivedQuantity) && receivedQuantity > 0) {
+        receivedQuantities.set(line.entityId, (receivedQuantities.get(line.entityId) ?? 0) + receivedQuantity);
+      }
+    }
     for (const [skuId, draft] of Object.entries(skuSignalDrafts)) {
       const receivedQuantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
       if (receivedQuantity != null) {

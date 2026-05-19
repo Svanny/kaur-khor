@@ -271,7 +271,7 @@ function ticketLinesForDrawer({
     const childTask = line.entityType === 'sku'
       ? task.childTasks.find((task) => task.skuId === line.entityId)
       : null;
-    const receiptQuantity = line.orderedQuantity ?? line.receivedQuantity ?? childTask?.recentOrderQuantity ?? childTask?.suggestedOrderQuantity ?? null;
+    const receiptQuantity = line.receivedQuantity ?? line.orderedQuantity ?? childTask?.recentOrderQuantity ?? childTask?.suggestedOrderQuantity ?? null;
     return {
       ...line,
       orderedQuantity: mode === 'order_canceled' ? null : orderedQuantity,

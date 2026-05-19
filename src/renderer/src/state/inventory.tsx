@@ -759,10 +759,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       upsertSenaCatalog: async (payload) =>
         withSaving(async () => {
           const catalog = requireLoadedCatalog(
-            normalizeSenaCatalog(payload),
+            normalizeSenaCatalog(await window.kaurKhorDesktop.sena.upsertCatalog(payload)),
             'Catalog save failed because the updated catalog could not be loaded.',
           );
-          await window.kaurKhorDesktop.sena.upsertCatalog(catalog);
           invalidateSenaReads();
           readCacheRef.current.set('sena:catalog', catalog);
           setState((current) => ({

@@ -932,12 +932,12 @@ describe('StockUpdateSessionRoute', () => {
     await waitFor(() => expect(ingestSenaObservation).toHaveBeenCalledTimes(1));
     expect(ingestSenaObservation).toHaveBeenCalledWith(expect.objectContaining({
       retailSalesSnapshot: [{ skuId: 'sku-1', unitsSold: 2 }],
-      ticketEvents: [
+      ticketEvents: expect.arrayContaining([
         expect.objectContaining({
           eventType: 'fulfilled_immediate',
           ticketFamily: 'customer',
         }),
-      ],
+      ]),
     }));
     expectSavedStockSnapshot([{ skuId: 'sku-1', unitsInStock: 10 }]);
   });

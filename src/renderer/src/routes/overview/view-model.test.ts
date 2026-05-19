@@ -935,7 +935,7 @@ describe('buildOverviewModel stale update reminder', () => {
     expect(model.todayCounts.readyToReceive).toBe(0);
   });
 
-  it('only shows received today tasks in the received today filter', () => {
+  it('shows received today tasks in all and received today filters', () => {
     const ticket: SenaTicketSummary = {
       ticketId: 'supplier-ticket-received-filter',
       ticketFamily: 'supplier',
@@ -963,7 +963,7 @@ describe('buildOverviewModel stale update reminder', () => {
 
     const task = model.tasks.find(isOverviewSupplierTicketTask);
     expect(task).toMatchObject({ state: 'received_today' });
-    expect(task ? shouldShowTask(task, 'all') : null).toBe(false);
+    expect(task ? shouldShowTask(task, 'all') : null).toBe(true);
     expect(task ? shouldShowTask(task, 'received_today') : null).toBe(true);
   });
 

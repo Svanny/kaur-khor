@@ -4528,6 +4528,8 @@ const runtimeLiteralTranslations: Record<string, string> = {
   'Supplier order updated': 'បានអាប់ដេតការបញ្ជាទិញអ្នកផ្គត់ផ្គង់',
   'Supplier receipt updated': 'បានអាប់ដេតការទទួលទំនិញពីអ្នកផ្គត់ផ្គង់',
   '{count} units · {reason}': '{count} ឯកតា · {reason}',
+  unit: 'ឯកតា',
+  units: 'ឯកតា',
   'Partial receipt': 'ការទទួលទំនិញមួយផ្នែក',
   'Full receipt': 'ការទទួលទំនិញពេញលេញ',
   'Ticket canceled': 'បានលុបចោលសំបុត្រការងារ',

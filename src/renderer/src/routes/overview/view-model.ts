@@ -933,9 +933,10 @@ function supplierTicketIsActive(ticket: SenaTicketSummary) {
 function supplierTicketForTask(task: OverviewSkuTask, tickets: SenaTicketSummary[]) {
   const lineMatches = tickets.filter((ticket) => supplierTicketMatchesTaskLine(ticket, task));
   const activeMatch = lineMatches.filter(supplierTicketIsActive).sort(compareSupplierTicketsByFreshness)[0] ?? null;
-  const resolvedMatch = lineMatches.filter((ticket) => ticket.lifecycle === 'resolved').sort(compareSupplierTicketsByFreshness)[0] ?? null;
-  const canceledMatch = lineMatches.filter((ticket) => ticket.lifecycle === 'canceled').sort(compareSupplierTicketsByFreshness)[0] ?? null;
-  return activeMatch ?? resolvedMatch ?? canceledMatch;
+  const closedMatch = lineMatches
+    .filter((ticket) => ticket.lifecycle === 'resolved' || ticket.lifecycle === 'canceled')
+    .sort(compareSupplierTicketsByFreshness)[0] ?? null;
+  return activeMatch ?? closedMatch;
 }
 
 function groupSupplierTicketTasks(tasks: OverviewSkuTask[], language: AppLanguage, tickets: SenaTicketSummary[]) {
@@ -1215,6 +1216,14 @@ function buildTask({
   const latestReceiptAt = orderResolved
     ? latestSupplierTicket.occurredAt
     : orderContext?.effective.receiptTimestamp ?? observationSignals.latestReceiptAt;
+  const ticketReceiptQuantity = orderResolved
+    ? latestSupplierTicket.lines
+        .filter((line) => line.entityType === 'sku' && line.entityId === summary.skuId)
+        .reduce<number | null>((total, line) => {
+          const quantity = safeOptionalNonNegativeNumber(line.receivedQuantity);
+          return quantity == null ? total : (total ?? 0) + quantity;
+        }, null)
+    : null;
   const receiptWindow = receiptWindowSummary({
     detail,
     language,
@@ -1258,7 +1267,7 @@ function buildTask({
   const leadTimeMeanDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.meanDays ?? summary.leadTimeMeanDays);
   const leadTimeStdDays = safeOptionalNonNegativeNumber(detail?.leadTimePosterior.at(-1)?.stdDays ?? summary.leadTimeStdDays);
   const recentOrderQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.orderedQuantity ?? observationSignals.latestOrderQuantity);
-  const recentReceiptQuantity = safeOptionalNonNegativeNumber(orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity);
+  const recentReceiptQuantity = safeOptionalNonNegativeNumber(ticketReceiptQuantity ?? orderContext?.effective.receivedQuantity ?? observationSignals.latestReceiptQuantity);
   const fallbackOrderQuantity = fallbackRecommendedOrderQuantity(summary, detail);
   const reorderRecommendation = formatSenaReorderQuantity(
     summary.reorderQuantity,
@@ -1292,9 +1301,9 @@ function buildTask({
         ? translate(language, 'overviewTaskEtaOrderCanceledDetail')
         : translate(language, 'overviewTaskEtaNotOrderedDetail')
       : state === 'received_today'
-        ? observationSignals.latestReceiptAt
+        ? latestReceiptAt
           ? translate(language, 'overviewTaskEtaReceivedLogged', {
-              date: formatSenaDate(observationSignals.latestReceiptAt, language),
+              date: formatSenaDate(latestReceiptAt, language),
             })
           : translate(language, 'overviewTaskEtaReceivedFallback')
         : (receiptWindow?.etaDetail ?? translate(language, 'overviewTaskEtaWaitingSignal'));
@@ -1673,9 +1682,6 @@ export function taskMatchesQuery(task: OverviewTask, query: string) {
 export function shouldShowTask(task: OverviewTask, filter: OverviewTaskFilter) {
   if (task.kind === 'stale_update_reminder') {
     return filter === 'all';
-  }
-  if (task.state === 'received_today') {
-    return filter === 'received_today';
   }
   return filter === 'all' || task.state === filter;
 }

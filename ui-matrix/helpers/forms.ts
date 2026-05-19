@@ -11,6 +11,10 @@ type TicketExpectation = {
 
 type TicketFamily = 'customer' | 'supplier';
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export async function pasteCatalogImageFromPage(page: Page, name = 'ui-matrix-pasted.png') {
   await page.evaluate(async (fileName) => {
     const canvas = document.createElement('canvas');
@@ -151,7 +155,7 @@ export async function editServiceImageThroughUi(page: Page, serviceId: string) {
 export async function saveStockCountThroughUi(page: Page, skuId: string, units = '7', skuName?: string) {
   await navigateHashRoute(page, `/work/capture/stock-count?skus=${encodeURIComponent(skuId)}`);
   const tile = skuName
-    ? page.getByRole('button', { name: new RegExp(skuName, 'i') }).first()
+    ? page.getByRole('button', { name: new RegExp(escapeRegExp(skuName), 'i') }).first()
     : page.locator('[data-slot="workbench-tile-visual"]').first();
   await tile.waitFor({ state: 'visible', timeout: 30_000 });
   await tile.click();
@@ -420,7 +424,7 @@ export async function assertDesktopBridgeConsistent(page: Page, options: {
 async function addPosLineThroughUi(page: Page, targetName: string, quantity: string) {
   const dialog = page.getByRole('dialog', { name: targetName });
   if (!(await dialog.isVisible().catch(() => false))) {
-    await page.getByRole('button', { name: new RegExp(targetName, 'i') }).first().click();
+    await page.getByRole('button', { name: new RegExp(escapeRegExp(targetName), 'i') }).first().click();
   }
   await dialog.waitFor({ state: 'visible', timeout: 30_000 });
   await dialog.getByLabel(`Quantity for ${targetName}`).fill(quantity);

@@ -1,18 +1,51 @@
 import { prepareDesktopImageUpload } from './desktop-image';
 
+const TELEGRAM_REQUEST_TIMEOUT_MS = 30_000;
+
+function signalWithTimeout(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+  if (signal?.aborted) {
+    controller.abort(signal.reason);
+  } else {
+    signal?.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timeoutHandle),
+  };
+}
+
 async function telegramFetch(input: string, init?: RequestInit) {
+  const timeout = signalWithTimeout(init?.signal, TELEGRAM_REQUEST_TIMEOUT_MS);
+  const fetchInit = { ...init, signal: timeout.signal };
+
   if (process.versions.electron) {
+    let electronFetch: typeof fetch | null = null;
     try {
       const electron = await import('electron');
       if (typeof electron.net?.fetch === 'function') {
-        return electron.net.fetch(input, init);
+        electronFetch = electron.net.fetch.bind(electron.net) as typeof fetch;
       }
     } catch {
       // Non-Electron test runners and build tools should keep using global fetch.
     }
+    if (electronFetch) {
+      try {
+        return await electronFetch(input, fetchInit);
+      } finally {
+        timeout.clear();
+      }
+    }
   }
 
-  return fetch(input, init);
+  try {
+    return await fetch(input, fetchInit);
+  } finally {
+    timeout.clear();
+  }
 }
 
 type TelegramApiEnvelope<T> = {

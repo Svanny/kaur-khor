@@ -890,7 +890,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     setIsQueueSaving(true);
     try {
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      await loadWorkSupportData({ includeObservations: true });
+      await loadWorkSupportData({ includeObservations: true }).catch((error) => {
+        console.warn('[dashboard] work support refresh failed after save', error);
+      });
     } finally {
       setIsQueueSaving(false);
     }
@@ -1595,7 +1597,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      await loadWorkSupportData({ includeObservations: true });
+      await loadWorkSupportData({ includeObservations: true }).catch((error) => {
+        console.warn('[dashboard] work support refresh failed after customer completion', error);
+      });
       setSelectedCustomerCompletionTaskId(null);
       updateRouteState({ customerTaskId: null }, true);
       return true;
@@ -1706,7 +1710,9 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
       setIsQueueSaving(true);
       await ingestSenaObservation(payload);
       await triggerSenaRun({ algorithmVersion: 'sena-analysis-v3' });
-      await loadWorkSupportData({ includeObservations: true });
+      await loadWorkSupportData({ includeObservations: true }).catch((error) => {
+        console.warn('[dashboard] work support refresh failed after customer ticket update', error);
+      });
       setSelectedCustomerCompletionTaskId(null);
       updateRouteState({ customerTaskId: null }, true);
       return true;

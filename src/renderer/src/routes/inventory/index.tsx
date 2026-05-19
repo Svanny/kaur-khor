@@ -1445,12 +1445,12 @@ export function InsightsInventoryRoute() {
             )}
             contentClassName="px-0 py-0"
           >
-            {hydration.isHydratingDetails ? (
+            {mainTab === 'projection' ? (
+              <ProjectionMatrix language={language} rows={model.projectionMatrix} showConfidenceInterval={showConfidenceInterval} />
+            ) : hydration.isHydratingDetails ? (
               <div className="px-6 py-6" data-inventory-grid-loading="true">
                 <WireframeRows rowCount={6} />
               </div>
-            ) : mainTab === 'projection' ? (
-              <ProjectionMatrix language={language} rows={model.projectionMatrix} showConfidenceInterval={showConfidenceInterval} />
             ) : routeState.rowSet === 'focus' && !hasRenderableRows(visibleRows) ? (
               <div className="px-6 py-8">
                 <WorkspaceEmpty
