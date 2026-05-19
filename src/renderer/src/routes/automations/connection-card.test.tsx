@@ -23,6 +23,10 @@ describe('AutomationConnectionCard', () => {
 
     expect(screen.getByText('Advanced experimental automation settings')).toBeInTheDocument();
     expect(screen.getByText('This tab is a work in progress. Telegram automation is experimental, subject to change, and might be unstable.')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Bot display name' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Bot username' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Telegram bot link' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Telegram bot token' })).toBeInTheDocument();
   });
 
   test('localizes Telegram identity placeholders in Khmer', () => {
@@ -45,6 +49,8 @@ describe('AutomationConnectionCard', () => {
 
     expect(screen.getByPlaceholderText('ឈ្មោះប្រើបូតតេលេក្រាម')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('តំណបូតតេលេក្រាម')).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'ឈ្មោះប្រើបូត' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'តំណបូតតេលេក្រាម' })).toBeInTheDocument();
     expect(screen.queryByPlaceholderText('@bot_username')).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText('https://t.me/your_bot')).not.toBeInTheDocument();
   });

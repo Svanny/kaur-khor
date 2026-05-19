@@ -1,11 +1,20 @@
+import type { AutomationExposureRow } from './automation';
 import type { SenaCatalog, SenaService, SenaSku } from './sena';
 
+function isFiniteNonNegativePrice(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
 export function isAutomationEligibleSku(sku: SenaSku) {
-  return !sku.archived && sku.soldAsProduct && sku.productPrice != null;
+  return !sku.archived && sku.soldAsProduct && isFiniteNonNegativePrice(sku.productPrice);
 }
 
 export function isAutomationEligibleService(service: SenaService) {
-  return !service.archived;
+  return !service.archived && isFiniteNonNegativePrice(service.price);
+}
+
+export function isAutomationEligibleExposureRow(row: AutomationExposureRow) {
+  return row.exposed && !row.archived && row.availabilityStatus !== 'hidden' && isFiniteNonNegativePrice(row.price);
 }
 
 export function hasAutomationEligibleSellable(catalog: SenaCatalog | null | undefined) {

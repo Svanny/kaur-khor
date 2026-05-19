@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import type { AppCurrency, AppLanguage } from '@shared/inventory';
 import { DEFAULT_USD_TO_KHR_EXCHANGE_RATE } from '@shared/ipc';
 import type {
@@ -26,6 +26,7 @@ import type {
   AutomationResolveIntakePayload,
 } from '@shared/ipc';
 import {
+  isAutomationEligibleExposureRow,
   isAutomationEligibleService,
   isAutomationEligibleSku,
 } from '@shared/automation-sellables';
@@ -111,6 +112,12 @@ type AutomationWizardCartLine = {
   availabilityStatus: AutomationAvailabilityStatus;
 };
 
+type AutomationWizardEntityCallbackRef = {
+  token: string;
+  entityType: AutomationExposureEntityType;
+  entityId: string;
+};
+
 type AutomationWizardSession = {
   conversationId: string;
   currentStep: AutomationWizardStep;
@@ -123,12 +130,51 @@ type AutomationWizardSession = {
   selectedEntityId: string | null;
   selectedItemImageEntityType: AutomationExposureEntityType | null;
   selectedItemImageEntityId: string | null;
+  entityCallbackRefs: AutomationWizardEntityCallbackRef[];
   draftLines: AutomationWizardCartLine[];
   phone: string | null;
   deliveryLocation: string | null;
   customerNote: string | null;
   updatedAt: string;
 };
+
+const AUTOMATION_WIZARD_STEPS = new Set<AutomationWizardStep>([
+  'menu',
+  'catalog',
+  'item',
+  'cart',
+  'preferences_language',
+  'preferences_currency',
+  'checkout_identity',
+  'checkout_location',
+  'checkout_note',
+  'checkout_confirm',
+]);
+
+const AUTOMATION_WIZARD_PENDING_PROMPT_INTENTS = new Set<Exclude<AutomationWizardPendingPromptIntent, null>>([
+  'share_phone',
+  'share_location',
+  'share_note',
+]);
+
+const AUTOMATION_AVAILABILITY_STATUSES = new Set<AutomationAvailabilityStatus>([
+  'available',
+  'limited',
+  'unavailable',
+  'hidden',
+  'unknown',
+]);
+const AUTOMATION_MESSAGE_DIRECTIONS = new Set<AutomationMessageRecord['direction']>([
+  'inbound',
+  'outbound',
+]);
+const AUTOMATION_PARSE_CONFIDENCES = new Set<NonNullable<AutomationMessageRecord['parseConfidence']>>([
+  'high',
+  'medium',
+  'low',
+]);
+const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
+const INVALID_AUTOMATION_TIMESTAMP = '9999-12-31T23:59:59.999Z';
 
 type AutomationCustomerPreferencesRecord = {
   conversationId: string;
@@ -275,6 +321,18 @@ const AUTOMATION_RESOLVE_INTAKE_STATUSES = new Set<AutomationResolveIntakePayloa
   'quoted',
   'canceled',
 ]);
+const AUTOMATION_TELEGRAM_PHOTO_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const MAX_PERSISTED_WIZARD_MESSAGE_IDS = 50;
+const MAX_PERSISTED_WIZARD_ENTITY_REFS = 100;
+const MAX_PERSISTED_WIZARD_DRAFT_LINES = 50;
+
+function uniqueLastByKey<T>(values: T[], keyForValue: (value: T) => string): T[] {
+  const valuesByKey = new Map<string, T>();
+  for (const value of values) {
+    valuesByKey.set(keyForValue(value), value);
+  }
+  return [...valuesByKey.values()];
+}
 
 function automationStorePath(userDataPath: string) {
   return join(userDataPath, 'desktop-automation-store.json');
@@ -294,6 +352,10 @@ function safeLower(value: string | null | undefined) {
   return typeof value === 'string' ? value.trim().toLowerCase() : '';
 }
 
+function normalizeTicketLookupValue(value: string | null | undefined) {
+  return safeLower(value).replace(/\s+/g, ' ');
+}
+
 function normalizeNullablePhone(value: string | null | undefined) {
   const normalized = normalizePhoneNumber(value);
   return normalized || null;
@@ -303,6 +365,34 @@ function normalizeOptionalString(value: unknown) {
   return typeof value === 'string' ? value : null;
 }
 
+function normalizeOptionalTrimmedString(value: unknown) {
+  return typeof value === 'string' ? value.trim() || null : null;
+}
+
+function normalizeRequiredTrimmedString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeIsoTimestamp(value: unknown) {
+  if (typeof value !== 'string' || !ISO_TIMESTAMP_PATTERN.test(value)) {
+    return INVALID_AUTOMATION_TIMESTAMP;
+  }
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) {
+    return INVALID_AUTOMATION_TIMESTAMP;
+  }
+  const normalizedValue = value.includes('.') ? value : value.replace('Z', '.000Z');
+  return timestamp.toISOString() === normalizedValue ? timestamp.toISOString() : INVALID_AUTOMATION_TIMESTAMP;
+}
+
+function normalizeNullableFiniteNumber(value: unknown, { positive = false } = {}) {
+  return typeof value === 'number' &&
+    Number.isFinite(value) &&
+    (positive ? value > 0 : value >= 0)
+    ? value
+    : null;
+}
+
 function normalizeConnectionStatus(value: unknown): AutomationConnectionStatus {
   return typeof value === 'string' && AUTOMATION_CONNECTION_STATUSES.has(value as AutomationConnectionStatus)
     ? value as AutomationConnectionStatus
@@ -310,7 +400,152 @@ function normalizeConnectionStatus(value: unknown): AutomationConnectionStatus {
 }
 
 function normalizeTelegramUpdateCursor(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function normalizeAutomationIntakeStatus(value: unknown): AutomationIntakeStatus {
+  return typeof value === 'string' && AUTOMATION_LIST_INTAKE_STATUSES.has(value as AutomationIntakeStatus)
+    ? value as AutomationIntakeStatus
+    : 'needs_review';
+}
+
+function normalizeAutomationParseConfidence(value: unknown): NonNullable<AutomationMessageRecord['parseConfidence']> {
+  return typeof value === 'string' && AUTOMATION_PARSE_CONFIDENCES.has(value as NonNullable<AutomationMessageRecord['parseConfidence']>)
+    ? value as NonNullable<AutomationMessageRecord['parseConfidence']>
+    : 'low';
+}
+
+function normalizeNullableAutomationParseConfidence(value: unknown): AutomationMessageRecord['parseConfidence'] {
+  return value == null ? null : normalizeAutomationParseConfidence(value);
+}
+
+function normalizeAutomationAvailabilityStatus(value: unknown): AutomationAvailabilityStatus {
+  return typeof value === 'string' && AUTOMATION_AVAILABILITY_STATUSES.has(value as AutomationAvailabilityStatus)
+    ? value as AutomationAvailabilityStatus
+    : 'unknown';
+}
+
+function normalizeAutomationConversation(value: Record<string, unknown>): AutomationConversationSummary | null {
+  const conversationId = normalizeRequiredTrimmedString(value.conversationId);
+  const externalConversationKey = normalizeRequiredTrimmedString(value.externalConversationKey);
+  if (!conversationId || !externalConversationKey) {
+    return null;
+  }
+  const latestIntakeStatus = value.latestIntakeStatus == null
+    ? null
+    : normalizeAutomationIntakeStatus(value.latestIntakeStatus);
+  return {
+    conversationId,
+    channel: 'telegram',
+    externalConversationKey,
+    customerDisplayName: normalizeOptionalTrimmedString(value.customerDisplayName),
+    customerHandle: normalizeOptionalTrimmedString(value.customerHandle),
+    phone: normalizeNullablePhone(value.phone as string | null | undefined),
+    lastMessageAt: normalizeIsoTimestamp(value.lastMessageAt),
+    messageCount: normalizeNonNegativeInteger(value.messageCount),
+    latestIntakeStatus,
+    latestTicketId: normalizeOptionalTrimmedString(value.latestTicketId),
+  };
+}
+
+function normalizeAutomationMessage(value: Record<string, unknown>): AutomationMessageRecord | null {
+  const messageId = normalizeRequiredTrimmedString(value.messageId);
+  const conversationId = normalizeRequiredTrimmedString(value.conversationId);
+  const externalMessageKey = normalizeRequiredTrimmedString(value.externalMessageKey);
+  if (!messageId || !conversationId || !externalMessageKey) {
+    return null;
+  }
+  const direction = typeof value.direction === 'string' &&
+    AUTOMATION_MESSAGE_DIRECTIONS.has(value.direction as AutomationMessageRecord['direction'])
+    ? value.direction as AutomationMessageRecord['direction']
+    : 'inbound';
+  return {
+    messageId,
+    conversationId,
+    intakeId: normalizeOptionalTrimmedString(value.intakeId),
+    externalMessageKey,
+    direction,
+    sentAt: normalizeIsoTimestamp(value.sentAt),
+    rawText: typeof value.rawText === 'string' ? value.rawText : '',
+    normalizedText: normalizeOptionalString(value.normalizedText),
+    parseConfidence: normalizeNullableAutomationParseConfidence(value.parseConfidence),
+  };
+}
+
+function normalizeAutomationIntakeLine(value: unknown): AutomationIntakeLine | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+  const lineId = normalizeRequiredTrimmedString(value.lineId);
+  const requestedLabel = normalizeRequiredTrimmedString(value.requestedLabel);
+  const entityType = value.entityType;
+  if (!lineId || (entityType !== 'sku' && entityType !== 'service')) {
+    return null;
+  }
+  return {
+    lineId,
+    entityType,
+    entityId: normalizeOptionalTrimmedString(value.entityId),
+    requestedLabel,
+    resolvedLabel: normalizeOptionalTrimmedString(value.resolvedLabel),
+    quantity: normalizeNullableFiniteNumber(value.quantity, { positive: true }),
+    unitPrice: normalizeNullableFiniteNumber(value.unitPrice),
+    lineTotal: normalizeNullableFiniteNumber(value.lineTotal),
+    availabilityStatus: normalizeAutomationAvailabilityStatus(value.availabilityStatus),
+    ambiguityReason: normalizeOptionalTrimmedString(value.ambiguityReason),
+  };
+}
+
+function normalizeAutomationIntake(value: Record<string, unknown>): AutomationOrderIntake | null {
+  const intakeId = normalizeRequiredTrimmedString(value.intakeId);
+  const conversationId = normalizeRequiredTrimmedString(value.conversationId);
+  if (!intakeId || !conversationId) {
+    return null;
+  }
+  const lines = Array.isArray(value.lines)
+    ? value.lines.map(normalizeAutomationIntakeLine).filter((line): line is AutomationIntakeLine => line != null)
+    : [];
+  return {
+    intakeId,
+    conversationId,
+    channel: 'telegram',
+    status: normalizeAutomationIntakeStatus(value.status),
+    parseConfidence: normalizeAutomationParseConfidence(value.parseConfidence),
+    customerDisplayName: normalizeOptionalTrimmedString(value.customerDisplayName),
+    customerHandle: normalizeOptionalTrimmedString(value.customerHandle),
+    phone: normalizeNullablePhone(value.phone as string | null | undefined),
+    notes: normalizeOptionalTrimmedString(value.notes),
+    quotedSubtotal: normalizeNullableFiniteNumber(value.quotedSubtotal),
+    currencyCode: value.currencyCode === 'KHR' ? 'KHR' : 'USD',
+    deliveryFee: normalizeNullableFiniteNumber(value.deliveryFee),
+    quotedTotal: normalizeNullableFiniteNumber(value.quotedTotal),
+    createdAt: normalizeIsoTimestamp(value.createdAt),
+    updatedAt: normalizeIsoTimestamp(value.updatedAt),
+    promotedTicketId: normalizeOptionalTrimmedString(value.promotedTicketId),
+    lines,
+  };
+}
+
+function normalizeAppLanguage(value: unknown): AppLanguage {
+  return value === 'km' ? 'km' : 'en';
+}
+
+function normalizeAppCurrency(value: unknown): AppCurrency {
+  return value === 'KHR' ? 'KHR' : 'USD';
+}
+
+function normalizeCustomerPreferencesRecord(value: Record<string, unknown>): AutomationCustomerPreferencesRecord | null {
+  const conversationId = normalizeRequiredTrimmedString(value.conversationId);
+  if (!conversationId) {
+    return null;
+  }
+  return {
+    conversationId,
+    language: normalizeAppLanguage(value.language),
+    currency: normalizeAppCurrency(value.currency),
+    configuredAt: normalizeIsoTimestamp(value.configuredAt),
+    updatedAt: normalizeIsoTimestamp(value.updatedAt),
+  };
 }
 
 function automationCreatedAtSortValue(value: string) {
@@ -319,7 +554,7 @@ function automationCreatedAtSortValue(value: string) {
 }
 
 function automationTimestampMs(value: string | null | undefined) {
-  if (typeof value !== 'string') {
+  if (typeof value !== 'string' || value === INVALID_AUTOMATION_TIMESTAMP) {
     return null;
   }
   const time = new Date(value).getTime();
@@ -338,7 +573,7 @@ function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] 
   if (!Array.isArray(value)) {
     return [];
   }
-  return value
+  return uniqueLastByKey(value
     .filter((entry): entry is Partial<AutomationExposureRuleRecord> =>
       Boolean(entry) &&
       typeof entry === 'object' &&
@@ -347,7 +582,7 @@ function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] 
       typeof (entry as Partial<AutomationExposureRuleRecord>).entityId === 'string' &&
       (entry as Partial<AutomationExposureRuleRecord>).entityId!.trim().length > 0,
     )
-    .map((entry) => ({
+    .map((entry): AutomationExposureRuleRecord => ({
       channel: 'telegram',
       entityType: entry.entityType!,
       entityId: entry.entityId!.trim(),
@@ -356,13 +591,20 @@ function normalizeExposureRules(value: unknown): AutomationExposureRuleRecord[] 
       sortOrder: typeof entry.sortOrder === 'number' && Number.isFinite(entry.sortOrder) ? entry.sortOrder : 0,
       createdAt: typeof entry.createdAt === 'string' ? entry.createdAt : nowIso(),
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : nowIso(),
-    }));
+    })),
+    (rule) => `${rule.entityType}:${rule.entityId}`,
+  );
 }
 
 function assertNonEmptyString(value: unknown, message: string): asserts value is string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(message);
   }
+}
+
+function normalizeNonEmptyString(value: unknown, message: string) {
+  assertNonEmptyString(value, message);
+  return value.trim();
 }
 
 function assertAutomationConnectionPatchIsValid(payload: AutomationConnectionPatch) {
@@ -427,12 +669,12 @@ function assertAutomationListIntakesPayloadIsValid(payload: AutomationListIntake
   }
 }
 
-function assertAutomationReadConversationIdIsValid(conversationId: unknown) {
-  assertNonEmptyString(conversationId, 'Automation conversation reads require a conversation id.');
+function normalizeAutomationReadConversationId(conversationId: unknown) {
+  return normalizeNonEmptyString(conversationId, 'Automation conversation reads require a conversation id.');
 }
 
-function assertAutomationReadIntakeIdIsValid(intakeId: unknown) {
-  assertNonEmptyString(intakeId, 'Automation intake reads require an intake id.');
+function normalizeAutomationReadIntakeId(intakeId: unknown) {
+  return normalizeNonEmptyString(intakeId, 'Automation intake reads require an intake id.');
 }
 
 function assertAutomationResolvePayloadIsValid(payload: AutomationResolveIntakePayload) {
@@ -508,8 +750,210 @@ function isObjectRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function isTelegramMessageId(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isTelegramPhotoPathCandidate(value: unknown): value is string {
+  return isNonEmptyString(value) &&
+    !/^https?:\/\//i.test(value.trim()) &&
+    AUTOMATION_TELEGRAM_PHOTO_EXTENSIONS.has(extname(value.trim()).toLowerCase());
+}
+
+function normalizeTelegramOutboundJob(value: unknown): TelegramOutboundJob | null {
+  if (!isObjectRecord(value) || typeof value.kind !== 'string') {
+    return null;
+  }
+
+  const parseMode = value.parseMode === 'HTML' ? value.parseMode : undefined;
+  if (value.kind === 'send') {
+    if (!isNonEmptyString(value.chatId) || !isNonEmptyString(value.conversationId) || typeof value.text !== 'string') {
+      return null;
+    }
+    return {
+      kind: 'send',
+      chatId: value.chatId.trim(),
+      conversationId: value.conversationId.trim(),
+      text: value.text,
+      ...(typeof value.intakeId === 'string' ? { intakeId: value.intakeId.trim() || null } : value.intakeId === null ? { intakeId: null } : {}),
+      ...(parseMode ? { parseMode } : {}),
+      ...(value.messageRole === 'wizard_generated' || value.messageRole === 'receipt' ? { messageRole: value.messageRole } : {}),
+      ...(typeof value.storesWizardMessage === 'boolean' ? { storesWizardMessage: value.storesWizardMessage } : {}),
+      ...(value.replyMarkup && isObjectRecord(value.replyMarkup) ? { replyMarkup: value.replyMarkup as TelegramMessageMarkup } : {}),
+    };
+  }
+
+  if (value.kind === 'edit') {
+    if (!isNonEmptyString(value.chatId) || !isNonEmptyString(value.conversationId) || !isTelegramMessageId(value.messageId) || typeof value.text !== 'string') {
+      return null;
+    }
+    return {
+      kind: 'edit',
+      chatId: value.chatId.trim(),
+      conversationId: value.conversationId.trim(),
+      messageId: value.messageId,
+      text: value.text,
+      ...(parseMode ? { parseMode } : {}),
+      ...(value.replyMarkup && isObjectRecord(value.replyMarkup) ? { replyMarkup: value.replyMarkup as TelegramInlineKeyboardMarkup } : {}),
+    };
+  }
+
+  if (value.kind === 'edit_reply_markup') {
+    if (!isNonEmptyString(value.chatId) || !isNonEmptyString(value.conversationId) || !isTelegramMessageId(value.messageId)) {
+      return null;
+    }
+    return {
+      kind: 'edit_reply_markup',
+      chatId: value.chatId.trim(),
+      conversationId: value.conversationId.trim(),
+      messageId: value.messageId,
+      ...(value.replyMarkup && isObjectRecord(value.replyMarkup) ? { replyMarkup: value.replyMarkup as TelegramInlineKeyboardMarkup } : {}),
+    };
+  }
+
+  if (value.kind === 'answer_callback') {
+    if (!isNonEmptyString(value.callbackQueryId)) {
+      return null;
+    }
+    return {
+      kind: 'answer_callback',
+      callbackQueryId: value.callbackQueryId.trim(),
+      ...(typeof value.text === 'string' ? { text: value.text } : {}),
+      ...(typeof value.showAlert === 'boolean' ? { showAlert: value.showAlert } : {}),
+    };
+  }
+
+  if (value.kind === 'send_photo') {
+    if (!isNonEmptyString(value.chatId) || !isNonEmptyString(value.conversationId) || !isTelegramPhotoPathCandidate(value.photoPath)) {
+      return null;
+    }
+    const storesItemImage: { entityType: AutomationExposureEntityType; entityId: string } | undefined = isObjectRecord(value.storesItemImage) &&
+      (value.storesItemImage.entityType === 'sku' || value.storesItemImage.entityType === 'service') &&
+      typeof value.storesItemImage.entityId === 'string'
+      ? {
+          entityType: value.storesItemImage.entityType,
+          entityId: value.storesItemImage.entityId.trim(),
+        }
+      : undefined;
+    return {
+      kind: 'send_photo',
+      chatId: value.chatId.trim(),
+      conversationId: value.conversationId.trim(),
+      photoPath: value.photoPath.trim(),
+      ...(typeof value.intakeId === 'string' ? { intakeId: value.intakeId.trim() || null } : value.intakeId === null ? { intakeId: null } : {}),
+      ...(typeof value.caption === 'string' ? { caption: value.caption } : {}),
+      ...(parseMode ? { parseMode } : {}),
+      ...(storesItemImage ? { storesItemImage } : {}),
+    };
+  }
+
+  if (value.kind === 'delete_message') {
+    if (!isNonEmptyString(value.chatId) || !isNonEmptyString(value.conversationId) || !isTelegramMessageId(value.messageId)) {
+      return null;
+    }
+    return {
+      kind: 'delete_message',
+      chatId: value.chatId.trim(),
+      conversationId: value.conversationId.trim(),
+      messageId: value.messageId,
+      ...(typeof value.nonFatal === 'boolean' ? { nonFatal: value.nonFatal } : {}),
+    };
+  }
+
+  return null;
+}
+
+function normalizeWizardStep(value: unknown): AutomationWizardStep {
+  return typeof value === 'string' && AUTOMATION_WIZARD_STEPS.has(value as AutomationWizardStep)
+    ? value as AutomationWizardStep
+    : 'menu';
+}
+
+function normalizeWizardPendingPromptIntent(value: unknown): AutomationWizardPendingPromptIntent {
+  return typeof value === 'string' && AUTOMATION_WIZARD_PENDING_PROMPT_INTENTS.has(value as Exclude<AutomationWizardPendingPromptIntent, null>)
+    ? value as Exclude<AutomationWizardPendingPromptIntent, null>
+    : null;
+}
+
+function normalizeNonNegativeInteger(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? Math.floor(value)
+    : 0;
+}
+
+function normalizeTelegramMessageIds(value: unknown): number[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((messageId): messageId is number =>
+      typeof messageId === 'number' && Number.isFinite(messageId) && messageId > 0,
+    ).map((messageId) => Math.floor(messageId)))].slice(-MAX_PERSISTED_WIZARD_MESSAGE_IDS)
+    : [];
+}
+
+function normalizeWizardCartLine(value: unknown): AutomationWizardCartLine | null {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+  const entityType = value.entityType;
+  const entityId = normalizeOptionalTrimmedString(value.entityId);
+  const label = normalizeOptionalTrimmedString(value.label);
+  const quantity = value.quantity;
+  const unitPrice = value.unitPrice;
+  const availabilityStatus = value.availabilityStatus;
+  if (
+    (entityType !== 'sku' && entityType !== 'service') ||
+    !entityId ||
+    !label ||
+    typeof quantity !== 'number' ||
+    !Number.isFinite(quantity) ||
+    quantity <= 0 ||
+    (unitPrice !== null && (typeof unitPrice !== 'number' || !Number.isFinite(unitPrice) || unitPrice < 0)) ||
+    (typeof availabilityStatus !== 'string' || !AUTOMATION_AVAILABILITY_STATUSES.has(availabilityStatus as AutomationAvailabilityStatus))
+  ) {
+    return null;
+  }
+  return {
+    entityType,
+    entityId,
+    label,
+    quantity,
+    unitPrice,
+    availabilityStatus: availabilityStatus as AutomationAvailabilityStatus,
+  };
+}
+
+function normalizePendingTelegramOutboundJob(value: unknown): AutomationPendingTelegramOutboundJob | null {
+  if (!isObjectRecord(value) || typeof value.jobId !== 'string' || typeof value.createdAt !== 'string') {
+    return null;
+  }
+  const job = normalizeTelegramOutboundJob(value.job);
+  if (!job) {
+    return null;
+  }
+  const sentMessage = isObjectRecord(value.sentMessage) &&
+    isTelegramMessageId(value.sentMessage.messageId) &&
+    typeof value.sentMessage.sentAt === 'string' &&
+    typeof value.sentMessage.text === 'string'
+    ? {
+        messageId: value.sentMessage.messageId,
+        sentAt: value.sentMessage.sentAt,
+        text: value.sentMessage.text,
+      }
+    : undefined;
+  return {
+    jobId: value.jobId,
+    createdAt: value.createdAt,
+    job,
+    ...(sentMessage ? { sentMessage } : {}),
+  };
+}
+
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
   const connection = value?.connection;
+  const rawValue = value as Record<string, unknown> | null | undefined;
   const normalizedBotToken = normalizeOptionalString(connection?.botToken);
   return {
     version: 1,
@@ -531,69 +975,104 @@ function normalizeState(value: Partial<AutomationStoreState> | null | undefined)
     },
     telegramUpdateCursor: normalizeTelegramUpdateCursor(value?.telegramUpdateCursor),
     exposureRules: normalizeExposureRules(value?.exposureRules),
-    conversations: Array.isArray(value?.conversations)
-      ? value.conversations.filter(isObjectRecord).map((conversation) => ({
-        ...conversation,
-        phone: normalizeNullablePhone(conversation.phone),
-      } as AutomationConversationSummary))
+    conversations: Array.isArray(rawValue?.conversations)
+      ? uniqueLastByKey(rawValue.conversations
+        .filter(isObjectRecord)
+        .map((conversation) => normalizeAutomationConversation(conversation))
+        .filter((conversation): conversation is AutomationConversationSummary => conversation != null),
+      (conversation) => conversation.conversationId)
       : [],
-    messages: Array.isArray(value?.messages)
-      ? value.messages.filter(isObjectRecord).map((message) => ({
-        ...message,
-        intakeId: typeof message.intakeId === 'string' ? message.intakeId : null,
-      } as AutomationMessageRecord))
+    messages: Array.isArray(rawValue?.messages)
+      ? uniqueLastByKey(rawValue.messages
+        .filter(isObjectRecord)
+        .map((message) => normalizeAutomationMessage(message))
+        .filter((message): message is AutomationMessageRecord => message != null),
+      (message) => `${message.conversationId}:${message.externalMessageKey}`)
       : [],
-    intakes: Array.isArray(value?.intakes)
-      ? value.intakes.filter(isObjectRecord).map((intake) => ({
-        ...intake,
-        phone: normalizeNullablePhone(intake.phone),
-      } as AutomationOrderIntake))
+    intakes: Array.isArray(rawValue?.intakes)
+      ? uniqueLastByKey(rawValue.intakes
+        .filter(isObjectRecord)
+        .map((intake) => normalizeAutomationIntake(intake))
+        .filter((intake): intake is AutomationOrderIntake => intake != null),
+      (intake) => intake.intakeId)
       : [],
-    customerPreferences: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.customerPreferences)
-      ? (value as Partial<AutomationStoreState>).customerPreferences!.filter(isObjectRecord)
-        .map((preference) => ({ ...preference } as AutomationCustomerPreferencesRecord))
+    customerPreferences: Array.isArray(rawValue?.customerPreferences)
+      ? uniqueLastByKey(rawValue.customerPreferences
+        .filter(isObjectRecord)
+        .map((preference) => normalizeCustomerPreferencesRecord(preference))
+        .filter((preference): preference is AutomationCustomerPreferencesRecord => preference != null),
+      (preference) => preference.conversationId)
       : [],
     wizardSessions: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.wizardSessions)
-      ? (value as Partial<AutomationStoreState>).wizardSessions!.filter(isObjectRecord).map((session) => ({
-        ...session,
-        currentStep: session.currentStep ?? 'menu',
-        catalogCursor: typeof session.catalogCursor === 'number' ? session.catalogCursor : 0,
-        pendingPromptIntent: session.pendingPromptIntent ?? null,
-        lastWizardMessageId: typeof session.lastWizardMessageId === 'number' ? session.lastWizardMessageId : null,
-        generatedWizardMessageIds: Array.isArray((session as Partial<AutomationWizardSession>).generatedWizardMessageIds)
-          ? [...new Set((session as Partial<AutomationWizardSession>).generatedWizardMessageIds!.filter((messageId) => typeof messageId === 'number'))]
-          : typeof session.lastWizardMessageId === 'number'
-            ? [session.lastWizardMessageId]
-            : [],
-        lastItemImageMessageId: typeof (session as Partial<AutomationWizardSession>).lastItemImageMessageId === 'number'
-          ? (session as Partial<AutomationWizardSession>).lastItemImageMessageId!
-          : null,
-        selectedEntityType: (session as Partial<AutomationWizardSession>).selectedEntityType ?? null,
-        selectedEntityId: (session as Partial<AutomationWizardSession>).selectedEntityId ?? null,
-        selectedItemImageEntityType: (session as Partial<AutomationWizardSession>).selectedItemImageEntityType ?? null,
-        selectedItemImageEntityId: (session as Partial<AutomationWizardSession>).selectedItemImageEntityId ?? null,
-        draftLines: Array.isArray(session.draftLines) ? [...session.draftLines] : [],
-        phone: normalizeNullablePhone(session.phone),
-        deliveryLocation: typeof (session as Partial<AutomationWizardSession>).deliveryLocation === 'string'
-          ? (session as Partial<AutomationWizardSession>).deliveryLocation!.trim() || null
-          : null,
-        customerNote: typeof (session as Partial<AutomationWizardSession>).customerNote === 'string'
-          ? (session as Partial<AutomationWizardSession>).customerNote!.trim() || null
-          : null,
-        updatedAt: session.updatedAt ?? nowIso(),
-      }))
+      ? (value as Partial<AutomationStoreState>).wizardSessions!
+        .filter(isObjectRecord)
+        .map((session) => {
+          const conversationId = normalizeRequiredTrimmedString(session.conversationId);
+          if (!conversationId) {
+            return null;
+          }
+          return {
+            ...session,
+            conversationId,
+            currentStep: normalizeWizardStep(session.currentStep),
+            catalogCursor: normalizeNonNegativeInteger(session.catalogCursor),
+            pendingPromptIntent: normalizeWizardPendingPromptIntent(session.pendingPromptIntent),
+            lastWizardMessageId: typeof session.lastWizardMessageId === 'number' && Number.isFinite(session.lastWizardMessageId) && session.lastWizardMessageId > 0
+              ? Math.floor(session.lastWizardMessageId)
+              : null,
+            generatedWizardMessageIds: Array.isArray((session as Partial<AutomationWizardSession>).generatedWizardMessageIds)
+              ? normalizeTelegramMessageIds((session as Partial<AutomationWizardSession>).generatedWizardMessageIds)
+              : normalizeTelegramMessageIds([session.lastWizardMessageId]),
+            lastItemImageMessageId: typeof (session as Partial<AutomationWizardSession>).lastItemImageMessageId === 'number' &&
+              Number.isFinite((session as Partial<AutomationWizardSession>).lastItemImageMessageId) &&
+              (session as Partial<AutomationWizardSession>).lastItemImageMessageId! > 0
+              ? Math.floor((session as Partial<AutomationWizardSession>).lastItemImageMessageId!)
+              : null,
+            selectedEntityType: (session as Partial<AutomationWizardSession>).selectedEntityType === 'sku' ||
+              (session as Partial<AutomationWizardSession>).selectedEntityType === 'service'
+              ? (session as Partial<AutomationWizardSession>).selectedEntityType!
+              : null,
+            selectedEntityId: normalizeOptionalTrimmedString((session as Partial<AutomationWizardSession>).selectedEntityId),
+            selectedItemImageEntityType: (session as Partial<AutomationWizardSession>).selectedItemImageEntityType === 'sku' ||
+              (session as Partial<AutomationWizardSession>).selectedItemImageEntityType === 'service'
+              ? (session as Partial<AutomationWizardSession>).selectedItemImageEntityType!
+              : null,
+            selectedItemImageEntityId: normalizeOptionalTrimmedString((session as Partial<AutomationWizardSession>).selectedItemImageEntityId),
+            entityCallbackRefs: Array.isArray((session as Partial<AutomationWizardSession>).entityCallbackRefs)
+              ? (session as Partial<AutomationWizardSession>).entityCallbackRefs!
+                .filter(isObjectRecord)
+                .map((entry) => ({
+                  token: normalizeOptionalTrimmedString(entry.token),
+                  entityType: entry.entityType === 'sku' || entry.entityType === 'service' ? entry.entityType : null,
+                  entityId: normalizeOptionalTrimmedString(entry.entityId),
+                }))
+                .filter((entry): entry is AutomationWizardEntityCallbackRef =>
+                  Boolean(entry.token && entry.entityType && entry.entityId),
+                )
+                .slice(-MAX_PERSISTED_WIZARD_ENTITY_REFS)
+              : [],
+            draftLines: Array.isArray(session.draftLines)
+              ? session.draftLines
+                .map(normalizeWizardCartLine)
+                .filter((line): line is AutomationWizardCartLine => line != null)
+                .slice(-MAX_PERSISTED_WIZARD_DRAFT_LINES)
+              : [],
+            phone: normalizeNullablePhone(session.phone),
+            deliveryLocation: typeof (session as Partial<AutomationWizardSession>).deliveryLocation === 'string'
+              ? (session as Partial<AutomationWizardSession>).deliveryLocation!.trim() || null
+              : null,
+            customerNote: typeof (session as Partial<AutomationWizardSession>).customerNote === 'string'
+              ? (session as Partial<AutomationWizardSession>).customerNote!.trim() || null
+              : null,
+            updatedAt: session.updatedAt ?? nowIso(),
+          };
+        })
+        .filter((session): session is AutomationWizardSession => session != null)
       : [],
     pendingOutboundJobs: Array.isArray((value as Partial<AutomationStoreState> | undefined)?.pendingOutboundJobs)
-      ? (value as Partial<AutomationStoreState>).pendingOutboundJobs!.filter((entry): entry is AutomationPendingTelegramOutboundJob =>
-        typeof entry?.jobId === 'string' && typeof entry?.createdAt === 'string' && typeof entry?.job === 'object' && entry.job !== null,
-      ).map((entry) => ({
-        ...entry,
-        sentMessage: typeof entry.sentMessage?.messageId === 'number'
-          && typeof entry.sentMessage.sentAt === 'string'
-          && typeof entry.sentMessage.text === 'string'
-          ? entry.sentMessage
-          : undefined,
-      }))
+      ? (value as Partial<AutomationStoreState>).pendingOutboundJobs!
+        .map(normalizePendingTelegramOutboundJob)
+        .filter((entry): entry is AutomationPendingTelegramOutboundJob => entry != null)
       : [],
   };
 }
@@ -604,7 +1083,10 @@ function errorCode(error: unknown) {
     : null;
 }
 
-async function loadAutomationState(userDataPath: string): Promise<AutomationStoreState> {
+async function loadAutomationState(
+  userDataPath: string,
+  options: { allowMalformedDefault?: boolean } = {},
+): Promise<AutomationStoreState> {
   let raw: string;
   try {
     raw = await readFile(automationStorePath(userDataPath), 'utf8');
@@ -614,7 +1096,16 @@ async function loadAutomationState(userDataPath: string): Promise<AutomationStor
     }
     throw error;
   }
-  return normalizeState(JSON.parse(raw) as Partial<AutomationStoreState>);
+  try {
+    return normalizeState(JSON.parse(raw) as Partial<AutomationStoreState>);
+  } catch (error) {
+    if (error instanceof SyntaxError && options.allowMalformedDefault) {
+      console.warn('[automation] automation store JSON is malformed; starting with an empty automation workspace');
+      await writeAutomationState(userDataPath, DEFAULT_STATE);
+      return DEFAULT_STATE;
+    }
+    throw error;
+  }
 }
 
 async function writeAutomationState(userDataPath: string, state: AutomationStoreState) {
@@ -802,17 +1293,19 @@ function recalculateConversation(state: AutomationStoreState, conversationId: st
 }
 
 function wizardSessionForConversation(state: AutomationStoreState, conversationId: string) {
-  return state.wizardSessions.find((entry) => entry.conversationId === conversationId) ?? null;
+  const normalizedConversationId = normalizeAutomationReadConversationId(conversationId);
+  return state.wizardSessions.find((entry) => entry.conversationId === normalizedConversationId) ?? null;
 }
 
 function upsertWizardSession(state: AutomationStoreState, conversationId: string) {
-  const existing = wizardSessionForConversation(state, conversationId);
+  const normalizedConversationId = normalizeAutomationReadConversationId(conversationId);
+  const existing = wizardSessionForConversation(state, normalizedConversationId);
   if (existing) {
     existing.updatedAt = nowIso();
     return existing;
   }
   const session: AutomationWizardSession = {
-    conversationId,
+    conversationId: normalizedConversationId,
     currentStep: 'menu',
     catalogCursor: 0,
     pendingPromptIntent: null,
@@ -823,6 +1316,7 @@ function upsertWizardSession(state: AutomationStoreState, conversationId: string
     selectedEntityId: null,
     selectedItemImageEntityType: null,
     selectedItemImageEntityId: null,
+    entityCallbackRefs: [],
     draftLines: [],
     phone: null,
     deliveryLocation: null,
@@ -949,14 +1443,19 @@ function summarizeRequest(lines: AutomationIntakeLine[]) {
 
 function buildAutomationMetrics(intakes: AutomationOrderIntake[], exposures: AutomationExposureRow[]): AutomationOverviewMetrics {
   const todayFloor = startOfTodayIso();
-  const todayIntakes = intakes.filter((intake) => intake.createdAt >= todayFloor);
+  const todayFloorMs = automationTimestampMs(todayFloor) ?? 0;
+  const isTodayOrLater = (value: string | null | undefined) => {
+    const timestamp = automationTimestampMs(value);
+    return timestamp != null && timestamp >= todayFloorMs;
+  };
+  const todayIntakes = intakes.filter((intake) => isTodayOrLater(intake.createdAt));
   return {
     ordersToday: todayIntakes.length,
     needsReview: intakes.filter((intake) => intake.status === 'needs_review' || intake.status === 'failed').length,
     quotedToday: todayIntakes.filter((intake) => intake.status === 'quoted').length,
-    ticketedToday: intakes.filter((intake) => intake.status === 'ticketed' && intake.updatedAt >= todayFloor).length,
-    completedToday: intakes.filter((intake) => intake.status === 'completed' && intake.updatedAt >= todayFloor).length,
-    exposedSellables: exposures.filter((row) => row.exposed).length,
+    ticketedToday: intakes.filter((intake) => intake.status === 'ticketed' && isTodayOrLater(intake.updatedAt)).length,
+    completedToday: intakes.filter((intake) => intake.status === 'completed' && isTodayOrLater(intake.updatedAt)).length,
+    exposedSellables: exposures.filter((row) => row.exposed && isAutomationEligibleExposureRow(row)).length,
   };
 }
 
@@ -979,6 +1478,23 @@ function assertPromotableAutomationIntake(intake: AutomationOrderIntake) {
   if (intake.status !== 'quoted') {
     throw new Error('Only quoted automation intakes can be promoted to customer tickets.');
   }
+}
+
+function isFinitePositiveNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
+function isFiniteNonNegativeNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
+}
+
+function isPromotableAutomationLine(line: AutomationIntakeLine) {
+  return (
+    line.entityId != null
+    && isFinitePositiveNumber(line.quantity)
+    && isFiniteNonNegativeNumber(line.unitPrice)
+    && isFiniteNonNegativeNumber(line.lineTotal)
+  );
 }
 
 function latestTicketEventForId(observations: SenaObservationRecord[], ticketId: string) {
@@ -1031,14 +1547,16 @@ function buildPromotionNote(intake: AutomationOrderIntake, operatorNote: string 
 }
 
 function filterIntakes(intakes: AutomationOrderIntake[], payload?: AutomationListIntakesPayload) {
+  const conversationId = payload?.conversationId?.trim();
+  const ticketId = payload?.ticketId?.trim();
   const filteredByStatus = payload?.status
     ? intakes.filter((intake) => intake.status === payload.status)
     : intakes;
-  const filteredByConversation = payload?.conversationId
-    ? filteredByStatus.filter((intake) => intake.conversationId === payload.conversationId)
+  const filteredByConversation = conversationId
+    ? filteredByStatus.filter((intake) => intake.conversationId === conversationId)
     : filteredByStatus;
-  const filteredByTicket = payload?.ticketId
-    ? filteredByConversation.filter((intake) => intake.promotedTicketId === payload.ticketId)
+  const filteredByTicket = ticketId
+    ? filteredByConversation.filter((intake) => intake.promotedTicketId === ticketId)
     : filteredByConversation;
   const query = payload?.q?.trim();
   if (!query) {
@@ -1080,20 +1598,25 @@ export function escapeTelegramHtml(value: string | null | undefined) {
 }
 
 function displayMoneyFromUsd(amount: number | null, currency: AppCurrency, usdToKhrExchangeRate: number) {
-  if (amount == null) {
+  if (amount == null || !Number.isFinite(amount)) {
     return null;
   }
-  return currency === 'KHR' ? amount * usdToKhrExchangeRate : amount;
+  const displayAmount = currency === 'KHR' ? amount * usdToKhrExchangeRate : amount;
+  return Number.isFinite(displayAmount) ? displayAmount : null;
 }
 
 function formatTelegramMoney(preferences: TelegramCustomerPreferences, amountUsd: number | null) {
   const displayAmount = displayMoneyFromUsd(amountUsd, preferences.currency, preferences.usdToKhrExchangeRate);
-  if (amountUsd == null) {
+  if (displayAmount == null) {
     return `${preferences.currency} TBD`;
   }
   return preferences.currency === 'KHR'
-    ? `${preferences.currency} ${Math.round(displayAmount!).toFixed(0)}`
-    : `${preferences.currency} ${displayAmount!.toFixed(2)}`;
+    ? `${preferences.currency} ${Math.round(displayAmount).toFixed(0)}`
+    : `${preferences.currency} ${displayAmount.toFixed(2)}`;
+}
+
+function formatTelegramQuantity(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? String(value) : '0';
 }
 
 function conversationPreferencesFor(
@@ -1148,7 +1671,7 @@ function catalogPageCount(rows: AutomationExposureRow[]) {
 }
 
 function pagedExposedRows(rows: AutomationExposureRow[], pageIndex: number) {
-  const visibleRows = rows.filter((row) => row.exposed);
+  const visibleRows = rows.filter((row) => row.exposed && isAutomationEligibleExposureRow(row));
   const pageCount = catalogPageCount(visibleRows);
   const safePage = Math.min(Math.max(pageIndex, 0), pageCount - 1);
   return {
@@ -1170,6 +1693,52 @@ function buildCallbackData(
   return ['w', action, ...parts].join(':');
 }
 
+function entityCallbackToken(
+  session: AutomationWizardSession,
+  entityType: AutomationExposureEntityType,
+  entityId: string,
+) {
+  const existing = session.entityCallbackRefs.find((entry) => entry.entityType === entityType && entry.entityId === entityId);
+  if (existing) {
+    return existing.token;
+  }
+  const nextIndex = session.entityCallbackRefs.reduce((maxIndex, entry) => {
+    const match = /^e([0-9a-z]+)$/i.exec(entry.token);
+    if (!match) {
+      return maxIndex;
+    }
+    const parsed = Number.parseInt(match[1]!, 36);
+    return Number.isFinite(parsed) ? Math.max(maxIndex, parsed + 1) : maxIndex;
+  }, 0);
+  const token = `e${nextIndex.toString(36)}`;
+  session.entityCallbackRefs.push({ token, entityType, entityId });
+  return token;
+}
+
+function buildEntityCallbackData(
+  session: AutomationWizardSession,
+  action: 'item' | 'add' | 'inc' | 'dec' | 'remove',
+  entityType: AutomationExposureEntityType,
+  entityId: string,
+) {
+  return buildCallbackData(action, entityCallbackToken(session, entityType, entityId));
+}
+
+function resolveEntityCallbackParts(
+  session: AutomationWizardSession,
+  parts: string[],
+): { entityType: AutomationExposureEntityType; entityId: string } | null {
+  const [first, second] = parts;
+  if ((first === 'sku' || first === 'service') && second) {
+    return { entityType: first, entityId: second };
+  }
+  if (!first) {
+    return null;
+  }
+  const entry = session.entityCallbackRefs.find((candidate) => candidate.token === first);
+  return entry ? { entityType: entry.entityType, entityId: entry.entityId } : null;
+}
+
 function parseWizardCallbackData(value: string | null | undefined) {
   if (!value?.startsWith('w:')) {
     return null;
@@ -1182,6 +1751,11 @@ function parseWizardCallbackData(value: string | null | undefined) {
     action,
     parts,
   };
+}
+
+function parseWizardCallbackPageIndex(value: string | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 function inlineKeyboard(rows: Array<Array<{ text: string; callbackData?: string }>>) {
@@ -1261,8 +1835,10 @@ function extractTelegramQuantity(rawText: string, label: string) {
   if (!normalizedLabel) {
     return null;
   }
+  const normalizedText = normalizeTelegramLabel(rawText);
   const pattern = normalizedLabel.split(' ').map(escapeRegex).join('\\s+');
-  const match = rawText.match(new RegExp(`(?:^|\\b)(\\d+(?:\\.\\d+)?)\\s*(?:x|×)?\\s*${pattern}(?:\\b|$)`, 'i'));
+  const edge = '[^\\p{Letter}\\p{Number}_]';
+  const match = normalizedText.match(new RegExp(`(?:^|${edge})(\\d+(?:\\.\\d+)?)\\s*(?:x|×)?\\s*${pattern}(?=$|${edge})`, 'iu'));
   if (!match) {
     return null;
   }
@@ -1312,9 +1888,9 @@ function telegramCustomerDisplayNameFromActor(
 
 function parseTelegramIntakeLines(rawText: string, exposures: AutomationExposureRow[]) {
   const normalizedText = normalizeTelegramLabel(rawText);
-  const matchedEntityIds = new Set<string>();
+  const matchedEntityKeys = new Set<string>();
   const sellableRows = exposures
-    .filter((row) => row.exposed)
+    .filter((row) => row.exposed && isAutomationEligibleExposureRow(row))
     .sort((left, right) => {
       const leftLength = Math.max(left.alias?.length ?? 0, left.label.length);
       const rightLength = Math.max(right.alias?.length ?? 0, right.label.length);
@@ -1325,10 +1901,14 @@ function parseTelegramIntakeLines(rawText: string, exposures: AutomationExposure
   for (const row of sellableRows) {
     const labels = [row.alias, row.label].filter(Boolean) as string[];
     const matchedLabel = labels.find((label) => normalizedText.includes(normalizeTelegramLabel(label)));
-    if (!matchedLabel || matchedEntityIds.has(row.entityId)) {
+    const entityKey = wizardLineKey(row.entityType, row.entityId);
+    if (!matchedLabel || matchedEntityKeys.has(entityKey)) {
       continue;
     }
     const quantity = extractTelegramQuantity(rawText, matchedLabel) ?? 1;
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      continue;
+    }
     const needsReview = row.price == null || row.availabilityStatus === 'unavailable' || row.availabilityStatus === 'hidden' || row.availabilityStatus === 'unknown';
     lines.push({
       lineId: `line_${randomUUID()}`,
@@ -1338,7 +1918,7 @@ function parseTelegramIntakeLines(rawText: string, exposures: AutomationExposure
       resolvedLabel: row.label,
       quantity,
       unitPrice: row.price,
-      lineTotal: row.price != null ? quantity * row.price : null,
+      lineTotal: automationLineTotal(row.price, quantity),
       availabilityStatus: row.availabilityStatus,
       ambiguityReason:
         row.price == null
@@ -1351,7 +1931,7 @@ function parseTelegramIntakeLines(rawText: string, exposures: AutomationExposure
                 ? 'availability_unknown'
                 : null,
     });
-    matchedEntityIds.add(row.entityId);
+    matchedEntityKeys.add(entityKey);
   }
 
   if (lines.length > 0) {
@@ -1408,7 +1988,24 @@ function wizardDraftSubtotal(session: AutomationWizardSession) {
   if (session.draftLines.some((line) => line.unitPrice == null || line.quantity <= 0)) {
     return null;
   }
-  return session.draftLines.reduce((sum, line) => sum + (line.unitPrice ?? 0) * line.quantity, 0);
+  const subtotal = session.draftLines.reduce((sum, line) => sum + (line.unitPrice ?? 0) * line.quantity, 0);
+  return Number.isFinite(subtotal) ? subtotal : null;
+}
+
+function automationLineTotal(unitPrice: number | null, quantity: number | null) {
+  if (unitPrice == null || quantity == null) {
+    return null;
+  }
+  const total = unitPrice * quantity;
+  return Number.isFinite(total) && total >= 0 ? total : null;
+}
+
+function automationQuotedSubtotal(lines: AutomationIntakeLine[]) {
+  if (!lines.every((line) => line.lineTotal != null)) {
+    return null;
+  }
+  const subtotal = lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
+  return Number.isFinite(subtotal) && subtotal >= 0 ? subtotal : null;
 }
 
 function createIntakeFromWizardSession(
@@ -1424,7 +2021,7 @@ function createIntakeFromWizardSession(
     resolvedLabel: line.label,
     quantity: line.quantity,
     unitPrice: line.unitPrice,
-    lineTotal: line.unitPrice != null ? line.unitPrice * line.quantity : null,
+    lineTotal: automationLineTotal(line.unitPrice, line.quantity),
     availabilityStatus: line.availabilityStatus,
     ambiguityReason:
       line.unitPrice == null
@@ -1438,9 +2035,7 @@ function createIntakeFromWizardSession(
               : null,
   }));
 
-  const quotedSubtotal = lines.every((line) => line.lineTotal != null)
-    ? lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0)
-    : null;
+  const quotedSubtotal = automationQuotedSubtotal(lines);
   const status: AutomationIntakeStatus = quotedSubtotal != null && lines.every((line) => line.ambiguityReason == null)
     ? 'quoted'
     : 'needs_review';
@@ -1529,7 +2124,7 @@ function buildWizardCatalogPrompt(
     });
 
   const itemButtons = page.rows.map((row) => ([
-    { text: formatExposureLabel(row), callbackData: buildCallbackData('item', row.entityType, row.entityId) },
+    { text: formatExposureLabel(row), callbackData: buildEntityCallbackData(session, 'item', row.entityType, row.entityId) },
   ]));
 
   return {
@@ -1564,14 +2159,14 @@ function buildWizardItemPrompt(
   const controls = quantity > 0
     ? [
       [
-        { text: '-1', callbackData: buildCallbackData('dec', row.entityType, row.entityId) },
-        { text: '+1', callbackData: buildCallbackData('inc', row.entityType, row.entityId) },
+        { text: '-1', callbackData: buildEntityCallbackData(session, 'dec', row.entityType, row.entityId) },
+        { text: '+1', callbackData: buildEntityCallbackData(session, 'inc', row.entityType, row.entityId) },
       ],
       [
-        { text: isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove', callbackData: buildCallbackData('remove', row.entityType, row.entityId) },
+        { text: isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove', callbackData: buildEntityCallbackData(session, 'remove', row.entityType, row.entityId) },
       ],
     ]
-    : [[{ text: addLabel, callbackData: buildCallbackData('add', row.entityType, row.entityId) }]];
+    : [[{ text: addLabel, callbackData: buildEntityCallbackData(session, 'add', row.entityType, row.entityId) }]];
 
   return {
     text: `<b>${escapeTelegramHtml(formatExposureLabel(row))}</b>\n${escapeTelegramHtml(typeLabel)}\n${escapeTelegramHtml(formatTelegramMoney(preferences, row.price))}\n${quantityLabel}: ${quantity}`,
@@ -1604,14 +2199,14 @@ function buildWizardCartPrompt(
   }
 
   const lineSummaries = session.draftLines.map((line, index) => (
-    `${index + 1}. <b>${escapeTelegramHtml(line.label)}</b>\n${isKhmerLanguage(preferences.language) ? 'ចំនួន' : 'Qty'} ${line.quantity} · ${escapeTelegramHtml(formatTelegramMoney(preferences, line.unitPrice != null ? line.unitPrice * line.quantity : null))}`
+    `${index + 1}. <b>${escapeTelegramHtml(line.label)}</b>\n${isKhmerLanguage(preferences.language) ? 'ចំនួន' : 'Qty'} ${formatTelegramQuantity(line.quantity)} · ${escapeTelegramHtml(formatTelegramMoney(preferences, line.unitPrice != null ? line.unitPrice * line.quantity : null))}`
   ));
 
   const quantityRows = session.draftLines.flatMap((line) => [[
-    { text: `-1 ${line.label}`, callbackData: buildCallbackData('dec', line.entityType, line.entityId) },
-    { text: `+1 ${line.label}`, callbackData: buildCallbackData('inc', line.entityType, line.entityId) },
+    { text: `-1 ${line.label}`, callbackData: buildEntityCallbackData(session, 'dec', line.entityType, line.entityId) },
+    { text: `+1 ${line.label}`, callbackData: buildEntityCallbackData(session, 'inc', line.entityType, line.entityId) },
   ], [
-    { text: `${isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove'} ${line.label}`, callbackData: buildCallbackData('remove', line.entityType, line.entityId) },
+    { text: `${isKhmerLanguage(preferences.language) ? 'លុបចេញ' : 'Remove'} ${line.label}`, callbackData: buildEntityCallbackData(session, 'remove', line.entityType, line.entityId) },
   ]]);
 
   return {
@@ -1685,6 +2280,7 @@ function submitWizardCheckout(
   conversation: AutomationConversationSummary,
   currency: AppCurrency,
   preferences: TelegramCustomerPreferences,
+  exposures: AutomationExposureRow[],
 ) {
   if (session.draftLines.length === 0) {
     outboundJobs.push({
@@ -1700,6 +2296,7 @@ function submitWizardCheckout(
     return null;
   }
 
+  reconcileWizardDraftLines(session, exposures);
   const intake = createIntakeFromWizardSession(session, conversation, currency);
   state.intakes.unshift(intake);
   linkOrderMessagesToIntake(state, intake);
@@ -1789,7 +2386,7 @@ function buildWizardNoteCapturePrompt(
 
 function buildReceiptDetails(intake: AutomationOrderIntake, preferences: TelegramCustomerPreferences) {
   const lines = intake.lines
-    .map((line) => `• ${line.quantity} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal)}`)
+    .map((line) => `• ${formatTelegramQuantity(line.quantity)} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal)}`)
     .join('\n');
   const notes = intake.notes ?? '';
   const contextLines = notes
@@ -1835,7 +2432,7 @@ function buildTelegramReply(
   }
   if (intake.status === 'quoted') {
     const lineSummary = intake.lines
-      .map((line) => `• ${line.quantity} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal ?? 0)}`)
+      .map((line) => `• ${formatTelegramQuantity(line.quantity)} × ${escapeTelegramHtml(line.resolvedLabel ?? line.requestedLabel)} = ${formatTelegramMoney(preferences, line.lineTotal ?? 0)}`)
       .join('\n');
     return isKhmerLanguage(preferences.language)
       ? `<b>${localizedStatusLabel(preferences.language, 'quoted_order')}</b>\n${lineSummary}\n\n<b>តម្លៃសរុប៖</b> ${escapeTelegramHtml(formatTelegramMoney(preferences, intake.quotedTotal ?? 0))}\nកខនឹងរក្សាសំណើនេះសម្រាប់ឲ្យប្រតិបត្តិករពិនិត្យ និងបង្កើតជាសំបុត្រការងារ។`
@@ -2046,9 +2643,7 @@ function upsertTelegramIntake(
 ) {
   const rawText = message.text?.trim() ?? '';
   const lines = parseTelegramIntakeLines(rawText, exposures);
-  const quotedSubtotal = lines.every((line) => line.lineTotal != null)
-    ? lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0)
-    : null;
+  const quotedSubtotal = automationQuotedSubtotal(lines);
   const status: AutomationIntakeStatus = quotedSubtotal != null && lines.every((line) => line.ambiguityReason == null)
     ? 'quoted'
     : 'needs_review';
@@ -2101,8 +2696,10 @@ function renderWizardPromptForSession(
       return buildWizardCatalogPrompt(exposures, session, preferences);
     }
     case 'cart':
+      reconcileWizardDraftLines(session, exposures);
       return buildWizardCartPrompt(session, preferences);
     case 'checkout_confirm':
+      reconcileWizardDraftLines(session, exposures);
       return buildWizardCheckoutConfirmPrompt(session, preferences);
     case 'checkout_location':
       return buildWizardLocationCapturePrompt(session, preferences);
@@ -2304,6 +2901,23 @@ function selectedDraftQuantity(session: AutomationWizardSession, row: Automation
   )?.quantity ?? 0;
 }
 
+function reconcileWizardDraftLines(
+  session: AutomationWizardSession,
+  exposures: AutomationExposureRow[],
+) {
+  for (const line of session.draftLines) {
+    const row = findExposureRow(exposures, line.entityType, line.entityId);
+    if (!row || !isAutomationEligibleExposureRow(row)) {
+      line.unitPrice = null;
+      line.availabilityStatus = 'hidden';
+      continue;
+    }
+    line.label = row.label;
+    line.unitPrice = row.price;
+    line.availabilityStatus = row.availabilityStatus;
+  }
+}
+
 function addExposureToWizardDraft(
   session: AutomationWizardSession,
   row: AutomationExposureRow,
@@ -2458,20 +3072,20 @@ function handleWizardCallback(
     case 'available':
       session.currentStep = 'catalog';
       clearWizardItemSelection(session);
-      session.catalogCursor = Number(parsed.parts[0] ?? 0) || 0;
+      session.catalogCursor = parseWizardCallbackPageIndex(parsed.parts[0]);
       queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
       acknowledge();
       return true;
     case 'page':
       session.currentStep = 'catalog';
       clearWizardItemSelection(session);
-      session.catalogCursor = Number(parsed.parts[0] ?? 0) || 0;
+      session.catalogCursor = parseWizardCallbackPageIndex(parsed.parts[0]);
       queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
       acknowledge();
       return true;
     case 'item': {
-      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
-      const row = findExposureRow(exposures, entityType, entityId);
+      const entity = resolveEntityCallbackParts(session, parsed.parts);
+      const row = entity ? findExposureRow(exposures, entity.entityType, entity.entityId) : null;
       if (!row) {
         acknowledge(isKhmerLanguage(preferences.language) ? 'មុខទំនិញនេះមិនមានទៀតទេ។' : 'That item is no longer available.');
         return true;
@@ -2506,8 +3120,8 @@ function handleWizardCallback(
       acknowledge();
       return true;
     case 'add': {
-      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
-      const row = findExposureRow(exposures, entityType, entityId);
+      const entity = resolveEntityCallbackParts(session, parsed.parts);
+      const row = entity ? findExposureRow(exposures, entity.entityType, entity.entityId) : null;
       if (!row) {
         acknowledge(isKhmerLanguage(preferences.language) ? 'មុខទំនិញនេះមិនមានទៀតទេ។' : 'That item is no longer available.');
         return true;
@@ -2521,7 +3135,13 @@ function handleWizardCallback(
       return true;
     }
     case 'inc': {
-      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      const entity = resolveEntityCallbackParts(session, parsed.parts);
+      const entityType = entity?.entityType ?? null;
+      const entityId = entity?.entityId ?? null;
+      if (!entityType || !entityId) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
+        return true;
+      }
       if (!adjustWizardDraftLine(session, entityType, entityId, 1)) {
         acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
         return true;
@@ -2532,7 +3152,13 @@ function handleWizardCallback(
       return true;
     }
     case 'dec': {
-      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      const entity = resolveEntityCallbackParts(session, parsed.parts);
+      const entityType = entity?.entityType ?? null;
+      const entityId = entity?.entityId ?? null;
+      if (!entityType || !entityId) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
+        return true;
+      }
       if (!adjustWizardDraftLine(session, entityType, entityId, -1)) {
         acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
         return true;
@@ -2543,7 +3169,13 @@ function handleWizardCallback(
       return true;
     }
     case 'remove': {
-      const [entityType, entityId] = parsed.parts as [AutomationExposureEntityType, string];
+      const entity = resolveEntityCallbackParts(session, parsed.parts);
+      const entityType = entity?.entityType ?? null;
+      const entityId = entity?.entityId ?? null;
+      if (!entityType || !entityId) {
+        acknowledge(isKhmerLanguage(preferences.language) ? 'បន្ទាត់នេះមិនមានទៀតនៅក្នុងកន្ត្រកទេ។' : 'That line is no longer in the cart.');
+        return true;
+      }
       removeWizardDraftLine(session, entityType, entityId);
       session.currentStep = session.selectedEntityType === entityType && session.selectedEntityId === entityId ? 'item' : 'cart';
       queueWizardPrompt(outboundJobs, state, session, exposures, preferences, conversation.externalConversationKey);
@@ -2565,7 +3197,7 @@ function handleWizardCallback(
         acknowledge(isKhmerLanguage(preferences.language) ? 'ការបញ្ជាទិញនេះត្រូវបានផ្ញើទៅកខរួចហើយ។' : 'This order was already sent to Kaur Khor.');
         return true;
       }
-      const intake = submitWizardCheckout(state, outboundJobs, session, conversation, defaults.currency, preferences);
+      const intake = submitWizardCheckout(state, outboundJobs, session, conversation, defaults.currency, preferences, exposures);
       acknowledge(intake?.status === 'quoted'
         ? (isKhmerLanguage(preferences.language) ? 'បានផ្ញើទៅកខ។' : 'Sent to Kaur Khor.')
         : (isKhmerLanguage(preferences.language) ? 'បានផ្ញើសម្រាប់ការពិនិត្យ។' : 'Sent for review.'));
@@ -2602,7 +3234,7 @@ function buildSampleLine(row: AutomationExposureRow, index: number): AutomationI
     resolvedLabel: row.label,
     quantity,
     unitPrice,
-    lineTotal: unitPrice != null ? quantity * unitPrice : null,
+    lineTotal: automationLineTotal(unitPrice, quantity),
     availabilityStatus: row.availabilityStatus,
     ambiguityReason: null,
   };
@@ -2612,7 +3244,7 @@ export async function readAutomationWorkspace(
   userDataPath: string,
   context: ExposureBuildContext,
 ): Promise<AutomationWorkspace> {
-  const state = await loadAutomationState(userDataPath);
+  const state = await loadAutomationState(userDataPath, { allowMalformedDefault: true });
   const exposures = buildExposureRows(state, context);
   return {
     connection: state.connection,
@@ -2921,9 +3553,14 @@ export async function patchAutomationExposureRow(
   payload: AutomationExposurePatch,
 ): Promise<AutomationExposureRow> {
   assertAutomationExposurePatchIsValid(payload);
+  const entityId = normalizeNonEmptyString(payload.entityId, 'Automation exposure updates require an entity id.');
+  const currentRows = await listAutomationExposureRows(userDataPath, context);
+  if (!currentRows.some((entry) => entry.entityType === payload.entityType && entry.entityId === entityId)) {
+    throw new Error('Automation exposure row not found.');
+  }
   await updateAutomationState(userDataPath, (state) => {
     const existing = state.exposureRules.find(
-      (rule) => rule.channel === 'telegram' && rule.entityType === payload.entityType && rule.entityId === payload.entityId,
+      (rule) => rule.channel === 'telegram' && rule.entityType === payload.entityType && rule.entityId === entityId,
     );
     const now = nowIso();
     if (existing) {
@@ -2936,7 +3573,7 @@ export async function patchAutomationExposureRow(
     state.exposureRules.push({
       channel: 'telegram',
       entityType: payload.entityType,
-      entityId: payload.entityId,
+      entityId,
       exposed: payload.exposed ?? true,
       alias: payload.alias ?? null,
       sortOrder: payload.sortOrder ?? 0,
@@ -2945,7 +3582,7 @@ export async function patchAutomationExposureRow(
     });
   });
   const rows = await listAutomationExposureRows(userDataPath, context);
-  const row = rows.find((entry) => entry.entityType === payload.entityType && entry.entityId === payload.entityId);
+  const row = rows.find((entry) => entry.entityType === payload.entityType && entry.entityId === entityId);
   if (!row) {
     throw new Error('Automation exposure row not found.');
   }
@@ -2965,19 +3602,19 @@ export async function readAutomationConversation(
   messages: AutomationMessageRecord[];
   intakes: AutomationOrderIntake[];
 }> {
-  assertAutomationReadConversationIdIsValid(conversationId);
+  const normalizedConversationId = normalizeAutomationReadConversationId(conversationId);
   const state = await loadAutomationState(userDataPath);
-  const conversation = state.conversations.find((entry) => entry.conversationId === conversationId);
+  const conversation = state.conversations.find((entry) => entry.conversationId === normalizedConversationId);
   if (!conversation) {
     throw new Error('Automation conversation not found.');
   }
   return {
     conversation,
     messages: state.messages
-      .filter((entry) => entry.conversationId === conversationId)
+      .filter((entry) => entry.conversationId === normalizedConversationId)
       .sort((left, right) => compareAutomationOldestFirst(left.sentAt, right.sentAt)),
     intakes: state.intakes
-      .filter((entry) => entry.conversationId === conversationId)
+      .filter((entry) => entry.conversationId === normalizedConversationId)
       .sort((left, right) => compareAutomationNewestFirst(left.updatedAt, right.updatedAt)),
   };
 }
@@ -2990,9 +3627,9 @@ export async function readAutomationIntakeThread(
   intake: AutomationOrderIntake;
   messages: AutomationMessageRecord[];
 }> {
-  assertAutomationReadIntakeIdIsValid(intakeId);
+  const normalizedIntakeId = normalizeAutomationReadIntakeId(intakeId);
   const state = await loadAutomationState(userDataPath);
-  const intake = state.intakes.find((entry) => entry.intakeId === intakeId);
+  const intake = state.intakes.find((entry) => entry.intakeId === normalizedIntakeId);
   if (!intake) {
     throw new Error('Automation intake not found.');
   }
@@ -3000,7 +3637,7 @@ export async function readAutomationIntakeThread(
   if (!conversation) {
     throw new Error('Automation conversation not found.');
   }
-  const linkedMessages = state.messages.filter((entry) => entry.intakeId === intakeId);
+  const linkedMessages = state.messages.filter((entry) => entry.intakeId === normalizedIntakeId);
   const legacySourceMessages = linkedMessages.length > 0
     ? []
     : state.messages.filter((entry) =>
@@ -3022,8 +3659,12 @@ export async function readAutomationCustomerPreferences(
   userDataPath: string,
   conversationId: string,
 ): Promise<Pick<TelegramCustomerPreferences, 'language' | 'currency'> | null> {
+  const normalizedConversationId = typeof conversationId === 'string' ? conversationId.trim() : '';
+  if (!normalizedConversationId) {
+    return null;
+  }
   const state = await loadAutomationState(userDataPath);
-  const record = state.customerPreferences.find((entry) => entry.conversationId === conversationId);
+  const record = state.customerPreferences.find((entry) => entry.conversationId === normalizedConversationId);
   if (!record) {
     return null;
   }
@@ -3050,7 +3691,7 @@ export async function findAutomationConversationForTelegramTicket(
     return state.conversations.find((entry) => entry.conversationId === intakeMatch.conversationId) ?? null;
   }
 
-  const phoneKey = normalizePhoneLookupKey(ticketEvent.party?.phone);
+  const phoneKey = normalizePhoneLookupKey(ticketEvent.party?.phone ?? ticketEvent.party?.phoneKey);
   if (phoneKey) {
     const conversationByPhone = state.conversations.find((entry) => normalizePhoneLookupKey(entry.phone) === phoneKey);
     if (conversationByPhone) {
@@ -3058,13 +3699,16 @@ export async function findAutomationConversationForTelegramTicket(
     }
   }
 
-  const customerNameKey = safeLower(ticketEvent.party?.customerName);
+  const customerNameKey = normalizeTicketLookupValue(
+    ticketEvent.party?.customerName ?? ticketEvent.party?.customerNameKey ?? '',
+  );
   if (!customerNameKey) {
     return null;
   }
 
   return state.conversations.find((entry) =>
-    safeLower(entry.customerDisplayName) === customerNameKey || safeLower(entry.customerHandle) === customerNameKey,
+    normalizeTicketLookupValue(entry.customerDisplayName ?? '') === customerNameKey ||
+    normalizeTicketLookupValue(entry.customerHandle ?? '') === customerNameKey,
   ) ?? null;
 }
 
@@ -3084,9 +3728,9 @@ export async function readAutomationIntake(
   userDataPath: string,
   intakeId: string,
 ): Promise<AutomationOrderIntake | null> {
-  assertAutomationReadIntakeIdIsValid(intakeId);
+  const normalizedIntakeId = normalizeAutomationReadIntakeId(intakeId);
   const state = await loadAutomationState(userDataPath);
-  return state.intakes.find((entry) => entry.intakeId === intakeId) ?? null;
+  return state.intakes.find((entry) => entry.intakeId === normalizedIntakeId) ?? null;
 }
 
 export async function resolveAutomationIntake(
@@ -3094,8 +3738,9 @@ export async function resolveAutomationIntake(
   payload: AutomationResolveIntakePayload,
 ): Promise<AutomationOrderIntake> {
   assertAutomationResolvePayloadIsValid(payload);
+  const intakeId = normalizeAutomationReadIntakeId(payload.intakeId);
   return updateAutomationState(userDataPath, (state) => {
-    const intake = state.intakes.find((entry) => entry.intakeId === payload.intakeId);
+    const intake = state.intakes.find((entry) => entry.intakeId === intakeId);
     if (!intake) {
       throw new Error('Automation intake not found.');
     }
@@ -3117,7 +3762,7 @@ export async function testAutomationTelegramConnection(
   if (!state.connection.botToken?.trim()) {
     throw new Error('Save a Telegram bot token before running a test message.');
   }
-  const exposedRows = buildExposureRows(state, context).filter((row) => row.exposed && row.price != null);
+  const exposedRows = buildExposureRows(state, context).filter((row) => row.exposed && isAutomationEligibleExposureRow(row));
   if (exposedRows.length === 0) {
     throw new Error('Expose at least one sellable row before running a test message.');
   }
@@ -3125,7 +3770,7 @@ export async function testAutomationTelegramConnection(
   const now = nowIso();
   const selectedRows = exposedRows.slice(0, Math.min(2, exposedRows.length));
   const lines = selectedRows.map(buildSampleLine);
-  const quotedSubtotal = lines.reduce((sum, line) => sum + (line.lineTotal ?? 0), 0);
+  const quotedSubtotal = automationQuotedSubtotal(lines);
   const conversationId = `conv_${randomUUID()}`;
   const intakeId = `intake_${randomUUID()}`;
 
@@ -3297,11 +3942,11 @@ export async function ingestAutomationTelegramUpdates(
         && (normalizedText === 'skip notes' || normalizedText === normalizeTelegramLabel('រំលងកំណត់ចំណាំ'))
       ) {
         session.pendingPromptIntent = null;
-        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
+        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences, exposures);
       } else if (session.pendingPromptIntent === 'share_note' && message.text?.trim() && !command) {
         session.customerNote = message.text.trim();
         session.pendingPromptIntent = null;
-        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences);
+        submitWizardCheckout(state, outboundJobs, session, conversation, defaultPreferences.currency, preferences, exposures);
       } else if (command === '/start') {
         session.currentStep = 'menu';
         clearWizardItemSelection(session);
@@ -3366,7 +4011,7 @@ export async function ingestAutomationTelegramUpdates(
           exposures,
           preferences,
           conversation.externalConversationKey,
-          buildWizardCartPrompt(session, preferences),
+          renderWizardPromptForSession(state, session, exposures, preferences),
         );
       } else if (command === '/cancel') {
         queueWizardItemImageCleanup(outboundJobs, session, conversation.externalConversationKey);
@@ -3457,8 +4102,12 @@ export async function prepareAutomationPromotion(
   },
 ): Promise<PromotionPreparation> {
   assertPromoteAutomationIntakePayloadIsValid(payload);
+  const intakeId = normalizeAutomationReadIntakeId(payload.intakeId);
+  const ticketId = payload.mode === 'append_ticket'
+    ? normalizeNonEmptyString(payload.ticketId, 'Appending Telegram intake requires a target customer ticket.')
+    : null;
   const state = await loadAutomationState(userDataPath);
-  const intake = state.intakes.find((entry) => entry.intakeId === payload.intakeId);
+  const intake = state.intakes.find((entry) => entry.intakeId === intakeId);
   if (!intake) {
     throw new Error('Automation intake not found.');
   }
@@ -3466,28 +4115,26 @@ export async function prepareAutomationPromotion(
   if (observations.length === 0) {
     throw new Error('Automations needs at least one stock update before it can promote Telegram intake into Kaur Khor tickets.');
   }
-  const unresolvedLine = intake.lines.find((line) =>
-    line.entityId == null || line.quantity == null || line.quantity <= 0 || line.unitPrice == null || line.lineTotal == null,
-  );
+  const unresolvedLine = intake.lines.find((line) => !isPromotableAutomationLine(line));
   if (unresolvedLine) {
     throw new Error('All Telegram intake lines must resolve to priced entities before promotion.');
   }
-  if (payload.mode === 'append_ticket' && !payload.ticketId) {
+  if (payload.mode === 'append_ticket' && !ticketId) {
     throw new Error('Appending Telegram intake requires a target customer ticket.');
   }
   const appendTargetTicket = payload.mode === 'append_ticket'
-    ? validateAppendTicketTarget(observations, payload.ticketId!)
+    ? validateAppendTicketTarget(observations, ticketId!)
     : null;
   const observedAt = nowIso();
-  const ticketId = payload.mode === 'append_ticket'
-    ? payload.ticketId!
+  const promotedTicketId = payload.mode === 'append_ticket'
+    ? ticketId!
     : automationCreatedTicketId(intake.intakeId);
-  const existingPromotionEvent = promotionEventForIntake(observations, intake, ticketId);
+  const existingPromotionEvent = promotionEventForIntake(observations, intake, promotedTicketId);
   if (existingPromotionEvent) {
     const recoveredIntake: AutomationOrderIntake = {
       ...intake,
       status: 'ticketed',
-      promotedTicketId: ticketId,
+      promotedTicketId,
       updatedAt: existingPromotionEvent.occurredAt,
       notes: existingPromotionEvent.note ?? intake.notes,
     };
@@ -3528,7 +4175,7 @@ export async function prepareAutomationPromotion(
   const lines = appendTargetTicket ? [...appendTargetTicket.lines, ...promotedLines] : promotedLines;
   const phone = normalizeNullablePhone(payload.customerIdentityOverride?.phone || intake.phone);
   const ticketEvent: SenaTicketEvent = {
-    ticketId,
+    ticketId: promotedTicketId,
     ticketFamily: 'customer',
     lifecycle: ticketLifecycleForMode(),
     stage: ticketStageForMode(),
@@ -3541,7 +4188,7 @@ export async function prepareAutomationPromotion(
       channelKey: 'telegram',
       channelLabel: 'Telegram',
       customerName: payload.customerIdentityOverride?.customerName?.trim() || intake.customerDisplayName || intake.customerHandle || 'Telegram customer',
-      customerNameKey: safeLower(payload.customerIdentityOverride?.customerName || intake.customerDisplayName || intake.customerHandle || 'Telegram customer'),
+      customerNameKey: normalizeTicketLookupValue(payload.customerIdentityOverride?.customerName || intake.customerDisplayName || intake.customerHandle || 'Telegram customer'),
       phone,
       phoneKey: phone ? normalizePhoneLookupKey(phone) : null,
       supplierName: null,
@@ -3564,7 +4211,7 @@ export async function prepareAutomationPromotion(
   const updatedIntake: AutomationOrderIntake = {
     ...intake,
     status: 'ticketed',
-    promotedTicketId: ticketId,
+    promotedTicketId,
     updatedAt: observedAt,
     notes: note,
   };

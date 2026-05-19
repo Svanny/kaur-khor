@@ -115,12 +115,24 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   const inventory = useInventoryState();
   const { loadWorkSupportData } = useInventoryActions();
   const initialLoadStartedRef = useRef(false);
+  const loadRequestSeqRef = useRef(0);
+  const savingRequestCountRef = useRef(0);
 
   const setStatePartial = useCallback((patch: Partial<typeof state>) => {
     setState((current) => ({ ...current, ...patch }));
   }, []);
 
-  const loadWorkspace = useCallback(async () => {
+  const beginSaving = useCallback(() => {
+    savingRequestCountRef.current += 1;
+    setStatePartial({ isSaving: true, error: null });
+  }, [setStatePartial]);
+
+  const finishSaving = useCallback(() => {
+    savingRequestCountRef.current = Math.max(0, savingRequestCountRef.current - 1);
+    setStatePartial({ isSaving: savingRequestCountRef.current > 0 });
+  }, [setStatePartial]);
+
+  const loadWorkspaceForRequest = useCallback(async (requestId: number) => {
     if (!window.kaurKhorDesktop.automation) {
       const fallback = {
         connection: null,
@@ -132,33 +144,46 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
         isLoading: false,
         isSaving: false,
       };
-      setState(fallback);
+      if (loadRequestSeqRef.current === requestId) {
+        setState(fallback);
+      }
       throw new Error(fallback.error);
     }
     const workspace = await window.kaurKhorDesktop.automation.getWorkspace();
-    setStatePartial({
-      connection: workspace.connection,
-      conversations: workspace.conversations,
-      exposures: workspace.exposures,
-      intakes: workspace.intakes,
-      metrics: workspace.metrics,
-      error: null,
-      isLoading: false,
-    });
+    if (loadRequestSeqRef.current === requestId) {
+      setStatePartial({
+        connection: workspace.connection,
+        conversations: workspace.conversations,
+        exposures: workspace.exposures,
+        intakes: workspace.intakes,
+        metrics: workspace.metrics,
+        error: null,
+        isLoading: false,
+      });
+    }
     return workspace;
   }, [setStatePartial]);
 
+  const loadWorkspace = useCallback(async () => {
+    loadRequestSeqRef.current += 1;
+    return loadWorkspaceForRequest(loadRequestSeqRef.current);
+  }, [loadWorkspaceForRequest]);
+
   const reload = useCallback(async () => {
+    loadRequestSeqRef.current += 1;
+    const requestId = loadRequestSeqRef.current;
     setStatePartial({ isLoading: true, error: null });
     try {
-      await loadWorkspace();
+      await loadWorkspaceForRequest(requestId);
     } catch (error) {
-      setStatePartial({
-        isLoading: false,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      if (loadRequestSeqRef.current === requestId) {
+        setStatePartial({
+          isLoading: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
-  }, [loadWorkspace, setStatePartial]);
+  }, [loadWorkspaceForRequest, setStatePartial]);
 
   useEffect(() => {
     if (initialLoadStartedRef.current || inventory.isLoading || inventory.isPreparingWorkspace) {
@@ -208,29 +233,29 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       const connection = await window.kaurKhorDesktop.automation.saveConnection(payload);
       await reload();
       return connection;
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [reload, setStatePartial]);
+  }, [beginSaving, finishSaving, reload]);
 
   const patchExposureRow = useCallback(async (payload: AutomationExposurePatch) => {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       const row = await window.kaurKhorDesktop.automation.patchExposureRow(payload);
       await reload();
       return row;
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [reload, setStatePartial]);
+  }, [beginSaving, finishSaving, reload]);
 
   const readConversation = useCallback(async (payload: AutomationReadConversationPayload) => {
     if (!window.kaurKhorDesktop.automation) {
@@ -250,13 +275,13 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       return await window.kaurKhorDesktop.automation.sendIntakeThreadMessage(payload);
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [setStatePartial]);
+  }, [beginSaving, finishSaving]);
 
   const listIntakes = useCallback(async (payload?: AutomationListIntakesPayload) => {
     if (!window.kaurKhorDesktop.automation) {
@@ -276,21 +301,21 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       const intake = await window.kaurKhorDesktop.automation.resolveIntake(payload);
       await reload();
       return intake;
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [reload, setStatePartial]);
+  }, [beginSaving, finishSaving, reload]);
 
   const promoteIntake = useCallback(async (payload: PromoteAutomationIntakePayload) => {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       const result = await window.kaurKhorDesktop.automation.promoteIntake(payload);
       await Promise.all([
@@ -299,23 +324,23 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       ]);
       return result;
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [loadWorkSupportData, reload, setStatePartial]);
+  }, [beginSaving, finishSaving, loadWorkSupportData, reload]);
 
   const testTelegramConnection = useCallback(async () => {
     if (!window.kaurKhorDesktop.automation) {
       throw new Error('Automations is unavailable in this environment.');
     }
-    setStatePartial({ isSaving: true, error: null });
+    beginSaving();
     try {
       const connection = await window.kaurKhorDesktop.automation.testTelegramConnection();
       await reload();
       return connection;
     } finally {
-      setStatePartial({ isSaving: false });
+      finishSaving();
     }
-  }, [reload, setStatePartial]);
+  }, [beginSaving, finishSaving, reload]);
 
   const value = useMemo<AutomationContextValue>(() => ({
     ...state,

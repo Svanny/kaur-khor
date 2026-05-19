@@ -20,6 +20,10 @@ function Harness() {
   return (
     <>
       <p data-testid="intake-count">{automation.intakes.length}</p>
+      <p data-testid="saving">{String(automation.isSaving)}</p>
+      <button type="button" onClick={() => void automation.reload()}>
+        reload
+      </button>
       <button
         type="button"
         onClick={() =>
@@ -31,8 +35,28 @@ function Harness() {
       >
         promote
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          void automation.saveConnection({
+            enabled: true,
+          } as never)
+        }
+      >
+        save connection
+      </button>
     </>
   );
+}
+
+function deferredPromise<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((nextResolve, nextReject) => {
+    resolve = nextResolve;
+    reject = nextReject;
+  });
+  return { promise, reject, resolve };
 }
 
 function automationWorkspace(intakes: unknown[] = []) {
@@ -84,6 +108,7 @@ describe('AutomationProvider', () => {
           },
           ticketEvent: null,
         })),
+        saveConnection: vi.fn(async () => automationWorkspace().connection),
       },
     } as never;
   });
@@ -176,5 +201,105 @@ describe('AutomationProvider', () => {
 
     expect(getWorkspace).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('intake-count')).toHaveTextContent('1');
+  });
+
+  it('ignores stale automation workspace responses after a newer reload finishes', async () => {
+    const initialWorkspace = automationWorkspace();
+    const staleWorkspace = automationWorkspace([{ intakeId: 'stale-intake' }]);
+    const latestWorkspace = automationWorkspace([{ intakeId: 'latest-intake' }, { intakeId: 'second-intake' }]);
+    const staleRequest = deferredPromise<ReturnType<typeof automationWorkspace>>();
+    const latestRequest = deferredPromise<ReturnType<typeof automationWorkspace>>();
+    const getWorkspace = vi.fn()
+      .mockResolvedValueOnce(initialWorkspace)
+      .mockReturnValueOnce(staleRequest.promise)
+      .mockReturnValueOnce(latestRequest.promise);
+    window.kaurKhorDesktop = {
+      automation: {
+        getWorkspace,
+      },
+    } as never;
+
+    render(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    await waitFor(() => {
+      expect(getWorkspace).toHaveBeenCalledTimes(1);
+    });
+    fireEvent.click(screen.getByText('reload'));
+    fireEvent.click(screen.getByText('reload'));
+
+    await waitFor(() => {
+      expect(getWorkspace).toHaveBeenCalledTimes(3);
+    });
+
+    await act(async () => {
+      latestRequest.resolve(latestWorkspace);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('2');
+
+    await act(async () => {
+      staleRequest.resolve(staleWorkspace);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('2');
+  });
+
+  it('keeps saving state true until overlapping automation mutations finish', async () => {
+    const promoteRequest = deferredPromise<{
+      commercialEvents: [];
+      intake: { conversationId: string; intakeId: string; status: string };
+      ticketEvent: null;
+    }>();
+    const saveConnectionRequest = deferredPromise<ReturnType<typeof automationWorkspace>['connection']>();
+    window.kaurKhorDesktop = {
+      automation: {
+        getWorkspace: vi.fn(async () => automationWorkspace()),
+        promoteIntake: vi.fn(() => promoteRequest.promise),
+        saveConnection: vi.fn(() => saveConnectionRequest.promise),
+      },
+    } as never;
+
+    render(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    fireEvent.click(screen.getByText('promote'));
+    fireEvent.click(screen.getByText('save connection'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('saving')).toHaveTextContent('true');
+    });
+
+    await act(async () => {
+      promoteRequest.resolve({
+        commercialEvents: [],
+        intake: {
+          conversationId: 'conversation-1',
+          intakeId: 'intake-1',
+          status: 'ticketed',
+        },
+        ticketEvent: null,
+      });
+      await Promise.resolve();
+    });
+
+    expect(screen.getByTestId('saving')).toHaveTextContent('true');
+
+    await act(async () => {
+      saveConnectionRequest.resolve(automationWorkspace().connection);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('saving')).toHaveTextContent('false');
+    });
   });
 });

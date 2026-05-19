@@ -270,4 +270,31 @@ describe('AutomationIntakeDrawer', () => {
     expect(screen.queryByText(/\$NaN|\$Infinity/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Create customer ticket$/ }).at(-1)).toBeDisabled();
   });
+
+  test('keeps promotion disabled when a quoted line has no promotable total', async () => {
+    render(
+      <AutomationIntakeDrawer
+        intake={{
+          ...makeIntake(),
+          lines: [
+            {
+              ...makeIntake().lines[0]!,
+              lineTotal: null,
+            },
+          ],
+          quotedSubtotal: 12,
+          quotedTotal: 12,
+        }}
+        isSaving={false}
+        language="en"
+        open
+        onClose={vi.fn()}
+        onPromote={vi.fn()}
+        onResolve={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText('Pending line total')).toBeInTheDocument());
+    expect(screen.getAllByRole('button', { name: /^Create customer ticket$/ }).at(-1)).toBeDisabled();
+  });
 });

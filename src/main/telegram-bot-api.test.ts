@@ -10,6 +10,8 @@ import {
   telegramDeleteMessage,
   telegramEditMessageReplyMarkup,
   telegramEditMessageText,
+  telegramGetMe,
+  telegramGetUpdates,
   telegramSendPhoto,
   telegramSendMessage,
   telegramSetChatMenuButton,
@@ -60,6 +62,160 @@ describe('telegram bot api wrapper', () => {
           },
         }),
       }),
+    );
+  });
+
+  it('returns valid Telegram updates and rejects malformed update cursors', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [
+          {
+            update_id: 42,
+            message: {
+              message_id: 7,
+              date: 1_745_193_600,
+              text: 'hello',
+              chat: { id: 1, type: 'private' },
+            },
+          },
+          {
+            update_id: 43,
+            callback_query: {
+              id: 'cb-1',
+              from: { id: 1, first_name: 'Customer' },
+              data: 'w:cart',
+              message: {
+                message_id: 8,
+                date: 1_745_193_601,
+                chat: { id: 1, type: 'private' },
+              },
+            },
+          },
+        ],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{ update_id: 'not-a-number', message: { message_id: 7, date: 1, chat: { id: 1, type: 'private' } } }],
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(telegramGetUpdates('token', { offset: 41, timeout: 1 })).resolves.toHaveLength(2);
+    await expect(telegramGetUpdates('token', { offset: 44, timeout: 1 })).rejects.toThrow(
+      'Telegram getUpdates returned malformed updates.',
+    );
+  });
+
+  it('rejects malformed optional Telegram message fields before ingestion', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{
+          update_id: 44,
+          message: {
+            message_id: 7,
+            date: 1_745_193_600,
+            text: { unsafe: true },
+            chat: { id: 1, type: 'private' },
+          },
+        }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{
+          update_id: 45,
+          message: {
+            message_id: 8,
+            date: 1_745_193_601,
+            contact: {},
+            chat: { id: 1, type: 'private' },
+          },
+        }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{
+          update_id: 46,
+          message: {
+            message_id: 9,
+            date: 1_745_193_602,
+            location: { latitude: '11.55', longitude: 104.92 },
+            chat: { id: 1, type: 'private' },
+          },
+        }],
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: [{
+          update_id: 47,
+          message: {
+            message_id: 10,
+            date: 1_745_193_603,
+            location: { latitude: 91, longitude: 104.92 },
+            chat: { id: 1, type: 'private' },
+          },
+        }],
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(telegramGetUpdates('token', { offset: 44 })).rejects.toThrow(
+      'Telegram getUpdates returned malformed updates.',
+    );
+    await expect(telegramGetUpdates('token', { offset: 45 })).rejects.toThrow(
+      'Telegram getUpdates returned malformed updates.',
+    );
+    await expect(telegramGetUpdates('token', { offset: 46 })).rejects.toThrow(
+      'Telegram getUpdates returned malformed updates.',
+    );
+    await expect(telegramGetUpdates('token', { offset: 47 })).rejects.toThrow(
+      'Telegram getUpdates returned malformed updates.',
+    );
+  });
+
+  it('rejects malformed bot profiles before callers persist connection metadata', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      result: {
+        id: 'bad-id',
+        is_bot: true,
+        first_name: 'Kaur Khor bot',
+        username: 'kaur_khor_bot',
+      },
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(telegramGetMe('token')).rejects.toThrow(
+      'Telegram getMe returned a malformed bot profile.',
+    );
+  });
+
+  it('rejects malformed message responses before callers persist Telegram message ids', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 'bad-id',
+          date: 1_745_193_600,
+          text: 'hello',
+          chat: { id: 1, type: 'private' },
+        },
+      })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 10,
+          date: 1_745_193_600,
+          text: 'hello',
+          chat: { id: 'bad-chat', type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(telegramSendMessage('token', { chatId: 1, text: 'hello' })).rejects.toThrow(
+      'Telegram sendMessage returned a malformed message.',
+    );
+    await expect(telegramEditMessageText('token', { chatId: 1, messageId: 10, text: 'hello' })).rejects.toThrow(
+      'Telegram editMessageText returned a malformed message.',
     );
   });
 

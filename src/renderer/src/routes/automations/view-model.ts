@@ -253,7 +253,7 @@ function buildOverviewTaskHref(intake: AutomationOrderIntake) {
 }
 
 function formatMoney(value: number | null, currency: AppCurrency, language: AppLanguage, usdToKhrExchangeRate: number) {
-  if (value == null) {
+  if (value == null || !Number.isFinite(value)) {
     return null;
   }
   return formatCurrency(value, currency, language, usdToKhrExchangeRate);

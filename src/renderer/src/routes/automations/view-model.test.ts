@@ -106,19 +106,19 @@ describe('deriveAutomationViewModel', () => {
     });
 
     expect(model.intakeRows[0]?.overviewHref).toBe(
-      '/work/queue?customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.exceptionRows[0]?.overviewHref).toBe(
-      '/work/queue?customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
+      '/work/queue?workflow=customer&customerFilter=review&customerTask=automation%3Aintake%3Aintake-2',
     );
     expect(model.recentActivity[0]?.overviewHref).toBe(
-      '/work/queue?customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
+      '/work/queue?workflow=customer&customerFilter=quoted&customerTask=automation%3Aintake%3Aintake-1',
     );
     expect(model.today.map((row) => row.href)).toEqual([
-      '/work/queue?customerFilter=review',
-      '/work/queue?customerFilter=review',
-      '/work/queue?customerFilter=quoted',
-      '/work/queue?customerFilter=closed',
+      '/work/queue?workflow=customer&customerFilter=review',
+      '/work/queue?workflow=customer&customerFilter=review',
+      '/work/queue?workflow=customer&customerFilter=quoted',
+      '/work/queue?workflow=customer&customerFilter=closed',
     ]);
   });
 
@@ -228,5 +228,63 @@ describe('deriveAutomationViewModel', () => {
       'បានបំលែងទៅជាសំបុត្រការងារកខ',
     );
     expect(model.exceptionRows[0]?.issueLabel).toBe('មិនដឹងភាពមានស្តុក');
+  });
+
+  test('hides non-finite automation money labels from dirty persisted data', () => {
+    const model = deriveAutomationViewModel({
+      currentSearchParams: new URLSearchParams('section=intake'),
+      currency: 'USD',
+      language: 'en',
+      usdToKhrExchangeRate: 4000,
+      workspace: {
+        connection: {
+          channel: 'telegram',
+          status: 'connected',
+          hasBotToken: true,
+          botDisplayName: null,
+          botUsername: null,
+          externalLink: null,
+          connectedAt: null,
+          pausedAt: null,
+          lastWebhookAt: null,
+          lastErrorAt: null,
+          lastErrorMessage: null,
+        },
+        metrics: {
+          ordersToday: 1,
+          needsReview: 0,
+          quotedToday: 1,
+          ticketedToday: 0,
+          completedToday: 0,
+          exposedSellables: 1,
+        },
+        exposures: [],
+        conversations: [],
+        intakes: [
+          {
+            intakeId: 'intake-dirty',
+            conversationId: 'conv-dirty',
+            channel: 'telegram',
+            status: 'quoted',
+            parseConfidence: 'high',
+            customerDisplayName: 'Dirty',
+            customerHandle: null,
+            phone: null,
+            notes: null,
+            quotedSubtotal: Number.NaN,
+            currencyCode: 'USD',
+            deliveryFee: null,
+            quotedTotal: Number.POSITIVE_INFINITY,
+            createdAt: '2026-04-03T10:00:00.000Z',
+            updatedAt: '2026-04-03T11:00:00.000Z',
+            promotedTicketId: null,
+            lines: [],
+          },
+        ],
+      },
+    });
+
+    expect(model.intakeRows[0]?.quoteLabel).toBeNull();
+    expect(model.recentActivity[0]?.valueLabel).toBeNull();
   });
 });

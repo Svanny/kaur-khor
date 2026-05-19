@@ -119,6 +119,136 @@ export class TelegramBotApiError extends Error {
   }
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isTelegramChat(value: unknown): value is TelegramChat {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const chat = value as Partial<TelegramChat>;
+  return isFiniteNumber(chat.id) && typeof chat.type === 'string';
+}
+
+function isTelegramBotUser(value: unknown): value is TelegramBotUser {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const user = value as Partial<TelegramBotUser>;
+  return isFiniteNumber(user.id) &&
+    typeof user.is_bot === 'boolean' &&
+    typeof user.first_name === 'string' &&
+    (user.username === undefined || typeof user.username === 'string');
+}
+
+function isTelegramMessageEntity(value: unknown): value is NonNullable<TelegramMessage['entities']>[number] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const entity = value as Partial<NonNullable<TelegramMessage['entities']>[number]>;
+  const offset = entity.offset;
+  const length = entity.length;
+  return typeof entity.type === 'string' &&
+    Number.isSafeInteger(offset) &&
+    typeof offset === 'number' &&
+    offset >= 0 &&
+    Number.isSafeInteger(length) &&
+    typeof length === 'number' &&
+    length >= 0;
+}
+
+function isTelegramContact(value: unknown): value is NonNullable<TelegramMessage['contact']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const contact = value as Partial<NonNullable<TelegramMessage['contact']>>;
+  return typeof contact.phone_number === 'string' &&
+    typeof contact.first_name === 'string' &&
+    (contact.last_name === undefined || typeof contact.last_name === 'string') &&
+    (contact.user_id === undefined || isFiniteNumber(contact.user_id));
+}
+
+function isTelegramLocation(value: unknown): value is NonNullable<TelegramMessage['location']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const location = value as Partial<NonNullable<TelegramMessage['location']>>;
+  return isFiniteNumber(location.latitude) &&
+    location.latitude >= -90 &&
+    location.latitude <= 90 &&
+    isFiniteNumber(location.longitude) &&
+    location.longitude >= -180 &&
+    location.longitude <= 180;
+}
+
+function isTelegramMessageSender(value: unknown): value is NonNullable<TelegramMessage['from']> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const sender = value as Partial<NonNullable<TelegramMessage['from']>>;
+  return isFiniteNumber(sender.id) &&
+    (sender.username === undefined || typeof sender.username === 'string') &&
+    (sender.first_name === undefined || typeof sender.first_name === 'string') &&
+    (sender.last_name === undefined || typeof sender.last_name === 'string');
+}
+
+function isTelegramMessage(value: unknown): value is TelegramMessage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const message = value as Partial<TelegramMessage>;
+  return isFiniteNumber(message.message_id) &&
+    isFiniteNumber(message.date) &&
+    isTelegramChat(message.chat) &&
+    (message.text === undefined || typeof message.text === 'string') &&
+    (message.entities === undefined || (Array.isArray(message.entities) && message.entities.every(isTelegramMessageEntity))) &&
+    (message.contact === undefined || isTelegramContact(message.contact)) &&
+    (message.location === undefined || isTelegramLocation(message.location)) &&
+    (message.from === undefined || isTelegramMessageSender(message.from));
+}
+
+function isTelegramCallbackQuery(value: unknown): value is TelegramCallbackQuery {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const callbackQuery = value as Partial<TelegramCallbackQuery>;
+  const from = callbackQuery.from as Partial<TelegramCallbackQuery['from']> | undefined;
+  return typeof callbackQuery.id === 'string' &&
+    Boolean(from && isFiniteNumber(from.id)) &&
+    (callbackQuery.message === undefined || isTelegramMessage(callbackQuery.message)) &&
+    (callbackQuery.data === undefined || typeof callbackQuery.data === 'string');
+}
+
+function isTelegramUpdate(value: unknown): value is TelegramUpdate {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const update = value as Partial<TelegramUpdate>;
+  return typeof update.update_id === 'number' &&
+    Number.isSafeInteger(update.update_id) &&
+    update.update_id >= 0 &&
+    (update.message === undefined || isTelegramMessage(update.message)) &&
+    (update.edited_message === undefined || isTelegramMessage(update.edited_message)) &&
+    (update.callback_query === undefined || isTelegramCallbackQuery(update.callback_query));
+}
+
+function requireTelegramMessageResult(method: string, result: unknown): TelegramMessage {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw new TelegramBotApiError(`Telegram ${method} returned a malformed message.`);
+  }
+  const message = result as Partial<TelegramMessage>;
+  if (!isFiniteNumber(message.message_id) || !isTelegramChat(message.chat)) {
+    throw new TelegramBotApiError(`Telegram ${method} returned a malformed message.`);
+  }
+  return {
+    ...message,
+    message_id: message.message_id,
+    date: isFiniteNumber(message.date) ? message.date : Number.NaN,
+    chat: message.chat,
+  };
+}
+
 async function telegramApiRequest<TResult>(
   token: string,
   method: string,
@@ -148,7 +278,11 @@ async function telegramApiRequest<TResult>(
 }
 
 export async function telegramGetMe(token: string) {
-  return telegramApiRequest<TelegramBotUser>(token, 'getMe');
+  const user = await telegramApiRequest<unknown>(token, 'getMe');
+  if (!isTelegramBotUser(user)) {
+    throw new TelegramBotApiError('Telegram getMe returned a malformed bot profile.');
+  }
+  return user;
 }
 
 export async function telegramGetUpdates(
@@ -161,11 +295,15 @@ export async function telegramGetUpdates(
     timeout?: number;
   },
 ) {
-  return telegramApiRequest<TelegramUpdate[]>(token, 'getUpdates', {
+  const updates = await telegramApiRequest<unknown>(token, 'getUpdates', {
     allowed_updates: ['message', 'edited_message', 'callback_query'],
     offset: offset ?? undefined,
     timeout,
   });
+  if (!Array.isArray(updates) || updates.some((update) => !isTelegramUpdate(update))) {
+    throw new TelegramBotApiError('Telegram getUpdates returned malformed updates.');
+  }
+  return updates;
 }
 
 export async function telegramSendMessage(
@@ -182,12 +320,12 @@ export async function telegramSendMessage(
     replyMarkup?: TelegramInlineKeyboardMarkup | TelegramReplyKeyboardMarkup | TelegramReplyKeyboardRemove;
   },
 ) {
-  return telegramApiRequest<TelegramMessage>(token, 'sendMessage', {
+  return requireTelegramMessageResult('sendMessage', await telegramApiRequest<unknown>(token, 'sendMessage', {
     chat_id: chatId,
     text,
     parse_mode: parseMode,
     reply_markup: replyMarkup,
-  });
+  }));
 }
 
 export async function telegramSendPhoto(
@@ -205,12 +343,12 @@ export async function telegramSendPhoto(
   },
 ) {
   if (/^https?:\/\//i.test(photoPath)) {
-    return telegramApiRequest<TelegramMessage>(token, 'sendPhoto', {
+    return requireTelegramMessageResult('sendPhoto', await telegramApiRequest<unknown>(token, 'sendPhoto', {
       chat_id: chatId,
       photo: photoPath,
       caption,
       parse_mode: parseMode,
-    });
+    }));
   }
 
   const upload = await prepareDesktopImageUpload(photoPath);
@@ -243,7 +381,7 @@ export async function telegramSendPhoto(
     );
   }
 
-  return payload.result;
+  return requireTelegramMessageResult('sendPhoto', payload.result);
 }
 
 export async function telegramEditMessageText(
@@ -262,13 +400,13 @@ export async function telegramEditMessageText(
     replyMarkup?: TelegramInlineKeyboardMarkup;
   },
 ) {
-  return telegramApiRequest<TelegramMessage>(token, 'editMessageText', {
+  return requireTelegramMessageResult('editMessageText', await telegramApiRequest<unknown>(token, 'editMessageText', {
     chat_id: chatId,
     message_id: messageId,
     text,
     parse_mode: parseMode,
     reply_markup: replyMarkup,
-  });
+  }));
 }
 
 export async function telegramEditMessageReplyMarkup(
@@ -283,11 +421,11 @@ export async function telegramEditMessageReplyMarkup(
     replyMarkup?: TelegramInlineKeyboardMarkup;
   },
 ) {
-  return telegramApiRequest<TelegramMessage>(token, 'editMessageReplyMarkup', {
+  return requireTelegramMessageResult('editMessageReplyMarkup', await telegramApiRequest<unknown>(token, 'editMessageReplyMarkup', {
     chat_id: chatId,
     message_id: messageId,
     reply_markup: replyMarkup,
-  });
+  }));
 }
 
 export async function telegramAnswerCallbackQuery(

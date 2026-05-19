@@ -58,6 +58,12 @@ function entityHref(row: AutomationExposureRow) {
     : `/catalog/services/${encodeURIComponent(row.entityId)}`;
 }
 
+function priceLabel(row: AutomationExposureRow, language: AppLanguage) {
+  return row.price == null || !Number.isFinite(row.price) || row.price < 0
+    ? translateUiLiteral(language, 'No price')
+    : `$${row.price.toFixed(2)}`;
+}
+
 export function AutomationExposureTable({
   rows,
   language = 'en',
@@ -72,7 +78,8 @@ export function AutomationExposureTable({
   if (rows.length === 0) {
     return null;
   }
-  const literal = (englishTemplate: string) => translateUiLiteral(language, englishTemplate);
+  const literal = (englishTemplate: string, variables?: Record<string, string | number | null | undefined>) =>
+    translateUiLiteral(language, englishTemplate, variables);
 
   return (
     <HeaderedTable>
@@ -120,7 +127,7 @@ export function AutomationExposureTable({
               </div>
               <div>
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Price')}</HeaderedTableMobileLabel>
-                <span className="text-sm font-medium text-foreground">{row.price == null ? literal('No price') : `$${row.price.toFixed(2)}`}</span>
+                <span className="text-sm font-medium text-foreground">{priceLabel(row, language)}</span>
               </div>
               <div>
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Availability')}</HeaderedTableMobileLabel>
@@ -130,6 +137,9 @@ export function AutomationExposureTable({
               </div>
               <div className="flex items-start lg:justify-center">
                 <Switch
+                  aria-label={literal(row.exposed ? 'Hide {name} from automation' : 'Expose {name} to automation', {
+                    name: row.label,
+                  })}
                   checked={row.exposed}
                   disabled={row.archived || row.availabilityStatus === 'hidden'}
                   onCheckedChange={(checked) => onToggle(row, checked)}
@@ -138,6 +148,9 @@ export function AutomationExposureTable({
               <div>
                 <HeaderedTableMobileLabel className={layout.mobileLabelClassName}>{literal('Alias')}</HeaderedTableMobileLabel>
                 <Input
+                  aria-label={literal('Customer-facing alias for {name}', {
+                    name: row.label,
+                  })}
                   defaultValue={row.alias ?? ''}
                   disabled={row.archived}
                   placeholder={literal('Customer-facing alias')}

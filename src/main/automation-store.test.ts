@@ -3,7 +3,7 @@
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   finalizeAutomationPromotion,
   findAutomationConversationForTelegramTicket,
@@ -14,6 +14,7 @@ import {
   patchAutomationExposureRow,
   prepareAutomationPromotion,
   readAutomationConversation,
+  readAutomationCustomerPreferences,
   readAutomationIntake,
   readAutomationIntakeThread,
   readAutomationWorkspace,
@@ -475,6 +476,51 @@ describe('automation telegram ingestion', () => {
     expect(thread.messages.every((message) => message.intakeId === workspace.intakes[0]!.intakeId)).toBe(true);
   });
 
+  it('extracts quantities from Khmer Telegram aliases', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      alias: 'ក្រមា',
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_112,
+      firstName: 'Sokha',
+    });
+
+    const result = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 101,
+          message: {
+            message_id: 201,
+            date: 1_745_193_601,
+            text: '2 x ក្រមា',
+            chat: {
+              id: 555_112,
+              type: 'private',
+            },
+            from: {
+              id: 555_112,
+              first_name: 'Sokha',
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result.replyJobs[0]?.text).toContain('Quoted total:</b> USD 25.00');
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes[0]?.lines[0]).toMatchObject({
+      quantity: 2,
+      requestedLabel: 'ក្រមា',
+    });
+  });
+
   it('falls back to local timestamps for malformed Telegram message dates', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-date-'));
 
@@ -483,7 +529,7 @@ describe('automation telegram ingestion', () => {
       firstName: 'Sokha',
     });
 
-    await ingestAutomationTelegramUpdates(userDataPath, {
+    const checkoutResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -518,7 +564,7 @@ describe('automation telegram ingestion', () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const firstIntake = await createQuotedAutomationIntake(userDataPath, 555_112);
 
-    await ingestAutomationTelegramUpdates(userDataPath, {
+    const checkoutResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -609,7 +655,7 @@ describe('automation telegram ingestion', () => {
     });
     await finalizeAutomationPromotion(userDataPath, prepared.updatedIntake);
 
-    await ingestAutomationTelegramUpdates(userDataPath, {
+    const cancelCallbackResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -740,6 +786,122 @@ describe('automation telegram ingestion', () => {
     expect(workspace.intakes[0]?.lines[0]?.ambiguityReason).toBe('availability_unknown');
   });
 
+  it('keeps SKU and service free-text matches distinct when their ids collide', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const collisionContext = {
+      ...context,
+      catalog: {
+        ...context.catalog,
+        services: [{
+          archived: false,
+          description: 'Wrap service',
+          imagePath: null,
+          linkedSkuIds: [],
+          name: 'Gift Wrap',
+          price: 3,
+          serviceId: 'sku-1',
+        }],
+      },
+    };
+
+    await patchAutomationExposureRow(userDataPath, collisionContext as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await patchAutomationExposureRow(userDataPath, collisionContext as never, {
+      entityId: 'sku-1',
+      entityType: 'service',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_224,
+      firstName: 'Nary',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: collisionContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 103,
+          message: {
+            message_id: 203,
+            date: 1_745_193_603,
+            text: '1 cotton scarf and 1 gift wrap',
+            chat: {
+              id: 555_224,
+              type: 'private',
+            },
+            from: {
+              id: 555_224,
+              first_name: 'Nary',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, collisionContext as never);
+    expect(workspace.intakes[0]?.status).toBe('quoted');
+    expect(workspace.intakes[0]?.lines).toHaveLength(2);
+    expect(workspace.intakes[0]?.lines).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        entityType: 'sku',
+        entityId: 'sku-1',
+        resolvedLabel: 'Cotton Scarf',
+      }),
+      expect.objectContaining({
+        entityType: 'service',
+        entityId: 'sku-1',
+        resolvedLabel: 'Gift Wrap',
+      }),
+    ]));
+  });
+
+  it('does not quote non-finite free-text quantities from Telegram messages', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_225,
+      firstName: 'Nary',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 104,
+          message: {
+            message_id: 204,
+            date: 1_745_193_604,
+            text: `${'9'.repeat(400)} cotton scarf`,
+            chat: {
+              id: 555_225,
+              type: 'private',
+            },
+            from: {
+              id: 555_225,
+              first_name: 'Nary',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes[0]).toMatchObject({
+      status: 'needs_review',
+      quotedSubtotal: null,
+    });
+    expect(workspace.intakes[0]?.lines[0]).toMatchObject({
+      entityId: null,
+      quantity: null,
+      lineTotal: null,
+      ambiguityReason: 'item_not_found',
+    });
+  });
+
   it('counts ticketed and completed metrics from updatedAt day boundaries', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     const today = new Date();
@@ -825,11 +987,32 @@ describe('automation telegram ingestion', () => {
           promotedTicketId: 'ticket-3',
           lines: [],
         },
+        {
+          intakeId: 'dirty-future-sentinel',
+          conversationId: 'conv-4',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: 'not-a-date',
+          updatedAt: 'not-a-date',
+          promotedTicketId: null,
+          lines: [],
+        },
       ],
     }), 'utf8');
 
     const workspace = await readAutomationWorkspace(userDataPath, context as never);
 
+    expect(workspace.metrics.ordersToday).toBe(0);
+    expect(workspace.metrics.quotedToday).toBe(0);
     expect(workspace.metrics.ticketedToday).toBe(1);
     expect(workspace.metrics.completedToday).toBe(1);
   });
@@ -849,6 +1032,27 @@ describe('automation telegram ingestion', () => {
     await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
   });
 
+  it('shows an empty automation workspace when persisted automation JSON is malformed', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const storePath = join(userDataPath, 'desktop-automation-store.json');
+    const corruptPayload = '{ "version": 1, "intakes": [';
+    await writeFile(storePath, corruptPayload, 'utf8');
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const workspace = await readAutomationWorkspace(userDataPath, context as never);
+
+      expect(workspace.connection.status).toBe('disconnected');
+      expect(workspace.conversations).toEqual([]);
+      expect(workspace.intakes).toEqual([]);
+      expect(workspace.metrics.ordersToday).toBe(0);
+      expect(warnSpy).toHaveBeenCalledWith('[automation] automation store JSON is malformed; starting with an empty automation workspace');
+      await expect(readFile(storePath, 'utf8')).resolves.toContain('"version": 1');
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it('drops malformed persisted collection entries while loading automation workspace', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
@@ -866,6 +1070,164 @@ describe('automation telegram ingestion', () => {
     expect(workspace.conversations).toEqual([]);
     expect(workspace.intakes).toEqual([]);
     await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([]);
+  });
+
+  it('deduplicates dirty persisted automation records before reads and writes', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          externalConversationKey: 'chat-1',
+          customerDisplayName: 'Old customer',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: 'new',
+          latestTicketId: null,
+        },
+        {
+          conversationId: ' conv-1 ',
+          channel: 'telegram',
+          externalConversationKey: 'chat-1',
+          customerDisplayName: 'Visible customer',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-04-22T00:01:00.000Z',
+          messageCount: 2,
+          latestIntakeStatus: 'needs_review',
+          latestTicketId: null,
+        },
+      ],
+      messages: [
+        {
+          messageId: 'msg-old',
+          conversationId: 'conv-1',
+          externalMessageKey: 'telegram-message-1',
+          direction: 'inbound',
+          sentAt: '2026-04-22T00:00:00.000Z',
+          rawText: 'old',
+          normalizedText: 'old',
+          parseConfidence: 'low',
+        },
+        {
+          messageId: 'msg-visible',
+          conversationId: ' conv-1 ',
+          externalMessageKey: ' telegram-message-1 ',
+          direction: 'inbound',
+          sentAt: '2026-04-22T00:01:00.000Z',
+          rawText: 'visible',
+          normalizedText: 'visible',
+          parseConfidence: 'high',
+        },
+      ],
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          conversationId: 'conv-1',
+          channel: 'telegram',
+          status: 'new',
+          parseConfidence: 'low',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: 'old',
+          quotedSubtotal: null,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: null,
+          createdAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+        {
+          intakeId: ' intake-1 ',
+          conversationId: ' conv-1 ',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: null,
+          customerHandle: null,
+          phone: null,
+          notes: 'visible',
+          quotedSubtotal: 12,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 12,
+          createdAt: '2026-04-22T00:01:00.000Z',
+          updatedAt: '2026-04-22T00:01:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
+      ],
+    }), 'utf8');
+
+    await expect(readAutomationConversation(userDataPath, 'conv-1')).resolves.toMatchObject({
+      conversation: {
+        customerDisplayName: 'Visible customer',
+      },
+      messages: [
+        {
+          messageId: 'msg-visible',
+          rawText: 'visible',
+        },
+      ],
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          status: 'quoted',
+          notes: 'visible',
+        },
+      ],
+    });
+
+    await expect(resolveAutomationIntake(userDataPath, {
+      intakeId: 'intake-1',
+      status: 'canceled',
+    })).resolves.toMatchObject({
+      intakeId: 'intake-1',
+      status: 'canceled',
+      notes: 'visible',
+    });
+    const persisted = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    expect(persisted.conversations).toHaveLength(1);
+    expect(persisted.messages).toHaveLength(1);
+    expect(persisted.intakes).toHaveLength(1);
+  });
+
+  it('normalizes persisted wizard session conversation ids before reuse', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      wizardSessions: [
+        {
+          conversationId: '',
+          currentStep: 'cart',
+        },
+        {
+          conversationId: 7,
+          currentStep: 'cart',
+        },
+        {
+          conversationId: ' conv-1 ',
+          currentStep: 'cart',
+        },
+      ],
+    }), 'utf8');
+
+    await expect(readAutomationWizardSessionForConversation(userDataPath, 'conv-1')).resolves.toEqual(
+      expect.objectContaining({
+        conversationId: 'conv-1',
+        currentStep: 'cart',
+      }),
+    );
+    await expect(readAutomationWizardSessionForConversation(userDataPath, '')).rejects.toThrow(
+      'Automation conversation reads require a conversation id.',
+    );
   });
 
   it('rejects malformed automation connection patches before persisting state', async () => {
@@ -893,6 +1255,39 @@ describe('automation telegram ingestion', () => {
     expect(workspace.exposures.find((row) => row.entityId === 'sku-1')?.sortOrder).toBe(0);
   });
 
+  it('normalizes padded automation exposure entity ids before persisting rules', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    const patched = await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: ' sku-1 ',
+      entityType: 'sku',
+      exposed: false,
+    });
+
+    expect(patched).toMatchObject({
+      entityId: 'sku-1',
+      exposed: false,
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.exposures.find((row) => row.entityId === 'sku-1')).toMatchObject({
+      exposed: false,
+    });
+    expect(workspace.exposures.find((row) => row.entityId === ' sku-1 ')).toBeUndefined();
+  });
+
+  it('rejects missing automation exposure rows without persisting orphan rules', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await expect(patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'missing-sku',
+      entityType: 'sku',
+      exposed: false,
+    })).rejects.toThrow('Automation exposure row not found.');
+
+    await expect(readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8')).rejects.toThrow('ENOENT');
+  });
+
   it('normalizes dirty automation store connection and exposure shapes', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await writeFile(join(userDataPath, 'desktop-automation-store.json'), `{
@@ -912,6 +1307,14 @@ describe('automation telegram ingestion', () => {
           "exposed": "yes",
           "alias": 123,
           "sortOrder": "first"
+        },
+        {
+          "channel": "telegram",
+          "entityType": "sku",
+          "entityId": " sku-1 ",
+          "exposed": true,
+          "alias": "Scarf",
+          "sortOrder": 2
         }
       ]
     }`, 'utf8');
@@ -924,10 +1327,228 @@ describe('automation telegram ingestion', () => {
     expect(transport.connection.botDisplayName).toBeNull();
     expect(transport.telegramUpdateCursor).toBeNull();
     expect(workspace.exposures.find((row) => row.entityId === 'sku-1')).toMatchObject({
-      alias: null,
-      exposed: false,
-      sortOrder: 0,
+      alias: 'Scarf',
+      exposed: true,
+      sortOrder: 2,
     });
+  });
+
+  it('patches duplicate dirty automation exposure rules through the visible rule', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      exposureRules: [
+        {
+          channel: 'telegram',
+          entityType: 'sku',
+          entityId: 'sku-1',
+          exposed: true,
+          alias: 'Visible old alias',
+          sortOrder: 1,
+        },
+        {
+          channel: 'telegram',
+          entityType: 'sku',
+          entityId: ' sku-1 ',
+          exposed: false,
+          alias: 'Visible duplicate alias',
+          sortOrder: 2,
+        },
+      ],
+    }), 'utf8');
+
+    await expect(patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      alias: 'Updated alias',
+      exposed: true,
+    })).resolves.toMatchObject({
+      alias: 'Updated alias',
+      exposed: true,
+      sortOrder: 2,
+    });
+
+    const persisted = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    expect(persisted.exposureRules).toHaveLength(1);
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.exposures.find((row) => row.entityId === 'sku-1')).toMatchObject({
+      alias: 'Updated alias',
+      exposed: true,
+      sortOrder: 2,
+    });
+  });
+
+  it('drops dirty persisted Telegram update cursors before polling', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    for (const cursor of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+        version: 1,
+        telegramUpdateCursor: cursor,
+      }), 'utf8');
+
+      await expect(readAutomationTransportState(userDataPath)).resolves.toMatchObject({
+        telegramUpdateCursor: null,
+      });
+    }
+
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      telegramUpdateCursor: 42,
+    }), 'utf8');
+
+    await expect(readAutomationTransportState(userDataPath)).resolves.toMatchObject({
+      telegramUpdateCursor: 42,
+    });
+  });
+
+  it('drops dirty persisted wizard session cart lines before reuse', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [{
+        conversationId: 'conv-1',
+        channel: 'telegram',
+        externalConversationKey: 'chat-1',
+        customerDisplayName: 'Dara',
+        customerHandle: null,
+        phone: null,
+        lastMessageAt: '2026-04-22T00:00:00.000Z',
+        messageCount: 1,
+        latestIntakeStatus: null,
+        latestTicketId: null,
+      }],
+      wizardSessions: [{
+        conversationId: 'conv-1',
+        currentStep: 'checkout_confirm',
+        catalogCursor: -9,
+        pendingPromptIntent: 'share_location',
+        lastWizardMessageId: 12.8,
+        generatedWizardMessageIds: [12.8, 'dirty', -1],
+        lastItemImageMessageId: Number.NaN,
+        selectedEntityType: 'bundle',
+        selectedEntityId: '   ',
+        selectedItemImageEntityType: 'sku',
+        selectedItemImageEntityId: ' sku-1 ',
+        entityCallbackRefs: [
+          { token: ' token-1 ', entityType: 'sku', entityId: ' sku-1 ' },
+          { token: '   ', entityType: 'sku', entityId: 'sku-2' },
+          { token: 'token-3', entityType: 'sku', entityId: '   ' },
+        ],
+        draftLines: [
+          {
+            entityType: 'sku',
+            entityId: 'sku-1',
+            label: 'Valid SKU',
+            quantity: 2,
+            unitPrice: 9,
+            availabilityStatus: 'available',
+          },
+          {
+            entityType: 'sku',
+            entityId: 'sku-2',
+            label: 'Negative quantity',
+            quantity: -2,
+            unitPrice: 9,
+            availabilityStatus: 'available',
+          },
+          {
+            entityType: 'service',
+            entityId: 'service-1',
+            label: 'Dirty status',
+            quantity: 1,
+            unitPrice: 4,
+            availabilityStatus: 'made-up',
+          },
+          {
+            entityType: 'sku',
+            entityId: '   ',
+            label: 'Whitespace ID',
+            quantity: 1,
+            unitPrice: 4,
+            availabilityStatus: 'available',
+          },
+          {
+            entityType: 'sku',
+            entityId: 'sku-3',
+            label: '   ',
+            quantity: 1,
+            unitPrice: 4,
+            availabilityStatus: 'available',
+          },
+        ],
+        phone: '+855 12 345 678',
+        deliveryLocation: '  Phnom Penh  ',
+        customerNote: '  gift wrap  ',
+        updatedAt: '2026-04-22T00:00:00.000Z',
+      }],
+    }), 'utf8');
+
+    const session = await readAutomationWizardSessionForConversation(userDataPath, ' conv-1 ');
+
+    expect(session).toMatchObject({
+      catalogCursor: 0,
+      currentStep: 'checkout_confirm',
+      deliveryLocation: 'Phnom Penh',
+      generatedWizardMessageIds: [12],
+      lastItemImageMessageId: null,
+      lastWizardMessageId: 12,
+      pendingPromptIntent: 'share_location',
+      selectedEntityId: null,
+      selectedEntityType: null,
+      entityCallbackRefs: [{ token: 'token-1', entityType: 'sku', entityId: 'sku-1' }],
+      selectedItemImageEntityId: 'sku-1',
+      selectedItemImageEntityType: 'sku',
+    });
+    expect(session?.draftLines).toEqual([{
+      entityType: 'sku',
+      entityId: 'sku-1',
+      label: 'Valid SKU',
+      quantity: 2,
+      unitPrice: 9,
+      availabilityStatus: 'available',
+    }]);
+
+    await recordAutomationWizardMessage(userDataPath, {
+      conversationId: ' conv-1 ',
+      messageId: 13,
+    });
+    await expect(readAutomationWizardSessionForConversation(userDataPath, 'conv-1')).resolves.toMatchObject({
+      lastWizardMessageId: 13,
+    });
+  });
+
+  it('caps dirty persisted wizard session arrays before reuse', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      wizardSessions: [{
+        conversationId: 'conv-1',
+        currentStep: 'cart',
+        generatedWizardMessageIds: Array.from({ length: 120 }, (_value, index) => index + 1),
+        entityCallbackRefs: Array.from({ length: 160 }, (_value, index) => ({
+          token: `token-${index + 1}`,
+          entityType: 'sku',
+          entityId: `sku-${index + 1}`,
+        })),
+        draftLines: Array.from({ length: 80 }, (_value, index) => ({
+          entityType: 'sku',
+          entityId: `sku-${index + 1}`,
+          label: `SKU ${index + 1}`,
+          quantity: 1,
+          unitPrice: 2,
+          availabilityStatus: 'available',
+        })),
+      }],
+    }), 'utf8');
+
+    const session = await readAutomationWizardSessionForConversation(userDataPath, 'conv-1');
+
+    expect(session?.generatedWizardMessageIds).toHaveLength(50);
+    expect(session?.generatedWizardMessageIds[0]).toBe(71);
+    expect(session?.entityCallbackRefs).toHaveLength(100);
+    expect(session?.entityCallbackRefs[0]).toMatchObject({ token: 'token-61', entityId: 'sku-61' });
+    expect(session?.draftLines).toHaveLength(50);
+    expect(session?.draftLines[0]).toMatchObject({ entityId: 'sku-31', label: 'SKU 31' });
   });
 
   it('ignores dirty conversation names while matching Telegram tickets', async () => {
@@ -965,6 +1586,89 @@ describe('automation telegram ingestion', () => {
     })).resolves.toBeNull();
   });
 
+  it('matches Telegram ticket conversations by phone key-only party metadata', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          externalConversationKey: '555123',
+          customerDisplayName: 'Sokha',
+          customerHandle: null,
+          phone: '+855 12345678',
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+      ],
+      intakes: [],
+    }), 'utf8');
+
+    await expect(findAutomationConversationForTelegramTicket(userDataPath, {
+      eventType: 'created',
+      lifecycle: 'open',
+      lines: [],
+      occurredAt: '2026-04-22T00:00:00.000Z',
+      party: {
+        channelKey: 'telegram',
+        customerName: null,
+        phone: null,
+        phoneKey: '+85512345678',
+        role: 'customer',
+      },
+      revision: 1,
+      stage: 'pending',
+      ticketFamily: 'customer',
+      ticketId: 'ticket-1',
+    })).resolves.toMatchObject({
+      conversationId: 'conversation-1',
+    });
+  });
+
+  it('matches Telegram ticket conversations by customer name key-only party metadata', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          externalConversationKey: '555123',
+          customerDisplayName: 'Dara Sok',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+      ],
+      intakes: [],
+    }), 'utf8');
+
+    await expect(findAutomationConversationForTelegramTicket(userDataPath, {
+      eventType: 'created',
+      lifecycle: 'open',
+      lines: [],
+      occurredAt: '2026-04-22T00:00:00.000Z',
+      party: {
+        channelKey: 'telegram',
+        customerName: null,
+        customerNameKey: 'dara sok',
+        role: 'customer',
+      },
+      revision: 1,
+      stage: 'pending',
+      ticketFamily: 'customer',
+      ticketId: 'ticket-1',
+    })).resolves.toMatchObject({
+      conversationId: 'conversation-1',
+    });
+  });
+
   it('sorts dirty pending outbound job timestamps after valid jobs', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
@@ -999,6 +1703,138 @@ describe('automation telegram ingestion', () => {
     ]);
   });
 
+  it('drops dirty pending outbound job shapes before flushing Telegram work', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      pendingOutboundJobs: [
+        {
+          jobId: 'unknown-kind',
+          createdAt: '2026-04-22T00:00:00.000Z',
+          job: {
+            kind: 'unknown',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            text: 'bad',
+          },
+        },
+        {
+          jobId: 'missing-send-chat',
+          createdAt: '2026-04-22T00:01:00.000Z',
+          job: {
+            kind: 'send',
+            chatId: '',
+            conversationId: 'conv-1',
+            text: 'bad',
+          },
+        },
+        {
+          jobId: 'dirty-edit-message',
+          createdAt: '2026-04-22T00:02:00.000Z',
+          job: {
+            kind: 'edit',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            messageId: '42',
+            text: 'bad',
+          },
+        },
+        {
+          jobId: 'dirty-photo-extension',
+          createdAt: '2026-04-22T00:02:30.000Z',
+          job: {
+            kind: 'send_photo',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            photoPath: 'private.txt',
+          },
+        },
+        {
+          jobId: 'dirty-photo-url',
+          createdAt: '2026-04-22T00:02:45.000Z',
+          job: {
+            kind: 'send_photo',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            photoPath: 'https://example.test/photo.png',
+          },
+        },
+        {
+          jobId: 'valid',
+          createdAt: '2026-04-22T00:03:00.000Z',
+          job: {
+            kind: 'send',
+            chatId: 'chat-1',
+            conversationId: 'conv-1',
+            text: 'valid',
+          },
+        },
+      ],
+    }), 'utf8');
+
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([
+      expect.objectContaining({ jobId: 'valid' }),
+    ]);
+  });
+
+  it('normalizes padded pending outbound job identifiers before flushing Telegram work', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      pendingOutboundJobs: [
+        {
+          jobId: 'padded-send',
+          createdAt: '2026-04-22T00:03:00.000Z',
+          job: {
+            kind: 'send',
+            chatId: ' chat-1 ',
+            conversationId: ' conv-1 ',
+            intakeId: ' intake-1 ',
+            text: 'valid',
+          },
+        },
+        {
+          jobId: 'padded-photo',
+          createdAt: '2026-04-22T00:04:00.000Z',
+          job: {
+            kind: 'send_photo',
+            chatId: ' chat-1 ',
+            conversationId: ' conv-1 ',
+            intakeId: ' ',
+            photoPath: ' assets/item.png ',
+            storesItemImage: {
+              entityType: 'sku',
+              entityId: ' sku-1 ',
+            },
+          },
+        },
+      ],
+    }), 'utf8');
+
+    await expect(listAutomationPendingTelegramOutboundJobs(userDataPath)).resolves.toEqual([
+      expect.objectContaining({
+        jobId: 'padded-send',
+        job: expect.objectContaining({
+          chatId: 'chat-1',
+          conversationId: 'conv-1',
+          intakeId: 'intake-1',
+        }),
+      }),
+      expect.objectContaining({
+        jobId: 'padded-photo',
+        job: expect.objectContaining({
+          chatId: 'chat-1',
+          conversationId: 'conv-1',
+          intakeId: null,
+          storesItemImage: {
+            entityType: 'sku',
+            entityId: 'sku-1',
+          },
+        }),
+      }),
+    ]);
+  });
+
   it('sorts dirty automation timestamps after valid records in user-facing lists', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
     await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
@@ -1012,9 +1848,9 @@ describe('automation telegram ingestion', () => {
           customerHandle: null,
           phone: null,
           lastMessageAt: 'zzzz',
-          messageCount: 1,
-          latestIntakeStatus: null,
-          latestTicketId: null,
+          messageCount: -12,
+          latestIntakeStatus: 'unexpected',
+          latestTicketId: 42,
         },
         {
           conversationId: 'valid-conversation',
@@ -1034,11 +1870,11 @@ describe('automation telegram ingestion', () => {
           messageId: 'dirty-message',
           conversationId: 'valid-conversation',
           externalMessageKey: 'message-dirty',
-          direction: 'inbound',
+          direction: 'sideways',
           sentAt: 'zzzz',
-          rawText: 'dirty',
-          normalizedText: 'dirty',
-          parseConfidence: null,
+          rawText: 99,
+          normalizedText: 101,
+          parseConfidence: 'sure',
         },
         {
           messageId: 'valid-message',
@@ -1056,20 +1892,38 @@ describe('automation telegram ingestion', () => {
           intakeId: 'dirty-intake',
           conversationId: 'valid-conversation',
           channel: 'telegram',
-          status: 'new',
-          parseConfidence: 'low',
+          status: 'garbled',
+          parseConfidence: 'certain',
           customerDisplayName: null,
           customerHandle: null,
           phone: null,
           notes: null,
           quotedSubtotal: null,
           currencyCode: 'USD',
-          deliveryFee: null,
-          quotedTotal: null,
+          deliveryFee: Number.POSITIVE_INFINITY,
+          quotedTotal: -1,
           createdAt: 'zzzz',
           updatedAt: 'zzzz',
-          promotedTicketId: null,
-          lines: [],
+          promotedTicketId: 'ticket-1',
+          lines: [
+            {
+              lineId: 'dirty-line',
+              entityType: 'sku',
+              entityId: 'sku-1',
+              requestedLabel: '  Dirty line  ',
+              resolvedLabel: 42,
+              quantity: Number.NaN,
+              unitPrice: -1,
+              lineTotal: Number.POSITIVE_INFINITY,
+              availabilityStatus: 'made-up',
+              ambiguityReason: '  maybe  ',
+            },
+            {
+              lineId: '',
+              entityType: 'sku',
+              requestedLabel: 'drop me',
+            },
+          ],
         },
         {
           intakeId: 'valid-intake',
@@ -1087,7 +1941,7 @@ describe('automation telegram ingestion', () => {
           quotedTotal: null,
           createdAt: '2026-04-22T00:00:00.000Z',
           updatedAt: '2026-04-22T00:00:00.000Z',
-          promotedTicketId: null,
+          promotedTicketId: 'ticket-1',
           lines: [],
         },
       ],
@@ -1099,7 +1953,13 @@ describe('automation telegram ingestion', () => {
     ]);
     await expect(listAutomationIntakes(userDataPath)).resolves.toEqual([
       expect.objectContaining({ intakeId: 'valid-intake' }),
-      expect.objectContaining({ intakeId: 'dirty-intake' }),
+      expect.objectContaining({
+        intakeId: 'dirty-intake',
+        status: 'needs_review',
+        parseConfidence: 'low',
+        deliveryFee: null,
+        quotedTotal: null,
+      }),
     ]);
 
     const conversation = await readAutomationConversation(userDataPath, 'valid-conversation');
@@ -1107,10 +1967,177 @@ describe('automation telegram ingestion', () => {
       'valid-message',
       'dirty-message',
     ]);
+    expect(conversation.messages[1]).toMatchObject({
+      direction: 'inbound',
+      rawText: '',
+      normalizedText: null,
+      parseConfidence: 'low',
+    });
     expect(conversation.intakes.map((intake) => intake.intakeId)).toEqual([
       'valid-intake',
       'dirty-intake',
     ]);
+    expect(conversation.intakes[1]?.lines).toEqual([
+      expect.objectContaining({
+        lineId: 'dirty-line',
+        requestedLabel: 'Dirty line',
+        resolvedLabel: null,
+        quantity: null,
+        unitPrice: null,
+        lineTotal: null,
+        availabilityStatus: 'unknown',
+        ambiguityReason: 'maybe',
+      }),
+    ]);
+    await expect(readAutomationConversation(userDataPath, 'dirty-conversation')).resolves.toMatchObject({
+      conversation: {
+        messageCount: 0,
+        latestIntakeStatus: 'needs_review',
+        latestTicketId: null,
+      },
+    });
+  });
+
+  it('treats impossible persisted automation timestamps as dirty records', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'rolled-conversation',
+          channel: 'telegram',
+          externalConversationKey: 'chat-rolled',
+          customerDisplayName: 'Rolled',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-02-31T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+        {
+          conversationId: 'valid-conversation',
+          channel: 'telegram',
+          externalConversationKey: 'chat-valid',
+          customerDisplayName: 'Valid',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-02-28T00:00:00Z',
+          messageCount: 1,
+          latestIntakeStatus: null,
+          latestTicketId: null,
+        },
+      ],
+      messages: [
+        {
+          messageId: 'rolled-message',
+          conversationId: 'valid-conversation',
+          externalMessageKey: 'message-rolled',
+          direction: 'inbound',
+          sentAt: '2026-04-31T00:00:00.000Z',
+          rawText: 'rolled',
+          normalizedText: 'rolled',
+          parseConfidence: null,
+        },
+        {
+          messageId: 'valid-message',
+          conversationId: 'valid-conversation',
+          externalMessageKey: 'message-valid',
+          direction: 'inbound',
+          sentAt: '2026-04-30T00:00:00Z',
+          rawText: 'valid',
+          normalizedText: 'valid',
+          parseConfidence: null,
+        },
+      ],
+    }), 'utf8');
+
+    await expect(listAutomationConversations(userDataPath)).resolves.toEqual([
+      expect.objectContaining({
+        conversationId: 'valid-conversation',
+        lastMessageAt: '2026-02-28T00:00:00.000Z',
+      }),
+      expect.objectContaining({ conversationId: 'rolled-conversation' }),
+    ]);
+
+    const conversation = await readAutomationConversation(userDataPath, 'valid-conversation');
+    expect(conversation.messages.map((message) => message.messageId)).toEqual([
+      'valid-message',
+      'rolled-message',
+    ]);
+    expect(conversation.messages[0]?.sentAt).toBe('2026-04-30T00:00:00.000Z');
+  });
+
+  it('normalizes dirty persisted Telegram customer preferences', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      customerPreferences: [
+        {
+          conversationId: '',
+          language: 'km',
+          currency: 'KHR',
+          configuredAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+        },
+        {
+          conversationId: 'conversation-1',
+          language: 'fr',
+          currency: 'EUR',
+          configuredAt: 'not-a-date',
+          updatedAt: 'also-not-a-date',
+        },
+        {
+          conversationId: ' conversation-1 ',
+          language: 'km',
+          currency: 'KHR',
+          configuredAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:01:00.000Z',
+        },
+      ],
+    }), 'utf8');
+
+    await expect(readAutomationCustomerPreferences(userDataPath, '')).resolves.toBeNull();
+    await expect(readAutomationCustomerPreferences(userDataPath, 'conversation-1')).resolves.toEqual({
+      language: 'km',
+      currency: 'KHR',
+    });
+  });
+
+  it('collapses duplicate dirty Telegram customer preferences during mutation', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      customerPreferences: [
+        {
+          conversationId: 'conv_telegram_555_810',
+          language: 'en',
+          currency: 'USD',
+          configuredAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+        },
+        {
+          conversationId: ' conv_telegram_555_810 ',
+          language: 'km',
+          currency: 'KHR',
+          configuredAt: '2026-04-22T00:01:00.000Z',
+          updatedAt: '2026-04-22T00:01:00.000Z',
+        },
+      ],
+    }), 'utf8');
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+
+    await expect(readAutomationCustomerPreferences(userDataPath, 'conv_telegram_555_810')).resolves.toEqual({
+      language: 'km',
+      currency: 'KHR',
+    });
+    const persisted = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    expect(persisted.customerPreferences).toHaveLength(1);
   });
 
   it('rejects malformed automation intake filters before reading state', async () => {
@@ -1138,6 +2165,106 @@ describe('automation telegram ingestion', () => {
     expect(transport.connection.status).toBe('disconnected');
   });
 
+  it('normalizes padded automation read and mutation identifiers', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      conversations: [
+        {
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          externalConversationKey: 'chat-1',
+          customerDisplayName: 'Sokha',
+          customerHandle: null,
+          phone: null,
+          lastMessageAt: '2026-04-22T00:00:00.000Z',
+          messageCount: 1,
+          latestIntakeStatus: 'new',
+          latestTicketId: null,
+        },
+      ],
+      messages: [
+        {
+          messageId: 'message-1',
+          conversationId: 'conversation-1',
+          externalMessageKey: 'message-1',
+          direction: 'inbound',
+          sentAt: '2026-04-22T00:00:00.000Z',
+          rawText: '2 cotton scarf',
+          normalizedText: '2 cotton scarf',
+          parseConfidence: 'high',
+          intakeId: 'intake-1',
+        },
+      ],
+      intakes: [
+        {
+          intakeId: 'intake-1',
+          conversationId: 'conversation-1',
+          channel: 'telegram',
+          status: 'new',
+          parseConfidence: 'high',
+          customerDisplayName: 'Sokha',
+          customerHandle: null,
+          phone: null,
+          notes: null,
+          quotedSubtotal: 25,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: 25,
+          createdAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+          promotedTicketId: 'ticket-1',
+          lines: [],
+        },
+      ],
+      customerPreferences: [
+        {
+          conversationId: 'conversation-1',
+          language: 'km',
+          currency: 'KHR',
+          configuredAt: '2026-04-22T00:00:00.000Z',
+          updatedAt: '2026-04-22T00:00:00.000Z',
+        },
+      ],
+    }), 'utf8');
+
+    await expect(readAutomationConversation(userDataPath, ' conversation-1 ')).resolves.toMatchObject({
+      conversation: { conversationId: 'conversation-1' },
+      messages: [expect.objectContaining({ messageId: 'message-1' })],
+      intakes: [expect.objectContaining({ intakeId: 'intake-1' })],
+    });
+    await expect(readAutomationIntakeThread(userDataPath, ' intake-1 ')).resolves.toMatchObject({
+      intake: { intakeId: 'intake-1' },
+      messages: [expect.objectContaining({ messageId: 'message-1' })],
+    });
+    await expect(readAutomationIntake(userDataPath, ' intake-1 ')).resolves.toMatchObject({
+      intakeId: 'intake-1',
+    });
+    await expect(readAutomationCustomerPreferences(userDataPath, ' conversation-1 ')).resolves.toEqual({
+      language: 'km',
+      currency: 'KHR',
+    });
+    await expect(listAutomationIntakes(userDataPath, {
+      conversationId: ' conversation-1 ',
+    })).resolves.toEqual([
+      expect.objectContaining({ intakeId: 'intake-1' }),
+    ]);
+
+    const resolved = await resolveAutomationIntake(userDataPath, {
+      intakeId: ' intake-1 ',
+      status: 'quoted',
+    });
+    expect(resolved).toMatchObject({
+      intakeId: 'intake-1',
+      status: 'quoted',
+    });
+    await expect(listAutomationIntakes(userDataPath, {
+      ticketId: ' ticket-1 ',
+    })).resolves.toEqual([
+      expect.objectContaining({ intakeId: 'intake-1' }),
+    ]);
+  });
+
   it('rejects malformed automation resolution payloads before persisting state', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
@@ -1162,6 +2289,74 @@ describe('automation telegram ingestion', () => {
 
     const transport = await readAutomationTransportState(userDataPath);
     expect(transport.connection.status).toBe('disconnected');
+  });
+
+  it('rejects corrupted quoted intake line numbers before promotion', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    await writeFile(join(userDataPath, 'desktop-automation-store.json'), JSON.stringify({
+      version: 1,
+      telegramUpdateCursor: null,
+      connection: {
+        channel: 'telegram',
+        status: 'connected',
+        hasBotToken: true,
+        botToken: 'secret-token',
+      },
+      exposureRules: [],
+      conversations: [{
+        conversationId: 'conv_corrupt',
+        channel: 'telegram',
+        externalConversationKey: '555123',
+        customerDisplayName: 'Sokha',
+        customerHandle: null,
+        phone: null,
+        lastMessageAt: '2026-04-21T00:00:00.000Z',
+        messageCount: 1,
+        latestIntakeStatus: 'quoted',
+        latestTicketId: null,
+      }],
+      messages: [],
+      intakes: [{
+        intakeId: 'intake_corrupt',
+        conversationId: 'conv_corrupt',
+        channel: 'telegram',
+        status: 'quoted',
+        parseConfidence: 'high',
+        customerDisplayName: 'Sokha',
+        customerHandle: null,
+        phone: null,
+        notes: 'Corrupted line values',
+        quotedSubtotal: 25,
+        currencyCode: 'USD',
+        deliveryFee: null,
+        quotedTotal: 25,
+        createdAt: '2026-04-21T00:00:00.000Z',
+        updatedAt: '2026-04-21T00:00:00.000Z',
+        promotedTicketId: null,
+        lines: [{
+          lineId: 'line_corrupt',
+          entityType: 'sku',
+          entityId: 'sku-1',
+          requestedLabel: 'Cotton Scarf',
+          resolvedLabel: 'Cotton Scarf',
+          quantity: '2',
+          unitPrice: '12.5',
+          lineTotal: '25',
+          availabilityStatus: 'available',
+          ambiguityReason: null,
+        }],
+      }],
+      customerPreferences: [],
+      wizardSessions: [],
+      pendingOutboundJobs: [],
+    }));
+
+    await expect(prepareAutomationPromotion(userDataPath, {
+      intakeId: 'intake_corrupt',
+      mode: 'create_ticket',
+    }, {
+      observations: context.observations as never,
+    })).rejects.toThrow('All Telegram intake lines must resolve to priced entities before promotion.');
   });
 
   it('creates and updates a customer wizard session through commands and callbacks', async () => {
@@ -1237,7 +2432,7 @@ describe('automation telegram ingestion', () => {
     expect(updatedSession?.currentStep).toBe('cart');
     expect(updatedSession?.draftLines[0]?.quantity).toBe(1);
 
-    const checkoutResult = await ingestAutomationTelegramUpdates(userDataPath, {
+    const cancelCallbackResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -1263,11 +2458,88 @@ describe('automation telegram ingestion', () => {
         },
       ],
     });
-    expect(cancelResult.replyJobs.length).toBeGreaterThan(0);
+    expect(cancelCallbackResult.replyJobs.length).toBeGreaterThan(0);
 
     const canceledSession = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
     expect(canceledSession?.currentStep).toBe('menu');
     expect(canceledSession?.draftLines).toHaveLength(0);
+  });
+
+  it('clamps dirty catalog page callback values before rendering the wizard catalog', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const manySkus = Array.from({ length: 6 }, (_, index) => ({
+      ...context.catalog.skus[0]!,
+      name: `Catalog SKU ${index + 1}`,
+      skuId: `sku-${index + 1}`,
+    }));
+    const manySkuContext = {
+      ...context,
+      catalog: {
+        ...context.catalog,
+        skus: manySkus,
+      },
+      recordUpdateContext: {
+        ...context.recordUpdateContext,
+        latestStockBySku: Object.fromEntries(manySkus.map((sku) => [
+          sku.skuId,
+          {
+            observationId: `obs-${sku.skuId}`,
+            observedAt: '2026-04-21T00:00:00.000Z',
+            value: {
+              skuId: sku.skuId,
+              unitsInStock: 8,
+            },
+          },
+        ])),
+      },
+    };
+
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_334,
+      firstName: 'Dara',
+    });
+    for (const sku of manySkus) {
+      await patchAutomationExposureRow(userDataPath, manySkuContext as never, {
+        entityId: sku.skuId,
+        entityType: 'sku',
+        exposed: true,
+      });
+    }
+
+    const result = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: manySkuContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 1031,
+          callback_query: {
+            id: 'callback-dirty-page',
+            data: 'w:page:1.5',
+            from: {
+              id: 555_334,
+              first_name: 'Dara',
+            },
+            message: {
+              message_id: 999,
+              date: 1_745_193_603,
+              chat: {
+                id: 555_334,
+                type: 'private',
+              },
+              text: 'wizard',
+            },
+          },
+        },
+      ],
+    });
+
+    const rendered = telegramRenderedParts(result).join('\n');
+    expect(rendered).toContain('Page 1 of 2');
+    expect(rendered).not.toContain('Page 2.5 of 2');
+
+    const workspace = await readAutomationWorkspace(userDataPath, manySkuContext as never);
+    const session = await readAutomationWizardSessionForConversation(userDataPath, workspace.conversations[0]!.conversationId);
+    expect(session?.catalogCursor).toBe(0);
   });
 
   it('sends an item photo when a customer opens an item and deletes it when leaving the item view', async () => {
@@ -1395,6 +2667,119 @@ describe('automation telegram ingestion', () => {
     const catalogSession = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
     expect(catalogSession?.currentStep).toBe('catalog');
     expect(catalogSession?.lastItemImageMessageId).toBeNull();
+  });
+
+  it('uses short Telegram callback tokens for long catalog entity ids', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const longSkuId = `sku-${'very-long-catalog-identifier-'.repeat(4)}001`;
+    const longContext = {
+      ...context,
+      catalog: {
+        ...context.catalog,
+        skus: [{
+          ...context.catalog.skus[0]!,
+          skuId: longSkuId,
+        }],
+      },
+      recordUpdateContext: {
+        ...context.recordUpdateContext,
+        latestStockBySku: {
+          [longSkuId]: {
+            observationId: 'obs-long',
+            observedAt: '2026-04-21T00:00:00.000Z',
+            value: {
+              skuId: longSkuId,
+              unitsInStock: 8,
+            },
+          },
+        },
+      },
+    };
+
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_335,
+      firstName: 'Dara',
+    });
+    await patchAutomationExposureRow(userDataPath, longContext as never, {
+      entityId: longSkuId,
+      entityType: 'sku',
+      exposed: true,
+    });
+
+    const catalogResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: longContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 1041,
+          callback_query: {
+            id: 'callback-long-available',
+            data: 'w:available:0',
+            from: {
+              id: 555_335,
+              first_name: 'Dara',
+            },
+            message: {
+              message_id: 999,
+              date: 1_745_193_603,
+              chat: {
+                id: 555_335,
+                type: 'private',
+              },
+              text: 'wizard',
+            },
+          },
+        },
+      ],
+    });
+
+    const catalogPrompt = catalogResult.outboundJobs.find((job) =>
+      job.kind === 'send' &&
+      job.storesWizardMessage &&
+      job.replyMarkup &&
+      'inline_keyboard' in job.replyMarkup,
+    );
+    expect(catalogPrompt?.kind).toBe('send');
+    const itemCallback = catalogPrompt?.kind === 'send' && catalogPrompt.replyMarkup && 'inline_keyboard' in catalogPrompt.replyMarkup
+      ? catalogPrompt.replyMarkup.inline_keyboard[0]?.[0]?.callback_data
+      : null;
+    expect(itemCallback).toMatch(/^w:item:e[0-9a-z]+$/);
+    expect(new TextEncoder().encode(itemCallback ?? '').byteLength).toBeLessThanOrEqual(64);
+    expect(itemCallback).not.toContain(longSkuId);
+
+    const workspace = await readAutomationWorkspace(userDataPath, longContext as never);
+    const conversationId = workspace.conversations[0]!.conversationId;
+    const itemResult = await ingestAutomationTelegramUpdates(userDataPath, {
+      context: longContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 1042,
+          callback_query: {
+            id: 'callback-long-item',
+            data: itemCallback!,
+            from: {
+              id: 555_335,
+              first_name: 'Dara',
+            },
+            message: {
+              message_id: 1000,
+              date: 1_745_193_604,
+              chat: {
+                id: 555_335,
+                type: 'private',
+              },
+              text: 'wizard',
+            },
+          },
+        },
+      ],
+    });
+
+    expect(itemResult.outboundJobs.some((job) => job.kind === 'answer_callback')).toBe(true);
+    const session = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
+    expect(session?.currentStep).toBe('item');
+    expect(session?.selectedEntityId).toBe(longSkuId);
   });
 
   it('omits availability labels from customer-facing catalog and item wizard messages', async () => {
@@ -2294,6 +3679,15 @@ describe('automation telegram ingestion', () => {
     expect(source).toContain("readPriority: 'critical'");
   });
 
+  it('validates automation IPC lookup payloads before reading fields', async () => {
+    const source = await readFile(MAIN_INDEX_SOURCE_PATH, 'utf8');
+
+    expect(source).toContain('function readRequiredStringPayloadField(payload: unknown, field: string, message: string)');
+    expect(source).toContain("readRequiredStringPayloadField(payload, 'conversationId', 'Automation conversation reads require a conversation id.')");
+    expect(source).toContain("readRequiredStringPayloadField(payload, 'intakeId', 'Automation intake reads require an intake id.')");
+    expect(source).toContain("readRequiredStringPayloadField(payload, 'text', 'Enter a message before sending.')");
+  });
+
   it('submits a cart checkout after optional phone capture and keeps free-text fallback working', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
 
@@ -2460,6 +3854,139 @@ describe('automation telegram ingestion', () => {
     workspace = await readAutomationWorkspace(userDataPath, context as never);
     expect(workspace.intakes).toHaveLength(2);
     expect(workspace.intakes.some((entry) => entry.customerDisplayName === 'Rina' && entry.quotedTotal === 25)).toBe(true);
+  });
+
+  it('rechecks wizard cart lines against current exposure before checkout', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const archivedContext = {
+      ...context,
+      catalog: {
+        ...context.catalog,
+        skus: [{
+          ...context.catalog.skus[0]!,
+          archived: true,
+        }],
+      },
+    };
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_446,
+      firstName: 'Maly',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [{
+        update_id: 112,
+        callback_query: {
+          id: 'callback-stale-cart-add',
+          data: 'w:add:sku:sku-1',
+          from: {
+            id: 555_446,
+            first_name: 'Maly',
+          },
+          message: {
+            message_id: 1002,
+            date: 1_745_193_612,
+            chat: {
+              id: 555_446,
+              type: 'private',
+            },
+          },
+        },
+      }],
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: archivedContext as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 113,
+          callback_query: {
+            id: 'callback-stale-cart-checkout',
+            data: 'w:checkout',
+            from: {
+              id: 555_446,
+              first_name: 'Maly',
+            },
+            message: {
+              message_id: 1002,
+              date: 1_745_193_613,
+              chat: {
+                id: 555_446,
+                type: 'private',
+              },
+            },
+          },
+        },
+        {
+          update_id: 114,
+          message: {
+            message_id: 214,
+            date: 1_745_193_614,
+            text: 'Skip phone',
+            chat: {
+              id: 555_446,
+              type: 'private',
+            },
+            from: {
+              id: 555_446,
+              first_name: 'Maly',
+            },
+          },
+        },
+        {
+          update_id: 115,
+          message: {
+            message_id: 215,
+            date: 1_745_193_615,
+            text: 'Skip location',
+            chat: {
+              id: 555_446,
+              type: 'private',
+            },
+            from: {
+              id: 555_446,
+              first_name: 'Maly',
+            },
+          },
+        },
+        {
+          update_id: 116,
+          message: {
+            message_id: 216,
+            date: 1_745_193_616,
+            text: 'Skip notes',
+            chat: {
+              id: 555_446,
+              type: 'private',
+            },
+            from: {
+              id: 555_446,
+              first_name: 'Maly',
+            },
+          },
+        },
+      ],
+    });
+
+    const workspace = await readAutomationWorkspace(userDataPath, archivedContext as never);
+    expect(workspace.intakes[0]?.status).toBe('needs_review');
+    expect(workspace.intakes[0]?.quotedTotal).toBeNull();
+    expect(workspace.intakes[0]?.lines[0]).toMatchObject({
+      entityId: 'sku-1',
+      unitPrice: null,
+      lineTotal: null,
+      availabilityStatus: 'hidden',
+      ambiguityReason: 'price_unavailable',
+    });
   });
 
   it('deletes generated checkout prompts before sending the lasting receipt', async () => {
@@ -2688,6 +4215,7 @@ describe('automation telegram ingestion', () => {
       intakeId: workspace.intakes[0]!.intakeId,
       mode: 'create_ticket',
       customerIdentityOverride: {
+        customerName: 'Sokha   Buyer',
         phone: '012345678',
       },
     }, {
@@ -2696,8 +4224,59 @@ describe('automation telegram ingestion', () => {
 
     expect(promotion.ticketEvent.party?.phone).toBe('+855 12345678');
     expect(promotion.ticketEvent.party?.phoneKey).toBe('+85512345678');
+    expect(promotion.ticketEvent.party?.customerName).toBe('Sokha   Buyer');
+    expect(promotion.ticketEvent.party?.customerNameKey).toBe('sokha buyer');
     await expect(findAutomationConversationForTelegramTicket(userDataPath, promotion.ticketEvent)).resolves.toMatchObject({
       phone: '+855 12345678',
+    });
+  });
+
+  it('keeps overflowing Telegram text quantities out of quoted totals', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+
+    await patchAutomationExposureRow(userDataPath, context as never, {
+      entityId: 'sku-1',
+      entityType: 'sku',
+      exposed: true,
+    });
+    await completePreferencesOnboarding(userDataPath, {
+      chatId: 555_676,
+      firstName: 'Sela',
+    });
+
+    await ingestAutomationTelegramUpdates(userDataPath, {
+      context: context as never,
+      currency: 'USD',
+      updates: [
+        {
+          update_id: 129,
+          message: {
+            message_id: 229,
+            date: 1_745_193_629,
+            text: `${'1'.padEnd(309, '0')} cotton scarf`,
+            chat: {
+              id: 555_676,
+              type: 'private',
+            },
+            from: {
+              id: 555_676,
+              first_name: 'Sela',
+            },
+          },
+        },
+      ],
+    });
+
+    const hugeQuantity = Number('1'.padEnd(309, '0'));
+    const workspace = await readAutomationWorkspace(userDataPath, context as never);
+    expect(workspace.intakes[0]).toMatchObject({
+      status: 'needs_review',
+      quotedSubtotal: null,
+      quotedTotal: null,
+    });
+    expect(workspace.intakes[0]?.lines[0]).toMatchObject({
+      lineTotal: null,
+      quantity: hugeQuantity,
     });
   });
 
@@ -2916,6 +4495,31 @@ describe('automation telegram ingestion', () => {
     }, {
       observations: context.observations as never,
     })).rejects.toThrow('Appending Telegram intake requires an existing customer ticket.');
+  });
+
+  it('normalizes padded automation promotion identifiers', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-store-'));
+    const intake = await createQuotedAutomationIntake(userDataPath, 555_780);
+
+    const prepared = await prepareAutomationPromotion(userDataPath, {
+      intakeId: ` ${intake.intakeId} `,
+      mode: 'append_ticket',
+      ticketId: ' ticket:customer:open ',
+    }, {
+      observations: [{
+        observationId: 'obs-ticket',
+        input: {
+          ticketEvents: [makeTicketEvent()],
+        },
+      }] as never,
+    });
+
+    expect(prepared.ticketEvent.ticketId).toBe('ticket:customer:open');
+    expect(prepared.updatedIntake).toMatchObject({
+      intakeId: intake.intakeId,
+      promotedTicketId: 'ticket:customer:open',
+      status: 'ticketed',
+    });
   });
 
   it('rejects duplicate promotion after an intake is already ticketed', async () => {
