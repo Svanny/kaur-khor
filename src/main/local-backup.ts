@@ -332,9 +332,9 @@ async function resolveSnapshotDirectory(selectedPath: string, userDataPath: stri
   if (!pathIsInside(backupRootPath, snapshotRealPath)) {
     throw new Error('Restore snapshots must come from this workspace backup directory.');
   }
-  const manifestPath = join(snapshotPath, SNAPSHOT_MANIFEST_FILENAME);
+  const manifestPath = join(snapshotRealPath, SNAPSHOT_MANIFEST_FILENAME);
   await fs.readFile(manifestPath, 'utf8');
-  return snapshotPath;
+  return snapshotRealPath;
 }
 
 export async function restoreDesktopBackupSnapshot({

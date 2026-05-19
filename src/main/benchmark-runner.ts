@@ -261,7 +261,11 @@ function normalizeBenchmarkSummaries(value: unknown, runId: string): KaurKhorBen
     return [];
   }
   return value.flatMap((summary) => {
-    if (!isRecord(summary) || !validScenarioIds.has(summary.scenario as KaurKhorBenchmarkScenarioId)) {
+    if (
+      !isRecord(summary) ||
+      !validScenarioIds.has(summary.scenario as KaurKhorBenchmarkScenarioId) ||
+      (summary.runId != null && summary.runId !== runId)
+    ) {
       return [];
     }
     return [{

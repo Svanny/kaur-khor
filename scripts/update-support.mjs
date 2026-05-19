@@ -107,12 +107,13 @@ export function createPreUpdateBackup({
     if (
       entry.name.endsWith('.tmp') ||
       entry.name.startsWith('.kaur-khor-update-') ||
-      isPathInsideOrSame(backupRoot, sourcePath)
+      isSamePath(backupRoot, sourcePath) ||
+      isSamePath(backupPath, sourcePath)
     ) {
       continue;
     }
 
-    copyBackupEntry(sourcePath, resolve(backupPath, entry.name));
+    copyBackupEntry(sourcePath, resolve(backupPath, entry.name), backupPath);
   }
 
   return backupPath;
@@ -123,13 +124,17 @@ function isPathInsideOrSame(candidatePath, rootPath) {
   return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
 }
 
-function copyBackupEntry(sourcePath, destinationPath) {
+function isSamePath(leftPath, rightPath) {
+  return resolve(leftPath) === resolve(rightPath);
+}
+
+function copyBackupEntry(sourcePath, destinationPath, backupRoot) {
   if (lstatSync(sourcePath).isSymbolicLink()) {
     return;
   }
 
   cpSync(sourcePath, destinationPath, {
-    filter: (currentSourcePath) => !lstatSync(currentSourcePath).isSymbolicLink(),
+    filter: (currentSourcePath) => !lstatSync(currentSourcePath).isSymbolicLink() && !isPathInsideOrSame(currentSourcePath, backupRoot),
     force: true,
     recursive: true,
   });

@@ -224,10 +224,10 @@ async function verifyPhoneShell(page) {
 
   await phoneNav.getByRole('link', { name: 'Capture' }).click();
   await expectVisible(page, '[data-slot="phone-capture-page"]', 'phone Capture route');
-  const stockCountLink = page.getByRole('link', { name: 'Stock Count' });
+  const stockCountLink = page.getByRole('link', { name: 'Products Update' });
   if (await stockCountLink.isVisible().catch(() => false)) {
     await stockCountLink.click();
-    await Promise.race([
+    await Promise.all([
       page.locator('[data-slot="phone-capture-session-header"]').waitFor({ state: 'visible', timeout: 15_000 }),
       page.locator('[data-slot="phone-capture-lane-summary"]').waitFor({ state: 'visible', timeout: 15_000 }),
     ]);
