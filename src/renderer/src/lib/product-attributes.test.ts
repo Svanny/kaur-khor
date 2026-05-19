@@ -114,6 +114,21 @@ describe('product attributes helpers', () => {
     expect(productAttributeCombinations(oversizedDraft)).toEqual([]);
   });
 
+  test('generates variants at the exact attribute limit', () => {
+    const sizeOptions = Array.from({ length: 10 }, (_, index) => `S${index + 1}`);
+    const colorOptions = Array.from({ length: 10 }, (_, index) => `C${index + 1}`);
+    const exactLimitDraft = {
+      enabled: true,
+      rows: [
+        { name: 'Size', options: sizeOptions, selectedOptions: sizeOptions },
+        { name: 'Color', options: colorOptions, selectedOptions: colorOptions },
+      ],
+    };
+
+    expect(productAttributeCombinationCount(exactLimitDraft)).toBe(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
+    expect(productAttributeCombinations(exactLimitDraft)).toHaveLength(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
+  });
+
   test('generates unique variant names with incrementing conflicts', () => {
     const combination = [{ name: 'Size', option: 'XXL' }];
     expect(uniqueProductVariantName([], 'Hotdog Shirt', combination)).toBe('Hotdog Shirt (Size: XXL)');

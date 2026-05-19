@@ -358,7 +358,7 @@ export function AutomationIntakeDrawer({
         className={cn(
           'w-full gap-0 overflow-hidden border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]',
           presentation === 'bottom'
-            ? 'h-[var(--kaur-khor-effective-viewport-height,100dvh)] max-h-[var(--kaur-khor-effective-viewport-height,100dvh)] rounded-t-[1.4rem] border-t pb-[max(env(safe-area-inset-bottom),0.5rem)]'
+            ? 'h-(--kaur-khor-effective-viewport-height) max-h-(--kaur-khor-effective-viewport-height) rounded-t-[1.4rem] border-t pb-[max(env(safe-area-inset-bottom),0.5rem)]'
             : 'max-w-3xl border-l sm:max-w-3xl',
         )}
         showCloseButton={false}

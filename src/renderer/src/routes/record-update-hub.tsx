@@ -134,6 +134,9 @@ const VISIBLE_HUB_CARDS: RecordUpdateHubCard[] = [
   RECORD_UPDATE_HUB_CARDS[2]!,
   RECORD_UPDATE_HUB_CARDS[1]!,
 ];
+const EMBEDDED_HUB_GRID_COLUMNS = 2;
+const EMBEDDED_HUB_HORIZONTAL_CHROME_REM = 3;
+const EMBEDDED_HUB_VERTICAL_CHROME_REM = 19;
 const hubCardByLaneId = new Map(RECORD_UPDATE_HUB_CARDS.map((card) => [card.laneId, card]));
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
@@ -709,7 +712,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         paddingRem={embedded ? 0 : undefined}
         tileSize={
           embedded
-            ? 'min(calc((100vw - 3rem) / 2), calc((var(--kaur-khor-embedded-effective-height,100dvh) - 19rem) / 2), 10.75rem)'
+            ? `min(calc((100vw - ${EMBEDDED_HUB_HORIZONTAL_CHROME_REM}rem) / ${EMBEDDED_HUB_GRID_COLUMNS}), calc((var(--kaur-khor-embedded-effective-height,100dvh) - ${EMBEDDED_HUB_VERTICAL_CHROME_REM}rem) / ${EMBEDDED_HUB_GRID_COLUMNS}), 10.75rem)`
             : undefined
         }
       >
