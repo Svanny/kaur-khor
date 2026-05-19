@@ -131,6 +131,7 @@ export type DesktopSeenUnlockedNavItems = Partial<Record<DesktopSeenUnlockedNavI
 export const DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS = [
   'stock-count',
   'supplier-order-pending',
+  'supplier-receipt',
   'customer-order-pending',
   'customer-order-completed',
 ] as const;
@@ -139,6 +140,7 @@ export type DesktopWorkbenchTileOrderLaneId =
   typeof DESKTOP_WORKBENCH_TILE_ORDER_LANE_IDS[number];
 
 export type DesktopWorkbenchTileOrderByLane = Partial<Record<DesktopWorkbenchTileOrderLaneId, string[]>>;
+export const MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES = 500;
 
 export interface DesktopPreferences {
   language: AppLanguage;
@@ -552,12 +554,17 @@ export function normalizeDesktopWorkbenchTileOrderByLane(
     }
 
     const seenTileIds = new Set<string>();
-    const sanitized = rawValue.filter((entry): entry is string => {
-      if (typeof entry !== 'string' || entry.length === 0 || seenTileIds.has(entry)) {
-        return false;
+    const sanitized = rawValue.flatMap((entry): string[] => {
+      const tileId = typeof entry === 'string' ? entry.trim() : '';
+      if (
+        seenTileIds.size >= MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES ||
+        !tileId ||
+        seenTileIds.has(tileId)
+      ) {
+        return [];
       }
-      seenTileIds.add(entry);
-      return true;
+      seenTileIds.add(tileId);
+      return [tileId];
     });
 
     if (sanitized.length > 0) {

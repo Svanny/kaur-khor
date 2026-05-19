@@ -15,18 +15,81 @@ function toSistRegime(value: string | null | undefined): SistRegime | null {
   return value && SIST_REGIMES.has(value) ? (value as SistRegime) : null;
 }
 
+function observedAtSortValue(observation: SenaObservationRecord) {
+  const time = new Date(observation.input.observedAt).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
+function latestObservationByObservedAt(observations: SenaObservationRecord[]) {
+  return [...observations].sort((left, right) =>
+    observedAtSortValue(right) - observedAtSortValue(left) ||
+    right.observationId.localeCompare(left.observationId),
+  )[0] ?? null;
+}
+
+function observationsAscending(observations: SenaObservationRecord[]) {
+  return [...observations].sort((left, right) =>
+    observedAtSortValue(left) - observedAtSortValue(right) ||
+    left.observationId.localeCompare(right.observationId),
+  );
+}
+
+function nonNegativeFiniteOrFallback(value: number | null | undefined, fallback: number) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+function optionalNonNegativeFiniteOrFallback(value: number | null | undefined, fallback: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
+interface LatestSkuSnapshot {
+  unitsInStock?: number;
+  costPerUnit?: number;
+  productPrice?: number;
+}
+
+function latestObservedSnapshotValues(observations: SenaObservationRecord[]) {
+  const stockBySkuId = new Map<string, LatestSkuSnapshot>();
+  const retailPriceBySkuId = new Map<string, number>();
+  const servicePriceByServiceId = new Map<string, number>();
+
+  for (const observation of observationsAscending(observations)) {
+    for (const entry of observation.input.stockSnapshot) {
+      const current = stockBySkuId.get(entry.skuId) ?? {};
+      if (typeof entry.unitsInStock === 'number' && Number.isFinite(entry.unitsInStock) && entry.unitsInStock >= 0) {
+        current.unitsInStock = entry.unitsInStock;
+      }
+      if (typeof entry.costPerUnit === 'number' && Number.isFinite(entry.costPerUnit) && entry.costPerUnit >= 0) {
+        current.costPerUnit = entry.costPerUnit;
+      }
+      if (typeof entry.productPrice === 'number' && Number.isFinite(entry.productPrice) && entry.productPrice >= 0) {
+        current.productPrice = entry.productPrice;
+        retailPriceBySkuId.set(entry.skuId, entry.productPrice);
+      }
+      stockBySkuId.set(entry.skuId, current);
+    }
+    for (const entry of observation.input.retailPrices) {
+      if (typeof entry.price === 'number' && Number.isFinite(entry.price) && entry.price >= 0) {
+        retailPriceBySkuId.set(entry.skuId, entry.price);
+      }
+    }
+    for (const entry of observation.input.servicePrices) {
+      if (typeof entry.price === 'number' && Number.isFinite(entry.price) && entry.price >= 0) {
+        servicePriceByServiceId.set(entry.serviceId, entry.price);
+      }
+    }
+  }
+
+  return { stockBySkuId, retailPriceBySkuId, servicePriceByServiceId };
+}
+
 export function projectInventorySnapshotFromSena(
   catalog: SenaCatalog,
   observations: SenaObservationRecord[],
   workspaceSummary: SenaWorkspaceSummary | null = null,
 ): InventorySnapshot {
-  const latestObservation = observations.at(-1) ?? null;
-  const stockBySkuId = new Map(
-    latestObservation?.input.stockSnapshot.map((entry) => [entry.skuId, entry]) ?? [],
-  );
-  const retailPriceBySkuId = new Map(
-    latestObservation?.input.retailPrices.map((entry) => [entry.skuId, entry.price]) ?? [],
-  );
+  const latestObservation = latestObservationByObservedAt(observations);
+  const { stockBySkuId, retailPriceBySkuId, servicePriceByServiceId } = latestObservedSnapshotValues(observations);
 
   return {
     skus: catalog.skus.map((sku) => {
@@ -35,10 +98,13 @@ export function projectInventorySnapshotFromSena(
         skuId: sku.skuId,
         name: sku.name,
         description: sku.description,
-        unitsInStock: latestStock?.unitsInStock ?? 0,
-        costPerUnit: latestStock?.costPerUnit ?? sku.costPerUnit,
+        unitsInStock: nonNegativeFiniteOrFallback(latestStock?.unitsInStock, 0),
+        costPerUnit: nonNegativeFiniteOrFallback(latestStock?.costPerUnit, sku.costPerUnit),
         soldAsProduct: sku.soldAsProduct,
-        productPrice: retailPriceBySkuId.get(sku.skuId) ?? latestStock?.productPrice ?? sku.productPrice,
+        productPrice: optionalNonNegativeFiniteOrFallback(
+          retailPriceBySkuId.get(sku.skuId),
+          optionalNonNegativeFiniteOrFallback(latestStock?.productPrice, sku.productPrice),
+        ),
         leadTimeMeanDays: sku.leadTimeMeanDaysHint,
         leadTimeStdDays: sku.leadTimeStdDaysHint,
       };
@@ -47,7 +113,7 @@ export function projectInventorySnapshotFromSena(
       serviceId: service.serviceId,
       name: service.name,
       description: service.description,
-      price: service.price,
+      price: nonNegativeFiniteOrFallback(servicePriceByServiceId.get(service.serviceId), service.price),
       skuIds: linkedSkuIdsForService(catalog, service.serviceId),
     })),
     ranking: [],

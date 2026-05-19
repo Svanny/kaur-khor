@@ -38,10 +38,23 @@ describe('phone formatting', () => {
     expect(formatPhoneForDisplay('')).toBe('');
   });
 
+  test('treats bare international prefixes as blank phone values', () => {
+    expect(sanitizePhoneInput('+')).toBe('');
+    expect(sanitizePhoneInput('00')).toBe('');
+    expect(normalizePhoneNumber('+')).toBe('');
+    expect(normalizePhoneLookupKey('00')).toBe('');
+    expect(formatPhoneForDisplay('+')).toBe('');
+  });
+
   test('treats dirty non-string phone values as blank', () => {
     expect(sanitizePhoneInput({ phone: '012345678' } as unknown as string)).toBe('');
     expect(normalizePhoneNumber(12345 as unknown as string)).toBe('');
     expect(normalizePhoneLookupKey(['012345678'] as unknown as string)).toBe('');
     expect(formatPhoneForDisplay(false as unknown as string)).toBe('');
+  });
+
+  test('caps dirty overlong phone values before lookup and display use', () => {
+    expect(sanitizePhoneInput(`+${'1'.repeat(80)}`)).toBe(`+${'1'.repeat(32)}`);
+    expect(normalizePhoneLookupKey(`+${'9'.repeat(80)}`)).toBe(`+${'9'.repeat(32)}`);
   });
 });

@@ -6,8 +6,11 @@ import {
   createSkuAttributeVariants,
   duplicateSenaService,
   duplicateSenaSku,
+  linkedSkuIdsForService,
+  linkedSkusForService,
   nextCatalogCopyName,
   normalizeSenaCatalog,
+  upsertSenaService,
 } from './sena-catalog';
 
 const sku: SenaSku = {
@@ -196,6 +199,55 @@ describe('sena catalog product helpers', () => {
     ]);
   });
 
+  test('preserves service SKU usage probabilities during metadata edits', () => {
+    const nextCatalog = upsertSenaService(
+      catalog({
+        sharingMask: [
+          { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.35 },
+        ],
+      }),
+      {
+        ...service,
+        name: 'Repair Updated',
+      },
+      ['sku-1'],
+      'service-1',
+    );
+
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.35 },
+    ]);
+  });
+
+  test('deduplicates dirty linked SKU ids before writing service masks', () => {
+    const nextCatalog = upsertSenaService(
+      catalog({
+        sharingMask: [
+          { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.35 },
+        ],
+      }),
+      service,
+      [' sku-1 ', 'sku-1', ''],
+      'service-1',
+    );
+
+    expect(nextCatalog.sharingMask).toEqual([
+      { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.35 },
+    ]);
+  });
+
+  test('deduplicates dirty linked SKU reads from restored catalogs', () => {
+    const dirtyCatalog = catalog({
+      sharingMask: [
+        { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.35 },
+        { enabled: true, serviceId: 'service-1', skuId: 'sku-1', usageProbability: 0.85 },
+      ],
+    });
+
+    expect(linkedSkuIdsForService(dirtyCatalog, 'service-1')).toEqual(['sku-1']);
+    expect(linkedSkusForService(dirtyCatalog, 'service-1').map((entry) => entry.skuId)).toEqual(['sku-1']);
+  });
+
   test('blocks SKU delete for activity, linked services, order batches, and last SKU', () => {
     const blockers = catalogEntityActivityBlockers({
       catalog: catalog({
@@ -239,6 +291,47 @@ describe('sena catalog product helpers', () => {
     });
 
     expect(blockers).toEqual(['last-sku', 'linked-service', 'activity']);
+  });
+
+  test('blocks archiving the last active SKU even when archived SKUs exist', () => {
+    const blockers = catalogEntityActivityBlockers({
+      catalog: catalog({
+        skus: [
+          sku,
+          {
+            ...sku,
+            archived: true,
+            name: 'Archived SKU',
+            skuId: 'sku-archived',
+          },
+        ],
+      }),
+      entityId: 'sku-1',
+      entityType: 'sku',
+      observations: [],
+      orderBatches: [],
+    });
+
+    expect(blockers).toEqual(['last-sku']);
+    expect(
+      catalogEntityActivityBlockers({
+        catalog: catalog({
+          skus: [
+            sku,
+            {
+              ...sku,
+              archived: true,
+              name: 'Archived SKU',
+              skuId: 'sku-archived',
+            },
+          ],
+        }),
+        entityId: 'sku-archived',
+        entityType: 'sku',
+        observations: [],
+        orderBatches: [],
+      }),
+    ).toEqual([]);
   });
 
   test('blocks service delete for saved activity references', () => {

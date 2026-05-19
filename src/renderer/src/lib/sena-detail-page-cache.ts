@@ -36,8 +36,82 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isPersistedSkuDetailPage(value: unknown, entityId: string): value is SenaSkuDetailPage {
+  if (!isRecord(value) || !isRecord(value.detail)) {
+    return false;
+  }
+  return (
+    Array.isArray(value.detail.demandPosterior) &&
+    Array.isArray(value.detail.inventoryPosterior) &&
+    Array.isArray(value.detail.leadTimePosterior) &&
+    Array.isArray(value.detail.pipelinePosterior) &&
+    isRecord(value.detail.summary) &&
+    value.detail.summary.skuId === entityId &&
+    typeof value.hasOlder === 'boolean' &&
+    (typeof value.latestIntervalIndex === 'number' || value.latestIntervalIndex === null) &&
+    (typeof value.nextBeforeIntervalIndex === 'number' || value.nextBeforeIntervalIndex === null) &&
+    typeof value.pageLimit === 'number'
+  );
+}
+
+function isPersistedServiceDetailPage(value: unknown, entityId: string): value is SenaServiceDetailPage {
+  if (!isRecord(value) || !isRecord(value.detail)) {
+    return false;
+  }
+  return (
+    Array.isArray(value.detail.contributors) &&
+    Array.isArray(value.detail.regimeTimeline) &&
+    value.detail.serviceId === entityId &&
+    typeof value.hasOlder === 'boolean' &&
+    (typeof value.latestIntervalIndex === 'number' || value.latestIntervalIndex === null) &&
+    (typeof value.nextBeforeIntervalIndex === 'number' || value.nextBeforeIntervalIndex === null) &&
+    typeof value.pageLimit === 'number'
+  );
+}
+
+function isPersistedDetailPageForEntity(entityType: unknown, entityId: string, value: unknown) {
+  return entityType === 'sku'
+    ? isPersistedSkuDetailPage(value, entityId)
+    : entityType === 'service'
+      ? isPersistedServiceDetailPage(value, entityId)
+      : false;
+}
+
+function isPersistedSenaDetailPageEnvelope(value: unknown): value is PersistedSenaDetailPageEnvelope {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const beforeIntervalIndex = value.beforeIntervalIndex;
+  return (
+    (beforeIntervalIndex == null || (typeof beforeIntervalIndex === 'number' && Number.isFinite(beforeIntervalIndex))) &&
+    typeof value.entityId === 'string' &&
+    (value.entityType === 'service' || value.entityType === 'sku') &&
+    typeof value.freshnessFingerprint === 'string' &&
+    typeof value.limit === 'number' &&
+    Number.isFinite(value.limit) &&
+    value.limit > 0 &&
+    isPersistedDetailPageForEntity(value.entityType, value.entityId, value.page) &&
+    value.schemaVersion === SENA_SCHEMA_VERSION &&
+    typeof value.writtenAt === 'string'
+  );
+}
+
 function readEntryRecord(value: unknown): Record<string, PersistedSenaDetailPageEnvelope> {
-  return isRecord(value) ? value as Record<string, PersistedSenaDetailPageEnvelope> : {};
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, PersistedSenaDetailPageEnvelope] =>
+      typeof entry[0] === 'string' &&
+      isPersistedSenaDetailPageEnvelope(entry[1]) &&
+      entry[0] === entryKey(
+        entry[1].entityType,
+        entry[1].entityId,
+        entry[1].beforeIntervalIndex,
+        entry[1].limit,
+      ),
+    ),
+  );
 }
 
 function readIndexRecord(value: unknown): Record<string, string[]> {

@@ -80,6 +80,33 @@ export interface ActiveCoreCommand {
   lane: CoreReadLane | null;
 }
 
+function readCoreResponseId(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const id = (value as { id?: unknown }).id;
+  return typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+export function isCoreResponseEnvelope(value: unknown): value is CoreResponseEnvelope {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+
+  const envelope = value as { error?: unknown; id?: unknown; ok?: unknown };
+  if (
+    typeof envelope.id !== 'number' ||
+    !Number.isSafeInteger(envelope.id) ||
+    envelope.id <= 0 ||
+    typeof envelope.ok !== 'boolean'
+  ) {
+    return false;
+  }
+
+  return envelope.ok || envelope.error === undefined || typeof envelope.error === 'string';
+}
+
 export function predictWorkerFinishMs({
   averageActiveMs,
   activeCommands,
@@ -233,9 +260,14 @@ function updateEwmaAverage(previous: number, sample: number, alpha = READ_WORKER
   return alpha * sample + (1 - alpha) * previous;
 }
 
-function coreReadCoalesceKey(commandName: string, payload: unknown, timeoutMs: number) {
+export function coreReadCoalesceKey(
+  commandName: string,
+  payload: unknown,
+  timeoutMs: number,
+  readPriority?: CoreReadPriority,
+) {
   try {
-    return `${commandName}:${timeoutMs}:${JSON.stringify(payload ?? null)}`;
+    return `${commandName}:${timeoutMs}:${readPriority ?? 'default'}:${JSON.stringify(payload ?? null)}`;
   } catch {
     return null;
   }
@@ -587,7 +619,7 @@ export async function startManagedCore(
 
     const timeoutMs = invokeOptions?.timeoutMs ?? DEFAULT_CORE_TIMEOUT_MS;
     const readOnly = isReadOnlyCoreCommand(commandName);
-    const coalesceKey = readOnly ? coreReadCoalesceKey(commandName, payload, timeoutMs) : null;
+    const coalesceKey = readOnly ? coreReadCoalesceKey(commandName, payload, timeoutMs, invokeOptions?.readPriority) : null;
     const coalesced = coalesceKey ? coalescedReadRequests.get(coalesceKey) : null;
     if (coalesced) {
       recordBenchmarkEvent({
@@ -935,23 +967,39 @@ async function startManagedCoreAttempt(
       return;
     }
 
-    let response: CoreResponseEnvelope;
+    let parsed: unknown;
     try {
-      response = JSON.parse(line) as CoreResponseEnvelope;
+      parsed = JSON.parse(line) as unknown;
     } catch {
       return;
     }
 
-    const request = pending.get(response.id);
+    const responseId = readCoreResponseId(parsed);
+    if (responseId == null) {
+      return;
+    }
+
+    const request = pending.get(responseId);
     if (!request) {
       return;
     }
 
     clearTimeout(request.timeout);
-    pending.delete(response.id);
-    if (activeRequestId === response.id) {
+    pending.delete(responseId);
+    if (activeRequestId === responseId) {
       activeRequestId = null;
     }
+
+    if (!isCoreResponseEnvelope(parsed)) {
+      traceIpc(
+        `malformed-response id=${responseId} elapsedMs=${Date.now() - request.startedAt} pending=${pending.size}`,
+      );
+      request.reject(new Error('desktop core returned a malformed response'));
+      dispatchNext();
+      return;
+    }
+
+    const response = parsed;
     traceIpc(
       `response id=${response.id} ok=${response.ok} elapsedMs=${Date.now() - request.startedAt} pending=${pending.size} payload=${summarizePayload(response.payload)}`,
     );
@@ -1035,7 +1083,7 @@ async function startManagedCoreAttempt(
 
     const timeoutMs = options?.timeoutMs ?? DEFAULT_CORE_TIMEOUT_MS;
     const coalesceKey = isReadOnlyCoreCommand(commandName)
-      ? coreReadCoalesceKey(commandName, payload, timeoutMs)
+      ? coreReadCoalesceKey(commandName, payload, timeoutMs, options?.readPriority)
       : null;
     const coalesced = coalesceKey ? coalescedReadRequests.get(coalesceKey) : null;
     if (coalesced) {
@@ -1141,13 +1189,15 @@ async function startManagedCoreAttempt(
       });
       terminateManagedChildProcess(child, 'SIGTERM');
       await new Promise<void>((resolvePromise) => {
+        let exited = false;
         const timeout = setTimeout(() => {
-          if (!child.killed) {
+          if (!exited) {
             terminateManagedChildProcess(child, 'SIGKILL');
           }
         }, 3_000);
 
         child.once('exit', () => {
+          exited = true;
           clearTimeout(timeout);
           resolvePromise();
         });
