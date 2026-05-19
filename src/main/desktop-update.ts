@@ -13,14 +13,91 @@ import type {
 
 const RELEASE_API_URL = 'https://api.github.com/repos/Svanny/kaur-khor/releases/latest';
 const RELEASES_API_URL = 'https://api.github.com/repos/Svanny/kaur-khor/releases?per_page=20';
+const RELEASES_PAGE_URL = 'https://github.com/Svanny/kaur-khor/releases';
 const RELEASE_DOWNLOAD_BASE_URL = 'https://github.com/Svanny/kaur-khor/releases/download';
 const LATEST_RELEASE_DOWNLOAD_BASE_URL = 'https://github.com/Svanny/kaur-khor/releases/latest/download';
+const MAX_RELEASE_LOOKUP_REDIRECTS = 5;
 const SOURCE_VERSION_PATTERN = /^v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/;
 
 interface GitHubReleaseResponse {
   html_url?: string;
   prerelease?: boolean;
   tag_name?: string;
+}
+
+interface NormalizedDesktopUpdateRunPayload {
+  backupDirectoryPath?: string;
+  dataDirectoryPath?: string;
+  oldSourceBuilds: 'ask' | 'delete' | 'keep';
+  sourceVersion: string;
+  skipBackup: boolean;
+}
+
+function isGitHubReleaseResponse(value: unknown): value is GitHubReleaseResponse {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isValidSourceVersionTag(value: unknown): value is string {
+  return typeof value === 'string' && SOURCE_VERSION_PATTERN.test(value.trim());
+}
+
+function normalizeUpdateString(value: unknown, fieldName: string) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (typeof value !== 'string') {
+    throw new Error(`Desktop updater ${fieldName} must be a string.`);
+  }
+  return value.trim() || null;
+}
+
+function normalizeDesktopUpdateRunPayload(payload: DesktopUpdateRunPayload): NormalizedDesktopUpdateRunPayload {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('Desktop updater options must be an object.');
+  }
+  const oldSourceBuilds = payload.oldSourceBuilds ?? 'ask';
+  if (oldSourceBuilds !== 'ask' && oldSourceBuilds !== 'delete' && oldSourceBuilds !== 'keep') {
+    throw new Error('Desktop updater old source-build cleanup option is invalid.');
+  }
+  return {
+    backupDirectoryPath: normalizeUpdateString(payload.backupDirectoryPath, 'backup directory') ?? undefined,
+    dataDirectoryPath: normalizeUpdateString(payload.dataDirectoryPath, 'data directory') ?? undefined,
+    oldSourceBuilds,
+    skipBackup: payload.skipBackup === true,
+    sourceVersion: normalizeSourceVersion(normalizeUpdateString(payload.sourceVersion, 'source version')),
+  };
+}
+
+function parseReleaseLookupJson(body: string): unknown {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function releasePageUrlForTag(tag: string | null | undefined) {
+  return tag ? `${RELEASES_PAGE_URL}/tag/${encodeURIComponent(tag)}` : `${RELEASES_PAGE_URL}/latest`;
+}
+
+function normalizedReleasePageUrl(value: unknown, tag: string | null | undefined) {
+  const fallback = releasePageUrlForTag(tag);
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  try {
+    const parsedUrl = new URL(value);
+    const expectedUrl = new URL(fallback);
+    return parsedUrl.protocol === 'https:' &&
+      parsedUrl.hostname === expectedUrl.hostname &&
+      parsedUrl.pathname === expectedUrl.pathname &&
+      parsedUrl.search === '' &&
+      parsedUrl.hash === ''
+      ? parsedUrl.toString()
+      : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function checkForKaurKhorUpdate({
@@ -45,7 +122,7 @@ export async function checkForKaurKhorUpdate({
     isUpdateAvailable,
     latestVersion,
     releaseTag: latestRelease.tag_name ?? null,
-    releaseUrl: latestRelease.html_url ?? 'https://github.com/Svanny/kaur-khor/releases/latest',
+    releaseUrl: normalizedReleasePageUrl(latestRelease.html_url, latestRelease.tag_name),
   };
 }
 
@@ -60,18 +137,19 @@ export async function launchKaurKhorSourceUpdate({
   dataDirectoryPath: string;
   payload: DesktopUpdateRunPayload;
 }): Promise<DesktopUpdateRunResult> {
-  const backupDirectoryPath = payload.backupDirectoryPath?.trim() || null;
-  if (!backupDirectoryPath && !payload.skipBackup) {
+  const updatePayload = normalizeDesktopUpdateRunPayload(payload);
+  const backupDirectoryPath = updatePayload.backupDirectoryPath ?? null;
+  if (!backupDirectoryPath && !updatePayload.skipBackup) {
     throw new Error('Choose a snapshot export folder or skip backup before installing an update.');
   }
 
   const scriptPath = await writeUpdaterScript({
     appVersion,
     backupDirectoryPath,
-    dataDirectoryPath: payload.dataDirectoryPath?.trim() || dataDirectoryPath,
-    oldSourceBuilds: payload.oldSourceBuilds ?? 'ask',
-    sourceVersion: normalizeSourceVersion(payload.sourceVersion),
-    skipBackup: payload.skipBackup === true,
+    dataDirectoryPath: updatePayload.dataDirectoryPath ?? dataDirectoryPath,
+    oldSourceBuilds: updatePayload.oldSourceBuilds,
+    sourceVersion: updatePayload.sourceVersion,
+    skipBackup: updatePayload.skipBackup === true,
   });
 
   await launchScriptInTerminal(scriptPath);
@@ -84,40 +162,49 @@ export async function launchKaurKhorSourceUpdate({
 
 async function fetchLatestRelease(): Promise<GitHubReleaseResponse> {
   const body = await downloadText(RELEASE_API_URL);
-  return JSON.parse(body) as GitHubReleaseResponse;
+  const parsed = parseReleaseLookupJson(body);
+  return isGitHubReleaseResponse(parsed) && parsed.prerelease !== true && isValidSourceVersionTag(parsed.tag_name)
+    ? parsed
+    : {};
 }
 
 async function fetchReleaseVersions(): Promise<GitHubReleaseResponse[]> {
   const body = await downloadText(RELEASES_API_URL);
-  const releases = JSON.parse(body) as GitHubReleaseResponse[];
+  const releases = parseReleaseLookupJson(body);
+  if (!Array.isArray(releases)) {
+    return [];
+  }
   return releases.filter((release) =>
+    isGitHubReleaseResponse(release) &&
     release.prerelease !== true &&
-    typeof release.tag_name === 'string' &&
-    release.tag_name.trim().length > 0,
+    isValidSourceVersionTag(release.tag_name),
   );
 }
 
 function buildUpdateVersionOptions(releases: GitHubReleaseResponse[]): DesktopUpdateVersionOption[] {
   const latestRelease = releases[0];
   const options: DesktopUpdateVersionOption[] = [];
+  const releaseTags = new Set<string>();
   if (latestRelease?.tag_name) {
+    releaseTags.add(latestRelease.tag_name);
     options.push({
       label: `Latest (${latestRelease.tag_name})`,
       releaseTag: latestRelease.tag_name,
-      releaseUrl: latestRelease.html_url ?? 'https://github.com/Svanny/kaur-khor/releases/latest',
+      releaseUrl: normalizedReleasePageUrl(latestRelease.html_url, latestRelease.tag_name),
       value: 'latest',
       version: latestRelease.tag_name.replace(/^v/, ''),
     });
   }
 
   for (const release of releases) {
-    if (!release.tag_name) {
+    if (!release.tag_name || releaseTags.has(release.tag_name)) {
       continue;
     }
+    releaseTags.add(release.tag_name);
     options.push({
       label: release.tag_name,
       releaseTag: release.tag_name,
-      releaseUrl: release.html_url ?? `https://github.com/Svanny/kaur-khor/releases/tag/${release.tag_name}`,
+      releaseUrl: normalizedReleasePageUrl(release.html_url, release.tag_name),
       value: release.tag_name,
       version: release.tag_name.replace(/^v/, ''),
     });
@@ -157,12 +244,26 @@ function sourceArchiveNameForVersion(sourceVersion: string | null | undefined) {
   return `kaur-khor-${tag}-source-build.tar.gz`;
 }
 
-function downloadText(url: string): Promise<string> {
+function downloadText(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolveDownload, rejectDownload) => {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.protocol !== 'https:') {
+      rejectDownload(new Error('GitHub release lookup redirected to an unsupported protocol.'));
+      return;
+    }
+    if (parsedUrl.hostname !== 'api.github.com') {
+      rejectDownload(new Error('GitHub release lookup redirected to an untrusted host.'));
+      return;
+    }
+
     const req = httpsRequest(url, { headers: { 'User-Agent': 'kaur-khor-desktop-updater' } }, (response) => {
       if (response.statusCode && response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         response.resume();
-        downloadText(new URL(response.headers.location, url).toString()).then(resolveDownload, rejectDownload);
+        if (redirectCount >= MAX_RELEASE_LOOKUP_REDIRECTS) {
+          rejectDownload(new Error('GitHub release lookup exceeded the redirect limit.'));
+          return;
+        }
+        downloadText(new URL(response.headers.location, url).toString(), redirectCount + 1).then(resolveDownload, rejectDownload);
         return;
       }
 
@@ -290,6 +391,15 @@ else
   echo "Need shasum or sha256sum to verify the Kaur Khor source-build archive." >&2
   exit 1
 fi
+while IFS= read -r archive_entry; do
+  case "$archive_entry" in
+    /*|[A-Za-z]:/*|[A-Za-z]:\\\\*) echo "Refusing to extract unsafe source-build archive path: $archive_entry" >&2; exit 1 ;;
+  esac
+  if [[ "$archive_entry" != */* || "$archive_entry" == ../* || "$archive_entry" == */../* || "$archive_entry" == */.. || "$archive_entry" == *//* ]]; then
+    echo "Refusing to extract unsafe source-build archive path: $archive_entry" >&2
+    exit 1
+  fi
+done < <(tar -tzf ${shellQuote(sourceArchiveName)})
 tar -xzf ${shellQuote(sourceArchiveName)}
 cd kaur-khor-*-source-build
 ./scripts/build-from-source.sh --update --data-dir=${shellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
@@ -334,6 +444,12 @@ if ($expectedHash -notmatch "^[a-f0-9]{64}$") {
 $actualHash = (Get-FileHash -Algorithm SHA256 -Path "${sourceArchiveName}").Hash.ToLowerInvariant()
 if ($actualHash -ne $expectedHash) {
   throw "SHA-256 mismatch for Kaur Khor source-build archive. Expected $expectedHash, got $actualHash."
+}
+$archiveEntries = tar -tf "${sourceArchiveName}"
+foreach ($archiveEntry in $archiveEntries) {
+  if ($archiveEntry -match '^(\\/|[A-Za-z]:[\\\\/])' -or $archiveEntry -notmatch '[\\\\/]' -or $archiveEntry -match '(^|[\\\\/])\\.\\.($|[\\\\/])' -or $archiveEntry -match '[\\\\/]{2,}') {
+    throw "Refusing to extract unsafe source-build archive path: $archiveEntry"
+  }
 }
 tar -xzf "${sourceArchiveName}"
 Set-Location "kaur-khor-*-source-build"

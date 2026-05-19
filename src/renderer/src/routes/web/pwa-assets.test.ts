@@ -131,6 +131,7 @@ describe('web PWA install assets', () => {
     expect(html).toContain('<meta name="apple-mobile-web-app-capable" content="yes" />');
     expect(html).toContain('<link rel="manifest" href="./manifest.webmanifest" />');
     expect(html).toContain('<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />');
+    expect(html).not.toContain("frame-ancestors");
   });
 
   test('defines installable app routes and icon assets in the web manifest', () => {
@@ -252,6 +253,14 @@ describe('web PWA install assets', () => {
     expect(entry).toContain('const serviceWorkerPath = `${basePath}/sw.js`;');
     expect(entry).toContain('const scope = `${basePath}/`;');
     expect(entry).toContain('navigator.serviceWorker.register(serviceWorkerPath, { scope })');
+  });
+
+  test('uses the preferences loading screen for the embedded mobile shell fallback', () => {
+    const entry = readFileSync(resolve(projectRoot, 'src/renderer/src/main.web.tsx'), 'utf8');
+
+    expect(entry).toContain('KAUR KHOR');
+    expect(entry).toContain('Loading preferences…');
+    expect(entry).not.toContain('Loading Kaur Khor');
   });
 
   test('keeps phone install screenshot generation aligned with the manifest', () => {

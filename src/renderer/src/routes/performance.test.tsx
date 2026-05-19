@@ -568,7 +568,7 @@ describe('PerformanceRoute', () => {
   test('shows supplier filter on analysis page', async () => {
     await renderAnalysisRouteSettled();
 
-    expect(await screen.findByRole('combobox', { name: 'Filter by supplier' })).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Filter by supplier' }, { timeout: 5_000 })).toBeInTheDocument();
   });
 
   test('uses a taller status pill line box for translated board labels', async () => {

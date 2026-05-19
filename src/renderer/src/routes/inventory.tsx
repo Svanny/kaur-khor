@@ -39,7 +39,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { matchesCatalogQuery, type CatalogView } from '@/lib/catalog';
 import { formatCurrency } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
-import { buildCatalogSearchParams, readCatalogRouteState, readCatalogView } from '@/lib/navigation-state';
+import {
+  buildCatalogSearchParams,
+  buildServiceDetailHref,
+  buildServiceEditHref,
+  buildSkuDetailHref,
+  buildSkuEditHref,
+  readCatalogRouteState,
+  readCatalogView,
+} from '@/lib/navigation-state';
 import { normalizeServiceDetailPage, normalizeSkuDetailPage } from '@/lib/sena-detail-pages';
 import { formatSenaReorderQuantity } from '@/lib/sena-reorder-quantity';
 import {
@@ -56,6 +64,7 @@ import {
 } from '@/lib/sena-catalog';
 import { projectInventorySnapshotFromSena } from '@/lib/project-inventory-snapshot-from-sena';
 import { translateUiLiteral } from '@/lib/translations';
+import { latestObservationAt } from '@/routes/observation-payload';
 import { ServiceMutationActions, SkuMutationActions } from '@/routes/catalog-item-actions';
 import type { ServiceActionMode, SkuActionMode } from '@/routes/catalog-item-actions';
 import { WorkspaceTitleCardWireframe } from '@/routes/loading-wireframes';
@@ -459,7 +468,7 @@ export function InventoryRoute() {
   const showServices = view !== 'skus';
   const skuActionContextFreshnessKey = [
     workspaceSummary?.runId ?? 'no-run',
-    workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? 'no-observation',
+    workspaceSummary?.latestObservedAt ?? latestObservationAt(observations) ?? 'no-observation',
     language,
   ].join('|');
   const hasResults =
@@ -806,6 +815,7 @@ export function InventoryRoute() {
           if (!pendingArchive) {
             return;
           }
+          const failedName = pendingArchive.entityName;
           void inventory
             .archiveCatalogEntity({
               entityId: pendingArchive.entityId,
@@ -813,6 +823,13 @@ export function InventoryRoute() {
             })
             .then(() => {
               setPendingArchive(null);
+            })
+            .catch(() => {
+              setPendingArchive(null);
+              setProductActionNotice({
+                reason: translateUiLiteral(language, 'Kaur Khor could not archive this product. Try again.'),
+                title: translateUiLiteral(language, 'Could not archive {name}', { name: failedName }),
+              });
             });
         }}
       />
@@ -853,6 +870,7 @@ export function InventoryRoute() {
           if (!pendingDelete) {
             return;
           }
+          const failedName = pendingDelete.entityName;
           void inventory
             .deleteCatalogEntity({
               entityId: pendingDelete.entityId,
@@ -860,6 +878,13 @@ export function InventoryRoute() {
             })
             .then(() => {
               setPendingDelete(null);
+            })
+            .catch(() => {
+              setPendingDelete(null);
+              setProductActionNotice({
+                reason: translateUiLiteral(language, 'Kaur Khor could not delete this product. Try again.'),
+                title: translateUiLiteral(language, 'Could not delete {name}', { name: failedName }),
+              });
             });
         }}
       />
@@ -880,7 +905,7 @@ export function InventoryRoute() {
                     costPerUnit: sku.costPerUnit,
                     leadTimeVariability: null,
                     productPrice: sku.productPrice,
-                    latestObservationAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
+                    latestObservationAt: workspaceSummary?.latestObservedAt ?? latestObservationAt(observations),
                     soldAsProduct: sku.soldAsProduct,
                     recommendedOrderQuantity: 0,
                     reorderRecommendation: formatSenaReorderQuantity(null, language, 0),
@@ -900,7 +925,7 @@ export function InventoryRoute() {
                             <Link
                               className="font-medium text-foreground transition-colors group-hover:text-primary"
                               state={buildKaurKhorNavigationState(location, '/catalog')}
-                              to={`/catalog/skus/${sku.skuId}`}
+                              to={buildSkuDetailHref(sku.skuId)}
                             >
                               {sku.name}
                             </Link>
@@ -918,13 +943,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow wrap={false} className="pb-1 xl:justify-end">
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={buildSkuDetailHref(sku.skuId)}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${sku.skuId}/edit`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={buildSkuEditHref(sku.skuId)}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>
@@ -1002,9 +1027,9 @@ export function InventoryRoute() {
                   const linkedSkus = linkedSkuIdsForService(catalog, service.serviceId);
                   const deleteState = deleteButtonState('service', service.serviceId);
                   const fallbackServiceActions = {
-                    primarySkuHref: linkedSkus[0] ? `/catalog/skus/${linkedSkus[0]}` : '/catalog',
-                    editServiceHref: `/catalog/services/${service.serviceId}/edit`,
-                    latestObservedAt: workspaceSummary?.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null,
+                    primarySkuHref: linkedSkus[0] ? buildSkuDetailHref(linkedSkus[0]) : '/catalog',
+                    editServiceHref: buildServiceEditHref(service.serviceId),
+                    latestObservedAt: workspaceSummary?.latestObservedAt ?? latestObservationAt(observations),
                     noBottleneckHint: translateUiLiteral(language, 'No limiting contributor is active right now.'),
                     bottleneckSku: null,
                     servicePrice: {
@@ -1031,7 +1056,7 @@ export function InventoryRoute() {
                             <Link
                               className="font-medium text-foreground transition-colors group-hover:text-primary"
                               state={buildKaurKhorNavigationState(location, '/catalog')}
-                              to={`/catalog/services/${service.serviceId}`}
+                              to={buildServiceDetailHref(service.serviceId)}
                             >
                               {service.name}
                             </Link>
@@ -1044,13 +1069,13 @@ export function InventoryRoute() {
                         />
                         <WorkspaceActionRow wrap={false} className="pb-1 xl:justify-end">
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={buildServiceDetailHref(service.serviceId)}>
                               <EntityPreviewIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Detail')}
                             </Link>
                           </Button>
                           <Button asChild size="sm" variant="outline">
-                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/services/${service.serviceId}/edit`}>
+                            <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={buildServiceEditHref(service.serviceId)}>
                               <ActionEditPencilIcon data-icon="inline-start" />
                               {translateUiLiteral(language, 'Edit')}
                             </Link>

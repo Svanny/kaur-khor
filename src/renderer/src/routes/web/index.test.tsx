@@ -18,7 +18,7 @@ vi.mock('@/runtime/web', async (importOriginal) => {
   };
 });
 
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { RESPONSIVE_PHONE_VIEWPORT_MAX_SCALE } from '@shared/responsive-zoom';
@@ -42,6 +42,7 @@ import {
   formatBrowserStorageErrorMessage,
   installBrowserBeforeUnloadWarning,
   isBrowserTelegramLiveListening,
+  normalizeBrowserStateForMode,
   PhoneViewWarningOverlay,
   WebRoutes,
 } from './index';
@@ -68,7 +69,7 @@ const operatorFeatureLabels = [
 const previousNounLabels = [
   'Work Queue',
   'Point-of-Sale Workbench',
-  'Stock Counts',
+  'Products Update',
   'Customer Orders',
   'Immediate Sales',
   'Supplier Orders',
@@ -139,6 +140,15 @@ const embeddedStorage = {
   vfs: 'opfs-sahpool',
 } as const;
 const hiddenPhoneOperatorHash = '#/__phone/7f4b0e2d-9a61-4f83-a61e-21d63bfb8e7c/';
+
+function readBlobText(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => resolve(String(reader.result ?? '')));
+    reader.addEventListener('error', () => reject(reader.error ?? new Error('Failed to read blob.')));
+    reader.readAsText(blob);
+  });
+}
 
 const releaseAssets = [
   {
@@ -256,6 +266,13 @@ function mockLatestReleaseFetch(assets: readonly { browser_download_url: string;
       assets,
       tag_name: tagName,
     }),
+  })));
+}
+
+function mockLatestReleasePayload(payload: unknown) {
+  vi.stubGlobal('fetch', vi.fn(async () => ({
+    ok: true,
+    json: async () => payload,
   })));
 }
 
@@ -395,6 +412,94 @@ function createOnboardedBrowserStorageHandle(mode: 'app' | 'demo') {
     },
   ]);
 }
+
+test('normalizes partially persisted browser state before bridge hydration', () => {
+  const fallback = fallbackStateForMode('app');
+  const validSkuDetail = {
+    demandPosterior: [],
+    inventoryPosterior: [],
+    leadTimePosterior: [],
+    pipelinePosterior: [],
+    summary: {},
+  };
+  const validServiceDetail = {
+    contributors: [],
+    regimeTimeline: [],
+    serviceId: 'service-valid',
+  };
+  const normalized = normalizeBrowserStateForMode('app', {
+    ...fallback,
+    automation: {
+      ...fallback.automation,
+      conversations: undefined as never,
+      exposures: undefined as never,
+      intakes: undefined as never,
+      metrics: undefined as never,
+    },
+    automationMessages: {
+      'conv-dirty': { messageId: 'not-an-array' },
+      'conv-mixed': [
+        null,
+        {
+          conversationId: 'conv-mixed',
+          direction: 'inbound',
+          externalMessageKey: 'telegram-1',
+          messageId: 'message-1',
+          normalizedText: 'hello',
+          parseConfidence: null,
+          rawText: 'hello',
+          sentAt: '2026-05-05T00:00:00.000Z',
+        },
+      ],
+    } as never,
+    browserTelegramToken: 42 as never,
+    browserTelegramUpdateOffset: Number.NaN,
+    catalog: {
+      ...fallback.catalog,
+      bundles: undefined as never,
+      services: undefined as never,
+      sharingMask: undefined as never,
+      skus: undefined as never,
+    },
+    observations: undefined as never,
+    orderBatches: undefined as never,
+    serviceDetails: {
+      dirty: {},
+      'service-valid': validServiceDetail,
+    } as never,
+    skuDetails: {
+      dirty: {},
+      'sku-valid': validSkuDetail,
+    } as never,
+  });
+
+  expect(normalized.automation.conversations).toEqual(fallback.automation.conversations);
+  expect(normalized.automation.exposures).toEqual(fallback.automation.exposures);
+  expect(normalized.automation.intakes).toEqual(fallback.automation.intakes);
+  expect(normalized.automation.metrics).toEqual(fallback.automation.metrics);
+  expect(normalized.automationMessages).toEqual({
+    'conv-mixed': [{
+      conversationId: 'conv-mixed',
+      direction: 'inbound',
+      externalMessageKey: 'telegram-1',
+      messageId: 'message-1',
+      normalizedText: 'hello',
+      parseConfidence: null,
+      rawText: 'hello',
+      sentAt: '2026-05-05T00:00:00.000Z',
+    }],
+  });
+  expect(normalized.browserTelegramToken).toBeNull();
+  expect(normalized.browserTelegramUpdateOffset).toBeNull();
+  expect(normalized.catalog.bundles).toEqual(fallback.catalog.bundles);
+  expect(normalized.catalog.services).toEqual(fallback.catalog.services);
+  expect(normalized.catalog.sharingMask).toEqual(fallback.catalog.sharingMask);
+  expect(normalized.catalog.skus).toEqual(fallback.catalog.skus);
+  expect(normalized.observations).toEqual(fallback.observations);
+  expect(normalized.orderBatches).toEqual(fallback.orderBatches);
+  expect(normalized.serviceDetails).toEqual({ 'service-valid': validServiceDetail });
+  expect(normalized.skuDetails).toEqual({ 'sku-valid': validSkuDetail });
+});
 
 function mockViewport(width: number, height: number) {
   Object.defineProperty(window, 'innerWidth', {
@@ -542,6 +647,30 @@ describe('WebRoutes landing rail', () => {
 
     expect(screen.getByRole('img', { name: 'Kaur Khor mission control overview showing the main work queue' })).toBeInTheDocument();
     expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
+
+  test('supports legacy reduced-motion media query listeners on the landing page', () => {
+    const addListener = vi.fn();
+    const removeListener = vi.fn();
+    const matchMedia = vi.fn((query: string) => ({
+      addListener,
+      dispatchEvent: vi.fn(),
+      matches: false,
+      media: query,
+      onchange: null,
+      removeListener,
+    }));
+    vi.stubGlobal('matchMedia', matchMedia);
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: matchMedia,
+    });
+
+    const { unmount } = renderWebHome();
+
+    expect(addListener).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(removeListener).toHaveBeenCalledTimes(1);
   });
 
   test('exposes the active screenshot carousel slide', () => {
@@ -768,6 +897,46 @@ describe('WebRoutes releases section', () => {
       'href',
       releaseAssets[4]!.browser_download_url,
     );
+  });
+
+  test('ignores malformed and untrusted release assets from the GitHub response', async () => {
+    mockLatestReleasePayload({
+      assets: [
+        {
+          browser_download_url: 'javascript:alert(1)',
+          name: 'kaur-khor-v1.2.3-win-x64.exe',
+        },
+        {
+          browser_download_url: 'https://example.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-mac-arm64.dmg',
+          name: 'kaur-khor-v1.2.3-mac-arm64.dmg',
+        },
+        {
+          browser_download_url: 'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-linux-x64.AppImage',
+          name: 'kaur-khor-v1.2.3-linux-x64.AppImage',
+        },
+        {
+          browser_download_url: 42,
+          name: 'kaur-khor-v1.2.3-linux-arm64.AppImage',
+        },
+      ],
+      tag_name: 123,
+    });
+    mockNavigator({
+      userAgentData: {
+        platform: 'Linux',
+      },
+    });
+
+    renderWebHome();
+
+    const select = await startReleaseDownloadLoad();
+    await waitFor(() => expect(select.value).toBe('kaur-khor-v1.2.3-linux-x64.AppImage'));
+
+    expect(screen.getByRole('link', { name: /Download selected/i })).toHaveAttribute(
+      'href',
+      'https://github.com/Svanny/kaur-khor/releases/download/v1.2.3/kaur-khor-v1.2.3-linux-x64.AppImage',
+    );
+    expect(screen.queryByText(/Recommended for Linux x64 from/i)).not.toBeInTheDocument();
   });
 
   test('falls back to the latest release page when the release API fails', async () => {
@@ -1094,6 +1263,43 @@ describe('WebRoutes embedded app fallback state', () => {
     }
   });
 
+  test('retargets browser persistence hooks when switching embedded app modes', async () => {
+    const demoHandle = createSupportedBrowserStorageHandle();
+    demoHandle.init.databaseName = KAUR_KHOR_BROWSER_DEMO_DATABASE;
+    const appHandle = createSupportedBrowserStorageHandle();
+    appHandle.init.databaseName = KAUR_KHOR_BROWSER_APP_DATABASE;
+    runtimeWebMocks.openBrowserStorage
+      .mockResolvedValueOnce(demoHandle)
+      .mockResolvedValueOnce(appHandle);
+
+    const { rerender } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(demoHandle.putDocuments).toHaveBeenCalledWith([
+      expect.objectContaining({ id: KAUR_KHOR_BROWSER_DEMO_DATABASE }),
+    ]));
+    await act(async () => {
+      await window.kaurKhorDesktop.preferences.save({ language: 'km' });
+    });
+    expect(demoHandle.putDocuments).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: KAUR_KHOR_BROWSER_DEMO_DATABASE }),
+    ]);
+
+    await act(async () => {
+      rerender(<EmbeddedAppRoute mode="app" />);
+    });
+
+    await waitFor(() => expect(demoHandle.close).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(appHandle.putDocuments).toHaveBeenCalledWith([
+      expect.objectContaining({ id: KAUR_KHOR_BROWSER_APP_DATABASE }),
+    ]));
+    await act(async () => {
+      await window.kaurKhorDesktop.preferences.save({ language: 'en' });
+    });
+    expect(appHandle.putDocuments).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: KAUR_KHOR_BROWSER_APP_DATABASE }),
+    ]);
+  });
+
   test('leaves browser backup actions available after a bad import file', async () => {
     runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle());
 
@@ -1136,6 +1342,54 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('browser storage write failed');
     expect(screen.getByRole('button', { name: 'Export backup' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Import backup' })).toBeEnabled();
+  });
+
+  test('exports every browser storage document, not only the bridge state record', async () => {
+    const handle = createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: fallbackStateForMode('app'),
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+      {
+        collection: 'custom_reports',
+        id: 'daily-close',
+        json: { rows: [1, 2, 3] },
+        updatedAt: '2026-05-06T00:00:00.000Z',
+      },
+    ]);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:kaur-khor-backup');
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const anchorClickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+
+    try {
+      render(<EmbeddedAppRoute mode="app" />);
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Export backup' }));
+
+      await waitFor(() => expect(handle.exportBackup).toHaveBeenCalled());
+      const exportedBlob = createObjectUrlSpy.mock.calls.at(-1)?.[0] as Blob | undefined;
+      expect(exportedBlob).toBeInstanceOf(Blob);
+      const exportedBackup = JSON.parse(await readBlobText(exportedBlob!)) as BrowserStorageJsonBackup;
+      expect(exportedBackup.records).toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          collection: 'browser_state',
+          id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        }),
+        expect.objectContaining({
+          collection: 'custom_reports',
+          id: 'daily-close',
+          json: { rows: [1, 2, 3] },
+        }),
+      ]));
+      expect(anchorClickSpy).toHaveBeenCalled();
+    } finally {
+      createObjectUrlSpy.mockRestore();
+      revokeObjectUrlSpy.mockRestore();
+      anchorClickSpy.mockRestore();
+    }
   });
 
   test('does not import a backup before confirming it has browser workspace state', async () => {
@@ -1239,6 +1493,90 @@ describe('WebRoutes embedded app fallback state', () => {
         }),
       }),
     ]);
+  });
+
+  test('imports older browser backups with recoverable partial workspace state', async () => {
+    const existingState = fallbackStateForMode('app');
+    const handle = createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_APP_DATABASE,
+        json: existingState,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(handle);
+    const reloadLocation = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: {
+        ...originalLocation,
+        reload: reloadLocation,
+      },
+    });
+
+    try {
+      const { container } = render(<EmbeddedAppRoute mode="app" />);
+
+      await screen.findByRole('button', { name: 'Export backup' });
+      const input = container.querySelector('input[type="file"]');
+      expect(input).not.toBeNull();
+      const olderState = {
+        appContext: existingState.appContext,
+        catalog: {
+          ...existingState.catalog,
+          skus: [{
+            skuId: 'sku-restored',
+            name: 'Restored SKU',
+            supplierName: null,
+            unitsInStock: 4,
+            costPerUnit: 2,
+            leadTimeMeanDaysHint: null,
+            leadTimeStdDaysHint: null,
+            soldAsProduct: true,
+            productPrice: 8,
+            notes: null,
+          }],
+        },
+        observations: existingState.observations,
+        preferences: existingState.preferences,
+      };
+      const olderBackupFile = {
+        name: 'older-backup.json',
+        text: vi.fn(async () => JSON.stringify({
+          databaseName: KAUR_KHOR_BROWSER_APP_DATABASE,
+          exportedAt: '2026-05-05T00:00:00.000Z',
+          format: 'kaur-khor.browser.storage.backup',
+          records: [{
+            collection: 'browser_state',
+            id: KAUR_KHOR_BROWSER_APP_DATABASE,
+            json: olderState,
+            updatedAt: '2026-05-05T00:00:00.000Z',
+          }],
+          schemaVersion: 1,
+          version: 1,
+        })),
+        type: 'application/json',
+      } as unknown as File;
+
+      fireEvent.change(input as HTMLInputElement, {
+        target: {
+          files: [olderBackupFile],
+        },
+      });
+
+      await waitFor(() => expect(handle.importBackup).toHaveBeenCalledTimes(1));
+      expect(getBrowserDesktopBridgeMockState().catalog.skus[0]?.skuId).toBe('sku-restored');
+      expect(getBrowserDesktopBridgeMockState().skuDetails).toEqual({});
+      expect(getBrowserDesktopBridgeMockState().orderBatches).toEqual([]);
+      expect(reloadLocation).toHaveBeenCalledTimes(1);
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
 
   test('shows browser workspace data-risk copy without Telegram copy when no bot is connected', () => {
@@ -1774,6 +2112,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(phoneHeaderEyebrow).toHaveTextContent('Capture');
     expect(phoneHeaderTitle).toHaveTextContent('Record what changed');
     expect(container.querySelector('[data-slot="phone-capture-page"]')).not.toBeNull();
+    await waitFor(() => expect(container.querySelector('[data-slot="centered-tile-grid"]')).not.toBeNull());
     const captureGrid = container.querySelector('[data-slot="centered-tile-grid"]');
     expect(captureGrid).not.toBeNull();
     expect(captureGrid).toHaveClass('phone-capture-hub-grid');
@@ -1782,7 +2121,7 @@ describe('WebRoutes embedded app fallback state', () => {
     });
     expect(captureGrid?.querySelector('.liquid-grid-card-glass')).toBeNull();
     expect(screen.queryByText('Phone capture keeps entry fast. Use the queue to update existing tickets or a wider view for custom multi-lane updates.')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
+    expect(screen.getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
     expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
@@ -1826,7 +2165,9 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-explain-fragile-list"]')).not.toBeNull();
     fireEvent.click(screen.getByRole('link', { name: 'Back to insights' }));
     expect(await screen.findByRole('heading', { name: 'Choose an operating lens' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Workspace safety' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
+    expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
+    fireEvent.click(screen.getByRole('link', { name: 'Open settings' }));
     expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
     expect(phoneHeaderEyebrow).toHaveTextContent('Settings');
     expect(phoneHeaderTitle).toHaveTextContent('Configurations');
@@ -1934,13 +2275,13 @@ describe('WebRoutes embedded app fallback state', () => {
 
       await waitFor(() => expect(container.querySelector('[data-slot="phone-today-page"]')).not.toBeNull());
       expect(container.querySelector('[data-slot="phone-workspace-safety-alert"]')).toBeNull();
-      fireEvent.click(screen.getByRole('link', { name: 'Workspace safety' }));
-      expect(await screen.findByRole('heading', { name: 'Workspace safety' })).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Workspace safety' }));
+      expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Export backup' }));
       await waitFor(() => expect(handle.persistSenaState).toHaveBeenCalled());
       expect(createObjectUrlSpy).toHaveBeenCalled();
       expect(anchorClickSpy).toHaveBeenCalled();
-      expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup');
+      await waitFor(() => expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup'));
       expect(await screen.findByText('Backup export ready.')).toBeInTheDocument();
     } finally {
       createObjectUrlSpy.mockRestore();
@@ -1987,8 +2328,11 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(container.querySelector('[data-slot="phone-sku-evidence-section"]')).toBeNull();
       expect(container.querySelector('[data-slot="phone-sku-ledger-section"]')).toBeNull();
       expect(screen.getByText(/likely on hand|Unknown likely on hand/)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('source=sku-detail'));
-      expect(screen.getByRole('link', { name: 'Supplier Order' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+      expect(screen.getByRole('button', { name: 'Products Update' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Updated price' })).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Supplier Receipts' })).not.toBeInTheDocument();
     } else {
       expect(container.querySelector('[data-slot="phone-service-heartbeat"]')).not.toBeNull();
@@ -1999,11 +2343,13 @@ describe('WebRoutes embedded app fallback state', () => {
       expect(container.querySelector('[data-slot="phone-service-ledger-section"]')).toBeNull();
       expect(screen.getAllByText(/service units likely sellable today|Blocked until linked stock is refreshed|Sellability unknown/).length).toBeGreaterThan(0);
       expect(screen.queryByText('On hand')).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Customer Order' })).toHaveAttribute('href', expect.stringContaining('source=service-detail'));
-      expect(screen.getByRole('link', { name: 'Immediate Sale' })).toHaveAttribute('href', expect.stringContaining('targetType=service'));
-      expect(screen.getByRole('link', { name: 'Record linked stock' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+      expect(screen.getByRole('button', { name: 'Open bottleneck SKU' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Products Update' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Updated price' })).toBeInTheDocument();
     }
-    expect(screen.queryByRole('link', { name: 'Back to products' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
     expect(screen.queryByRole('heading', { name: 'Catalog' })).not.toBeInTheDocument();
   });
 
@@ -2018,6 +2364,128 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.getByText('This product is not available in the phone catalog.')).toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-product-detail-page"]')).not.toBeNull();
     expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+  });
+
+  test('prompts before opening a targeted phone SKU capture action and preserves desktop route params', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'ក្រមាភ្នំពេញ' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Leave detail page?');
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to capture' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toContain(`${hiddenPhoneOperatorHash}work/capture/customer-order?`);
+    });
+    expect(window.location.hash).toContain('targetAction=customer-order');
+    expect(window.location.hash).toContain('targetType=sku');
+    expect(window.location.hash).toContain('targetId=sku-001');
+    expect(window.location.hash).toContain('ticketMode=new');
+    expect(window.location.hash).toContain('source=sku-detail');
+  });
+
+  test('lets phone SKU detail delete an existing capture draft before starting a targeted session', async () => {
+    window.localStorage.setItem('kaur-khor:record-update:draft:supplier-order-pending:v1', '{"version":1}');
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'ក្រមាភ្នំពេញ' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete saved draft?');
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
+
+    await waitFor(() => {
+      expect(window.location.hash).toContain(`${hiddenPhoneOperatorHash}work/capture/supplier-order?`);
+    });
+    expect(window.location.hash).toContain('targetAction=supplier-order');
+    expect(window.location.hash).toContain('targetType=sku');
+    expect(window.location.hash).toContain('targetId=sku-001');
+    expect(window.localStorage.getItem('kaur-khor:record-update:draft:supplier-order-pending:v1')).toBeNull();
+  });
+
+  test('omits the phone SKU price capture action for non-sellable SKUs', async () => {
+    const state = fallbackStateForMode('demo');
+    state.preferences.onboardingCompletedAt = '2026-05-05T00:00:00.000Z';
+    state.catalog.skus = state.catalog.skus.map((sku) => (
+      sku.skuId === 'sku-001'
+        ? { ...sku, productPrice: null, soldAsProduct: false }
+        : sku
+    ));
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/skus/sku-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createSupportedBrowserStorageHandle([
+      {
+        collection: 'browser_state',
+        id: KAUR_KHOR_BROWSER_DEMO_DATABASE,
+        json: state,
+        updatedAt: '2026-05-05T00:00:00.000Z',
+      },
+    ]));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'ក្រមាភ្នំពេញ' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Products Update' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Updated price' })).not.toBeInTheDocument();
+  });
+
+  test('opens phone Service capture actions through desktop-parity targets', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/services/service-001`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    render(<EmbeddedAppRoute mode="demo" />);
+
+    expect(await screen.findByRole('heading', { name: 'ឈុតរុំអំណោយក្រមា' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
+    expect(screen.queryByRole('button', { name: 'Products Update' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open bottleneck SKU' }));
+    const openBottleneckDialog = screen.getByRole('dialog');
+    expect(openBottleneckDialog).toHaveTextContent('Open bottleneck SKU?');
+    fireEvent.click(within(openBottleneckDialog).getByRole('button', { name: 'Open bottleneck SKU' }));
+    await waitFor(() => {
+      expect(window.location.hash).toContain(`${hiddenPhoneOperatorHash}catalog/skus/sku-001`);
+    });
+
+    window.location.hash = `${hiddenPhoneOperatorHash}catalog/services/service-001`;
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'ឈុតរុំអំណោយក្រមា' })).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: 'Updated price' })).toBeInTheDocument();
+  });
+
+  test('ignores stale phone service price capture routes instead of exposing form-only controls', async () => {
+    const params = new URLSearchParams({
+      targetAction: 'service-price',
+      targetType: 'service',
+      targetId: 'service-001',
+      source: 'service-detail',
+      breadcrumb: 'Opened from Service detail · ឈុតរុំអំណោយក្រមា',
+      returnTo: '/catalog/services/service-001',
+    });
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/stock-count?${params.toString()}`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Products Update'));
+    expect(container.querySelector('[data-slot="phone-wide-only-page"]')).toBeNull();
+    await waitFor(() => expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull());
+    expect(screen.getByText('Main workbench')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="mobile-service-signal-card"]')).toBeNull();
+    expect(container.querySelector('[data-slot="record-update-table"]')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: /Price if changed/ })).not.toBeInTheDocument();
   });
 
   test('shows an empty catalog message before phone product search has inventory', async () => {
@@ -2052,7 +2520,7 @@ describe('WebRoutes embedded app fallback state', () => {
     window.location.hash = `${hiddenPhoneOperatorHash}work/capture`;
     window.dispatchEvent(new HashChangeEvent('hashchange'));
     expect(await screen.findByRole('heading', { name: 'Record what changed' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
+    expect(screen.getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}work/capture/stock-count`);
     expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
@@ -2110,7 +2578,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(moneyContributorLink).toHaveAttribute('href', expect.stringContaining('returnTo='));
     fireEvent.click(moneyContributorLink);
     expect(await screen.findByRole('heading', { name: 'Actions' })).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Back to products' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', expect.stringContaining(`${hiddenPhoneOperatorHash}insights/money`));
 
     window.location.hash = `${hiddenPhoneOperatorHash}insights/explain?section=evidence&timeframe=all`;
     window.dispatchEvent(new HashChangeEvent('hashchange'));
@@ -2162,8 +2630,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(within(inspector).getByText('Evidence/freshness')).toBeInTheDocument();
     expect(within(inspector).getByText(/30D projection/)).toBeInTheDocument();
     expect(within(inspector).getByRole('link', { name: 'View details' })).toHaveAttribute('href', expect.stringContaining('returnTo='));
-    expect(within(inspector).getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
-    expect(within(inspector).getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', expect.stringContaining('source=inventory'));
+    expect(within(inspector).getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', expect.stringContaining('targetType=sku'));
+    expect(within(inspector).getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', expect.stringContaining('source=inventory'));
     expect(within(inspector).getByRole('link', { name: 'Supplier Order' })).toHaveAttribute('href', expect.stringContaining('supplier-order'));
   });
 
@@ -2249,7 +2717,7 @@ describe('WebRoutes embedded app fallback state', () => {
 
     expect(await screen.findByRole('heading', { name: 'Actions' })).toBeInTheDocument();
     expect(window.location.hash).toContain('q=');
-    expect(screen.queryByRole('link', { name: 'Back to products' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', expect.stringContaining('q='));
     window.history.back();
     expect(await screen.findByRole('heading', { name: 'Offered Selections' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Search products' })).toHaveValue('ក្រមា');
@@ -2303,7 +2771,7 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(container.querySelector('[data-slot="phone-detail-refresh"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-detail-refresh-error"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-workspace-error"]')).toBeNull();
-    expect(screen.queryByRole('link', { name: 'Back to products' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Back to products' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}catalog`);
   });
 
   test('resets the phone viewport scroll position after route changes', async () => {
@@ -2353,6 +2821,18 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(within(safeLinks).getByRole('link', { name: 'Insights' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}insights`);
   });
 
+  test('redirects deprecated phone custom capture links to stock count', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/custom?lanes=stock-count,supplier-order-pending`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(window.location.hash).toContain(`${hiddenPhoneOperatorHash}work/capture/stock-count`));
+    expect(await screen.findByText('Main workbench')).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
+  });
+
   test('renders onboarding as a supported embedded phone route', async () => {
     window.location.hash = `${hiddenPhoneOperatorHash}onboarding`;
     mockViewport(390, 844);
@@ -2363,18 +2843,24 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'Set up Kaur Khor' })).toBeInTheDocument();
     expect(container.querySelector('[data-slot="embedded-phone-shell"]')).not.toBeNull();
     expect(container.querySelector('[data-slot="onboarding-page"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveClass('grid', 'items-center', 'pt-0');
+    expect(container.querySelector('[data-slot="embedded-phone-main"]')).toHaveStyle({ paddingBottom: '0px' });
     expect(container.querySelector('[data-slot="phone-wide-only-page"]')).toBeNull();
     expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Set up Kaur Khor');
   });
 
   test.each([
     {
-      label: 'Stock Count',
+      label: 'Products Update',
       route: 'work/capture/stock-count',
     },
     {
       label: 'Supplier Order',
       route: 'work/capture/supplier-order?ticketMode=new',
+    },
+    {
+      label: 'Supplier Receipt',
+      route: 'work/capture/supplier-receipt?ticketMode=edit',
     },
     {
       label: 'Immediate Sale',
@@ -2400,9 +2886,16 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-capture-reduced-nav"]')).toBeNull();
     expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
-    expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('grid-cols-1');
-    expect(container.querySelector('[data-slot="embedded-phone-header-title"] span')).toHaveClass('whitespace-normal', 'break-words');
-    expect(container.querySelector('[data-slot="embedded-phone-capture-header-actions"]')).toHaveClass('w-full', 'flex-wrap', 'justify-end');
+    expect(container.querySelector('[data-slot="embedded-phone-header"] > div')).toHaveClass('flex-wrap', 'gap-y-2');
+    expect(container.querySelector('[data-slot="embedded-phone-header"] > div > div')).toHaveClass('flex-[999_0_max-content]', 'max-w-full');
+    expect(container.querySelector('[data-slot="embedded-phone-header-title"] span')).toHaveClass('whitespace-nowrap', 'min-w-fit');
+    expect(container.querySelector('[data-slot="embedded-phone-capture-header-title-meta"]')).not.toBeNull();
+    const headerActions = container.querySelector('[data-slot="embedded-phone-capture-header-actions"]');
+    expect(headerActions).toHaveClass('flex-[1_1_26rem]', 'min-w-[min(100%,26rem)]', 'flex-wrap', 'justify-end');
+    expect(headerActions?.firstElementChild).toHaveClass('w-full', 'flex-wrap', 'items-stretch');
+    const buttons = Array.from(headerActions?.querySelectorAll('button') ?? []);
+    expect(buttons[0]).toHaveClass('flex-[1_1_0]', 'min-w-[18rem]', 'whitespace-nowrap');
+    expect(buttons[1]).toHaveClass('w-full', 'min-w-0');
     expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
   });
 
@@ -2431,6 +2924,22 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
     expect(window.location.hash).toContain('quantitySuggestion=12');
     expect(window.location.hash).toContain('supplierName=Phnom+Penh+Supply');
+  });
+
+  test('spans unpaired phone capture metadata actions across the full row', async () => {
+    window.location.hash = `${hiddenPhoneOperatorHash}work/capture/customer-order?ticketMode=new`;
+    mockViewport(390, 844);
+    runtimeWebMocks.openBrowserStorage.mockResolvedValue(createOnboardedBrowserStorageHandle('demo'));
+
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
+
+    await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Customer Order'));
+    const metadataActions = container.querySelector('[data-slot="phone-capture-metadata-actions"]') as HTMLElement;
+    expect(metadataActions).not.toBeNull();
+    expect(within(metadataActions).getByRole('button', { name: /^Notes/i })).toHaveClass('col-span-2');
+    expect(within(metadataActions).getByRole('button', { name: /^Context/i })).toHaveClass('col-span-2');
+    expect(within(metadataActions).getByRole('button', { name: /^Delivery/i })).not.toHaveClass('col-span-2');
+    expect(within(metadataActions).getByRole('button', { name: /^Discount/i })).not.toHaveClass('col-span-2');
   });
 
   test('builds a phone customer ticket queue action as a sparse ticket event', () => {
@@ -2530,7 +3039,7 @@ describe('WebRoutes embedded app fallback state', () => {
 
     const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
-    await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Stock Count'));
+    await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Products Update'));
     expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
     expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
     expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
@@ -2553,7 +3062,7 @@ describe('WebRoutes embedded app fallback state', () => {
     try {
       const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
-      await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Stock Count'));
+      await waitFor(() => expect(container.querySelector('[data-slot="embedded-phone-header-title"]')).toHaveTextContent('Products Update'));
       expect(screen.queryByRole('navigation', { name: 'Phone navigation' })).not.toBeInTheDocument();
       expect(container.querySelector('[data-slot="phone-capture-session-header"]')).not.toBeNull();
       expect(screen.queryByRole('link', { name: 'Close capture' })).not.toBeInTheDocument();
@@ -2583,7 +3092,7 @@ describe('WebRoutes embedded app fallback state', () => {
       await waitFor(() => expect(handle.persistSenaState).toHaveBeenCalled());
       expect(createObjectUrlSpy).toHaveBeenCalled();
       expect(anchorClickSpy).toHaveBeenCalled();
-      expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup');
+      await waitFor(() => expect(revokeObjectUrlSpy).toHaveBeenCalledWith('blob:kaur-khor-backup'));
       expect(container.querySelector('[data-slot="phone-storage-feedback"]')).not.toBeNull();
       expect(await screen.findByText('Backup export ready.')).toBeInTheDocument();
 
@@ -2732,7 +3241,7 @@ describe('WebRoutes embedded app fallback state', () => {
       },
     ]));
 
-    render(<EmbeddedAppRoute mode="demo" />);
+    const { container } = render(<EmbeddedAppRoute mode="demo" />);
 
     expect(await screen.findByRole('navigation', { name: 'ការរុករកលើទូរស័ព្ទ' })).toBeInTheDocument();
     expect(screen.getByText('របៀបប្រតិបត្តិករទូរស័ព្ទ')).toBeInTheDocument();
@@ -2744,9 +3253,8 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(await screen.findByRole('heading', { name: 'ជម្រើសដែលផ្តល់ជូន' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'ស្វែងរកទំនិញ' })).toBeInTheDocument();
 
-    expect(screen.getByRole('link', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' })).toHaveAttribute('href', `${hiddenPhoneOperatorHash}settings`);
-    fireEvent.click(screen.getByRole('link', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' }));
-    expect(await screen.findByRole('heading', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'សុវត្ថិភាពកន្លែងធ្វើការ' }));
+    expect(container.querySelector('[data-slot="phone-utility-safety-sheet"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'នាំចេញច្បាប់បម្រុង' })).toBeEnabled();
   });
 
@@ -3004,6 +3512,67 @@ describe('WebRoutes embedded app fallback state', () => {
     expect(getBrowserDesktopBridgeMockState().preferences.customShowAutomationsPage).toBe(true);
   });
 
+  test('normalizes dirty browser backup preferences before restoring state', () => {
+    const dirtyState = fallbackStateForMode('app');
+    dirtyState.preferences = {
+      ...dirtyState.preferences,
+      language: 'dirty' as never,
+      currency: 'dirty' as never,
+      usdToKhrExchangeRate: Number.NaN,
+      showAutomationsPage: 'yes' as never,
+    };
+
+    expect(normalizeBrowserStateForMode('app', dirtyState).preferences).toMatchObject({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+      showAutomationsPage: true,
+    });
+  });
+
+  test('normalizes dirty browser backup catalog collections before restoring state', () => {
+    const dirtyState = fallbackStateForMode('app');
+    dirtyState.catalog = {
+      ...dirtyState.catalog,
+      bundles: ['dirty', { serviceId: 'bundle-restored' }] as never,
+      services: [null, { serviceId: 'service-restored', name: 'Restored service' }] as never,
+      sharingMask: [{ bad: true }, false] as never,
+      skus: ['dirty', { skuId: 'sku-restored', name: 'Restored SKU' }] as never,
+    };
+
+    expect(normalizeBrowserStateForMode('app', dirtyState).catalog).toMatchObject({
+      bundles: [{ serviceId: 'bundle-restored' }],
+      services: [{ serviceId: 'service-restored', name: 'Restored service' }],
+      sharingMask: [{ bad: true }],
+      skus: [{ skuId: 'sku-restored', name: 'Restored SKU' }],
+    });
+  });
+
+  test('normalizes dirty browser backup state arrays before restoring state', () => {
+    const dirtyState = fallbackStateForMode('app');
+    const observation = { observationId: 'observation-restored' };
+    const orderBatch = { batchOrderId: 'batch-restored' };
+    const conversation = { conversationId: 'conversation-restored' };
+    const exposure = { exposureId: 'exposure-restored' };
+    const intake = { intakeId: 'intake-restored' };
+    dirtyState.observations = [null, observation] as never;
+    dirtyState.orderBatches = ['dirty', orderBatch] as never;
+    dirtyState.automation = {
+      ...dirtyState.automation,
+      conversations: [false, conversation] as never,
+      exposures: ['dirty', exposure] as never,
+      intakes: [null, intake] as never,
+    };
+
+    const normalized = normalizeBrowserStateForMode('app', dirtyState);
+
+    expect(normalized.observations).toEqual([observation]);
+    expect(normalized.orderBatches).toEqual([orderBatch]);
+    expect(normalized.automation.conversations).toEqual([conversation]);
+    expect(normalized.automation.exposures).toEqual([exposure]);
+    expect(normalized.automation.intakes).toEqual([intake]);
+  });
+
   test('uses a friendly message for browser storage access-handle contention', () => {
     const rawMessage = "Failed to execute 'createSyncAccessHandle' on 'FileSystemFileHandle': Access Handles cannot be created if there is another open Access Handle or Writable stream associated with the same file.";
 
@@ -3029,8 +3598,12 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Shell');
     expect(within(section).getByRole('button', { name: 'Copy' })).toBeInTheDocument();
     expect(section).toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz -o kaur-khor-latest-source-build.tar.gz');
+    expect(section).toHaveTextContent('kaur-khor-latest-source-build.tar.gz.sha256');
+    expect(section).toHaveTextContent('sha256sum -c kaur-khor-latest-source-build.tar.gz.sha256');
+    expect(section).toHaveTextContent('tar -tzf kaur-khor-latest-source-build.tar.gz');
+    expect(section).toHaveTextContent('Refusing unsafe archive path');
     expect(section).toHaveTextContent('tar -xzf kaur-khor-latest-source-build.tar.gz');
-    expect(section).toHaveTextContent('rm kaur-khor-latest-source-build.tar.gz');
+    expect(section).toHaveTextContent('rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256');
     expect(section).toHaveTextContent('cd kaur-khor-*-source-build');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh --update');
     expect(section).toHaveTextContent('./scripts/build-from-source.sh --platform=linux-x64');
@@ -3060,13 +3633,36 @@ describe('WebRoutes build from source section', () => {
     expect(section).toHaveTextContent('Inspect the source on the official GitHub page and run scripts/build-from-source.ps1 for your platform.');
     expect(section).toHaveTextContent('.\\scripts\\build-from-source.ps1 --platform=windows-x64');
     expect(snippet).toHaveTextContent('Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/download/kaur-khor-latest-source-build.tar.gz" -OutFile "kaur-khor-latest-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('kaur-khor-latest-source-build.tar.gz.sha256');
+    expect(snippet).toHaveTextContent('Get-FileHash -Algorithm SHA256');
+    expect(snippet).toHaveTextContent('tar -tf "kaur-khor-latest-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('Refusing unsafe archive path');
     expect(snippet).toHaveTextContent('tar -xzf "kaur-khor-latest-source-build.tar.gz"');
-    expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-latest-source-build.tar.gz"');
+    expect(snippet).toHaveTextContent('Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"');
     expect(snippet).toHaveTextContent('Set-Location "kaur-khor-*-source-build"');
     expect(snippet).toHaveTextContent('.\\scripts\\build-from-source.ps1 --update');
     expect(snippet).not.toHaveTextContent('curl -L https://github.com/Svanny/kaur-khor/archive/refs/heads/main.tar.gz -o kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('tar -xzf kaur-khor-source.tar.gz');
     expect(snippet).not.toHaveTextContent('./scripts/build-from-source.sh');
     expect(snippet).not.toHaveTextContent('node .\\scripts\\build-from-source.mjs');
+  });
+
+  test('clears the source snippet copy reset timer on unmount', async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(window.navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    });
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout');
+
+    const { container, unmount } = renderWebHome();
+    const section = getBuildFromSourceSection(container);
+
+    fireEvent.click(within(section).getByRole('button', { name: 'Copy' }));
+    expect(await within(section).findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+
+    unmount();
+
+    expect(clearTimeoutSpy).toHaveBeenCalled();
   });
 });

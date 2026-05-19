@@ -17,6 +17,7 @@ import {
 } from './local-backup';
 import { loadDesktopPreferences, saveDesktopPreferences } from './preferences';
 import { normalizeDesktopImage } from './desktop-image';
+import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';
 import { resolveDesktopAssetPathFromRequest } from './desktop-asset-protocol';
 import { normalizeAllowedExternalUrl } from './external-url';
 import { normalizeAllowedLocalDataPath } from './local-path-access';
@@ -24,11 +25,21 @@ import { installMainWindowNavigationGuards } from './navigation-guards';
 import { storeDroppedImageHandler } from './store-dropped-image';
 import { checkForKaurKhorUpdate, launchKaurKhorSourceUpdate } from './desktop-update';
 import {
-  assertSenaObservationDeletePayloadIsValid,
-  assertSenaObservationUpdatePayloadIsValid,
-  assertSenaRunLookupPayloadIsValid,
+  normalizeSenaDetailCacheClearPayload,
+  normalizeSenaCatalogPayload,
+  normalizeSenaCreateOrderBatchPayload,
+  normalizeSenaObservationInputPayload,
+  normalizeSenaObservationDeletePayload,
+  normalizeSenaObservationPageRequest,
+  normalizeSenaOrderLookupPayload,
+  normalizeSenaObservationUpdatePayload,
+  normalizeSenaRunLookupPayload,
   normalizeSenaServiceLookupPayload,
+  normalizeSenaSplitOrderChildPayload,
   normalizeSenaSkuLookupPayload,
+  normalizeSenaTriggerRunPayload,
+  normalizeSenaUpdateOrderBatchPayload,
+  normalizeSenaUpdateOrderChildPayload,
 } from './sena-ipc-payloads';
 import {
   finalizeAutomationPromotion,
@@ -92,6 +103,7 @@ import type {
   PromoteAutomationIntakePayload,
   PromoteAutomationIntakeResult,
 } from '@shared/automation';
+import { isAutomationEligibleExposureRow } from '@shared/automation-sellables';
 import type {
   SenaAnalysisRunRecord,
   SenaCatalog,
@@ -536,8 +548,7 @@ async function seedAutomationBenchmarkWorkspace(
     timeoutMs: SENA_READ_TIMEOUT_MS,
   });
   let workspace = await readAutomationWorkspace(desktopDataPath, context);
-  const eligibleExposureRows = workspace.exposures.filter((row) =>
-    !row.archived && row.availabilityStatus !== 'hidden' && row.price != null);
+  const eligibleExposureRows = workspace.exposures.filter(isAutomationEligibleExposureRow);
   if (eligibleExposureRows.length < minimumExposedRows) {
     throw new Error(
       `Benchmark fixture is missing required automations exposure rows (needed ${minimumExposedRows}, found ${eligibleExposureRows.length}).`,
@@ -626,6 +637,17 @@ function senaReadCachePath() {
 
 function desktopAssetDirectoryPath() {
   return join(desktopDataPath, DESKTOP_ASSET_DIRECTORY);
+}
+
+function readRequiredStringPayloadField(payload: unknown, field: string, message: string) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error(message);
+  }
+  const value = (payload as Record<string, unknown>)[field];
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(message);
+  }
+  return value.trim();
 }
 
 function installDesktopAssetProtocol() {
@@ -1492,9 +1514,9 @@ ipcMain.handle(IPC_CHANNELS.systemChooseUpdateDataDirectory, benchmarkIpcHandle(
   selectedUpdateDataDirectoryPath = selection.canceled ? null : selection.filePaths[0] ?? null;
   return selectedUpdateDataDirectoryPath;
 }));
-ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemRunSourceBuildUpdate, async (_event, payload: DesktopUpdateRunPayload): Promise<DesktopUpdateRunResult> => {
-  const dataDirectoryPath = resolveUpdateDataDirectoryPath(payload.dataDirectoryPath);
-  const backupDirectoryPath = resolveUpdateBackupDirectoryPath(payload.backupDirectoryPath, payload.skipBackup === true);
+ipcMain.handle(IPC_CHANNELS.systemRunSourceBuildUpdate, benchmarkIpcHandle(IPC_CHANNELS.systemRunSourceBuildUpdate, async (_event, payload?: DesktopUpdateRunPayload): Promise<DesktopUpdateRunResult> => {
+  const dataDirectoryPath = resolveUpdateDataDirectoryPath(payload?.dataDirectoryPath);
+  const backupDirectoryPath = resolveUpdateBackupDirectoryPath(payload?.backupDirectoryPath, payload?.skipBackup === true);
   const shouldQuit = await confirmDesktopQuitForLiveAutomation();
   if (!shouldQuit) {
     return {
@@ -1556,6 +1578,7 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
   if (!DESKTOP_ALLOWED_IMAGE_EXTENSIONS.has(extension)) {
     throw new Error('Please choose a PNG, JPEG, or WebP image.');
   }
+  await assertDesktopImageFileIsSafeForImport(sourcePath);
 
   const sourceStats = await stat(sourcePath).catch(() => null);
   const endNormalize = startBenchmarkSpan({
@@ -1566,12 +1589,21 @@ ipcMain.handle(IPC_CHANNELS.systemPickAndStoreImage, benchmarkIpcHandle(IPC_CHAN
       sourceBytes: sourceStats?.size ?? null,
     },
   });
-  const normalizedImage = normalizeDesktopImage(sourcePath);
-  endNormalize({
-    ok: true,
-    outputBytes: normalizedImage.bytes.byteLength,
-    outputExtension: normalizedImage.extension,
-  });
+  let normalizedImage: ReturnType<typeof normalizeDesktopImage>;
+  try {
+    normalizedImage = normalizeDesktopImage(sourcePath);
+    endNormalize({
+      ok: true,
+      outputBytes: normalizedImage.bytes.byteLength,
+      outputExtension: normalizedImage.extension,
+    });
+  } catch (error) {
+    endNormalize({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
+  }
 
   const targetDirectory = desktopAssetDirectoryPath();
   await mkdir(targetDirectory, { recursive: true });
@@ -1637,18 +1669,24 @@ ipcMain.handle(IPC_CHANNELS.automationListConversations, benchmarkIpcHandle(IPC_
   listAutomationConversations(desktopDataPath),
 ));
 ipcMain.handle(IPC_CHANNELS.automationReadConversation, benchmarkIpcHandle(IPC_CHANNELS.automationReadConversation, async (_event, payload: AutomationReadConversationPayload) =>
-  readAutomationConversation(desktopDataPath, payload.conversationId),
+  readAutomationConversation(
+    desktopDataPath,
+    readRequiredStringPayloadField(payload, 'conversationId', 'Automation conversation reads require a conversation id.'),
+  ),
 ));
 ipcMain.handle(IPC_CHANNELS.automationReadIntakeThread, benchmarkIpcHandle(IPC_CHANNELS.automationReadIntakeThread, async (_event, payload: AutomationReadIntakeThreadPayload) =>
-  readAutomationIntakeThread(desktopDataPath, payload.intakeId),
+  readAutomationIntakeThread(
+    desktopDataPath,
+    readRequiredStringPayloadField(payload, 'intakeId', 'Automation intake reads require an intake id.'),
+  ),
 ));
 ipcMain.handle(IPC_CHANNELS.automationSendIntakeThreadMessage, benchmarkIpcHandle(IPC_CHANNELS.automationSendIntakeThreadMessage, async (_event, payload: AutomationSendIntakeThreadMessagePayload) => {
   await ensureAutomationEnabled();
-  const text = payload.text.trim();
-  if (!text) {
-    throw new Error('Enter a message before sending.');
-  }
-  const intake = await readAutomationIntake(desktopDataPath, payload.intakeId);
+  const text = readRequiredStringPayloadField(payload, 'text', 'Enter a message before sending.');
+  const intake = await readAutomationIntake(
+    desktopDataPath,
+    readRequiredStringPayloadField(payload, 'intakeId', 'Automation intake reads require an intake id.'),
+  );
   if (!intake) {
     throw new Error('Automation intake not found.');
   }
@@ -1666,7 +1704,10 @@ ipcMain.handle(IPC_CHANNELS.automationListIntakes, benchmarkIpcHandle(IPC_CHANNE
   listAutomationIntakes(desktopDataPath, payload),
 ));
 ipcMain.handle(IPC_CHANNELS.automationReadIntake, benchmarkIpcHandle(IPC_CHANNELS.automationReadIntake, async (_event, payload: AutomationReadIntakePayload) =>
-  readAutomationIntake(desktopDataPath, payload.intakeId),
+  readAutomationIntake(
+    desktopDataPath,
+    readRequiredStringPayloadField(payload, 'intakeId', 'Automation intake reads require an intake id.'),
+  ),
 ));
 ipcMain.handle(IPC_CHANNELS.automationResolveIntake, benchmarkIpcHandle(IPC_CHANNELS.automationResolveIntake, async (_event, payload: AutomationResolveIntakePayload) => {
   await ensureAutomationEnabled();
@@ -1773,13 +1814,14 @@ ipcMain.handle(IPC_CHANNELS.senaGetRecordUpdateContext, benchmarkIpcHandle(IPC_C
     }),
   ),
 ));
-ipcMain.handle(IPC_CHANNELS.senaListObservationPage, benchmarkIpcHandle(IPC_CHANNELS.senaListObservationPage, async (_event, payload?: SenaObservationPageRequest) =>
-  loadCachedSenaRead(`observation-page:${JSON.stringify(payload ?? {})}`, () =>
-    managedCore.invoke<SenaObservationPage>('sena.listObservationPage', payload, {
+ipcMain.handle(IPC_CHANNELS.senaListObservationPage, benchmarkIpcHandle(IPC_CHANNELS.senaListObservationPage, async (_event, payload?: SenaObservationPageRequest) => {
+  const pagePayload = normalizeSenaObservationPageRequest(payload);
+  return loadCachedSenaRead(`observation-page:${JSON.stringify(pagePayload ?? {})}`, () =>
+    managedCore.invoke<SenaObservationPage>('sena.listObservationPage', pagePayload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
-  ),
-));
+  );
+}));
 ipcMain.handle(IPC_CHANNELS.senaListObservations, benchmarkIpcHandle(IPC_CHANNELS.senaListObservations, async () =>
   loadCachedSenaRead('observations', () =>
     managedCore.invoke<SenaObservationRecord[]>('sena.listObservations', undefined, {
@@ -1788,97 +1830,105 @@ ipcMain.handle(IPC_CHANNELS.senaListObservations, benchmarkIpcHandle(IPC_CHANNEL
     }),
   ),
 ));
-ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, benchmarkIpcHandle(IPC_CHANNELS.senaListOrderBatches, async (_event, payload?: SenaOrderLookupPayload) =>
-  loadCachedSenaRead(`order-batches:${JSON.stringify(payload ?? {})}`, () =>
-    managedCore.invoke<SenaOrderBatchRecord[]>('sena.listOrderBatches', payload, {
+ipcMain.handle(IPC_CHANNELS.senaListOrderBatches, benchmarkIpcHandle(IPC_CHANNELS.senaListOrderBatches, async (_event, payload?: SenaOrderLookupPayload) => {
+  const orderPayload = normalizeSenaOrderLookupPayload(payload);
+  return loadCachedSenaRead(`order-batches:${JSON.stringify(orderPayload ?? {})}`, () =>
+    managedCore.invoke<SenaOrderBatchRecord[]>('sena.listOrderBatches', orderPayload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
       readPriority: 'critical',
     }),
-  ),
-));
+  );
+}));
 ipcMain.handle(IPC_CHANNELS.senaUpsertCatalog, benchmarkIpcHandle(IPC_CHANNELS.senaUpsertCatalog, async (_event, payload: SenaCatalog) => {
+  const catalogPayload = normalizeSenaCatalogPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-upsert-catalog');
-  const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', payload, {
+  const result = await managedCore.invoke<SenaCatalog>('sena.upsertCatalog', catalogPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaIngestObservation, benchmarkIpcHandle(IPC_CHANNELS.senaIngestObservation, async (_event, payload: SenaObservationInput) => {
+  const observationPayload = normalizeSenaObservationInputPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-ingest-observation');
-  const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', payload, {
+  const result = await managedCore.invoke<SenaObservationRecord>('sena.ingestObservation', observationPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
-  await notifyTelegramCustomersForTicketEvents(payload.ticketEvents);
+  await notifyTelegramCustomersForTicketEvents(observationPayload.ticketEvents);
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaUpdateObservation, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateObservation, async (_event, payload: SenaObservationUpdatePayload) => {
-  assertSenaObservationUpdatePayloadIsValid(payload);
+  const updatePayload = normalizeSenaObservationUpdatePayload(payload);
   const observationsBeforeUpdate = await listFreshSenaObservations();
-  const previousObservation = observationsBeforeUpdate.find((entry) => entry.observationId === payload.observationId) ?? null;
+  const previousObservation = observationsBeforeUpdate.find((entry) => entry.observationId === updatePayload.observationId) ?? null;
   await snapshotBeforeWorkspaceMutation('sena-update-observation');
-  const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', payload, {
+  const result = await managedCore.invoke<SenaObservationRecord>('sena.updateObservation', updatePayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   await notifyTelegramCustomersForTicketEvents(
-    ticketEventsRequiringTelegramNotification(payload.input.ticketEvents, previousObservation?.input.ticketEvents),
+    ticketEventsRequiringTelegramNotification(updatePayload.input.ticketEvents, previousObservation?.input.ticketEvents),
   );
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaDeleteObservation, benchmarkIpcHandle(IPC_CHANNELS.senaDeleteObservation, async (_event, payload: SenaObservationDeletePayload) => {
-  assertSenaObservationDeletePayloadIsValid(payload);
+  const deletePayload = normalizeSenaObservationDeletePayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-delete-observation');
-  await managedCore.invoke('sena.deleteObservation', payload, {
+  await managedCore.invoke('sena.deleteObservation', deletePayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
 }));
 ipcMain.handle(IPC_CHANNELS.senaCreateOrderBatch, benchmarkIpcHandle(IPC_CHANNELS.senaCreateOrderBatch, async (_event, payload: SenaCreateOrderBatchPayload) => {
+  const createPayload = normalizeSenaCreateOrderBatchPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-create-order-batch');
-  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.createOrderBatch', payload, {
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.createOrderBatch', createPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaUpdateOrderBatch, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateOrderBatch, async (_event, payload: SenaUpdateOrderBatchPayload) => {
+  const updatePayload = normalizeSenaUpdateOrderBatchPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-update-order-batch');
-  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderBatch', payload, {
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderBatch', updatePayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaUpdateOrderChild, benchmarkIpcHandle(IPC_CHANNELS.senaUpdateOrderChild, async (_event, payload: SenaUpdateOrderChildPayload) => {
+  const updatePayload = normalizeSenaUpdateOrderChildPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-update-order-child');
-  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderChild', payload, {
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.updateOrderChild', updatePayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaSplitOrderChild, benchmarkIpcHandle(IPC_CHANNELS.senaSplitOrderChild, async (_event, payload: SenaSplitOrderChildPayload) => {
+  const splitPayload = normalizeSenaSplitOrderChildPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-split-order-child');
-  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.splitOrderChild', payload, {
+  const result = await managedCore.invoke<SenaOrderBatchRecord>('sena.splitOrderChild', splitPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaTriggerRun, benchmarkIpcHandle(IPC_CHANNELS.senaTriggerRun, async (_event, payload?: SenaTriggerRunPayload) => {
+  const triggerPayload = normalizeSenaTriggerRunPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-trigger-run');
-  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', payload, {
+  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.triggerRun', triggerPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
   return result;
 }));
 ipcMain.handle(IPC_CHANNELS.senaRetryRun, benchmarkIpcHandle(IPC_CHANNELS.senaRetryRun, async (_event, payload: SenaRunLookupPayload) => {
-  assertSenaRunLookupPayloadIsValid(payload);
+  const runPayload = normalizeSenaRunLookupPayload(payload);
   await snapshotBeforeWorkspaceMutation('sena-retry-run');
-  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', payload, {
+  const result = await managedCore.invoke<SenaAnalysisRunRecord>('sena.retryRun', runPayload, {
     timeoutMs: LONG_RUNNING_CORE_TIMEOUT_MS,
   });
   await invalidateSenaReadCache();
@@ -1953,13 +2003,13 @@ ipcMain.handle(
 ipcMain.handle(
   IPC_CHANNELS.senaClearDetailCache,
   benchmarkIpcHandle(IPC_CHANNELS.senaClearDetailCache, async (_event, payload: SenaDetailCacheClearPayload) =>
-    invalidateSenaDetailCache(payload),
+    invalidateSenaDetailCache(normalizeSenaDetailCacheClearPayload(payload)),
   ),
 );
 ipcMain.handle(IPC_CHANNELS.senaGetRunStatus, benchmarkIpcHandle(IPC_CHANNELS.senaGetRunStatus, async (_event, payload: SenaRunLookupPayload) => {
-  assertSenaRunLookupPayloadIsValid(payload);
-  return loadCachedSenaRead(`run-status:${payload.runId}`, () =>
-    managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', payload, {
+  const runPayload = normalizeSenaRunLookupPayload(payload);
+  return loadCachedSenaRead(`run-status:${runPayload.runId}`, () =>
+    managedCore.invoke<SenaAnalysisRunRecord | null>('sena.getRunStatus', runPayload, {
       timeoutMs: SENA_READ_TIMEOUT_MS,
     }),
   );

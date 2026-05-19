@@ -19,8 +19,11 @@ describe('resolveDesktopAssetPathFromRequest', () => {
 
   it('rejects traversal paths and unsupported extensions', async () => {
     const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-assets-'));
+    await writeFile(join(assetDir, 'secret.png'), new Uint8Array([1, 2, 3]));
 
     await expect(resolveDesktopAssetPathFromRequest('kaur-khor-asset://local/../secret.png', assetDir)).resolves.toBeNull();
+    await expect(resolveDesktopAssetPathFromRequest('kaur-khor-asset://local/%2e%2e/secret.png', assetDir)).resolves.toBeNull();
+    await expect(resolveDesktopAssetPathFromRequest('kaur-khor-asset://local/%2E%2E%2Fsecret.png', assetDir)).resolves.toBeNull();
     await expect(resolveDesktopAssetPathFromRequest('kaur-khor-asset://local/catalog.svg', assetDir)).resolves.toBeNull();
   });
 

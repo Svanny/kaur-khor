@@ -158,9 +158,9 @@ SKU flags record events such as blocked availability or stockout-constrained beh
 
 Stock cost records a changed supplier/unit cost for SKUs. It affects margin, capital, and Money calculations. Use it when replacement cost or known purchase cost changed; do not use it as a sale price field.
 
-### Stock Count {#record-update-stock-count}
+### Products Update {#record-update-stock-count}
 
-Stock count is the current on-hand quantity for each SKU at the observed time. It is one of the strongest pieces of evidence in Kaur Khor because pressure, availability, service capacity, and Money all depend on it. Count carefully and filter by supplier when needed.
+Products Update records product-side facts at the observed time: SKU counts, SKU cost/price changes, service price changes, and service stockout signals. It is one of the strongest pieces of evidence in Kaur Khor because pressure, availability, service capacity, and Money all depend on these updates. Count carefully, filter by supplier when needed, and treat linked service SKUs as read-only context in the update card.
 
 ## Intake
 

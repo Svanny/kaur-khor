@@ -59,7 +59,7 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
   back-to-products actions.
   Capture reuses the shared desktop record-update hub and session routes in an
   embedded phone presentation. The phone hub exposes the four desktop-visible
-  capture modes: Stock Count, Supplier Order, Immediate Sale, and Customer
+  capture modes: Products Update, Supplier Order, Immediate Sale, and Customer
   Order. Supplier receipts remain supported by the shared Supplier Order update
   flow instead of appearing as a separate primary phone lane. Queue, Capture,
   and product detail actions pass the same capture context grammar for source,
@@ -77,7 +77,7 @@ Browser mode keeps major product surfaces visible, but native-only desktop tools
   Configurations with backup/import, Preferences for language/currency/USD to
   KHR exchange rate, History, Local data, and a separated Danger zone. Phone
   history groups recent
-  saved facts by Stock Count, Customer Orders Pending, Customer Orders
+  saved facts by Products Update, Customer Orders Pending, Customer Orders
   Completed, Supplier Orders Pending, Supplier Receipts, Corrections, and
   Price/cost changes, with a compact detail sheet for the changed state layer.
   Empty browser workspaces get route-specific phone states: Today starts with

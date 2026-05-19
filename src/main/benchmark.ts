@@ -178,6 +178,12 @@ export function waitForBenchmarkEventCount({
   if (!benchmarkEnabled()) {
     return Promise.reject(new Error('Benchmark mode is disabled.'));
   }
+  if (!Number.isSafeInteger(minimumCount) || minimumCount < 1) {
+    return Promise.reject(new Error('Benchmark minimumCount must be a positive integer.'));
+  }
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1) {
+    return Promise.reject(new Error('Benchmark timeoutMs must be a positive integer.'));
+  }
   hydrateBenchmarkEventCountsFromDisk();
   const count = benchmarkEventCount(name);
   if (count >= minimumCount) {

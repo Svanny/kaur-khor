@@ -47,7 +47,7 @@ flowchart LR
 
   subgraph CaptureWorkflows["Workflows for capturing reality"]
     ChooseLane["Choose update lane"]:::workflow
-    StockCount["Stock Count<br/>count physical stock and reconcile facts"]:::workflow
+    StockCount["Products Update<br/>count stock, update prices, and reconcile facts"]:::workflow
     CustomerOrder["Customer Order<br/>new ticket or update existing customer ticket"]:::workflow
     ImmediateSale["Immediate Sale<br/>same-session sale resolved immediately"]:::workflow
     SupplierOrder["Supplier Order<br/>new ticket or update existing supplier ticket"]:::workflow
@@ -138,7 +138,7 @@ flowchart LR
   subgraph SimplifiedIA["Simplified app IA target"]
     CommandHome["Command Home<br/>default first screen"]:::target
     Inbox["Inbox<br/>recommended move, supplier queue, customer queue, intake review"]:::target
-    Capture["Capture<br/>stock count, customer order, immediate sale, supplier order, custom"]:::target
+    Capture["Capture<br/>Products Update, customer order, immediate sale, supplier order, custom"]:::target
     Products["Products<br/>active SKUs, active services, archive access"]:::target
     Insights["Insights<br/>performance, financials, analysis, detail charts"]:::target
     History["History<br/>operations, reports, heatmap, edit report"]:::target

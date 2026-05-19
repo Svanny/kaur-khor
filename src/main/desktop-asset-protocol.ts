@@ -10,11 +10,35 @@ function isPathInsideRoot(candidatePath: string, rootPath: string) {
   return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
 }
 
+function rawPathContainsTraversalSegment(requestUrl: string) {
+  const rawPath = requestUrl.match(/^[a-z][a-z0-9+.-]*:\/\/[^/?#]*([^?#]*)/i)?.[1] ?? '';
+  let candidate = rawPath;
+  for (let index = 0; index < 3; index += 1) {
+    if (candidate.split(/[\\/]+/).some((segment) => segment === '..')) {
+      return true;
+    }
+    try {
+      const decoded = decodeURIComponent(candidate);
+      if (decoded === candidate) {
+        return false;
+      }
+      candidate = decoded;
+    } catch {
+      return false;
+    }
+  }
+
+  return candidate.split(/[\\/]+/).some((segment) => segment === '..');
+}
+
 export async function resolveDesktopAssetPathFromRequest(requestUrl: string, assetDirectoryPath: string) {
   let requestedAssetName: string;
   try {
     const assetUrl = new URL(requestUrl);
     if (assetUrl.protocol !== `${DESKTOP_ASSET_PROTOCOL}:` || assetUrl.hostname !== DESKTOP_ASSET_HOST) {
+      return null;
+    }
+    if (rawPathContainsTraversalSegment(requestUrl)) {
       return null;
     }
     if (assetUrl.username || assetUrl.password) {

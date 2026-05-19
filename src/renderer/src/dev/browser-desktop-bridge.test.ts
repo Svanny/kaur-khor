@@ -4,7 +4,9 @@ import {
   createEmptyBrowserMockState,
   createMockState,
   installBrowserDesktopBridge,
+  normalizeBrowserDesktopPreferences,
   resetBrowserDesktopBridgeMock,
+  setBrowserDesktopBridgeMockState,
 } from './browser-desktop-bridge';
 
 describe('installBrowserDesktopBridge', () => {
@@ -47,7 +49,63 @@ describe('installBrowserDesktopBridge', () => {
     }
   });
 
+  it('normalizes dirty browser preference saves before persisting them', async () => {
+    installBrowserDesktopBridge();
+
+    const preferences = await window.kaurKhorDesktop.preferences.save({
+      language: 'bad',
+      currency: 'bad',
+      usdToKhrExchangeRate: Number.NaN,
+    } as never);
+
+    expect(preferences).toMatchObject({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+    });
+    await expect(window.kaurKhorDesktop.preferences.get()).resolves.toMatchObject({
+      language: 'en',
+      currency: 'USD',
+      usdToKhrExchangeRate: 4000,
+    });
+  });
+
+  it('normalizes restored browser preferences before renderer hydration can read them', () => {
+    const fallback = createMockState().preferences;
+
+    expect(normalizeBrowserDesktopPreferences({
+      language: 'dirty',
+      currency: 'dirty',
+      showAutomationsPage: 'yes',
+      onboardingCompletedAt: '2026-02-30T00:00:00.000Z',
+      seenUnlockedNavItems: {
+        catalog: 'yes',
+        insights: true,
+      },
+    }, fallback)).toMatchObject({
+      language: 'en',
+      currency: 'USD',
+      showAutomationsPage: fallback.showAutomationsPage,
+      onboardingCompletedAt: null,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: true,
+        work: false,
+      },
+    });
+  });
+
   it('seeds the automation bridge and promotes mock intake into a ticket', async () => {
+    const state = createMockState();
+    state.automation.intakes[0] = {
+      ...state.automation.intakes[0]!,
+      status: 'quoted',
+    };
+    state.automation.conversations[0] = {
+      ...state.automation.conversations[0]!,
+      latestIntakeStatus: 'quoted',
+    };
+    setBrowserDesktopBridgeMockState(state);
     installBrowserDesktopBridge();
 
     const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
@@ -55,6 +113,10 @@ describe('installBrowserDesktopBridge', () => {
     expect(workspace.exposures.some((row) => row.exposed)).toBe(true);
 
     const result = await window.kaurKhorDesktop.automation!.promoteIntake({
+      customerIdentityOverride: {
+        customerName: 'Dara   Browser',
+        phone: '012345678',
+      },
       intakeId: 'intake-demo',
       mode: 'create_ticket',
     });
@@ -62,7 +124,63 @@ describe('installBrowserDesktopBridge', () => {
     expect(result.intake.status).toBe('ticketed');
     expect(result.intake.promotedTicketId).toBeTruthy();
     expect(result.ticketEvent.ticketId).toBe(result.intake.promotedTicketId);
+    expect(result.ticketEvent.party).toMatchObject({
+      customerName: 'Dara   Browser',
+      customerNameKey: 'dara browser',
+      phone: '+855 12345678',
+      phoneKey: '+85512345678',
+    });
     expect(result.commercialEvents.length).toBeGreaterThan(0);
+
+    const updatedWorkspace = await window.kaurKhorDesktop.automation!.getWorkspace();
+    expect(updatedWorkspace.metrics.ticketedToday).toBe(1);
+  });
+
+  it('rejects browser automation promotion before every line is promotable', async () => {
+    const state = createMockState();
+    state.automation.intakes[0] = {
+      ...state.automation.intakes[0]!,
+      status: 'needs_review',
+      quotedTotal: null,
+      lines: [{
+        ...state.automation.intakes[0]!.lines[0]!,
+        entityId: null,
+        lineTotal: null,
+        quantity: null,
+        unitPrice: null,
+      }],
+    };
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    await expect(window.kaurKhorDesktop.automation!.promoteIntake({
+      intakeId: 'intake-demo',
+      mode: 'create_ticket',
+    })).rejects.toThrow('Only quoted automation intakes can be promoted to customer tickets.');
+
+    const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
+    expect(workspace.intakes[0]).toMatchObject({
+      intakeId: 'intake-demo',
+      promotedTicketId: null,
+      status: 'needs_review',
+    });
+    expect(workspace.metrics.needsReview).toBe(1);
+    expect(workspace.metrics.ticketedToday).toBe(0);
+  });
+
+  it('rejects browser automation append without a target ticket', async () => {
+    const state = createMockState();
+    state.automation.intakes[0] = {
+      ...state.automation.intakes[0]!,
+      status: 'quoted',
+    };
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    await expect(window.kaurKhorDesktop.automation!.promoteIntake({
+      intakeId: 'intake-demo',
+      mode: 'append_ticket',
+    })).rejects.toThrow('Appending Telegram intake requires a target customer ticket.');
   });
 
   it('builds a seeded browser mock state with automation workspace data', () => {
@@ -101,6 +219,97 @@ describe('installBrowserDesktopBridge', () => {
     expect(workspace.metrics.exposedSellables).toBeGreaterThan(0);
   });
 
+  it('counts only eligible exposed sellables in browser automation metrics', async () => {
+    const state = createMockState();
+    state.automation.exposures.push({
+      entityType: 'sku',
+      entityId: 'sku-unpriced',
+      label: 'Unpriced archived row',
+      imagePath: null,
+      supplierName: null,
+      archived: true,
+      exposed: true,
+      price: null,
+      availabilityStatus: 'hidden',
+      availabilityLabel: 'Hidden',
+      alias: null,
+      sortOrder: 2,
+    });
+    state.automation.metrics.exposedSellables = 99;
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
+    expect(workspace.exposures.some((row) => row.entityId === 'sku-unpriced' && row.exposed)).toBe(true);
+    expect(workspace.metrics.exposedSellables).toBe(2);
+
+    await window.kaurKhorDesktop.automation!.patchExposureRow({
+      entityType: 'sku',
+      entityId: 'sku-001',
+      exposed: false,
+    });
+
+    const updatedWorkspace = await window.kaurKhorDesktop.automation!.getWorkspace();
+    expect(updatedWorkspace.metrics.exposedSellables).toBe(1);
+  });
+
+  it('excludes dirty browser automation timestamps from today metrics', async () => {
+    const state = createMockState();
+    state.automation.intakes = [{
+      ...state.automation.intakes[0]!,
+      createdAt: 'not-a-date',
+      intakeId: 'dirty-intake',
+      status: 'quoted',
+      updatedAt: 'not-a-date',
+    }];
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    const workspace = await window.kaurKhorDesktop.automation!.getWorkspace();
+
+    expect(workspace.metrics.ordersToday).toBe(0);
+    expect(workspace.metrics.quotedToday).toBe(0);
+    expect(workspace.metrics.ticketedToday).toBe(0);
+    expect(workspace.metrics.completedToday).toBe(0);
+  });
+
+  it('ignores dirty browser observation timestamps when syncing mock summaries', async () => {
+    const state = createMockState();
+    state.observations = [
+      {
+        ...state.observations[0]!,
+        observationId: 'dirty-observation',
+        input: {
+          ...state.observations[0]!.input,
+          observedAt: 'not-a-date',
+        },
+      },
+      {
+        ...state.observations[0]!,
+        observationId: 'valid-observation',
+        input: {
+          ...state.observations[0]!.input,
+          observedAt: '2026-05-03T00:00:00.000Z',
+        },
+      },
+      {
+        ...state.observations[0]!,
+        observationId: 'delete-me',
+        input: {
+          ...state.observations[0]!.input,
+          observedAt: '2026-05-01T00:00:00.000Z',
+        },
+      },
+    ];
+    setBrowserDesktopBridgeMockState(state);
+    installBrowserDesktopBridge();
+
+    await window.kaurKhorDesktop.sena.deleteObservation({ observationId: 'delete-me' });
+    const summary = await window.kaurKhorDesktop.sena.getWorkspaceSummary();
+
+    expect(summary?.latestObservedAt).toBe('2026-05-03T00:00:00.000Z');
+  });
+
   it('supports current order-batch reads and edits in the browser bridge', async () => {
     installBrowserDesktopBridge();
 
@@ -123,6 +332,31 @@ describe('installBrowserDesktopBridge', () => {
     expect(
       await window.kaurKhorDesktop.sena.listOrderBatches({ childOrderId: firstChild.childOrderId }),
     ).toHaveLength(1);
+    expect(
+      await window.kaurKhorDesktop.sena.listOrderBatches({ childOrderId: ` ${firstChild.childOrderId} ` }),
+    ).toHaveLength(1);
+    await expect(window.kaurKhorDesktop.sena.updateOrderBatch({
+      batchOrderId: batches[0]!.batchOrderId,
+      status: 'dirty',
+    } as never)).rejects.toThrow('SENA order batch update requires a supported status.');
+    await expect(window.kaurKhorDesktop.sena.updateOrderChild({
+      childOrderId: firstChild.childOrderId,
+      status: 'dirty',
+    } as never)).rejects.toThrow('SENA order child update requires a supported status.');
+  });
+
+  it('normalizes browser SENA read payloads before filtering or paging', async () => {
+    installBrowserDesktopBridge();
+
+    await expect(window.kaurKhorDesktop.sena.listObservationPage({ limit: Number.NaN } as never))
+      .rejects.toThrow('SENA observation page limit must be a positive finite number.');
+    await expect(window.kaurKhorDesktop.sena.listObservationPage({ beforeObservedAt: 'not-a-date' } as never))
+      .rejects.toThrow('SENA observation page cursor timestamp must be an ISO timestamp or null.');
+    await expect(window.kaurKhorDesktop.sena.listOrderBatches({ status: 'dirty' } as never))
+      .rejects.toThrow('SENA order lookup requires a supported status.');
+
+    const page = await window.kaurKhorDesktop.sena.listObservationPage({ limit: 2 });
+    expect(page.observations).toHaveLength(2);
   });
 
   it('recomputes browser SENA run summary and detail from current observations', async () => {

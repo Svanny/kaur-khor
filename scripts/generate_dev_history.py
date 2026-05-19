@@ -892,7 +892,7 @@ def add_days_to_timestamp(timestamp: str, days: int) -> str:
 
 
 def normalized_key(value: str) -> str:
-    return "".join(character.lower() for character in value if character.isalnum())
+    return " ".join(value.strip().lower().split())
 
 
 def phone_key(value: str) -> str:

@@ -196,6 +196,20 @@ function normalizePreferences(
   };
 }
 
+function isPreferencePatchRecord(value: unknown): value is Partial<DesktopPreferences> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function omitUndefinedPreferenceValues(next: unknown) {
+  if (!isPreferencePatchRecord(next)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(next).filter(([, value]) => value !== undefined),
+  ) as Partial<DesktopPreferences>;
+}
+
 export async function loadDesktopPreferences(userDataPath: string): Promise<DesktopPreferences> {
   let raw: string;
   try {
@@ -221,9 +235,10 @@ export async function saveDesktopPreferences(
 ): Promise<DesktopPreferences> {
   const writeOperation = preferencesWriteQueue.then(async () => {
     const current = await loadDesktopPreferences(userDataPath);
+    const definedNext = omitUndefinedPreferenceValues(next);
     const merged = normalizePreferences({
       ...current,
-      ...next,
+      ...definedNext,
     }, { hasExistingPreferencesFile: true });
     const path = preferencesPath(userDataPath);
     await mkdir(userDataPath, { recursive: true });

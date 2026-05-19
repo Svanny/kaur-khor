@@ -72,7 +72,7 @@ All entry points are free, require no sign-up or login, and keep data on the use
 ## What's Included
 
 - Catalog management for SKUs and services.
-- A lane-based record-update hub for stock counts, customer orders, supplier orders, receipts, and custom combined capture flows.
+- A lane-based record-update hub for product updates, customer orders, supplier orders, receipts, and custom combined capture flows.
 - Overview and performance surfaces that turn updates into concrete follow-up tasks.
 - A financial workspace that turns the same inventory state into money-in, money-tied-up, and money-leaking views.
 - An operations workspace for saved update history, heatmap inspection, report editing, and report deletion.

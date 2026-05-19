@@ -42,6 +42,15 @@ if command -v sha256sum >/dev/null 2>&1; then
 else
   shasum -a 256 -c kaur-khor-latest-source-build.tar.gz.sha256
 fi
+while IFS= read -r archive_entry; do
+  case "$archive_entry" in
+    /*|[A-Za-z]:/*|[A-Za-z]:\\*) echo "Refusing unsafe archive path: $archive_entry" >&2; exit 1 ;;
+  esac
+  if [[ "$archive_entry" != */* || "$archive_entry" == ../* || "$archive_entry" == */../* || "$archive_entry" == */.. || "$archive_entry" == *//* ]]; then
+    echo "Refusing unsafe archive path: $archive_entry" >&2
+    exit 1
+  fi
+done < <(tar -tzf kaur-khor-latest-source-build.tar.gz)
 tar -xzf kaur-khor-latest-source-build.tar.gz
 rm kaur-khor-latest-source-build.tar.gz kaur-khor-latest-source-build.tar.gz.sha256
 cd kaur-khor-*-source-build
@@ -62,9 +71,9 @@ The export copies regular workspace files and folders and skips symlinks so a
 workspace path cannot pull unrelated files into the update snapshot.
 Settings / Updates also defaults to the latest source-build release, lets you
 choose a specific release version, verifies the downloaded source-build archive
-against the release `.sha256` file before extracting it, and starts the updater
-only after Kaur Khor accepts the quit handoff. If your workspace data lives in a
-custom folder, pass
+against the release `.sha256` file, rejects unsafe archive paths before
+extracting it, and starts the updater only after Kaur Khor accepts the quit
+handoff. If your workspace data lives in a custom folder, pass
 `--data-dir=/path/to/your/kaur-khor-data` or use Settings / Updates in the
 desktop app to choose the folder. After installing the new version, restore the
 exported snapshot from Settings / Local data if you need to rehydrate from that
@@ -95,6 +104,12 @@ Invoke-WebRequest -Uri "https://github.com/Svanny/kaur-khor/releases/latest/down
 $expectedHash = (Get-Content "kaur-khor-latest-source-build.tar.gz.sha256").Trim().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries)[0].ToLowerInvariant()
 $actualHash = (Get-FileHash -Algorithm SHA256 -Path "kaur-khor-latest-source-build.tar.gz").Hash.ToLowerInvariant()
 if ($actualHash -ne $expectedHash) { throw "SHA-256 mismatch for Kaur Khor source-build archive." }
+$archiveEntries = tar -tf "kaur-khor-latest-source-build.tar.gz"
+foreach ($archiveEntry in $archiveEntries) {
+  if ($archiveEntry -match '^(\/|[A-Za-z]:[\\/])' -or $archiveEntry -notmatch '[\\/]' -or $archiveEntry -match '(^|[\\/])\.\.($|[\\/])' -or $archiveEntry -match '[\\/]{2,}') {
+    throw "Refusing unsafe archive path: $archiveEntry"
+  }
+}
 tar -xzf "kaur-khor-latest-source-build.tar.gz"
 Remove-Item -Path "kaur-khor-latest-source-build.tar.gz", "kaur-khor-latest-source-build.tar.gz.sha256"
 Set-Location "kaur-khor-*-source-build"

@@ -12,7 +12,7 @@ import {
   statSync,
 } from 'node:fs';
 import { homedir, platform, tmpdir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 
 export const SOURCE_BUILD_VERSIONED_SUFFIX = 'source-build.tar.gz';
 export const SOURCE_BUILD_LATEST_BASE_NAME = 'kaur-khor-latest-source-build';
@@ -103,23 +103,38 @@ export function createPreUpdateBackup({
   mkdirSync(backupPath, { recursive: true });
 
   for (const entry of readdirSync(resolvedDataDir, { withFileTypes: true })) {
-    if (entry.name.endsWith('.tmp') || entry.name.startsWith('.kaur-khor-update-')) {
+    const sourcePath = resolve(resolvedDataDir, entry.name);
+    if (
+      entry.name.endsWith('.tmp') ||
+      entry.name.startsWith('.kaur-khor-update-') ||
+      isSamePath(backupRoot, sourcePath) ||
+      isSamePath(backupPath, sourcePath)
+    ) {
       continue;
     }
 
-    copyBackupEntry(resolve(resolvedDataDir, entry.name), resolve(backupPath, entry.name));
+    copyBackupEntry(sourcePath, resolve(backupPath, entry.name), backupPath);
   }
 
   return backupPath;
 }
 
-function copyBackupEntry(sourcePath, destinationPath) {
+function isPathInsideOrSame(candidatePath, rootPath) {
+  const relativePath = relative(resolve(rootPath), resolve(candidatePath));
+  return relativePath === '' || (!relativePath.startsWith('..') && !isAbsolute(relativePath));
+}
+
+function isSamePath(leftPath, rightPath) {
+  return resolve(leftPath) === resolve(rightPath);
+}
+
+function copyBackupEntry(sourcePath, destinationPath, backupRoot) {
   if (lstatSync(sourcePath).isSymbolicLink()) {
     return;
   }
 
   cpSync(sourcePath, destinationPath, {
-    filter: (currentSourcePath) => !lstatSync(currentSourcePath).isSymbolicLink(),
+    filter: (currentSourcePath) => !lstatSync(currentSourcePath).isSymbolicLink() && !isPathInsideOrSame(currentSourcePath, backupRoot),
     force: true,
     recursive: true,
   });

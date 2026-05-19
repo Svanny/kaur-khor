@@ -28,12 +28,13 @@ Browser SENA is single-threaded in this phase. `apps/sena-core` has a browser-sa
 
 The shared web entry in `index.html` carries the deployable CSP for `/kaur-khor/`, `/kaur-khor/demo`, and `/kaur-khor/app`. Keep it restrictive by default:
 
-- `default-src 'self'`, `base-uri 'self'`, `object-src 'none'`, `form-action 'none'`, and `frame-ancestors 'none'` keep the static entry closed to unexpected embeds, forms, plugins, and remote defaults.
+- `default-src 'self'`, `base-uri 'self'`, `object-src 'none'`, and `form-action 'none'` keep the static entry closed to unexpected forms, plugins, and remote defaults.
 - `script-src 'self' 'wasm-unsafe-eval'` allows Vite's bundled modules and SQLite WASM compilation without allowing remote scripts.
 - `style-src 'self' 'unsafe-inline'` is required for the current Tailwind/custom-property runtime styling emitted by the app.
 - `worker-src 'self' blob:` allows the SQLite WASM worker and worker helper blobs.
 - `connect-src 'self' https://api.github.com https://api.telegram.org` covers the landing release lookup and foreground browser Telegram polling only.
 - `img-src 'self' data: blob:` and `font-src 'self'` cover bundled screenshots, generated item images, the linked favicon logo, backup/object previews, and bundled fonts.
+- `frame-ancestors` is intentionally omitted from the static `<meta>` CSP because browsers ignore it there. The Electron desktop renderer still sets `frame-ancestors 'none'` through response headers in the main process.
 
 When adding browser-networked features, update this policy and the tests/build verification together. Do not widen it with wildcard script, connect, or frame sources.
 

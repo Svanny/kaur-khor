@@ -50,8 +50,38 @@ describe('normalizeAllowedExternalUrl', () => {
     expect(() => normalizeAllowedExternalUrl('not a url')).toThrow('A valid URL is required.');
   });
 
+  it('rejects URLs containing control characters before shell handoff', () => {
+    expect(() => normalizeAllowedExternalUrl('https://github.com/Svanny/kaur-khor/issues\nfile:///tmp/ignored')).toThrow(
+      'A valid URL is required.',
+    );
+    expect(() => normalizeAllowedExternalUrl('tg://resolve?domain=configured\t_bot')).toThrow(
+      'A valid URL is required.',
+    );
+  });
+
   it('rejects unapproved HTTPS hosts', () => {
     expect(() => normalizeAllowedExternalUrl('https://example.com/phishing')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+  });
+
+  it('rejects Telegram HTTPS links that are not direct username links', () => {
+    expect(() => normalizeAllowedExternalUrl('https://t.me/share/url?url=https://example.com/phishing')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+    expect(() => normalizeAllowedExternalUrl('https://t.me/configured_bot?start=payload')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+    expect(() => normalizeAllowedExternalUrl('https://telegram.me/configured_bot/extra')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+  });
+
+  it('rejects GitHub links outside the Kaur Khor repository', () => {
+    expect(() => normalizeAllowedExternalUrl('https://github.com/other/repo/issues')).toThrow(
+      'Only Kaur Khor GitHub and Telegram links can be opened.',
+    );
+    expect(() => normalizeAllowedExternalUrl('https://github.com/Svanny/kaur-khor-malicious')).toThrow(
       'Only Kaur Khor GitHub and Telegram links can be opened.',
     );
   });

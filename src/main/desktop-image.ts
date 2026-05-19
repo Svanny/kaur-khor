@@ -1,6 +1,7 @@
 import { basename, extname } from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { nativeImage } from 'electron';
+import { assertDesktopImageFileIsSafeForImport } from './desktop-image-import';
 
 export const DESKTOP_IMAGE_MAX_DIMENSION_PX = 1600;
 export const DESKTOP_IMAGE_TARGET_MAX_BYTES = 1_500_000;
@@ -29,6 +30,12 @@ function computeDesktopImageDimensions(width: number, height: number, scaleStep:
   };
 }
 
+function assertDecodedImageDimensionsAreSafe(width: number, height: number) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new Error('Kaur Khor could not determine the image dimensions.');
+  }
+}
+
 function encodeDesktopImage(
   image: Electron.NativeImage,
   targetExtension: '.png' | '.jpg',
@@ -49,9 +56,7 @@ export function normalizeDesktopImage(sourcePath: string) {
   }
 
   const { width, height } = importedImage.getSize();
-  if (width <= 0 || height <= 0) {
-    throw new Error('Kaur Khor could not determine the image dimensions.');
-  }
+  assertDecodedImageDimensionsAreSafe(width, height);
 
   let bestBytes = encodeDesktopImage(importedImage, targetExtension);
 
@@ -85,25 +90,24 @@ export function normalizeDesktopImage(sourcePath: string) {
 }
 
 export async function prepareDesktopImageUpload(sourcePath: string) {
-  const sourceBytes = await readFile(sourcePath);
   const normalizedExtension = normalizeDesktopImageExtension(sourcePath);
   if (!normalizedExtension) {
-    return {
-      bytes: sourceBytes,
-      filename: basename(sourcePath),
-    };
+    throw new Error('Please choose a PNG, JPEG, or WebP image.');
   }
+
+  const detectedExtension = await assertDesktopImageFileIsSafeForImport(sourcePath);
+  const sourceBytes = await readFile(sourcePath);
 
   const importedImage = nativeImage.createFromPath(sourcePath);
   if (importedImage.isEmpty()) {
-    return {
-      bytes: sourceBytes,
-      filename: basename(sourcePath),
-    };
+    throw new Error('Kaur Khor could not read that image file.');
   }
 
   const { width, height } = importedImage.getSize();
-  const shouldCompress = width > DESKTOP_IMAGE_MAX_DIMENSION_PX
+  assertDecodedImageDimensionsAreSafe(width, height);
+  const shouldNormalizeFormat = normalizedExtension !== detectedExtension;
+  const shouldCompress = shouldNormalizeFormat
+    || width > DESKTOP_IMAGE_MAX_DIMENSION_PX
     || height > DESKTOP_IMAGE_MAX_DIMENSION_PX
     || sourceBytes.byteLength > DESKTOP_IMAGE_TARGET_MAX_BYTES;
 

@@ -7,6 +7,7 @@ import {
   aggregateBenchmarkScenarioSummaries,
   benchmarkRunStatusForTargets,
   benchmarkTargetStatusCounts,
+  type KaurKhorBenchmarkCategory,
   type KaurKhorBenchmarkComparison,
   type KaurKhorBenchmarkComparisonMetric,
   type KaurKhorBenchmarkEvent,
@@ -18,6 +19,7 @@ import {
   type KaurKhorBenchmarkRunStatus,
   type KaurKhorBenchmarkScenarioId,
   type KaurKhorBenchmarkScenarioSummary,
+  type KaurKhorBenchmarkTargetEvaluation,
 } from '@shared/benchmark';
 import { IPC_CHANNELS } from '@shared/ipc';
 import {
@@ -45,6 +47,19 @@ type ActiveBenchmarkRun = {
 
 export function benchmarkOutputDirectoryForRun(resultsDirectory: string, runId: string) {
   return join(resultsDirectory, safeRunId(runId));
+}
+
+export function normalizeBenchmarkRunRecordOutputDirectory(
+  resultsDirectory: string,
+  record: KaurKhorBenchmarkRunRecord,
+): KaurKhorBenchmarkRunRecord {
+  const outputDirectory = benchmarkOutputDirectoryForRun(resultsDirectory, record.runId);
+  return record.outputDirectory === outputDirectory
+    ? record
+    : {
+        ...record,
+        outputDirectory,
+      };
 }
 
 export function benchmarkChildSpawnOptions(projectRoot: string, env: NodeJS.ProcessEnv) {
@@ -90,7 +105,13 @@ function boundedTail(lines: string[], nextLine: string) {
 }
 
 function safeRunId(runId: string) {
-  if (typeof runId !== 'string' || runId.length === 0 || !/^[a-zA-Z0-9._-]+$/.test(runId)) {
+  if (
+    typeof runId !== 'string' ||
+    runId.length === 0 ||
+    runId === '.' ||
+    runId === '..' ||
+    !/^[a-zA-Z0-9._-]+$/.test(runId)
+  ) {
     throw new Error('Invalid benchmark run id.');
   }
   return runId;
@@ -98,6 +119,241 @@ function safeRunId(runId: string) {
 
 function summarizeMetricValue(summary: KaurKhorBenchmarkScenarioSummary, name: string) {
   return summary.derivedMetrics?.[name] ?? summary.metrics?.[name]?.median ?? null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function finiteNumberOrNull(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function normalizeMetricSummary(value: unknown): KaurKhorBenchmarkScenarioSummary['metrics'][string] | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const count = finiteNumberOrNull(value.count);
+  if (count == null) {
+    return null;
+  }
+
+  return {
+    count,
+    max: finiteNumberOrNull(value.max),
+    median: finiteNumberOrNull(value.median),
+    min: finiteNumberOrNull(value.min),
+    p95: finiteNumberOrNull(value.p95),
+  };
+}
+
+function normalizeBenchmarkMetrics(value: unknown): KaurKhorBenchmarkScenarioSummary['metrics'] {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([name, metric]) => {
+      const normalizedMetric = normalizeMetricSummary(metric);
+      return normalizedMetric ? [[name, normalizedMetric]] : [];
+    }),
+  );
+}
+
+function normalizeDerivedMetrics(value: unknown): Record<string, number> | undefined {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const entries = Object.entries(value).filter((entry): entry is [string, number] => (
+    typeof entry[1] === 'number' && Number.isFinite(entry[1])
+  ));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function normalizeBenchmarkTargets(value: unknown): KaurKhorBenchmarkScenarioSummary['targets'] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const validStatuses = new Set(['pass', 'watch', 'fail', 'missing']);
+  const validUnits = new Set(['ms', 'percent', 'boolean']);
+  const validCategories = new Set(['startup', 'navigation', 'interaction', 'ipc', 'core-command', 'memory', 'stability']);
+  const validScenarioIds = new Set(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
+  const targets = value.flatMap((target) => {
+    const nonNegotiable = isRecord(target) ? finiteNumberOrNull(target.nonNegotiable) : null;
+    const acceptable = isRecord(target) ? finiteNumberOrNull(target.acceptable) : null;
+    if (
+      !isRecord(target)
+      || typeof target.metricName !== 'string'
+      || typeof target.label !== 'string'
+      || !validCategories.has(target.category as string)
+      || !Array.isArray(target.scenarios)
+      || !target.scenarios.every((scenario) => validScenarioIds.has(scenario as KaurKhorBenchmarkScenarioId))
+      || !validUnits.has(target.unit as string)
+      || !validStatuses.has(target.status as string)
+      || nonNegotiable == null
+      || acceptable == null
+      || typeof target.source !== 'string'
+      || typeof target.rationale !== 'string'
+    ) {
+      return [];
+    }
+
+    return [{
+      metricName: target.metricName,
+      label: target.label,
+      value: finiteNumberOrNull(target.value),
+      unit: target.unit as KaurKhorBenchmarkTargetEvaluation['unit'],
+      status: target.status as KaurKhorBenchmarkTargetEvaluation['status'],
+      nonNegotiable,
+      acceptable,
+      source: target.source,
+      rationale: target.rationale,
+      category: target.category as KaurKhorBenchmarkCategory,
+      scenarios: target.scenarios as KaurKhorBenchmarkScenarioId[],
+      p95: finiteNumberOrNull(target.p95),
+      jitterBudget: finiteNumberOrNull(target.jitterBudget),
+    }];
+  });
+  return targets.length > 0 ? targets : undefined;
+}
+
+function normalizeSlowestIpc(value: unknown): KaurKhorBenchmarkScenarioSummary['slowestIpc'] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.name !== 'string') {
+      return [];
+    }
+    const durationMs = finiteNumberOrNull(entry.durationMs);
+    return durationMs == null ? [] : [{ name: entry.name, durationMs }];
+  });
+}
+
+function normalizeSlowestCore(value: unknown): KaurKhorBenchmarkScenarioSummary['slowestCore'] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!isRecord(entry) || typeof entry.name !== 'string') {
+      return [];
+    }
+    const durationMs = finiteNumberOrNull(entry.durationMs);
+    if (durationMs == null) {
+      return [];
+    }
+    return [{
+      name: entry.name,
+      command: typeof entry.command === 'string' ? entry.command : null,
+      durationMs,
+    }];
+  });
+}
+
+function normalizeBenchmarkSummaries(value: unknown, runId: string): KaurKhorBenchmarkScenarioSummary[] {
+  const validScenarioIds = new Set(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((summary) => {
+    if (
+      !isRecord(summary) ||
+      !validScenarioIds.has(summary.scenario as KaurKhorBenchmarkScenarioId) ||
+      (summary.runId != null && summary.runId !== runId)
+    ) {
+      return [];
+    }
+    return [{
+      scenario: summary.scenario as KaurKhorBenchmarkScenarioId,
+      runId: typeof summary.runId === 'string' ? summary.runId : runId,
+      generatedAt: typeof summary.generatedAt === 'string' ? summary.generatedAt : '',
+      metrics: normalizeBenchmarkMetrics(summary.metrics),
+      derivedMetrics: normalizeDerivedMetrics(summary.derivedMetrics),
+      targets: normalizeBenchmarkTargets(summary.targets),
+      slowestIpc: normalizeSlowestIpc(summary.slowestIpc),
+      slowestCore: normalizeSlowestCore(summary.slowestCore),
+    }];
+  });
+}
+
+function safeRunIdOrNull(runId: unknown) {
+  try {
+    return safeRunId(runId as string);
+  } catch {
+    return null;
+  }
+}
+
+function normalizePersistedIsoTimestamp(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const timestamp = new Date(value);
+  if (!Number.isFinite(timestamp.getTime())) {
+    return null;
+  }
+  const normalizedValue = value.includes('.') ? value : value.replace('Z', '.000Z');
+  return timestamp.toISOString() === normalizedValue ? timestamp.toISOString() : null;
+}
+
+export function normalizePersistedBenchmarkRunRecord(
+  resultsDirectory: string,
+  value: unknown,
+): KaurKhorBenchmarkRunRecord | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const record = value as Partial<KaurKhorBenchmarkRunRecord>;
+  const runId = safeRunIdOrNull(record.runId);
+  if (!runId) {
+    return null;
+  }
+
+  const validScenarioIds = new Set(KAUR_KHOR_BENCHMARK_SCENARIOS.map((scenario) => scenario.id));
+  const scenarios = Array.isArray(record.scenarios)
+    ? record.scenarios.filter((scenario): scenario is KaurKhorBenchmarkScenarioId => validScenarioIds.has(scenario as KaurKhorBenchmarkScenarioId))
+    : [];
+  if (scenarios.length === 0) {
+    return null;
+  }
+
+  const status = record.status;
+  if (!status || !['queued', 'running', 'passed', 'warning', 'failed', 'cancelled'].includes(status)) {
+    return null;
+  }
+  const startedAt = normalizePersistedIsoTimestamp(record.startedAt);
+  if (!startedAt) {
+    return null;
+  }
+
+  const fixtureSize = ['minimal', 'medium', 'heavy', 'power-user'].includes(record.fixtureSize as string)
+    ? record.fixtureSize as KaurKhorBenchmarkRunRecord['fixtureSize']
+    : 'medium';
+  const completedAt = normalizePersistedIsoTimestamp(record.completedAt);
+
+  return normalizeBenchmarkRunRecordOutputDirectory(resultsDirectory, {
+    runId,
+    scenarios,
+    status,
+    startedAt,
+    completedAt,
+    fixtureSize,
+    traceEnabled: Boolean(record.traceEnabled),
+    repeatCount: Math.min(5, Math.max(1, Math.floor(Number(record.repeatCount) || 1))),
+    buildBeforeRun: record.buildBeforeRun !== false,
+    outputDirectory: '',
+    exitCode: typeof record.exitCode === 'number' && Number.isFinite(record.exitCode) ? record.exitCode : null,
+    summaries: normalizeBenchmarkSummaries(record.summaries, runId),
+    stdoutTail: Array.isArray(record.stdoutTail) ? record.stdoutTail.filter((line): line is string => typeof line === 'string').slice(-MAX_TAIL_LINES) : [],
+    stderrTail: Array.isArray(record.stderrTail) ? record.stderrTail.filter((line): line is string => typeof line === 'string').slice(-MAX_TAIL_LINES) : [],
+    error: typeof record.error === 'string' ? record.error : null,
+  });
 }
 
 export async function readBenchmarkJsonFile<T>(path: string): Promise<T | null> {
@@ -530,7 +786,10 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readRun(runId: string) {
-    const record = await readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
+    const record = normalizePersistedBenchmarkRunRecord(
+      resultsDirectory,
+      await readBenchmarkJsonFile<unknown>(recordPath(runId)),
+    );
     if (!record) {
       return null;
     }
@@ -545,7 +804,10 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readStoredRun(runId: string) {
-    return readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
+    return normalizePersistedBenchmarkRunRecord(
+      resultsDirectory,
+      await readBenchmarkJsonFile<unknown>(recordPath(runId)),
+    );
   }
 
   async function collectSummaries(record: KaurKhorBenchmarkRunRecord): Promise<KaurKhorBenchmarkScenarioSummary[]> {
@@ -846,7 +1108,10 @@ export function registerBenchmarkRunnerIpc({
       entries
         .filter((entry) => entry.endsWith('.json'))
         .map(async (entry) => {
-          const record = await readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(join(runRecordsDirectory, entry));
+          const record = normalizePersistedBenchmarkRunRecord(
+            resultsDirectory,
+            await readBenchmarkJsonFile<unknown>(join(runRecordsDirectory, entry)),
+          );
           if (!record) {
             return null;
           }
