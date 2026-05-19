@@ -18,6 +18,7 @@ import {
   observationCommercialSummary,
 } from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
+import { timestampSortValue } from '@/lib/timestamp-sort';
 import { translateUiLiteral } from '@/lib/translations';
 import { getTranslation } from '@/lib/translations';
 import {
@@ -797,7 +798,7 @@ function aggregateActivityScore(observation: SenaObservationRecord) {
 
 function orderedObservations(observations: SenaObservationRecord[]) {
   return [...observations].sort((left, right) => {
-    return new Date(left.input.observedAt).getTime() - new Date(right.input.observedAt).getTime();
+    return timestampSortValue(left.input.observedAt) - timestampSortValue(right.input.observedAt);
   });
 }
 
@@ -987,14 +988,14 @@ function toBoardRow(
 function latestObservationObservedAt(observations: SenaObservationRecord[]) {
   return observations.reduce<string | null>((latest, observation) => {
     const observedAt = observation.input.observedAt;
-    const observedTime = new Date(observedAt).getTime();
+    const observedTime = timestampSortValue(observedAt);
     if (!Number.isFinite(observedTime)) {
       return latest;
     }
     if (!latest) {
       return observedAt;
     }
-    return observedTime > new Date(latest).getTime() ? observedAt : latest;
+    return observedTime > timestampSortValue(latest) ? observedAt : latest;
   }, null);
 }
 

@@ -158,6 +158,7 @@ export function AutomationIntakeDrawer({
   isSaving,
   language,
   open,
+  presentation = 'right',
   onClose,
   onPromote,
   onResolve,
@@ -168,6 +169,7 @@ export function AutomationIntakeDrawer({
   isSaving: boolean;
   language: AppLanguage;
   open: boolean;
+  presentation?: 'right' | 'bottom';
   onClose: () => void;
   onPromote: (payload: PromoteAutomationIntakePayload) => Promise<PromoteAutomationIntakeResult>;
   onResolve: (payload: AutomationResolveIntakePayload) => Promise<AutomationOrderIntake>;
@@ -353,8 +355,14 @@ export function AutomationIntakeDrawer({
   return (
     <Sheet open={open} onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}>
       <SheetContent
-        className="w-full max-w-3xl gap-0 overflow-hidden border-l border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)] sm:max-w-3xl"
+        className={cn(
+          'w-full gap-0 overflow-hidden border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]',
+          presentation === 'bottom'
+            ? 'h-(--kaur-khor-effective-viewport-height) max-h-(--kaur-khor-effective-viewport-height) rounded-t-[1.4rem] border-t pb-[max(env(safe-area-inset-bottom),0.5rem)]'
+            : 'max-w-3xl border-l sm:max-w-3xl',
+        )}
         showCloseButton={false}
+        side={presentation}
       >
         <SheetHeader className="sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 px-8 py-7 backdrop-blur-sm">
           <div className="flex items-start justify-between gap-4">
@@ -562,6 +570,7 @@ export function AutomationIntakeDrawer({
         {showDetailBody ? (
         <SheetFooter className="sticky bottom-0 z-20 border-t border-border/50 bg-[#f8f4ef]/96 px-8 py-5 shadow-[0_-10px_24px_rgba(48,31,20,0.06)] backdrop-blur-sm">
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {presentation !== 'bottom' ? (
             <div className="min-w-0 sm:max-w-[20rem]">
               <p className="text-sm font-medium text-foreground">{submitLabel}</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
@@ -570,12 +579,14 @@ export function AutomationIntakeDrawer({
                   : literal('Resolve every line and compute a quote before Kaur Khor can promote this intake.')}
               </p>
             </div>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button type="button" variant="outline" onClick={onClose}>
+            ) : null}
+            <div className={cn('flex gap-2', presentation === 'bottom' ? 'w-full flex-row' : 'flex-wrap justify-end')}>
+              <Button className={presentation === 'bottom' ? 'min-w-0 flex-1' : undefined} type="button" variant="outline" onClick={onClose}>
                 <ActionCloseIcon className="size-4" />
                 {literal('Close')}
               </Button>
               <Button
+                className={presentation === 'bottom' ? 'min-w-0 flex-1' : undefined}
                 disabled={isSaving || !intake || ((action === 'create_ticket' || action === 'append_ticket') && !promotionAllowed)}
                 type="button"
                 onClick={() => { void handleSubmit(); }}

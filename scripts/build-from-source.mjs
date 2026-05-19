@@ -525,7 +525,11 @@ function githubReleaseSourceArchiveUrl(repo, ref) {
   }
 
   const [, owner, name] = match;
-  const assetName = ref === 'latest' ? latestDownloadSnippetArchiveName() : `${name}-${ref}-source-build.tar.gz`;
+  if (ref === 'latest') {
+    return `https://github.com/${owner}/${name}/releases/latest/download/${encodeURIComponent(latestDownloadSnippetArchiveName())}`;
+  }
+
+  const assetName = `${name}-${ref}-source-build.tar.gz`;
   return `https://github.com/${owner}/${name}/releases/download/${encodeURIComponent(ref)}/${encodeURIComponent(assetName)}`;
 }
 

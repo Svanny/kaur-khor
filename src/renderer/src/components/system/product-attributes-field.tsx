@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import type { ProductAttributeDraft, ProductAttributeDraftRow, ProductAttributePreset } from '@/lib/product-attributes';
-import { productAttributeCombinations, sanitizeProductAttributeOptions } from '@/lib/product-attributes';
+import { MAX_PRODUCT_ATTRIBUTE_VARIANTS, productAttributeCombinationCount, sanitizeProductAttributeOptions } from '@/lib/product-attributes';
 import { translateUiLiteral } from '@/lib/translations';
 import { cn } from '@/lib/utils';
 
@@ -42,8 +42,9 @@ export function ProductAttributesField({ draft, language, presets, onChange }: P
   const selectedPreset = selectedPresetName === customAttributePresetValue
     ? null
     : visiblePresets.find((preset) => preset.name === selectedPresetName) ?? visiblePresets[0] ?? null;
-  const variantCount = useMemo(() => productAttributeCombinations(draft).length, [draft]);
+  const variantCount = useMemo(() => productAttributeCombinationCount(draft), [draft]);
   const statusTone = variantCount > 0 ? 'success' : draft.rows.length > 0 ? 'warning' : 'danger';
+  const variantLimitExceeded = variantCount > MAX_PRODUCT_ATTRIBUTE_VARIANTS;
 
   function updateRow(index: number, updater: (row: ProductAttributeDraftRow) => ProductAttributeDraftRow) {
     onChange({
@@ -185,12 +186,14 @@ export function ProductAttributesField({ draft, language, presets, onChange }: P
           <div
             className={cn(
               'inline-flex w-fit rounded-full border px-4 py-2 text-sm',
-              statusTone === 'success' && 'border-emerald-300 bg-emerald-50 text-emerald-800',
+              statusTone === 'success' && (variantLimitExceeded ? 'border-destructive/35 bg-destructive/8 text-destructive' : 'border-emerald-300 bg-emerald-50 text-emerald-800'),
               statusTone === 'warning' && 'border-amber-300 bg-amber-50 text-amber-800',
               statusTone === 'danger' && 'border-destructive/35 bg-destructive/8 text-destructive',
             )}
           >
-            {variantCount > 0
+            {variantLimitExceeded
+              ? translateUiLiteral(language, 'Choose {count} or fewer variants before saving.').replace('{count}', String(MAX_PRODUCT_ATTRIBUTE_VARIANTS))
+              : variantCount > 0
               ? translateUiLiteral(language, variantCount === 1 ? '{count} variant will be created' : '{count} variants will be created').replace('{count}', String(variantCount))
               : draft.rows.length > 0
                 ? translateUiLiteral(language, 'No variants will be created until at least one option is selected.')

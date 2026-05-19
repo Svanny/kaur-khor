@@ -2784,6 +2784,37 @@ describe('StockUpdateSessionRoute', () => {
     expect(screen.queryByText('Current Units')).not.toBeInTheDocument();
   });
 
+  it('ignores malformed observation dates when hydrating latest stock', () => {
+    renderRoute([
+      {
+        ...observations[0]!,
+        observationId: 'obs-valid',
+        input: {
+          ...observations[0]!.input,
+          observedAt: '2026-04-04T12:00:00.000Z',
+          stockSnapshot: [
+            { skuId: 'sku-1', unitsInStock: 15, costPerUnit: 4, productPrice: 9 },
+          ],
+        },
+      },
+      {
+        ...observations[0]!,
+        observationId: 'obs-dirty',
+        input: {
+          ...observations[0]!.input,
+          observedAt: 'not-a-date',
+          stockSnapshot: [
+            { skuId: 'sku-1', unitsInStock: 99, costPerUnit: 4, productPrice: 9 },
+          ],
+        },
+      },
+    ]);
+
+    fireEvent.click(getPosWorkbenchTile('Razor refill'));
+
+    expect(within(screen.getByRole('dialog', { name: 'Razor refill' })).getByLabelText('Units in stock')).toHaveValue('15');
+  });
+
   it('submits only changed stock rows and reruns SENA before leaving', async () => {
     setStoredSessionViewMode('form');
     renderRoute();

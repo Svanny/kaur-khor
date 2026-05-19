@@ -27,6 +27,46 @@ describe('InterfaceViewModeCards', () => {
     expect(container.className).toContain('sm:grid-cols-[repeat(3,minmax(0,23rem))]');
   });
 
+  it('can render modes as a swipe picker with dot controls', () => {
+    function TestCards() {
+      const [displayViewMode, setDisplayViewMode] = useState<InterfaceViewMode>('default');
+
+      return (
+        <InterfaceViewModeCards
+          displayViewMode={displayViewMode}
+          modes={['default', 'minimal', 'maximal']}
+          onDisplayViewModeChange={setDisplayViewMode}
+          presentation="carousel"
+        />
+      );
+    }
+
+    render(<TestCards />);
+
+    const container = screen.getByRole('radiogroup');
+    expect(container).toHaveAttribute('data-presentation', 'carousel');
+    expect(container.className).toContain('overflow-hidden');
+    expect(container.querySelector('[data-slot="interface-view-carousel-track"]')).toHaveStyle({
+      transform: 'translateX(-0%)',
+    });
+    expect(screen.getByRole('button', { name: 'Show Default View' })).toHaveAttribute('aria-current', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Minimal View' }));
+
+    expect(container.querySelector('[data-slot="interface-view-carousel-track"]')).toHaveStyle({
+      transform: 'translateX(-100%)',
+    });
+    expect(screen.getByRole('button', { name: 'Show Minimal View' })).toHaveAttribute('aria-current', 'true');
+
+    fireEvent.touchStart(container, { touches: [{ clientX: 240, clientY: 100 }] });
+    fireEvent.touchEnd(container, { changedTouches: [{ clientX: 80, clientY: 105 }] });
+
+    expect(container.querySelector('[data-slot="interface-view-carousel-track"]')).toHaveStyle({
+      transform: 'translateX(-200%)',
+    });
+    expect(screen.getByRole('button', { name: 'Show Maximal View' })).toHaveAttribute('aria-current', 'true');
+  });
+
   it('centers four modes in a 1x4 grid at sm and above', () => {
     render(
       <InterfaceViewModeCards

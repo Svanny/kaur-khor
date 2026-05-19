@@ -179,7 +179,11 @@ function hasSavedCaptureDraft(draftStorageKey: string | null) {
   if (!draftStorageKey || typeof storage?.getItem !== 'function') {
     return false;
   }
-  return storage.getItem(draftStorageKey) != null;
+  try {
+    return storage.getItem(draftStorageKey) != null;
+  } catch {
+    return false;
+  }
 }
 
 function removeSavedCaptureDraft(draftStorageKey: string | null) {
@@ -187,7 +191,11 @@ function removeSavedCaptureDraft(draftStorageKey: string | null) {
   if (!draftStorageKey || typeof storage?.removeItem !== 'function') {
     return;
   }
-  storage.removeItem(draftStorageKey);
+  try {
+    storage.removeItem(draftStorageKey);
+  } catch {
+    // Draft cleanup is best effort; blocked storage should not prevent capture navigation.
+  }
 }
 
 function CaptureConfirmDialog({

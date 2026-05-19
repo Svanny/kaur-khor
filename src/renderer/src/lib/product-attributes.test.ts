@@ -3,8 +3,10 @@ import {
   curatedProductAttributePresets,
   customProductAttributePresetsFromDraft,
   formatProductAttributeSuffix,
+  MAX_PRODUCT_ATTRIBUTE_VARIANTS,
   mergedProductAttributePresets,
   PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY,
+  productAttributeCombinationCount,
   productAttributeCombinations,
   readCustomProductAttributePresets,
   sanitizeProductAttributePresets,
@@ -96,6 +98,35 @@ describe('product attributes helpers', () => {
       '(Size: S, Color: Blue)',
       '(Size: M, Color: Blue)',
     ]);
+  });
+
+  test('counts oversized attribute sets without generating every variant', () => {
+    const oversizedDraft = {
+      enabled: true,
+      rows: [
+        { name: 'Size', options: ['1', '2', '3', '4', '5', '6'], selectedOptions: ['1', '2', '3', '4', '5', '6'] },
+        { name: 'Color', options: ['1', '2', '3', '4', '5'], selectedOptions: ['1', '2', '3', '4', '5'] },
+        { name: 'Quality', options: ['1', '2', '3', '4'], selectedOptions: ['1', '2', '3', '4'] },
+      ],
+    };
+
+    expect(productAttributeCombinationCount(oversizedDraft)).toBeGreaterThan(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
+    expect(productAttributeCombinations(oversizedDraft)).toEqual([]);
+  });
+
+  test('generates variants at the exact attribute limit', () => {
+    const sizeOptions = Array.from({ length: 10 }, (_, index) => `S${index + 1}`);
+    const colorOptions = Array.from({ length: 10 }, (_, index) => `C${index + 1}`);
+    const exactLimitDraft = {
+      enabled: true,
+      rows: [
+        { name: 'Size', options: sizeOptions, selectedOptions: sizeOptions },
+        { name: 'Color', options: colorOptions, selectedOptions: colorOptions },
+      ],
+    };
+
+    expect(productAttributeCombinationCount(exactLimitDraft)).toBe(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
+    expect(productAttributeCombinations(exactLimitDraft)).toHaveLength(MAX_PRODUCT_ATTRIBUTE_VARIANTS);
   });
 
   test('generates unique variant names with incrementing conflicts', () => {

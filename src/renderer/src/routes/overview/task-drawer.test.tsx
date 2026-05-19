@@ -353,8 +353,20 @@ describe('OverviewTaskDrawer', () => {
     const drawer = document.querySelector('[data-slot="phone-task-drawer"]');
     expect(drawer).not.toBeNull();
     expect(drawer).toHaveAttribute('data-slot', 'phone-task-drawer');
-    expect(drawer).toHaveClass('max-h-[min(86dvh,var(--kaur-khor-embedded-effective-height,86dvh))]', 'rounded-t-[1.35rem]', 'border-t');
+    expect(drawer).toHaveClass('h-[var(--kaur-khor-embedded-effective-height,100dvh)]', 'max-h-[var(--kaur-khor-embedded-effective-height,100dvh)]', 'rounded-t-[1.35rem]', 'border-t');
     expect(drawer).not.toHaveClass('sm:max-w-2xl', 'border-l');
+    expect(screen.queryByText('8 ordered')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mode:/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Kaur Khor will save the order signal and the current arrival window.')).not.toBeInTheDocument();
+    await screen.findByText('Order canceled');
+    expect(screen.getByRole('button', { name: 'Close' })).toHaveClass('absolute', 'top-4', 'right-4', 'z-30');
+    expect(document.querySelector('[data-band-id="real_life"] [role="group"]')).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' });
+    expect(screen.getByText('Order canceled')).toHaveClass('whitespace-normal', 'break-words');
+    expect(screen.getByText('Record the supplier cancellation')).toHaveClass('whitespace-normal', 'break-words');
+    const editLink = screen.getByRole('link', { name: 'Edit in Capture' });
+    const saveButton = screen.getByRole('button', { name: 'Save and refresh' });
+    expect(editLink).toHaveClass('flex-1', 'min-w-0');
+    expect(saveButton).toHaveClass('flex-1', 'min-w-0');
   });
 
   test('reuses the existing supplier ticket identity when saving an ETA update', async () => {

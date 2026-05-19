@@ -630,6 +630,47 @@ describe('telegram automation connection setup', () => {
     }]);
   });
 
+  it('falls back to local timestamps for malformed Telegram send dates', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-send-date-'));
+    await writeTelegramAutomationStore(userDataPath, {
+      pendingOutboundJobs: [
+        {
+          jobId: 'telegram_job_dirty_date',
+          createdAt: '2026-04-21T00:00:00.000Z',
+          job: {
+            kind: 'send',
+            chatId: '555_115',
+            conversationId: 'conv_555_115',
+            text: 'Needs timestamp fallback',
+            parseMode: 'HTML',
+          },
+        },
+      ],
+    });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        ok: true,
+        result: {
+          message_id: 20,
+          date: 'not-a-telegram-date',
+          text: 'Needs timestamp fallback',
+          chat: { id: 555_115, type: 'private' },
+        },
+      })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await flushPendingTelegramOutboundJobs(userDataPath, 'secret-token');
+
+    const stored = JSON.parse(await readFile(join(userDataPath, 'desktop-automation-store.json'), 'utf8'));
+    expect(stored.messages).toHaveLength(1);
+    expect(stored.messages[0]).toMatchObject({
+      conversationId: 'conv_555_115',
+      externalMessageKey: '20',
+      rawText: 'Needs timestamp fallback',
+    });
+    expect(Number.isFinite(Date.parse(stored.messages[0].sentAt))).toBe(true);
+  });
+
   it('continues sending the next wizard prompt when generated message cleanup is already stale', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-cleanup-'));
     const fetchMock = vi.fn()

@@ -316,7 +316,7 @@ function windowsUpdateScript({
   sourceVersion: string;
   skipBackup: boolean;
 }) {
-  const backupArg = backupDirectoryPath ? ` --backup-dir="${backupDirectoryPath.replaceAll('"', '`"')}"` : '';
+  const backupArg = backupDirectoryPath ? ` --backup-dir=${powerShellQuote(backupDirectoryPath)}` : '';
   const oldSourceBuildsArg = oldSourceBuilds === 'delete'
     ? ' --delete-old-source-builds'
     : oldSourceBuilds === 'keep'
@@ -337,7 +337,7 @@ if ($actualHash -ne $expectedHash) {
 }
 tar -xzf "${sourceArchiveName}"
 Set-Location "kaur-khor-*-source-build"
-.\\scripts\\build-from-source.ps1 --update --data-dir="${dataDirectoryPath.replaceAll('"', '`"')}"${backupArg}${skipArg}${oldSourceBuildsArg}
+.\\scripts\\build-from-source.ps1 --update --data-dir=${powerShellQuote(dataDirectoryPath)}${backupArg}${skipArg}${oldSourceBuildsArg}
 Write-Host "Update finished. Reopen Kaur Khor and restore the exported snapshot from your chosen backup folder if needed."
 `;
 }
@@ -376,6 +376,10 @@ async function launchScriptInTerminal(scriptPath: string) {
 
 function shellQuote(value: string) {
   return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function powerShellQuote(value: string) {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 function waitForTerminalSpawn(child: ChildProcess) {

@@ -113,6 +113,31 @@ function isKhmer(language: 'en' | 'km') {
   return language === 'km';
 }
 
+function telegramSentMessageAt(
+  message: {
+    date?: unknown;
+  },
+  fallback = new Date().toISOString(),
+) {
+  const timestampSeconds = typeof message.date === 'number' ? message.date : Number.NaN;
+  const timestampMs = timestampSeconds * 1000;
+  if (!Number.isFinite(timestampMs)) {
+    return fallback;
+  }
+  const sentAt = new Date(timestampMs);
+  if (!Number.isFinite(sentAt.getTime())) {
+    return fallback;
+  }
+  return sentAt.toISOString();
+}
+
+function telegramSentDateSeconds(value: string) {
+  const timestampMs = Date.parse(value);
+  return Number.isFinite(timestampMs)
+    ? Math.floor(timestampMs / 1000)
+    : Math.floor(Date.now() / 1000);
+}
+
 function resolvedTokenPayload(existingHasToken: boolean, nextToken: string | null | undefined) {
   if (nextToken === undefined) {
     return undefined;
@@ -161,7 +186,7 @@ async function sendTelegramConversationMessage(
     conversationId,
     externalMessageKey: String(sent.message_id),
     intakeId,
-    sentAt: new Date(sent.date * 1000).toISOString(),
+    sentAt: telegramSentMessageAt(sent),
     text: sent.text ?? text,
   });
   return true;
@@ -492,7 +517,7 @@ async function sendTelegramOutboundJob(
   const sent = pendingJob.sentMessage
     ? {
       message_id: pendingJob.sentMessage.messageId,
-      date: Math.floor(new Date(pendingJob.sentMessage.sentAt).getTime() / 1000),
+      date: telegramSentDateSeconds(pendingJob.sentMessage.sentAt),
       text: pendingJob.sentMessage.text,
     }
     : await telegramSendMessage(token, {
@@ -504,7 +529,7 @@ async function sendTelegramOutboundJob(
   if (!pendingJob.sentMessage) {
     await markAutomationPendingTelegramOutboundJobSent(userDataPath, pendingJob.jobId, {
       messageId: sent.message_id,
-      sentAt: new Date(sent.date * 1000).toISOString(),
+      sentAt: telegramSentMessageAt(sent),
       text: sent.text ?? job.text,
     });
   }
@@ -514,7 +539,7 @@ async function sendTelegramOutboundJob(
       conversationId: job.conversationId,
       externalMessageKey: String(sent.message_id),
       intakeId: job.intakeId ?? null,
-      sentAt: new Date(sent.date * 1000).toISOString(),
+      sentAt: telegramSentMessageAt(sent),
       text: sent.text ?? job.text,
     });
   }

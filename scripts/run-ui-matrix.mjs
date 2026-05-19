@@ -5,7 +5,12 @@ import { resolve } from 'node:path';
 const rawArgs = process.argv.slice(2);
 const targetArg = rawArgs.find((arg) => arg.startsWith('--target='));
 const target = targetArg?.slice('--target='.length) || 'all';
-const forwardedArgs = rawArgs.filter((arg) => !arg.startsWith('--target='));
+const serialFlags = new Set(['--serial', '--workers=1']);
+const shouldRunSerial =
+  process.env.KAUR_KHOR_UI_MATRIX_SERIAL === '1' || rawArgs.some((arg) => serialFlags.has(arg));
+const forwardedArgs = rawArgs.filter((arg) => (
+  arg !== '--' && !arg.startsWith('--target=') && !serialFlags.has(arg)
+));
 
 const targetFiles = {
   desktop: [
@@ -40,7 +45,7 @@ function run(command, args, options = {}) {
 
 const files = selectedFiles(target);
 const needsDesktopBuild = target === 'all' || target === 'desktop';
-const needsWebServer = target === 'all' || target === 'web' || target === 'mobile';
+const needsWebServer = true;
 
 if (needsDesktopBuild) {
   const buildCode = await run('pnpm', ['build']);
@@ -62,6 +67,7 @@ const desktopCoreBinary = resolve(
 const env = {
   ...process.env,
   KAUR_KHOR_UI_MATRIX_WEB: needsWebServer ? '1' : '0',
+  KAUR_KHOR_UI_MATRIX_WORKERS: shouldRunSerial ? '1' : (process.env.KAUR_KHOR_UI_MATRIX_WORKERS ?? '3'),
 };
 
 if (process.env.KAUR_KHOR_DESKTOP_CORE_BINARY) {

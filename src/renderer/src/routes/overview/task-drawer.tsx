@@ -392,12 +392,14 @@ function DrawerModeTile({
   measure = false,
   selected,
   title,
+  wrapText = false,
 }: {
   description: string;
   icon: IconComponent;
   measure?: boolean;
   selected: boolean;
   title: string;
+  wrapText?: boolean;
 }) {
   return (
     <div
@@ -424,9 +426,9 @@ function DrawerModeTile({
       <div className="min-w-0">
         <span className="flex min-w-0 items-center gap-2 text-[0.92rem] font-semibold leading-5 tracking-[-0.02em]">
           <Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 truncate">{title}</span>
+          <span className={cn('min-w-0', wrapText ? 'whitespace-normal break-words' : 'truncate')}>{title}</span>
         </span>
-        <span className="mt-1 block text-[0.73rem] leading-4.5 text-muted-foreground">{description}</span>
+        <span className={cn('mt-1 block text-[0.73rem] leading-4.5 text-muted-foreground', wrapText ? 'whitespace-normal break-words' : null)}>{description}</span>
       </div>
     </div>
   );
@@ -846,7 +848,7 @@ export function OverviewTaskDrawer({
         className={cn(
           'w-full gap-0 overflow-hidden border-border/70 bg-[#f8f4ef] px-0 shadow-[0_28px_72px_rgba(48,31,20,0.18)]',
           bottomPresentation
-            ? 'max-h-[min(86dvh,var(--kaur-khor-embedded-effective-height,86dvh))] rounded-t-[1.35rem] border-t'
+            ? 'h-[var(--kaur-khor-embedded-effective-height,100dvh)] max-h-[var(--kaur-khor-embedded-effective-height,100dvh)] rounded-t-[1.35rem] border-t'
             : 'max-w-none border-l',
         )}
         showCloseButton={false}
@@ -864,7 +866,7 @@ export function OverviewTaskDrawer({
 
         <SheetHeader className={cn(
           'sticky top-0 z-20 gap-4 border-b border-border/40 bg-[#f8f4ef]/96 backdrop-blur-sm',
-          bottomPresentation ? 'px-4 py-4' : 'px-8 py-7',
+          bottomPresentation ? 'relative px-4 py-4 pr-14' : 'px-8 py-7',
         )}>
           <div className={cn('flex justify-between gap-4', bottomPresentation ? 'items-center' : 'items-start')}>
             <div className="min-w-0 flex-1">
@@ -888,19 +890,12 @@ export function OverviewTaskDrawer({
               <SheetDescription className="mt-3 max-w-2xl text-[0.98rem] leading-7">
                 {task.whyNow} · {task.skuSummaryLabel} · {task.etaLabel}
               </SheetDescription>
-              <div className="mt-4 flex flex-wrap gap-2.5">
-                {task.heartbeat.map((line) => (
-                  <div
-                    key={line}
-                    className="rounded-full border border-border/65 bg-white/72 px-3.5 py-2 text-sm text-foreground shadow-[0_1px_0_rgba(255,255,255,0.95)]"
-                  >
-                    {line}
-                  </div>
-                ))}
-              </div>
             </div>
 
-            <SheetClose className="mt-1 inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            <SheetClose className={cn(
+              'inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary/65 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+              bottomPresentation ? 'absolute top-4 right-4 z-30' : 'mt-1',
+            )}>
               <ActionCloseIcon className="size-5" />
               <span className="sr-only">{translateUiLiteral(language, 'Close')}</span>
             </SheetClose>
@@ -922,8 +917,8 @@ export function OverviewTaskDrawer({
               <div className="mt-5">
                 <MeasuredTileGrid
                   items={drawerModeOptions(t)}
-                  maxColumns={2}
-                  minColumns={2}
+                  maxColumns={bottomPresentation ? 1 : 2}
+                  minColumns={bottomPresentation ? 1 : 2}
                   renderGrid={({ columnCount, gridRef }) => (
                     <div ref={gridRef}>
                       <ToggleGroup
@@ -963,6 +958,7 @@ export function OverviewTaskDrawer({
                               icon={option.icon}
                               selected={mode === option.value}
                               title={option.title}
+                              wrapText={bottomPresentation}
                             />
                           </ToggleGroupItem>
                         ))}
@@ -977,6 +973,7 @@ export function OverviewTaskDrawer({
                       measure
                       selected={mode === option.value}
                       title={option.title}
+                      wrapText={bottomPresentation}
                     />
                   )}
                 />
@@ -1124,19 +1121,21 @@ export function OverviewTaskDrawer({
           bottomPresentation ? 'px-4 pt-4 pb-[max(env(safe-area-inset-bottom),1rem)]' : 'px-8 py-5',
         )}>
           <div className="flex w-full flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            {!bottomPresentation ? (
             <div className="min-w-0 sm:max-w-[18rem]">
               <p className="text-sm font-medium text-foreground">{t('overviewDrawerModeLabel', { value: drawerModeLabel(t, mode) })}</p>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">{drawerModeSummary(t, mode)}</p>
             </div>
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
-              <Button asChild className="w-full sm:w-auto sm:min-w-[11rem]" size="lg" variant="outline">
+            ) : null}
+            <div className={cn('flex w-full gap-2', bottomPresentation ? 'flex-row' : 'flex-col sm:w-auto sm:flex-row')}>
+              <Button asChild className={cn('w-full', bottomPresentation ? 'min-w-0 flex-1' : 'sm:w-auto sm:min-w-[11rem]')} size="lg" variant="outline">
                 <Link to={buildSupplierTicketCaptureHref({ mode: 'edit', ticketId: task.ticketId })}>
                   <ActionOpenExternalIcon data-icon="inline-start" />
                   {translateUiLiteral(language, 'Edit in Capture')}
                 </Link>
               </Button>
               <Button
-                className="w-full sm:w-auto sm:min-w-[15rem]"
+                className={cn('w-full', bottomPresentation ? 'min-w-0 flex-1' : 'sm:w-auto sm:min-w-[15rem]')}
                 disabled={submitDisabled}
                 size="lg"
                 type="button"

@@ -262,6 +262,36 @@ describe('ServiceFormRoute', () => {
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
+  test('blocks oversized service attribute variant sets before saving', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      ingestSenaObservation,
+      isLoading: false,
+      isSaving: false,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/services/new', <ServiceFormRoute />, '/catalog/services/new');
+
+    fillNewServiceRequiredFields('Variant Service');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Enable attributes/i }));
+    for (const preset of ['Size', 'Color', 'Quality']) {
+      chooseAttributePreset(preset);
+      fireEvent.click(screen.getByRole('button', { name: 'Add selected attribute' }));
+    }
+    for (const option of ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Gray', 'Brown', 'Standard', 'Premium', 'Economy', 'Limited']) {
+      fireEvent.click(screen.getByRole('checkbox', { name: `Select option ${option}` }));
+    }
+
+    expect(screen.getByText('Choose 100 or fewer variants before saving.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    });
+  });
+
   test('preserves dirty service text across catalog object refreshes', () => {
     const view = renderWithProviders('/catalog/services/service-1/edit', <ServiceFormRoute />, '/catalog/services/:serviceId/edit');
 

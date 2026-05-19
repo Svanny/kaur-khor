@@ -218,8 +218,18 @@ The screenshot fixture seeds the bundled 10 SKU / 10 service catalog, plus custo
 
 ```bash
 pnpm test
+pnpm test -- --serial
 cargo test --manifest-path apps/desktop-core/Cargo.toml
+cargo test --manifest-path apps/sena-core/Cargo.toml
+pnpm ui:matrix
 ```
+
+`pnpm test` runs Vitest files in parallel by default. Use `--serial` or
+`KAUR_KHOR_VITEST_SERIAL=1` when isolating shared-state failures. UI matrix runs
+independent spec files in parallel while preserving ordered dependent-state
+flows inside each spec. Playwright e2e runs independent spec files in parallel
+by default; set `KAUR_KHOR_E2E_WORKERS=1` when diagnosing ordering-sensitive
+failures.
 
 ### Repo Shape
 

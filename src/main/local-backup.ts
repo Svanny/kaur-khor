@@ -36,7 +36,7 @@ const DEFAULT_AUTOMATIC_SNAPSHOT_INTERVAL_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_BACKUP_SNAPSHOTS = 24;
 const backupQueues = new Map<string, Promise<unknown>>();
 const lastAutomaticSnapshotAt = new Map<string, number>();
-type FileOps = Pick<typeof fs, 'copyFile' | 'cp' | 'mkdir' | 'readdir' | 'readFile' | 'rename' | 'rm' | 'stat' | 'writeFile'>;
+type FileOps = Pick<typeof fs, 'copyFile' | 'cp' | 'lstat' | 'mkdir' | 'readdir' | 'readFile' | 'rename' | 'rm' | 'stat' | 'writeFile'>;
 
 export function desktopBackupDirectoryPath(userDataPath: string) {
   return join(userDataPath, BACKUP_DIRECTORY_NAME);
@@ -137,8 +137,24 @@ async function removePaths(paths: string[], fileOps: FileOps = fs) {
   await Promise.all(paths.map((path) => fileOps.rm(path, { force: true, recursive: true })));
 }
 
+async function assertPathContainsNoSymlinks(sourcePath: string, fileOps: FileOps = fs) {
+  const sourceStats = await fileOps.lstat(sourcePath);
+  if (sourceStats.isSymbolicLink()) {
+    throw new Error('Backup snapshots cannot contain symbolic links.');
+  }
+  if (!sourceStats.isDirectory()) {
+    return;
+  }
+
+  const entries = await fileOps.readdir(sourcePath, { withFileTypes: true });
+  for (const entry of entries) {
+    await assertPathContainsNoSymlinks(join(sourcePath, entry.name), fileOps);
+  }
+}
+
 async function copyFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
   for (const sourcePath of sourceFiles) {
+    await assertPathContainsNoSymlinks(sourcePath, fileOps);
     const targetPath = join(directoryPath, basename(sourcePath));
     const sourceStats = await fileOps.stat(sourcePath);
     if (sourceStats.isDirectory()) {

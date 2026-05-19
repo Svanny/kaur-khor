@@ -327,6 +327,35 @@ describe('SkuFormRoute', () => {
     );
   });
 
+  test('blocks oversized SKU attribute variant sets before saving', async () => {
+    const upsertSenaCatalog = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      isSaving: false,
+      snapshot: sampleSnapshot,
+      upsertSenaCatalog,
+    });
+
+    renderWithProviders('/catalog/skus/new', <SkuFormRoute />, '/catalog/skus/new');
+
+    fillNewSkuRequiredFields('Variant Explosion');
+    fireEvent.click(screen.getByRole('checkbox', { name: /Enable attributes/i }));
+    for (const preset of ['Size', 'Color', 'Quality']) {
+      chooseAttributePreset(preset);
+      fireEvent.click(screen.getByRole('button', { name: 'Add selected attribute' }));
+    }
+    for (const option of ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Pink', 'Purple', 'Gray', 'Brown', 'Standard', 'Premium', 'Economy', 'Limited']) {
+      fireEvent.click(screen.getByRole('checkbox', { name: `Select option ${option}` }));
+    }
+
+    expect(screen.getByText('Choose 100 or fewer variants before saving.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Create entry' }));
+
+    await waitFor(() => {
+      expect(upsertSenaCatalog).not.toHaveBeenCalled();
+    });
+  });
+
   test('adds a new option while another option is being renamed', async () => {
     const user = userEvent.setup();
 

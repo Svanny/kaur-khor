@@ -369,6 +369,61 @@
     min-height: auto;
   }
 
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid {
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-grid-inner"] {
+    max-width: min(100%, calc(2 * var(--hub-tile-size) + var(--centered-tile-gap)));
+    width: fit-content;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid .liquid-grid-card-frame {
+    box-shadow: 0 10px 22px rgba(48, 31, 20, 0.07);
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid .liquid-grid-card-frame::before {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid .liquid-grid-card-frame:hover {
+    box-shadow: 0 12px 26px rgba(48, 31, 20, 0.09);
+    transform: none;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-body"] {
+    gap: 0.25rem;
+    padding: 0.25rem;
+    transform: translateY(0.25rem);
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-icon"] {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-title"] {
+    align-items: center;
+    display: flex;
+    font-size: 0.95rem;
+    height: 2.125rem;
+    justify-content: center;
+    line-height: 1.12;
+    min-height: 2.125rem;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-summary"] {
+    display: none;
+  }
+
+  html[data-kaur-khor-embedded-phone-portrait="true"] .phone-capture-hub-grid [data-slot="centered-tile-card-draft"] {
+    display: none;
+  }
+
   html[data-kaur-khor-embedded-phone-landscape="true"],
   html[data-kaur-khor-embedded-phone-landscape="true"] body,
   html[data-kaur-khor-embedded-phone-landscape="true"] #root {
@@ -588,7 +643,7 @@
     align-items: flex-start;
     justify-content: flex-start;
     min-height: auto;
-    padding: 0 0 1rem !important;
+    padding: 0 0.75rem 1rem !important;
   }
 
   html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-card"] {

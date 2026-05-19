@@ -1276,6 +1276,18 @@ function telegramLocationText(message: TelegramMessage) {
   return message.text?.trim() || null;
 }
 
+function telegramMessageSentAt(message: TelegramMessage, fallback = nowIso()) {
+  const timestampMs = message.date * 1000;
+  if (!Number.isFinite(timestampMs)) {
+    return fallback;
+  }
+  const sentAt = new Date(timestampMs);
+  if (!Number.isFinite(sentAt.getTime())) {
+    return fallback;
+  }
+  return sentAt.toISOString();
+}
+
 function buildTelegramConversationId(chatId: string) {
   return `conv_telegram_${chatId.replace(/[^\w-]/g, '_')}`;
 }
@@ -1849,7 +1861,7 @@ function upsertTelegramConversation(
   if (existing) {
     existing.customerDisplayName = customerDisplayName;
     existing.customerHandle = customerHandle;
-    existing.lastMessageAt = new Date(message.date * 1000).toISOString();
+    existing.lastMessageAt = telegramMessageSentAt(message);
     return existing;
   }
   const conversation: AutomationConversationSummary = {
@@ -1859,7 +1871,7 @@ function upsertTelegramConversation(
     customerDisplayName,
     customerHandle,
     phone: null,
-    lastMessageAt: new Date(message.date * 1000).toISOString(),
+    lastMessageAt: telegramMessageSentAt(message),
     messageCount: 0,
     latestIntakeStatus: null,
     latestTicketId: null,
@@ -1925,7 +1937,7 @@ function insertTelegramInboundMessage(
     intakeId: null,
     externalMessageKey,
     direction: 'inbound',
-    sentAt: new Date(message.date * 1000).toISOString(),
+    sentAt: telegramMessageSentAt(message),
     rawText,
     normalizedText: normalizeTelegramLabel(rawText),
     parseConfidence: null,
@@ -2055,8 +2067,8 @@ function upsertTelegramIntake(
     currencyCode: currencyCodeForAppCurrency(currency),
     deliveryFee: null,
     quotedTotal: quotedSubtotal,
-    createdAt: new Date(message.date * 1000).toISOString(),
-    updatedAt: new Date(message.date * 1000).toISOString(),
+    createdAt: telegramMessageSentAt(message),
+    updatedAt: telegramMessageSentAt(message),
     promotedTicketId: null,
     lines,
   };
@@ -3202,9 +3214,7 @@ export async function ingestAutomationTelegramUpdates(
       state.telegramUpdateCursor = Math.max(state.telegramUpdateCursor ?? 0, update.update_id + 1);
       const callbackQuery = update.callback_query;
       if (callbackQuery?.message?.chat.type === 'private' && callbackQuery.message.chat.id != null) {
-        const callbackSentAt = callbackQuery.message.date
-          ? new Date(callbackQuery.message.date * 1000).toISOString()
-          : nowIso();
+        const callbackSentAt = nowIso();
         const conversation = upsertTelegramConversationFromCallback(
           state,
           String(callbackQuery.message.chat.id),
@@ -3391,7 +3401,7 @@ export async function ingestAutomationTelegramUpdates(
         queueWizardItemImageCleanup(outboundJobs, session, conversation.externalConversationKey);
         if (appendExtraTelegramMessageToActiveIntake(state, conversation, inserted, message.text)) {
           state.connection.status = 'connected';
-          state.connection.lastWebhookAt = new Date(message.date * 1000).toISOString();
+          state.connection.lastWebhookAt = telegramMessageSentAt(message);
           state.connection.lastErrorAt = null;
           state.connection.lastErrorMessage = null;
           continue;
@@ -3408,7 +3418,7 @@ export async function ingestAutomationTelegramUpdates(
       }
 
       state.connection.status = 'connected';
-      state.connection.lastWebhookAt = new Date(message.date * 1000).toISOString();
+      state.connection.lastWebhookAt = telegramMessageSentAt(message);
       state.connection.lastErrorAt = null;
       state.connection.lastErrorMessage = null;
     }

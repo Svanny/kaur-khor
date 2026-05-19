@@ -376,6 +376,24 @@ describe('StockUpdateRoute', () => {
     expect(screen.queryByText('Observation 1')).not.toBeInTheDocument();
   });
 
+  it('sorts malformed observation dates after valid log entries', () => {
+    preferenceState.showLogsViewToggle = false;
+
+    renderRoute({
+      observations: [
+        makeObservation('obs-dirty', 'not-a-date', 'Dirty date report'),
+        makeObservation('obs-valid', '2026-04-06T12:00:00.000Z', 'Valid latest report'),
+      ],
+    });
+
+    const reportNotes = screen.getAllByText(/Dirty date report|Valid latest report/);
+
+    expect(reportNotes.map((node) => node.textContent)).toEqual([
+      'Valid latest report',
+      'Dirty date report',
+    ]);
+  });
+
   it('hides the view button and forces all view when disabled', () => {
     preferenceState.showLogsViewToggle = false;
 

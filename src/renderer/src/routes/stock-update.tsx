@@ -26,6 +26,7 @@ import {
 } from '@/lib/navigation-state';
 import { observationRecordActivityEntries } from '@/lib/record-activity';
 import { filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
+import { timestampSortValue } from '@/lib/timestamp-sort';
 import { translateUiLiteral } from '@/lib/translations';
 import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
 import { useInventory } from '@/state/inventory';
@@ -329,6 +330,12 @@ function buildHeatmapBuckets(thresholds: HeatmapThresholds): HeatmapBuckets {
   };
 }
 
+function sortObservationsByRecent(observations: SenaObservationRecord[]) {
+  return [...observations].sort(
+    (left, right) => timestampSortValue(right.input.observedAt) - timestampSortValue(left.input.observedAt),
+  );
+}
+
 function heatLevelForCount(count: number, buckets: HeatmapBuckets): HeatLevel {
   if (count <= 0) {
     return 0;
@@ -422,9 +429,7 @@ function buildHeatmapWindow(
         key,
         isoValue: date.toISOString(),
         count: entries.length,
-        observations: [...entries].sort(
-          (left, right) => new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
-        ),
+        observations: sortObservationsByRecent(entries),
         level: inWindow ? heatLevelForCount(entries.length, buckets) : 0,
         inWindow,
       });
@@ -535,14 +540,14 @@ function paginatedObservationRange(page: number, totalCount: number) {
 }
 
 function previousObservationAt(observation: SenaObservationRecord, observations: SenaObservationRecord[]) {
-  const observedTime = new Date(observation.input.observedAt).getTime();
+  const observedTime = timestampSortValue(observation.input.observedAt);
   return observations
     .map((entry) => entry.input.observedAt)
     .filter((observedAt) => {
-      const candidateTime = new Date(observedAt).getTime();
-      return !Number.isNaN(candidateTime) && candidateTime < observedTime;
+      const candidateTime = timestampSortValue(observedAt);
+      return candidateTime > Number.NEGATIVE_INFINITY && candidateTime < observedTime;
     })
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] ?? null;
+    .sort((left, right) => timestampSortValue(right) - timestampSortValue(left))[0] ?? null;
 }
 
 function observationIntervalLabel(
@@ -671,7 +676,7 @@ export function StockUpdateRoute() {
         )
         .sort(
           (left, right) =>
-            new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+            timestampSortValue(right.input.observedAt) - timestampSortValue(left.input.observedAt),
         ),
     [baseCatalog, catalog, deferredQuery, observations, scope, serviceLinkedSkuIdSet, supplierFilter],
   );
@@ -807,6 +812,7 @@ export function StockUpdateRoute() {
       <WorkspaceTitleCard
         eyebrow={translateUiLiteral(language, 'Settings')}
         title={translateUiLiteral(language, 'History')}
+        helperExemptReason="legacy history title card awaiting route-level helper copy"
         descriptor={translateUiLiteral(language, 'Search saved updates, see when real-world activity was captured, and inspect the signal package behind each interval.')}
         actions={
           <WorkspaceActionRow>
@@ -879,6 +885,7 @@ export function StockUpdateRoute() {
                 ? translateUiLiteral(language, 'Loading contributions…')
                 : heatmapTitle(visibleHeatmapWindow, language)
             }
+            helperExemptReason="legacy history panel awaiting helper copy"
             descriptor={translateUiLiteral(language, 'Review the activity footprint across the last 365 days, then pick a day to inspect.')}
             action={
               <WorkspaceActionRow className="gap-2">
@@ -983,7 +990,11 @@ export function StockUpdateRoute() {
               </div>
             </div>
           </WorkspacePanel>
-          <WorkspacePanel title={selectedDayTitle} descriptor={selectedDayDescription}>
+          <WorkspacePanel
+            title={selectedDayTitle}
+            helperExemptReason="selected-day title is dynamic context, not a reusable concept header"
+            descriptor={selectedDayDescription}
+          >
             {selectedDay ? (
               selectedDayObservations.length > 0 ? (
                 <div className="grid gap-3">
@@ -1018,6 +1029,7 @@ export function StockUpdateRoute() {
       ) : (
         <WorkspacePanel
           title={translateUiLiteral(language, 'All observations ({count})', { count: filteredObservations.length })}
+          helperExemptReason="legacy history panel awaiting helper copy"
           descriptor={
             filteredObservations.length > 0
               ? translateUiLiteral(language, 'Showing {start}-{end} of {count} filtered observations.', {

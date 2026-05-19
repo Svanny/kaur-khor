@@ -370,10 +370,18 @@ function diffDaysFromNow(value: string | null) {
   return (date.getTime() - Date.now()) / 86_400_000;
 }
 
+function timestampSortValue(value: string | null | undefined) {
+  if (!value) {
+    return Number.NEGATIVE_INFINITY;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
 function summarizeObservations(observations: SenaObservationRecord[], skuId: string): ObservationSkuSignals {
   const sorted = [...observations].sort(
     (left, right) =>
-      new Date(right.input.observedAt).getTime() - new Date(left.input.observedAt).getTime(),
+      timestampSortValue(right.input.observedAt) - timestampSortValue(left.input.observedAt),
   );
 
   let latestObservationAt: string | null = null;
@@ -518,7 +526,7 @@ function latestSupplierTicketForSku({
     const current = tickets.get(ticket.ticketId);
     if (
       !current ||
-      new Date(ticket.occurredAt).getTime() > new Date(current.occurredAt).getTime() ||
+      timestampSortValue(ticket.occurredAt) > timestampSortValue(current.occurredAt) ||
       (ticket.occurredAt === current.occurredAt && ticket.revision > current.revision)
     ) {
       tickets.set(ticket.ticketId, ticket);
@@ -537,7 +545,7 @@ function latestSupplierTicketForSku({
 
   return [...tickets.values()].sort(
     (left, right) =>
-      new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime() ||
+      timestampSortValue(right.occurredAt) - timestampSortValue(left.occurredAt) ||
       right.revision - left.revision ||
       right.ticketId.localeCompare(left.ticketId),
   )[0] ?? null;
@@ -757,7 +765,7 @@ function compareSupplierTicketsByDisplayOrder(left: SenaTicketSummary, right: Se
 }
 
 function compareSupplierTicketsByFreshness(left: SenaTicketSummary, right: SenaTicketSummary) {
-  return new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime() ||
+  return timestampSortValue(right.occurredAt) - timestampSortValue(left.occurredAt) ||
     right.revision - left.revision ||
     right.ticketId.localeCompare(left.ticketId);
 }

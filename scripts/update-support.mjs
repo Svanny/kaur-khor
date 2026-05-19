@@ -4,6 +4,7 @@ import { stdin as input, stdout as output } from 'node:process';
 import {
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -106,13 +107,22 @@ export function createPreUpdateBackup({
       continue;
     }
 
-    cpSync(resolve(resolvedDataDir, entry.name), resolve(backupPath, entry.name), {
-      force: true,
-      recursive: true,
-    });
+    copyBackupEntry(resolve(resolvedDataDir, entry.name), resolve(backupPath, entry.name));
   }
 
   return backupPath;
+}
+
+function copyBackupEntry(sourcePath, destinationPath) {
+  if (lstatSync(sourcePath).isSymbolicLink()) {
+    return;
+  }
+
+  cpSync(sourcePath, destinationPath, {
+    filter: (currentSourcePath) => !lstatSync(currentSourcePath).isSymbolicLink(),
+    force: true,
+    recursive: true,
+  });
 }
 
 function dataDirectoryCanBeBackedUp(dataDir) {
