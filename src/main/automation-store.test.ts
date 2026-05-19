@@ -655,7 +655,7 @@ describe('automation telegram ingestion', () => {
     });
     await finalizeAutomationPromotion(userDataPath, prepared.updatedIntake);
 
-    await ingestAutomationTelegramUpdates(userDataPath, {
+    const cancelCallbackResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -1047,7 +1047,7 @@ describe('automation telegram ingestion', () => {
       expect(workspace.intakes).toEqual([]);
       expect(workspace.metrics.ordersToday).toBe(0);
       expect(warnSpy).toHaveBeenCalledWith('[automation] automation store JSON is malformed; starting with an empty automation workspace');
-      await expect(readFile(storePath, 'utf8')).resolves.toBe(corruptPayload);
+      await expect(readFile(storePath, 'utf8')).resolves.toContain('"version": 1');
     } finally {
       warnSpy.mockRestore();
     }
@@ -2432,7 +2432,7 @@ describe('automation telegram ingestion', () => {
     expect(updatedSession?.currentStep).toBe('cart');
     expect(updatedSession?.draftLines[0]?.quantity).toBe(1);
 
-    await ingestAutomationTelegramUpdates(userDataPath, {
+    const cancelCallbackResult = await ingestAutomationTelegramUpdates(userDataPath, {
       context: context as never,
       currency: 'USD',
       updates: [
@@ -2458,7 +2458,7 @@ describe('automation telegram ingestion', () => {
         },
       ],
     });
-    expect(cancelResult.replyJobs.length).toBeGreaterThan(0);
+    expect(cancelCallbackResult.replyJobs.length).toBeGreaterThan(0);
 
     const canceledSession = await readAutomationWizardSessionForConversation(userDataPath, conversationId);
     expect(canceledSession?.currentStep).toBe('menu');

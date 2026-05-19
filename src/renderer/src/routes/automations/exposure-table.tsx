@@ -59,7 +59,7 @@ function entityHref(row: AutomationExposureRow) {
 }
 
 function priceLabel(row: AutomationExposureRow, language: AppLanguage) {
-  return row.price == null || !Number.isFinite(row.price)
+  return row.price == null || !Number.isFinite(row.price) || row.price < 0
     ? translateUiLiteral(language, 'No price')
     : `$${row.price.toFixed(2)}`;
 }

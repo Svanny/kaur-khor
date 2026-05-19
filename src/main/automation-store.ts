@@ -1101,6 +1101,7 @@ async function loadAutomationState(
   } catch (error) {
     if (error instanceof SyntaxError && options.allowMalformedDefault) {
       console.warn('[automation] automation store JSON is malformed; starting with an empty automation workspace');
+      await writeAutomationState(userDataPath, DEFAULT_STATE);
       return DEFAULT_STATE;
     }
     throw error;
@@ -1701,7 +1702,15 @@ function entityCallbackToken(
   if (existing) {
     return existing.token;
   }
-  const token = `e${session.entityCallbackRefs.length.toString(36)}`;
+  const nextIndex = session.entityCallbackRefs.reduce((maxIndex, entry) => {
+    const match = /^e([0-9a-z]+)$/i.exec(entry.token);
+    if (!match) {
+      return maxIndex;
+    }
+    const parsed = Number.parseInt(match[1]!, 36);
+    return Number.isFinite(parsed) ? Math.max(maxIndex, parsed + 1) : maxIndex;
+  }, 0);
+  const token = `e${nextIndex.toString(36)}`;
   session.entityCallbackRefs.push({ token, entityType, entityId });
   return token;
 }

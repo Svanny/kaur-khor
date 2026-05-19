@@ -14,7 +14,7 @@ export function isAutomationEligibleService(service: SenaService) {
 }
 
 export function isAutomationEligibleExposureRow(row: AutomationExposureRow) {
-  return !row.archived && row.availabilityStatus !== 'hidden' && isFiniteNonNegativePrice(row.price);
+  return row.exposed && !row.archived && row.availabilityStatus !== 'hidden' && isFiniteNonNegativePrice(row.price);
 }
 
 export function hasAutomationEligibleSellable(catalog: SenaCatalog | null | undefined) {
