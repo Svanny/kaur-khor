@@ -47,4 +47,18 @@ describe('ItemAvatar', () => {
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('svg')).not.toBeNull();
   });
+
+  test.each([
+    'https://example.test/razor-refill.png',
+    'http://example.test/razor-refill.png',
+    'data:image/png;base64,AAAA',
+    'blob:https://example.test/image',
+  ])('falls back for unsafe persisted image URLs: %s', (imagePath) => {
+    const { container } = render(
+      <ItemAvatar imagePath={imagePath} name="Razor refill" type="sku" />,
+    );
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
 });

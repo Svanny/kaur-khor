@@ -82,6 +82,30 @@ describe('settings workspace actions', () => {
     expect(click).not.toHaveBeenCalled();
   });
 
+  it('revokes real browser export URLs after the download click task', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 Kaur Khor');
+    const click = vi.fn();
+    const originalCreateElement = document.createElement.bind(document);
+    vi.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
+      if (tagName === 'a') {
+        return { click, download: '', href: '' } as unknown as HTMLAnchorElement;
+      }
+      return originalCreateElement(tagName);
+    });
+
+    const message = await exportLogsAction('json', t as never);
+
+    expect(message).toBe('settingsLogsExported:JSON');
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+
+    vi.runOnlyPendingTimers();
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:Kaur Khor-test');
+    vi.useRealTimers();
+  });
+
   it('prefixes formula-leading CSV cells while preserving CSV quoting', async () => {
     window.kaurKhorDesktop.sena.getCatalog = vi.fn(async () => ({
       skus: [
@@ -133,5 +157,58 @@ describe('settings workspace actions', () => {
     expect(csv).toContain(`'\t=SUM(1,2)`);
     expect(csv).toContain("' @foo");
     expect(csv).toContain(`"'\r\n-1"`);
+  });
+
+  it('prefixes formula-leading CSV headers from exported records', async () => {
+    window.kaurKhorDesktop.sena.getCatalog = vi.fn(async () => ({
+      skus: [
+        {
+          '=HYPERLINK("https://example.test")': 'header payload',
+          skuId: 'sku-1',
+        },
+      ],
+      services: [],
+      bundles: [],
+      sharingMask: [],
+    })) as never;
+
+    await exportPlanningDataAction('csv', t as never);
+
+    const csv = await exportedBlobText();
+    expect(csv).toContain(`"'=HYPERLINK(""https://example.test"")",skuId`);
+    expect(csv).toContain('header payload,sku-1');
+  });
+
+  it('exports dirty JSON-compatible fallbacks for circular and bigint values', async () => {
+    const circular: Record<string, unknown> = { label: 'dirty' };
+    circular.self = circular;
+    window.kaurKhorDesktop.sena.listObservations = vi.fn(async () => [
+      {
+        observationId: 'obs-dirty',
+        ownerSub: 'owner-1',
+        input: {
+          observedAt: '2026-04-30T00:00:00.000Z',
+          stockSnapshot: [],
+          serviceRankings: [],
+          retailRankings: [],
+          serviceStockouts: [],
+          retailStockouts: [],
+          orderSignals: [],
+          servicePrices: [],
+          retailPriceCount: [],
+          retailPrices: [],
+          leadTimeHints: [],
+          dirtyCircular: circular,
+          dirtyBigInt: BigInt(12),
+        },
+      },
+    ]) as never;
+
+    const message = await exportLogsAction('json', t as never);
+
+    expect(message).toBe('settingsLogsExported:JSON');
+    const json = await exportedBlobText();
+    expect(json).toContain('"self": "[Circular]"');
+    expect(json).toContain('"dirtyBigInt": "12"');
   });
 });

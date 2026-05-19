@@ -3,10 +3,12 @@ import {
   calendarDaysBetweenObservedAndDateInput,
   clampDateInputToObservedDate,
   dateInputToIsoOnOrAfterObserved,
+  formatLocalDateInputValue,
   isoStringFromDateInput,
   isDateInputBeforeObservedDate,
   observedLocalDateInputValue,
   parseLocalDateTimeInputIso,
+  shiftDateByDays,
 } from './date-input-utils';
 
 describe('expected arrival date input helpers', () => {
@@ -43,6 +45,8 @@ describe('expected arrival date input helpers', () => {
   });
 
   it('rejects impossible date-only input values instead of rolling them forward', () => {
+    expect(formatLocalDateInputValue('2026-02-31')).toBe('');
+    expect(observedLocalDateInputValue('2026-02-31')).toBe('');
     expect(dateInputToIsoOnOrAfterObserved('2026-02-31', '2026-02-01T08:00')).toBeNull();
     expect(calendarDaysBetweenObservedAndDateInput('2026-02-01T08:00', '2026-02-31')).toBeNull();
     expect(isoStringFromDateInput('2026-02-31', 'start')).toBeNull();
@@ -52,5 +56,11 @@ describe('expected arrival date input helpers', () => {
     expect(parseLocalDateTimeInputIso('2026-02-28T08:30')).toBe(new Date('2026-02-28T08:30').toISOString());
     expect(parseLocalDateTimeInputIso('2026-02-31T08:30')).toBeNull();
     expect(parseLocalDateTimeInputIso('2026-02-28T24:00')).toBeNull();
+  });
+
+  it('keeps the original date when shifting by a dirty day count', () => {
+    expect(shiftDateByDays('2026-02-28T08:30:00.000Z', Number.POSITIVE_INFINITY)).toBe('2026-02-28T08:30:00.000Z');
+    expect(shiftDateByDays('2026-02-28T08:30:00.000Z', Number.NaN)).toBe('2026-02-28T08:30:00.000Z');
+    expect(shiftDateByDays('2026-02-28T08:30:00.000Z', Number.MAX_VALUE)).toBe('2026-02-28T08:30:00.000Z');
   });
 });

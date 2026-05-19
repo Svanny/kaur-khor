@@ -145,6 +145,24 @@ describe('AppRoutes', () => {
     expect(screen.getByText('Home screen')).toBeInTheDocument();
   });
 
+  it('redirects deprecated custom capture links to the POS stock-count session', async () => {
+    inventoryHook.mockReturnValue({
+      catalog: {
+        schemaVersion: 1,
+        bundles: [],
+        services: [],
+        sharingMask: [],
+        skus: [{ archived: false, costPerUnit: 4, description: 'SKU', name: 'SKU 1', skuId: 'sku-1' }],
+      },
+      isLoading: false,
+      observations: [{ observationId: 'obs-1' }],
+    });
+
+    renderRoutes('/work/capture/custom?lanes=stock-count,supplier-order-pending');
+
+    expect(await screen.findByText('Stock update session screen')).toBeInTheDocument();
+  });
+
   it('opens history from settings after the catalog has a SKU or service', async () => {
     inventoryHook.mockReturnValue({
       catalog: {

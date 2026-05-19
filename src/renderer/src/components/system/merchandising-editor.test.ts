@@ -94,6 +94,48 @@ describe('buildDefaultReportRanking', () => {
       { entryType: 'sku', entryId: 'sku-1', position: 1 },
     ]);
   });
+
+  test('excludes dirty non-finite product prices from the fallback ranking', () => {
+    const snapshot: InventorySnapshot = {
+      services: [],
+      skus: [
+        {
+          skuId: 'sku-dirty',
+          name: 'Dirty price',
+          description: '',
+          unitsInStock: 3,
+          costPerUnit: 1,
+          soldAsProduct: true,
+          productPrice: Number.NaN,
+          leadTimeMeanDays: null,
+          leadTimeStdDays: null,
+        },
+      ],
+      ranking: [],
+      sist: {
+        status: {
+          state: 'empty',
+          updatedAt: null,
+          reportCount: 0,
+          confidence: 'low',
+          reason: null,
+        },
+        settings: {
+          targetServiceLevel: 0.95,
+          forecastHorizonDays: 14,
+          particleCount: 512,
+          smoothingWindowReports: 90,
+        },
+        asOf: null,
+        topRegime: null,
+        pendingReorderCount: 0,
+        highRiskSkuIds: [],
+        skuInsights: [],
+      },
+    };
+
+    expect(buildDefaultReportRanking(snapshot)).toEqual([]);
+  });
 });
 
 describe('MerchandisingEditor', () => {

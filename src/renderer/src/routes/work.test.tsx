@@ -134,7 +134,7 @@ describe('WorkRoute', () => {
     expect(screen.getByText('Daily operator work')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Queue/i })).toHaveAttribute(
       'href',
-      '/work/queue?customerFilter=review',
+      '/work/queue?workflow=customer&customerFilter=review',
     );
     expect(screen.getByRole('link', { name: /Intake/i })).toBeInTheDocument();
   });

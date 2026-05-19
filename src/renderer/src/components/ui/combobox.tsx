@@ -56,7 +56,7 @@ export function Combobox({
       event.preventDefault();
       if (!open) {
         setOpen(true);
-        setHighlightedIndex(0);
+        setHighlightedIndex(filteredOptions.length > 0 ? 0 : -1);
       } else {
         setHighlightedIndex((prev) =>
           prev < filteredOptions.length - 1 ? prev + 1 : prev
@@ -74,6 +74,7 @@ export function Combobox({
       if (open && highlightedIndex >= 0 && highlightedIndex < filteredOptions.length) {
         event.preventDefault();
         const option = filteredOptions[highlightedIndex]!;
+        onChange(option.label);
         onSelectOption?.(option);
         setOpen(false);
         setHighlightedIndex(-1);
@@ -87,6 +88,7 @@ export function Combobox({
   };
 
   const handleSelect = (option: ComboboxOption) => {
+    onChange(option.label);
     onSelectOption?.(option);
     setOpen(false);
     setHighlightedIndex(-1);
@@ -108,7 +110,10 @@ export function Combobox({
             aria-activedescendant={highlightedIndex >= 0 ? `${listboxId}-option-${highlightedIndex}` : undefined}
             disabled={disabled}
             value={value}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setOpen(true);
+            }}
             onKeyDown={handleKeyDown}
             onFocus={() => setOpen(true)}
             onPointerDown={(e) => {

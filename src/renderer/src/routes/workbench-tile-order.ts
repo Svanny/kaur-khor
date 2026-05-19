@@ -1,4 +1,5 @@
 import { arrayMove } from '@dnd-kit/sortable';
+import { MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES } from '@shared/ipc';
 
 export function sanitizeWorkbenchTileOrder(value: unknown) {
   if (!Array.isArray(value)) {
@@ -6,12 +7,17 @@ export function sanitizeWorkbenchTileOrder(value: unknown) {
   }
 
   const seenIds = new Set<string>();
-  return value.filter((entry): entry is string => {
-    if (typeof entry !== 'string' || entry.length === 0 || seenIds.has(entry)) {
-      return false;
+  return value.flatMap((entry): string[] => {
+    const tileKey = typeof entry === 'string' ? entry.trim() : '';
+    if (
+      seenIds.size >= MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES ||
+      !tileKey ||
+      seenIds.has(tileKey)
+    ) {
+      return [];
     }
-    seenIds.add(entry);
-    return true;
+    seenIds.add(tileKey);
+    return [tileKey];
   });
 }
 

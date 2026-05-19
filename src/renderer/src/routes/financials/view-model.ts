@@ -14,6 +14,7 @@ import type {
 import { buildServiceCommercialSnapshots, buildSkuCommercialSnapshots } from '@/lib/commercial-flow';
 import { formatCurrency, formatWholeNumber } from '@/lib/format';
 import { buildBatchUpdateHref, RECORD_UPDATE_SUPPLIER_PENDING_PATH } from '@/lib/record-update-routes';
+import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
 import { translateUiLiteral } from '@/lib/translations';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { formatSenaDate } from '@/routes/sku-detail/format';
@@ -236,7 +237,13 @@ function filterObservationsForWindow({
     return observations.slice(0, Math.min(observations.length, windowDays));
   }
 
-  const endTime = new Date(endAt).getTime() - offsetDays * 24 * 60 * 60 * 1000;
+  const parsedEndTime = new Date(endAt).getTime();
+  const fallbackEndAt = latestObservationObservedAt(observations);
+  const fallbackEndTime = fallbackEndAt ? new Date(fallbackEndAt).getTime() : Number.NaN;
+  const endTime = (Number.isFinite(parsedEndTime) ? parsedEndTime : fallbackEndTime) - offsetDays * 24 * 60 * 60 * 1000;
+  if (!Number.isFinite(endTime)) {
+    return [];
+  }
   const parsedStartTime = startAt ? new Date(startAt).getTime() : Number.NaN;
   const startTime = Number.isFinite(parsedStartTime)
     ? parsedStartTime
@@ -372,25 +379,35 @@ function scopeEntitySets(catalog: SenaCatalog, scope: FinancialsScope) {
   };
 }
 
+function safeNonNegativeNumber(value: unknown, fallback = 0) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 function retailPriceForObservation(sku: SenaSku, observation: SenaObservationRecord) {
-  return observation.input.retailPrices.find((entry) => entry.skuId === sku.skuId)?.price ?? sku.productPrice ?? 0;
+  return safeNonNegativeNumber(
+    observation.input.retailPrices.find((entry) => entry.skuId === sku.skuId)?.price,
+    safeNonNegativeNumber(sku.productPrice),
+  );
 }
 
 function servicePriceForObservation(service: SenaService, observation: SenaObservationRecord) {
-  return observation.input.servicePrices.find((entry) => entry.serviceId === service.serviceId)?.price ?? service.price;
+  return safeNonNegativeNumber(
+    observation.input.servicePrices.find((entry) => entry.serviceId === service.serviceId)?.price,
+    safeNonNegativeNumber(service.price),
+  );
 }
 
 function costPerServiceUnit(serviceId: string, catalog: SenaCatalog, linkedSkusByServiceId: Map<string, SenaSku[]>) {
   const linkedSkus = linkedSkusByServiceId.get(serviceId) ?? [];
   return linkedSkus.reduce((sum, sku) => {
     const mask = catalog.sharingMask.find((entry) => entry.enabled && entry.serviceId === serviceId && entry.skuId === sku.skuId);
-    return sum + sku.costPerUnit * (mask?.usageProbability ?? 1);
+    return sum + safeNonNegativeNumber(sku.costPerUnit) * safeNonNegativeNumber(mask?.usageProbability, 1);
   }, 0);
 }
 
 function currentInTransitUnits(detail: SenaSkuDetail | null | undefined) {
   const latest = detail?.pipelinePosterior.slice().sort((left, right) => right.intervalIndex - left.intervalIndex)[0];
-  return Math.max(0, latest?.inTransitMean ?? 0);
+  return safeNonNegativeNumber(latest?.inTransitMean);
 }
 
 function openCommitmentRows(orderBatches: SenaOrderBatchRecord[], skuById: Map<string, SenaSku>, scopedSkuIds: Set<string>) {
@@ -398,11 +415,11 @@ function openCommitmentRows(orderBatches: SenaOrderBatchRecord[], skuById: Map<s
     batch.children
       .filter((child) => scopedSkuIds.has(child.skuId))
       .map((child) => {
-        const orderedQuantity = child.effective.orderedQuantity ?? 0;
-        const receivedQuantity = child.effective.receivedQuantity ?? 0;
+        const orderedQuantity = safeNonNegativeNumber(child.effective.orderedQuantity);
+        const receivedQuantity = safeNonNegativeNumber(child.effective.receivedQuantity);
         const remainingQuantity = Math.max(0, orderedQuantity - receivedQuantity);
         const sku = skuById.get(child.skuId);
-        const costPerUnit = child.effective.costPerUnit ?? sku?.costPerUnit ?? 0;
+        const costPerUnit = safeNonNegativeNumber(child.effective.costPerUnit, safeNonNegativeNumber(sku?.costPerUnit));
         return {
           batchOrderId: batch.batchOrderId,
           childOrderId: child.childOrderId,
@@ -452,7 +469,7 @@ function latestPriceShiftRows({
         const delta = price.price - baseline;
         return {
           at: observedAt,
-          href: `/catalog/skus/${price.skuId}`,
+          href: buildSkuDetailHref(price.skuId),
           id: `retail-price-${price.skuId}-${observedAt}`,
           impact: Math.abs(delta),
           label: sku?.name ?? price.skuId,
@@ -474,7 +491,7 @@ function latestPriceShiftRows({
         const delta = price.price - baseline;
         return {
           at: observedAt,
-          href: `/catalog/services/${price.serviceId}`,
+          href: buildServiceDetailHref(price.serviceId),
           id: `service-price-${price.serviceId}-${observedAt}`,
           impact: Math.abs(delta),
           label: service?.name ?? price.serviceId,
@@ -496,7 +513,7 @@ function latestPriceShiftRows({
         const delta = (snapshot.costPerUnit ?? baseline) - baseline;
         return {
           at: observedAt,
-          href: `/catalog/skus/${snapshot.skuId}`,
+          href: buildSkuDetailHref(snapshot.skuId),
           id: `cost-${snapshot.skuId}-${observedAt}`,
           impact: Math.abs(delta) * Math.max(1, snapshot.unitsInStock),
           label: sku?.name ?? snapshot.skuId,
@@ -538,12 +555,13 @@ function deriveWindowSales({
         if (!sku || !sku.soldAsProduct) {
           continue;
         }
-        const saleValue = sale.unitsSold * retailPriceForObservation(sku, observation);
-        const saleCost = sale.unitsSold * sku.costPerUnit;
+        const unitsSold = safeNonNegativeNumber(sale.unitsSold);
+        const saleValue = unitsSold * retailPriceForObservation(sku, observation);
+        const saleCost = unitsSold * safeNonNegativeNumber(sku.costPerUnit);
         const current = skuSales.get(sale.skuId) ?? { costConsumed: 0, netSales: 0, units: 0 };
         current.costConsumed += saleCost;
         current.netSales += saleValue;
-        current.units += sale.unitsSold;
+        current.units += unitsSold;
         skuSales.set(sale.skuId, current);
         netSales += saleValue;
         costConsumed += saleCost;
@@ -559,12 +577,13 @@ function deriveWindowSales({
         if (!service) {
           continue;
         }
-        const saleValue = sale.unitsSold * servicePriceForObservation(service, observation);
-        const saleCost = sale.unitsSold * costPerServiceUnit(sale.serviceId, catalog, linkedSkusByServiceId);
+        const unitsSold = safeNonNegativeNumber(sale.unitsSold);
+        const saleValue = unitsSold * servicePriceForObservation(service, observation);
+        const saleCost = unitsSold * costPerServiceUnit(sale.serviceId, catalog, linkedSkusByServiceId);
         const current = serviceSales.get(sale.serviceId) ?? { costConsumed: 0, netSales: 0, units: 0 };
         current.costConsumed += saleCost;
         current.netSales += saleValue;
-        current.units += sale.unitsSold;
+        current.units += unitsSold;
         serviceSales.set(sale.serviceId, current);
         netSales += saleValue;
         costConsumed += saleCost;
@@ -656,7 +675,7 @@ function deriveWindowTotals({
     }
 
     for (const adjustment of observation.input.adjustmentSignals ?? []) {
-      if (!scopedSkuIds.has(adjustment.skuId) || adjustment.quantityDelta >= 0) {
+      if (!scopedSkuIds.has(adjustment.skuId) || !Number.isFinite(adjustment.quantityDelta) || adjustment.quantityDelta >= 0) {
         continue;
       }
       const sku = skuById.get(adjustment.skuId);
@@ -752,7 +771,7 @@ function deriveEntityRows({
         costConsumed: skuSale.costConsumed,
         refundValue: (commercial?.reversalWindowQuantity ?? 0) * Math.max(0, sku.productPrice ?? 0),
         grossProfit: skuSale.netSales - skuSale.costConsumed,
-        href: `/catalog/skus/${sku.skuId}`,
+        href: buildSkuDetailHref(sku.skuId),
         id: sku.skuId,
         imagePath: sku.imagePath?.trim() || null,
         linkedServiceCount: linkedServicesBySkuId.get(sku.skuId)?.length ?? 0,
@@ -794,7 +813,7 @@ function deriveEntityRows({
             coverageRatio,
             refundValue: (commercial?.reversalWindowQuantity ?? 0) * Math.max(0, service.price),
             grossProfit,
-            href: `/catalog/services/${service.serviceId}`,
+            href: buildServiceDetailHref(service.serviceId),
             id: service.serviceId,
             imagePath: service.imagePath?.trim() || null,
             linkedSkuCount: linkedSkus.length,
@@ -949,7 +968,10 @@ export function deriveFinancialsViewModel({
   let activeWindowEndAt: string;
 
   if (range === 'custom' && customRange) {
-    rangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    const customRangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    rangeDays = Number.isFinite(customRangeDays) && customRangeDays > 0
+      ? customRangeDays
+      : daysForRange('30d');
     activeWindowEndAt = customRange.endAt;
   } else {
     rangeDays = daysForRange(range);
@@ -1118,7 +1140,7 @@ export function deriveFinancialsViewModel({
       detail: linkedCount > 0
         ? literal(language, 'supports {count} services', { count: linkedCount })
         : literal(language, 'retail-only capital'),
-      href: `/catalog/skus/${sku.skuId}`,
+      href: buildSkuDetailHref(sku.skuId),
       id: sku.skuId,
       label: sku.name,
       value,

@@ -93,6 +93,10 @@ const statementIconClassName =
 const statementRowIconClassName =
   'inline-flex size-4.5 shrink-0 items-center justify-center text-foreground/75 [&>svg]:size-4.5';
 
+function finiteTelegramQuotedTotal(value: number | null) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 function HeaderTooltipLabel({
   children,
   helpHref,
@@ -625,13 +629,13 @@ export function FinancialsRoute() {
     });
     const openQuotedValue = intakesInRange
       .filter((intake) => intake.status === 'new' || intake.status === 'needs_review' || intake.status === 'quoted' || intake.status === 'ticketed')
-      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+      .reduce((sum, intake) => sum + finiteTelegramQuotedTotal(intake.quotedTotal), 0);
     const realizedValue = intakesInRange
       .filter((intake) => intake.status === 'completed')
-      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+      .reduce((sum, intake) => sum + finiteTelegramQuotedTotal(intake.quotedTotal), 0);
     const canceledValue = intakesInRange
       .filter((intake) => intake.status === 'canceled')
-      .reduce((sum, intake) => sum + (intake.quotedTotal ?? 0), 0);
+      .reduce((sum, intake) => sum + finiteTelegramQuotedTotal(intake.quotedTotal), 0);
 
     return {
       canceledCount: intakesInRange.filter((intake) => intake.status === 'canceled').length,

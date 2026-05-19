@@ -21,6 +21,7 @@ import { formatCurrency, formatWholeNumber } from '@/lib/format';
 import { timestampSortValue } from '@/lib/timestamp-sort';
 import { translateUiLiteral } from '@/lib/translations';
 import { getTranslation } from '@/lib/translations';
+import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
 import {
   formatSenaReorderQuantity,
   type SenaReorderQuantityDisplay,
@@ -237,6 +238,14 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(Math.max(value, minimum), maximum);
 }
 
+function finiteNonNegativeOrNull(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function finiteNonNegativeOrZero(value: number | null | undefined) {
+  return finiteNonNegativeOrNull(value) ?? 0;
+}
+
 function filterObservationsForWindow({
   observations,
   endAt,
@@ -254,9 +263,12 @@ function filterObservationsForWindow({
     return observations;
   }
 
-  const endTime = new Date(endAt).getTime();
-  if (Number.isNaN(endTime)) {
-    return observations;
+  const parsedEndTime = new Date(endAt).getTime();
+  const fallbackEndAt = latestObservationObservedAt(observations);
+  const fallbackEndTime = fallbackEndAt ? new Date(fallbackEndAt).getTime() : Number.NaN;
+  const endTime = Number.isFinite(parsedEndTime) ? parsedEndTime : fallbackEndTime;
+  if (!Number.isFinite(endTime)) {
+    return [];
   }
 
   const windowEnd = endTime - offsetDays * 24 * 60 * 60 * 1000;
@@ -599,9 +611,10 @@ function latestRetailPriceSignal(skuId: string, sku: SenaSku, observations: Sena
         .filter((entry) => entry.skuId === skuId)
         .map((entry) => ({ at: observation.input.observedAt, current: entry.price })),
     )
-    .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())[0];
+    .filter((entry) => Number.isFinite(timestampSortValue(entry.at)) && Number.isFinite(entry.current))
+    .sort((left, right) => timestampSortValue(right.at) - timestampSortValue(left.at))[0];
 
-  if (!latest || sku.productPrice == null) {
+  if (!latest || sku.productPrice == null || !Number.isFinite(sku.productPrice)) {
     return null;
   }
 
@@ -620,9 +633,10 @@ function latestServicePriceSignal(serviceId: string, service: SenaService, obser
         .filter((entry) => entry.serviceId === serviceId)
         .map((entry) => ({ at: observation.input.observedAt, current: entry.price })),
     )
-    .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())[0];
+    .filter((entry) => Number.isFinite(timestampSortValue(entry.at)) && Number.isFinite(entry.current))
+    .sort((left, right) => timestampSortValue(right.at) - timestampSortValue(left.at))[0];
 
-  if (!latest) {
+  if (!latest || !Number.isFinite(service.price)) {
     return null;
   }
 
@@ -635,7 +649,7 @@ function latestServicePriceSignal(serviceId: string, service: SenaService, obser
 }
 
 function addDays(at: string | null, days: number | null) {
-  if (!at || days == null || Number.isNaN(days)) {
+  if (!at || days == null || !Number.isFinite(days)) {
     return null;
   }
 
@@ -798,7 +812,7 @@ function aggregateActivityScore(observation: SenaObservationRecord) {
 
 function orderedObservations(observations: SenaObservationRecord[]) {
   return [...observations].sort((left, right) => {
-    return timestampSortValue(left.input.observedAt) - timestampSortValue(right.input.observedAt);
+    return timestampSortValue(left.input.observedAt, Number.POSITIVE_INFINITY) - timestampSortValue(right.input.observedAt, Number.POSITIVE_INFINITY);
   });
 }
 
@@ -1225,7 +1239,10 @@ export function derivePerformanceViewModel({
   let activeWindowEndAt: string;
 
   if (timeRange === 'custom' && customRange) {
-    rangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    const customRangeDays = daysBetween(customRange.startAt, customRange.endAt);
+    rangeDays = Number.isFinite(customRangeDays) && customRangeDays > 0
+      ? customRangeDays
+      : daysForTimeRange('30d');
     activeWindowEndAt = customRange.endAt;
   } else {
     rangeDays = daysForTimeRange(timeRange);
@@ -1293,12 +1310,14 @@ export function derivePerformanceViewModel({
     const priceSignal = latestRetailPriceSignal(sku.skuId, sku, recentObservations);
     const receiptSignal = buildReceiptSignal({ detail: skuDetailsById[sku.skuId], observedAt, language });
     const linkedServices = linkedServicesBySkuId.get(sku.skuId) ?? [];
-    const marginRatio = sku.productPrice ? (sku.productPrice - sku.costPerUnit) / sku.productPrice : null;
+    const productPrice = finiteNonNegativeOrNull(sku.productPrice);
+    const costPerUnit = finiteNonNegativeOrZero(sku.costPerUnit);
+    const marginRatio = productPrice && productPrice > 0 ? (productPrice - costPerUnit) / productPrice : null;
     const trend = trendFromScore(
       regimeMomentum(summary) + ((summary?.demandPerDayMean ?? 0) >= 2.8 ? 0.12 : 0),
       language,
     );
-    const linkedServiceRevenue = linkedServices.reduce((sum, service) => sum + service.price, 0);
+    const linkedServiceRevenue = linkedServices.reduce((sum, service) => sum + finiteNonNegativeOrZero(service.price), 0);
     const units = summary?.latestPosteriorUnits ?? 0;
     const reorderRecommendation = formatSenaReorderQuantity(summary?.reorderQuantity, language);
     const restockGuidance = reorderRecommendation.recommendationIssued
@@ -1311,7 +1330,7 @@ export function derivePerformanceViewModel({
           })
         : null;
     const revenueAtRisk =
-      Math.max(0, (summary?.expectedLeadTimeDemand ?? 0) - units) * (sku.productPrice ?? 0) +
+      Math.max(0, (summary?.expectedLeadTimeDemand ?? 0) - units) * (productPrice ?? 0) +
       (linkedServices.length > 0 ? linkedServices.length * (summary?.stockoutRisk ?? 0) * 12 : 0);
     const supportLabel =
       summary?.daysOfCover != null && summary.daysOfCover <= 3
@@ -1340,8 +1359,8 @@ export function derivePerformanceViewModel({
       daysOfCover: summary?.daysOfCover ?? null,
       daysOfCoverLabel: formatSenaDays(summary?.daysOfCover ?? null, language),
       demandPerDay: summary?.demandPerDayMean ?? 0,
-      detailHref: `/catalog/skus/${sku.skuId}`,
-      href: `/catalog/skus/${sku.skuId}`,
+      detailHref: buildSkuDetailHref(sku.skuId),
+      href: buildSkuDetailHref(sku.skuId),
       id: sku.skuId,
       imagePath: sku.imagePath?.trim() || null,
       linkedServiceNames: linkedServices.map((service) => service.name),
@@ -1368,13 +1387,14 @@ export function derivePerformanceViewModel({
     };
   });
 
-  const serviceDemandValues = catalog.services.map((service) => serviceDetailsById[service.serviceId]?.activityMean ?? 1);
+  const serviceDemandValues = catalog.services.map((service) => finiteNonNegativeOrNull(serviceDetailsById[service.serviceId]?.activityMean) ?? 1);
   const averageServiceDemand =
     serviceDemandValues.reduce((sum, value) => sum + value, 0) / Math.max(1, serviceDemandValues.length);
 
   const serviceRows: ServiceBusinessRow[] = catalog.services.map((service) => {
     const linkedSkus = linkedSkusByServiceId.get(service.serviceId) ?? [];
     const serviceDetail = serviceDetailsById[service.serviceId];
+    const servicePrice = finiteNonNegativeOrZero(service.price);
     const sellableUnits = linkedSkus.reduce<number | null>((minimum, sku) => {
       const summary = skuSummaryById.get(sku.skuId) ?? null;
       const units = summary?.latestPosteriorUnits ?? 0;
@@ -1383,11 +1403,11 @@ export function derivePerformanceViewModel({
       }
       return Math.min(minimum, units);
     }, null) ?? 0;
-    const activityMean = serviceDetail?.activityMean ?? Math.max(1, linkedSkus.length);
+    const activityMean = finiteNonNegativeOrNull(serviceDetail?.activityMean) ?? Math.max(1, linkedSkus.length);
     const coverageRatio = activityMean > 0 ? Math.min(1, sellableUnits / activityMean) : 1;
     const priceSignal = latestServicePriceSignal(service.serviceId, service, recentObservations);
-    const grossMargin = service.price - linkedSkus.reduce((sum, sku) => sum + sku.costPerUnit, 0);
-    const grossMarginRatio = service.price > 0 ? grossMargin / service.price : 0;
+    const grossMargin = servicePrice - linkedSkus.reduce((sum, sku) => sum + finiteNonNegativeOrZero(sku.costPerUnit), 0);
+    const grossMarginRatio = servicePrice > 0 ? grossMargin / servicePrice : 0;
     const pipelineSignals = linkedSkus
       .map((sku) => skuRows.find((entry) => entry.id === sku.skuId)?.receiptSignal ?? null)
       .filter((entry): entry is ReceiptSignal => Boolean(entry));
@@ -1418,13 +1438,13 @@ export function derivePerformanceViewModel({
             ? translate(language, 'performanceVmStableMargin')
             : translate(language, 'performanceVmMarginPressure'),
       grossMarginRatio,
-      href: `/catalog/services/${service.serviceId}`,
+      href: buildServiceDetailHref(service.serviceId),
       id: service.serviceId,
       imagePath: service.imagePath?.trim() || null,
       name: service.name,
       pipelineLabel,
       priceSignal,
-      revenueAtRisk: Math.max(0, activityMean - sellableUnits) * service.price,
+      revenueAtRisk: Math.max(0, activityMean - sellableUnits) * servicePrice,
       sellableLabel: literal(language, '{count} ready to serve · {ratio} can still be fulfilled', {
         count: formatWholeNumber(sellableUnits, language),
         ratio: formatSenaPercent(coverageRatio, language),
@@ -1488,7 +1508,7 @@ export function derivePerformanceViewModel({
         }),
         expectedEffect: translateUiLiteral(language, 'This reopens stalled customer revenue without changing the current page contract.'),
         restockGuidance: null,
-        ctaHref: `/catalog/services/${service.serviceId}`,
+        ctaHref: buildServiceDetailHref(service.serviceId),
         ctaLabel: translateUiLiteral(language, 'Open service'),
         tone: 'danger',
       });
@@ -1509,7 +1529,7 @@ export function derivePerformanceViewModel({
         }),
         expectedEffect: translateUiLiteral(language, 'Restocking or correcting this SKU should free pending customer completions.'),
         restockGuidance: null,
-        ctaHref: `/catalog/skus/${sku.skuId}`,
+        ctaHref: buildSkuDetailHref(sku.skuId),
         ctaLabel: translateUiLiteral(language, 'Open SKU'),
         tone: 'danger',
       });

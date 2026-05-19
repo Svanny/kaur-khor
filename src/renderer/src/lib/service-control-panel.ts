@@ -77,6 +77,10 @@ function reportSortTime(report: StockReport) {
   return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
 }
 
+function nonNegativeFiniteStock(value: number) {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 function contributorHealth({
   sku,
   highRiskSkuIds,
@@ -84,7 +88,7 @@ function contributorHealth({
   sku: SkuRecord;
   highRiskSkuIds: Set<string>;
 }): ContributorHealth {
-  if (sku.unitsInStock <= 0) {
+  if (nonNegativeFiniteStock(sku.unitsInStock) <= 0) {
     return 'blocked';
   }
   if (highRiskSkuIds.has(sku.skuId)) {
@@ -100,7 +104,7 @@ function rankingScore({
   sku: SkuRecord;
   highRiskSkuIds: Set<string>;
 }) {
-  if (sku.unitsInStock <= 0) {
+  if (nonNegativeFiniteStock(sku.unitsInStock) <= 0) {
     return 0;
   }
   if (highRiskSkuIds.has(sku.skuId)) {
@@ -126,8 +130,10 @@ function rankSkuSet({
     if (leftScore !== rightScore) {
       return leftScore - rightScore;
     }
-    if (left.unitsInStock !== right.unitsInStock) {
-      return left.unitsInStock - right.unitsInStock;
+    const leftUnitsInStock = nonNegativeFiniteStock(left.unitsInStock);
+    const rightUnitsInStock = nonNegativeFiniteStock(right.unitsInStock);
+    if (leftUnitsInStock !== rightUnitsInStock) {
+      return leftUnitsInStock - rightUnitsInStock;
     }
     const nameDelta = left.name.localeCompare(right.name);
     if (nameDelta !== 0) {
@@ -150,7 +156,7 @@ function rankSkuSet({
       insight,
       health,
       isHighRisk: highRiskSkuIds.has(sku.skuId),
-      isBlocked: sku.unitsInStock <= 0,
+      isBlocked: nonNegativeFiniteStock(sku.unitsInStock) <= 0,
       isBottleneck: bottleneckSkuId === sku.skuId,
       rank: index + 1,
       probabilityLabel,
@@ -161,7 +167,7 @@ function rankSkuSet({
 export function currentServiceBottleneck(service: ServiceRecord, snapshot: InventorySnapshot) {
   const linkedSkus = serviceLinkedSkus(service, snapshot);
   const highRiskSkuIds = new Set(snapshot.sist.highRiskSkuIds);
-  const blockedSku = linkedSkus.find((sku) => sku.unitsInStock <= 0) ?? null;
+  const blockedSku = linkedSkus.find((sku) => nonNegativeFiniteStock(sku.unitsInStock) <= 0) ?? null;
   if (blockedSku) {
     return blockedSku;
   }

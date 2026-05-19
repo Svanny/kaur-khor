@@ -42,6 +42,14 @@ function samePathname(a: string, b: string) {
   return a.split('?')[0] === b.split('?')[0];
 }
 
+function isAppNavigationTarget(value: unknown): value is string {
+  return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//');
+}
+
+function isOptionalAppNavigationTarget(value: unknown) {
+  return value == null || isAppNavigationTarget(value);
+}
+
 function entryReturnsToTarget(entry: NavigationEntry, target: string) {
   return (
     entry.origin === target ||
@@ -65,11 +73,11 @@ function readKaurKhorNavigationState(state: unknown): KaurKhorNavigationState {
 
   return {
     kaurKhorNavigationFallback:
-      'kaurKhorNavigationFallback' in state && (typeof state.kaurKhorNavigationFallback === 'string' || state.kaurKhorNavigationFallback == null)
+      'kaurKhorNavigationFallback' in state && isOptionalAppNavigationTarget(state.kaurKhorNavigationFallback)
         ? state.kaurKhorNavigationFallback
         : undefined,
     kaurKhorNavigationOrigin:
-      'kaurKhorNavigationOrigin' in state && (typeof state.kaurKhorNavigationOrigin === 'string' || state.kaurKhorNavigationOrigin == null)
+      'kaurKhorNavigationOrigin' in state && isOptionalAppNavigationTarget(state.kaurKhorNavigationOrigin)
         ? state.kaurKhorNavigationOrigin
         : undefined,
     kaurKhorNavigationSource:
@@ -137,9 +145,9 @@ function readEntries(): NavigationEntry[] {
         Boolean(entry) &&
         typeof entry === 'object' &&
         typeof entry.key === 'string' &&
-        typeof entry.to === 'string' &&
-        ('origin' in entry ? typeof entry.origin === 'string' || entry.origin == null : true) &&
-        ('fallbackTo' in entry ? typeof entry.fallbackTo === 'string' || entry.fallbackTo == null : true),
+        isAppNavigationTarget(entry.to) &&
+        ('origin' in entry ? isOptionalAppNavigationTarget(entry.origin) : true) &&
+        ('fallbackTo' in entry ? isOptionalAppNavigationTarget(entry.fallbackTo) : true),
     );
   } catch {
     return [];

@@ -769,8 +769,8 @@ describe('DashboardRoute', () => {
     expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toBeInTheDocument();
     expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toBeInTheDocument();
     expect(within(scopeToggle).queryByRole('radio', { name: 'All' })).toBeNull();
-    expect(within(scopeToggle).getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
-    expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
+    expect(within(scopeToggle).getByRole('radio', { name: 'Supplier' })).toHaveAttribute('data-state', 'on');
+    expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
 
     await user.click(within(scopeToggle).getByRole('radio', { name: 'Supplier' }));
 
@@ -911,45 +911,34 @@ describe('DashboardRoute', () => {
     });
   });
 
-  test.skip('prefills the drawer order quantity from the reorder recommendation', async () => {
+  test('asks before closing a dirty overview task drawer', async () => {
     renderRouteWithLocation('/?workflow=supplier');
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
 
     await waitFor(() => {
-      expect(screen.getByText('Recommended order')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Supplier order' })).toBeInTheDocument();
     });
 
-    expect(screen.getByText('15 units')).toBeInTheDocument();
-    expect(screen.getByText('Recommended range 10-18 units')).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('radio', { name: /Ordered, waiting/i }));
-
-    expect(screen.getByLabelText('Ordered quantity')).toHaveValue(15);
-  });
-
-  test.skip('asks before closing a dirty overview task drawer', async () => {
-    renderRouteWithLocation('/?workflow=supplier');
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Record Supplier order' })[0]!);
+    await act(async () => {
+      await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()));
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Recommended order')).toBeInTheDocument();
+      expect(screen.getByLabelText('overviewDrawerSupplierNoteTitle')).toBeInTheDocument();
     });
-
-    fireEvent.click(screen.getByRole('radio', { name: /Ordered, waiting/i }));
-    fireEvent.change(screen.getByLabelText('Ordered quantity'), { target: { value: '22' } });
+    fireEvent.change(screen.getByLabelText('overviewDrawerSupplierNoteTitle'), { target: { value: 'Asked supplier for a delivery date.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
 
     expect(screen.getByText('Discard changes?')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByLabelText('Ordered quantity')).toHaveValue(22);
+    expect(screen.getByLabelText('overviewDrawerSupplierNoteTitle')).toHaveValue('Asked supplier for a delivery date.');
 
     fireEvent.click(screen.getByRole('button', { name: 'Close' }));
     fireEvent.click(screen.getByRole('button', { name: 'Discard changes' }));
 
     await waitFor(() => {
-      expect(screen.queryByText('Recommended order')).not.toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Supplier order' })).not.toBeInTheDocument();
     });
   }, 10_000);
 
@@ -1030,19 +1019,19 @@ describe('DashboardRoute', () => {
   test('switches between customer and supplier ticket families', async () => {
     renderRoute();
 
-    expect(screen.getByRole('radio', { name: 'Customer' })).toHaveAttribute('data-state', 'on');
-    expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Filter by supplier' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Supplier' })).toHaveAttribute('data-state', 'on');
+    expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter by supplier' })).toBeInTheDocument();
+    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('radio', { name: 'Supplier' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Customer' }));
     await waitFor(() => {
       expect(inventoryHook().loadSenaSkuDetail).toHaveBeenCalled();
     });
 
-    expect(screen.getByRole('heading', { level: 2, name: 'Task queue' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Filter by supplier' })).toBeInTheDocument();
-    expect(screen.getByText('Cotton pads')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Customer queue' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filter by supplier' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cotton pads')).not.toBeInTheDocument();
   });
 
   test('filters customer queue rows with the shared search box', async () => {
@@ -1183,8 +1172,9 @@ describe('DashboardRoute', () => {
     expect(await screen.findByRole('heading', { name: 'Haircut' })).toBeInTheDocument();
     const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
     expect(within(dialog).getByLabelText('Completed date and time')).toHaveValue('2026-04-09T16:44');
+    fireEvent.change(within(dialog).getByLabelText('Quantity completed'), { target: { value: '1,000' } });
     expect(screen.getByTestId('route-location')).not.toHaveTextContent('/work/capture');
-    expect(screen.getByTestId('route-location')).toHaveTextContent('/?customerTask=customer%3Aservice%3Aservice-1');
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=customer&customerTask=customer%3Aservice%3Aservice-1');
 
     await user.click(within(dialog).getByRole('button', { name: 'Mark completed' }));
 
@@ -1211,12 +1201,12 @@ describe('DashboardRoute', () => {
           entityType: 'service',
           entityId: 'service-1',
           stage: 'realized',
-          quantityDelta: 1,
+          quantityDelta: 1000,
           flow: 'scheduled',
           reason: 'from_pending',
         },
       ],
-      serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 1 }],
+      serviceSalesSnapshot: [{ serviceId: 'service-1', unitsSold: 1000 }],
     });
     expect(currentInventory.triggerSenaRun).toHaveBeenCalledWith({ algorithmVersion: 'sena-analysis-v3' });
 
@@ -1347,6 +1337,64 @@ describe('DashboardRoute', () => {
     });
   });
 
+  test('skips dirty customer ticket line quantities when fulfilling from the quick drawer', async () => {
+    const user = userEvent.setup();
+    const triggerRun = deferred<{ runId: string }>();
+    const ticket = customerTicketFixture({
+      lines: [
+        { entityType: 'service', entityId: 'service-1', quantityDelta: Number.NaN },
+        { entityType: 'service', entityId: 'service-2', quantityDelta: 2 },
+      ],
+    });
+    let currentInventory = {
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation: vi.fn(async (payload) => payload),
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(() => triggerRun.promise),
+      isSaving: false,
+    };
+    inventoryHook.mockImplementation(() => currentInventory);
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    await user.click(await screen.findByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' }));
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
+    await user.click(within(dialog).getByRole('button', { name: 'Mark fulfilled' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save quick update' }));
+
+    await waitFor(() => {
+      expect(currentInventory.ingestSenaObservation).toHaveBeenCalled();
+    });
+    expect(currentInventory.ingestSenaObservation.mock.calls[0]![0].commercialEvents).toEqual([
+      {
+        party: 'customer',
+        entityType: 'service',
+        entityId: 'service-2',
+        stage: 'pending',
+        quantityDelta: -2,
+        flow: 'scheduled',
+        reason: 'from_pending',
+        note: null,
+      },
+      {
+        party: 'customer',
+        entityType: 'service',
+        entityId: 'service-2',
+        stage: 'realized',
+        quantityDelta: 2,
+        flow: 'scheduled',
+        reason: 'from_pending',
+        note: null,
+      },
+    ]);
+    expect(JSON.stringify(currentInventory.ingestSenaObservation.mock.calls[0]![0].commercialEvents)).not.toContain('NaN');
+  });
+
   test('opens customer ticket review actions in the queue drawer', async () => {
     const user = userEvent.setup();
     const ticket = customerTicketFixture({
@@ -1456,6 +1504,38 @@ describe('DashboardRoute', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Save quick update' }));
 
     expect(await within(dialog).findByText('Update date and time is required.')).toBeInTheDocument();
+    expect(ingestSenaObservation).not.toHaveBeenCalled();
+  });
+
+  test('requires a next touch date before saving a customer follow-up', async () => {
+    const user = userEvent.setup();
+    const ticket = customerTicketFixture();
+    const ingestSenaObservation = vi.fn(async (payload) => payload);
+    inventoryHook.mockReturnValue({
+      catalog: sampleCatalog,
+      observations: sampleObservations,
+      recordUpdateContext: recordUpdateContextWithCustomerTickets([ticket]),
+      workspaceSummary: sampleWorkspaceSummary,
+      loadSenaSkuDetail: vi.fn(async (skuId: string) => detailBySkuId[skuId] ?? null),
+      loadWorkSupportData: vi.fn(async () => null),
+      ingestSenaObservation,
+      runWorkspacePreparation: vi.fn(async (task) => task()),
+      triggerSenaRun: vi.fn(async () => ({ runId: 'run-2' })),
+      isSaving: false,
+    });
+
+    renderRouteWithLocation('/?workflow=customer');
+
+    const ticketButton = await screen.findByRole('button', { name: 'Customer Ticket ID: 2026-04-01-#1' });
+    const ticketRow = ticketButton.closest('[data-customer-task-id]') as HTMLElement;
+    await user.click(within(ticketRow).getByRole('button', { name: 'Review' }));
+
+    const dialog = document.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
+    const nextTouchInput = await within(dialog).findByLabelText('Next touch date');
+    fireEvent.change(nextTouchInput, { target: { value: '' } });
+    await user.click(within(dialog).getByRole('button', { name: 'Save quick update' }));
+
+    expect(await within(dialog).findByText('Next touch date is required.')).toBeInTheDocument();
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   });
 
@@ -1659,7 +1739,7 @@ describe('DashboardRoute', () => {
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
     expect(screen.getByRole('heading', { name: 'Supplier order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'overviewDrawerSubmitDefault' })).toBeInTheDocument();
@@ -1695,7 +1775,7 @@ describe('DashboardRoute', () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
   });
 
@@ -1717,9 +1797,13 @@ describe('DashboardRoute', () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).not.toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
     expect(screen.getByRole('heading', { name: 'Supplier Ticket ID: 2026-04-01-#1' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Edit in Capture' })).toHaveAttribute(
+      'href',
+      '/work/capture/supplier-receipt?ticketMode=edit&ticketId=ticket-supplier-ready&skus=sku-3&flashTargets=supplier-receipt%3Asku-3',
+    );
     expect(screen.getByRole('button', { name: 'overviewDrawerSubmitGoodsReceived' })).toBeInTheDocument();
   });
 
@@ -1848,7 +1932,7 @@ describe('DashboardRoute', () => {
 
     await waitFor(() => {
       expect(container.querySelector('[data-slot="sheet-content"]')).toBeNull();
-      expect(screen.getByTestId('route-location')).toHaveTextContent('/?workflow=supplier');
+      expect(screen.getByTestId('route-location')).toHaveTextContent('/');
     });
   });
 

@@ -113,6 +113,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { ChartLayoutPreferenceMergeOptions, ChartVisibleDateRange } from '@/lib/chart-layout-preferences';
+import { dateInputValueFromIsoString, isoStringFromDateInput } from '@/lib/date-input-utils';
 import { translateChartTimeframeLabel, translateRegimeLabel } from '@/lib/localized-display';
 import { regimeChartFill } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
@@ -363,29 +364,6 @@ function pointTimestampMs(point: TradingChartPoint) {
   }
   const timestamp = Date.parse(source);
   return Number.isFinite(timestamp) ? timestamp : null;
-}
-
-function dateInputValueFromIsoString(value: string | null | undefined) {
-  if (!value) {
-    return '';
-  }
-  const timestamp = Date.parse(value);
-  if (!Number.isFinite(timestamp)) {
-    return '';
-  }
-  return new Date(timestamp).toISOString().slice(0, 10);
-}
-
-function isoStringFromDateInput(value: string, boundary: 'start' | 'end') {
-  if (!value) {
-    return null;
-  }
-  const suffix = boundary === 'start' ? 'T00:00:00.000Z' : 'T23:59:59.999Z';
-  const timestamp = Date.parse(`${value}${suffix}`);
-  if (!Number.isFinite(timestamp)) {
-    return null;
-  }
-  return new Date(timestamp).toISOString();
 }
 
 function visibleRangeForTimeframe(
@@ -1984,6 +1962,9 @@ export function buildOverlayIconClusters(
   const clusters: OverlayIconCluster[] = [];
 
   for (const entry of positionedEntries) {
+    if (!Number.isFinite(entry.x)) {
+      continue;
+    }
     const iconLeft = entry.x - REGIME_ICON_SIZE / 2;
     const iconRight = entry.x + REGIME_ICON_SIZE / 2;
     const previous = clusters.at(-1);
@@ -4557,7 +4538,7 @@ export function SkuTradingChart({
       const clipWidth = plotAreaWidth || container.clientWidth;
       for (const point of chartModel.points) {
         const coordinate = chart.timeScale().timeToCoordinate(point.time);
-        if (coordinate == null || coordinate < -clipWidth || coordinate > clipWidth * 2) {
+        if (coordinate == null || !Number.isFinite(coordinate) || coordinate < -clipWidth || coordinate > clipWidth * 2) {
           continue;
         }
         nextPositions.set(point.intervalIndex, coordinate);

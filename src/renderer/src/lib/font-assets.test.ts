@@ -73,6 +73,8 @@ describe('bundled font assets', () => {
       'html[data-kaur-khor-embedded-phone-portrait="true"] [data-slot="onboarding-page"]',
     );
 
+    expect(globalsCss).toMatch(/\[data-slot="embedded-phone-shell"\]\s+\[data-slot="embedded-phone-main"\]\s*>\s*\[data-slot="onboarding-page"\]\s*\{[^}]*min-height:\s*0\s*!important;[^}]*padding:\s*0 0\.75rem 1rem\s*!important;/s);
+    expect(globalsCss).toMatch(/html\[data-kaur-khor-embedded-phone-portrait="true"\]\s+\[data-slot="onboarding-page"\]\s*\{[^}]*align-items:\s*center;[^}]*justify-content:\s*center;[^}]*min-height:\s*100%;/s);
     expect(declarations, 'embedded phone onboarding rule should exist').not.toBeNull();
     const padding = declarations?.find((declaration) => declaration.property === 'padding');
     expect(padding?.value).toBe('0 0.75rem 1rem');

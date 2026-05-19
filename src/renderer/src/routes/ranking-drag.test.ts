@@ -127,4 +127,43 @@ describe('ranking-drag', () => {
       y: 40,
     });
   });
+
+  test('preserves transform when drag measurements are not finite', () => {
+    const transform = {
+      scaleX: 1,
+      scaleY: 1,
+      x: Number.NaN,
+      y: 40,
+    };
+
+    expect(
+      clampOverlayTransformToBoundary({
+        activeNodeRect: {
+          bottom: 150,
+          height: 50,
+          left: 100,
+          right: 400,
+          top: 100,
+          width: 300,
+        },
+        boundaryRect: {
+          bottom: 320,
+          height: 220,
+          left: 80,
+          right: 680,
+          top: 80,
+          width: 600,
+        },
+        overlayNodeRect: {
+          bottom: 150,
+          height: 50,
+          left: 100,
+          right: 400,
+          top: 100,
+          width: Number.NaN,
+        },
+        transform,
+      }),
+    ).toBe(transform);
+  });
 });

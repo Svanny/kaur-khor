@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { NumberStepperInput } from '@/components/ui/number-stepper-input';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
+import { buildSkuDetailHref } from '@/lib/navigation-state';
 import {
   createSkuAttributeVariants,
   createUniqueSkuId,
@@ -86,7 +87,15 @@ function normalizedSkuDirtySnapshot(sku: SenaSku, variabilityClass: SenaLeadTime
 }
 
 function parseOptionalNumber(value: string) {
-  return value.trim() ? parseEditableNumberWithCommas(value) : null;
+  if (!value.trim()) {
+    return null;
+  }
+  const parsed = parseEditableNumberWithCommas(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function isNonNegativeFiniteNumber(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
 function parseNonNegativeMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
@@ -294,10 +303,10 @@ export function SkuFormRoute() {
       form.soldAsProduct && productPriceDraft.trim() && parsedProductPriceDraft == null
         ? translateUiLiteral(language, 'Enter a non-negative finite selling price before saving.')
         : null,
-    leadTimeMeanDays: form.leadTimeMeanDaysHint == null ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
+    leadTimeMeanDays: !isNonNegativeFiniteNumber(form.leadTimeMeanDaysHint) ? t('catalogSkuEditorLeadTimeMeanRequired') : null,
     leadTimeUncertainty:
       leadTimeDraftMode === 'std'
-        ? !leadTimeStdDaysDraft.trim()
+        ? !leadTimeStdDaysDraft.trim() || !isNonNegativeFiniteNumber(parseOptionalNumber(leadTimeStdDaysDraft))
           ? t('catalogSkuEditorLeadTimeUncertaintyRequired')
           : null
         : !leadTimeVariability
@@ -355,7 +364,7 @@ export function SkuFormRoute() {
       ? location.state.kaurKhorNavigationOrigin
       : null;
   const detailNavigationOrigin = currentOrigin ?? previousLocation ?? '/catalog';
-  const detailPath = editing ? `/catalog/skus/${normalizedBaseline.skuId}` : null;
+  const detailPath = editing ? buildSkuDetailHref(normalizedBaseline.skuId) : null;
 
   function openDetails() {
     if (!detailPath) {
@@ -418,7 +427,7 @@ export function SkuFormRoute() {
     setSaveErrorFlashKey(0);
     afterSave?.();
     if (!editing && navigateAfterCreate) {
-      await navigate(`/catalog/skus/${nextSku.skuId}`, {
+      await navigate(buildSkuDetailHref(nextSku.skuId), {
         replace: true,
         state: {
           ...detailNavigationState,
@@ -582,9 +591,13 @@ export function SkuFormRoute() {
                   if (!nextValue.trim()) {
                     return;
                   }
+                  const parsedCostPerUnit = parseNonNegativeMoneyDraft(nextValue, currency, usdToKhrExchangeRate);
+                  if (parsedCostPerUnit == null) {
+                    return;
+                  }
                   setForm((current) => ({
                     ...current,
-                    costPerUnit: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
+                    costPerUnit: parsedCostPerUnit,
                   }));
                 }}
               />
@@ -610,12 +623,15 @@ export function SkuFormRoute() {
                       onChange={(event) => {
                         const nextValue = event.target.value;
                         setProductPriceDraft(nextValue);
+                        const parsedProductPrice = nextValue.trim().length > 0
+                          ? parseNonNegativeMoneyDraft(nextValue, currency, usdToKhrExchangeRate)
+                          : null;
+                        if (nextValue.trim().length > 0 && parsedProductPrice == null) {
+                          return;
+                        }
                         setForm((current) => ({
                           ...current,
-                          productPrice:
-                            nextValue.trim().length > 0
-                              ? usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate)
-                              : null,
+                          productPrice: parsedProductPrice,
                         }));
                       }}
                     />

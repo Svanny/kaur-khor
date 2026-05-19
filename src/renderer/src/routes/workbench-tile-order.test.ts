@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES } from '@shared/ipc';
 import {
   applyWorkbenchTileOrder,
   mergeWorkbenchTileOrderForVisibleSubset,
@@ -8,8 +9,17 @@ import {
 describe('workbench tile order helpers', () => {
   it('sanitizes invalid and duplicate tile ids', () => {
     expect(
-      sanitizeWorkbenchTileOrder(['supplier-order:sku-1', '', 42, 'supplier-order:sku-1', 'supplier-order:sku-2']),
+      sanitizeWorkbenchTileOrder([' supplier-order:sku-1 ', '', 42, 'supplier-order:sku-1', 'supplier-order:sku-2']),
     ).toEqual(['supplier-order:sku-1', 'supplier-order:sku-2']);
+  });
+
+  it('caps dirty persisted tile orders before they inflate sorting work', () => {
+    const oversizedOrder = Array.from(
+      { length: MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES + 25 },
+      (_, index) => `supplier-order:sku-${index}`,
+    );
+
+    expect(sanitizeWorkbenchTileOrder(oversizedOrder)).toHaveLength(MAX_DESKTOP_WORKBENCH_TILE_ORDER_ENTRIES);
   });
 
   it('applies persisted order, prunes stale ids, and appends new tiles', () => {

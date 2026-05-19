@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   applyStockRowOrder,
   buildStockRowOrderStorageKey,
+  MAX_STOCK_ROW_ORDER_ENTRIES,
   readStockRowOrder,
   reorderStockRows,
+  sanitizeStockRowOrder,
   writeStockRowOrder,
 } from './stock-row-order';
 
@@ -55,9 +57,20 @@ describe('stock-row-order', () => {
 
   it('writes and reads the persisted sku order with duplicate ids removed', () => {
     const storageKey = buildStockRowOrderStorageKey('stock-count');
-    writeStockRowOrder(storageKey, ['sku-2', 'sku-2', 'sku-1']);
+    writeStockRowOrder(storageKey, [' sku-2 ', 'sku-2', 'sku-1', '']);
 
     expect(readStockRowOrder(storageKey)).toEqual(['sku-2', 'sku-1']);
+  });
+
+  it('caps persisted sku order entries so corrupted storage cannot inflate sorting work', () => {
+    const oversizedOrder = Array.from({ length: MAX_STOCK_ROW_ORDER_ENTRIES + 50 }, (_, index) => `sku-${index}`);
+    const storageKey = buildStockRowOrderStorageKey('stock-count');
+
+    expect(sanitizeStockRowOrder(oversizedOrder)).toHaveLength(MAX_STOCK_ROW_ORDER_ENTRIES);
+
+    writeStockRowOrder(storageKey, oversizedOrder);
+
+    expect(readStockRowOrder(storageKey)).toHaveLength(MAX_STOCK_ROW_ORDER_ENTRIES);
   });
 
   it('ignores unavailable browser storage while reading and writing row order', () => {

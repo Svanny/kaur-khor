@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   buildRememberedAutomationHref,
+  buildRememberedArchiveHref,
   buildRememberedCatalogHref,
   buildRememberedHistoryHref,
   buildRememberedInsightsHref,
@@ -58,6 +59,28 @@ describe('page-state-memory', () => {
     expect(JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}')).not.toHaveProperty('insights');
   });
 
+  test('ignores corrupted object routes without dropping valid typed values', () => {
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: {
+        route: 42,
+        values: {
+          density: 'compact',
+        },
+      },
+      settings: {
+        route: 42,
+      },
+    }));
+
+    expect(buildRememberedSettingsHref()).toBe('/settings');
+    expect(buildRememberedCatalogHref()).toBe('/catalog');
+    expect(
+      readRememberedPageValue('catalog', 'density', 'comfortable', (value) =>
+        value === 'compact' || value === 'comfortable' ? value : null,
+      ),
+    ).toBe('compact');
+  });
+
   test('clears remembered page state when the canonical state returns to defaults', () => {
     rememberPageState('/catalog', '?q=scarf&supplier=Mekong%20Looms&view=skus');
     expect(buildRememberedCatalogHref()).toBe('/catalog?q=scarf&supplier=Mekong+Looms&view=skus');
@@ -113,6 +136,14 @@ describe('page-state-memory', () => {
     expect(buildRememberedCatalogHref()).toBe('/catalog');
   });
 
+  test('keeps archived catalog filters out of the active products destination', () => {
+    rememberPageState('/catalog', '?q=scarf&supplier=Mekong%20Looms&view=skus');
+    rememberPageState('/catalog', '?status=archived&q=retired&view=services');
+
+    expect(buildRememberedCatalogHref()).toBe('/catalog?q=scarf&supplier=Mekong+Looms&view=skus');
+    expect(buildRememberedArchiveHref()).toBe('/catalog?q=retired&status=archived&view=services');
+  });
+
   test('excludes transient overview and automation selections', () => {
     rememberPageState(
       '/work/queue',
@@ -123,11 +154,20 @@ describe('page-state-memory', () => {
       '?section=intake&filter=needs_review&conversation=conv-1&intake=intake-1&ticket=ticket-1&q=telegram',
     );
 
-    expect(buildRememberedOverviewHref()).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
-    expect(buildRememberedInboxHref()).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
+    expect(buildRememberedOverviewHref()).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
+    expect(buildRememberedInboxHref()).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
     expect(buildRememberedPageHref('/work')).toBe('/work');
-    expect(buildRememberedPageHref('/work/queue')).toBe('/work/queue?filter=ready_to_receive&customerFilter=review');
-    expect(buildRememberedAutomationHref()).toBe('/work/intake?section=intake');
+    expect(buildRememberedPageHref('/work/queue')).toBe('/work/queue?filter=ready_to_receive&workflow=customer&customerFilter=review');
+    expect(buildRememberedAutomationHref()).toBe('/work/intake?section=intake&filter=needs_review&q=telegram');
+  });
+
+  test('remembers automation filters without persisting transient drawer selections', () => {
+    rememberPageState(
+      '/work/intake',
+      '?section=exceptions&filter=needs_review&q=telegram&conversation=conv-1&intake=intake-1&ticket=ticket-1',
+    );
+
+    expect(buildRememberedAutomationHref()).toBe('/work/intake?section=intake&filter=needs_review&q=telegram');
   });
 
   test('migrates old remembered page state into canonical intent routes on read', () => {
@@ -137,7 +177,7 @@ describe('page-state-memory', () => {
       performance: '?range=7d&scope=skus',
     }));
 
-    expect(buildRememberedInboxHref()).toBe('/work/queue?customerFilter=quoted');
+    expect(buildRememberedInboxHref()).toBe('/work/queue?workflow=customer&customerFilter=quoted');
     expect(buildRememberedHistoryHref()).toBe('/settings/history');
     expect(buildRememberedInsightsHref()).toBe('/insights');
   });
@@ -193,6 +233,83 @@ describe('page-state-memory', () => {
     ).toBe('compact');
   });
 
+  test('ignores typed page values when the validator rejects persisted or outgoing values', () => {
+    const rejectingValidator = (value: unknown) => {
+      if (value !== 'compact' && value !== 'comfortable') {
+        throw new Error('invalid density');
+      }
+      return value;
+    };
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: {
+        values: {
+          density: 'wide',
+        },
+      },
+    }));
+
+    expect(
+      readRememberedPageValue('catalog', 'density', 'comfortable', rejectingValidator),
+    ).toBe('comfortable');
+    expect(() =>
+      writeRememberedPageValue('catalog', 'density', 'wide' as 'compact', rejectingValidator),
+    ).not.toThrow();
+    expect(
+      readRememberedPageValue('catalog', 'density', 'comfortable', rejectingValidator),
+    ).toBe('comfortable');
+  });
+
+  test('drops unknown buckets from corrupted page memory before rewriting storage', () => {
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: '?q=scarf&view=skus',
+      staleFuturePage: {
+        route: '?bad=1',
+        values: {
+          density: 'compact',
+        },
+      },
+    }));
+
+    writeRememberedPageValue('catalog', 'density', 'compact', (value) =>
+      value === 'compact' || value === 'comfortable' ? value : null,
+    );
+
+    const persisted = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
+    expect(persisted).toHaveProperty('catalog');
+    expect(persisted).not.toHaveProperty('staleFuturePage');
+  });
+
+  test('bounds corrupted typed value records before preserving them on write', () => {
+    const values = Object.fromEntries(
+      Array.from({ length: 160 }, (_, index) => [`value-${index}`, index]),
+    );
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: {
+        route: '?q=scarf&view=skus',
+        values: {
+          ...values,
+          '': 'drop-empty-key',
+          ['x'.repeat(257)]: 'drop-long-key',
+        },
+      },
+    }));
+
+    writeRememberedPageValue('catalog', 'density', 'compact', (value) =>
+      value === 'compact' || value === 'comfortable' ? value : null,
+    );
+
+    const persisted = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
+    expect(Object.keys(persisted.catalog.values)).toHaveLength(129);
+    expect(persisted.catalog.values).toMatchObject({
+      'value-0': 0,
+      'value-127': 127,
+      density: 'compact',
+    });
+    expect(persisted.catalog.values).not.toHaveProperty('value-128');
+    expect(Object.prototype.hasOwnProperty.call(persisted.catalog.values, '')).toBe(false);
+    expect(persisted.catalog.values).not.toHaveProperty('x'.repeat(257));
+  });
+
   test('scopes detail values by entity without leaking across entities', () => {
     writeRememberedPageValue('catalog', 'chartLayout', 'expanded', (value) =>
       value === 'expanded' || value === 'default' ? value : null,
@@ -211,5 +328,43 @@ describe('page-state-memory', () => {
         { scope: 'sku:sku-2' },
       ),
     ).toBe('default');
+  });
+
+  test('uses structured scoped value keys without breaking legacy scoped values', () => {
+    window.localStorage.setItem(PAGE_STATE_MEMORY_STORAGE_KEY, JSON.stringify({
+      catalog: {
+        values: {
+          'sku:legacy-sku:chartLayout': 'legacy-expanded',
+          'sku:sku-1:chartLayout': 'legacy-colliding-scope',
+          'sku:sku-1:chartLayout:chartLayout': 'legacy-colliding-key',
+        },
+      },
+    }));
+
+    expect(
+      readRememberedPageValue('catalog', 'chartLayout', 'default', (value) =>
+        value === 'legacy-expanded' || value === 'expanded' || value === 'default' ? value : null,
+        { scope: 'sku:legacy-sku' },
+      ),
+    ).toBe('legacy-expanded');
+
+    writeRememberedPageValue('catalog', 'chartLayout', 'expanded', (value) =>
+      value === 'legacy-colliding-scope' || value === 'expanded' || value === 'default' ? value : null,
+      { scope: 'sku:sku-1' },
+    );
+
+    writeRememberedPageValue('catalog', 'chartLayout:chartLayout', 'expanded', (value) =>
+      value === 'legacy-colliding-key' || value === 'expanded' || value === 'default' ? value : null,
+      { scope: 'sku:sku-1' },
+    );
+
+    const persisted = JSON.parse(window.localStorage.getItem(PAGE_STATE_MEMORY_STORAGE_KEY) ?? '{}');
+    expect(persisted.catalog.values).toMatchObject({
+      '$scoped:["sku:sku-1","chartLayout"]': 'expanded',
+      '$scoped:["sku:sku-1","chartLayout:chartLayout"]': 'expanded',
+      'sku:legacy-sku:chartLayout': 'legacy-expanded',
+    });
+    expect(persisted.catalog.values).not.toHaveProperty('sku:sku-1:chartLayout');
+    expect(persisted.catalog.values).not.toHaveProperty('sku:sku-1:chartLayout:chartLayout');
   });
 });

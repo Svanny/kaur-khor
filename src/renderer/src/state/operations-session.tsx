@@ -13,7 +13,7 @@ import {
   normalizeReportRanking,
 } from '@/components/system/merchandising-editor';
 import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
-import { formatEditableWholeNumber, sanitizeWholeNumberForDisplay } from '@/lib/format';
+import { formatEditableWholeNumber, parseEditableNumberWithCommas, sanitizeWholeNumberForDisplay } from '@/lib/format';
 
 export type OperationsSessionPreset = 'small' | 'medium' | 'big';
 export type OperationsSessionStepId =
@@ -72,6 +72,15 @@ function toLocalDateTimeValue(value?: string) {
   return formatLocalDateTimeInputValue(value);
 }
 
+function moneyDraftValue(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? '' : String(value);
+}
+
+function comparableMoneyDraftValue(value: string) {
+  const parsed = parseEditableNumberWithCommas(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export function createOperationsSessionDraft(
   snapshot: InventorySnapshot,
 ): OperationsSessionDraft {
@@ -90,8 +99,8 @@ export function createOperationsSessionDraft(
         sku.skuId,
         {
           unitsInStock: formatEditableWholeNumber(sku.unitsInStock),
-          costPerUnit: String(sku.costPerUnit),
-          productPrice: sku.productPrice == null ? '' : String(sku.productPrice),
+          costPerUnit: moneyDraftValue(sku.costPerUnit),
+          productPrice: moneyDraftValue(sku.productPrice),
           restockIncluded: false,
           retailStockout: false,
           notes: '',
@@ -102,7 +111,7 @@ export function createOperationsSessionDraft(
       snapshot.services.map((service) => [
         service.serviceId,
         {
-          price: String(service.price),
+          price: moneyDraftValue(service.price),
           stockout: false,
           notes: '',
         },
@@ -120,8 +129,8 @@ export function createOperationsSessionDraftFromReport(
 ): OperationsSessionDraft {
   const seededReportedAt = toLocalDateTimeValue(report.reportedAt);
   const draft = createOperationsSessionDraft(snapshot);
-  const serviceSignalIds = new Set(
-    report.serviceSignals.filter((signal) => signal.stockout !== false).map((signal) => signal.serviceId),
+  const serviceSignalById = new Map(
+    report.serviceSignals.map((signal) => [signal.serviceId, signal]),
   );
   const priceAdjustmentById = new Map(
     report.servicePriceAdjustments.map((adjustment) => [adjustment.serviceId, adjustment.price]),
@@ -153,15 +162,11 @@ export function createOperationsSessionDraftFromReport(
           sku.skuId,
           {
             unitsInStock: formatEditableWholeNumber(observation?.unitsInStock ?? sku.unitsInStock),
-            costPerUnit: String(observation?.costPerUnit ?? sku.costPerUnit),
+            costPerUnit: moneyDraftValue(observation?.costPerUnit ?? sku.costPerUnit),
             productPrice:
               observation?.productPrice !== undefined
-                ? observation.productPrice == null
-                  ? ''
-                  : String(observation.productPrice)
-                : sku.productPrice == null
-                  ? ''
-                  : String(sku.productPrice),
+                ? moneyDraftValue(observation.productPrice)
+                : moneyDraftValue(sku.productPrice),
             restockIncluded: observation?.restockIncluded ?? false,
             retailStockout: observation?.retailStockout ?? false,
             notes: observation?.notes ?? '',
@@ -173,9 +178,9 @@ export function createOperationsSessionDraftFromReport(
       snapshot.services.map((service) => [
         service.serviceId,
         {
-          price: String(priceAdjustmentById.get(service.serviceId) ?? service.price),
-          stockout: serviceSignalIds.has(service.serviceId),
-          notes: '',
+          price: moneyDraftValue(priceAdjustmentById.get(service.serviceId) ?? service.price),
+          stockout: serviceSignalById.get(service.serviceId)?.stockout === true,
+          notes: serviceSignalById.get(service.serviceId)?.notes ?? '',
         },
       ]),
     ),
@@ -220,17 +225,15 @@ export function hasMeaningfulOperationsSessionChanges(
     }
 
     return (
-      Number(row.unitsInStock) !==
+      parseEditableNumberWithCommas(row.unitsInStock) !==
         sanitizeWholeNumberForDisplay(
-          Number(baselineRow?.unitsInStock ?? formatEditableWholeNumber(sku.unitsInStock)),
+          parseEditableNumberWithCommas(baselineRow?.unitsInStock ?? formatEditableWholeNumber(sku.unitsInStock)),
         ) ||
-      Number(row.costPerUnit) !== Number(baselineRow?.costPerUnit ?? sku.costPerUnit) ||
-      (row.productPrice.trim() === '' ? null : Number(row.productPrice)) !==
+      comparableMoneyDraftValue(row.costPerUnit) !== comparableMoneyDraftValue(baselineRow?.costPerUnit ?? moneyDraftValue(sku.costPerUnit)) ||
+      comparableMoneyDraftValue(row.productPrice) !==
         (baselineRow
-          ? baselineRow.productPrice.trim() === ''
-            ? null
-            : Number(baselineRow.productPrice)
-          : sku.productPrice) ||
+          ? comparableMoneyDraftValue(baselineRow.productPrice)
+          : comparableMoneyDraftValue(moneyDraftValue(sku.productPrice))) ||
       row.restockIncluded !== (baselineRow?.restockIncluded ?? false) ||
       row.retailStockout !== (baselineRow?.retailStockout ?? false) ||
       row.notes.trim() !== (baselineRow?.notes.trim() ?? '')
@@ -250,7 +253,7 @@ export function hasMeaningfulOperationsSessionChanges(
 
     return (
       serviceDraft.stockout !== (baselineServiceDraft?.stockout ?? false) ||
-      Number(serviceDraft.price) !== Number(baselineServiceDraft?.price ?? service.price) ||
+      comparableMoneyDraftValue(serviceDraft.price) !== comparableMoneyDraftValue(baselineServiceDraft?.price ?? moneyDraftValue(service.price)) ||
       serviceDraft.notes.trim() !== (baselineServiceDraft?.notes.trim() ?? '')
     );
   });

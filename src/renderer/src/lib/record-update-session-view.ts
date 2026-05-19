@@ -30,16 +30,22 @@ export function recordUpdateSessionViewStorageKey() {
 }
 
 export function readRecordUpdateSessionViewMode(): SessionViewMode {
-  const storage = getBrowserStorage();
-  if (!storage) {
-    return DEFAULT_SESSION_VIEW_MODE;
+  const allowDeadFormView = import.meta.env.MODE === 'test' &&
+    typeof window !== 'undefined' &&
+    (window as typeof window & { __KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__?: boolean }).__KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__ === true;
+  if (allowDeadFormView) {
+    const storage = getBrowserStorage();
+    if (!storage) {
+      return DEFAULT_SESSION_VIEW_MODE;
+    }
+    try {
+      const value = storage.getItem(recordUpdateSessionViewStorageKey());
+      return isSessionViewMode(value) ? value : DEFAULT_SESSION_VIEW_MODE;
+    } catch {
+      return DEFAULT_SESSION_VIEW_MODE;
+    }
   }
-  try {
-    const value = storage.getItem(recordUpdateSessionViewStorageKey());
-    return isSessionViewMode(value) ? value : DEFAULT_SESSION_VIEW_MODE;
-  } catch {
-    return DEFAULT_SESSION_VIEW_MODE;
-  }
+  return DEFAULT_SESSION_VIEW_MODE;
 }
 
 export function writeRecordUpdateSessionViewMode(mode: SessionViewMode) {
@@ -48,7 +54,7 @@ export function writeRecordUpdateSessionViewMode(mode: SessionViewMode) {
     return;
   }
   try {
-    storage.setItem(recordUpdateSessionViewStorageKey(), mode);
+    storage.setItem(recordUpdateSessionViewStorageKey(), mode === 'form' ? DEFAULT_SESSION_VIEW_MODE : mode);
   } catch {
     // Ignore unavailable storage and keep the in-memory default behavior.
   }

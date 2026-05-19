@@ -255,7 +255,7 @@ describe('FinancialsRoute', () => {
           intakeId: 'intake-1',
           conversationId: 'conversation-1',
           channel: 'telegram',
-          status: 'ticketed',
+          status: 'quoted',
           parseConfidence: 'high',
           customerDisplayName: 'Telegram customer',
           customerHandle: '@telegram_customer',
@@ -522,6 +522,25 @@ describe('FinancialsRoute', () => {
           promotedTicketId: 'ticket-2',
           lines: [],
         },
+        {
+          intakeId: 'dirty-total',
+          conversationId: 'conversation-3',
+          channel: 'telegram',
+          status: 'quoted',
+          parseConfidence: 'high',
+          customerDisplayName: 'Dirty total',
+          customerHandle: '@dirty',
+          phone: null,
+          notes: null,
+          quotedSubtotal: Number.POSITIVE_INFINITY,
+          currencyCode: 'USD',
+          deliveryFee: null,
+          quotedTotal: Number.POSITIVE_INFINITY,
+          createdAt: '2026-04-16T08:30:00.000Z',
+          updatedAt: '2026-04-16T08:30:00.000Z',
+          promotedTicketId: null,
+          lines: [],
+        },
       ],
       metrics: null,
       error: null,
@@ -543,6 +562,7 @@ describe('FinancialsRoute', () => {
 
     expect(screen.getByText(/Open quoted Telegram value/i)).toHaveTextContent('$24.00');
     expect(screen.getByText(/Ticketed Telegram intake/i)).toHaveTextContent('1');
+    expect(screen.queryByText(/Infinity/)).not.toBeInTheDocument();
     expect(screen.queryByText(/\$123.00/)).not.toBeInTheDocument();
   });
 

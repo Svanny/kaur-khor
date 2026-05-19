@@ -230,6 +230,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
   const seenUnlockedNavItemsRef = useRef<DesktopSeenUnlockedNavItems>(
     DEFAULT_DESKTOP_SEEN_UNLOCKED_NAV_ITEMS,
   );
+  const saveRequestSeqRef = useRef(0);
   const [workbenchTileOrderByLane, setWorkbenchTileOrderByLaneState] = useState<DesktopWorkbenchTileOrderByLane>(
     DEFAULT_DESKTOP_WORKBENCH_TILE_ORDER_BY_LANE,
   );
@@ -369,6 +370,9 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         setIsHydrated(true);
       })
       .catch((error) => {
+        if (!mounted) {
+          return;
+        }
         console.error('failed to load desktop preferences', error);
         setIsHydrated(true);
       });
@@ -411,8 +415,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     onboardingCompletedAt: string | null;
     seenUnlockedNavItems: DesktopSeenUnlockedNavItems;
     workbenchTileOrderByLane: DesktopWorkbenchTileOrderByLane;
-  }>) {
+  }>, options: { applyResponse?: boolean } = {}) {
+    const requestId = saveRequestSeqRef.current + 1;
+    saveRequestSeqRef.current = requestId;
     const nextPreferences = await window.kaurKhorDesktop.preferences.save(next);
+    const isLatestResponse = requestId === saveRequestSeqRef.current;
+    if (options.applyResponse === false || !isLatestResponse) {
+      return { isLatestResponse, preferences: nextPreferences };
+    }
     const nextSenaEngineParameters = normalizeSenaEngineParameters(nextPreferences.senaEngineParameters);
     const nextOverviewStaleUpdateReminderSnoozeUntil = normalizeDesktopPreferenceTimestamp(
       nextPreferences.overviewStaleUpdateReminderSnoozeUntil,
@@ -491,7 +501,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     setPersistedOnboardingCompletedAt(normalizeDesktopPreferenceTimestamp(nextPreferences.onboardingCompletedAt));
     setPersistedSeenUnlockedNavItems(nextSeenUnlockedNavItems);
     setPersistedWorkbenchTileOrderByLane(nextWorkbenchTileOrderByLane);
-    return nextPreferences;
+    return { isLatestResponse: true, preferences: nextPreferences };
   }
 
   function currentInterfaceVisibility(overrides: Partial<InterfaceVisibilityPreferences> = {}) {
@@ -942,20 +952,40 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         });
       },
       markUnlockedNavItemSeen: async (itemId) => {
-        if (seenUnlockedNavItemsRef.current[itemId]) {
+        const previousSeenUnlockedNavItems = seenUnlockedNavItemsRef.current;
+        if (previousSeenUnlockedNavItems[itemId]) {
           return;
         }
 
         const nextSeenUnlockedNavItems = {
-          ...seenUnlockedNavItemsRef.current,
+          ...previousSeenUnlockedNavItems,
           [itemId]: true,
         };
         seenUnlockedNavItemsRef.current = nextSeenUnlockedNavItems;
         setSeenUnlockedNavItemsState(nextSeenUnlockedNavItems);
 
-        await savePreferencesPatch({
-          seenUnlockedNavItems: nextSeenUnlockedNavItems,
-        });
+        try {
+          const savedResult = await savePreferencesPatch({
+            seenUnlockedNavItems: nextSeenUnlockedNavItems,
+          }, { applyResponse: false });
+          const savedPreferences = savedResult.preferences;
+          const savedSeenUnlockedNavItems = normalizeDesktopSeenUnlockedNavItems(
+            savedPreferences.seenUnlockedNavItems,
+          );
+          if (seenUnlockedNavItemsRef.current === nextSeenUnlockedNavItems) {
+            seenUnlockedNavItemsRef.current = savedSeenUnlockedNavItems;
+            setSeenUnlockedNavItemsState(savedSeenUnlockedNavItems);
+          }
+          if (savedResult.isLatestResponse) {
+            setPersistedSeenUnlockedNavItems(savedSeenUnlockedNavItems);
+          }
+        } catch (error) {
+          if (seenUnlockedNavItemsRef.current === nextSeenUnlockedNavItems) {
+            seenUnlockedNavItemsRef.current = previousSeenUnlockedNavItems;
+            setSeenUnlockedNavItemsState(previousSeenUnlockedNavItems);
+          }
+          throw error;
+        }
       },
       resetPreferences: () => {
         setLanguageState(persistedLanguage);
@@ -1023,6 +1053,8 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
         customShowHeartbeatRibbons !== persistedCustomShowHeartbeatRibbons ||
         JSON.stringify(taskBatchUpdatePreferences) !== JSON.stringify(persistedTaskBatchUpdatePreferences) ||
         overviewStaleUpdateReminderSnoozeUntil !== persistedOverviewStaleUpdateReminderSnoozeUntil ||
+        onboardingCompletedAt !== persistedOnboardingCompletedAt ||
+        JSON.stringify(seenUnlockedNavItems) !== JSON.stringify(persistedSeenUnlockedNavItems) ||
         JSON.stringify(workbenchTileOrderByLane) !== JSON.stringify(persistedWorkbenchTileOrderByLane) ||
         !senaEngineParametersEqual(senaEngineParameters, persistedSenaEngineParameters),
       t: (key, variables) => getTranslation(language, key, variables),

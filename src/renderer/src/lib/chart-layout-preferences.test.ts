@@ -360,6 +360,27 @@ describe('chart layout preference storage', () => {
     });
   });
 
+  it('falls through corrupted entity layout roots to subtype defaults', () => {
+    const subtypeDefaults = {
+      ...defaultChartLayoutPreferences(),
+      timeframe: '1Y' as const,
+    };
+    writeSubtypeDefaultChartLayoutPreferences('sku', subtypeDefaults);
+    window.localStorage.setItem(
+      'kaur-khor:page-state-memory:v1',
+      JSON.stringify({
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': 'not-a-layout',
+          },
+        },
+      }),
+    );
+
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toBeNull();
+    expect(resolveEntityChartLayoutPreferences('sku', 'sku-1')).toEqual(subtypeDefaults);
+  });
+
   it('ignores legacy pane heights that were saved without a manual source marker', () => {
     window.localStorage.setItem(
       'kaur-khor:page-state-memory:v1',
@@ -421,6 +442,55 @@ describe('chart layout preference storage', () => {
     ).toBe(true);
   });
 
+  it('bounds dirty manual pane height records before restoring chart layout', () => {
+    const paneHeights = Object.fromEntries(
+      Array.from({ length: 24 }, (_, index) => [`pane-${index}`, index === 0 ? 10000 : 120 + index]),
+    );
+    window.localStorage.setItem(
+      'kaur-khor:page-state-memory:v1',
+      JSON.stringify({
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': {
+              ...defaultChartLayoutPreferences(),
+              paneHeights: {
+                ...paneHeights,
+                '': 240,
+                ['x'.repeat(65)]: 240,
+                arrayLike: [240],
+                infinite: Infinity,
+              },
+              paneHeightsSource: 'manual',
+            },
+          },
+        },
+      }),
+    );
+
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual({
+      ...defaultChartLayoutPreferences(),
+      paneHeights: {
+        'pane-0': 5000,
+        'pane-1': 121,
+        'pane-2': 122,
+        'pane-3': 123,
+        'pane-4': 124,
+        'pane-5': 125,
+        'pane-6': 126,
+        'pane-7': 127,
+        'pane-8': 128,
+        'pane-9': 129,
+        'pane-10': 130,
+        'pane-11': 131,
+        'pane-12': 132,
+        'pane-13': 133,
+        'pane-14': 134,
+        'pane-15': 135,
+      },
+      paneHeightsSource: 'manual',
+    });
+  });
+
   it('drops invalid persisted chart date ranges', () => {
     window.localStorage.setItem(
       'kaur-khor:page-state-memory:v1',
@@ -436,6 +506,31 @@ describe('chart layout preference storage', () => {
               visibleDateRange: {
                 startAt: '2026-04-05T00:00:00.000Z',
                 endAt: '2026-03-05T00:00:00.000Z',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual(defaultChartLayoutPreferences());
+  });
+
+  it('drops impossible persisted chart date ranges instead of accepting rolled dates', () => {
+    window.localStorage.setItem(
+      'kaur-khor:page-state-memory:v1',
+      JSON.stringify({
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': {
+              ...defaultChartLayoutPreferences(),
+              customTimeframeRange: {
+                startAt: '2026-02-31T00:00:00.000Z',
+                endAt: '2026-03-05T00:00:00.000Z',
+              },
+              visibleDateRange: {
+                startAt: '2026-03-01T00:00:00Z',
+                endAt: '2026-04-31T00:00:00.000Z',
               },
             },
           },

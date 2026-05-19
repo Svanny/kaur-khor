@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type {
   SenaCatalog,
   SenaObservationRecord,
+  SenaOrderBatchRecord,
   SenaServiceDetail,
   SenaSkuDetail,
   SenaWorkspaceSummary,
@@ -123,6 +124,51 @@ function observation(
   };
 }
 
+function orderBatch(overrides: Partial<SenaOrderBatchRecord['children'][number]['effective']>): SenaOrderBatchRecord {
+  return {
+    batchOrderId: 'batch-1',
+    children: [{
+      childOrderId: 'child-1',
+      createdAt: '2026-04-09T08:00:00.000Z',
+      effective: {
+        costPerUnit: 5,
+        expectedArrivalAt: '2026-04-12T08:00:00.000Z',
+        leadTimeDaysHint: null,
+        leadTimeVariability: null,
+        orderedQuantity: 10,
+        placementTimestamp: '2026-04-09T08:00:00.000Z',
+        receivedQuantity: 0,
+        receiptTimestamp: null,
+        supplierName: null,
+        supplierNote: null,
+        ...overrides,
+      },
+      inheritedFromBatch: true,
+      overrides: {},
+      skuId: 'sku-shampoo',
+      status: 'awaiting_receipt',
+      updatedAt: '2026-04-09T08:00:00.000Z',
+    }],
+    createdAt: '2026-04-09T08:00:00.000Z',
+    ownerSub: 'desktop-owner',
+    shared: {
+      costPerUnit: 5,
+      expectedArrivalAt: '2026-04-12T08:00:00.000Z',
+      leadTimeDaysHint: null,
+      leadTimeVariability: null,
+      orderedQuantity: 10,
+      placementTimestamp: '2026-04-09T08:00:00.000Z',
+      receivedQuantity: 0,
+      receiptTimestamp: null,
+      supplierName: null,
+      supplierNote: null,
+    },
+    status: 'awaiting_receipt',
+    supplierName: null,
+    updatedAt: '2026-04-09T08:00:00.000Z',
+  };
+}
+
 describe('deriveFinancialsViewModel', () => {
   test('uses manually selected previous custom bounds for compare windows', () => {
     const model = deriveFinancialsViewModel({
@@ -205,5 +251,110 @@ describe('deriveFinancialsViewModel', () => {
     expect(model.coverage.freshnessLabel).toContain('Apr 10');
     expect(model.titleMeta.join(' ')).toContain('Apr 10');
     expect(model.ribbon.find((metric) => metric.key === 'netSales')?.value).toBe('$20.00');
+  });
+
+  test('falls back to latest valid observation when custom range end is malformed', () => {
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        observation('dirty', 'not-a-date', 99),
+        observation('older-first', '2026-04-01T08:00:00.000Z', 1),
+        observation('latest-second', '2026-04-10T08:00:00.000Z', 1),
+      ],
+      orderBatches: [],
+      range: 'custom',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'not-a-date' },
+      customRange: {
+        startAt: 'bad-start',
+        endAt: 'bad-end',
+      },
+      previousCustomRange: null,
+    });
+
+    expect(model.ribbon.find((metric) => metric.key === 'netSales')?.value).toBe('$40.00');
+  });
+
+  test('ignores non-finite sales quantities and prices when deriving money totals', () => {
+    const dirtyObservation = observation('dirty-money', '2026-04-10T08:00:00.000Z', Number.POSITIVE_INFINITY);
+    dirtyObservation.input.retailPrices = [{ skuId: 'sku-shampoo', price: Number.POSITIVE_INFINITY }];
+    dirtyObservation.input.serviceSalesSnapshot = [{ serviceId: 'service-color', unitsSold: Number.NaN }];
+    dirtyObservation.input.servicePrices = [{ serviceId: 'service-color', price: Number.NaN }];
+    dirtyObservation.input.adjustmentSignals = [{ skuId: 'sku-shampoo', quantityDelta: Number.NaN, reason: 'dirty' }];
+
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        dirtyObservation,
+        observation('clean-money', '2026-04-10T09:00:00.000Z', 1),
+      ],
+      orderBatches: [],
+      range: '7d',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-10T09:00:00.000Z' },
+      customRange: null,
+      previousCustomRange: null,
+    });
+
+    expect(model.ribbon.find((metric) => metric.key === 'netSales')?.value).toBe('$20.00');
+    expect(model.ribbon.find((metric) => metric.key === 'grossProfit')?.value).toBe('$15.00');
+    expect(model.contributors.find((row) => row.id === 'sku-shampoo')?.netSalesLabel).toBe('$20.00');
+    expect(
+      model.statement
+        .find((section) => section.id === 'money-leaking')
+        ?.rows.find((row) => row.key === 'negative-corrections')?.value,
+    ).toBe('$0.00');
+  });
+
+  test('ignores non-finite and negative supplier commitment quantities', () => {
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        observation('clean-money', '2026-04-10T09:00:00.000Z', 1),
+      ],
+      orderBatches: [
+        orderBatch({
+          costPerUnit: Number.NaN,
+          orderedQuantity: Number.NaN,
+          receivedQuantity: -4,
+        }),
+        orderBatch({
+          costPerUnit: -12,
+          orderedQuantity: 6,
+          receivedQuantity: 2,
+        }),
+      ],
+      range: '7d',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: '2026-04-10T09:00:00.000Z' },
+      customRange: null,
+      previousCustomRange: null,
+    });
+
+    expect(model.ribbon.find((metric) => metric.key === 'openCommitments')?.value).toBe('$20.00');
+    expect(
+      model.statement
+        .find((section) => section.id === 'money-tied-up')
+        ?.rows.find((row) => row.key === 'open-orders')
+        ?.value,
+    ).toBe('$20.00');
   });
 });

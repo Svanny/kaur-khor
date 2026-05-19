@@ -58,8 +58,8 @@ function filePathToUrl(imagePath: string) {
     return isEmbeddedBrowserRoute() ? null : trimmed;
   }
 
-  if (/^(https?|data|blob):/i.test(trimmed)) {
-    return trimmed;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^[a-z]:[\\/]/i.test(trimmed)) {
+    return null;
   }
 
   if (trimmed.startsWith('/assets/') || trimmed.startsWith('/src/renderer/src/assets/')) {

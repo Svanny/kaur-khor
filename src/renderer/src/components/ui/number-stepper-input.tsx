@@ -47,6 +47,11 @@ function parseNumericText(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function parseStepValue(value: string | number | undefined) {
+  const parsed = parseNumericText(value)
+  return parsed != null && parsed > 0 ? parsed : 1
+}
+
 function clampSteppedValue(value: number, min: unknown, max: unknown) {
   const parsedMin = parseNumericText(min)
   const parsedMax = parseNumericText(max)
@@ -80,7 +85,7 @@ const NumberStepperInput = React.forwardRef<HTMLInputElement, NumberStepperInput
     ref,
   ) => {
     const inputRef = React.useRef<HTMLInputElement | null>(null)
-    const resolvedStep = Number(step) || 1
+    const resolvedStep = parseStepValue(step)
     const controlsDisabled = disabled || readOnly
     const labelText = typeof ariaLabel === "string" ? ariaLabel : undefined
 

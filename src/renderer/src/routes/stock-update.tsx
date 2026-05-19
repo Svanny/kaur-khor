@@ -17,7 +17,11 @@ import { SearchInput } from '@/components/system/search-input';
 import { TypedConfirmDialog } from '@/components/system/typed-confirm-dialog';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel, WorkspaceTitleCard } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
-import { createRecordUpdateEditSession } from '@/lib/observation-edit-session';
+import {
+  createRecordUpdateEditSession,
+  recordUpdateEditSessionPathForInput,
+  recordUpdateEditSessionSearchForInput,
+} from '@/lib/observation-edit-session';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import {
@@ -28,7 +32,7 @@ import { observationRecordActivityEntries } from '@/lib/record-activity';
 import { filterCatalogBySupplier, type SupplierFilterValue } from '@/lib/sena-catalog';
 import { timestampSortValue } from '@/lib/timestamp-sort';
 import { translateUiLiteral } from '@/lib/translations';
-import { RECORD_UPDATE_HUB_PATH, RECORD_UPDATE_STOCK_COUNT_PATH } from '@/lib/record-update-routes';
+import { RECORD_UPDATE_HUB_PATH } from '@/lib/record-update-routes';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
 import { PagedPanelNavigation } from './detail-panels';
@@ -328,6 +332,10 @@ function buildHeatmapBuckets(thresholds: HeatmapThresholds): HeatmapBuckets {
       threshold95 > 2 && threshold95 !== threshold75 && thresholds.maxCount >= threshold95 ? threshold95 : null,
     activeLevels,
   };
+}
+
+function hasValidObservationDate(observation: SenaObservationRecord) {
+  return timestampSortValue(observation.input.observedAt) > Number.NEGATIVE_INFINITY;
 }
 
 function sortObservationsByRecent(observations: SenaObservationRecord[]) {
@@ -680,7 +688,11 @@ export function StockUpdateRoute() {
         ),
     [baseCatalog, catalog, deferredQuery, observations, scope, serviceLinkedSkuIdSet, supplierFilter],
   );
-  const latestFilteredObservedAt = filteredObservations[0]?.input.observedAt ?? null;
+  const heatmapObservations = useMemo(
+    () => filteredObservations.filter(hasValidObservationDate),
+    [filteredObservations],
+  );
+  const latestFilteredObservedAt = heatmapObservations[0]?.input.observedAt ?? null;
 
   useEffect(() => {
     setYearOffset(0);
@@ -695,12 +707,12 @@ export function StockUpdateRoute() {
     [latestFilteredObservedAt],
   );
   const maxYearOffset = useMemo(() => {
-    if (filteredObservations.length === 0) {
+    if (heatmapObservations.length === 0) {
       return 0;
     }
-    const oldest = startOfLocalDay(filteredObservations[filteredObservations.length - 1].input.observedAt);
+    const oldest = startOfLocalDay(heatmapObservations[heatmapObservations.length - 1].input.observedAt);
     return Math.max(0, baseAnchorDay.getFullYear() - oldest.getFullYear());
-  }, [baseAnchorDay, filteredObservations]);
+  }, [baseAnchorDay, heatmapObservations]);
 
   useEffect(() => {
     setYearOffset((current) => Math.min(current, maxYearOffset));
@@ -711,8 +723,8 @@ export function StockUpdateRoute() {
     [baseAnchorDay, yearOffset],
   );
   const heatmapWindow = useMemo(
-    () => buildHeatmapWindow(filteredObservations, heatmapRange, language),
-    [filteredObservations, heatmapRange, language],
+    () => buildHeatmapWindow(heatmapObservations, heatmapRange, language),
+    [heatmapObservations, heatmapRange, language],
   );
   const currentPresentation = useMemo(
     () => buildPresentation(heatmapWindow, selectedDayKey),
@@ -771,7 +783,10 @@ export function StockUpdateRoute() {
   }
 
   function handleEditObservation(observation: SenaObservationRecord) {
-    navigate(RECORD_UPDATE_STOCK_COUNT_PATH, {
+    navigate({
+      pathname: recordUpdateEditSessionPathForInput(observation.input),
+      search: recordUpdateEditSessionSearchForInput(observation.input),
+    }, {
       state: {
         editSession: createRecordUpdateEditSession(observation),
       },

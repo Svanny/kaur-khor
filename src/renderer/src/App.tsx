@@ -11,6 +11,7 @@ import { OnboardingRoute } from '@/routes/onboarding';
 import {
   RECORD_UPDATE_HUB_PATH,
   RECORD_UPDATE_LANES,
+  RECORD_UPDATE_STOCK_COUNT_PATH,
 } from '@/lib/record-update-routes';
 import { PreferencesProvider } from '@/state/preferences';
 import { InventoryProvider, useInventoryState } from '@/state/inventory';
@@ -185,7 +186,17 @@ export function AppRoutes() {
       <Route element={<InsightsRoute />} path="/insights/*" />
       <Route element={canRedirectFromLockedPage ? recordUpdateGuardedElement : <RecordUpdateHubRoute />} path={RECORD_UPDATE_HUB_PATH} />
       {RECORD_UPDATE_LANES.map((lane) => (
-        <Route key={lane.id} element={canRedirectFromLockedPage ? stockUpdateSessionGuardedElement : <StockUpdateSessionRoute />} path={lane.path} />
+        <Route
+          key={lane.id}
+          element={
+            lane.id === 'custom'
+              ? <Navigate replace to={RECORD_UPDATE_STOCK_COUNT_PATH} />
+              : canRedirectFromLockedPage
+                ? stockUpdateSessionGuardedElement
+                : <StockUpdateSessionRoute />
+          }
+          path={lane.path}
+        />
       ))}
       <Route
         element={<CatalogGuardedRoute canRedirectFromLockedPage={canRedirectFromLockedPage} hasCatalogTab={availability.hasCatalogTab} />}

@@ -5,6 +5,7 @@ import {
   buildAnalysisSearchParams,
   buildAutomationHref,
   buildAutomationSearchParams,
+  buildArchiveSearchParams,
   buildCatalogHref,
   buildCatalogSearchParams,
   buildFinancialsHref,
@@ -24,6 +25,7 @@ import {
   readAnalysisRouteState,
   readArchiveRouteState,
   readAutomationRouteState,
+  readCatalogRouteState,
   readCatalogView,
   readFinancialsRouteState,
   readHistoryRouteState,
@@ -48,6 +50,9 @@ import { resolveSettingsSection } from '@/lib/settings-navigation';
 
 export const PAGE_STATE_MEMORY_STORAGE_KEY = 'kaur-khor:page-state-memory:v1';
 const PAGE_STATE_MEMORY_CHANGE_EVENT = 'kaur-khor:page-state-memory:change';
+const PAGE_STATE_SCOPED_VALUE_KEY_PREFIX = '$scoped:';
+const MAX_PAGE_STATE_VALUE_KEYS = 128;
+const MAX_PAGE_STATE_VALUE_KEY_LENGTH = 256;
 
 export type PageStateMemoryId =
   | 'analysis'
@@ -62,6 +67,21 @@ export type PageStateMemoryId =
   | 'overview'
   | 'performance'
   | 'settings';
+
+const PAGE_STATE_MEMORY_IDS = new Set<PageStateMemoryId>([
+  'analysis',
+  'archive',
+  'automations',
+  'catalog',
+  'financials',
+  'history',
+  'inbox',
+  'insights',
+  'inventory',
+  'overview',
+  'performance',
+  'settings',
+]);
 
 type PageStateMemoryEntry = string | {
   route?: string;
@@ -100,16 +120,47 @@ function readMemoryRecord(storage = pageStateStorage()): PageStateMemoryRecord {
     }
 
     return Object.fromEntries(
-      Object.entries(parsed).filter((entry): entry is [PageStateMemoryId, PageStateMemoryEntry] => {
-        if (typeof entry[1] === 'string') {
-          return true;
+      Object.entries(parsed).flatMap(([key, value]): Array<[string, PageStateMemoryEntry]> => {
+        if (!PAGE_STATE_MEMORY_IDS.has(key as PageStateMemoryId)) {
+          return [];
         }
-        return Boolean(entry[1]) && typeof entry[1] === 'object' && !Array.isArray(entry[1]);
+        if (typeof value === 'string') {
+          return [[key, value]];
+        }
+        if (!value || typeof value !== 'object' || Array.isArray(value)) {
+          return [];
+        }
+        const entry = value as Record<string, unknown>;
+        const route = typeof entry.route === 'string' ? entry.route : undefined;
+        const values = normalizePageStateValues(entry.values);
+        if (route || values) {
+          return [[key, { route, values }]];
+        }
+        return [];
       }),
     ) as PageStateMemoryRecord;
   } catch {
     return {};
   }
+}
+
+function normalizePageStateValues(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const values: Record<string, unknown> = {};
+  let acceptedCount = 0;
+  for (const [key, rememberedValue] of Object.entries(value)) {
+    if (acceptedCount >= MAX_PAGE_STATE_VALUE_KEYS) {
+      break;
+    }
+    if (key.length === 0 || key.length > MAX_PAGE_STATE_VALUE_KEY_LENGTH) {
+      continue;
+    }
+    values[key] = rememberedValue;
+    acceptedCount += 1;
+  }
+  return acceptedCount > 0 ? values : undefined;
 }
 
 function writeMemoryRecord(record: PageStateMemoryRecord, storage = pageStateStorage()) {
@@ -188,7 +239,19 @@ function updateRememberedSearch(pageId: PageStateMemoryId, search: string, stora
 }
 
 function scopedMemoryKey(scope: string, key: string) {
+  return scope ? `${PAGE_STATE_SCOPED_VALUE_KEY_PREFIX}${JSON.stringify([scope, key])}` : key;
+}
+
+function legacyScopedMemoryKey(scope: string, key: string) {
   return scope ? `${scope}:${key}` : key;
+}
+
+function validateRememberedPageValue<T>(value: unknown, validator: PageStateMemoryValueValidator<T>) {
+  try {
+    return validator(value);
+  } catch {
+    return null;
+  }
 }
 
 export function readRememberedPageValue<T>(
@@ -201,7 +264,11 @@ export function readRememberedPageValue<T>(
   const record = readMemoryRecord(options.storage ?? pageStateStorage());
   const value = record[pageId];
   const values = typeof value === 'string' ? undefined : value?.values;
-  const nextValue = validator(values?.[scopedMemoryKey(options.scope ?? '', key)]);
+  const scope = options.scope ?? '';
+  const nextValue = validateRememberedPageValue(values?.[scopedMemoryKey(scope, key)], validator);
+  if (nextValue == null && scope) {
+    return validateRememberedPageValue(values?.[legacyScopedMemoryKey(scope, key)], validator) ?? defaultValue;
+  }
   return nextValue ?? defaultValue;
 }
 
@@ -216,7 +283,7 @@ export function writeRememberedPageValue<T>(
   if (!storage) {
     return;
   }
-  const normalizedValue = validator(value);
+  const normalizedValue = validateRememberedPageValue(value, validator);
   if (normalizedValue == null) {
     return;
   }
@@ -225,15 +292,23 @@ export function writeRememberedPageValue<T>(
   const current = record[pageId];
   const route = typeof current === 'string' ? current : current?.route;
   const values = { ...(typeof current === 'string' ? {} : current?.values ?? {}) };
-  const valueKey = scopedMemoryKey(options.scope ?? '', key);
+  const scope = options.scope ?? '';
+  const valueKey = scopedMemoryKey(scope, key);
+  const legacyValueKey = legacyScopedMemoryKey(scope, key);
   const isDefaultValue =
     options.isDefaultValue?.(normalizedValue) ??
     (Object.prototype.hasOwnProperty.call(options, 'defaultValue') && Object.is(normalizedValue, options.defaultValue));
 
   if (isDefaultValue) {
     delete values[valueKey];
+    if (legacyValueKey !== valueKey) {
+      delete values[legacyValueKey];
+    }
   } else {
     values[valueKey] = normalizedValue;
+    if (legacyValueKey !== valueKey) {
+      delete values[legacyValueKey];
+    }
   }
 
   if (route && Object.keys(values).length > 0) {
@@ -335,6 +410,9 @@ function pageMemoryForLocation(pathname: string): PageStateMemoryId | null {
   if (pathname === '/work' || pathname === '/work/queue') {
     return 'inbox';
   }
+  if (pathname === '/work/intake' || pathname === '/automations') {
+    return 'automations';
+  }
   if (pathname === '/catalog') {
     return 'catalog';
   }
@@ -398,6 +476,15 @@ export function rememberPageState(pathname: string, search: string, storage = pa
     const section = resolveSettingsSection(pathname);
     updateRememberedSearch('settings', section.path === '/settings/workspace' ? '' : section.path, storage);
     return;
+  }
+
+  if (pageId === 'catalog') {
+    const searchParams = new URLSearchParams(search);
+    const state = readCatalogRouteState(searchParams);
+    if (state.status === 'archived') {
+      updateRememberedSearch('archive', sanitizeArchiveSearch(searchParams), storage);
+      return;
+    }
   }
 
   updateRememberedSearch(pageId, sanitizedSearchForPage(pageId, new URLSearchParams(search)), storage);
@@ -500,12 +587,17 @@ export function buildRememberedHistoryHref(nextState?: Partial<HistoryRouteState
 }
 
 export function buildRememberedArchiveHref(nextState?: Partial<ArchiveRouteState>) {
+  const archiveSearchParams = buildArchiveSearchParams(
+    new URLSearchParams(rememberedSanitizedSearch('archive')),
+    nextState,
+  );
+  const archiveState = readArchiveRouteState(archiveSearchParams);
   return buildCatalogHref({
-    q: nextState?.q ?? null,
+    q: archiveState.q,
     status: 'archived',
-    supplier: nextState?.supplier ?? null,
-    view: nextState?.view as CatalogViewValue | undefined,
-  }, new URLSearchParams(rememberedSanitizedSearch('archive')));
+    supplier: archiveState.supplier,
+    view: archiveState.view as CatalogViewValue,
+  });
 }
 
 export function buildRememberedInsightsHref(nextState?: Partial<InsightsRouteState>) {

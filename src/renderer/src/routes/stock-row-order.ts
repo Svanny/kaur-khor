@@ -4,6 +4,8 @@ type StockRowIdentity = {
   skuId: string;
 };
 
+export const MAX_STOCK_ROW_ORDER_ENTRIES = 500;
+
 export function buildStockRowOrderStorageKey(laneId: string) {
   return `kaur-khor:record-update:stock-row-order:${laneId}:v1`;
 }
@@ -14,13 +16,23 @@ export function sanitizeStockRowOrder(value: unknown) {
   }
 
   const seenSkuIds = new Set<string>();
-  return value.filter((entry): entry is string => {
-    if (typeof entry !== 'string' || entry.length === 0 || seenSkuIds.has(entry)) {
-      return false;
+  const orderedSkuIds: string[] = [];
+  for (const entry of value) {
+    const skuId = typeof entry === 'string' ? entry.trim() : '';
+    if (
+      seenSkuIds.size >= MAX_STOCK_ROW_ORDER_ENTRIES ||
+      !skuId ||
+      seenSkuIds.has(skuId)
+    ) {
+      continue;
     }
-    seenSkuIds.add(entry);
-    return true;
-  });
+    seenSkuIds.add(skuId);
+    orderedSkuIds.push(skuId);
+    if (seenSkuIds.size >= MAX_STOCK_ROW_ORDER_ENTRIES) {
+      break;
+    }
+  }
+  return orderedSkuIds;
 }
 
 export function applyStockRowOrder<Row extends StockRowIdentity>(

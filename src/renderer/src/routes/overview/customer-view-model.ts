@@ -14,6 +14,7 @@ import {
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   type OverviewTaskAction,
 } from '@/lib/record-update-routes';
+import { formatLocalDateInputValue } from '@/lib/date-input-utils';
 import { buildAutomationHref } from '@/lib/navigation-state';
 import type { StatusPillTone } from '@/lib/state-tones';
 import { translateUiLiteral } from '@/lib/translations';
@@ -104,7 +105,12 @@ function itemName(catalog: SenaCatalog, line: Pick<SenaTicketLine, 'entityId' | 
 }
 
 function lineQuantity(line: SenaTicketLine) {
-  return Math.abs(line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 1);
+  const quantity = line.quantityDelta ?? line.orderedQuantity ?? line.receivedQuantity ?? 1;
+  return Number.isFinite(quantity) ? Math.abs(quantity) : 0;
+}
+
+function commercialEventQuantity(event: { quantityDelta: number }) {
+  return Number.isFinite(event.quantityDelta) ? event.quantityDelta : 0;
 }
 
 function ticketLineSummary(catalog: SenaCatalog, lines: SenaTicketLine[], language: AppLanguage) {
@@ -125,13 +131,21 @@ function ticketLineSummary(catalog: SenaCatalog, lines: SenaTicketLine[], langua
 
 function ticketDisplayDate(value: string | null | undefined) {
   if (!value) {
-    return new Date().toISOString().slice(0, 10);
+    return formatLocalDateInputValue(new Date());
   }
   const date = new Date(value);
   if (Number.isNaN(date.valueOf())) {
     return value.slice(0, 10);
   }
-  return date.toISOString().slice(0, 10);
+  return formatLocalDateInputValue(date);
+}
+
+function ticketDisplaySortValue(value: string | null | undefined) {
+  if (!value) {
+    return Number.POSITIVE_INFINITY;
+  }
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
 function customerTicketDisplayLabels(recordUpdateContext: SenaRecordUpdateContext | null | undefined) {
@@ -140,8 +154,8 @@ function customerTicketDisplayLabels(recordUpdateContext: SenaRecordUpdateContex
     .map((anchor) => anchor.value)
     .filter((ticket) => ticket.ticketFamily === 'customer')
     .sort((left, right) =>
+      ticketDisplaySortValue(left.occurredAt) - ticketDisplaySortValue(right.occurredAt) ||
       ticketDisplayDate(left.occurredAt).localeCompare(ticketDisplayDate(right.occurredAt)) ||
-      left.occurredAt.localeCompare(right.occurredAt) ||
       left.ticketId.localeCompare(right.ticketId),
     );
   const countByDate = new Map<string, number>();
@@ -176,10 +190,16 @@ function ticketContactDetail(ticket: SenaTicketSummary) {
 function ticketTimingDetail(ticket: SenaTicketSummary, language: AppLanguage) {
   const expectedArrival = ticket.lines.find((line) => line.expectedArrivalAt)?.expectedArrivalAt;
   if (expectedArrival) {
-    return literal(language, 'ETA {value}', { value: new Date(expectedArrival).toLocaleDateString() });
+    const expectedArrivalDate = new Date(expectedArrival);
+    return Number.isNaN(expectedArrivalDate.valueOf())
+      ? ticket.note ?? null
+      : literal(language, 'ETA {value}', { value: expectedArrivalDate.toLocaleDateString() });
   }
   if (ticket.nextTouchAt) {
-    return literal(language, 'Next touch {value}', { value: new Date(ticket.nextTouchAt).toLocaleDateString() });
+    const nextTouchDate = new Date(ticket.nextTouchAt);
+    return Number.isNaN(nextTouchDate.valueOf())
+      ? ticket.note ?? null
+      : literal(language, 'Next touch {value}', { value: nextTouchDate.toLocaleDateString() });
   }
   return null;
 }
@@ -538,8 +558,8 @@ export function buildCustomerOverviewModel({
   const dayEvents = daySnapshots.flatMap((observation) => observation.input.commercialEvents ?? []);
   const daySummary = observationCommercialSummary(dayEvents);
   const customerCanceledToday = dayEvents
-    .filter((event) => event.party === 'customer' && event.stage === 'pending' && event.quantityDelta < 0)
-    .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
+    .filter((event) => event.party === 'customer' && event.stage === 'pending' && commercialEventQuantity(event) < 0)
+    .reduce((sum, event) => sum + Math.abs(commercialEventQuantity(event)), 0);
   const tasks: OverviewCustomerTask[] = [];
   const latestCustomerTickets = Object.values(recordUpdateContext?.latestTicketsById ?? {})
     .map((anchor) => anchor.value)
@@ -568,11 +588,11 @@ export function buildCustomerOverviewModel({
       continue;
     }
     const completedToday = dayEvents
-      .filter((event) => event.party === 'customer' && event.entityType === 'sku' && event.entityId === sku.skuId && event.stage === 'realized' && event.quantityDelta > 0)
-      .reduce((sum, event) => sum + event.quantityDelta, 0);
+      .filter((event) => event.party === 'customer' && event.entityType === 'sku' && event.entityId === sku.skuId && event.stage === 'realized' && commercialEventQuantity(event) > 0)
+      .reduce((sum, event) => sum + commercialEventQuantity(event), 0);
     const canceledToday = dayEvents
-      .filter((event) => event.party === 'customer' && event.entityType === 'sku' && event.entityId === sku.skuId && event.stage === 'pending' && event.quantityDelta < 0)
-      .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
+      .filter((event) => event.party === 'customer' && event.entityType === 'sku' && event.entityId === sku.skuId && event.stage === 'pending' && commercialEventQuantity(event) < 0)
+      .reduce((sum, event) => sum + Math.abs(commercialEventQuantity(event)), 0);
     const state: OverviewCustomerTask['state'] =
       snapshot.pendingQuantity > 0
         ? snapshot.blockedPendingQuantity > 0
@@ -660,11 +680,11 @@ export function buildCustomerOverviewModel({
       continue;
     }
     const completedToday = dayEvents
-      .filter((event) => event.party === 'customer' && event.entityType === 'service' && event.entityId === service.serviceId && event.stage === 'realized' && event.quantityDelta > 0)
-      .reduce((sum, event) => sum + event.quantityDelta, 0);
+      .filter((event) => event.party === 'customer' && event.entityType === 'service' && event.entityId === service.serviceId && event.stage === 'realized' && commercialEventQuantity(event) > 0)
+      .reduce((sum, event) => sum + commercialEventQuantity(event), 0);
     const canceledToday = dayEvents
-      .filter((event) => event.party === 'customer' && event.entityType === 'service' && event.entityId === service.serviceId && event.stage === 'pending' && event.quantityDelta < 0)
-      .reduce((sum, event) => sum + Math.abs(event.quantityDelta), 0);
+      .filter((event) => event.party === 'customer' && event.entityType === 'service' && event.entityId === service.serviceId && event.stage === 'pending' && commercialEventQuantity(event) < 0)
+      .reduce((sum, event) => sum + Math.abs(commercialEventQuantity(event)), 0);
     const state: OverviewCustomerTask['state'] =
       snapshot.pendingQuantity > 0
         ? snapshot.blockedPendingQuantity > 0

@@ -109,6 +109,22 @@ if (typeof window !== 'undefined') {
   });
 }
 
+if (typeof HTMLCanvasElement !== 'undefined') {
+  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+    configurable: true,
+    writable: true,
+    value: (contextId: string) => {
+      if (contextId !== '2d') {
+        return null;
+      }
+      return {
+        font: '',
+        measureText: (text: string) => ({ width: text.length * 7.5 }),
+      };
+    },
+  });
+}
+
 afterEach(() => {
   cleanup();
   localStorageMock.clear();

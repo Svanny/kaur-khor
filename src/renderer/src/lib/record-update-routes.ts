@@ -9,6 +9,7 @@ export const RECORD_UPDATE_CUSTOM_PATH = '/work/capture/custom';
 export type CaptureSessionAction =
   | 'stock'
   | 'supplier-order'
+  | 'supplier-receipt'
   | 'customer-order'
   | 'immediate-sale'
   | 'sku-price'
@@ -23,7 +24,7 @@ export interface CaptureSessionTarget {
 
 export type CaptureSessionFlashTarget =
   | {
-      action: 'stock' | 'sku-price' | 'supplier-order';
+      action: 'stock' | 'sku-price' | 'supplier-order' | 'supplier-receipt';
       targetId: string;
       targetType: 'sku';
     }
@@ -31,11 +32,17 @@ export type CaptureSessionFlashTarget =
       action: 'customer-order' | 'immediate-sale';
       targetId: string;
       targetType: CaptureSessionTargetType;
+    }
+  | {
+      action: 'service-price';
+      targetId: string;
+      targetType: 'service';
     };
 
 export type SupplierTicketCaptureTarget =
   | {
       mode: 'edit';
+      intent?: 'order' | 'receipt';
       ticketId: string;
       targetId?: string;
       targetType?: 'sku';
@@ -85,7 +92,7 @@ export const RECORD_UPDATE_LANES: RecordUpdateLaneDefinition[] = [
   {
     id: 'stock-count',
     path: RECORD_UPDATE_STOCK_COUNT_PATH,
-    title: 'Stock Count',
+    title: 'Products Update',
     draftStorageKey: 'kaur-khor:record-update:draft:stock-count:v1',
   },
   {
@@ -130,12 +137,16 @@ const baseRecordUpdateLaneIds = new Set(BASE_RECORD_UPDATE_LANES.map((lane) => l
 const captureSessionActions = new Set<CaptureSessionAction>([
   'stock',
   'supplier-order',
+  'supplier-receipt',
   'customer-order',
   'immediate-sale',
   'sku-price',
   'service-price',
 ]);
 const captureSessionTargetTypes = new Set<CaptureSessionTargetType>(['sku', 'service']);
+const MAX_ROUTE_ID_LIST_LENGTH = 64;
+const MAX_ROUTE_ID_LENGTH = 128;
+const FLASH_TARGET_KEY_PATTERN = /^(stock|service-price|supplier-order|supplier-receipt|retail|service):[^,\s]+$/;
 
 export function draftStorageKeyForLane(laneId: RecordUpdateLaneId) {
   return RECORD_UPDATE_LANES.find((lane) => lane.id === laneId)?.draftStorageKey ?? null;
@@ -152,8 +163,31 @@ export function isBaseRecordUpdateLaneId(value: unknown): value is BaseRecordUpd
 export function parseCustomRecordUpdateLaneIds(value: string | null): BaseRecordUpdateLaneId[] {
   const selected = (value ?? '')
     .split(',')
+    .map((laneId) => laneId.trim())
     .filter(isBaseRecordUpdateLaneId);
   return [...new Set(selected)];
+}
+
+export function parseRouteIdList(value: string | null): string[] {
+  return boundedUniqueRouteTokens((value ?? '').split(','));
+}
+
+export function normalizeCaptureSessionFlashTargetKeys(keys: string[]): string[] {
+  return boundedUniqueRouteTokens(keys, (key) => FLASH_TARGET_KEY_PATTERN.test(key));
+}
+
+function boundedUniqueRouteTokens(values: string[], predicate?: (value: string) => boolean): string[] {
+  const seen = new Set<string>();
+  return values
+    .map((id) => id.trim())
+    .filter((id) => {
+      if (!id || id.length > MAX_ROUTE_ID_LENGTH || seen.has(id) || (predicate && !predicate(id))) {
+        return false;
+      }
+      seen.add(id);
+      return true;
+    })
+    .slice(0, MAX_ROUTE_ID_LIST_LENGTH);
 }
 
 export type OverviewTaskAction =
@@ -172,7 +206,7 @@ const ACTION_TO_LANE: Record<OverviewTaskAction, RecordUpdateLaneId> = {
   log_order: 'supplier-order-pending',
   update_eta: 'supplier-order-pending',
   follow_up: 'customer-order-pending',
-  receive: 'supplier-order-pending',
+  receive: 'supplier-receipt',
   review: 'stock-count',
   start_update: 'stock-count',
   remind_tomorrow: 'stock-count',
@@ -205,7 +239,10 @@ export function buildBatchUpdateHref(
   const basePath = RECORD_UPDATE_LANES.find((l) => l.id === nextLane)?.path ?? RECORD_UPDATE_HUB_PATH;
   const params = new URLSearchParams();
   if (resolved.skuIds && resolved.skuIds.length > 0) {
-    params.set('skus', resolved.skuIds.join(','));
+    const skuIds = boundedUniqueRouteTokens(resolved.skuIds);
+    if (skuIds.length > 0) {
+      params.set('skus', skuIds.join(','));
+    }
   }
   if (resolved.batchOrderId) {
     params.set('batchOrderId', resolved.batchOrderId);
@@ -227,8 +264,8 @@ export function laneForCaptureSessionAction(action: CaptureSessionAction): Recor
   if (action === 'supplier-order') {
     return 'supplier-order-pending';
   }
-  if (action === 'service-price') {
-    return 'custom';
+  if (action === 'supplier-receipt') {
+    return 'supplier-receipt';
   }
   return 'stock-count';
 }
@@ -243,35 +280,41 @@ export function buildCaptureSessionHref(target: CaptureSessionTarget) {
   if (target.action === 'customer-order' || target.action === 'immediate-sale' || target.action === 'supplier-order') {
     params.set('ticketMode', 'new');
   }
-  if (target.action === 'service-price') {
-    params.set('lanes', 'stock-count');
-  }
   return `${lane?.path ?? RECORD_UPDATE_HUB_PATH}?${params.toString()}`;
 }
 
 export function buildSupplierTicketCaptureHref(target: SupplierTicketCaptureTarget) {
+  const intent = target.mode === 'edit' ? target.intent ?? 'order' : 'order';
+  const targetAction = intent === 'receipt' ? 'supplier-receipt' : 'supplier-order';
+  const basePath = intent === 'receipt' ? RECORD_UPDATE_SUPPLIER_RECEIPT_PATH : RECORD_UPDATE_SUPPLIER_PENDING_PATH;
   const params = new URLSearchParams();
   if (target.mode === 'edit') {
     params.set('ticketMode', 'edit');
     params.set('ticketId', target.ticketId);
     if (target.targetId && target.targetType) {
-      params.set('targetAction', 'supplier-order');
+      params.set('targetAction', targetAction);
       params.set('targetType', target.targetType);
       params.set('targetId', target.targetId);
     }
   } else {
-    params.set('targetAction', 'supplier-order');
+    params.set('targetAction', targetAction);
     params.set('targetType', target.targetType);
     params.set('targetId', target.targetId);
     params.set('ticketMode', 'new');
   }
   if (target.skuIds && target.skuIds.length > 0) {
-    params.set('skus', [...new Set(target.skuIds)].join(','));
+    const skuIds = boundedUniqueRouteTokens(target.skuIds);
+    if (skuIds.length > 0) {
+      params.set('skus', skuIds.join(','));
+    }
   }
   if (target.flashTargets && target.flashTargets.length > 0) {
-    params.set('flashTargets', target.flashTargets.map(captureSessionFlashTargetKey).join(','));
+    const flashTargets = normalizeCaptureSessionFlashTargetKeys(target.flashTargets.map(captureSessionFlashTargetKey));
+    if (flashTargets.length > 0) {
+      params.set('flashTargets', flashTargets.join(','));
+    }
   }
-  return `${RECORD_UPDATE_SUPPLIER_PENDING_PATH}?${params.toString()}`;
+  return `${basePath}?${params.toString()}`;
 }
 
 export function buildCustomerTicketCaptureHref(target: CustomerTicketCaptureTarget) {
@@ -291,7 +334,10 @@ export function buildCustomerTicketCaptureHref(target: CustomerTicketCaptureTarg
     params.set('ticketMode', 'new');
   }
   if (target.flashTargets && target.flashTargets.length > 0) {
-    params.set('flashTargets', target.flashTargets.map(captureSessionFlashTargetKey).join(','));
+    const flashTargets = normalizeCaptureSessionFlashTargetKeys(target.flashTargets.map(captureSessionFlashTargetKey));
+    if (flashTargets.length > 0) {
+      params.set('flashTargets', flashTargets.join(','));
+    }
   }
   return `${RECORD_UPDATE_CUSTOMER_PENDING_PATH}?${params.toString()}`;
 }
@@ -303,6 +349,12 @@ export function captureSessionFlashTargetKey(target: CaptureSessionFlashTarget):
   if (target.action === 'supplier-order') {
     return `supplier-order:${target.targetId}`;
   }
+  if (target.action === 'supplier-receipt') {
+    return `supplier-receipt:${target.targetId}`;
+  }
+  if (target.action === 'service-price') {
+    return `service-price:${target.targetId}`;
+  }
   return `${target.targetType === 'service' ? 'service' : 'retail'}:${target.targetId}`;
 }
 
@@ -311,14 +363,7 @@ export function readCaptureSessionFlashTargetKeys(search: string): string[] {
   if (!value) {
     return [];
   }
-  return [
-    ...new Set(
-      value
-        .split(',')
-        .map((key) => key.trim())
-        .filter((key) => /^(stock|supplier-order|supplier-receipt|retail|service|service-price):[^,\s]+$/.test(key)),
-    ),
-  ];
+  return normalizeCaptureSessionFlashTargetKeys(value.split(','));
 }
 
 export function readCaptureSessionTarget(search: string): CaptureSessionTarget | null {
@@ -331,6 +376,12 @@ export function readCaptureSessionTarget(search: string): CaptureSessionTarget |
     !captureSessionTargetTypes.has(targetType as CaptureSessionTargetType) ||
     targetId === ''
   ) {
+    return null;
+  }
+  if ((action === 'stock' || action === 'sku-price' || action === 'supplier-order' || action === 'supplier-receipt') && targetType !== 'sku') {
+    return null;
+  }
+  if (action === 'service-price' && targetType !== 'service') {
     return null;
   }
   return {

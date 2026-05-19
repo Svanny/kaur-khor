@@ -16,6 +16,7 @@ import {
   type SupplierFilterValue,
 } from '@/lib/sena-catalog';
 import { translateUiLiteral } from '@/lib/translations';
+import { latestObservationAt } from '@/routes/observation-payload';
 import { formatSenaDate, formatSenaDays, formatSenaPercent, formatSenaUnits } from '@/routes/sku-detail/format';
 import type {
   InventoryProjectionHorizonValue,
@@ -24,6 +25,7 @@ import type {
   InventoryScopeValue,
   InventoryViewPresetValue,
 } from '@/lib/navigation-state';
+import { buildServiceDetailHref, buildSkuDetailHref } from '@/lib/navigation-state';
 
 const INVENTORY_FOCUS_ROW_LIMIT = 5;
 
@@ -183,7 +185,7 @@ function rangeDays(range: InventoryRangeValue) {
 }
 
 function latestObservedAt(workspaceSummary: SenaWorkspaceSummary, observations: SenaObservationRecord[]) {
-  return workspaceSummary.latestObservedAt ?? observations.at(-1)?.input.observedAt ?? null;
+  return workspaceSummary.latestObservedAt ?? latestObservationAt(observations);
 }
 
 function ageDays(fromAt: string | null, toAt: string | null) {
@@ -199,10 +201,30 @@ function ageDays(fromAt: string | null, toAt: string | null) {
 }
 
 function sumOrNull(values: number[]) {
-  if (values.length === 0) {
+  const finiteValues = values.filter(Number.isFinite);
+  if (finiteValues.length === 0) {
     return null;
   }
-  return values.reduce((sum, value) => sum + value, 0);
+  return finiteValues.reduce((sum, value) => sum + value, 0);
+}
+
+function finiteOrNull(value: number | null | undefined) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function nonNegativeOrZero(value: number | null | undefined) {
+  const finiteValue = finiteOrNull(value);
+  return finiteValue == null ? 0 : Math.max(0, finiteValue);
+}
+
+function nonNegativeOrNull(value: number | null | undefined) {
+  const finiteValue = finiteOrNull(value);
+  return finiteValue == null ? null : Math.max(0, finiteValue);
+}
+
+function probabilityOrZero(value: number | null | undefined) {
+  const finiteValue = finiteOrNull(value);
+  return finiteValue == null ? 0 : Math.min(1, Math.max(0, finiteValue));
 }
 
 function signedUnits(value: number | null, language: AppLanguage) {
@@ -248,12 +270,13 @@ function formatProjectionParts(cell: ProjectionCell, horizon: InventoryProjectio
 }
 
 function formatProjectionCell(mean: number | null, low: number | null, high: number | null, language: AppLanguage): ProjectionCell {
-  if (mean == null) {
+  const finiteMean = nonNegativeOrNull(mean);
+  if (finiteMean == null) {
     return { high: null, label: '-', low: null, mean: null, risk: null };
   }
-  const boundedMean = Math.max(0, mean);
-  const boundedLow = Math.max(0, low ?? boundedMean);
-  const boundedHigh = Math.max(boundedLow, high ?? boundedMean);
+  const boundedMean = finiteMean;
+  const boundedLow = nonNegativeOrNull(low) ?? boundedMean;
+  const boundedHigh = Math.max(boundedLow, nonNegativeOrNull(high) ?? boundedMean);
   return {
     high: boundedHigh,
     label: formatSenaEstimate(boundedMean, boundedLow, boundedHigh, language),
@@ -306,7 +329,7 @@ function latestFlow(detail: SenaSkuDetail | null, windowDays: number, latestAt: 
   });
   return {
     adjustments: sumOrNull(visibleIntervals.map((interval) => interval.adjustmentsMean)),
-    inventoryPosition: visibleIntervals.at(-1)?.inventoryPositionMean ?? visibleIntervals.at(-1)?.preClampInventoryMean ?? null,
+    inventoryPosition: finiteOrNull(visibleIntervals.at(-1)?.inventoryPositionMean) ?? finiteOrNull(visibleIntervals.at(-1)?.preClampInventoryMean),
     lostDemand: sumOrNull(visibleIntervals.map((interval) => interval.lostDemandMean ?? 0)),
     receipts: sumOrNull(visibleIntervals.map((interval) => interval.receiptsMean)),
     unitsIn: sumOrNull(visibleIntervals.map((interval) => interval.receiptsMean)),
@@ -335,7 +358,7 @@ function isFreshnessStale(age: number | null) {
 }
 
 function receiptLabel(latestAt: string | null, leadTimeMeanDays: number | null, language: AppLanguage) {
-  if (!latestAt || leadTimeMeanDays == null) {
+  if (!latestAt || leadTimeMeanDays == null || !Number.isFinite(leadTimeMeanDays)) {
     return null;
   }
   const base = new Date(latestAt);
@@ -362,7 +385,7 @@ function skuRows(input: DeriveInventoryViewModelInput) {
       const detail = input.skuDetailsById.get(sku.skuId) ?? null;
       const latestPipeline = detail?.pipelinePosterior.at(-1) ?? null;
       const latestLeadTime = detail?.leadTimePosterior.at(-1) ?? null;
-      const inTransitMean = latestPipeline?.inTransitMean ?? 0;
+      const inTransitMean = nonNegativeOrZero(latestPipeline?.inTransitMean);
       const flow = latestFlow(detail, windowDays, latestAt);
       const linkedServices = linkedServiceIdsForSku(input.catalog, sku.skuId)
         .map((serviceId) => serviceById.get(serviceId))
@@ -370,23 +393,31 @@ function skuRows(input: DeriveInventoryViewModelInput) {
       const countAnchor = latestCountAnchor(input.recordUpdateContext, sku.skuId);
       const countAge = ageDays(countAnchor?.observedAt ?? null, latestAt);
       const recommendation = summary.reorderQuantity;
-      const leadTimeMeanDays = latestLeadTime?.meanDays ?? summary.leadTimeMeanDays ?? sku.leadTimeMeanDaysHint;
-      const leadTimeStdDays = latestLeadTime?.stdDays ?? summary.leadTimeStdDays ?? sku.leadTimeStdDaysHint;
+      const leadTimeMeanDays = nonNegativeOrNull(latestLeadTime?.meanDays) ?? nonNegativeOrNull(summary.leadTimeMeanDays) ?? nonNegativeOrNull(sku.leadTimeMeanDaysHint);
+      const leadTimeStdDays = nonNegativeOrNull(latestLeadTime?.stdDays) ?? nonNegativeOrNull(summary.leadTimeStdDays) ?? nonNegativeOrNull(sku.leadTimeStdDaysHint);
+      const daysOfCover = nonNegativeOrNull(summary.daysOfCover);
+      const demandPerDay = nonNegativeOrZero(summary.demandPerDayMean);
+      const onHandHigh = nonNegativeOrZero(summary.credibleIntervalHigh);
+      const onHandLow = Math.min(onHandHigh, nonNegativeOrZero(summary.credibleIntervalLow));
+      const onHandMean = nonNegativeOrZero(summary.latestPosteriorUnits);
+      const reorderPoint = nonNegativeOrZero(summary.reorderPoint);
+      const reorderTriggerProbability = probabilityOrZero(summary.reorderTriggerProbability);
+      const stockoutRisk = probabilityOrZero(summary.stockoutRisk);
       const projection = projectedUnitsByHorizon({
-        demandPerDay: summary.demandPerDayMean,
+        demandPerDay,
         inTransitMean,
         language: input.language,
-        onHandHigh: summary.credibleIntervalHigh,
-        onHandLow: summary.credibleIntervalLow,
-        onHandMean: summary.latestPosteriorUnits,
+        onHandHigh,
+        onHandLow,
+        onHandMean,
       });
       const focusReasonCodes = [
-        summary.stockoutRisk >= 0.35 ? 'stockout-risk' : null,
-        summary.daysOfCover == null ? 'unknown-cover' : null,
-        summary.daysOfCover != null && leadTimeMeanDays != null && leadTimeStdDays != null && summary.daysOfCover <= leadTimeMeanDays + leadTimeStdDays
+        stockoutRisk >= 0.35 ? 'stockout-risk' : null,
+        daysOfCover == null ? 'unknown-cover' : null,
+        daysOfCover != null && leadTimeMeanDays != null && leadTimeStdDays != null && daysOfCover <= leadTimeMeanDays + leadTimeStdDays
           ? 'low-cover'
           : null,
-        summary.reorderTriggerProbability >= 0.5 ? 'reorder-trigger' : null,
+        reorderTriggerProbability >= 0.5 ? 'reorder-trigger' : null,
         recommendation?.recommendationIssued ? 'recommendation-issued' : null,
         inTransitMean > 0 ? 'in-transit' : null,
         isFreshnessStale(countAge) ? 'stale-count' : null,
@@ -394,14 +425,14 @@ function skuRows(input: DeriveInventoryViewModelInput) {
 
       return [{
         adjustments: flow.adjustments,
-        demandPerDay: summary.demandPerDayMean,
-        daysOfCover: summary.daysOfCover,
+        demandPerDay,
+        daysOfCover,
         flowIn: flow.unitsIn,
         flowOut: flow.unitsOut,
         focusReasonCodes,
         freshnessAgeDays: countAge,
         freshnessLabel: freshnessLabel(countAge, input.language),
-        href: `/catalog/skus/${sku.skuId}`,
+        href: buildSkuDetailHref(sku.skuId),
         id: sku.skuId,
         imagePath: sku.imagePath ?? null,
         inTransitMean,
@@ -415,21 +446,24 @@ function skuRows(input: DeriveInventoryViewModelInput) {
         lostDemand: flow.lostDemand,
         name: sku.name,
         nextReceiptLabel: inTransitMean > 0 ? receiptLabel(latestAt, leadTimeMeanDays, input.language) : null,
-        onHandHigh: summary.credibleIntervalHigh,
-        onHandLow: summary.credibleIntervalLow,
-        onHandMean: summary.latestPosteriorUnits,
-        orderProbability: latestPipeline?.orderProbability ?? null,
+        onHandHigh,
+        onHandLow,
+        onHandMean,
+        orderProbability: (() => {
+          const probability = finiteOrNull(latestPipeline?.orderProbability);
+          return probability == null ? null : Math.max(0, Math.min(1, probability));
+        })(),
         projectedUnitsByHorizon: projection,
         receipts: flow.receipts,
-        recommendedOrderHigh: recommendation?.likelyRangeHigh ?? 0,
-        recommendedOrderLow: recommendation?.likelyRangeLow ?? 0,
-        recommendedOrderUnits: recommendation?.recommendedUnits ?? 0,
+        recommendedOrderHigh: nonNegativeOrZero(recommendation?.likelyRangeHigh),
+        recommendedOrderLow: nonNegativeOrZero(recommendation?.likelyRangeLow),
+        recommendedOrderUnits: nonNegativeOrZero(recommendation?.recommendedUnits),
         recommendationIssued: Boolean(recommendation?.recommendationIssued),
-        reorderPoint: summary.reorderPoint,
-        reorderTriggerProbability: summary.reorderTriggerProbability,
-        safetyStock: summary.safetyStock,
+        reorderPoint,
+        reorderTriggerProbability,
+        safetyStock: nonNegativeOrZero(summary.safetyStock),
         serviceExposureSort: linkedServices.length,
-        stockoutRisk: summary.stockoutRisk,
+        stockoutRisk,
         supplierName: sku.supplierName ?? null,
         type: 'sku',
       }];
@@ -449,10 +483,10 @@ function serviceRows(input: DeriveInventoryViewModelInput, skus: InventorySkuRow
         : 0;
       const sellableLow = contributors.length > 0 ? Math.max(0, Math.min(...contributors.map((row) => row.onHandLow))) : null;
       const sellableHigh = contributors.length > 0 ? Math.max(0, Math.min(...contributors.map((row) => row.onHandHigh))) : null;
-      const detailContributor = [...(detail?.contributors ?? [])].sort((left, right) => right.bottleneckProbability - left.bottleneckProbability)[0] ?? null;
+      const detailContributor = [...(detail?.contributors ?? [])].sort((left, right) => probabilityOrZero(right.bottleneckProbability) - probabilityOrZero(left.bottleneckProbability))[0] ?? null;
       const bottleneckSku = detailContributor ? skuById.get(detailContributor.skuId) ?? null : null;
-      const bottleneckProbability = detail?.bottleneckProbability ?? detailContributor?.bottleneckProbability ?? bottleneckSku?.stockoutRisk ?? 0;
-      const activityMean = detail?.activityMean ?? Math.max(1, sellableMean);
+      const bottleneckProbability = probabilityOrZero(detail?.bottleneckProbability ?? detailContributor?.bottleneckProbability ?? bottleneckSku?.stockoutRisk);
+      const activityMean = nonNegativeOrNull(detail?.activityMean) ?? Math.max(1, sellableMean);
       const projectedSellableByHorizon = Object.fromEntries(
         HORIZONS.map((horizon) => [
           horizon,
@@ -484,7 +518,7 @@ function serviceRows(input: DeriveInventoryViewModelInput, skus: InventorySkuRow
           ? contributors
               .sort((left, right) => (right.freshnessAgeDays ?? 9999) - (left.freshnessAgeDays ?? 9999))[0]?.freshnessLabel ?? '-'
           : translateUiLiteral(input.language, 'No contributor counts'),
-        href: `/catalog/services/${service.serviceId}`,
+        href: buildServiceDetailHref(service.serviceId),
         id: service.serviceId,
         imagePath: service.imagePath ?? null,
         name: service.name,

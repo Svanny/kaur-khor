@@ -2,31 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ActionAddBadgeIcon,
-  ActionCloseIcon,
   ActionConfirmIcon,
   ActionCreatePackageIcon,
   ActionEditIcon,
-  ActionLayoutGridIcon,
   ActionResumeIcon,
 } from '@icons/actions';
 import { EntityRevenueIcon, EntityServiceIcon, EntitySkuIcon } from '@icons/entities';
 import type { IconComponent } from '@icons';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmActionDialog } from '@/components/system/confirm-action-dialog';
 import { CenteredTileGrid } from '@/components/system/centered-tile-grid';
 import { LiquidGridCardLayer, liquidGridCardBaseClassName } from '@/components/system/liquid-grid-card';
 import { WorkspacePage, WorkspaceTitleCard } from '@/components/system/workspace';
 import { RouteBackButton } from '@/components/system/page-navigation';
 import {
-  BASE_RECORD_UPDATE_LANES,
-  RECORD_UPDATE_CUSTOM_PATH,
   RECORD_UPDATE_CUSTOMER_COMPLETED_PATH,
   RECORD_UPDATE_CUSTOMER_PENDING_PATH,
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
-  type BaseRecordUpdateLaneId,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
   type RecordUpdateLaneId,
 } from '@/lib/record-update-routes';
 import { writeRecordUpdateSessionViewMode } from '@/lib/record-update-session-view';
@@ -60,6 +55,7 @@ interface TicketEntryPromptState {
 
 interface TicketPickerOption {
   description: string;
+  href?: string;
   id: string;
   label: string;
   metadata: string;
@@ -89,7 +85,7 @@ function supplierBatchOptionDescription(language: ReturnType<typeof usePreferenc
 
 const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
   {
-    title: 'Stock Count',
+    title: 'Products Update',
     description: 'Count what is physically on hand and reconcile mistakes.',
     href: RECORD_UPDATE_STOCK_COUNT_PATH,
     icon: EntitySkuIcon,
@@ -117,15 +113,6 @@ const RECORD_UPDATE_HUB_CARDS: RecordUpdateHubCard[] = [
     icon: ActionCreatePackageIcon,
     laneId: 'supplier-order-pending',
     tone: 'supplier-order',
-  },
-  {
-    title: 'Custom',
-    description: 'Choose multiple ticket-backed update lanes for one combined capture flow.',
-    href: RECORD_UPDATE_CUSTOM_PATH,
-    icon: ActionLayoutGridIcon,
-    laneId: 'custom',
-    tone: 'capture-update',
-    rainbow: true,
   },
 ];
 const VISIBLE_HUB_CARDS: RecordUpdateHubCard[] = [
@@ -237,7 +224,11 @@ function removeDraftSavedForLane(laneId: RecordUpdateLaneId) {
   }
   const draftStorageKey = draftStorageKeyByLaneId.get(laneId);
   if (draftStorageKey) {
-    storage.removeItem(draftStorageKey);
+    try {
+      storage.removeItem(draftStorageKey);
+    } catch {
+      // Starting a new draft should not crash when browser storage is blocked.
+    }
   }
 }
 
@@ -303,7 +294,7 @@ function HubCard({ card, compact = false, onClick }: { card: RecordUpdateHubCard
     <Link
       aria-label={title}
       className={cn(className, 'h-full w-full min-w-0')}
-      to={card.href ?? RECORD_UPDATE_CUSTOM_PATH}
+      to={card.href ?? RECORD_UPDATE_STOCK_COUNT_PATH}
     >
       {contents}
     </Link>
@@ -341,7 +332,8 @@ function TicketEntryPromptDialog({
   }
 
   function openExistingTicket(option: TicketPickerOption) {
-    navigate(`${href}?ticketMode=edit&${option.queryParam}=${encodeURIComponent(option.id)}`);
+    const optionHref = option.href ?? href;
+    navigate(`${optionHref}?ticketMode=edit&${option.queryParam}=${encodeURIComponent(option.id)}`);
   }
 
   return (
@@ -423,11 +415,8 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
   const { catalog, loadWorkSupportData, orderBatches, recordUpdateContext } = useInventory();
   const navigate = useNavigate();
   const [supportDataRequested, setSupportDataRequested] = useState(false);
-  const [customDialogOpen, setCustomDialogOpen] = useState(false);
   const [confirmNewDiscardDraftOpen, setConfirmNewDiscardDraftOpen] = useState(false);
   const [ticketEntryPrompt, setTicketEntryPrompt] = useState<TicketEntryPromptState | null>(null);
-  const [selectedCustomLaneIds, setSelectedCustomLaneIds] = useState<BaseRecordUpdateLaneId[]>([]);
-  const baseCustomLanes = useMemo(() => BASE_RECORD_UPDATE_LANES, []);
   const canEditCustomerTicket = useMemo(
     () => openTicketSummaries(recordUpdateContext, 'customer').length > 0,
     [recordUpdateContext],
@@ -454,6 +443,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
         return [];
       }
       return [{
+        href: batch.status === 'awaiting_receipt' ? RECORD_UPDATE_SUPPLIER_RECEIPT_PATH : RECORD_UPDATE_SUPPLIER_PENDING_PATH,
         id: batch.batchOrderId,
         label: batch.supplierName ?? batch.batchOrderId,
         description: supplierBatchOptionDescription(language, batch.children.length, batch.status),
@@ -494,29 +484,7 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
     });
   }, [loadWorkSupportData, supportDataRequested]);
 
-  function toggleCustomLane(laneId: BaseRecordUpdateLaneId) {
-    setSelectedCustomLaneIds((current) =>
-      current.includes(laneId)
-        ? current.filter((id) => id !== laneId)
-        : [...current, laneId],
-    );
-  }
-
-  function startCustomUpdate() {
-    if (selectedCustomLaneIds.length === 0) {
-      return;
-    }
-    const params = new URLSearchParams();
-    params.set('lanes', selectedCustomLaneIds.join(','));
-    setCustomDialogOpen(false);
-    navigate(`${RECORD_UPDATE_CUSTOM_PATH}?${params.toString()}`);
-  }
-
   function handleHubCardClick(card: RecordUpdateHubCard) {
-    if (card.laneId === 'custom') {
-      setCustomDialogOpen(true);
-      return;
-    }
     if (card.laneId === 'customer-order-pending') {
       const promptState: TicketEntryPromptState = {
         canEdit: canEditCustomerTicket,
@@ -610,85 +578,6 @@ export function RecordUpdateHubRoute({ embedded = false }: { embedded?: boolean 
           navigate(`${nextHref}?ticketMode=new`);
         }}
       />
-      {customDialogOpen ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
-          role="presentation"
-          onClick={() => setCustomDialogOpen(false)}
-        >
-          <div
-            aria-describedby="custom-update-dialog-description"
-            aria-labelledby="custom-update-dialog-title"
-            aria-modal="true"
-            className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
-            role="dialog"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="space-y-2">
-              <p id="custom-update-dialog-title" className="text-lg font-semibold tracking-[-0.03em] text-foreground">
-                {translateUiLiteral(language, 'Build a custom update')}
-              </p>
-              <p id="custom-update-dialog-description" className="text-sm leading-6 text-muted-foreground">
-                {translateUiLiteral(language, 'Choose any lanes to include in one combined update wizard.')}
-              </p>
-            </div>
-            <div className="mt-5 grid gap-1">
-              {baseCustomLanes.map((lane) => {
-                const checked = selectedCustomLaneIds.includes(lane.id);
-                const checkboxId = `custom-lane-${lane.id}`;
-                const LaneIcon = hubCardByLaneId.get(lane.id)?.icon ?? ActionLayoutGridIcon;
-                return (
-                  <div
-                    key={lane.id}
-                    className={cn(
-                      'flex min-h-12 cursor-pointer items-center gap-3 px-1 py-2 text-sm font-medium text-foreground transition hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/70',
-                      checked ? 'text-primary' : null,
-                    )}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => toggleCustomLane(lane.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        toggleCustomLane(lane.id);
-                      }
-                    }}
-                  >
-                    <Checkbox
-                      aria-label={translateUiLiteral(language, lane.title)}
-                      checked={checked}
-                      id={checkboxId}
-                      onClick={(event) => event.stopPropagation()}
-                      onCheckedChange={() => toggleCustomLane(lane.id)}
-                    />
-                    <LaneIcon className="size-5 shrink-0 text-current" />
-                    <span>{translateUiLiteral(language, lane.title)}</span>
-                  </div>
-                );
-              })}
-            </div>
-            {selectedCustomLaneIds.length === 0 ? (
-              <p className="mt-4 text-sm text-muted-foreground">
-                {translateUiLiteral(language, 'Choose at least one update lane.')}
-              </p>
-            ) : null}
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
-              <Button type="button" variant="ghost" onClick={() => setCustomDialogOpen(false)}>
-                <ActionCloseIcon data-icon="inline-start" />
-                {translateUiLiteral(language, 'Cancel')}
-              </Button>
-              <Button
-                disabled={selectedCustomLaneIds.length === 0}
-                type="button"
-                onClick={startCustomUpdate}
-              >
-                <ActionConfirmIcon data-icon="inline-start" />
-                {translateUiLiteral(language, 'Start custom update')}
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
       {!embedded ? (
         <WorkspaceTitleCard
           title={

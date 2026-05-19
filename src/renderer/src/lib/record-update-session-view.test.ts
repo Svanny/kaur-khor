@@ -8,6 +8,7 @@ import {
 
 describe('record update session view storage', () => {
   afterEach(() => {
+    delete (window as typeof window & { __KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__?: boolean }).__KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__;
     vi.restoreAllMocks();
   });
 
@@ -32,7 +33,7 @@ describe('record update session view storage', () => {
     expect(readRecordUpdateSessionViewMode()).toBe(DEFAULT_SESSION_VIEW_MODE);
   });
 
-  it('ignores localStorage setItem failures', () => {
+  it('ignores stored form mode and localStorage setItem failures', () => {
     const storage = {
       getItem: vi.fn(() => 'form'),
       setItem: vi.fn(() => {
@@ -41,8 +42,41 @@ describe('record update session view storage', () => {
     } as unknown as Storage;
     vi.spyOn(window, 'localStorage', 'get').mockReturnValue(storage);
 
-    expect(readRecordUpdateSessionViewMode()).toBe('form');
+    expect(readRecordUpdateSessionViewMode()).toBe(DEFAULT_SESSION_VIEW_MODE);
     expect(() => writeRecordUpdateSessionViewMode('pos')).not.toThrow();
     expect(storage.setItem).toHaveBeenCalledWith(recordUpdateSessionViewStorageKey(), 'pos');
+  });
+
+  it('coerces requested form mode to the POS default', () => {
+    const storage = {
+      getItem: vi.fn(),
+      setItem: vi.fn(),
+    } as unknown as Storage;
+    vi.spyOn(window, 'localStorage', 'get').mockReturnValue(storage);
+
+    writeRecordUpdateSessionViewMode('form');
+
+    expect(storage.setItem).toHaveBeenCalledWith(recordUpdateSessionViewStorageKey(), DEFAULT_SESSION_VIEW_MODE);
+  });
+
+  it('keeps the dead form view inaccessible without the test-only override', () => {
+    const storage = {
+      getItem: vi.fn(() => 'form'),
+      setItem: vi.fn(),
+    } as unknown as Storage;
+    vi.spyOn(window, 'localStorage', 'get').mockReturnValue(storage);
+
+    expect(readRecordUpdateSessionViewMode()).toBe(DEFAULT_SESSION_VIEW_MODE);
+  });
+
+  it('allows dormant form view coverage only through the test override', () => {
+    const storage = {
+      getItem: vi.fn(() => 'form'),
+      setItem: vi.fn(),
+    } as unknown as Storage;
+    vi.spyOn(window, 'localStorage', 'get').mockReturnValue(storage);
+    (window as typeof window & { __KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__?: boolean }).__KAUR_KHOR_TEST_ALLOW_DEAD_FORM_VIEW__ = true;
+
+    expect(readRecordUpdateSessionViewMode()).toBe('form');
   });
 });

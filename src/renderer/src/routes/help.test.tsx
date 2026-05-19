@@ -318,6 +318,20 @@ describe('HelpRoute', () => {
     expect(container.firstElementChild).toHaveClass('pb-24', 'md:pb-36');
   });
 
+  test('keeps the help index in its own desktop scroll container', () => {
+    render(
+      <MemoryRouter initialEntries={['/help']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('navigation', { name: 'Help sections' })).toHaveClass(
+      'xl:max-h-[calc(100svh-12rem)]',
+      'xl:overflow-y-auto',
+      'xl:overscroll-contain',
+    );
+  });
+
   test('jumps to the matching guide card from the index', () => {
     const scrollIntoView = vi.fn();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
@@ -398,6 +412,23 @@ describe('HelpRoute', () => {
 
     expect(scrollIntoView).toHaveBeenCalledTimes(1);
     intersectionObserver.restore();
+  });
+
+  test('ignores malformed encoded hashes instead of crashing the Help route', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value: scrollIntoView,
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/settings/help#%E0%A4%A']}>
+        <HelpRoute />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('User Guide')).toBeInTheDocument();
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   test('renders cleaned subsection titles while preserving old More-link anchors', () => {

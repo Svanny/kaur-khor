@@ -376,6 +376,23 @@ describe('SkuTradingChart settings', () => {
     expect(clusters[0]?.right).toBeGreaterThan(clusters[0]?.left ?? 0);
   });
 
+  it('drops non-finite overlay icon coordinates before clustering', () => {
+    const clusters = buildOverlayIconClusters([
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 1, x: Number.NaN },
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 2, x: Number.POSITIVE_INFINITY },
+      { indicatorId: 'newOrderFlags', groupKey: 'newOrderFlags', intervalIndex: 3, x: 132 },
+    ]);
+
+    expect(clusters).toHaveLength(1);
+    expect(clusters[0]).toEqual(expect.objectContaining({
+      count: 1,
+      firstIntervalIndex: 3,
+      lastIntervalIndex: 3,
+    }));
+    expect(Number.isFinite(clusters[0]?.left)).toBe(true);
+    expect(Number.isFinite(clusters[0]?.right)).toBe(true);
+  });
+
   it('merges dense supplier receipt icons with the same collision rule', () => {
     const clusters = buildOverlayIconClusters([
       { indicatorId: 'newReceiptFlags', groupKey: 'newReceiptFlags', intervalIndex: 4, x: 200 },
@@ -890,6 +907,20 @@ describe('SkuTradingChart settings', () => {
       startAt: '2026-03-10T00:00:00.000Z',
       endAt: '2026-03-23T23:59:59.999Z',
     });
+  });
+
+  it('rejects impossible custom timeframe dates instead of rolling them forward', async () => {
+    const user = userEvent.setup();
+    const onCustomTimeframeChange = vi.fn();
+
+    renderChart({ onCustomTimeframeChange });
+
+    await user.click(screen.getByRole('button', { name: 'Custom duration' }));
+    fireEvent.change(screen.getByLabelText('Custom timeframe start date'), { target: { value: '2026-02-31' } });
+    fireEvent.change(screen.getByLabelText('Custom timeframe end date'), { target: { value: '2026-03-23' } });
+    await user.click(screen.getByRole('button', { name: 'Apply' }));
+
+    expect(onCustomTimeframeChange).not.toHaveBeenCalled();
   });
 
   it('does not auto-center the selected interval on first mount', () => {

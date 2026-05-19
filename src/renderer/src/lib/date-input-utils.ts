@@ -16,6 +16,23 @@ function dateInputParts(value: string): { day: number; month: number; year: numb
   return { day, month, year };
 }
 
+function strictDateInputToLocalDate(value: string): Date | null {
+  const parts = dateInputParts(value);
+  if (!parts) {
+    return null;
+  }
+  const date = new Date(`${value}T00:00:00`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== parts.year ||
+    date.getMonth() + 1 !== parts.month ||
+    date.getDate() !== parts.day
+  ) {
+    return null;
+  }
+  return date;
+}
+
 function dateFromInputValue(value: string | Date | null | undefined): Date {
   if (value instanceof Date) {
     return value;
@@ -23,7 +40,10 @@ function dateFromInputValue(value: string | Date | null | undefined): Date {
   if (!value) {
     return new Date();
   }
-  return DATE_INPUT_PATTERN.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+  if (DATE_INPUT_PATTERN.test(value)) {
+    return strictDateInputToLocalDate(value) ?? new Date(Number.NaN);
+  }
+  return new Date(value);
 }
 
 export function formatLocalDateInputValue(value?: string | Date | null): string {
@@ -54,20 +74,7 @@ export function observedLocalDateInputValue(value?: string | Date | null): strin
 }
 
 function dateInputToLocalDate(value: string): Date | null {
-  const parts = dateInputParts(value);
-  if (!parts) {
-    return null;
-  }
-  const date = new Date(`${value}T00:00:00`);
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getFullYear() !== parts.year ||
-    date.getMonth() + 1 !== parts.month ||
-    date.getDate() !== parts.day
-  ) {
-    return null;
-  }
-  return date;
+  return strictDateInputToLocalDate(value);
 }
 
 export function isDateInputBeforeObservedDate(value: string, observedAt?: string | Date | null): boolean {
@@ -176,8 +183,13 @@ export function daysBetween(startAt: string, endAt: string): number {
 
 export function shiftDateByDays(isoString: string, days: number): string {
   const timestamp = Date.parse(isoString);
-  if (!Number.isFinite(timestamp)) {
+  if (!Number.isFinite(timestamp) || !Number.isFinite(days)) {
     return isoString;
   }
-  return new Date(timestamp + days * 24 * 60 * 60 * 1000).toISOString();
+  const shiftedTimestamp = timestamp + days * 24 * 60 * 60 * 1000;
+  if (!Number.isFinite(shiftedTimestamp)) {
+    return isoString;
+  }
+  const shiftedDate = new Date(shiftedTimestamp);
+  return Number.isNaN(shiftedDate.getTime()) ? isoString : shiftedDate.toISOString();
 }

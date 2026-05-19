@@ -1,3 +1,5 @@
+import { sanitizeSpreadsheetFormulaText, serializeExportCell } from './export-serialization';
+
 const textEncoder = new TextEncoder();
 
 export type WorkbookSheet = {
@@ -21,23 +23,28 @@ function xmlEscape(value: string) {
     .replace(/'/g, '&apos;');
 }
 
+function stripInvalidXmlText(value: string) {
+  let result = '';
+  for (const character of value) {
+    const codePoint = character.codePointAt(0);
+    if (codePoint == null || (codePoint >= 0xd800 && codePoint <= 0xdfff)) {
+      continue;
+    }
+    result += character;
+  }
+  return result.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+}
+
 function xmlText(value: unknown) {
   return xmlEscape(
-    serializeCellValue(value)
-      .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+    stripInvalidXmlText(sanitizeSpreadsheetFormulaText(serializeCellValue(value)))
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n'),
   );
 }
 
 function serializeCellValue(value: unknown) {
-  if (value == null) {
-    return '';
-  }
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return String(value);
-  }
-  return JSON.stringify(value);
+  return serializeExportCell(value);
 }
 
 function columnName(index: number) {
@@ -93,15 +100,22 @@ function sanitizeSheetName(name: string) {
 
 function uniqueSheetNames(names: string[]) {
   const seen = new Map<string, number>();
+  const usedNames = new Set<string>();
   return names.map((name) => {
     const baseName = sanitizeSheetName(name);
     const count = seen.get(baseName) ?? 0;
     seen.set(baseName, count + 1);
-    if (count === 0) {
-      return baseName;
+    let candidate = count === 0
+      ? baseName
+      : `${baseName.slice(0, MAX_SHEET_NAME_LENGTH - ` (${count + 1})`.length)} (${count + 1})`;
+    let nextCount = count + 1;
+    while (usedNames.has(candidate.toLocaleLowerCase('en-US'))) {
+      nextCount += 1;
+      const suffix = ` (${nextCount})`;
+      candidate = `${baseName.slice(0, MAX_SHEET_NAME_LENGTH - suffix.length)}${suffix}`;
     }
-    const suffix = ` (${count + 1})`;
-    return `${baseName.slice(0, MAX_SHEET_NAME_LENGTH - suffix.length)}${suffix}`;
+    usedNames.add(candidate.toLocaleLowerCase('en-US'));
+    return candidate;
   });
 }
 

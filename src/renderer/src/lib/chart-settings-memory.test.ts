@@ -70,4 +70,46 @@ describe('chart settings memory', () => {
     expect(() => writeSubtypeDefaultChartSettings('sku', { visible: true }, normalizeSettings)).not.toThrow();
     expect(readSubtypeDefaultChartSettings('sku', normalizeSettings)).toEqual({ visible: true });
   });
+
+  it('ignores corrupted subtype and entity setting roots before normalization', () => {
+    window.localStorage.setItem('kaur-khor:chart-settings:defaults:v1', JSON.stringify({
+      sku: 'not-settings',
+    }));
+    window.localStorage.setItem('kaur-khor:page-state-memory:v1', JSON.stringify({
+      catalog: {
+        values: {
+          'sku:sku-1:chartSettings': 'not-settings',
+        },
+      },
+    }));
+
+    expect(readSubtypeDefaultChartSettings('sku', normalizeSettings)).toBeNull();
+    expect(readEntityChartSettings('sku', 'sku-1', normalizeSettings)).toBeNull();
+  });
+
+  it('ignores settings when the normalizer rejects persisted or outgoing values', () => {
+    const rejectingNormalize = (value: TestChartSettings): TestChartSettings => {
+      if (typeof value.visible !== 'boolean') {
+        throw new Error('invalid setting');
+      }
+      return value;
+    };
+    window.localStorage.setItem('kaur-khor:chart-settings:defaults:v1', JSON.stringify({
+      sku: { visible: 'dirty' },
+    }));
+    window.localStorage.setItem('kaur-khor:page-state-memory:v1', JSON.stringify({
+      catalog: {
+        values: {
+          'sku:sku-1:chartSettings': { visible: 'dirty' },
+        },
+      },
+    }));
+
+    expect(readSubtypeDefaultChartSettings('sku', rejectingNormalize)).toBeNull();
+    expect(readEntityChartSettings('sku', 'sku-1', rejectingNormalize)).toBeNull();
+    expect(() =>
+      writeSubtypeDefaultChartSettings('sku', { visible: 'dirty' } as unknown as TestChartSettings, rejectingNormalize),
+    ).not.toThrow();
+    expect(readSubtypeDefaultChartSettings('sku', rejectingNormalize)).toBeNull();
+  });
 });

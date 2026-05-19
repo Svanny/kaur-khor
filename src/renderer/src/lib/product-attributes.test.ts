@@ -3,12 +3,16 @@ import {
   curatedProductAttributePresets,
   customProductAttributePresetsFromDraft,
   formatProductAttributeSuffix,
+  MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS,
+  MAX_PRODUCT_ATTRIBUTE_OPTIONS_PER_PRESET,
   MAX_PRODUCT_ATTRIBUTE_VARIANTS,
   mergedProductAttributePresets,
   PRODUCT_ATTRIBUTE_PRESETS_STORAGE_KEY,
   productAttributeCombinationCount,
   productAttributeCombinations,
+  productAttributeDraftDirtyKey,
   readCustomProductAttributePresets,
+  sanitizedProductAttributeDraft,
   sanitizeProductAttributePresets,
   uniqueProductVariantName,
   writeCustomProductAttributePresets,
@@ -48,6 +52,26 @@ describe('product attributes helpers', () => {
     );
   });
 
+  test('caps custom preset storage so large localStorage payloads cannot inflate the form', () => {
+    const presets = sanitizeProductAttributePresets(
+      Array.from({ length: MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS + 5 }, (_, presetIndex) => ({
+        name: `Custom ${presetIndex}`,
+        options: Array.from({ length: MAX_PRODUCT_ATTRIBUTE_OPTIONS_PER_PRESET + 5 }, (_, optionIndex) => (
+          `Option ${presetIndex}-${optionIndex}`
+        )),
+      })),
+    );
+
+    expect(presets).toHaveLength(MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS);
+    expect(presets[0]?.options).toHaveLength(MAX_PRODUCT_ATTRIBUTE_OPTIONS_PER_PRESET);
+
+    writeCustomProductAttributePresets(presets);
+    expect(readCustomProductAttributePresets()).toHaveLength(MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS);
+    expect(mergedProductAttributePresets(presets)).toHaveLength(
+      curatedProductAttributePresets.length + MAX_CUSTOM_PRODUCT_ATTRIBUTE_PRESETS,
+    );
+  });
+
   test('treats blocked localStorage access as optional preset storage', () => {
     const localStorageSpy = vi.spyOn(globalThis, 'localStorage', 'get').mockImplementation(() => {
       throw new Error('storage blocked');
@@ -76,6 +100,14 @@ describe('product attributes helpers', () => {
       { name: 'Color', options: ['Copper'] },
       { name: 'Finish', options: ['Matte'] },
     ]);
+  });
+
+  test('treats partial or corrupted attribute drafts as empty draft state', () => {
+    expect(sanitizedProductAttributeDraft(null)).toEqual({ enabled: false, rows: [] });
+    expect(sanitizedProductAttributeDraft({ enabled: true })).toEqual({ enabled: true, rows: [] });
+    expect(productAttributeDraftDirtyKey({ enabled: true } as never)).toBe('{"enabled":true,"rows":[]}');
+    expect(productAttributeCombinationCount({ enabled: true, rows: 'dirty' } as never)).toBe(0);
+    expect(productAttributeCombinations({ enabled: true, rows: [{ name: 'Size', options: 'dirty' }] } as never)).toEqual([]);
   });
 
   test('builds one-attribute and multi-attribute combinations', () => {

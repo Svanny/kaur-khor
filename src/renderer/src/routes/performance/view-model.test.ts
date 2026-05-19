@@ -384,6 +384,170 @@ describe('derivePerformanceViewModel', () => {
     expect(model.ribbon.find((metric) => metric.key === 'demand')?.trendSignal?.points.length).toBeGreaterThan(0);
   });
 
+  test('falls back to latest valid observation when custom range end is malformed', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      customRange: {
+        startAt: 'bad-start',
+        endAt: 'bad-end',
+      },
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: 'not-a-date' },
+          observationId: 'dirty-date',
+        },
+        {
+          ...observations[1],
+          input: { ...observations[1].input, observedAt: '2026-04-01T08:00:00.000Z' },
+          observationId: 'older-first',
+        },
+        {
+          ...observations[0],
+          input: { ...observations[0].input, observedAt: '2026-04-10T08:00:00.000Z' },
+          observationId: 'latest-second',
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: 'custom',
+      previousCustomRange: null,
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'not-a-date' },
+    });
+
+    expect(model.lastUpdatedLabel).toContain('Apr 10');
+    expect(model.ribbon.find((metric) => metric.key === 'demand')?.trendSignal?.points.length).toBeGreaterThan(0);
+    expect(model.timeline.some((event) => event.detail.includes('not-a-date'))).toBe(false);
+  });
+
+  test('ignores malformed price observation dates when selecting latest performance price signals', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      customRange: null,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        {
+          ...observations[0],
+          observationId: 'dirty-price',
+          input: {
+            ...observations[0].input,
+            observedAt: 'not-a-date',
+            retailPrices: [{ price: 12, skuId: 'sku-shampoo' }],
+          },
+        },
+        {
+          ...observations[0],
+          observationId: 'dirty-non-finite-price',
+          input: {
+            ...observations[0].input,
+            observedAt: '2026-04-03T08:00:00.000Z',
+            retailPrices: [{ price: Number.POSITIVE_INFINITY, skuId: 'sku-shampoo' }],
+          },
+        },
+        {
+          ...observations[0],
+          observationId: 'valid-price',
+          input: {
+            ...observations[0].input,
+            observedAt: '2026-04-02T08:00:00.000Z',
+            retailPrices: [{ price: 18, skuId: 'sku-shampoo' }],
+          },
+        },
+      ],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: '30d',
+      previousCustomRange: null,
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.boardRows.find((row) => row.id === 'sku-shampoo')?.priceMarginTone).toContain('$2');
+    expect(model.boardRows.find((row) => row.id === 'sku-shampoo')?.priceMarginTone).not.toContain('$8');
+  });
+
+  test('contains dirty catalog prices before computing business risk values', () => {
+    const dirtyCatalog: SenaCatalog = {
+      ...catalog,
+      services: catalog.services.map((service) =>
+        service.serviceId === 'service-color'
+          ? { ...service, price: Number.POSITIVE_INFINITY }
+          : service,
+      ),
+      skus: catalog.skus.map((sku) =>
+        sku.skuId === 'sku-shampoo'
+          ? { ...sku, costPerUnit: Number.NaN, productPrice: Number.POSITIVE_INFINITY }
+          : sku,
+      ),
+    };
+    const model = derivePerformanceViewModel({
+      catalog: dirtyCatalog,
+      compareMode: false,
+      customRange: null,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: {
+        ...serviceDetailsById,
+        'service-color': {
+          ...serviceDetailsById['service-color']!,
+          activityMean: Number.POSITIVE_INFINITY,
+        },
+      },
+      skuDetailsById: { ...skuDetailsById },
+      timeRange: '30d',
+      previousCustomRange: null,
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    const rendered = [
+      ...model.boardRows.flatMap((row) => [row.priceMarginTone, row.statusLabel]),
+      ...model.blockedProfit.flatMap((row) => [row.summary]),
+      ...model.ribbon.map((metric) => metric.value),
+    ].join(' ');
+    expect(rendered).not.toMatch(/NaN|Infinity|∞/);
+  });
+
+  test('ignores non-finite lead time offsets when deriving inbound due dates', () => {
+    const model = derivePerformanceViewModel({
+      catalog,
+      compareMode: false,
+      customRange: null,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [...observations],
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: {
+        ...skuDetailsById,
+        'sku-razor': {
+          ...skuDetailsById['sku-razor']!,
+          summary: {
+            ...skuDetailsById['sku-razor']!.summary,
+            leadTimeMeanDays: Number.POSITIVE_INFINITY,
+          },
+        },
+      },
+      timeRange: '30d',
+      previousCustomRange: null,
+      workspaceSummary: { ...workspaceSummary },
+    });
+
+    expect(model.recoveryPipeline[0]?.detail).toContain('On the way');
+    expect(model.recoveryPipeline[0]?.detail).not.toMatch(/Invalid|NaN|Infinity|∞/);
+  });
+
   test('keeps overdue pipeline summaries working with localized labels', () => {
     const model = derivePerformanceViewModel({
       catalog,

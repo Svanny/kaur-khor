@@ -18,11 +18,12 @@ import {
 import { EntityCustomerIcon, EntityRevenueIcon, EntityTagsIcon } from '@icons/entities';
 import { NavigationExpandIcon } from '@icons/navigation';
 import type { IconComponent } from '@icons';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { AnchoredMenu } from '@/components/ui/anchored-menu';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
 import { Input } from '@/components/ui/input';
 import { NumberStepperInput } from '@/components/ui/number-stepper-input';
+import { headerActionSurfaceClassName } from '@/components/system/floating-title-actions';
 import {
   Sheet,
   SheetContent,
@@ -41,7 +42,7 @@ import {
   type LeadTimeVariabilityDraftMode,
 } from '@/components/system/lead-time-variability-field';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
-import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
+import { formatEditableMoneyFromUsd, parseEditableNumberWithCommas, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
 import { formatLocalDateTimeInputValue, parseLocalDateTimeInputIso } from '@/lib/date-input-utils';
 import { translateUiLiteral } from '@/lib/translations';
 import {
@@ -52,6 +53,7 @@ import {
   type CaptureSessionTargetType,
 } from '@/lib/record-update-routes';
 import { cn } from '@/lib/utils';
+import { buildSkuEditHref } from '@/lib/navigation-state';
 import { buildKaurKhorNavigationState } from '@/state/navigation-history';
 import {
   ActionSheetField,
@@ -59,6 +61,7 @@ import {
   actionSheetSelectTriggerClassName,
   actionSheetTextareaClassName,
 } from '@/routes/detail-action-sheet';
+import { compactActionButtonClassName } from '@/components/system/compact-controls';
 import { createEmptyObservationInput } from '@/routes/observation-payload';
 import { useInventory } from '@/state/inventory';
 import { usePreferences } from '@/state/preferences';
@@ -111,6 +114,14 @@ function initialObservedAt() {
   return formatLocalDateTimeInputValue();
 }
 
+function parseNonNegativeFiniteDraft(value: string | undefined) {
+  if (!value?.trim()) {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
 export function buildLeadTimeHintFromInputs({
   stdDays,
   skuId,
@@ -122,8 +133,8 @@ export function buildLeadTimeHintFromInputs({
   typicalLeadTimeDays: string;
   variabilityClass: SenaLeadTimeVariabilityClass | '';
 }) {
-  const typicalDays = typicalLeadTimeDays ? Number(typicalLeadTimeDays) : null;
-  const customStdDays = stdDays?.trim() ? Number(stdDays) : null;
+  const typicalDays = parseNonNegativeFiniteDraft(typicalLeadTimeDays);
+  const customStdDays = parseNonNegativeFiniteDraft(stdDays);
   const compatibilityRange = compatibilityRangeForClass(typicalDays, variabilityClass || null);
   const derivedLeadTime =
     customStdDays != null
@@ -370,7 +381,7 @@ function formatMoneyDraft(value: number, currency: 'USD' | 'KHR', usdToKhrExchan
 }
 
 function parseMoneyDraft(value: string, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
-  return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
+  return usdMoneyFromDisplay(parseEditableNumberWithCommas(value), currency, usdToKhrExchangeRate);
 }
 
 function parseNonNegativeNumberDraft(value: string) {
@@ -721,7 +732,7 @@ export function SkuMutationActions({
   return (
     <>
       {showActionButtons ? (
-        <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
+        <div className={cn(layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2', layout === 'row' ? headerActionSurfaceClassName : undefined)}>
           <RecordCaptureActionMenu
             className={layout === 'menu' ? 'w-full justify-start' : undefined}
             language={language}
@@ -731,7 +742,7 @@ export function SkuMutationActions({
               {
                 action: 'stock',
                 icon: ActionAddBadgeIcon,
-                label: translateUiLiteral(language, 'Stock Count'),
+                label: translateUiLiteral(language, 'Products Update'),
                 targetId: skuId,
                 targetType: 'sku',
               },
@@ -769,7 +780,7 @@ export function SkuMutationActions({
           />
           {showEditButton ? (
             <Button asChild size="sm" type="button" variant={layout === 'menu' ? 'ghost' : 'outline'} className={layout === 'menu' ? 'w-full justify-start' : undefined}>
-              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={`/catalog/skus/${skuId}/edit`}>
+              <Link state={buildKaurKhorNavigationState(location, '/catalog')} to={buildSkuEditHref(skuId)}>
                 <ActionEditIcon className="size-4" />
                 {t('catalogSkuEditAction')}
               </Link>
@@ -1232,6 +1243,7 @@ export function ServiceMutationActions({
   const hasUnsavedSheetChanges =
     mode != null &&
     JSON.stringify(serviceActionDraftSnapshot(mode)) !== JSON.stringify(serviceActionBaselineSnapshot(mode));
+  const headerButtonClassName = layout === 'menu' ? 'w-full justify-start' : compactActionButtonClassName;
   const { discardConfirmDialog, requestDiscard } = useDiscardChangesConfirm({
     enabled: hasUnsavedSheetChanges,
     description: t('sheetUnsavedLeavePrompt'),
@@ -1259,21 +1271,23 @@ export function ServiceMutationActions({
   return (
     <>
       {showActionButtons ? (
-        <div className={layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2'}>
+        <div className={cn(layout === 'menu' ? 'grid gap-1' : 'flex flex-wrap gap-2', layout === 'row' ? headerActionSurfaceClassName : undefined)}>
           {showPrimarySkuButton ? (
-            <Link
-              className={cn(
-                buttonVariants({ size: 'sm', variant: layout === 'menu' ? 'ghost' : 'default' }),
-                layout === 'menu' ? 'w-full justify-start' : undefined,
-              )}
-              to={actions.primarySkuHref}
+            <Button
+              asChild
+              className={headerButtonClassName}
+              size="sm"
+              type="button"
+              variant={layout === 'menu' ? 'ghost' : 'default'}
             >
-              <ActionOpenExternalIcon className="size-4" />
-              {translateUiLiteral(language, 'Open bottleneck SKU')}
-            </Link>
+              <Link to={actions.primarySkuHref}>
+                <ActionOpenExternalIcon className="size-4" />
+                {translateUiLiteral(language, 'Open bottleneck SKU')}
+              </Link>
+            </Button>
           ) : null}
           <RecordCaptureActionMenu
-            className={layout === 'menu' ? 'w-full justify-start' : undefined}
+            className={headerButtonClassName}
             language={language}
             layout={recordActionLayout}
             onCaptureActionStart={onCaptureActionStart}
@@ -1284,11 +1298,18 @@ export function ServiceMutationActions({
                     disabled: bottleneckUnavailable,
                     disabledReason: bottleneckUnavailable ? actions.noBottleneckHint : undefined,
                     icon: ActionReceiveInventoryIcon,
-                    label: translateUiLiteral(language, 'Stock Count'),
+                    label: translateUiLiteral(language, 'Products Update'),
                     targetId: actions.bottleneckSku?.skuId ?? '',
                     targetType: 'sku' as const,
                   }]
                 : []),
+              {
+                action: 'service-price',
+                icon: EntityTagsIcon,
+                label: translateUiLiteral(language, 'Updated Price'),
+                targetId: actions.servicePrice.serviceId,
+                targetType: 'service',
+              },
               {
                 action: 'customer-order',
                 icon: EntityCustomerIcon,
@@ -1303,27 +1324,24 @@ export function ServiceMutationActions({
                 targetId: actions.servicePrice.serviceId,
                 targetType: 'service',
               },
-              {
-                action: 'service-price',
-                icon: EntityTagsIcon,
-                label: translateUiLiteral(language, 'Updated Price'),
-                targetId: actions.servicePrice.serviceId,
-                targetType: 'service',
-              },
             ]}
           />
           {showEditButton ? (
-            <Link
-              className={cn(
-                buttonVariants({ size: 'sm', variant: layout === 'menu' ? 'ghost' : 'outline' }),
-                layout === 'menu' ? 'w-full justify-start' : undefined,
-              )}
-              state={buildKaurKhorNavigationState(location, '/catalog')}
-              to={actions.editServiceHref}
+            <Button
+              asChild
+              className={headerButtonClassName}
+              size="sm"
+              type="button"
+              variant={layout === 'menu' ? 'ghost' : 'outline'}
             >
-              <ActionEditIcon className="size-4" />
-              {translateUiLiteral(language, 'Edit service')}
-            </Link>
+              <Link
+                state={buildKaurKhorNavigationState(location, '/catalog')}
+                to={actions.editServiceHref}
+              >
+                <ActionEditIcon className="size-4" />
+                {translateUiLiteral(language, 'Edit service')}
+              </Link>
+            </Button>
           ) : null}
         </div>
       ) : null}

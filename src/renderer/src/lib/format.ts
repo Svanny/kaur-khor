@@ -51,12 +51,13 @@ export function formatCurrency(
   usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 ): string {
   const fractionDigits = currencyFractionDigits(currency);
+  const safeValue = Number.isFinite(value) ? value : 0;
   return new Intl.NumberFormat(localeFor(language), {
     style: 'currency',
     currency,
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
-  }).format(displayMoneyFromUsd(value, currency, usdToKhrExchangeRate));
+  }).format(displayMoneyFromUsd(safeValue, currency, usdToKhrExchangeRate));
 }
 
 export function currencyFractionDigits(currency: AppCurrency): number {
@@ -67,12 +68,16 @@ export function currencyInputSymbol(currency: AppCurrency): string {
   return currency === 'KHR' ? '៛' : '$';
 }
 
+function safeExchangeRate(value: number) {
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_USD_TO_KHR_EXCHANGE_RATE;
+}
+
 export function displayMoneyFromUsd(
   value: number,
   currency: AppCurrency,
   usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 ): number {
-  return currency === 'KHR' ? value * usdToKhrExchangeRate : value;
+  return currency === 'KHR' ? value * safeExchangeRate(usdToKhrExchangeRate) : value;
 }
 
 export function usdMoneyFromDisplay(
@@ -80,7 +85,7 @@ export function usdMoneyFromDisplay(
   currency: AppCurrency,
   usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 ): number {
-  return currency === 'KHR' ? value / usdToKhrExchangeRate : value;
+  return currency === 'KHR' ? value / safeExchangeRate(usdToKhrExchangeRate) : value;
 }
 
 export function parseUsdMoneyFromDisplay(
@@ -88,7 +93,7 @@ export function parseUsdMoneyFromDisplay(
   currency: AppCurrency,
   usdToKhrExchangeRate = DEFAULT_USD_TO_KHR_EXCHANGE_RATE,
 ): number {
-  return usdMoneyFromDisplay(Number(value), currency, usdToKhrExchangeRate);
+  return usdMoneyFromDisplay(parseEditableNumberWithCommas(value), currency, usdToKhrExchangeRate);
 }
 
 export function formatDecimal(
@@ -103,13 +108,14 @@ export function formatDecimal(
 }
 
 export function formatNumber(value: number, language: AppLanguage): string {
+  const safeValue = Number.isFinite(value) ? value : 0;
   return new Intl.NumberFormat(localeFor(language), {
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(safeValue);
 }
 
 export function sanitizeWholeNumberForDisplay(value: number): number {
-  return Math.round(value);
+  return Number.isFinite(value) ? Math.round(value) : 0;
 }
 
 export function formatWholeNumber(value: number, language: AppLanguage): string {
@@ -127,8 +133,8 @@ export function sanitizeEditableWholeNumber(value: string): string {
     return '';
   }
 
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) {
+  const parsed = parseEditableNumberWithCommas(value);
+  if (!Number.isFinite(parsed)) {
     return value;
   }
 
@@ -172,14 +178,15 @@ function escalatingFractionDigits(value: number): number {
 }
 
 export function formatQuantityForDisplay(value: number, language: AppLanguage): string {
-  const maximumFractionDigits = escalatingFractionDigits(value);
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const maximumFractionDigits = escalatingFractionDigits(safeValue);
   return new Intl.NumberFormat(localeFor(language), {
     maximumFractionDigits,
-  }).format(maximumFractionDigits === 0 ? sanitizeWholeNumberForDisplay(value) : value);
+  }).format(maximumFractionDigits === 0 ? sanitizeWholeNumberForDisplay(safeValue) : safeValue);
 }
 
 export function formatCompactQuantityPill(value: number): string {
-  const safeValue = Math.max(0, value);
+  const safeValue = Math.max(0, Number.isFinite(value) ? value : 0);
   const units = [
     { threshold: 1_000_000_000_000, suffix: 'T' },
     { threshold: 1_000_000_000, suffix: 'B' },
@@ -279,7 +286,19 @@ export function formatEditableNumberWithCommas(value: string): string {
 }
 
 export function parseEditableNumberWithCommas(value: string): number {
-  return Number(value.replace(/,/g, ''));
+  let trimmed = value.trim();
+  if (trimmed.startsWith('.')) {
+    trimmed = `0${trimmed}`;
+  } else if (trimmed.startsWith('-.')) {
+    trimmed = trimmed.replace('-.', '-0.');
+  }
+  if (trimmed.endsWith('.')) {
+    trimmed = `${trimmed}0`;
+  }
+  if (!/^-?(?:\d+(?:\.\d+)?|\d{1,3}(?:,\d{3})+(?:\.\d+)?)$/.test(trimmed)) {
+    return Number.NaN;
+  }
+  return Number(trimmed.replace(/,/g, ''));
 }
 
 export function formatEditableMoneyFromUsd(
@@ -314,8 +333,8 @@ export function reformatMoneyDraftValue({
     return '';
   }
 
-  const parsed = Number(value);
-  if (Number.isNaN(parsed)) {
+  const parsed = parseEditableNumberWithCommas(value);
+  if (!Number.isFinite(parsed)) {
     return value;
   }
 

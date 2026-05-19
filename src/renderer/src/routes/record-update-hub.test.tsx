@@ -7,6 +7,7 @@ import {
   RECORD_UPDATE_LANES,
   RECORD_UPDATE_STOCK_COUNT_PATH,
   RECORD_UPDATE_SUPPLIER_PENDING_PATH,
+  RECORD_UPDATE_SUPPLIER_RECEIPT_PATH,
 } from '@/lib/record-update-routes';
 import { recordUpdateSessionViewStorageKey } from '@/lib/record-update-session-view';
 import { translateUiLiteral } from '@/lib/translations';
@@ -140,6 +141,7 @@ function HubRouteTestShell() {
         <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_PENDING_PATH} />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_CUSTOMER_COMPLETED_PATH} />
         <Route element={<LocationPreview />} path={RECORD_UPDATE_SUPPLIER_PENDING_PATH} />
+        <Route element={<LocationPreview />} path={RECORD_UPDATE_SUPPLIER_RECEIPT_PATH} />
       </Routes>
     </>
   );
@@ -164,7 +166,7 @@ describe('RecordUpdateHubRoute', () => {
     );
 
     expect(screen.getByText('Capture')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveAttribute('href', RECORD_UPDATE_STOCK_COUNT_PATH);
+    expect(screen.getByRole('link', { name: 'Products Update' })).toHaveAttribute('href', RECORD_UPDATE_STOCK_COUNT_PATH);
     expect(screen.getByRole('button', { name: 'Customer Order' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Supplier Order' })).toBeInTheDocument();
@@ -427,6 +429,39 @@ describe('RecordUpdateHubRoute', () => {
     expect(screen.getAllByText('/work/capture/supplier-order?ticketMode=edit&batchOrderId=batch-1')[0]).toBeInTheDocument();
   });
 
+  it('routes awaiting legacy supplier batches to supplier receipt capture', () => {
+    inventoryHook.mockReturnValue(
+      inventoryState({
+        orderBatches: [
+          {
+            batchOrderId: 'batch-receipt-1',
+            ownerSub: 'desktop-owner',
+            supplierName: 'Mekong Looms',
+            status: 'awaiting_receipt',
+            updatedAt: '2026-04-03T12:00:00.000Z',
+            shared: {
+              supplierName: 'Mekong Looms',
+              expectedArrivalAt: null,
+              supplierNote: '',
+            },
+            children: [{ skuId: 'sku-1' }],
+          },
+        ],
+      }),
+    );
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Supplier Order' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Edit/Update' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /Mekong Looms/i }));
+
+    expect(screen.getAllByText('/work/capture/supplier-receipt?ticketMode=edit&batchOrderId=batch-receipt-1')[0]).toBeInTheDocument();
+  });
+
   it('shows catalog names instead of internal ids in the supplier ticket picker', () => {
     inventoryHook.mockReturnValue(
       inventoryState({
@@ -549,7 +584,7 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Stock Count' })).toHaveTextContent('Draft saved');
+    expect(screen.getByRole('link', { name: 'Products Update' })).toHaveTextContent('Draft saved');
     expect(screen.getByRole('button', { name: 'Customer Order' })).toHaveTextContent('Draft saved');
     expect(screen.getByRole('button', { name: 'Immediate Sale' })).not.toHaveTextContent('Draft saved');
     expect(screen.getByRole('button', { name: 'Supplier Order' })).not.toHaveTextContent('Draft saved');
@@ -573,6 +608,27 @@ describe('RecordUpdateHubRoute', () => {
     expect(window.localStorage.getItem(supplierPendingLane.draftStorageKey)).toBeNull();
   });
 
+  it('starts a new ticket draft when deleting the old draft is blocked by storage', () => {
+    const customerPendingLane = RECORD_UPDATE_LANES.find((lane) => lane.id === 'customer-order-pending')!;
+    window.localStorage.setItem(customerPendingLane.draftStorageKey, '{"version":1,"notes":"customer called"}');
+    const removeItemSpy = vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('storage blocked');
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/work/capture']}>
+        <HubRouteTestShell />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Customer Order' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete draft and start new' }));
+
+    expect(screen.getAllByText('/work/capture/customer-order?ticketMode=new')[0]).toBeInTheDocument();
+    expect(removeItemSpy).toHaveBeenCalledWith(customerPendingLane.draftStorageKey);
+  });
+
   it('keeps a hidden draft pill placeholder on cards without a saved draft', () => {
     render(
       <MemoryRouter>
@@ -594,8 +650,8 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    for (const name of ['Stock Count', 'Supplier Order', 'Immediate Sale', 'Customer Order'] as const) {
-      expect(screen.getByRole(name === 'Stock Count' ? 'link' : 'button', { name })).toHaveClass('aspect-square');
+    for (const name of ['Products Update', 'Supplier Order', 'Immediate Sale', 'Customer Order'] as const) {
+      expect(screen.getByRole(name === 'Products Update' ? 'link' : 'button', { name })).toHaveClass('aspect-square');
     }
   });
 
@@ -606,8 +662,8 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    for (const name of ['Stock Count', 'Supplier Order', 'Immediate Sale', 'Customer Order'] as const) {
-      const card = screen.getByRole(name === 'Stock Count' ? 'link' : 'button', { name });
+    for (const name of ['Products Update', 'Supplier Order', 'Immediate Sale', 'Customer Order'] as const) {
+      const card = screen.getByRole(name === 'Products Update' ? 'link' : 'button', { name });
 
       expect(card).toHaveClass('h-full', 'w-full', 'min-w-0');
       expect(card.querySelector('[data-slot="centered-tile-card-title"]')).toBeInTheDocument();
@@ -623,6 +679,6 @@ describe('RecordUpdateHubRoute', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByRole('link', { name: 'Stock Count' }).querySelector('.liquid-grid-card-glass')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Products Update' }).querySelector('.liquid-grid-card-glass')).not.toBeInTheDocument();
   });
 });

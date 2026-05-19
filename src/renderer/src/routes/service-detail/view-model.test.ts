@@ -142,6 +142,243 @@ describe('deriveServiceDetailViewModel', () => {
     expect(model.intervals[0]?.caption).toBe(translateRegimeLabel('en', 'promo'));
   });
 
+  test('ignores malformed observation dates when selecting interval price and sellable snapshots', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-05T23:59:00Z',
+            dominantRegime: 'normal',
+            regimeProbabilities: { normal: 1 },
+          },
+        ],
+      },
+      language: 'en',
+      observations: [
+        {
+          observationId: 'dirty-observation',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: 'not-a-date',
+            stockSnapshot: [{ skuId: 'sku-razor', unitsInStock: 99, costPerUnit: 6, productPrice: 18 }],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [{ serviceId: 'service-haircut', price: 99 }],
+            retailPrices: [],
+            leadTimeHints: [],
+            adjustmentSignals: [],
+            recipeUsageHints: [],
+            notes: null,
+          },
+        },
+        {
+          observationId: 'valid-observation',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T08:00:00.000Z',
+            stockSnapshot: [{ skuId: 'sku-razor', unitsInStock: 7, costPerUnit: 6, productPrice: 18 }],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [{ serviceId: 'service-haircut', price: 30 }],
+            retailPrices: [],
+            leadTimeHints: [],
+            adjustmentSignals: [],
+            recipeUsageHints: [],
+            notes: null,
+          },
+        },
+      ],
+      reports: [],
+      service,
+      snapshot,
+      workspaceSummary,
+    });
+
+    expect(model.intervals[0]?.priceLabel).toBe('$30.00');
+    expect(model.intervals[0]?.sellableValue).toBe(7);
+  });
+
+  test('ignores dirty numeric interval stock and service prices', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        activityMean: Number.NaN,
+        bottleneckProbability: Number.NaN,
+        contributors: [{
+          skuId: 'sku-razor',
+          usageProbability: Number.NaN,
+          bottleneckProbability: Number.NaN,
+          reorderQuantity: null,
+        }],
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-05T23:59:00Z',
+            dominantRegime: 'normal',
+            regimeProbabilities: { normal: 1 },
+          },
+        ],
+      },
+      language: 'en',
+      observations: [
+        {
+          observationId: 'dirty-observation',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-04T08:00:00.000Z',
+            stockSnapshot: [{ skuId: 'sku-razor', unitsInStock: Number.NaN, costPerUnit: 6, productPrice: 18 }],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [{ serviceId: 'service-haircut', price: Number.NaN }],
+            retailPrices: [],
+            leadTimeHints: [],
+            adjustmentSignals: [],
+            recipeUsageHints: [],
+            notes: null,
+          },
+        },
+      ],
+      reports: [
+        {
+          reportId: 'dirty-report',
+          reportSource: 'manual',
+          reportedAt: '2026-04-04T09:00:00.000Z',
+          skuObservations: [],
+          serviceSignals: [],
+          servicePriceAdjustments: [{ serviceId: 'service-haircut', price: Number.POSITIVE_INFINITY }],
+          topServiceRanking: [],
+          topRetailRanking: [],
+          regimeHint: null,
+          notes: null,
+        },
+      ],
+      service,
+      snapshot,
+      workspaceSummary,
+    });
+
+    expect(model.intervals[0]).toMatchObject({
+      priceLabel: '$18.00',
+      priceValue: 18,
+      sellableValue: 0,
+      sellableLabel: '0',
+      tone: 'blocked',
+    });
+    expect(model.ribbon.find((entry) => entry.key === 'demand-per-day')?.value).toBe('1');
+    expect(model.contributors[0]).toMatchObject({
+      limitingProbability: 0,
+      usageLabel: '0%',
+    });
+  });
+
+  test('ignores malformed report dates when selecting interval service prices', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail: {
+        ...detail,
+        regimeTimeline: [
+          {
+            intervalIndex: 0,
+            startAt: '2026-04-01T00:00:00Z',
+            endAt: '2026-04-05T23:59:00Z',
+            dominantRegime: 'normal',
+            regimeProbabilities: { normal: 1 },
+          },
+        ],
+      },
+      language: 'en',
+      observations: [],
+      reports: [
+        {
+          reportId: 'dirty-report',
+          reportSource: 'manual',
+          reportedAt: 'not-a-date',
+          skuObservations: [],
+          serviceSignals: [],
+          servicePriceAdjustments: [{ serviceId: 'service-haircut', price: 99 }],
+          topServiceRanking: [],
+          topRetailRanking: [],
+          notes: null,
+        },
+        {
+          reportId: 'valid-report',
+          reportSource: 'manual',
+          reportedAt: '2026-04-03T08:00:00.000Z',
+          skuObservations: [],
+          serviceSignals: [],
+          servicePriceAdjustments: [{ serviceId: 'service-haircut', price: 30 }],
+          topServiceRanking: [],
+          topRetailRanking: [],
+          notes: null,
+        },
+      ],
+      service,
+      snapshot,
+      workspaceSummary,
+    });
+
+    expect(model.intervals[0]?.priceLabel).toBe('$30.00');
+  });
+
+  test('ignores malformed workspace summary dates when anchoring service actions', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail,
+      language: 'en',
+      observations: [
+        {
+          observationId: 'valid-observation',
+          ownerSub: 'desktop-owner',
+          input: {
+            observedAt: '2026-04-03T08:00:00.000Z',
+            stockSnapshot: [],
+            serviceRankings: [],
+            retailRankings: [],
+            serviceStockouts: [],
+            retailStockouts: [],
+            orderSignals: [],
+            servicePrices: [],
+            retailPrices: [],
+            leadTimeHints: [],
+            adjustmentSignals: [],
+            commercialEvents: [{
+              entityId: 'service-haircut',
+              entityType: 'service',
+              flow: 'scheduled',
+              party: 'customer',
+              quantityDelta: 2,
+              stage: 'pending',
+            }],
+            recipeUsageHints: [],
+            notes: null,
+          },
+        },
+      ],
+      reports: [],
+      service,
+      snapshot,
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'not-a-date' },
+    });
+
+    expect(model.actions.latestObservedAt).toBe('2026-04-03T08:00:00.000Z');
+    expect(model.ribbon.find((metric) => metric.key === 'open-orders')?.value).toBe('2');
+  });
+
   test('maps contributor reorder quantity as SKU-scoped restock guidance', () => {
     const model = deriveServiceDetailViewModel({
       currency: 'USD',
@@ -528,5 +765,37 @@ describe('deriveServiceDetailViewModel', () => {
 
     expect(model.restoration.map((event) => event.state)).toEqual(['logged']);
     expect(model.contributors[0]?.inboundLabel).not.toBe('ETA pending');
+  });
+
+  test('ignores non-finite contributor lead times when deriving open inbound orders', () => {
+    const model = deriveServiceDetailViewModel({
+      currency: 'USD',
+      detail,
+      language: 'en',
+      observations: [
+        makeObservation('obs-order', '2026-04-04T08:00:00.000Z', {
+          skuId: 'sku-razor',
+          orderPlaced: true,
+          receiptArrived: false,
+          approximateOrderQuantity: 10,
+          approximateReceiptQuantity: null,
+        }),
+      ],
+      reports: [],
+      service,
+      snapshot: {
+        ...snapshot,
+        skus: snapshot.skus.map((sku) =>
+          sku.skuId === 'sku-razor'
+            ? { ...sku, leadTimeMeanDays: Number.POSITIVE_INFINITY }
+            : sku,
+        ),
+      },
+      workspaceSummary,
+    });
+
+    expect(model.restoration[0]?.state).toBe('open');
+    expect(model.restoration[0]?.timingLabel).toBe('Delivery timing pending');
+    expect(model.contributors[0]?.inboundLabel).toBe('Delivery timing pending');
   });
 });

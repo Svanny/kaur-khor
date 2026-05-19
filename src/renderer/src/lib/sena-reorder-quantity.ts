@@ -52,6 +52,9 @@ export function isSenaReorderQuantityIssued(recommendation: SenaReorderQuantityR
     return false;
   }
   return (
+    Number.isFinite(recommendation.needProbability) &&
+    Number.isFinite(recommendation.needProbabilityGate) &&
+    Number.isFinite(recommendation.ungatedRecommendedUnits) &&
     recommendation.needProbability > recommendation.needProbabilityGate &&
     recommendation.ungatedRecommendedUnits > 0
   );

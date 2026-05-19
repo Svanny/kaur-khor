@@ -13,7 +13,8 @@ const projectionHeaderHelp = {
 } as const;
 
 function cellValue(cell: ProjectionCell) {
-  return Math.max(0, cell.mean ?? cell.low ?? cell.high ?? 0);
+  const value = cell.mean ?? cell.low ?? cell.high ?? 0;
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 function ProjectionSparkline({
@@ -76,15 +77,15 @@ function ProjectionHeaderHelp({
 }
 
 function projectionCellLabel(cell: ProjectionCell, language: AppLanguage, showConfidenceInterval: boolean) {
-  if (cell.mean == null) {
+  if (cell.mean == null || !Number.isFinite(cell.mean)) {
     return { intervalLabel: null, meanLabel: '-' };
   }
   const meanLabel = translateUiLiteral(language, String(Math.round(cell.mean)));
   if (!showConfidenceInterval) {
     return { intervalLabel: null, meanLabel };
   }
-  const lowLabel = translateUiLiteral(language, String(Math.round(cell.low ?? cell.mean)));
-  const highLabel = translateUiLiteral(language, String(Math.round(cell.high ?? cell.mean)));
+  const lowLabel = translateUiLiteral(language, String(Math.round(Number.isFinite(cell.low) ? cell.low ?? cell.mean : cell.mean)));
+  const highLabel = translateUiLiteral(language, String(Math.round(Number.isFinite(cell.high) ? cell.high ?? cell.mean : cell.mean)));
   return { intervalLabel: `[${lowLabel}, ${highLabel}]`, meanLabel };
 }
 

@@ -1,4 +1,4 @@
-import { ActionConfirmIcon, ActionSaveIcon } from '@icons/actions';
+import { ActionArchiveIcon, ActionCloseIcon, ActionConfirmIcon, ActionSaveIcon } from '@icons/actions';
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { SenaService } from '@shared/sena';
@@ -8,16 +8,21 @@ import { MeasuredTileGrid } from '@/components/system/measured-tile-grid';
 import { ProductAttributesField } from '@/components/system/product-attributes-field';
 import { WorkspaceActionRow, WorkspacePage, WorkspacePanel } from '@/components/system/workspace';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { CurrencyNumberInput } from '@/components/ui/currency-number-input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRouteLeaveConfirm } from '@/hooks/use-route-leave-confirm';
 import { displayMoneyFromUsd, formatCurrency, parseEditableNumberWithCommas, usdMoneyFromDisplay } from '@/lib/format';
 import { rowHoverClassName } from '@/lib/interactive-surface';
+import { buildServiceDetailHref } from '@/lib/navigation-state';
 import {
+  archiveSenaService,
   createServiceAttributeVariants,
   createUniqueServiceId,
   emptySenaCatalog,
   linkedSkuIdsForService,
+  nextCatalogCopyName,
   upsertSenaService,
 } from '@/lib/sena-catalog';
 import {
@@ -66,6 +71,15 @@ function normalizedServiceDirtySnapshot(service: SenaService) {
     imagePath: service.imagePath?.trim() || null,
     price: service.price,
   };
+}
+
+function sameStringSet(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+  const normalizedLeft = [...left].sort();
+  const normalizedRight = [...right].sort();
+  return normalizedLeft.every((value, index) => value === normalizedRight[index]);
 }
 
 function moneyDraftFromUsd(amount: number | null, currency: 'USD' | 'KHR', usdToKhrExchangeRate: number) {
@@ -293,6 +307,9 @@ export function ServiceFormRoute() {
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
   const [localSavedService, setLocalSavedService] = useState<SenaService | null>(null);
   const [localSavedSkuIds, setLocalSavedSkuIds] = useState<string[]>([]);
+  const [linkedSkuForkDialogOpen, setLinkedSkuForkDialogOpen] = useState(false);
+  const [linkedSkuForkServiceName, setLinkedSkuForkServiceName] = useState('');
+  const [linkedSkuForkArchiveCurrent, setLinkedSkuForkArchiveCurrent] = useState(false);
   const [skuSearch, setSkuSearch] = useState('');
   const [attributeDraft, setAttributeDraft] = useState(emptyProductAttributeDraft);
   const [customAttributePresets, setCustomAttributePresets] = useState(() => readCustomProductAttributePresets());
@@ -386,6 +403,9 @@ export function ServiceFormRoute() {
     servicePriceDraft !== baselineServicePriceDraft ||
     JSON.stringify([...selectedSkuIds].sort()) !== JSON.stringify([...localSavedSkuIds].sort()) ||
     productAttributeDraftDirtyKey(attributeDraft) !== productAttributeDraftDirtyKey(emptyProductAttributeDraft());
+  const linkedSkuSelectionChanged = editing && !sameStringSet(selectedSkuIds, localSavedSkuIds);
+  const linkedSkuForkArchiveServiceName =
+    normalizedBaseline.name.trim() || translateUiLiteral(language, 'this service');
   const serviceValidationErrors = {
     name: !form.name.trim() ? t('catalogServiceEditorNameRequired') : null,
     price: !servicePriceDraft.trim()
@@ -409,6 +429,9 @@ export function ServiceFormRoute() {
     setAttributeDraft(emptyProductAttributeDraft());
     setSaveAttempted(false);
     setSaveErrorFlashKey(0);
+    setLinkedSkuForkDialogOpen(false);
+    setLinkedSkuForkServiceName('');
+    setLinkedSkuForkArchiveCurrent(false);
   }
 
   const { confirmLeave, discardConfirmDialog } = useRouteLeaveConfirm({
@@ -430,6 +453,17 @@ export function ServiceFormRoute() {
     setSaveAttempted(true);
     if (hasServiceValidationErrors) {
       setSaveErrorFlashKey((current) => current + 1);
+      return false;
+    }
+    if (linkedSkuSelectionChanged) {
+      const baseCatalog = catalog ?? emptySenaCatalog();
+      setLinkedSkuForkServiceName((current) =>
+        current.trim()
+          ? current
+          : nextCatalogCopyName(baseCatalog.services.map((service) => service.name), normalizedDraft.name),
+      );
+      setLinkedSkuForkArchiveCurrent(false);
+      setLinkedSkuForkDialogOpen(true);
       return false;
     }
     const baseCatalog = catalog ?? emptySenaCatalog();
@@ -467,6 +501,11 @@ export function ServiceFormRoute() {
     if (!navigateAfterSave) {
       return true;
     }
+    await navigateToServiceDetail(nextService.serviceId);
+    return true;
+  }
+
+  async function navigateToServiceDetail(nextServiceId: string) {
     const detailNavigationState = buildKaurKhorNavigationState(location, '/catalog');
     const currentOrigin =
       location.state &&
@@ -475,13 +514,59 @@ export function ServiceFormRoute() {
       typeof location.state.kaurKhorNavigationOrigin === 'string'
         ? location.state.kaurKhorNavigationOrigin
         : null;
-    await navigate(`/catalog/services/${nextService.serviceId}`, {
+    await navigate(buildServiceDetailHref(nextServiceId), {
       replace: true,
       state: {
         ...detailNavigationState,
         kaurKhorNavigationOrigin: currentOrigin ?? previousLocation ?? '/catalog',
       },
     });
+  }
+
+  async function createLinkedSkuFork() {
+    setSaveAttempted(true);
+    if (hasServiceValidationErrors) {
+      setSaveErrorFlashKey((current) => current + 1);
+      return false;
+    }
+    const forkName = linkedSkuForkServiceName.trim();
+    if (!forkName) {
+      setSaveErrorFlashKey((current) => current + 1);
+      return false;
+    }
+
+    const baseCatalog = catalog ?? emptySenaCatalog();
+    const nextService = {
+      ...normalizedDraft,
+      archived: false,
+      name: forkName,
+      serviceId: createUniqueServiceId(baseCatalog),
+    };
+    const catalogWithFork = upsertSenaService(baseCatalog, nextService, selectedSkuIds);
+    const catalogWithVariants = createServiceAttributeVariants(
+      catalogWithFork,
+      nextService,
+      selectedSkuIds,
+      attributeCombinations,
+    );
+    const nextCatalog = linkedSkuForkArchiveCurrent
+      ? archiveSenaService(catalogWithVariants, normalizedBaseline.serviceId)
+      : catalogWithVariants;
+
+    await upsertSenaCatalog(nextCatalog);
+    setLocalSavedService(nextService);
+    setLocalSavedSkuIds(selectedSkuIds);
+    setForm(nextService);
+    setServicePriceDraft(moneyDraftFromUsd(nextService.price, currency, usdToKhrExchangeRate));
+    const nextCustomPresets = mergeCustomProductAttributePresets(customAttributePresets, attributeDraft);
+    writeCustomProductAttributePresets(nextCustomPresets);
+    setCustomAttributePresets(readCustomProductAttributePresets());
+    setAttributeDraft(emptyProductAttributeDraft());
+    setSaveAttempted(false);
+    setSaveErrorFlashKey(0);
+    setLinkedSkuForkDialogOpen(false);
+    setLinkedSkuForkArchiveCurrent(false);
+    await navigateToServiceDetail(nextService.serviceId);
     return true;
   }
 
@@ -524,6 +609,95 @@ export function ServiceFormRoute() {
   return (
     <WorkspacePage className="pb-32 md:pb-36">
       {discardConfirmDialog}
+      {linkedSkuForkDialogOpen ? (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 py-6"
+          role="presentation"
+          onClick={() => {
+            if (!isSaving) {
+              setLinkedSkuForkDialogOpen(false);
+            }
+          }}
+        >
+          <div
+            aria-modal="true"
+            className="w-full max-w-lg rounded-[1.75rem] border border-border/70 bg-background p-6 shadow-[0_24px_80px_rgba(0,0,0,0.18)]"
+            role="dialog"
+            aria-labelledby="service-linked-sku-fork-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="grid gap-2">
+              <p id="service-linked-sku-fork-title" className="text-lg font-semibold tracking-[-0.03em] text-foreground">
+                {translateUiLiteral(language, 'Create a new service for linked SKU changes')}
+              </p>
+              <p className="text-sm leading-6 text-muted-foreground">
+                {translateUiLiteral(language, 'Changing linked SKUs must create a new service. Linked SKUs define how this service consumes stock. Keep the current service for history, then create a new service with the updated linked SKUs.')}
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="linked-sku-fork-service-name">
+                  {translateUiLiteral(language, 'New service name')}
+                </Label>
+                <input
+                  className={editorInputClassName}
+                  id="linked-sku-fork-service-name"
+                  value={linkedSkuForkServiceName}
+                  onChange={(event) => setLinkedSkuForkServiceName(event.target.value)}
+                />
+                {saveAttempted && !linkedSkuForkServiceName.trim() ? (
+                  <p className="text-sm text-destructive">
+                    {translateUiLiteral(language, 'Enter a name for the new service.')}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex items-start gap-3 rounded-[1.25rem] border border-border/70 bg-muted/20 px-4 py-4">
+                <Checkbox
+                  checked={linkedSkuForkArchiveCurrent}
+                  aria-labelledby="linked-sku-fork-archive-label"
+                  className="mt-0.5 size-5 rounded-[6px]"
+                  id="linked-sku-fork-archive-current"
+                  onCheckedChange={(checked) => setLinkedSkuForkArchiveCurrent(checked === true)}
+                />
+                <div className="grid gap-1">
+                  <Label
+                    className="flex items-center gap-2"
+                    id="linked-sku-fork-archive-label"
+                    htmlFor="linked-sku-fork-archive-current"
+                  >
+                    <ActionArchiveIcon aria-hidden="true" className="size-4 shrink-0" />
+                    {translateUiLiteral(language, 'Archive {name}', { name: linkedSkuForkArchiveServiceName })}
+                  </Label>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {translateUiLiteral(language, 'Leave unchecked to keep {name} active alongside the new service.', { name: linkedSkuForkArchiveServiceName })}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                disabled={isSaving}
+                type="button"
+                variant="ghost"
+                onClick={() => setLinkedSkuForkDialogOpen(false)}
+              >
+                <ActionCloseIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Cancel')}
+              </Button>
+              <Button
+                disabled={isSaving || !linkedSkuForkServiceName.trim()}
+                type="button"
+                onClick={() => void createLinkedSkuFork()}
+              >
+                <ActionConfirmIcon data-icon="inline-start" />
+                {translateUiLiteral(language, 'Create new service')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <SkuPageHero
         actions={
           <WorkspaceActionRow>
@@ -703,9 +877,13 @@ export function ServiceFormRoute() {
                 if (!nextValue.trim()) {
                   return;
                 }
+                const parsedServicePrice = parseNonNegativeMoneyDraft(nextValue, currency, usdToKhrExchangeRate);
+                if (parsedServicePrice == null) {
+                  return;
+                }
                 setForm((current) => ({
                   ...current,
-                  price: usdMoneyFromDisplay(parseEditableNumberWithCommas(nextValue), currency, usdToKhrExchangeRate),
+                  price: parsedServicePrice,
                 }));
               }}
             />

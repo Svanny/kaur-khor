@@ -2294,7 +2294,7 @@ export const enUiCopyV1 = {
   overviewDrawerModeOrderedWaitingDescription: 'Record the open order',
   overviewDrawerModeEtaChangedTitle: "Order's ETA changed",
   overviewDrawerModeEtaChangedDescription: 'Update the arrival date',
-  overviewDrawerModeGoodsReceivedTitle: 'Order recieved',
+  overviewDrawerModeGoodsReceivedTitle: 'Order received',
   overviewDrawerModeGoodsReceivedDescription: 'Log the receipt',
   overviewDrawerModeSummaryNotOrdered: 'Kaur Khor will keep this task open until the order state changes.',
   overviewDrawerModeSummaryOrderCanceled: 'Kaur Khor will save the canceled supplier ticket and keep this task in To order.',
@@ -2341,6 +2341,7 @@ export const enUiCopyV1 = {
   overviewDrawerSubmitOrderCanceled: 'Save cancellation',
   overviewDrawerSubmitNotOrdered: 'Save note',
   overviewDrawerSubmitDefault: 'Save and refresh',
+  overviewDrawerObservedAtRequired: 'Choose a valid observed date/time before saving.',
   overviewDrawerSaveFailed: "Kaur Khor could not save this update. Try again.",
   stockUpdateEyebrow: 'Capture',
 } as const;
