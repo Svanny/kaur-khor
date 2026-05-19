@@ -594,7 +594,7 @@ fn load_recent_record_activity_locked(
     owner_sub: &str,
     limit: usize,
 ) -> Result<Vec<SenaRecordActivityEntry>> {
-    let requested_rows = limit.saturating_mul(4).max(limit);
+    let requested_rows = limit.saturating_mul(4);
     let mut stmt = connection.prepare(
         r#"
         SELECT observation_id, payload
@@ -1513,20 +1513,7 @@ fn refresh_batch(batch: &mut SenaOrderBatchRecord) {
 }
 
 fn persist_batch(connection: &Connection, batch: &SenaOrderBatchRecord) -> Result<()> {
-    let existing_owner = connection
-        .query_row(
-            "SELECT owner_sub FROM sena_order_batch WHERE batch_order_id = ?1",
-            params![batch.batch_order_id],
-            |row| row.get::<_, String>(0),
-        )
-        .optional()?;
-    if existing_owner
-        .as_deref()
-        .is_some_and(|owner_sub| owner_sub != batch.owner_sub)
-    {
-        return Err(anyhow!("order batch id already belongs to another owner"));
-    }
-    connection.execute(
+    let affected_rows = connection.execute(
         r#"
         INSERT INTO sena_order_batch (batch_order_id, owner_sub, supplier_name, status, updated_at, payload_json)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -1535,6 +1522,7 @@ fn persist_batch(connection: &Connection, batch: &SenaOrderBatchRecord) -> Resul
           status = excluded.status,
           updated_at = excluded.updated_at,
           payload_json = excluded.payload_json
+        WHERE sena_order_batch.owner_sub = excluded.owner_sub
         "#,
         params![
             batch.batch_order_id,
@@ -1545,6 +1533,9 @@ fn persist_batch(connection: &Connection, batch: &SenaOrderBatchRecord) -> Resul
             serde_json::to_string(batch)?,
         ],
     )?;
+    if affected_rows == 0 {
+        return Err(anyhow!("order batch id already belongs to another owner"));
+    }
     connection.execute(
         "DELETE FROM sena_order_child_lookup WHERE batch_order_id = ?1",
         params![batch.batch_order_id],
