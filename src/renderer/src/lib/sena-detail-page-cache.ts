@@ -32,6 +32,25 @@ function entryKey(entityType: SenaDetailCacheEntityType, entityId: string, befor
   return `${subjectKey(entityType, entityId)}:before:${beforeIntervalIndex ?? 'latest'}:limit:${limit}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function readEntryRecord(value: unknown): Record<string, PersistedSenaDetailPageEnvelope> {
+  return isRecord(value) ? value as Record<string, PersistedSenaDetailPageEnvelope> : {};
+}
+
+function readIndexRecord(value: unknown): Record<string, string[]> {
+  if (!isRecord(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string[]] =>
+      Array.isArray(entry[1]) && entry[1].every((item) => typeof item === 'string'),
+    ),
+  );
+}
+
 function readStore(storage: Storage): PersistedSenaDetailPageStore {
   if (!storage || typeof storage.getItem !== 'function') {
     return { entries: {}, entityIndex: {}, fingerprintIndex: {} };
@@ -48,9 +67,9 @@ function readStore(storage: Storage): PersistedSenaDetailPageStore {
   try {
     const parsed = JSON.parse(raw) as Partial<PersistedSenaDetailPageStore>;
     return {
-      entries: parsed.entries ?? {},
-      entityIndex: parsed.entityIndex ?? {},
-      fingerprintIndex: parsed.fingerprintIndex ?? {},
+      entries: readEntryRecord(parsed.entries),
+      entityIndex: readIndexRecord(parsed.entityIndex),
+      fingerprintIndex: readIndexRecord(parsed.fingerprintIndex),
     };
   } catch {
     return { entries: {}, entityIndex: {}, fingerprintIndex: {} };

@@ -3054,6 +3054,7 @@ describe('StockUpdateSessionRoute', () => {
 
     expect(isoValue).not.toBeNull();
     expect(dateInputValue(isoValue)).toBe('2026-04-10');
+    expect(dateInputToIso('2026-02-31')).toBeNull();
   });
 
   it('updates a legacy supplier batch selected from the edit picker instead of creating a new batch', async () => {

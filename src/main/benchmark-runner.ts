@@ -100,12 +100,20 @@ function summarizeMetricValue(summary: KaurKhorBenchmarkScenarioSummary, name: s
   return summary.derivedMetrics?.[name] ?? summary.metrics?.[name]?.median ?? null;
 }
 
-async function readJsonFile<T>(path: string): Promise<T | null> {
+export async function readBenchmarkJsonFile<T>(path: string): Promise<T | null> {
   const raw = await readFile(path, 'utf8').catch(() => null);
   if (!raw) {
     return null;
   }
-  return JSON.parse(raw) as T;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as T;
+  } catch {
+    return null;
+  }
 }
 
 async function readJsonlFile<T>(path: string): Promise<T[]> {
@@ -495,7 +503,7 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readRun(runId: string) {
-    const record = await readJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
+    const record = await readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
     if (!record) {
       return null;
     }
@@ -510,7 +518,7 @@ export function registerBenchmarkRunnerIpc({
   }
 
   async function readStoredRun(runId: string) {
-    return readJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
+    return readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(recordPath(runId));
   }
 
   async function collectSummaries(record: KaurKhorBenchmarkRunRecord): Promise<KaurKhorBenchmarkScenarioSummary[]> {
@@ -524,7 +532,7 @@ export function registerBenchmarkRunnerIpc({
           if (!fileStat || fileStat.mtimeMs < startedMs) {
             return null;
           }
-          return readJsonFile<KaurKhorBenchmarkScenarioSummary>(file);
+          return readBenchmarkJsonFile<KaurKhorBenchmarkScenarioSummary>(file);
         }),
     );
     const freshSummaries = summaries
@@ -553,7 +561,7 @@ export function registerBenchmarkRunnerIpc({
         if (!fileStat || fileStat.mtimeMs < startedMs || fileStat.mtimeMs > completedMs + 120_000) {
           return null;
         }
-        const summary = await readJsonFile<KaurKhorBenchmarkScenarioSummary>(summaryFile);
+        const summary = await readBenchmarkJsonFile<KaurKhorBenchmarkScenarioSummary>(summaryFile);
         if (!summary || summary.scenario !== scenario) {
           return null;
         }
@@ -810,7 +818,7 @@ export function registerBenchmarkRunnerIpc({
       entries
         .filter((entry) => entry.endsWith('.json'))
         .map(async (entry) => {
-          const record = await readJsonFile<KaurKhorBenchmarkRunRecord>(join(runRecordsDirectory, entry));
+          const record = await readBenchmarkJsonFile<KaurKhorBenchmarkRunRecord>(join(runRecordsDirectory, entry));
           if (!record) {
             return null;
           }

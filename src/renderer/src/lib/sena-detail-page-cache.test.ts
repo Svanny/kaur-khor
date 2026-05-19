@@ -113,6 +113,7 @@ const freshness = deriveSenaDetailCacheFreshnessFingerprint({
   latestObservedAt: '2026-04-02T00:00:00Z',
   runId: 'run-1',
 });
+const storageKey = 'kaur-khor:sena:detail-pages:v1';
 
 describe('sena detail page cache', () => {
   beforeEach(() => {
@@ -161,7 +162,7 @@ describe('sena detail page cache', () => {
   });
 
   it('ignores malformed payloads and stale fingerprints', () => {
-    window.localStorage.setItem('kaur-khor:sena:detail-pages:v1', '{bad json');
+    window.localStorage.setItem(storageKey, '{bad json');
     expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
       beforeIntervalIndex: null,
       entityId: 'sku-1',
@@ -189,6 +190,33 @@ describe('sena detail page cache', () => {
       limit: 20,
       storage: window.localStorage,
     })).toBeNull();
+  });
+
+  it('ignores corrupted cache record shapes while writing', () => {
+    window.localStorage.setItem(storageKey, JSON.stringify({
+      entries: 'bad',
+      entityIndex: { 'sku:sku-1': 'bad' },
+      fingerprintIndex: { [freshness ?? '']: 'bad' },
+    }));
+
+    expect(() => writePersistedSenaDetailPage({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      page: makeSkuPage(20),
+      storage: window.localStorage,
+    })).not.toThrow();
+
+    expect(readPersistedSenaDetailPage<SenaSkuDetailPage>({
+      beforeIntervalIndex: null,
+      entityId: 'sku-1',
+      entityType: 'sku',
+      freshnessFingerprint: freshness,
+      limit: 20,
+      storage: window.localStorage,
+    })?.latestIntervalIndex).toBe(20);
   });
 
   it('prunes stale fingerprints and clears per entity', () => {

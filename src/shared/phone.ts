@@ -30,7 +30,7 @@ function digitsOnly(value: string) {
 }
 
 function normalizeDefaultCountryCode(value: string | null | undefined) {
-  return digitsOnly(value ?? '') || DEFAULT_PHONE_COUNTRY_CODE;
+  return digitsOnly(typeof value === 'string' ? value : '') || DEFAULT_PHONE_COUNTRY_CODE;
 }
 
 function splitExplicitCountryCode(value: string) {
@@ -57,7 +57,7 @@ function splitExplicitCountryCode(value: string) {
 }
 
 export function sanitizePhoneInput(value: string | null | undefined) {
-  const trimmed = value?.trim() ?? '';
+  const trimmed = typeof value === 'string' ? value.trim() : '';
   if (!trimmed) {
     return '';
   }

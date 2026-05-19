@@ -180,4 +180,30 @@ describe('deriveFinancialsViewModel', () => {
     expect(model.coverage.freshnessLabel).toContain('Apr 10');
     expect(model.titleMeta.join(' ')).toContain('Apr 10');
   });
+
+  test('ignores invalid workspace summary dates when anchoring windows', () => {
+    const model = deriveFinancialsViewModel({
+      catalog,
+      compareMode: false,
+      currency: 'USD',
+      diagnostics: null,
+      language: 'en',
+      observations: [
+        observation('older-first', '2026-04-01T08:00:00.000Z', 1),
+        observation('latest-second', '2026-04-10T08:00:00.000Z', 1),
+      ],
+      orderBatches: [],
+      range: '7d',
+      scope: 'all',
+      serviceDetailsById: { ...serviceDetailsById },
+      skuDetailsById: { ...skuDetailsById },
+      workspaceSummary: { ...workspaceSummary, latestObservedAt: 'not-a-date' },
+      customRange: null,
+      previousCustomRange: null,
+    });
+
+    expect(model.coverage.freshnessLabel).toContain('Apr 10');
+    expect(model.titleMeta.join(' ')).toContain('Apr 10');
+    expect(model.ribbon.find((metric) => metric.key === 'netSales')?.value).toBe('$20.00');
+  });
 });

@@ -146,6 +146,11 @@ function ticketOptionSortValue(option: Pick<RecordTicketOption, 'sortAt'>) {
   return Number.isFinite(time) ? time : 0;
 }
 
+function recordActivitySortValue(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
+}
+
 export function sortRecordTicketOptionsByRecent<TOption extends Pick<RecordTicketOption, 'sortAt'>>(
   options: TOption[],
 ) {
@@ -187,7 +192,7 @@ export function latestDeliveryFeeMetadataFromContext(
       }
     }
   }
-  candidates.sort((left, right) => right.at.localeCompare(left.at));
+  candidates.sort((left, right) => recordActivitySortValue(right.at) - recordActivitySortValue(left.at));
   return candidates[0]?.metadata ?? null;
 }
 
@@ -264,5 +269,9 @@ export function observationRecordActivityEntries(
       ticketId: ticket.ticketId,
     });
   }
-  return rows.sort((left, right) => right.observedAt.localeCompare(left.observedAt) || right.activityId.localeCompare(left.activityId));
+  return rows.sort(
+    (left, right) =>
+      recordActivitySortValue(right.observedAt) - recordActivitySortValue(left.observedAt) ||
+      right.activityId.localeCompare(left.activityId),
+  );
 }

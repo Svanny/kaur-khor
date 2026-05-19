@@ -36,6 +36,14 @@ function normalizeCommercialEvents(observation: SenaObservationRecord) {
   return observation.input.commercialEvents ?? [];
 }
 
+function latestObservationTime(observations: SenaObservationRecord[]) {
+  let latestTime = Number.NEGATIVE_INFINITY;
+  for (const observation of observations) {
+    latestTime = Math.max(latestTime, observationTime(observation.input.observedAt));
+  }
+  return Number.isFinite(latestTime) ? latestTime : observationTime(new Date().toISOString());
+}
+
 export function filterObservationsForDays(
   observations: SenaObservationRecord[],
   rangeDays: number,
@@ -44,7 +52,7 @@ export function filterObservationsForDays(
   if (rangeDays <= 0) {
     return [];
   }
-  const endTime = endAt ? observationTime(endAt) : observationTime(observations[0]?.input.observedAt ?? new Date().toISOString());
+  const endTime = endAt ? observationTime(endAt) : latestObservationTime(observations);
   const startTime = endTime - rangeDays * 24 * 60 * 60 * 1000;
   return observations.filter((observation) => {
     const observedAt = observationTime(observation.input.observedAt);

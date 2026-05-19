@@ -7,6 +7,7 @@ import {
   duplicateSenaService,
   duplicateSenaSku,
   nextCatalogCopyName,
+  normalizeSenaCatalog,
 } from './sena-catalog';
 
 const sku: SenaSku = {
@@ -70,6 +71,37 @@ function observation(input: Partial<SenaObservationRecord['input']>): SenaObserv
 }
 
 describe('sena catalog product helpers', () => {
+  test('normalizes dirty catalog optional metadata without hiding active items', () => {
+    const dirtyCatalog = catalog({
+      skus: [{
+        ...sku,
+        archived: 'false' as unknown as boolean,
+        imagePath: 12 as unknown as string,
+        supplierName: { name: 'Supplier A' } as unknown as string,
+      }],
+      services: [{
+        ...service,
+        archived: 'true' as unknown as boolean,
+        imagePath: 34 as unknown as string,
+      }],
+    });
+
+    expect(normalizeSenaCatalog(dirtyCatalog)).toEqual({
+      ...dirtyCatalog,
+      skus: [{
+        ...dirtyCatalog.skus[0],
+        archived: false,
+        imagePath: null,
+        supplierName: null,
+      }],
+      services: [{
+        ...dirtyCatalog.services[0],
+        archived: false,
+        imagePath: null,
+      }],
+    });
+  });
+
   test('generates copy names with incrementing conflicts', () => {
     expect(nextCatalogCopyName(['Thread'], 'Thread')).toBe('Thread (copy)');
     expect(nextCatalogCopyName(['Thread', 'Thread (copy)'], 'Thread')).toBe('Thread (copy) (1)');

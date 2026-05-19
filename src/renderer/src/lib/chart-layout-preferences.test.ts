@@ -344,6 +344,22 @@ describe('chart layout preference storage', () => {
     localStorageGetter.mockRestore();
   });
 
+  it('ignores malformed persisted subtype layout records', () => {
+    window.localStorage.setItem('kaur-khor:chart-layout:defaults:v1', JSON.stringify('not-a-record'));
+
+    expect(readSubtypeDefaultChartLayoutPreferences('sku')).toBeNull();
+    expect(() =>
+      writeSubtypeDefaultChartLayoutPreferences('sku', {
+        ...defaultChartLayoutPreferences(),
+        timeframe: 'MAX',
+      }),
+    ).not.toThrow();
+    expect(readSubtypeDefaultChartLayoutPreferences('sku')).toEqual({
+      ...defaultChartLayoutPreferences(),
+      timeframe: 'MAX',
+    });
+  });
+
   it('ignores legacy pane heights that were saved without a manual source marker', () => {
     window.localStorage.setItem(
       'kaur-khor:page-state-memory:v1',
@@ -403,5 +419,30 @@ describe('chart layout preference storage', () => {
         },
       ),
     ).toBe(true);
+  });
+
+  it('drops invalid persisted chart date ranges', () => {
+    window.localStorage.setItem(
+      'kaur-khor:page-state-memory:v1',
+      JSON.stringify({
+        catalog: {
+          values: {
+            'sku:sku-1:chartLayout': {
+              ...defaultChartLayoutPreferences(),
+              customTimeframeRange: {
+                startAt: 'not-a-date',
+                endAt: '2026-03-05T00:00:00.000Z',
+              },
+              visibleDateRange: {
+                startAt: '2026-04-05T00:00:00.000Z',
+                endAt: '2026-03-05T00:00:00.000Z',
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    expect(readEntityChartLayoutPreferences('sku', 'sku-1')).toEqual(defaultChartLayoutPreferences());
   });
 });

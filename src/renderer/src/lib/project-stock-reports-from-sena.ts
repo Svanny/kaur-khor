@@ -3,9 +3,12 @@ import type { SenaObservationRecord } from '@shared/sena';
 
 function sortObservationsAscending(observations: SenaObservationRecord[]) {
   return [...observations].sort((left, right) => {
-    const observedDelta = new Date(left.input.observedAt).getTime() - new Date(right.input.observedAt).getTime();
-    if (observedDelta !== 0) {
-      return observedDelta;
+    const leftTime = new Date(left.input.observedAt).getTime();
+    const rightTime = new Date(right.input.observedAt).getTime();
+    const leftSort = Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY;
+    const rightSort = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
+    if (leftSort !== rightSort) {
+      return leftSort - rightSort;
     }
     return left.observationId.localeCompare(right.observationId);
   });

@@ -1,12 +1,15 @@
 // @vitest-environment node
 
+import { mkdtemp, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { describe, expect, it, vi } from 'vitest';
 import { KAUR_KHOR_BENCHMARK_SCENARIOS } from '@shared/benchmark';
 import {
   benchmarkChildSpawnOptions,
   benchmarkOutputDirectoryForRun,
   buildFlamegraphHtml,
+  readBenchmarkJsonFile,
   SCENARIO_FILE_BY_ID,
   terminateBenchmarkChild,
 } from './benchmark-runner';
@@ -90,5 +93,24 @@ describe('benchmark runner helpers', () => {
     expect(html).not.toContain('d3-flame-graph');
     expect(html).toContain('This self-contained static flame graph');
     expect(html).toContain('renderer/startup: ready - 125 ms');
+  });
+
+  it('ignores malformed persisted benchmark JSON files', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-benchmark-json-'));
+    const file = join(directory, 'run.json');
+    await writeFile(file, '{not json', 'utf8');
+
+    await expect(readBenchmarkJsonFile(file)).resolves.toBeNull();
+  });
+
+  it('ignores persisted benchmark JSON files with non-record shapes', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-benchmark-json-shape-'));
+    const stringFile = join(directory, 'string-run.json');
+    const arrayFile = join(directory, 'array-run.json');
+    await writeFile(stringFile, '"not-a-record"', 'utf8');
+    await writeFile(arrayFile, '[]', 'utf8');
+
+    await expect(readBenchmarkJsonFile(stringFile)).resolves.toBeNull();
+    await expect(readBenchmarkJsonFile(arrayFile)).resolves.toBeNull();
   });
 });

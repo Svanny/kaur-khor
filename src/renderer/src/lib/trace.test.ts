@@ -24,4 +24,15 @@ describe('renderer trace helpers', () => {
       }
     }
   });
+
+  test('treats localStorage getItem failures as tracing disabled', () => {
+    vi.spyOn(window, 'localStorage', 'get').mockReturnValue({
+      getItem: () => {
+        throw new Error('storage read blocked');
+      },
+    } as unknown as Storage);
+
+    expect(rendererTraceEnabled()).toBe(false);
+    expect(() => traceRenderer('test', 'message')).not.toThrow();
+  });
 });

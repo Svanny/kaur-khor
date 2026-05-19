@@ -42,7 +42,7 @@ import {
 } from '@/components/system/lead-time-variability-field';
 import { useDiscardChangesConfirm } from '@/hooks/use-route-leave-confirm';
 import { formatEditableMoneyFromUsd, reformatMoneyDraftValue, usdMoneyFromDisplay } from '@/lib/format';
-import { formatLocalDateTimeInputValue } from '@/lib/date-input-utils';
+import { formatLocalDateTimeInputValue, parseLocalDateTimeInputIso } from '@/lib/date-input-utils';
 import { translateUiLiteral } from '@/lib/translations';
 import {
   buildCaptureSessionHref,
@@ -104,16 +104,7 @@ export function formatDatetimeLocalValue(value: string | Date) {
 }
 
 export function parseDatetimeLocalIso(value: string) {
-  if (!value.trim()) {
-    return null;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  return date.toISOString();
+  return parseLocalDateTimeInputIso(value);
 }
 
 function initialObservedAt() {

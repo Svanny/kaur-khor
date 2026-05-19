@@ -545,6 +545,69 @@ describe('desktop preferences store', () => {
     );
   });
 
+  it('rejects impossible stored preference timestamps', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences } = await loadPreferencesModule();
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        overviewStaleUpdateReminderSnoozeUntil: '2026-02-30T00:00:00.000Z',
+        onboardingCompletedAt: '2026-04-31T00:00:00.000Z',
+      }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(expect.objectContaining({
+      overviewStaleUpdateReminderSnoozeUntil: null,
+      onboardingCompletedAt: null,
+    }));
+  });
+
+  it('normalizes dirty boolean preference values back to booleans', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
+    const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();
+
+    await writeFile(
+      join(userDataPath, 'desktop-preferences.json'),
+      JSON.stringify({
+        dimChartsWhileLoading: 'yes',
+        showExplanatoryTooltips: 'false',
+        showFloatingTitleActions: 0,
+        showRightRailCards: false,
+        customShowRightRailCards: 'true',
+        seenUnlockedNavItems: {
+          catalog: 'yes',
+          insights: true,
+          work: 1,
+        },
+        senaEngineParameters: {
+          ...defaultSenaEngineParameters,
+          smoothingEnabled: 'yes',
+        },
+      }),
+      'utf8',
+    );
+
+    await expect(loadDesktopPreferences(userDataPath)).resolves.toEqual(expect.objectContaining({
+      dimChartsWhileLoading: false,
+      showExplanatoryTooltips: true,
+      showFloatingTitleActions: true,
+      showRightRailCards: false,
+      customShowRightRailCards: false,
+      seenUnlockedNavItems: {
+        catalog: false,
+        insights: true,
+        work: false,
+      },
+      senaEngineParameters: defaultSenaEngineParameters,
+    }));
+
+    await expect(saveDesktopPreferences(userDataPath, { dimChartsWhileLoading: 'yes' as never })).resolves.toEqual(
+      expect.objectContaining({ dimChartsWhileLoading: false }),
+    );
+  });
+
   it('round-trips and normalizes workbench tile order by lane', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-preferences-'));
     const { loadDesktopPreferences, saveDesktopPreferences } = await loadPreferencesModule();

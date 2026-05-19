@@ -218,7 +218,12 @@ export function makeNewTicketId({
 export function latestTicketEvents(observations: SenaObservationRecord[]) {
   return observations
     .flatMap((observation) => observation.input.ticketEvents ?? [])
-    .sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime());
+    .sort((left, right) => ticketEventSortValue(right.occurredAt) - ticketEventSortValue(left.occurredAt));
+}
+
+function ticketEventSortValue(value: string) {
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY;
 }
 
 export function deliveryFeeBucketForWorkflow({
@@ -380,7 +385,7 @@ export function latestDeliveryFeeMetadata(
       }
     }
   }
-  candidates.sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime());
+  candidates.sort((left, right) => ticketEventSortValue(right.at) - ticketEventSortValue(left.at));
   return candidates[0]?.metadata ?? null;
 }
 
@@ -390,5 +395,5 @@ export function ticketLabel(event: SenaTicketEvent) {
     .map((line) => line.entityId)
     .slice(0, 2)
     .join(', ');
-  return partyName ?? lineSummary ?? event.ticketId;
+  return partyName?.trim().length ? partyName : (lineSummary || event.ticketId);
 }

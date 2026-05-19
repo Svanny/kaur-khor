@@ -8,11 +8,13 @@ import {
   customerLinkWarning,
   deliveryFeeBucketForWorkflow,
   latestDeliveryFeeMetadata,
+  latestTicketEvents,
   makeNewTicketId,
   makeTicketId,
   normalizeTicketPhone,
   summarizeDiscount,
   summarizeDeliveryFee,
+  ticketLabel,
 } from './ticketing';
 
 describe('ticketing phone normalization', () => {
@@ -233,6 +235,87 @@ describe('ticketing phone normalization', () => {
       payer: 'merchant',
     });
     expect(latestDeliveryFeeMetadata(observations, 'supplier')).toBeNull();
+  });
+
+  test('sorts dirty delivery fee timestamps after valid ticket metadata', () => {
+    const observations = [{
+      input: {
+        observedAt: 'zzzz',
+        deliveryFee: buildDeliveryFeeMetadata({
+          bucket: 'customer_order',
+          feeUsd: 9,
+          payer: 'customer',
+          subtotalUsd: 10,
+        }),
+        ticketEvents: [{
+          ticketId: 'ticket-valid',
+          ticketFamily: 'customer',
+          lifecycle: 'open',
+          stage: 'pending',
+          revision: 1,
+          eventType: 'created',
+          occurredAt: '2026-04-22T00:00:00.000Z',
+          lines: [],
+          deliveryFee: buildDeliveryFeeMetadata({
+            bucket: 'customer_order',
+            feeUsd: 2,
+            payer: 'customer',
+            subtotalUsd: 10,
+          }),
+        }],
+      },
+    }] as unknown as SenaObservationRecord[];
+
+    expect(latestDeliveryFeeMetadata(observations, 'customer_order')).toMatchObject({
+      feeUsd: 2,
+    });
+  });
+
+  test('sorts dirty ticket event dates after valid events', () => {
+    const observations = [{
+      input: {
+        ticketEvents: [
+          {
+            ticketId: 'ticket-dirty',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: 'zzzz',
+            lines: [],
+          },
+          {
+            ticketId: 'ticket-valid',
+            ticketFamily: 'customer',
+            lifecycle: 'open',
+            stage: 'pending',
+            revision: 1,
+            eventType: 'created',
+            occurredAt: '2026-04-22T00:00:00.000Z',
+            lines: [],
+          },
+        ],
+      },
+    }] as unknown as SenaObservationRecord[];
+
+    expect(latestTicketEvents(observations).map((event) => event.ticketId)).toEqual([
+      'ticket-valid',
+      'ticket-dirty',
+    ]);
+  });
+
+  test('falls back to ticket id when a ticket has no party or lines', () => {
+    expect(ticketLabel({
+      ticketId: 'ticket-empty',
+      ticketFamily: 'customer',
+      lifecycle: 'open',
+      stage: 'pending',
+      revision: 1,
+      eventType: 'created',
+      occurredAt: '2026-04-22T00:00:00.000Z',
+      lines: [],
+    })).toBe('ticket-empty');
   });
 
   test('summarizes flat amount discounts against subtotal', () => {

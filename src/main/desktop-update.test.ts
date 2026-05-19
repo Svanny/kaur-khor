@@ -50,6 +50,49 @@ describe('desktop source-build updater', () => {
     );
   });
 
+  it('ignores prereleases when checking for stable desktop updates', async () => {
+    const request = vi.fn((url: string, _options: unknown, callback: (response: EventEmitter & {
+      headers: Record<string, string>;
+      resume: () => void;
+      statusCode: number;
+    }) => void) => {
+      const req = new EventEmitter() as EventEmitter & { end: () => void };
+      req.end = () => {
+        const response = new EventEmitter() as EventEmitter & {
+          headers: Record<string, string>;
+          resume: () => void;
+          statusCode: number;
+        };
+        response.headers = {};
+        response.resume = vi.fn();
+        response.statusCode = 200;
+        callback(response);
+        process.nextTick(() => {
+          const body = url.includes('/releases?')
+            ? JSON.stringify([
+                { tag_name: 'v0.6.0-beta.1', prerelease: true, html_url: 'https://example.test/beta' },
+                { tag_name: 'v0.5.6', prerelease: false, html_url: 'https://example.test/stable' },
+              ])
+            : JSON.stringify({ tag_name: 'v0.5.6', html_url: 'https://example.test/stable' });
+          response.emit('data', Buffer.from(body));
+          response.emit('end');
+        });
+      };
+      return req;
+    });
+    vi.doMock('node:https', () => ({ request }));
+    const { checkForKaurKhorUpdate } = await import('./desktop-update');
+
+    const result = await checkForKaurKhorUpdate({
+      appVersion: '0.5.6',
+      platform: 'darwin',
+    });
+
+    expect(result.isUpdateAvailable).toBe(false);
+    expect(result.latestVersion).toBe('0.5.6');
+    expect(result.availableVersions.map((option) => option.releaseTag)).not.toContain('v0.6.0-beta.1');
+  });
+
   it('rejects source-build versions that cannot be safely embedded in updater scripts', async () => {
     const { sourceArchiveUrlForVersion } = await import('./desktop-update');
 

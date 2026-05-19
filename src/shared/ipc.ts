@@ -520,10 +520,19 @@ export function normalizeDesktopSeenUnlockedNavItems(
     operations?: boolean;
     performance?: boolean;
   }) | null | undefined;
+  const normalizedFallback = typeof fallbackValue === 'boolean' ? fallbackValue : false;
+  const booleanOrFallback = (candidate: unknown, fallback: boolean) =>
+    typeof candidate === 'boolean' ? candidate : fallback;
   return {
-    catalog: value?.catalog ?? fallbackValue,
-    insights: value?.insights ?? legacyValue?.performance ?? legacyValue?.financials ?? fallbackValue,
-    work: value?.work ?? legacyValue?.operations ?? legacyValue?.automations ?? fallbackValue,
+    catalog: booleanOrFallback(value?.catalog, normalizedFallback),
+    insights: booleanOrFallback(
+      value?.insights,
+      booleanOrFallback(legacyValue?.performance, booleanOrFallback(legacyValue?.financials, normalizedFallback)),
+    ),
+    work: booleanOrFallback(
+      value?.work,
+      booleanOrFallback(legacyValue?.operations, booleanOrFallback(legacyValue?.automations, normalizedFallback)),
+    ),
   };
 }
 
@@ -563,6 +572,20 @@ export function normalizeDesktopPreferenceTimestamp(value: string | null | undef
   if (typeof value !== 'string' || value.trim().length === 0) {
     return null;
   }
+  const calendarDate = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (calendarDate) {
+    const year = Number(calendarDate[1]);
+    const month = Number(calendarDate[2]);
+    const day = Number(calendarDate[3]);
+    const normalizedDate = new Date(Date.UTC(year, month - 1, day));
+    if (
+      normalizedDate.getUTCFullYear() !== year ||
+      normalizedDate.getUTCMonth() !== month - 1 ||
+      normalizedDate.getUTCDate() !== day
+    ) {
+      return null;
+    }
+  }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) {
     return null;
@@ -589,7 +612,9 @@ export function normalizeSenaEngineParameters(
     intervalHighQuantile,
     needProbabilityGate: clampNumber(value?.needProbabilityGate, 0, 1, defaultParameters.needProbabilityGate),
     reviewDelayDays: clampNumber(value?.reviewDelayDays, 0, 365, defaultParameters.reviewDelayDays),
-    smoothingEnabled: value?.smoothingEnabled ?? defaultParameters.smoothingEnabled,
+    smoothingEnabled: typeof value?.smoothingEnabled === 'boolean'
+      ? value.smoothingEnabled
+      : defaultParameters.smoothingEnabled,
   };
 }
 
