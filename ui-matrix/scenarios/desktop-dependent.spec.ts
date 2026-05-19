@@ -117,7 +117,7 @@ test.describe('UI matrix: desktop dependent state', () => {
       expect(catalogImages.serviceImagePath, 'service editor page-level paste should save image path').toEqual(expect.any(String));
       expect(catalogImages.serviceImagePath, 'service editor page-level paste should save a supported image path').toMatch(persistedImagePathPattern);
 
-      await saveStockCountThroughUi(launched.page, sku.skuId, '7');
+      await saveStockCountThroughUi(launched.page, sku.skuId, '7', sku.name);
       await assertUiStable(launched.page, 'dependent after stock count save');
       await assertDesktopBridgeConsistent(launched.page, {
         minObservationCount: initialCounts.observationCount + 1,
