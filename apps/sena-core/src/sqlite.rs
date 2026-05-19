@@ -332,6 +332,25 @@ fn compare_observation_position(
         .then_with(|| left_observation_id.cmp(right_observation_id)))
 }
 
+fn sort_observation_rows_chronological(rows: &mut [(String, String, String)]) -> Result<()> {
+    let mut parsed_rows = rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| parse_observed_at(&row.1).map(|observed_at| (index, observed_at)))
+        .collect::<Result<Vec<_>>>()?;
+    parsed_rows.sort_by(|left, right| {
+        left.1
+            .cmp(&right.1)
+            .then_with(|| rows[left.0].0.cmp(&rows[right.0].0))
+    });
+    let sorted = parsed_rows
+        .into_iter()
+        .map(|(index, _)| rows[index].clone())
+        .collect::<Vec<_>>();
+    rows.clone_from_slice(&sorted);
+    Ok(())
+}
+
 fn upsert_record_update_anchor_locked<T: Serialize>(
     connection: &Connection,
     owner_sub: &str,
@@ -1042,10 +1061,7 @@ fn observation_fingerprint_locked(
     for row in rows {
         fingerprint_rows.push(row?);
     }
-    fingerprint_rows.sort_by(|left, right| {
-        compare_observation_position(&left.1, &left.0, &right.1, &right.0)
-            .expect("validated observations should have RFC3339 timestamps")
-    });
+    sort_observation_rows_chronological(&mut fingerprint_rows)?;
     let latest = fingerprint_rows.last();
     Ok(SenaObservationFingerprint {
         count: fingerprint_rows.len(),
@@ -1734,10 +1750,7 @@ impl SenaRepository for SqliteSenaRepository {
         for row in rows {
             raw_rows.push(row?);
         }
-        raw_rows.sort_by(|left, right| {
-            compare_observation_position(&left.1, &left.0, &right.1, &right.0)
-                .expect("validated observations should have RFC3339 timestamps")
-        });
+        sort_observation_rows_chronological(&mut raw_rows)?;
         raw_rows
             .into_iter()
             .map(|(observation_id, _observed_at, payload)| {
@@ -1763,40 +1776,65 @@ impl SenaRepository for SqliteSenaRepository {
             .lock()
             .map_err(|_| anyhow!("sqlite lock poisoned"))?;
         let fingerprint = observation_fingerprint_locked(&connection, owner_sub)?;
-        let mut stmt = connection.prepare(
-            r#"
-            SELECT observation_id, observed_at, payload
-            FROM sena_observation
-            WHERE owner_sub = ?1
-            "#,
-        )?;
-        let rows = stmt.query_map(params![owner_sub], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })?;
+        let fetch_limit = limit + 1;
         let mut raw_rows = Vec::new();
-        for row in rows {
-            raw_rows.push(row?);
-        }
-        raw_rows.sort_by(|left, right| {
-            compare_observation_position(&right.1, &right.0, &left.1, &left.0)
-                .expect("validated observations should have RFC3339 timestamps")
-        });
         if let Some(before_observed_at) = request.before_observed_at.as_deref() {
-            let before_time = parse_observed_at(before_observed_at)?;
-            let before_observation_id = request.before_observation_id.as_deref();
-            raw_rows.retain(|(observation_id, observed_at, _payload)| {
-                let observed_time =
-                    parse_observed_at(observed_at).expect("validated observations should parse");
-                observed_time < before_time
-                    || (observed_time == before_time
-                        && before_observation_id
-                            .map(|cursor_id| observation_id.as_str() < cursor_id)
-                            .unwrap_or(false))
-            });
+            parse_observed_at(before_observed_at)?;
+            let before_observation_id = request.before_observation_id.as_deref().unwrap_or("");
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                  AND (
+                    unixepoch(observed_at) < unixepoch(?2)
+                    OR (unixepoch(observed_at) = unixepoch(?2) AND observation_id < ?3)
+                  )
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?4
+                "#,
+            )?;
+            let rows = stmt.query_map(
+                params![
+                    owner_sub,
+                    before_observed_at,
+                    before_observation_id,
+                    fetch_limit as i64
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                    ))
+                },
+            )?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
+        } else {
+            let mut stmt = connection.prepare(
+                r#"
+                SELECT observation_id, observed_at, payload
+                FROM sena_observation
+                WHERE owner_sub = ?1
+                ORDER BY unixepoch(observed_at) DESC, observation_id DESC
+                LIMIT ?2
+                "#,
+            )?;
+            let rows = stmt.query_map(params![owner_sub, fetch_limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?;
+            for row in rows {
+                raw_rows.push(row?);
+            }
+        }
+        for row in &raw_rows {
+            parse_observed_at(&row.1)?;
         }
         let has_older = raw_rows.len() > limit;
         raw_rows.truncate(limit);
@@ -4819,6 +4857,9 @@ mod tests {
             split_batch.children[0].status,
             crate::types::SenaOrderChildStatus::Reviewed
         );
-        assert_eq!(split_batch.status, crate::types::SenaOrderBatchStatus::Reviewed);
+        assert_eq!(
+            split_batch.status,
+            crate::types::SenaOrderBatchStatus::Reviewed
+        );
     }
 }

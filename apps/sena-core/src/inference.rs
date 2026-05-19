@@ -451,13 +451,17 @@ fn observations_chronological(
         .map(|observation| {
             let observed_at = OffsetDateTime::parse(&observation.input.observed_at, &Rfc3339)
                 .map_err(|err| anyhow!("invalid observation timestamp: {err}"))?;
-            Ok((observed_at, observation.clone()))
+            Ok((
+                observed_at,
+                observation.observation_id.clone(),
+                observation.clone(),
+            ))
         })
         .collect::<Result<Vec<_>>>()?;
-    with_times.sort_by_key(|(observed_at, _)| *observed_at);
+    with_times.sort_by(|left, right| left.0.cmp(&right.0).then_with(|| left.1.cmp(&right.1)));
     Ok(with_times
         .into_iter()
-        .map(|(_, observation)| observation)
+        .map(|(_, _, observation)| observation)
         .collect())
 }
 
