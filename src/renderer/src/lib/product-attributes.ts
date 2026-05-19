@@ -224,7 +224,7 @@ export function sanitizedProductAttributeDraft(draft: unknown): ProductAttribute
   }
   const candidate = draft as Partial<ProductAttributeDraft>;
   return {
-    enabled: Boolean(candidate.enabled),
+    enabled: candidate.enabled === true || candidate.enabled === 'true',
     rows: (Array.isArray(candidate.rows) ? candidate.rows : [])
       .map((row) => {
         if (!row || typeof row !== 'object') {

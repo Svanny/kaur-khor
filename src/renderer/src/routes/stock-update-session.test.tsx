@@ -682,8 +682,8 @@ describe('StockUpdateSessionRoute', () => {
         : {}),
       ...preferenceState,
     }));
-    setStoredSessionViewMode('pos');
     installMemoryLocalStorage();
+    setStoredSessionViewMode('pos');
     createSenaOrderBatch.mockResolvedValue({ batchOrderId: 'orders/2026/04/12/120000/test/child' });
     ingestSenaObservation.mockResolvedValue({ observationId: 'obs-new' });
     updateSenaObservation.mockResolvedValue({ observationId: 'obs-1' });

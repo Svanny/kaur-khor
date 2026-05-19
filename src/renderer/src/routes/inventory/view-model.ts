@@ -449,7 +449,10 @@ function skuRows(input: DeriveInventoryViewModelInput) {
         onHandHigh,
         onHandLow,
         onHandMean,
-        orderProbability: finiteOrNull(latestPipeline?.orderProbability),
+        orderProbability: (() => {
+          const probability = finiteOrNull(latestPipeline?.orderProbability);
+          return probability == null ? null : Math.max(0, Math.min(1, probability));
+        })(),
         projectedUnitsByHorizon: projection,
         receipts: flow.receipts,
         recommendedOrderHigh: nonNegativeOrZero(recommendation?.likelyRangeHigh),

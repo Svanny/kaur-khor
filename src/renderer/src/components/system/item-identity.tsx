@@ -58,7 +58,7 @@ function filePathToUrl(imagePath: string) {
     return isEmbeddedBrowserRoute() ? null : trimmed;
   }
 
-  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) && !/^[a-z]:[\\/]/i.test(trimmed)) {
     return null;
   }
 
