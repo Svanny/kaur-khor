@@ -41,6 +41,9 @@ export async function resolveDesktopAssetPathFromRequest(requestUrl: string, ass
     if (rawPathContainsTraversalSegment(requestUrl)) {
       return null;
     }
+    if (assetUrl.username || assetUrl.password) {
+      return null;
+    }
 
     requestedAssetName = decodeURIComponent(assetUrl.pathname.replace(/^\/+/, ''));
   } catch {

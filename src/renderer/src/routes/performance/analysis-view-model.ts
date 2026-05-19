@@ -306,8 +306,8 @@ function orderedObservations(observations: SenaObservationRecord[]) {
     const leftTime = new Date(left.input.observedAt).getTime();
     const rightTime = new Date(right.input.observedAt).getTime();
     return (
-      (Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY) -
-      (Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY)
+      (Number.isFinite(leftTime) ? leftTime : Number.NEGATIVE_INFINITY) -
+      (Number.isFinite(rightTime) ? rightTime : Number.NEGATIVE_INFINITY)
     );
   });
 }
