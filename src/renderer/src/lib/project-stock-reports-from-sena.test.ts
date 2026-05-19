@@ -43,4 +43,13 @@ describe('projectStockReportsFromSena', () => {
     expect(reports.map((report) => report.reportId)).toEqual(['dirty', 'valid']);
     expect(reports[0]?.skuObservations[0]?.previousProductPrice).toBe(5);
   });
+
+  test('sorts dirty observation dates by id when timestamps are invalid', () => {
+    const reports = projectStockReportsFromSena([
+      observation('dirty-b', 'not-a-date', 7),
+      observation('dirty-a', 'also-not-a-date', 5),
+    ]);
+
+    expect(reports.map((report) => report.reportId)).toEqual(['dirty-b', 'dirty-a']);
+  });
 });
