@@ -1,5 +1,20 @@
 import { prepareDesktopImageUpload } from './desktop-image';
 
+async function telegramFetch(input: string, init?: RequestInit) {
+  if (process.versions.electron) {
+    try {
+      const electron = await import('electron');
+      if (typeof electron.net?.fetch === 'function') {
+        return electron.net.fetch(input, init);
+      }
+    } catch {
+      // Non-Electron test runners and build tools should keep using global fetch.
+    }
+  }
+
+  return fetch(input, init);
+}
+
 type TelegramApiEnvelope<T> = {
   ok: boolean;
   result?: T;
@@ -254,7 +269,7 @@ async function telegramApiRequest<TResult>(
   method: string,
   body?: Record<string, unknown>,
 ): Promise<TResult> {
-  const response = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const response = await telegramFetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: body ? 'POST' : 'GET',
     headers: body ? { 'content-type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -362,7 +377,7 @@ export async function telegramSendPhoto(
     formData.set('parse_mode', parseMode);
   }
 
-  const response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+  const response = await telegramFetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
     method: 'POST',
     body: formData,
   });

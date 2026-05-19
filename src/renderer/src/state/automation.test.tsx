@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { AutomationChannelConnection } from '@shared/automation';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutomationProvider, useAutomation } from './automation';
 
@@ -59,7 +60,7 @@ function deferredPromise<T>() {
   return { promise, reject, resolve };
 }
 
-function automationWorkspace(intakes: unknown[] = []) {
+function automationWorkspace(intakes: unknown[] = [], connectionOverrides: Partial<AutomationChannelConnection> = {}) {
   return {
     connection: {
       channel: 'telegram',
@@ -73,6 +74,7 @@ function automationWorkspace(intakes: unknown[] = []) {
       lastErrorAt: null,
       lastErrorMessage: null,
       lastWebhookAt: null,
+      ...connectionOverrides,
     },
     conversations: [],
     exposures: [],
@@ -177,6 +179,41 @@ describe('AutomationProvider', () => {
     vi.useFakeTimers();
     const getWorkspace = vi.fn()
       .mockResolvedValueOnce(automationWorkspace())
+      .mockResolvedValueOnce(automationWorkspace([{ intakeId: 'intake-1' }]));
+    window.kaurKhorDesktop = {
+      automation: {
+        getWorkspace,
+      },
+    } as never;
+
+    render(
+      <AutomationProvider>
+        <Harness />
+      </AutomationProvider>,
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('0');
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(getWorkspace).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId('intake-count')).toHaveTextContent('1');
+  });
+
+  it('refreshes the workspace while Telegram intake is recovering from an error with a saved token', async () => {
+    vi.useFakeTimers();
+    const getWorkspace = vi.fn()
+      .mockResolvedValueOnce(automationWorkspace([], {
+        status: 'error',
+        hasBotToken: true,
+        lastErrorAt: '2026-05-19T09:00:00.000Z',
+        lastErrorMessage: 'fetch failed',
+      }))
       .mockResolvedValueOnce(automationWorkspace([{ intakeId: 'intake-1' }]));
     window.kaurKhorDesktop = {
       automation: {

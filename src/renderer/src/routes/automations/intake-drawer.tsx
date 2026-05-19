@@ -107,7 +107,7 @@ function confidenceTone(intake: AutomationOrderIntake | null) {
 }
 
 function canPromote(intake: AutomationOrderIntake | null) {
-  if (!intake || intake.quotedTotal == null) {
+  if (!intake || intake.status !== 'quoted' || intake.quotedTotal == null) {
     return false;
   }
   return Number.isFinite(intake.quotedTotal)

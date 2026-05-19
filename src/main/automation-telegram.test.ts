@@ -254,6 +254,33 @@ describe('telegram automation connection setup', () => {
     expect(transport.connection.commandsConfiguredAt).not.toBeNull();
   });
 
+  it('persists telegram settings when live validation cannot reach Telegram', async () => {
+    const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-offline-'));
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const connection = await validateAndSaveTelegramAutomationConnection(userDataPath, {
+      channel: 'telegram',
+      botDisplayName: 'Kanha Sales Assistant',
+      botToken: 'secret-token',
+      botUsername: '@kanha_sales_assistant_bot',
+      externalLink: 'https://t.me/kanha_sales_assistant_bot',
+      status: 'connected',
+    });
+
+    expect(connection.status).toBe('error');
+    expect(connection.hasBotToken).toBe(true);
+    expect(connection.lastErrorMessage).toBe('fetch failed');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const transport = await readAutomationTransportState(userDataPath);
+    expect(transport.botToken).toBe('secret-token');
+    expect(transport.connection.botDisplayName).toBe('Kanha Sales Assistant');
+    expect(transport.connection.botUsername).toBe('@kanha_sales_assistant_bot');
+    expect(transport.connection.externalLink).toBe('https://t.me/kanha_sales_assistant_bot');
+    expect(transport.connection.commandsConfiguredAt).toBeNull();
+  });
+
   it('resolves relative catalog image paths from the desktop assets directory', async () => {
     const userDataPath = await mkdtemp(join(tmpdir(), 'kaur-khor-automation-telegram-assets-'));
     const assetsDir = join(userDataPath, 'assets');

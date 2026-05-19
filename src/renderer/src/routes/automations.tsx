@@ -291,6 +291,25 @@ function AutomationExperimentalWarning({ language }: { language: Parameters<type
   );
 }
 
+function AutomationRouteLinkAction({
+  children,
+  icon,
+  to,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  to: string;
+}) {
+  return (
+    <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
+      <Link to={to}>
+        {icon}
+        {children}
+      </Link>
+    </Button>
+  );
+}
+
 function messageTimeLabel(value: string, language: Parameters<typeof translateUiLiteral>[0]) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -532,7 +551,7 @@ export function AutomationsRoute({
     testTelegramConnection,
     metrics,
   } = useAutomation();
-  const { currency, language, showAutomationsPage, usdToKhrExchangeRate } = usePreferences();
+  const { currency, language, savePreferences, showAutomationsPage, usdToKhrExchangeRate } = usePreferences();
   const { isBrowserRuntime } = useRuntimeMode();
   const [exposureTypeFilter, setExposureTypeFilter] = useState<ExposureTypeFilter>('all');
   const [issueFilter, setIssueFilter] = useState<ExceptionIssueFilter>('all');
@@ -844,6 +863,9 @@ export function AutomationsRoute({
       }
 
       setHasUnlockedAutomationTabs(true);
+      if (!showAutomationsPage) {
+        await savePreferences({ showAutomationsPage: true });
+      }
       updateRouteState({
         conversationId: null,
         intakeFilter: 'all',
@@ -1011,20 +1033,14 @@ export function AutomationsRoute({
         {translateUiLiteral(language, isBrowserRuntime ? 'Poll Telegram now' : 'Test message')}
       </Button>
       {forcedSection === 'settings' ? null : (
-        <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
-          <Link to="/settings/automation">
-            <NavigationSettingsIcon className="size-4" />
-            {translateUiLiteral(language, 'Open settings')}
-          </Link>
-        </Button>
+        <AutomationRouteLinkAction icon={<NavigationSettingsIcon className="size-4" />} to="/settings/automation">
+          {translateUiLiteral(language, 'Open Settings')}
+        </AutomationRouteLinkAction>
       )}
       {forcedSection === 'intake' ? null : (
-        <Button asChild className={compactActionButtonClassName} size="sm" variant="outline">
-          <Link to="/work/intake">
-            <NavigationAutomationIcon className="size-4" />
-            {translateUiLiteral(language, 'Open intake')}
-          </Link>
-        </Button>
+        <AutomationRouteLinkAction icon={<NavigationAutomationIcon className="size-4" />} to="/work/intake">
+          {translateUiLiteral(language, 'Open Intake')}
+        </AutomationRouteLinkAction>
       )}
       {openBotUrl ? (
         <Button
@@ -1050,17 +1066,36 @@ export function AutomationsRoute({
     return <Navigate replace to="/" />;
   }
 
+  const routeLinkTitleAction = forcedSection === 'settings' ? (
+    <WorkspaceActionRow className="justify-end">
+      <AutomationRouteLinkAction icon={<NavigationAutomationIcon className="size-4" />} to="/work/intake">
+        {translateUiLiteral(language, 'Open Intake')}
+      </AutomationRouteLinkAction>
+    </WorkspaceActionRow>
+  ) : forcedSection === 'intake' ? (
+    <WorkspaceActionRow className="justify-end">
+      <AutomationRouteLinkAction icon={<NavigationSettingsIcon className="size-4" />} to="/settings/automation">
+        {translateUiLiteral(language, 'Open Settings')}
+      </AutomationRouteLinkAction>
+    </WorkspaceActionRow>
+  ) : undefined;
+  const titleCardActions = hasSavedTelegramConfiguration ? titleActions : routeLinkTitleAction;
+  const titleCardTitle = forcedSection === 'settings' ? (
+    <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
+  ) : (
+    <span className="flex min-w-0 items-center gap-3">
+      <RouteBackButton className="shrink-0" />
+      <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
+    </span>
+  );
+
   if (isLoading && !workspace) {
     return (
       <WorkspacePage>
         <WorkspaceTitleCard
+          actions={titleCardActions}
           helperExemptReason="Automation title card descriptor supplies route-level guidance."
-          title={
-            <span className="flex min-w-0 items-center gap-3">
-              <RouteBackButton className="shrink-0" />
-              <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
-            </span>
-          }
+          title={titleCardTitle}
           descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
         />
       </WorkspacePage>
@@ -1070,16 +1105,11 @@ export function AutomationsRoute({
   return (
     <WorkspacePage fitViewport={forcedSection === 'intake'} className="gap-5">
       <WorkspaceTitleCard
-        actions={hasSavedTelegramConfiguration ? titleActions : undefined}
+        actions={titleCardActions}
         className={automationTitleCardClassName}
         eyebrow={forcedSection === 'settings' ? getTranslation(language, 'settingsTitle') : undefined}
         helperExemptReason="Automation title card descriptor supplies route-level guidance."
-        title={
-          <span className="flex min-w-0 items-center gap-3">
-            <RouteBackButton className="shrink-0" />
-            <span className="truncate">{translateUiLiteral(language, 'Automated Telegram Bot')}</span>
-          </span>
-        }
+        title={titleCardTitle}
         descriptor={translateUiLiteral(language, 'Expose approved sellables to Telegram, turn messages into customer tickets, and keep Kaur Khor as the source of pricing and fulfillment truth.')}
       >
         <div className="grid gap-3">

@@ -70,6 +70,10 @@ const AutomationContext = createContext<AutomationContextValue | null>(null);
 const automationUnavailableErrorMessage = 'Automations is unavailable in this environment.';
 const connectedAutomationRefreshIntervalMs = 2_000;
 
+function shouldRefreshAutomationWorkspace(connection: AutomationChannelConnection | null) {
+  return connection?.status === 'connected' || (connection?.status === 'error' && connection.hasBotToken);
+}
+
 async function rejectUnavailableAutomation(): Promise<never> {
   throw new Error(automationUnavailableErrorMessage);
 }
@@ -194,7 +198,7 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
   }, [inventory.isLoading, inventory.isPreparingWorkspace, reload]);
 
   useEffect(() => {
-    if (state.connection?.status !== 'connected') {
+    if (!shouldRefreshAutomationWorkspace(state.connection)) {
       return;
     }
 
@@ -227,7 +231,7 @@ export function AutomationProvider({ children }: { children: ReactNode }) {
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [loadWorkspace, setStatePartial, state.connection?.status]);
+  }, [loadWorkspace, setStatePartial, state.connection]);
 
   const saveConnection = useCallback(async (payload: AutomationConnectionPatch) => {
     if (!window.kaurKhorDesktop.automation) {
