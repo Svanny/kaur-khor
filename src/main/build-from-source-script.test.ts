@@ -389,8 +389,8 @@ chmod +x "$node_dir/node"
     expect(script).toContain("const electronBuilderConfig = isUnsignedLocalPackage ? 'electron-builder.unsigned-win.yml' : 'electron-builder.yml'");
     expect(script).toContain("process.env.ELECTRON_BUILDER_DISABLE_BUILD_CACHE = 'true'");
     expect(script).toContain('ensureProjectDependencies();');
-    expect(script).toContain("commandLine(command, args)");
-    expect(script).toContain('replaceAll(\'"\', \'""\')');
+    expect(script).toContain("command.toLowerCase().endsWith('.cmd')");
+    expect(script).toContain('shell: true');
     expect(script).toContain("hasResolvablePackage('rcedit')");
     expect(script).toContain("'install', '--frozen-lockfile'");
     expect(unsignedConfig).toContain('extends: ./electron-builder.yml');
