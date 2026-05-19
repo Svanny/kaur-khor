@@ -388,7 +388,7 @@ function safeOptionalNonNegativeNumber(value: number | null | undefined): number
 }
 
 function safeProbability(value: number | null | undefined, fallback = 0): number {
-  return value != null && Number.isFinite(value) && value >= 0 && value <= 1 ? value : fallback;
+  return value != null && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
 }
 
 function summarizeObservations(observations: SenaObservationRecord[], skuId: string): ObservationSkuSignals {

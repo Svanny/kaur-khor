@@ -444,6 +444,7 @@ export function useSenaDetailHydration(
   useEffect(() => {
     if (!catalog || !workspaceSummary) {
       hydrationRequestIdRef.current += 1;
+      isLoadingOlderIntervalsRef.current = false;
       timeframeCacheRef.current = {};
       setResolvedTimeframeCacheKey(null);
       skuPagesByIdRef.current = {};
@@ -451,6 +452,7 @@ export function useSenaDetailHydration(
       setSkuPagesById({});
       setServicePagesById({});
       setIsHydratingDetails(false);
+      setIsLoadingOlderIntervals(false);
       setTimeframeHydrationProgress(null);
       previousFreshnessFingerprintRef.current = null;
       return;
@@ -554,6 +556,8 @@ export function useSenaDetailHydration(
     return () => {
       active = false;
       hydrationRequestIdRef.current += 1;
+      isLoadingOlderIntervalsRef.current = false;
+      setIsLoadingOlderIntervals(false);
       if (timeoutId != null) {
         window.clearTimeout(timeoutId);
       }

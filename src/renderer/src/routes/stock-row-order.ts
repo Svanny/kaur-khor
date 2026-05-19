@@ -16,18 +16,23 @@ export function sanitizeStockRowOrder(value: unknown) {
   }
 
   const seenSkuIds = new Set<string>();
-  return value.flatMap((entry): string[] => {
+  const orderedSkuIds: string[] = [];
+  for (const entry of value) {
     const skuId = typeof entry === 'string' ? entry.trim() : '';
     if (
       seenSkuIds.size >= MAX_STOCK_ROW_ORDER_ENTRIES ||
       !skuId ||
       seenSkuIds.has(skuId)
     ) {
-      return [];
+      continue;
     }
     seenSkuIds.add(skuId);
-    return [skuId];
-  });
+    orderedSkuIds.push(skuId);
+    if (seenSkuIds.size >= MAX_STOCK_ROW_ORDER_ENTRIES) {
+      break;
+    }
+  }
+  return orderedSkuIds;
 }
 
 export function applyStockRowOrder<Row extends StockRowIdentity>(

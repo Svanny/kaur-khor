@@ -286,7 +286,15 @@ export function formatEditableNumberWithCommas(value: string): string {
 }
 
 export function parseEditableNumberWithCommas(value: string): number {
-  const trimmed = value.trim();
+  let trimmed = value.trim();
+  if (trimmed.startsWith('.')) {
+    trimmed = `0${trimmed}`;
+  } else if (trimmed.startsWith('-.')) {
+    trimmed = trimmed.replace('-.', '-0.');
+  }
+  if (trimmed.endsWith('.')) {
+    trimmed = `${trimmed}0`;
+  }
   if (!/^-?(?:\d+(?:\.\d+)?|\d{1,3}(?:,\d{3})+(?:\.\d+)?)$/.test(trimmed)) {
     return Number.NaN;
   }
