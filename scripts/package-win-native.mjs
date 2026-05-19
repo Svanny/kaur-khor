@@ -57,9 +57,10 @@ function run(commandParts) {
   const [command, ...args] = commandParts;
   const shouldUseCommandShell = process.platform === 'win32' && command.toLowerCase().endsWith('.cmd');
   const result = shouldUseCommandShell
-    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', commandLine(command, args)], {
+    ? spawnSync(command, args, {
         cwd: root,
         stdio: 'inherit',
+        shell: true,
       })
     : spawnSync(command, args, {
         cwd: root,
@@ -74,10 +75,6 @@ function run(commandParts) {
   if (result.status !== 0) {
     process.exit(result.status ?? 1);
   }
-}
-
-function commandLine(command, args) {
-  return [command, ...args].map((part) => `"${String(part).replaceAll('"', '""')}"`).join(' ');
 }
 
 function handoffInstaller() {
