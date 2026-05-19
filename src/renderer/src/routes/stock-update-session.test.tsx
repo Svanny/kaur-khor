@@ -4220,7 +4220,12 @@ describe('StockUpdateSessionRoute', () => {
         serviceRankings: ['service-1'],
       }),
     });
-    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([]);
+    expect(updateSenaObservation.mock.calls[0]![0].input.stockSnapshot).toEqual([
+      expect.objectContaining({
+        skuId: 'sku-1',
+        unitsInStock: 3,
+      }),
+    ]);
     expect(ingestSenaObservation).not.toHaveBeenCalled();
   }, 10_000);
 

@@ -8878,6 +8878,23 @@ export function StockUpdateSessionRoute() {
     });
   }
 
+  function mergeStockSnapshots({
+    manualSnapshot,
+    ticketSnapshot,
+  }: {
+    manualSnapshot: SenaStockSnapshot[];
+    ticketSnapshot: SenaStockSnapshot[] | undefined;
+  }) {
+    const snapshots = new Map<string, SenaStockSnapshot>();
+    for (const snapshot of ticketSnapshot ?? []) {
+      snapshots.set(snapshot.skuId, snapshot);
+    }
+    for (const snapshot of manualSnapshot) {
+      snapshots.set(snapshot.skuId, snapshot);
+    }
+    return [...snapshots.values()];
+  }
+
   function normalizedTicketMetadata(value: unknown) {
     return JSON.stringify(value ?? null);
   }
@@ -9211,13 +9228,11 @@ export function StockUpdateSessionRoute() {
         if (customerCompletedMode !== 'refund_reversal') {
           payload.retailSalesSnapshot = retailSalesSnapshot;
           payload.serviceSalesSnapshot = serviceSalesSnapshot;
-          if (!editSession) {
-            payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-              retailSalesSnapshot
-                .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
-                .map((entry) => [entry.skuId, -entry.unitsSold] as const),
-            ));
-          }
+          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+            retailSalesSnapshot
+              .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
+              .map((entry) => [entry.skuId, -entry.unitsSold] as const),
+          ));
         }
         payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
         payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
@@ -9367,13 +9382,11 @@ export function StockUpdateSessionRoute() {
                 return signals;
               })),
         );
-        if (!editSession) {
-          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-            payload.orderSignals
-              .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
-              .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
-          ));
-        }
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          payload.orderSignals
+            .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
+            .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
+        ));
         payload.leadTimeHints.push(
           ...(supplierPendingMode === 'cancel_supplier_order'
             ? []
@@ -9469,17 +9482,15 @@ export function StockUpdateSessionRoute() {
                 }];
               })),
         );
-        if (!editSession) {
-          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-            Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-              const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
-              if (quantity == null) {
-                return [];
-              }
-              return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
-            }),
-          ));
-        }
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+            const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+            if (quantity == null) {
+              return [];
+            }
+            return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
+          }),
+        ));
         (payload.commercialEvents ??= []).push(
           ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
             const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
@@ -9521,11 +9532,15 @@ export function StockUpdateSessionRoute() {
       }
 
       if (hasStockCountLane) {
-        payload.stockSnapshot = rows.filter((row) =>
+        const manualStockSnapshot = rows.filter((row) =>
           editSession
             ? shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku })
             : stockRowChanged(catalog, stockBySku, row),
         );
+        payload.stockSnapshot = mergeStockSnapshots({
+          manualSnapshot: manualStockSnapshot,
+          ticketSnapshot: payload.stockSnapshot,
+        });
         if (!isSupplierPendingLane && !isSupplierReceiptLane) {
           payload.orderSignals.push(
             ...Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
@@ -9672,13 +9687,11 @@ export function StockUpdateSessionRoute() {
       if (customerCompletedMode !== 'refund_reversal') {
         payload.retailSalesSnapshot = retailSalesSnapshot;
         payload.serviceSalesSnapshot = serviceSalesSnapshot;
-        if (!editSession) {
-          payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-            retailSalesSnapshot
-              .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
-              .map((entry) => [entry.skuId, -entry.unitsSold] as const),
-          ));
-        }
+        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+          retailSalesSnapshot
+            .filter((entry) => Number.isFinite(entry.unitsSold) && entry.unitsSold > 0)
+            .map((entry) => [entry.skuId, -entry.unitsSold] as const),
+        ));
       }
       payload.retailRankings = retailSalesChoice === 'yes' ? derivedRetailRankings : retailRankings;
       payload.serviceRankings = serviceSalesChoice === 'yes' ? derivedServiceRankings : serviceRankings;
@@ -9831,13 +9844,11 @@ export function StockUpdateSessionRoute() {
         }
         return signals;
       });
-      if (!editSession) {
-        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-          payload.orderSignals
-            .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
-            .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
-        ));
-      }
+      payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+        payload.orderSignals
+          .filter((signal) => signal.receiptArrived && signal.approximateReceiptQuantity != null)
+          .map((signal) => [signal.skuId, signal.approximateReceiptQuantity!] as const),
+      ));
       payload.leadTimeHints = supplierPendingMode === 'cancel_supplier_order' ? [] : orderedEntries.flatMap(([skuId]) => {
         const variabilityClass =
           recordOrderLeadTimeVariability ||
@@ -9931,17 +9942,15 @@ export function StockUpdateSessionRoute() {
           receiptTimestamp: dateInputToIso(recordReceiptReceivedDate),
         }];
       });
-      if (!editSession) {
-        payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
-          Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
-            const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
-            if (quantity == null) {
-              return [];
-            }
-            return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
-          }),
-        ));
-      }
+      payload.stockSnapshot = stockSnapshotsForTicketDeltas(new Map(
+        Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
+          const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
+          if (quantity == null) {
+            return [];
+          }
+          return [[skuId, supplierReceiptMode === 'return_receipt_reversal' ? -quantity : quantity] as const];
+        }),
+      ));
       payload.commercialEvents = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
         const quantity = parsePositiveFiniteNumberDraft(draft.receiptQuantity);
         if (quantity == null) {
@@ -10006,11 +10015,14 @@ export function StockUpdateSessionRoute() {
       observedAt: observedAtIso ?? new Date().toISOString(),
       notes: notes.trim() || null,
     });
-    payload.stockSnapshot = rows.filter((row) =>
-      editSession
-        ? shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku })
-        : stockRowChanged(catalog, stockBySku, row),
-    );
+    payload.stockSnapshot = mergeStockSnapshots({
+      manualSnapshot: rows.filter((row) =>
+        editSession
+          ? shouldIncludeStockRowInEditPayload({ editSession, row, stockBySku })
+          : stockRowChanged(catalog, stockBySku, row),
+      ),
+      ticketSnapshot: payload.stockSnapshot,
+    });
     payload.serviceRankings = serviceRankings;
     payload.retailRankings = retailRankings;
     payload.orderSignals = Object.entries(visibleSkuSignalDrafts).flatMap(([skuId, draft]) => {
@@ -10627,6 +10639,8 @@ export function StockUpdateSessionRoute() {
     }
 
     removeStockUpdateDraft(draftStorageKey);
+    setHasSavedDraft(false);
+    setDraftWasRestored(false);
   }
 
   function saveCurrentSession(afterSaveStarts?: () => void) {
@@ -10641,14 +10655,12 @@ export function StockUpdateSessionRoute() {
     const shouldSchedulePostSaveRerun = editSession ? observations.length >= 2 : observations.length + 1 >= 2;
     const draftSnapshot = latestDraftStateRef.current;
     finalSaveStartedRef.current = true;
-    removeStockUpdateDraft(draftStorageKey);
-    setHasSavedDraft(false);
-    setDraftWasRestored(false);
     void runSavingTask(async () => persistCurrentSessionInBackground({
       draftSnapshot,
       payload,
       shouldSchedulePostSaveRerun,
     })).catch((nextError) => {
+      finalSaveStartedRef.current = false;
       console.error('[record-update] failed to save capture session in background', nextError);
     });
     if (afterSaveStarts) {

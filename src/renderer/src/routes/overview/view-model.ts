@@ -85,6 +85,7 @@ export interface OverviewSkuTask extends OverviewTaskBase {
   childOrderId: string | null;
   supplierTicket: SenaTicketSummary | null;
   supplierTicketId: string | null;
+  supplierTicketDisplayId: string | null;
   batchChildCount: number;
   state: Exclude<OverviewTaskFilter, 'all'>;
   stateLabel: string;
@@ -210,7 +211,7 @@ export function supplierTicketTaskForSkuTask({
 }): OverviewSupplierTicketTask {
   const ticket = draftSupplierTicketForSkuTask({ latestObservedAt, task });
   const displayTicketId = task.supplierTicket
-    ? `${ticketDisplayDate(ticket.occurredAt)}-#1`
+    ? task.supplierTicketDisplayId ?? `${ticketDisplayDate(ticket.occurredAt)}-#1`
     : task.skuId;
   const displayTicketLabel = task.supplierTicket
     ? `Supplier Ticket ID: ${displayTicketId}`
@@ -1319,6 +1320,7 @@ function buildTask({
     childOrderId: orderContext?.child.childOrderId ?? null,
     supplierTicket: latestSupplierTicket,
     supplierTicketId,
+    supplierTicketDisplayId: null,
     batchChildCount: orderContext?.batch.children.length ?? 0,
     state,
     stateLabel: taskStateLabel(state, language),
@@ -1552,6 +1554,8 @@ export function buildOverviewModel({
     };
   }
 
+  const supplierTickets = collectSupplierTickets({ observations, recordUpdateContext });
+  const supplierTicketLabels = supplierTicketDisplayLabels(supplierTickets);
   const skuTasks = workspaceSummary.skuSummaries
     .map((summary) =>
       buildTask({
@@ -1565,8 +1569,11 @@ export function buildOverviewModel({
         workspaceLatestObservedAt: workspaceSummary.latestObservedAt,
       }),
     )
-    .filter((value): value is OverviewSkuTask => value != null);
-  const supplierTickets = collectSupplierTickets({ observations, recordUpdateContext });
+    .filter((value): value is OverviewSkuTask => value != null)
+    .map((task) => ({
+      ...task,
+      supplierTicketDisplayId: task.supplierTicketId ? supplierTicketLabels.get(task.supplierTicketId) ?? null : null,
+    }));
   const tasks = groupSupplierTicketTasks(skuTasks, language, supplierTickets);
   const staleUpdateReminderTask = buildStaleUpdateReminderTask({
     forceVisible: forceStaleUpdateReminder ?? false,
