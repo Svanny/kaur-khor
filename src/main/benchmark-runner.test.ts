@@ -119,4 +119,15 @@ describe('benchmark runner helpers', () => {
 
     await expect(readBenchmarkJsonFile(file)).resolves.toBeNull();
   });
+
+  it('ignores persisted benchmark JSON files with non-record shapes', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'kaur-khor-benchmark-json-shape-'));
+    const stringFile = join(directory, 'string-run.json');
+    const arrayFile = join(directory, 'array-run.json');
+    await writeFile(stringFile, '"not-a-record"', 'utf8');
+    await writeFile(arrayFile, '[]', 'utf8');
+
+    await expect(readBenchmarkJsonFile(stringFile)).resolves.toBeNull();
+    await expect(readBenchmarkJsonFile(arrayFile)).resolves.toBeNull();
+  });
 });

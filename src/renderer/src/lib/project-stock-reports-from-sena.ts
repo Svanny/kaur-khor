@@ -5,11 +5,10 @@ function sortObservationsAscending(observations: SenaObservationRecord[]) {
   return [...observations].sort((left, right) => {
     const leftTime = new Date(left.input.observedAt).getTime();
     const rightTime = new Date(right.input.observedAt).getTime();
-    const observedDelta =
-      (Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY) -
-      (Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY);
-    if (observedDelta !== 0) {
-      return observedDelta;
+    const leftSort = Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY;
+    const rightSort = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
+    if (leftSort !== rightSort) {
+      return leftSort - rightSort;
     }
     return left.observationId.localeCompare(right.observationId);
   });
