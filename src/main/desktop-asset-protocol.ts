@@ -17,6 +17,9 @@ export async function resolveDesktopAssetPathFromRequest(requestUrl: string, ass
     if (assetUrl.protocol !== `${DESKTOP_ASSET_PROTOCOL}:` || assetUrl.hostname !== DESKTOP_ASSET_HOST) {
       return null;
     }
+    if (assetUrl.username || assetUrl.password) {
+      return null;
+    }
 
     requestedAssetName = decodeURIComponent(assetUrl.pathname.replace(/^\/+/, ''));
   } catch {
