@@ -192,7 +192,7 @@ export function ProductAttributesField({ draft, language, presets, onChange }: P
             )}
           >
             {variantLimitExceeded
-              ? translateUiLiteral(language, 'Choose 100 or fewer variants before saving.')
+              ? translateUiLiteral(language, 'Choose {count} or fewer variants before saving.').replace('{count}', String(MAX_PRODUCT_ATTRIBUTE_VARIANTS))
               : variantCount > 0
               ? translateUiLiteral(language, variantCount === 1 ? '{count} variant will be created' : '{count} variants will be created').replace('{count}', String(variantCount))
               : draft.rows.length > 0

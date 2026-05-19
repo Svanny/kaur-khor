@@ -747,7 +747,7 @@ function automationTextIncludes(haystack: Array<string | null | undefined>, quer
 }
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isTelegramMessageId(value: unknown): value is number {
@@ -954,18 +954,19 @@ function normalizePendingTelegramOutboundJob(value: unknown): AutomationPendingT
 function normalizeState(value: Partial<AutomationStoreState> | null | undefined): AutomationStoreState {
   const connection = value?.connection;
   const rawValue = value as Record<string, unknown> | null | undefined;
+  const normalizedBotToken = normalizeOptionalString(connection?.botToken);
   return {
     version: 1,
     connection: {
       ...DEFAULT_CONNECTION,
       botDisplayName: normalizeOptionalString(connection?.botDisplayName),
-      botToken: normalizeOptionalString(connection?.botToken),
+      botToken: normalizedBotToken,
       botUsername: normalizeOptionalString(connection?.botUsername),
       channel: 'telegram',
       commandsConfiguredAt: normalizeOptionalString(connection?.commandsConfiguredAt),
       connectedAt: normalizeOptionalString(connection?.connectedAt),
       externalLink: normalizeOptionalString(connection?.externalLink),
-      hasBotToken: typeof connection?.hasBotToken === 'boolean' ? connection.hasBotToken : DEFAULT_CONNECTION.hasBotToken,
+      hasBotToken: Boolean(normalizedBotToken),
       lastErrorAt: normalizeOptionalString(connection?.lastErrorAt),
       lastErrorMessage: normalizeOptionalString(connection?.lastErrorMessage),
       lastWebhookAt: normalizeOptionalString(connection?.lastWebhookAt),
@@ -1100,6 +1101,7 @@ async function loadAutomationState(
   } catch (error) {
     if (error instanceof SyntaxError && options.allowMalformedDefault) {
       console.warn('[automation] automation store JSON is malformed; starting with an empty automation workspace');
+      await writeAutomationState(userDataPath, DEFAULT_STATE);
       return DEFAULT_STATE;
     }
     throw error;
@@ -1700,7 +1702,15 @@ function entityCallbackToken(
   if (existing) {
     return existing.token;
   }
-  const token = `e${session.entityCallbackRefs.length.toString(36)}`;
+  const nextIndex = session.entityCallbackRefs.reduce((maxIndex, entry) => {
+    const match = /^e([0-9a-z]+)$/i.exec(entry.token);
+    if (!match) {
+      return maxIndex;
+    }
+    const parsed = Number.parseInt(match[1]!, 36);
+    return Number.isFinite(parsed) ? Math.max(maxIndex, parsed + 1) : maxIndex;
+  }, 0);
+  const token = `e${nextIndex.toString(36)}`;
   session.entityCallbackRefs.push({ token, entityType, entityId });
   return token;
 }
@@ -3849,7 +3859,7 @@ export async function ingestAutomationTelegramUpdates(
       state.telegramUpdateCursor = Math.max(state.telegramUpdateCursor ?? 0, update.update_id + 1);
       const callbackQuery = update.callback_query;
       if (callbackQuery?.message?.chat.type === 'private' && callbackQuery.message.chat.id != null) {
-        const callbackSentAt = telegramMessageSentAt(callbackQuery.message);
+        const callbackSentAt = nowIso();
         const conversation = upsertTelegramConversationFromCallback(
           state,
           String(callbackQuery.message.chat.id),

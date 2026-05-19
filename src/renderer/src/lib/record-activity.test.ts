@@ -234,6 +234,7 @@ describe('record activity helpers', () => {
     const occurredAt = '2026-04-21T17:30:00.000Z';
     const customerContext: SenaRecordUpdateContext = {
       ...context,
+      latestTicketsById: {},
       openTicketsByFamily: {
         customer: [{
           ticketId: 'ticket-customer-local-date',

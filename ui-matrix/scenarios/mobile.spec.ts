@@ -16,7 +16,7 @@ import {
 import { createSkuThroughUi } from '../helpers/forms';
 
 function phoneCaptureMenuLink(page: import('@playwright/test').Page, name: string) {
-  return page.getByText(name, { exact: true }).first();
+  return page.getByRole('button', { name });
 }
 
 function phoneCaptureDoneButton(page: import('@playwright/test').Page) {

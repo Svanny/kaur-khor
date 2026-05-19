@@ -397,7 +397,7 @@ function CatalogLoadingState() {
         <WorkspacePanel
           title={translateUiLiteral(language, 'Services')}
           descriptor={translateUiLiteral(language, 'Sellable services and the SKUs that support them.')}
-          helperExemptReason="Products loading panel descriptor supplies section guidance."
+          helperExemptReason="Loading services panel descriptor supplies the active section guidance."
         >
           <div className="grid gap-3">
             {CatalogLoadingRows({ count: 3 })}
@@ -817,6 +817,7 @@ export function InventoryRoute() {
           if (!pendingArchive) {
             return;
           }
+          const failedName = pendingArchive.entityName;
           void inventory
             .archiveCatalogEntity({
               entityId: pendingArchive.entityId,
@@ -826,9 +827,10 @@ export function InventoryRoute() {
               setPendingArchive(null);
             })
             .catch(() => {
+              setPendingArchive(null);
               setProductActionNotice({
                 reason: translateUiLiteral(language, 'Kaur Khor could not archive this product. Try again.'),
-                title: translateUiLiteral(language, 'Could not archive {name}', { name: pendingArchive.entityName }),
+                title: translateUiLiteral(language, 'Could not archive {name}', { name: failedName }),
               });
             });
         }}
@@ -870,6 +872,7 @@ export function InventoryRoute() {
           if (!pendingDelete) {
             return;
           }
+          const failedName = pendingDelete.entityName;
           void inventory
             .deleteCatalogEntity({
               entityId: pendingDelete.entityId,
@@ -879,9 +882,10 @@ export function InventoryRoute() {
               setPendingDelete(null);
             })
             .catch(() => {
+              setPendingDelete(null);
               setProductActionNotice({
                 reason: translateUiLiteral(language, 'Kaur Khor could not delete this product. Try again.'),
-                title: translateUiLiteral(language, 'Could not delete {name}', { name: pendingDelete.entityName }),
+                title: translateUiLiteral(language, 'Could not delete {name}', { name: failedName }),
               });
             });
         }}

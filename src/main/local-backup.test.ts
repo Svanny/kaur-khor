@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -142,7 +142,7 @@ describe('desktop local backup snapshots', () => {
       userDataPath,
     });
 
-    expect(restored.restoredSnapshotPath).toBe(snapshot.snapshotPath);
+    await expect(realpath(restored.restoredSnapshotPath)).resolves.toBe(await realpath(snapshot.snapshotPath));
     await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('current-sqlite');
     await expect(readFile(join(userDataPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
     await expect(readFile(join(restored.safetySnapshot.snapshotPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('new-sqlite');
@@ -196,7 +196,7 @@ describe('desktop local backup snapshots', () => {
       userDataPath,
     });
 
-    expect(restored.restoredSnapshotPath).toBe(selectedSnapshot.snapshotPath);
+    await expect(realpath(restored.restoredSnapshotPath)).resolves.toBe(await realpath(selectedSnapshot.snapshotPath));
     await expect(readFile(join(userDataPath, 'desktop-sena-store.sqlite3'), 'utf8')).resolves.toBe('old-sqlite');
     await expect(readFile(join(selectedSnapshot.snapshotPath, 'desktop-preferences.json'), 'utf8')).resolves.toBe('{"language":"en"}');
   });

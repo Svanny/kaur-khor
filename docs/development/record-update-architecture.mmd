@@ -48,7 +48,7 @@ sequenceDiagram
   Main->>Core: route mutation to writer
   Core->>Store: write ticket event and updated hot summaries
   Store-->>Review: save complete
-  Review->>Metrics: wait route.dashboard.ready and record save_stock_count_ms
+  Review->>Metrics: wait route.dashboard.ready and record save_products_update_ms
 
   Bench->>Wizard: open supplier order update
   Wizard->>Workbench: add receipt line

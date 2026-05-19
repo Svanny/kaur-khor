@@ -261,7 +261,11 @@ function normalizeBenchmarkSummaries(value: unknown, runId: string): KaurKhorBen
     return [];
   }
   return value.flatMap((summary) => {
-    if (!isRecord(summary) || !validScenarioIds.has(summary.scenario as KaurKhorBenchmarkScenarioId)) {
+    if (
+      !isRecord(summary) ||
+      !validScenarioIds.has(summary.scenario as KaurKhorBenchmarkScenarioId) ||
+      (summary.runId != null && summary.runId !== runId)
+    ) {
       return [];
     }
     return [{
@@ -358,7 +362,11 @@ export async function readBenchmarkJsonFile<T>(path: string): Promise<T | null> 
     return null;
   }
   try {
-    return JSON.parse(raw) as T;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as T;
   } catch {
     return null;
   }

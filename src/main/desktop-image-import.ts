@@ -179,6 +179,9 @@ export function assertDesktopImageBytesAreSafeForImport(data: ArrayBuffer | Buff
   }
 
   const dimensions = detected.dimensions;
+  if (!dimensions) {
+    throw new Error('Images must be 12000 px or smaller per side and 40 megapixels or smaller.');
+  }
   const pixels = dimensions ? dimensions.width * dimensions.height : 0;
   if (
     dimensions &&

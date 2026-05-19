@@ -1028,6 +1028,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
     }
     return buildSupplierTicketCaptureHref({
       mode: 'new',
+      intent,
       targetId: task.skuId,
       targetType: 'sku',
       skuIds: mode === 'batch' ? skuIds : undefined,
@@ -1625,7 +1626,7 @@ export function DashboardRoute({ embedded = false }: { embedded?: boolean } = {}
         return false;
       }
       if (clampDateInputToObservedDate(input.nextTouchAt, input.observedAt) !== input.nextTouchAt) {
-        setCustomerCompletionError(translateUiLiteral(language, 'Expected date of arrival cannot be before the observed date.'));
+        setCustomerCompletionError(translateUiLiteral(language, 'Next touch date cannot be before the observed date.'));
         return false;
       }
     }

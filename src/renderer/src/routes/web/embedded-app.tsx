@@ -129,12 +129,12 @@ function objectOrFallback<T extends object>(value: unknown, fallback: T): T {
   return isObjectRecord(value) ? { ...fallback, ...value } as T : fallback;
 }
 
-function arrayOrFallback<T>(value: unknown, fallback: T[]): T[] {
-  return Array.isArray(value) ? value as T[] : fallback;
+function arrayOrFallback<T>(value: unknown, fallback: T[], isValid?: (entry: unknown) => entry is T): T[] {
+  return Array.isArray(value) ? value.filter(isValid ?? (() => true)) as T[] : fallback;
 }
 
 function objectArrayOrFallback<T extends object>(value: unknown, fallback: T[]): T[] {
-  return Array.isArray(value) ? value.filter(isObjectRecord) as T[] : fallback;
+  return arrayOrFallback(value, fallback, isObjectRecord);
 }
 
 function isAutomationMessageRecord(value: unknown): value is AutomationMessageRecord {

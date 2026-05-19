@@ -1105,9 +1105,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           });
         }),
       listSenaObservationPage: async (payload) => {
+        const generation = readCacheGenerationRef.current;
         const pagePayload = normalizeObservationPageRequestForCache(payload);
         const key = `sena:observation-page:${JSON.stringify(pagePayload ?? {})}`;
         const page = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listObservationPage(pagePayload));
+        if (readCacheGenerationRef.current !== generation) {
+          return page;
+        }
         if (isInitialObservationPageRequest(pagePayload)) {
           const reports = deriveProjectedReports(page.observations);
           const snapshot = deriveProjectedSnapshot(
@@ -1197,19 +1201,21 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return observations;
       },
       listSenaOrderBatches: async (payload) => {
+        const generation = readCacheGenerationRef.current;
         const orderPayload = normalizeOrderLookupPayloadForCache(payload);
         const key = `sena:order-batches:${JSON.stringify(orderPayload ?? {})}`;
         const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(orderPayload));
-        if (!orderPayload) {
+        if (!orderPayload && readCacheGenerationRef.current === generation) {
           setStatePartial({ orderBatches });
         }
         return orderBatches;
       },
       loadSenaOrderBatches: async (payload) => {
+        const generation = readCacheGenerationRef.current;
         const orderPayload = normalizeOrderLookupPayloadForCache(payload);
         const key = `sena:order-batches:${JSON.stringify(orderPayload ?? {})}`;
         const orderBatches = await loadWithCache(key, () => window.kaurKhorDesktop.sena.listOrderBatches(orderPayload));
-        if (!orderPayload) {
+        if (!orderPayload && readCacheGenerationRef.current === generation) {
           setStatePartial({ orderBatches });
         }
         return orderBatches;

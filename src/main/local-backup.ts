@@ -102,12 +102,13 @@ async function pruneOldSnapshots(userDataPath: string, maxSnapshots: number, pre
 async function uniqueSnapshotDirectoryPath(backupDirectoryPath: string, snapshotDirectoryName: string) {
   let candidate = join(backupDirectoryPath, snapshotDirectoryName);
   for (let suffix = 2; ; suffix += 1) {
-    const exists = await fs.stat(candidate).then(
-      () => true,
-      () => false,
-    );
-    if (!exists) {
+    try {
+      await fs.mkdir(candidate);
       return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        throw error;
+      }
     }
     candidate = join(backupDirectoryPath, `${snapshotDirectoryName}-${suffix}`);
   }
@@ -152,7 +153,6 @@ async function assertPathContainsNoSymlinks(sourcePath: string, fileOps: FileOps
 }
 
 async function copyFilesIntoDirectory(sourceFiles: string[], directoryPath: string, fileOps: FileOps = fs) {
-  await fileOps.mkdir(directoryPath, { recursive: true });
   for (const sourcePath of sourceFiles) {
     await assertPathContainsNoSymlinks(sourcePath, fileOps);
     const targetPath = join(directoryPath, basename(sourcePath));
@@ -191,6 +191,7 @@ export async function restoreWorkspaceFiles(
   const restoredPaths: string[] = [];
 
   try {
+    await fileOps.mkdir(stagedSnapshotDirectoryPath, { recursive: true });
     await copyFilesIntoDirectory(snapshotFiles, stagedSnapshotDirectoryPath, fileOps);
     const currentFiles = await listSnapshotSourceFiles(userDataPath, fileOps);
     await moveFilesIntoDirectory(currentFiles, rollbackDirectoryPath, fileOps);
@@ -231,6 +232,7 @@ async function createDesktopBackupSnapshotUnchecked({
     .filter(Boolean)
     .join('-');
   const backupDirectoryPath = desktopBackupDirectoryPath(userDataPath);
+  await fs.mkdir(backupDirectoryPath, { recursive: true });
   const snapshotPath = await uniqueSnapshotDirectoryPath(backupDirectoryPath, snapshotDirectoryName);
   const sourceFiles = await listSnapshotSourceFiles(userDataPath);
 
@@ -330,9 +332,9 @@ async function resolveSnapshotDirectory(selectedPath: string, userDataPath: stri
   if (!pathIsInside(backupRootPath, snapshotRealPath)) {
     throw new Error('Restore snapshots must come from this workspace backup directory.');
   }
-  const manifestPath = join(snapshotPath, SNAPSHOT_MANIFEST_FILENAME);
+  const manifestPath = join(snapshotRealPath, SNAPSHOT_MANIFEST_FILENAME);
   await fs.readFile(manifestPath, 'utf8');
-  return snapshotPath;
+  return snapshotRealPath;
 }
 
 export async function restoreDesktopBackupSnapshot({

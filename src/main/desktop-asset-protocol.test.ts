@@ -27,6 +27,16 @@ describe('resolveDesktopAssetPathFromRequest', () => {
     await expect(resolveDesktopAssetPathFromRequest('kaur-khor-asset://local/catalog.svg', assetDir)).resolves.toBeNull();
   });
 
+  it('rejects credential-bearing asset URLs', async () => {
+    const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-assets-'));
+    await writeFile(join(assetDir, 'sku.png'), new Uint8Array([1, 2, 3]));
+    const credentialUrl = new URL('kaur-khor-asset://local/sku.png');
+    credentialUrl.username = 'user';
+    credentialUrl.password = 'pass';
+
+    await expect(resolveDesktopAssetPathFromRequest(credentialUrl.href, assetDir)).resolves.toBeNull();
+  });
+
   it('rejects symlinked assets that resolve outside the managed asset directory', async () => {
     const assetDir = await mkdtemp(join(tmpdir(), 'kaur-khor-assets-'));
     const outsideDir = await mkdtemp(join(tmpdir(), 'kaur-khor-secret-assets-'));
